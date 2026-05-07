@@ -146,11 +146,11 @@ function toBusyEvent(slot: BusySlot): EventInput {
 
   return {
     id: `busy-${slot.start}-${slot.end}`,
-    title: label,
+    title: "予約不可",
     start: slot.start,
     end: slot.end,
     allDay,
-    display: "background",
+    display: "block",
     classNames: ["booking-calendar__busy"],
     editable: false,
     startEditable: false,
@@ -798,15 +798,30 @@ export function BookingCalendar({
         </span>
       )
     }
-    if (props.kind === "busy" && props.status) {
-      const statusLabel = props.status === "CONFIRMED" ? "本予約" : "仮予約"
+    if (props.kind === "busy") {
+      const isMonthView = arg.view.type === "dayGridMonth"
+      const lockIcon = (
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      )
+      if (props.status) {
+        const statusLabel = props.status === "CONFIRMED" ? "本予約" : "仮予約"
+        const startTime = arg.event.start ? format(arg.event.start, "HH:mm") : ""
+        const monthShort = props.status === "CONFIRMED" ? "本" : "仮"
+        const text = isMonthView ? `${startTime} ${monthShort}` : `${statusLabel} ${props.label ?? ""}`
+        return (
+          <span className="booking-calendar__busy-pill-content">
+            {lockIcon}
+            <span className="booking-calendar__booking-label">{text}</span>
+          </span>
+        )
+      }
       return (
         <span className="booking-calendar__busy-pill-content">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          <span className="booking-calendar__booking-label">{`${statusLabel} ${props.label ?? ""}`}</span>
+          {lockIcon}
+          <span className="booking-calendar__booking-label">予約不可</span>
         </span>
       )
     }

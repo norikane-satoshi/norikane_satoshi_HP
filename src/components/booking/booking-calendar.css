@@ -263,6 +263,7 @@
 .booking-calendar .fc {
   color: var(--text-primary);
   font-family: var(--font-sans), var(--font-inter), sans-serif;
+  --fc-today-bg-color: transparent;
 }
 
 .booking-calendar .fc,
@@ -382,12 +383,18 @@
   border-radius: var(--hp-radius-sm);
 }
 
+.booking-calendar td.fc-day-today,
+.booking-calendar .fc-day-today {
+  background-color: transparent;
+}
+
 .booking-calendar .fc-day-today .fc-daygrid-day-frame,
 .booking-calendar .fc-timegrid-col.fc-day-today {
   background: var(--glass-bg);
 }
 
 .booking-calendar .fc-day-today .booking-calendar__day-number {
+  color: var(--accent-primary);
   text-decoration-line: underline;
   text-decoration-color: var(--accent-primary);
   text-decoration-thickness: 2px;
@@ -426,11 +433,32 @@
   color: var(--text-primary);
 }
 
-.booking-calendar .fc-bg-event,
-.booking-calendar .booking-calendar__busy {
+.booking-calendar .fc-bg-event {
   border-radius: var(--hp-radius-sm);
   background: color-mix(in srgb, var(--text-primary) 28%, transparent);
   opacity: 1;
+}
+
+.booking-calendar .fc-event.booking-calendar__busy {
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--hp-radius-sm);
+  color: var(--text-primary);
+  opacity: 1;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--text-primary) 38%, transparent) 0,
+      color-mix(in srgb, var(--text-primary) 38%, transparent) 6px,
+      color-mix(in srgb, var(--text-primary) 22%, transparent) 6px,
+      color-mix(in srgb, var(--text-primary) 22%, transparent) 12px
+    ),
+    color-mix(in srgb, var(--text-primary) 18%, var(--glass-bg));
+}
+
+.booking-calendar .fc-event.booking-calendar__busy .fc-event-main,
+.booking-calendar .fc-event.booking-calendar__busy .booking-calendar__busy-pill-content {
+  color: var(--text-primary);
 }
 
 .booking-calendar .fc-event.booking-calendar__draft {
