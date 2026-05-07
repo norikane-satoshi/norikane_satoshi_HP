@@ -21,20 +21,20 @@ export function NavHeader() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
-      <nav className="glass-bar flex w-full items-center justify-between px-6 py-3 md:px-10 md:py-4 xl:px-14">
+      <nav className="glass-bar flex w-full items-center justify-between pl-2 pr-6 py-3 md:pl-4 md:pr-10 md:py-4 xl:pl-6 xl:pr-14">
         <Link href="/" className="flex items-center gap-3 md:gap-4">
           <div
             className="relative shrink-0"
             style={{
-              width: 64,
-              height: 64,
+              width: 96,
+              height: 96,
             }}
           >
             <Image
               src="/nori_logo.svg"
               alt={SITE_BRAND_NAME}
               fill
-              sizes="64px"
+              sizes="96px"
               className="object-contain"
               style={{ objectPosition: "center 30%" }}
               priority
