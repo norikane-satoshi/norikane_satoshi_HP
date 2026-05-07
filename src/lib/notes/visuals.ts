@@ -111,6 +111,17 @@ export const VISUAL_REGISTRY: Record<string, VisualConfig> = {
     intro: "蓄積した因数別パーツを、新しい作品の上に一つずつ重ねる。",
     loopSec: 9,
   },
+  "grading-natural-shifts": {
+    slug: "grading-natural-shifts",
+    kind: "video",
+    title: "刺激のベースラインは時代でずれる",
+    caption:
+      "フィルム時代 / Rec.709 デジタル現在 / VR 普及期 / 高刺激未来 の 4 サンプリング点を底部時代軸上に並べ、ナチュラルドット (accent purple) が時代軸を辿りながら 4 点を結ぶ軌跡を描く。前半は緩く、VR 普及期 → 高刺激未来 の後半で軌跡が急峻に立ち上がる構図で、ナチュラルの基準が時代ごとにずれていくことを 11 秒 1 ループで可視化する。中央プレビューと下部サムネは時代切替に同期してクロスフェードする。",
+    alt: "中央のプレビュー領域と底部時代軸 (過去 → 未来) 上に並ぶフィルム / Rec.709 / VR 普及 / 高刺激未来 の 4 サムネを 11 秒で順番にハイライトし、左端の刺激の強さ軸 (低 → 高) と合わせて、ナチュラルドットが 4 サンプリング点を結ぶ軌跡を描いて後半で急峻に立ち上がる様を可視化するアニメーション。",
+    aspect: { width: 16, height: 5 },
+    intro: "ナチュラルの基準点は、時代ごとに音もなく動いている。",
+    loopSec: 11,
+  },
   "grading-natural-vs-normal": {
     slug: "grading-natural-vs-normal",
     kind: "static",
