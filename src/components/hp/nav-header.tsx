@@ -24,20 +24,18 @@ export function NavHeader() {
       <nav className="glass-bar flex w-full items-center justify-between px-6 py-3 md:px-10 md:py-4 xl:px-14">
         <Link href="/" className="flex items-center gap-3 md:gap-4">
           <div
-            className="relative shrink-0 overflow-hidden rounded-2xl bg-white"
+            className="relative shrink-0"
             style={{
-              width: 48,
-              height: 48,
-              boxShadow:
-                "0 0 0 1px rgba(0,0,0,0.06), 0 2px 8px rgba(28,15,110,0.12)",
+              width: 64,
+              height: 64,
             }}
           >
             <Image
               src="/nori_logo.svg"
               alt={SITE_BRAND_NAME}
               fill
-              sizes="48px"
-              className="object-contain p-1.5"
+              sizes="64px"
+              className="object-contain"
               style={{ objectPosition: "center 30%" }}
               priority
             />
