@@ -483,6 +483,11 @@
   color: #fff;
 }
 
+.booking-calendar .fc-event.booking-calendar__booking-event--tentative .fc-event-main,
+.booking-calendar .fc-event.booking-calendar__booking-event--tentative .booking-calendar__busy-pill-content {
+  color: var(--text-primary);
+}
+
 .booking-calendar__busy-pill-content {
   display: flex;
   min-width: 0;
@@ -498,6 +503,28 @@
 
 .booking-calendar__busy-pill-content svg {
   flex: 0 0 auto;
+}
+
+.booking-calendar__booking-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.booking-calendar .fc-daygrid-event .booking-calendar__booking-label {
+  white-space: nowrap;
+}
+
+.booking-calendar .fc-timegrid-event .booking-calendar__busy-pill-content {
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.booking-calendar .fc-timegrid-event .booking-calendar__booking-label {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .booking-calendar .fc-timegrid-slot-label,

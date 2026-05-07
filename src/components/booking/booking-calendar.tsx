@@ -4,7 +4,11 @@ import FullCalendar from "@fullcalendar/react"
 import dayGridPlugin from "@fullcalendar/daygrid"
 import interactionPlugin, {
   type DateClickArg,
+  type EventDragStartArg,
+  type EventDragStopArg,
   type EventResizeDoneArg,
+  type EventResizeStartArg,
+  type EventResizeStopArg,
 } from "@fullcalendar/interaction"
 import timeGridPlugin from "@fullcalendar/timegrid"
 import jaLocale from "@fullcalendar/core/locales/ja"
@@ -16,6 +20,7 @@ import type {
   EventContentArg,
   EventClickArg,
   EventDropArg,
+  EventApi,
   EventInput,
   EventMountArg,
   EventSourceFuncArg,
@@ -39,20 +44,22 @@ type BookingFromApi = {
   start: string
   end: string
   title: string
-  status: "CONFIRMED" | "TENTATIVE" | "PENDING_CONFIRMATION" | string
+  status: BookingStatus | string
 }
 
 type FreeBusyResponse = {
   busy?: BusySlot[]
   bookings?: BookingFromApi[]
+  code?: string
 }
 
 type BookingKind = "confirmed" | "tentative"
+type BookingStatus = "CONFIRMED" | "TENTATIVE" | "PENDING_CONFIRMATION"
 
 type BusyEventProps = {
   kind: "busy"
   label: string
-  status?: "CONFIRMED" | "TENTATIVE" | "PENDING_CONFIRMATION"
+  status?: BookingStatus
   bookingId?: string
   bookingGroupId?: string
   projectTitle?: string
@@ -67,7 +74,7 @@ type DraftEventProps = {
 type AnyEventProps = {
   kind?: "draft" | "busy"
   label?: string
-  status?: "CONFIRMED" | "TENTATIVE" | "PENDING_CONFIRMATION"
+  status?: BookingStatus
   bookingId?: string
   bookingGroupId?: string
   projectTitle?: string
@@ -159,6 +166,7 @@ function toBookingEvent(
   const label = `${format(new Date(booking.start), "HH:mm")}-${format(new Date(booking.end), "HH:mm")}`
   const status = (booking.status as BusyEventProps["status"]) ?? "CONFIRMED"
   const isConfirmed = status === "CONFIRMED"
+  const isTentative = isTentativeStatus(status)
   const canEdit = editable && !isConfirmed
   const extendedProps: BusyEventProps = {
     kind: "busy",
@@ -177,7 +185,7 @@ function toBookingEvent(
     display: "block",
     classNames: [
       "booking-calendar__booking-event",
-      status === "TENTATIVE" ? "booking-calendar__booking-event--tentative" : "booking-calendar__booking-event--confirmed",
+      isTentative ? "booking-calendar__booking-event--tentative" : "booking-calendar__booking-event--confirmed",
     ],
     editable: canEdit,
     startEditable: canEdit,
@@ -221,6 +229,9 @@ async function fetchFreeBusy(arg: EventSourceFuncArg): Promise<FreeBusyResponse>
   })
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 503) {
+      return (await response.json().catch(() => ({ busy: [], bookings: [] }))) as FreeBusyResponse
+    }
     throw new Error(`free-busy request failed: ${response.status}`)
   }
 
@@ -253,6 +264,14 @@ function hasMinimumSelectionDuration(start: Date, end: Date): boolean {
   return end.getTime() - start.getTime() >= MIN_SELECTION_MS
 }
 
+function isTentativeStatus(status: BookingStatus | string | undefined): boolean {
+  return status === "TENTATIVE" || status === "PENDING_CONFIRMATION"
+}
+
+function rangesOverlap(start: Date, end: Date, otherStart: string, otherEnd: string): boolean {
+  return start.getTime() < new Date(otherEnd).getTime() && end.getTime() > new Date(otherStart).getTime()
+}
+
 type BookingCalendarProps = {
   initialSlots?: { start: string; end: string }[]
   projectTitle?: string
@@ -279,6 +298,8 @@ export function BookingCalendar({
   const calendarRef = useRef<FullCalendar | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const selectedViewRef = useRef<CalendarView>("dayGridMonth")
+  const interactionInProgressRef = useRef(false)
+  const draftPreviewRef = useRef<DraftEvent | null>(null)
 
   const initialDrafts = useMemo<DraftEvent[]>(() => {
     return initialSlots.map((slot) => ({ id: makeDraftId(), start: slot.start, end: slot.end }))
@@ -286,6 +307,7 @@ export function BookingCalendar({
   }, [])
   const [drafts, setDrafts] = useState<DraftEvent[]>(initialDrafts)
   const [activeDraftId, setActiveDraftId] = useState<string | null>(initialDrafts[0]?.id ?? null)
+  const [draftPreview, setDraftPreview] = useState<DraftEvent | null>(null)
 
   const [warningModal, setWarningModal] = useState<
     { kind: BookingKind; message: string; slot: { start: string; end: string } } | null
@@ -297,6 +319,12 @@ export function BookingCalendar({
     () => drafts.find((draft) => draft.id === activeDraftId) ?? null,
     [drafts, activeDraftId],
   )
+  const activePanelDraft = draftPreview?.id === activeDraftId ? draftPreview : activeDraft
+
+  const setDraftPreviewValue = useCallback((preview: DraftEvent | null) => {
+    draftPreviewRef.current = preview
+    setDraftPreview(preview)
+  }, [])
 
   useEffect(() => {
     if (initialSlots.length === 0 || drafts.length > 0) return
@@ -374,6 +402,7 @@ export function BookingCalendar({
   }, [])
 
   useEffect(() => {
+    if (interactionInProgressRef.current) return
     refetchDraftEvents()
   }, [draftEventInputs, refetchDraftEvents])
 
@@ -395,11 +424,30 @@ export function BookingCalendar({
     calendarRef.current?.getApi().getEventById(draftId)?.remove()
     setDrafts((prev) => prev.filter((draft) => draft.id !== draftId))
     setActiveDraftId((current) => (current === draftId ? null : current))
+    setDraftPreview((current) => {
+      const next = current?.id === draftId ? null : current
+      draftPreviewRef.current = next
+      return next
+    })
     setActionPanelPosition(null)
     setWarningModal(null)
     setActionError(null)
     refetchDraftEvents()
   }, [refetchDraftEvents])
+
+  const updateDraftRange = useCallback((draftId: string, start: Date, end: Date) => {
+    const nextStart = start.toISOString()
+    const nextEnd = end.toISOString()
+    setDrafts((prev) =>
+      prev.map((draft) =>
+        draft.id === draftId && (draft.start !== nextStart || draft.end !== nextEnd)
+          ? { ...draft, start: nextStart, end: nextEnd }
+          : draft,
+      ),
+    )
+    setActiveDraftId(draftId)
+    setActionError(null)
+  }, [])
 
   const handledResetRequestKeyRef = useRef(0)
   useEffect(() => {
@@ -412,21 +460,21 @@ export function BookingCalendar({
     })
     setDrafts([])
     setActiveDraftId(null)
+    setDraftPreviewValue(null)
     setActionPanelPosition(null)
     setWarningModal(null)
     setActionError(null)
     refetchDraftEvents()
-  }, [refetchDraftEvents, resetRequestKey])
+  }, [refetchDraftEvents, resetRequestKey, setDraftPreviewValue])
 
-  const overlapsConfirmedBooking = useCallback((start: Date, end: Date): boolean => {
-    const startMs = start.getTime()
-    const endMs = end.getTime()
+  const overlapsBlockedEvent = useCallback((start: Date, end: Date, excludeBookingId?: string): boolean => {
     for (const data of fetchedRef.current.values()) {
+      for (const slot of data.busy ?? []) {
+        if (rangesOverlap(start, end, slot.start, slot.end)) return true
+      }
       for (const booking of data.bookings ?? []) {
-        if (booking.status !== "CONFIRMED") continue
-        const bookingStart = new Date(booking.start).getTime()
-        const bookingEnd = new Date(booking.end).getTime()
-        if (startMs < bookingEnd && endMs > bookingStart) return true
+        if (booking.id === excludeBookingId) continue
+        if (rangesOverlap(start, end, booking.start, booking.end)) return true
       }
     }
     return false
@@ -441,11 +489,76 @@ export function BookingCalendar({
     removeDraft(activeDraftId)
   }, [activeDraftId, removeDraft])
 
+  const updateActionPanelPosition = useCallback(() => {
+    if (!activeDraftId || view !== "timeGridWeek") {
+      setActionPanelPosition(null)
+      return
+    }
+    window.requestAnimationFrame(() => {
+      const rootRect = rootRef.current?.getBoundingClientRect()
+      const eventEl =
+        rootRef.current?.querySelector<HTMLElement>(".fc-event-mirror.booking-calendar__draft, .fc-event-dragging.booking-calendar__draft, .fc-event-resizing.booking-calendar__draft") ??
+        rootRef.current?.querySelector<HTMLElement>(`[data-draft-id="${activeDraftId}"]`)
+      if (!rootRect || !eventEl) return
+      const eventRect = eventEl.getBoundingClientRect()
+      setActionPanelPosition({
+        top: eventRect.bottom - rootRect.top + 8,
+        left: Math.max(12, eventRect.left - rootRect.left),
+      })
+    })
+  }, [activeDraftId, view])
+
   useEffect(() => {
     if (!activeDraftId || view !== "timeGridWeek") {
       setActionPanelPosition(null)
     }
   }, [activeDraftId, view])
+
+  useEffect(() => {
+    updateActionPanelPosition()
+  }, [activeDraftId, activePanelDraft?.start, activePanelDraft?.end, updateActionPanelPosition])
+
+  const previewDraftFromEvent = useCallback((event: EventApi) => {
+    const props = event.extendedProps as AnyEventProps
+    if (props.kind !== "draft" || !props.draftId || !event.start || !event.end) return
+    setDraftPreviewValue({
+      id: props.draftId,
+      start: event.start.toISOString(),
+      end: event.end.toISOString(),
+      sourceKind: props.sourceKind,
+    })
+    setActiveDraftId(props.draftId)
+  }, [setDraftPreviewValue])
+
+  const handleEventDragStart = useCallback((arg: EventDragStartArg) => {
+    interactionInProgressRef.current = true
+    previewDraftFromEvent(arg.event)
+  }, [previewDraftFromEvent])
+
+  const handleEventDragStop = useCallback((arg: EventDragStopArg) => {
+    interactionInProgressRef.current = false
+    const props = arg.event.extendedProps as AnyEventProps
+    const preview = draftPreviewRef.current
+    if (props.kind === "draft" && props.draftId && preview?.id === props.draftId) {
+      updateDraftRange(preview.id, new Date(preview.start), new Date(preview.end))
+    }
+    setDraftPreviewValue(null)
+  }, [setDraftPreviewValue, updateDraftRange])
+
+  const handleEventResizeStart = useCallback((arg: EventResizeStartArg) => {
+    interactionInProgressRef.current = true
+    previewDraftFromEvent(arg.event)
+  }, [previewDraftFromEvent])
+
+  const handleEventResizeStop = useCallback((arg: EventResizeStopArg) => {
+    interactionInProgressRef.current = false
+    const props = arg.event.extendedProps as AnyEventProps
+    const preview = draftPreviewRef.current
+    if (props.kind === "draft" && props.draftId && preview?.id === props.draftId) {
+      updateDraftRange(preview.id, new Date(preview.start), new Date(preview.end))
+    }
+    setDraftPreviewValue(null)
+  }, [setDraftPreviewValue, updateDraftRange])
 
   useEffect(() => {
     function expandTimeRange(event: MouseEvent) {
@@ -474,7 +587,7 @@ export function BookingCalendar({
     if (
       !isSelectableView(arg.view.type) ||
       !hasMinimumSelectionDuration(arg.start, arg.end) ||
-      overlapsConfirmedBooking(arg.start, arg.end)
+      overlapsBlockedEvent(arg.start, arg.end)
     ) {
       calendarApi?.unselect()
       return
@@ -486,21 +599,31 @@ export function BookingCalendar({
     }
     upsertDraft(draft, true)
     calendarApi?.unselect()
-  }, [overlapsConfirmedBooking, upsertDraft])
+  }, [overlapsBlockedEvent, upsertDraft])
 
   const handleSelectAllow = useCallback<AllowFunc>((span) => {
     return (
       isSelectableView(selectedViewRef.current) &&
       hasMinimumSelectionDuration(span.start, span.end) &&
-      !overlapsConfirmedBooking(span.start, span.end)
+      !overlapsBlockedEvent(span.start, span.end)
     )
-  }, [overlapsConfirmedBooking])
+  }, [overlapsBlockedEvent])
 
   const handleEventAllow = useCallback<AllowFunc>((span, movingEvent) => {
     const props = movingEvent?.extendedProps as AnyEventProps | undefined
     if (props?.status === "CONFIRMED") return false
-    return !overlapsConfirmedBooking(span.start, span.end)
-  }, [overlapsConfirmedBooking])
+    const allowed = !overlapsBlockedEvent(span.start, span.end, props?.bookingId)
+    if (allowed && props?.kind === "draft" && props.draftId) {
+      setDraftPreviewValue({
+        id: props.draftId,
+        start: span.start.toISOString(),
+        end: span.end.toISOString(),
+        sourceKind: props.sourceKind,
+      })
+      setActiveDraftId(props.draftId)
+    }
+    return allowed
+  }, [overlapsBlockedEvent, setDraftPreviewValue])
 
   const handleDateClick = useCallback(
     (arg: DateClickArg) => {
@@ -535,21 +658,14 @@ export function BookingCalendar({
         arg.revert()
         return
       }
-      if (overlapsConfirmedBooking(newStart, newEnd)) {
+      if (overlapsBlockedEvent(newStart, newEnd, props.bookingId)) {
         arg.revert()
         return
       }
 
       if (props.kind === "draft" && props.draftId) {
-        setDrafts((prev) =>
-          prev.map((draft) =>
-            draft.id === props.draftId
-              ? { ...draft, start: newStart.toISOString(), end: newEnd.toISOString() }
-              : draft,
-          ),
-        )
-        setActiveDraftId(props.draftId)
-        setActionError(null)
+        updateDraftRange(props.draftId, newStart, newEnd)
+        setDraftPreviewValue(null)
         return
       }
 
@@ -568,35 +684,28 @@ export function BookingCalendar({
 
       arg.revert()
     },
-    [adjustingGroupId, modeKind, overlapsConfirmedBooking],
+    [adjustingGroupId, modeKind, overlapsBlockedEvent, setDraftPreviewValue, updateDraftRange],
   )
 
   const handleEventResize = useCallback((arg: EventResizeDoneArg) => {
     const props = arg.event.extendedProps as AnyEventProps
     const newStart = arg.event.start
     const newEnd = arg.event.end
-      if (!newStart || !newEnd) {
-        arg.revert()
-        return
-      }
-      if (overlapsConfirmedBooking(newStart, newEnd)) {
-        arg.revert()
-        return
-      }
+    if (!newStart || !newEnd) {
+      arg.revert()
+      return
+    }
+    if (overlapsBlockedEvent(newStart, newEnd, props.bookingId)) {
+      arg.revert()
+      return
+    }
     if (props.kind === "draft" && props.draftId) {
-      setDrafts((prev) =>
-        prev.map((draft) =>
-          draft.id === props.draftId
-            ? { ...draft, start: newStart.toISOString(), end: newEnd.toISOString() }
-            : draft,
-        ),
-      )
-      setActiveDraftId(props.draftId)
-      setActionError(null)
+      updateDraftRange(props.draftId, newStart, newEnd)
+      setDraftPreviewValue(null)
       return
     }
     arg.revert()
-  }, [overlapsConfirmedBooking])
+  }, [overlapsBlockedEvent, setDraftPreviewValue, updateDraftRange])
 
   const dayCellClassNames = (arg: DayCellContentArg): string[] => {
     const classes: string[] = []
@@ -641,16 +750,9 @@ export function BookingCalendar({
     const props = arg.event.extendedProps as AnyEventProps
     if (props.kind === "draft") {
       arg.el.setAttribute("data-active-draft", props.draftId === activeDraftId ? "true" : "false")
+      if (props.draftId) arg.el.setAttribute("data-draft-id", props.draftId)
       if (props.draftId === activeDraftId && arg.view.type === "timeGridWeek") {
-        window.requestAnimationFrame(() => {
-          const rootRect = rootRef.current?.getBoundingClientRect()
-          const eventRect = arg.el.getBoundingClientRect()
-          if (!rootRect) return
-          setActionPanelPosition({
-            top: eventRect.bottom - rootRect.top + 8,
-            left: Math.max(12, eventRect.left - rootRect.left),
-          })
-        })
+        updateActionPanelPosition()
       }
       if (props.draftId) {
         const removeButton = document.createElement("button")
@@ -697,14 +799,14 @@ export function BookingCalendar({
       )
     }
     if (props.kind === "busy" && props.status) {
+      const statusLabel = props.status === "CONFIRMED" ? "本予約" : "仮予約"
       return (
         <span className="booking-calendar__busy-pill-content">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
-          <span>{props.label ?? ""}</span>
-          {props.status === "TENTATIVE" ? <span className="booking-calendar__busy-pill-tag">仮</span> : null}
+          <span className="booking-calendar__booking-label">{`${statusLabel} ${props.label ?? ""}`}</span>
         </span>
       )
     }
@@ -816,7 +918,7 @@ export function BookingCalendar({
           </div>
         ) : null}
       </div>
-      {activeDraft && view === "timeGridWeek" && actionPanelPosition ? (
+      {activePanelDraft && view === "timeGridWeek" && actionPanelPosition ? (
         <div
           className="booking-calendar__action-panel glass-flat"
           data-testid="booking-action-panel"
@@ -824,7 +926,7 @@ export function BookingCalendar({
         >
           <div className="booking-calendar__action-panel-info">
             <span className="booking-calendar__action-panel-range">
-              {formatRange(activeDraft.start, activeDraft.end)}
+              {formatRange(activePanelDraft.start, activePanelDraft.end)}
             </span>
           </div>
           <div className="booking-calendar__action-panel-buttons">
@@ -878,6 +980,7 @@ export function BookingCalendar({
           height="auto"
           selectable={view === "timeGridWeek"}
           selectAllow={handleSelectAllow}
+          selectOverlap={false}
           eventAllow={handleEventAllow}
           selectMinDistance={16}
           selectMirror
@@ -889,7 +992,7 @@ export function BookingCalendar({
           slotMinTime={slotMinTime}
           slotMaxTime={slotMaxTime}
           slotDuration="00:30:00"
-          snapDuration="00:00:01"
+          snapDuration="00:30:00"
           allDaySlot={false}
           navLinks
           navLinkDayClick={(date) => changeCalendarView("timeGridDay", toDateKey(date))}
@@ -901,7 +1004,11 @@ export function BookingCalendar({
           dateClick={handleDateClick}
           select={handleSelect}
           eventClick={handleEventClick}
+          eventDragStart={handleEventDragStart}
+          eventDragStop={handleEventDragStop}
           eventDrop={handleEventDrop}
+          eventResizeStart={handleEventResizeStart}
+          eventResizeStop={handleEventResizeStop}
           eventResize={handleEventResize}
         />
       </div>
