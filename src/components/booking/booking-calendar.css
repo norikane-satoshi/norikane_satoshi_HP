@@ -96,10 +96,11 @@
   width: fit-content;
   border: 1px solid var(--accent-primary);
   border-radius: var(--hp-radius-sm);
-  padding: 8px 12px;
+  padding: 10px 18px;
   color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .booking-calendar__move-copy-popup {
@@ -151,25 +152,6 @@
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
-}
-
-.booking-calendar .booking-calendar__draft {
-  border: 2px solid var(--accent-primary);
-  border-radius: var(--hp-radius-sm);
-  background: color-mix(in srgb, var(--accent-primary) 22%, transparent);
-  color: var(--text-primary);
-}
-
-.booking-calendar .booking-calendar__draft--active {
-  background: color-mix(in srgb, var(--accent-primary) 32%, transparent);
-  box-shadow: var(--glass-shadow);
-}
-
-.booking-calendar .fc-event[data-active-draft="true"],
-.booking-calendar .booking-calendar__draft[data-active-draft="true"] {
-  border: 2px solid color-mix(in srgb, var(--accent-primary) 82%, #6b2dff);
-  background: color-mix(in srgb, var(--accent-primary) 42%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 24%, transparent), var(--glass-shadow);
 }
 
 .booking-calendar .booking-calendar__draft .fc-event-main,
@@ -239,6 +221,14 @@
   box-shadow: var(--glass-shadow);
 }
 
+.booking-calendar__view-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .booking-calendar__tab {
   min-width: 72px;
   border: 1px solid transparent;
@@ -246,6 +236,7 @@
   font: inherit;
   font-size: 0.875rem;
   font-weight: 600;
+  line-height: 1.2;
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
@@ -442,7 +433,28 @@
   opacity: 1;
 }
 
-.booking-calendar .booking-calendar__busy-pill {
+.booking-calendar .fc-event.booking-calendar__draft {
+  border: 2px solid color-mix(in srgb, var(--accent-primary) 82%, #6b2dff);
+  border-radius: var(--hp-radius-sm);
+  background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  color: var(--text-primary);
+}
+
+.booking-calendar .fc-event.booking-calendar__draft--active,
+.booking-calendar .fc-event.booking-calendar__draft[data-active-draft="true"] {
+  border: 2px solid color-mix(in srgb, var(--accent-primary) 82%, #6b2dff);
+  background: color-mix(in srgb, var(--accent-primary) 42%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 24%, transparent), var(--glass-shadow);
+}
+
+.booking-calendar .fc-event.booking-calendar__draft[data-active-draft="false"] {
+  border: 2px solid color-mix(in srgb, var(--accent-primary) 82%, #6b2dff);
+  background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  box-shadow: none;
+}
+
+.booking-calendar .booking-calendar__busy-pill,
+.booking-calendar .fc-event.booking-calendar__booking-event {
   overflow: hidden;
   border: 0;
   border-radius: var(--hp-radius-sm);
@@ -450,7 +462,24 @@
   color: #fff;
 }
 
-.booking-calendar .booking-calendar__busy-pill .fc-event-main {
+.booking-calendar .fc-event.booking-calendar__booking-event--confirmed {
+  background: color-mix(in srgb, var(--text-primary) 72%, #312f49);
+}
+
+.booking-calendar .fc-event.booking-calendar__booking-event--tentative {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--accent-primary) 42%, transparent) 0,
+      color-mix(in srgb, var(--accent-primary) 42%, transparent) 6px,
+      color-mix(in srgb, var(--accent-primary) 24%, transparent) 6px,
+      color-mix(in srgb, var(--accent-primary) 24%, transparent) 12px
+    ),
+    color-mix(in srgb, var(--accent-primary) 34%, var(--glass-bg));
+}
+
+.booking-calendar .booking-calendar__busy-pill .fc-event-main,
+.booking-calendar .fc-event.booking-calendar__booking-event .fc-event-main {
   color: #fff;
 }
 

@@ -72,6 +72,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [adjustRequestKey, setAdjustRequestKey] = useState(0)
+  const [calendarResetRequestKey, setCalendarResetRequestKey] = useState(0)
 
   const applyDraft = useCallback(
     (draft: ReturnType<typeof loadDraft>, restoreStep = false) => {
@@ -133,8 +134,9 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
   const handleDiscardDraft = () => {
     clearDraft(userId)
     setFormData(defaultFormData)
-      setSelectedSlots([])
+    setSelectedSlots([])
     setLocalDraftAvailable(false)
+    setCalendarResetRequestKey((value) => value + 1)
     goToStep("calendar")
   }
 
@@ -159,6 +161,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
     setSelectedSlots([])
     setFormValid(false)
     setSubmitError(null)
+    setCalendarResetRequestKey((value) => value + 1)
     goToStep("calendar")
   }
 
@@ -197,10 +200,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
     }
   }
 
-  const canGoNext =
-    (step === "calendar" && selectedSlots.length > 0) ||
-    (step === "form" && selectedSlots.length > 0 && formValid) ||
-    step === "confirm"
+  const canGoNext = (step === "form" && selectedSlots.length > 0 && formValid) || step === "confirm"
 
   const body = (
     <>
@@ -209,6 +209,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
           initialSlots={selectedSlots}
           projectTitle={formData.projectTitle}
           adjustRequestKey={adjustRequestKey}
+          resetRequestKey={calendarResetRequestKey}
           onCommit={handleCommitSlot}
         />
       </div>
