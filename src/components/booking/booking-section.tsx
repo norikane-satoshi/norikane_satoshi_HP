@@ -73,6 +73,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [adjustRequestKey, setAdjustRequestKey] = useState(0)
   const [calendarResetRequestKey, setCalendarResetRequestKey] = useState(0)
+  const [focusSlot, setFocusSlot] = useState<BookingSlot | null>(null)
 
   const applyDraft = useCallback(
     (draft: ReturnType<typeof loadDraft>, restoreStep = false) => {
@@ -90,6 +91,8 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
 
   useEffect(() => {
     const initialStep = getStepFromUrl()
+    // Initial state comes from URL/local storage after client hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStep(initialStep)
 
     const sessionDraft = loadDraft(userId, "session")
@@ -107,6 +110,8 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
 
     if (step === "done") {
       clearDraft(userId)
+      // Local draft availability mirrors storage after completion clears the draft.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalDraftAvailable(false)
       return
     }
@@ -135,6 +140,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
     clearDraft(userId)
     setFormData(defaultFormData)
     setSelectedSlots([])
+    setFocusSlot(null)
     setLocalDraftAvailable(false)
     setCalendarResetRequestKey((value) => value + 1)
     goToStep("calendar")
@@ -150,7 +156,8 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
     [goToStep],
   )
 
-  const handleReselectDate = useCallback(() => {
+  const handleReselectDate = useCallback((slot?: BookingSlot) => {
+    setFocusSlot(slot ?? null)
     setAdjustRequestKey((value) => value + 1)
     goToStep("calendar")
   }, [goToStep])
@@ -159,6 +166,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
     clearDraft(userId)
     setFormData(defaultFormData)
     setSelectedSlots([])
+    setFocusSlot(null)
     setFormValid(false)
     setSubmitError(null)
     setCalendarResetRequestKey((value) => value + 1)
@@ -210,6 +218,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
           projectTitle={formData.projectTitle}
           adjustRequestKey={adjustRequestKey}
           resetRequestKey={calendarResetRequestKey}
+          focusSlot={focusSlot}
           onCommit={handleCommitSlot}
         />
       </div>

@@ -176,6 +176,18 @@
   padding: 8px 12px;
 }
 
+button.booking-form__slot-pill {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+button.booking-form__slot-pill:hover,
+button.booking-form__slot-pill:focus-visible {
+  border-color: color-mix(in srgb, var(--hp-accent) 40%, transparent);
+  color: var(--text-primary);
+}
+
 .booking-form__slot-list {
   display: flex;
   flex-wrap: wrap;

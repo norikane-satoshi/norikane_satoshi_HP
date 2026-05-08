@@ -11,7 +11,7 @@ type BookingConfirmProps = {
   selectedSlots: BookingSlot[]
   submitError?: string | null
   onDismissSubmitError?: () => void
-  onReselectDate?: () => void
+  onReselectDate?: (slot?: BookingSlot) => void
 }
 
 function formatSlot(slot: BookingSlot | null): string {
@@ -71,7 +71,7 @@ export function BookingConfirm({
             <p>{submitError}</p>
             <div className="booking-confirm__submit-actions">
               {onReselectDate ? (
-                <button className="booking-section__text-button" type="button" onClick={onReselectDate}>
+                <button className="booking-section__text-button" type="button" onClick={() => onReselectDate()}>
                   日時を選び直す
                 </button>
               ) : null}

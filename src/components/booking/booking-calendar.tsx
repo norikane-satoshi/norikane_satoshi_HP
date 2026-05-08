@@ -26,10 +26,11 @@ import type {
   EventSourceFuncArg,
 } from "@fullcalendar/core"
 import { format } from "date-fns"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/api-schema"
 import { getHolidayName } from "@/lib/booking/holidays"
+import type { BookingSlot } from "@/lib/booking/form-schema"
 
 type CalendarView = "dayGridMonth" | "timeGridWeek" | "timeGridDay"
 
@@ -272,11 +273,24 @@ function rangesOverlap(start: Date, end: Date, otherStart: string, otherEnd: str
   return start.getTime() < new Date(otherEnd).getTime() && end.getTime() > new Date(otherStart).getTime()
 }
 
+function parseTimeMinutes(value: string): number {
+  const [hours = "0", minutes = "0"] = value.split(":")
+  return Number(hours) * 60 + Number(minutes)
+}
+
+function formatTimeMinutes(minutes: number): string {
+  const clamped = Math.max(0, Math.min(24 * 60, minutes))
+  const hours = Math.floor(clamped / 60)
+  const restMinutes = clamped % 60
+  return `${String(hours).padStart(2, "0")}:${String(restMinutes).padStart(2, "0")}:00`
+}
+
 type BookingCalendarProps = {
   initialSlots?: { start: string; end: string }[]
   projectTitle?: string
   adjustRequestKey?: number
   resetRequestKey?: number
+  focusSlot?: BookingSlot | null
   onCommit: (slots: { start: string; end: string }[], kind: BookingKind) => void
 }
 
@@ -285,6 +299,7 @@ export function BookingCalendar({
   projectTitle,
   adjustRequestKey = 0,
   resetRequestKey = 0,
+  focusSlot = null,
   onCommit,
 }: BookingCalendarProps) {
   const [view, setView] = useState<CalendarView>("dayGridMonth")
@@ -299,6 +314,8 @@ export function BookingCalendar({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const selectedViewRef = useRef<CalendarView>("dayGridMonth")
   const interactionInProgressRef = useRef(false)
+  const prevWasInTopZoneRef = useRef(false)
+  const prevWasInBottomZoneRef = useRef(false)
   const draftPreviewRef = useRef<DraftEvent | null>(null)
 
   const initialDrafts = useMemo<DraftEvent[]>(() => {
@@ -329,6 +346,8 @@ export function BookingCalendar({
   useEffect(() => {
     if (initialSlots.length === 0 || drafts.length > 0) return
     const restored = initialSlots.map((slot) => ({ id: makeDraftId(), start: slot.start, end: slot.end }))
+    // Restores persisted draft props after hydration; this sync cannot be derived from local state alone.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDrafts(restored)
     setActiveDraftId(restored[0]?.id ?? null)
     setModeKind("adjust")
@@ -346,15 +365,40 @@ export function BookingCalendar({
 
   useEffect(() => {
     if (adjustRequestKey === 0) return
+    // Parent reselect requests must imperatively move the calendar back into adjust mode.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setModeKind("adjust")
     setAdjustingGroupId(null)
-    const firstSlot = drafts[0] ?? initialSlots[0]
-    if (firstSlot) {
-      changeCalendarView("timeGridWeek", firstSlot.start)
-    } else {
-      changeCalendarView("timeGridWeek")
+    const firstSlot = focusSlot ?? drafts[0] ?? initialSlots[0]
+    const frame = window.requestAnimationFrame(() => {
+      if (firstSlot) {
+        changeCalendarView("timeGridWeek", firstSlot.start)
+        if (focusSlot) {
+          const start = new Date(focusSlot.start)
+          const end = new Date(focusSlot.end)
+          const dayStart = new Date(start)
+          dayStart.setHours(0, 0, 0, 0)
+          const centerStart = new Date(Math.max(dayStart.getTime(), start.getTime() - 90 * 60 * 1000))
+          const centerTime = format(centerStart, "HH:mm:ss")
+          setSlotMinTime((current) => formatTimeMinutes(Math.min(parseTimeMinutes(current), parseTimeMinutes(centerTime))))
+          setSlotMaxTime((current) => formatTimeMinutes(Math.max(parseTimeMinutes(current), Math.ceil((end.getHours() * 60 + end.getMinutes()) / 30) * 30)))
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+              calendarRef.current?.getApi().scrollToTime(centerTime)
+              rootRef.current
+                ?.querySelector<HTMLElement>(`.fc-timegrid-slot-lane[data-time="${centerTime}"], .fc-timegrid-slot[data-time="${centerTime}"]`)
+                ?.scrollIntoView({ block: "start" })
+            })
+          })
+        }
+      } else {
+        changeCalendarView("timeGridWeek")
+      }
+    })
+    return () => {
+      window.cancelAnimationFrame(frame)
     }
-  }, [adjustRequestKey, changeCalendarView, drafts, initialSlots])
+  }, [adjustRequestKey, changeCalendarView, drafts, focusSlot, initialSlots])
 
   const fetchedRef = useRef<Map<string, FreeBusyResponse>>(new Map())
   const fetchEvents = useCallback(async (arg: EventSourceFuncArg): Promise<EventInput[]> => {
@@ -553,11 +597,15 @@ export function BookingCalendar({
 
   useEffect(() => {
     if (!activeDraftId || view !== "timeGridWeek") {
+      // The floating action panel is DOM-positioned and must be cleared when its anchor disappears.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActionPanelPosition(null)
     }
   }, [activeDraftId, view])
 
   useEffect(() => {
+    // Re-measures FullCalendar DOM after draft geometry changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     updateActionPanelPosition()
   }, [activeDraftId, activePanelDraft?.start, activePanelDraft?.end, updateActionPanelPosition])
 
@@ -574,12 +622,18 @@ export function BookingCalendar({
   }, [setDraftPreviewValue])
 
   const handleEventDragStart = useCallback((arg: EventDragStartArg) => {
+    const props = arg.event.extendedProps as AnyEventProps
+    if (props.kind !== "draft") return
     interactionInProgressRef.current = true
+    prevWasInTopZoneRef.current = false
+    prevWasInBottomZoneRef.current = false
     previewDraftFromEvent(arg.event)
   }, [previewDraftFromEvent])
 
   const handleEventDragStop = useCallback((arg: EventDragStopArg) => {
     interactionInProgressRef.current = false
+    prevWasInTopZoneRef.current = false
+    prevWasInBottomZoneRef.current = false
     const props = arg.event.extendedProps as AnyEventProps
     const preview = draftPreviewRef.current
     if (props.kind === "draft" && props.draftId && preview?.id === props.draftId) {
@@ -589,12 +643,18 @@ export function BookingCalendar({
   }, [setDraftPreviewValue, updateDraftRange])
 
   const handleEventResizeStart = useCallback((arg: EventResizeStartArg) => {
+    const props = arg.event.extendedProps as AnyEventProps
+    if (props.kind !== "draft") return
     interactionInProgressRef.current = true
+    prevWasInTopZoneRef.current = false
+    prevWasInBottomZoneRef.current = false
     previewDraftFromEvent(arg.event)
   }, [previewDraftFromEvent])
 
   const handleEventResizeStop = useCallback((arg: EventResizeStopArg) => {
     interactionInProgressRef.current = false
+    prevWasInTopZoneRef.current = false
+    prevWasInBottomZoneRef.current = false
     const props = arg.event.extendedProps as AnyEventProps
     const preview = draftPreviewRef.current
     if (props.kind === "draft" && props.draftId && preview?.id === props.draftId) {
@@ -603,36 +663,83 @@ export function BookingCalendar({
     setDraftPreviewValue(null)
   }, [setDraftPreviewValue, updateDraftRange])
 
+  const handleCalendarMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (selectedViewRef.current === "dayGridMonth" || event.button !== 0) return
+    const target = event.target instanceof Element ? event.target : null
+    if (!target) return
+    if (target.closest(".fc-event, button, a, input, textarea, select")) return
+    if (!target.closest(".fc-timegrid-body, .fc-timegrid-cols, .fc-timegrid-col, .fc-timegrid-slot")) return
+    interactionInProgressRef.current = true
+    prevWasInTopZoneRef.current = false
+    prevWasInBottomZoneRef.current = false
+  }, [])
+
+  const expandTimeRangeAtClientY = useCallback((clientY: number) => {
+    if (selectedViewRef.current === "dayGridMonth" || !interactionInProgressRef.current) return
+    const scrollEl =
+      rootRef.current?.querySelector<HTMLElement>(".fc-timegrid-body") ??
+      rootRef.current?.querySelector<HTMLElement>(".fc-scroller-liquid-absolute")
+    if (!scrollEl) return
+    const rect = scrollEl.getBoundingClientRect()
+    const inTopZone = clientY - rect.top <= 30
+    const inBottomZone = rect.bottom - clientY <= 30
+
+    if (!prevWasInTopZoneRef.current && inTopZone) {
+      setSlotMinTime((current) => {
+        const hour = Math.max(0, Number(current.slice(0, 2)) - 1)
+        return `${String(hour).padStart(2, "0")}:00:00`
+      })
+    }
+    if (!prevWasInBottomZoneRef.current && inBottomZone) {
+      setSlotMaxTime((current) => {
+        const hour = Math.min(24, Number(current.slice(0, 2)) + 1)
+        return `${String(hour).padStart(2, "0")}:00:00`
+      })
+    }
+    prevWasInTopZoneRef.current = inTopZone
+    prevWasInBottomZoneRef.current = inBottomZone
+  }, [])
+
+  const handleCalendarMouseMoveCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    expandTimeRangeAtClientY(event.clientY)
+  }, [expandTimeRangeAtClientY])
+
   useEffect(() => {
     function expandTimeRange(event: MouseEvent) {
-      if (view === "dayGridMonth") return
-      if (event.buttons !== 1 && !interactionInProgressRef.current) return
-
-      const scrollEl =
-        rootRef.current?.querySelector<HTMLElement>(".fc-timegrid-body") ??
-        rootRef.current?.querySelector<HTMLElement>(".fc-scroller-liquid-absolute")
-      if (!scrollEl) return
-      const rect = scrollEl.getBoundingClientRect()
-
-      if (event.clientY - rect.top <= 30) {
-        setSlotMinTime((current) => {
-          const hour = Math.max(0, Number(current.slice(0, 2)) - 1)
-          return `${String(hour).padStart(2, "0")}:00:00`
-        })
+      if (selectedViewRef.current === "dayGridMonth" || !interactionInProgressRef.current) {
+        prevWasInTopZoneRef.current = false
+        prevWasInBottomZoneRef.current = false
+        return
       }
-      if (rect.bottom - event.clientY <= 30) {
-        setSlotMaxTime((current) => {
-          const hour = Math.min(24, Number(current.slice(0, 2)) + 1)
-          return `${String(hour).padStart(2, "0")}:00:00`
-        })
-      }
+
+      expandTimeRangeAtClientY(event.clientY)
     }
 
     window.addEventListener("mousemove", expandTimeRange)
     return () => window.removeEventListener("mousemove", expandTimeRange)
-  }, [view])
+  }, [expandTimeRangeAtClientY])
+
+  useEffect(() => {
+    function stopSelectInteraction() {
+      interactionInProgressRef.current = false
+      prevWasInTopZoneRef.current = false
+      prevWasInBottomZoneRef.current = false
+    }
+
+    window.addEventListener("pointerup", stopSelectInteraction)
+    window.addEventListener("pointercancel", stopSelectInteraction)
+    window.addEventListener("mouseup", stopSelectInteraction)
+    return () => {
+      window.removeEventListener("pointerup", stopSelectInteraction)
+      window.removeEventListener("pointercancel", stopSelectInteraction)
+      window.removeEventListener("mouseup", stopSelectInteraction)
+    }
+  }, [])
 
   const handleSelect = useCallback((arg: DateSelectArg) => {
+    interactionInProgressRef.current = false
+    prevWasInTopZoneRef.current = false
+    prevWasInBottomZoneRef.current = false
     const calendarApi = calendarRef.current?.getApi()
     if (
       !isSelectableView(arg.view.type) ||
@@ -651,6 +758,12 @@ export function BookingCalendar({
     upsertDraft(draft, true)
     calendarApi?.unselect()
   }, [overlapsBlockedEvent, overlapsConfirmedBufferZone, upsertDraft])
+
+  const handleUnselect = useCallback(() => {
+    interactionInProgressRef.current = false
+    prevWasInTopZoneRef.current = false
+    prevWasInBottomZoneRef.current = false
+  }, [])
 
   const handleSelectAllow = useCallback<AllowFunc>((span) => {
     return (
@@ -968,7 +1081,12 @@ export function BookingCalendar({
   )
 
   return (
-    <div className="booking-calendar" ref={rootRef}>
+    <div
+      className="booking-calendar"
+      ref={rootRef}
+      onMouseDownCapture={handleCalendarMouseDownCapture}
+      onMouseMoveCapture={handleCalendarMouseMoveCapture}
+    >
       <div className="booking-calendar__view-row">
         <div className="booking-calendar__tabs" aria-label="カレンダー表示切替">
           {VIEW_OPTIONS.map((option) => {
@@ -1078,6 +1196,7 @@ export function BookingCalendar({
           dayCellDidMount={handleDayCellDidMount}
           dateClick={handleDateClick}
           select={handleSelect}
+          unselect={handleUnselect}
           eventClick={handleEventClick}
           eventDragStart={handleEventDragStart}
           eventDragStop={handleEventDragStop}

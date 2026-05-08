@@ -18,7 +18,7 @@ type BookingFormProps = {
   selectedSlots: BookingSlot[]
   onChange: (data: BookingFormData) => void
   onValidityChange: (isValid: boolean) => void
-  onReselectDate: () => void
+  onReselectDate: (slot?: BookingSlot) => void
 }
 
 function formatSlot(slot: BookingSlot): string {
@@ -74,16 +74,19 @@ export function BookingForm({
             <span className="glass-badge booking-form__slot-pill">日時未選択</span>
           ) : (
             displaySlots.map((slot, index) => (
-              <span
+              <button
+                type="button"
                 key={`${slot.start}-${slot.end}-${index}`}
                 className="glass-badge booking-form__slot-pill"
+                onClick={() => onReselectDate(slot)}
+                aria-label={`${formatSlot(slot)} の時間に戻って調整`}
               >
                 {formatSlot(slot)}
-              </span>
+              </button>
             ))
           )}
         </div>
-        <button className="booking-form__text-link" type="button" onClick={onReselectDate}>
+        <button className="booking-form__text-link" type="button" onClick={() => onReselectDate()}>
           選択日時
         </button>
       </div>
