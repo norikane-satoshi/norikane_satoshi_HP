@@ -67,6 +67,10 @@ const VIDEO_MODULES: Record<string, ComponentType<VideoVisualProps>> = {
     () => import("@/components/notes/visuals/grading-secret-pantry"),
     { loading: () => <VisualSkeleton /> }
   ),
+  "grading-mix-vs-split": dynamic(
+    () => import("@/components/notes/visuals/grading-mix-vs-split"),
+    { loading: () => <VisualSkeleton /> }
+  ),
 }
 
 const STATIC_MODULES: Record<string, ComponentType<unknown>> = {

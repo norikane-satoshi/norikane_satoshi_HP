@@ -121,6 +121,17 @@ export const VISUAL_REGISTRY: Record<string, VisualConfig> = {
     aspect: { width: 16, height: 9 },
     intro: "整いすぎず、時代感からも外れず、主張だけが先に立たない場所を見る。",
   },
+  "grading-mix-vs-split": {
+    slug: "grading-mix-vs-split",
+    kind: "video",
+    title: "混ぜたまま触る / 分けて触る",
+    caption:
+      "一つの LUT / 一つのカーブでまとめて触ると、狙った軸以外にも変化が漏れる。右側では同じオーダーを 4 軸のどれかに落とし、該当する因数だけが動くことを 9.6 秒 1 ループで比較する。",
+    alt: "左は一つの LUT やカーブで触ると色の広がり・濃度・カーブ・RGB バランスの複数軸が連鎖して動く様子、右は同じオーダーを 4 軸に分けて該当する因数だけを動かす様子を比較するアニメーション",
+    aspect: { width: 16, height: 5 },
+    intro: "軸が混ざると連鎖する。分ければ、該当する場所だけを動かせる。",
+    loopSec: 9.6,
+  },
 }
 
 export function getVisualConfig(slug: string): VisualConfig | null {
