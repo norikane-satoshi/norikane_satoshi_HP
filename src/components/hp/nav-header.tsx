@@ -26,15 +26,15 @@ export function NavHeader() {
           <div
             className="relative shrink-0"
             style={{
-              width: 120,
-              height: 72,
+              width: 102,
+              height: 61,
             }}
           >
             <Image
               src="/nori_logo_header.svg"
               alt={SITE_BRAND_NAME}
               fill
-              sizes="120px"
+              sizes="102px"
               className="object-contain"
               style={{ objectPosition: "center 30%" }}
               priority
