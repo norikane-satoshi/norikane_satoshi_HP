@@ -21,10 +21,10 @@ export function NavHeader() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
-      <nav className="glass-bar flex w-full items-center justify-between pl-2 pr-6 md:pl-4 md:pr-10 xl:pl-6 xl:pr-14 h-[88px] md:h-[96px]">
+      <nav className="glass-bar flex w-full items-center justify-between pl-2 pr-6 md:pl-4 md:pr-10 xl:pl-6 xl:pr-14 h-[88px]">
         <Link href="/" className="flex items-center gap-3 md:gap-4">
           <div
-            className="relative shrink-0"
+            className="relative shrink-0 overflow-hidden"
             style={{
               width: 88,
               height: 88,
@@ -35,7 +35,7 @@ export function NavHeader() {
               alt={SITE_BRAND_NAME}
               fill
               sizes="88px"
-              className="object-contain"
+              className="object-contain scale-[1.6]"
               style={{ objectPosition: "center 30%" }}
               priority
             />
