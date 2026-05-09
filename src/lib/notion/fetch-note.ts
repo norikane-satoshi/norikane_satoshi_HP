@@ -14,6 +14,7 @@ import type {
   QueryDataSourceParameters,
   QueryDataSourceResponse,
 } from "@notionhq/client"
+import type { BlockWithChildren } from "./types"
 
 export type NoteSummary = {
   id: string
@@ -24,7 +25,7 @@ export type NoteSummary = {
 }
 
 export type NoteFull = NoteSummary & {
-  blocks: BlockObjectResponse[]
+  blocks: BlockWithChildren[]
 }
 
 function isFullPage(
@@ -129,24 +130,43 @@ function isFullBlock(
   return "type" in b
 }
 
-async function _listAllBlocksImpl(pageId: string): Promise<BlockObjectResponse[]> {
+const MAX_BLOCK_DEPTH = 4
+
+async function listBlockChildren(
+  blockId: string,
+  depth: number
+): Promise<BlockWithChildren[]> {
   const notion = getNotionClient()
   if (!notion) return []
-  const out: BlockObjectResponse[] = []
+  const out: BlockWithChildren[] = []
   let cursor: string | undefined = undefined
   for (let i = 0; i < 50; i += 1) {
     const resp = await notion.blocks.children.list({
-      block_id: pageId,
+      block_id: blockId,
       start_cursor: cursor,
       page_size: 100,
     })
     for (const b of resp.results) {
-      if (isFullBlock(b)) out.push(b)
+      if (!isFullBlock(b)) continue
+      if (b.has_children && depth < MAX_BLOCK_DEPTH) {
+        out.push({
+          ...b,
+          children: await listBlockChildren(b.id, depth + 1),
+        })
+        continue
+      }
+      out.push(b)
     }
     if (!resp.has_more || !resp.next_cursor) break
     cursor = resp.next_cursor
   }
   return out
+}
+
+async function _listAllBlocksImpl(
+  pageId: string
+): Promise<BlockWithChildren[]> {
+  return listBlockChildren(pageId, 0)
 }
 
 const listAllBlocks = unstable_cache(
