@@ -100,6 +100,8 @@ type MoveCopyPopupState = {
   y: number
 } | null
 
+type InteractionType = "drag" | "resize" | "select" | null
+
 const VIEW_OPTIONS: { label: string; value: CalendarView }[] = [
   { label: "月", value: "dayGridMonth" },
   { label: "週", value: "timeGridWeek" },
@@ -342,6 +344,7 @@ export function BookingCalendar({
   const actionPanelRef = useRef<HTMLDivElement | null>(null)
   const selectedViewRef = useRef<CalendarView>("dayGridMonth")
   const interactionInProgressRef = useRef(false)
+  const interactionTypeRef = useRef<InteractionType>(null)
   const lastTopExpandAtRef = useRef<number | null>(null)
   const lastBottomExpandAtRef = useRef<number | null>(null)
   const draftPreviewRef = useRef<DraftEvent | null>(null)
@@ -416,6 +419,7 @@ export function BookingCalendar({
 
   const finishInteraction = useCallback((extraSlots: { start: string; end: string }[] = []) => {
     interactionInProgressRef.current = false
+    interactionTypeRef.current = null
     lastTopExpandAtRef.current = null
     lastBottomExpandAtRef.current = null
     applyDynamicTimeRangeBounds(extraSlots)
@@ -432,6 +436,7 @@ export function BookingCalendar({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setModeKind("adjust")
     setAdjustingGroupId(null)
+    setAdjustingTitle(null)
     const firstSlot = focusSlot ?? drafts[0] ?? initialSlots[0]
     const frame = window.requestAnimationFrame(() => {
       if (firstSlot) {
@@ -704,6 +709,7 @@ export function BookingCalendar({
     const props = arg.event.extendedProps as AnyEventProps
     if (props.kind !== "draft") return
     interactionInProgressRef.current = true
+    interactionTypeRef.current = "drag"
     lastTopExpandAtRef.current = null
     lastBottomExpandAtRef.current = null
     previewDraftFromEvent(arg.event)
@@ -723,6 +729,7 @@ export function BookingCalendar({
     const props = arg.event.extendedProps as AnyEventProps
     if (props.kind !== "draft") return
     interactionInProgressRef.current = true
+    interactionTypeRef.current = "resize"
     lastTopExpandAtRef.current = null
     lastBottomExpandAtRef.current = null
     previewDraftFromEvent(arg.event)
@@ -745,12 +752,14 @@ export function BookingCalendar({
     if (target.closest(".fc-event, button, a, input, textarea, select")) return
     if (!target.closest(".fc-timegrid-body, .fc-timegrid-cols, .fc-timegrid-col, .fc-timegrid-slot")) return
     interactionInProgressRef.current = true
+    interactionTypeRef.current = "select"
     lastTopExpandAtRef.current = null
     lastBottomExpandAtRef.current = null
   }, [])
 
   const expandTimeRangeAtClientY = useCallback((clientY: number) => {
     if (selectedViewRef.current === "dayGridMonth" || !interactionInProgressRef.current) return
+    if (interactionTypeRef.current === "resize") return
     const scrollEl =
       rootRef.current?.querySelector<HTMLElement>(".fc-timegrid-body") ??
       rootRef.current?.querySelector<HTMLElement>(".fc-scroller-liquid-absolute")
@@ -853,16 +862,25 @@ export function BookingCalendar({
       !overlapsBlockedEvent(span.start, span.end, props?.bookingId) &&
       !overlapsConfirmedBufferZone(span.start, span.end, props?.bookingId)
     if (allowed && props?.kind === "draft" && props.draftId) {
-      setDraftPreviewValue({
+      const preview = {
         id: props.draftId,
         start: span.start.toISOString(),
         end: span.end.toISOString(),
         sourceKind: props.sourceKind,
+      }
+      setDraftPreviewValue({
+        id: preview.id,
+        start: preview.start,
+        end: preview.end,
+        sourceKind: preview.sourceKind,
       })
       setActiveDraftId(props.draftId)
+      if (interactionTypeRef.current === "resize") {
+        applyDynamicTimeRangeBounds([{ start: preview.start, end: preview.end }])
+      }
     }
     return allowed
-  }, [overlapsBlockedEvent, overlapsConfirmedBufferZone, setDraftPreviewValue])
+  }, [applyDynamicTimeRangeBounds, overlapsBlockedEvent, overlapsConfirmedBufferZone, setDraftPreviewValue])
 
   const handleDateClick = useCallback(
     (arg: DateClickArg) => {
@@ -880,13 +898,7 @@ export function BookingCalendar({
       setActionError(null)
       return
     }
-    if (props.kind === "busy" && props.bookingGroupId) {
-      setModeKind("adjust")
-      setAdjustingGroupId(props.bookingGroupId)
-      setAdjustingTitle(props.projectTitle ?? null)
-      refetchRemoteEvents()
-    }
-  }, [refetchRemoteEvents])
+  }, [])
 
   const handleEventDrop = useCallback(
     (arg: EventDropArg) => {
@@ -1051,22 +1063,15 @@ export function BookingCalendar({
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
       )
-      if (props.status) {
-        const statusLabel = props.status === "CONFIRMED" ? "本予約" : "仮予約"
-        const startTime = arg.event.start ? format(arg.event.start, "HH:mm") : ""
-        const monthShort = props.status === "CONFIRMED" ? "本" : "仮"
-        const text = isMonthView ? `${startTime} ${monthShort}` : `${statusLabel} ${props.label ?? ""}`
-        return (
-          <span className="booking-calendar__busy-pill-content">
-            {lockIcon}
-            <span className="booking-calendar__booking-label">{text}</span>
-          </span>
-        )
-      }
+      const statusLabel = props.status ? (props.status === "CONFIRMED" ? "本予約" : "仮予約") : "予約不可"
+      const shortLabel = props.status ? (props.status === "CONFIRMED" ? "本" : "仮") : "不"
+      const rangeLabel = props.label ?? (arg.event.start && arg.event.end ? `${format(arg.event.start, "HH:mm")}-${format(arg.event.end, "HH:mm")}` : "")
+      const monthTimeLabel = arg.event.allDay ? "終日" : arg.event.start ? format(arg.event.start, "HH:mm") : rangeLabel
+      const text = isMonthView ? `${monthTimeLabel} ${shortLabel}` : `${statusLabel} ${rangeLabel}`.trim()
       return (
         <span className="booking-calendar__busy-pill-content">
           {lockIcon}
-          <span className="booking-calendar__booking-label">予約不可</span>
+          <span className="booking-calendar__booking-label">{text}</span>
         </span>
       )
     }

@@ -105,6 +105,11 @@ export function BookingForm({
           <input type="radio" value="tentative" {...register("bookingKind")} />
           <span>仮キープ</span>
         </label>
+        {bookingKind === "confirmed" ? (
+          <p className="booking-form__callout glass-flat">
+            本予約はお申し込み時点では確定ではありません。内容を確認のうえ、確定のご連絡を別途お送りします。確定までしばらくお時間をいただきます
+          </p>
+        ) : null}
         {bookingKind === "tentative" ? (
           <p className="booking-form__callout glass-flat">
             仮キープは候補日の先抑え枠です。後から他の方の本予約が入った場合、3 日以内に本予約化または応答が必要で、無応答時は上書きされます
