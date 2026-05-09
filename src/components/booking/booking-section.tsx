@@ -76,14 +76,14 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
   const [focusSlot, setFocusSlot] = useState<BookingSlot | null>(null)
 
   const applyDraft = useCallback(
-    (draft: ReturnType<typeof loadDraft>, restoreStep = false) => {
+    (draft: ReturnType<typeof loadDraft>, restoreStep = false, restoreSlots = true) => {
       if (!draft) return
       setFormData({
         ...defaultFormData,
         ...draft.formData,
         sessionEmail: userEmail,
       })
-      setSelectedSlots(draft.selectedSlots ?? (draft.selectedSlot ? [draft.selectedSlot] : []))
+      if (restoreSlots) setSelectedSlots(draft.selectedSlots ?? (draft.selectedSlot ? [draft.selectedSlot] : []))
       if (restoreStep && draft.step !== "done") setStep(draft.step)
     },
     [defaultFormData, userEmail],
@@ -96,7 +96,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
     setStep(initialStep)
 
     const sessionDraft = loadDraft(userId, "session")
-    if (sessionDraft) applyDraft(sessionDraft)
+    if (sessionDraft) applyDraft(sessionDraft, false, initialStep === "form" || initialStep === "confirm")
     setLocalDraftAvailable(!sessionDraft && hasDraft(userId))
     setDraftHydrated(true)
 

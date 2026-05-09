@@ -109,6 +109,8 @@ const VIEW_OPTIONS: { label: string; value: CalendarView }[] = [
 const MIN_SELECTION_MS = 30 * 60 * 1000
 const BASE_SLOT_MIN_MINUTES = 10 * 60
 const BASE_SLOT_MAX_MINUTES = 19 * 60
+const TIME_RANGE_EXPAND_STEP_MINUTES = 30
+const TIME_RANGE_EXPAND_THROTTLE_MS = 200
 
 function toDateKey(date: Date): string {
   const year = date.getFullYear()
@@ -337,10 +339,11 @@ export function BookingCalendar({
   const [actionPanelPosition, setActionPanelPosition] = useState<{ top: number; left: number } | null>(null)
   const calendarRef = useRef<FullCalendar | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const actionPanelRef = useRef<HTMLDivElement | null>(null)
   const selectedViewRef = useRef<CalendarView>("dayGridMonth")
   const interactionInProgressRef = useRef(false)
-  const prevWasInTopZoneRef = useRef(false)
-  const prevWasInBottomZoneRef = useRef(false)
+  const lastTopExpandAtRef = useRef<number | null>(null)
+  const lastBottomExpandAtRef = useRef<number | null>(null)
   const draftPreviewRef = useRef<DraftEvent | null>(null)
   const fetchedRef = useRef<Map<string, FreeBusyResponse>>(new Map())
 
@@ -385,7 +388,6 @@ export function BookingCalendar({
     // Restores persisted draft props after hydration; this sync cannot be derived from local state alone.
     setDrafts(restored)
     setActiveDraftId(restored[0]?.id ?? null)
-    setModeKind("adjust")
   }, [drafts.length, initialSlots, initialSlotsSignature])
 
   const changeCalendarView = useCallback((nextView: CalendarView, dateStr?: string) => {
@@ -414,8 +416,8 @@ export function BookingCalendar({
 
   const finishInteraction = useCallback((extraSlots: { start: string; end: string }[] = []) => {
     interactionInProgressRef.current = false
-    prevWasInTopZoneRef.current = false
-    prevWasInBottomZoneRef.current = false
+    lastTopExpandAtRef.current = null
+    lastBottomExpandAtRef.current = null
     applyDynamicTimeRangeBounds(extraSlots)
   }, [applyDynamicTimeRangeBounds])
 
@@ -648,9 +650,20 @@ export function BookingCalendar({
         rootRef.current?.querySelector<HTMLElement>(`[data-draft-id="${activeDraftId}"]`)
       if (!rootRect || !eventEl) return
       const eventRect = eventEl.getBoundingClientRect()
-      setActionPanelPosition({
+      const panelRect = actionPanelRef.current?.getBoundingClientRect()
+      const panelWidth = panelRect?.width ?? 0
+      const fallbackLeft = Math.max(12, eventRect.left - rootRect.left)
+      const rawLeft = eventRect.left + eventRect.width / 2 - rootRect.left - panelWidth / 2
+      const maxLeft = rootRect.width - panelWidth - 12
+      const nextPosition = {
         top: eventRect.bottom - rootRect.top + 8,
-        left: Math.max(12, eventRect.left - rootRect.left),
+        left: panelWidth > 0 ? Math.max(12, Math.min(maxLeft, rawLeft)) : fallbackLeft,
+      }
+      setActionPanelPosition((current) => {
+        if (current && Math.abs(current.top - nextPosition.top) < 0.5 && Math.abs(current.left - nextPosition.left) < 0.5) {
+          return current
+        }
+        return nextPosition
       })
     })
   }, [activeDraftId, view])
@@ -669,6 +682,12 @@ export function BookingCalendar({
     updateActionPanelPosition()
   }, [activeDraftId, activePanelDraft?.start, activePanelDraft?.end, updateActionPanelPosition])
 
+  useEffect(() => {
+    if (!activePanelDraft || view !== "timeGridWeek" || !actionPanelPosition || !actionPanelRef.current) return
+    const frame = window.requestAnimationFrame(updateActionPanelPosition)
+    return () => window.cancelAnimationFrame(frame)
+  }, [activePanelDraft, actionPanelPosition, updateActionPanelPosition, view])
+
   const previewDraftFromEvent = useCallback((event: EventApi) => {
     const props = event.extendedProps as AnyEventProps
     if (props.kind !== "draft" || !props.draftId || !event.start || !event.end) return
@@ -685,8 +704,8 @@ export function BookingCalendar({
     const props = arg.event.extendedProps as AnyEventProps
     if (props.kind !== "draft") return
     interactionInProgressRef.current = true
-    prevWasInTopZoneRef.current = false
-    prevWasInBottomZoneRef.current = false
+    lastTopExpandAtRef.current = null
+    lastBottomExpandAtRef.current = null
     previewDraftFromEvent(arg.event)
   }, [previewDraftFromEvent])
 
@@ -704,8 +723,8 @@ export function BookingCalendar({
     const props = arg.event.extendedProps as AnyEventProps
     if (props.kind !== "draft") return
     interactionInProgressRef.current = true
-    prevWasInTopZoneRef.current = false
-    prevWasInBottomZoneRef.current = false
+    lastTopExpandAtRef.current = null
+    lastBottomExpandAtRef.current = null
     previewDraftFromEvent(arg.event)
   }, [previewDraftFromEvent])
 
@@ -726,8 +745,8 @@ export function BookingCalendar({
     if (target.closest(".fc-event, button, a, input, textarea, select")) return
     if (!target.closest(".fc-timegrid-body, .fc-timegrid-cols, .fc-timegrid-col, .fc-timegrid-slot")) return
     interactionInProgressRef.current = true
-    prevWasInTopZoneRef.current = false
-    prevWasInBottomZoneRef.current = false
+    lastTopExpandAtRef.current = null
+    lastBottomExpandAtRef.current = null
   }, [])
 
   const expandTimeRangeAtClientY = useCallback((clientY: number) => {
@@ -739,21 +758,23 @@ export function BookingCalendar({
     const rect = scrollEl.getBoundingClientRect()
     const inTopZone = clientY - rect.top <= 30
     const inBottomZone = rect.bottom - clientY <= 30
+    const now = Date.now()
 
-    if (!prevWasInTopZoneRef.current && inTopZone) {
+    if (inTopZone && (lastTopExpandAtRef.current === null || now - lastTopExpandAtRef.current >= TIME_RANGE_EXPAND_THROTTLE_MS)) {
+      lastTopExpandAtRef.current = now
       setSlotMinTime((current) => {
-        const hour = Math.max(0, Number(current.slice(0, 2)) - 1)
-        return `${String(hour).padStart(2, "0")}:00:00`
+        return formatTimeMinutes(parseTimeMinutes(current) - TIME_RANGE_EXPAND_STEP_MINUTES)
       })
     }
-    if (!prevWasInBottomZoneRef.current && inBottomZone) {
+    if (!inTopZone) lastTopExpandAtRef.current = null
+
+    if (inBottomZone && (lastBottomExpandAtRef.current === null || now - lastBottomExpandAtRef.current >= TIME_RANGE_EXPAND_THROTTLE_MS)) {
+      lastBottomExpandAtRef.current = now
       setSlotMaxTime((current) => {
-        const hour = Math.min(24, Number(current.slice(0, 2)) + 1)
-        return `${String(hour).padStart(2, "0")}:00:00`
+        return formatTimeMinutes(parseTimeMinutes(current) + TIME_RANGE_EXPAND_STEP_MINUTES)
       })
     }
-    prevWasInTopZoneRef.current = inTopZone
-    prevWasInBottomZoneRef.current = inBottomZone
+    if (!inBottomZone) lastBottomExpandAtRef.current = null
   }, [])
 
   const handleCalendarMouseMoveCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
@@ -763,8 +784,8 @@ export function BookingCalendar({
   useEffect(() => {
     function expandTimeRange(event: MouseEvent) {
       if (selectedViewRef.current === "dayGridMonth" || !interactionInProgressRef.current) {
-        prevWasInTopZoneRef.current = false
-        prevWasInBottomZoneRef.current = false
+        lastTopExpandAtRef.current = null
+        lastBottomExpandAtRef.current = null
         return
       }
 
@@ -1164,6 +1185,7 @@ export function BookingCalendar({
       </div>
       {activePanelDraft && view === "timeGridWeek" && actionPanelPosition ? (
         <div
+          ref={actionPanelRef}
           className="booking-calendar__action-panel glass-flat"
           data-testid="booking-action-panel"
           style={{ top: actionPanelPosition.top, left: actionPanelPosition.left }}
