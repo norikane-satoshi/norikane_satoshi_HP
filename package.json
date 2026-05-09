@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "diagrams:preview": "node scripts/diagrams/render-preview.mjs",
-    "diagrams:preview:sync": "node scripts/diagrams/render-preview.mjs && node scripts/diagrams/sync-preview.mjs --all-pages"
+    "diagrams:preview:sync": "node scripts/diagrams/render-preview.mjs && node scripts/diagrams/sync-preview.mjs --all-pages",
+    "check:console": "node scripts/check-browser-console.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
+    "@libsql/client": "^0.17.3",
     "@notionhq/client": "^5.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -30,6 +32,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "playwright": "^1.59.1",
