@@ -14,28 +14,11 @@ const optionalEmail = z
     message: "メールアドレスの形式で入力してください",
   })
 
-export const workScopeOptions = [
-  "カラーグレーディング",
-  "オンライン編集",
-  "試写立ち会い",
-  "その他",
-] as const
-
-export const durationOptions = [
-  { value: "1h", label: "1 時間" },
-  { value: "half-day", label: "半日" },
-  { value: "full-day", label: "1 日" },
-  { value: "consult", label: "応相談" },
-] as const
-
 export const bookingFormSchema = z.object({
   bookingKind: z.enum(["confirmed", "tentative"], {
     message: "予約種別を選択してください",
   }),
   projectTitle: z.string().trim().min(1, "案件名を入力してください").max(100, "100 字以内で入力してください"),
-  workScopes: z.array(z.enum(workScopeOptions)),
-  otherWorkDetail: z.string().trim().max(300, "300 字以内で入力してください"),
-  estimatedDuration: z.enum(["1h", "half-day", "full-day", "consult"]),
   dueDate: z.string(),
   companyName: z.string().trim().max(100, "100 字以内で入力してください"),
   contactName: z.string().trim().min(1, "担当者氏名を入力してください").max(100, "100 字以内で入力してください"),
@@ -54,9 +37,6 @@ export function createDefaultBookingFormData(sessionEmail: string): BookingFormD
   return {
     bookingKind: "confirmed",
     projectTitle: "",
-    workScopes: [],
-    otherWorkDetail: "",
-    estimatedDuration: "consult",
     dueDate: "",
     companyName: "",
     contactName: "",
@@ -68,6 +48,22 @@ export function createDefaultBookingFormData(sessionEmail: string): BookingFormD
   }
 }
 
-export function getDurationLabel(value: BookingFormData["estimatedDuration"]): string {
-  return durationOptions.find((option) => option.value === value)?.label ?? value
+export function getSlotDurationMinutes(slot: BookingSlot): number {
+  const start = new Date(slot.start).getTime()
+  const end = new Date(slot.end).getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0
+  return Math.round((end - start) / 60000)
+}
+
+export function getTotalDurationMinutes(slots: BookingSlot[]): number {
+  return slots.reduce((total, slot) => total + getSlotDurationMinutes(slot), 0)
+}
+
+export function formatDurationMinutes(minutes: number): string {
+  if (minutes <= 0) return "0 時間"
+  const hours = Math.floor(minutes / 60)
+  const restMinutes = minutes % 60
+  if (hours === 0) return `${restMinutes} 分`
+  if (restMinutes === 0) return `${hours} 時間`
+  return `${hours} 時間 ${restMinutes} 分`
 }

@@ -4,8 +4,8 @@ import { sendBookingTentativeExpiredEmail, type BookingEmailArgs } from "@/lib/b
 import { deleteCalendarEvent } from "@/lib/google-calendar"
 import { prisma } from "@/lib/prisma"
 
-type ExpirableBooking = Prisma.BookingGetPayload<{
-  include: { customer: { include: { user: true } } }
+type ExpirableBooking = Prisma.BookingGroupGetPayload<{
+  include: { customer: { include: { user: true } }; timeSlots: true }
 }>
 
 type ExpirableStatus = "TENTATIVE" | "PENDING_CONFIRMATION"
@@ -47,10 +47,10 @@ function warnExpiredFailure(status: ExpirableStatus, bookingId: string, error: s
 function createExpiredEmailArgs(booking: ExpirableBooking, to: string): BookingEmailArgs {
   return {
     to,
-    projectTitle: booking.title,
-    start: booking.startTime,
-    end: booking.endTime,
-    workScopes: ["その他"],
+    projectTitle: booking.projectTitle,
+    start: booking.timeSlots[0]?.startTime ?? new Date(),
+    end: booking.timeSlots[0]?.endTime ?? new Date(),
+    workScopes: [],
     otherWorkDetail: booking.memo ?? "",
     estimatedDuration: "consult",
   }
@@ -65,9 +65,17 @@ export async function processExpiredBooking(booking: ExpirableBooking): Promise<
   const errors: ExpireTentativeError[] = []
 
   try {
-    await prisma.booking.update({
+    await prisma.bookingGroup.update({
       where: { id: booking.id },
-      data: { status: nextStatus(status) },
+      data: {
+        status: nextStatus(status),
+        timeSlots: {
+          updateMany: {
+            where: {},
+            data: { status: nextStatus(status) },
+          },
+        },
+      },
     })
   } catch (error) {
     const message = errorMessage(error)

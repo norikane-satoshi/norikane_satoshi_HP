@@ -1,7 +1,5 @@
 import { Resend } from "resend"
 
-import { getDurationLabel, type BookingFormData } from "@/lib/booking/form-schema"
-
 let cached: Resend | null = null
 
 export type BookingEmailResult = { skipped: true } | { skipped: false; id: string | null }
@@ -11,9 +9,9 @@ export type BookingEmailArgs = {
   projectTitle: string
   start: string | Date
   end: string | Date
-  workScopes: BookingFormData["workScopes"]
+  workScopes: string[]
   otherWorkDetail?: string
-  estimatedDuration: BookingFormData["estimatedDuration"]
+  estimatedDuration?: string
 }
 
 export type BookingOverwriteNoticeEmailArgs = BookingEmailArgs & {
@@ -56,8 +54,7 @@ function formatSchedule(start: string | Date, end: string | Date): string {
 function formatWork(args: Pick<BookingEmailArgs, "workScopes" | "otherWorkDetail" | "estimatedDuration">): string {
   const scopes = args.workScopes.join(" / ")
   const detail = args.otherWorkDetail?.trim()
-  const duration = getDurationLabel(args.estimatedDuration)
-  return [scopes, detail, `想定作業時間: ${duration}`].filter(Boolean).join("\n")
+  return [scopes, detail].filter(Boolean).join("\n")
 }
 
 function escapeHtml(value: string): string {

@@ -176,6 +176,40 @@
   padding: 8px 12px;
 }
 
+button.booking-form__slot-pill {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+button.booking-form__slot-pill:hover,
+button.booking-form__slot-pill:focus-visible {
+  border-color: color-mix(in srgb, var(--hp-accent) 40%, transparent);
+  color: var(--text-primary);
+}
+
+.booking-form__slot-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.booking-form__duration-total {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: baseline;
+  gap: 10px;
+  border-radius: var(--hp-radius-sm);
+  padding: 10px 12px;
+}
+
+.booking-form__duration-total strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
 .booking-form__group {
   display: grid;
   min-width: 0;
@@ -188,6 +222,13 @@
   color: var(--text-muted);
   font-size: 0.8125rem;
   font-weight: 700;
+}
+
+.booking-form__label-optional {
+  margin-left: 4px;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
 }
 
 .booking-form__control {

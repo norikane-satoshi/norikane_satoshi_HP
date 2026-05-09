@@ -3,12 +3,15 @@ import { NextResponse, type NextRequest } from "next/server"
 import { auth } from "@/auth"
 import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/api-schema"
 import {
+  findConflictingBookings,
+  resolveConflictForFinalSubmit,
+} from "@/lib/booking/conflicts"
+import {
   sendBookingConfirmedEmail,
   sendBookingOverwriteNoticeEmail,
   sendBookingTentativeEmail,
   type BookingEmailArgs,
 } from "@/lib/booking/email"
-import { getDurationLabel } from "@/lib/booking/form-schema"
 import {
   CALENDAR_TOKEN_USER_ID,
   createCalendarEvent,
@@ -20,48 +23,14 @@ import { prisma } from "@/lib/prisma"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-type ConflictBooking = Awaited<ReturnType<typeof findConflictingBookings>>[number]
-
 function nullable(value: string): string | null {
   const trimmed = value.trim()
   return trimmed === "" ? null : trimmed
 }
 
-async function findConflictingBookings(start: Date, end: Date) {
-  return prisma.booking.findMany({
-    where: {
-      startTime: { lt: end },
-      endTime: { gt: start },
-      status: { in: ["CONFIRMED", "TENTATIVE", "PENDING_CONFIRMATION"] },
-    },
-    include: {
-      customer: {
-        select: {
-          displayName: true,
-          user: {
-            select: {
-              email: true,
-            },
-          },
-        },
-      },
-    },
-  })
-}
-
-function resolveConflict(conflicts: ConflictBooking[], bookingKind: BookingApiInput["bookingKind"]) {
-  if (conflicts.some((booking) => booking.status === "CONFIRMED")) return "slot_taken"
-  if (conflicts.some((booking) => booking.status === "PENDING_CONFIRMATION")) return "slot_pending"
-  if (conflicts.length > 0 && bookingKind === "tentative") return "tentative_exists"
-  return null
-}
-
 function createDescription(input: BookingApiInput): string {
   return [
     ["案件名", input.projectTitle],
-    ["作業内容", input.workScopes.join(" / ")],
-    ["その他詳細", input.otherWorkDetail],
-    ["想定作業時間", getDurationLabel(input.estimatedDuration)],
     ["納期", input.dueDate],
     ["会社名", input.companyName],
     ["担当者氏名", input.contactName],
@@ -80,15 +49,20 @@ function createSummary(input: BookingApiInput): string {
 }
 
 function createBookingEmailArgs(input: BookingApiInput, to: string): BookingEmailArgs {
+  const slot = getInputSlots(input)[0]
   return {
     to,
     projectTitle: input.projectTitle,
-    start: input.selectedSlot.start,
-    end: input.selectedSlot.end,
-    workScopes: input.workScopes,
-    otherWorkDetail: input.otherWorkDetail,
-    estimatedDuration: input.estimatedDuration,
+    start: slot.start,
+    end: slot.end,
+    workScopes: [],
+    otherWorkDetail: input.memo,
+    estimatedDuration: "consult",
   }
+}
+
+function getInputSlots(input: BookingApiInput): { start: string; end: string }[] {
+  return input.selectedSlots ?? (input.selectedSlot ? [input.selectedSlot] : [])
 }
 
 async function warnOnEmailFailure(task: Promise<unknown>, tag: string, to: string) {
@@ -157,8 +131,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const start = new Date(input.selectedSlot.start)
-  const end = new Date(input.selectedSlot.end)
+  const slots = getInputSlots(input)
+  const primarySlot = slots[0]
+  const start = new Date(primarySlot.start)
+  const end = new Date(primarySlot.end)
   const now = new Date()
   const tentativeDeadline = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
@@ -181,15 +157,19 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const conflicts = await findConflictingBookings(start, end)
-    const conflict = resolveConflict(conflicts, input.bookingKind)
+    const conflictLists = await Promise.all(
+      slots.map((slot) => findConflictingBookings(new Date(slot.start), new Date(slot.end))),
+    )
+    const conflicts = conflictLists.flat()
+    const conflict = resolveConflictForFinalSubmit(conflicts, input.bookingKind)
     if (conflict) return responseForConflict(conflict)
 
     const tentativeConflicts = conflicts.filter((booking) => booking.status === "TENTATIVE")
     if (tentativeConflicts.length > 0) {
-      await prisma.booking.updateMany({
+      const tentativeGroupIds = [...new Set(tentativeConflicts.map((booking) => booking.bookingGroupId))]
+      await prisma.bookingGroup.updateMany({
         where: {
-          id: { in: tentativeConflicts.map((booking) => booking.id) },
+          id: { in: tentativeGroupIds },
         },
         data: {
           status: "PENDING_CONFIRMATION",
@@ -197,18 +177,36 @@ export async function POST(request: NextRequest) {
           tentativeDeadlineAt: tentativeDeadline,
         },
       })
+      await prisma.bookingTimeSlot.updateMany({
+        where: { bookingGroupId: { in: tentativeGroupIds } },
+        data: { status: "PENDING_CONFIRMATION" },
+      })
     }
 
     const bookingStatus = input.bookingKind === "tentative" ? "TENTATIVE" : "CONFIRMED"
-    const booking = await prisma.booking.create({
+    const bookingGroup = await prisma.bookingGroup.create({
       data: {
         customerId: customer.id,
-        startTime: start,
-        endTime: end,
-        title: input.projectTitle,
-        memo: nullable(input.memo),
+        kind: bookingStatus,
         status: bookingStatus,
+        projectTitle: input.projectTitle,
+        memo: nullable(input.memo),
+        contactName: input.contactName,
+        companyName: nullable(input.companyName),
+        contactEmail: nullable(input.contactEmail),
+        phone: nullable(input.phone),
+        dueDate: nullable(input.dueDate),
+        tentativeNotifiedAt: bookingStatus === "TENTATIVE" ? now : null,
+        tentativeDeadlineAt: bookingStatus === "TENTATIVE" ? tentativeDeadline : null,
+        timeSlots: {
+          create: slots.map((slot) => ({
+            startTime: new Date(slot.start),
+            endTime: new Date(slot.end),
+            status: bookingStatus,
+          })),
+        },
       },
+      include: { timeSlots: true },
     })
 
     const bookingEmailArgs = createBookingEmailArgs(input, userEmail)
@@ -232,9 +230,9 @@ export async function POST(request: NextRequest) {
             projectTitle: tentativeConflict.title,
             start: tentativeConflict.startTime,
             end: tentativeConflict.endTime,
-            workScopes: input.workScopes,
+            workScopes: [],
             otherWorkDetail: tentativeConflict.memo ?? "",
-            estimatedDuration: input.estimatedDuration,
+            estimatedDuration: "consult",
             deadline: tentativeDeadline,
           }),
           "overwrite",
@@ -249,7 +247,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           status: "ok_with_warning",
-          bookingId: booking.id,
+          bookingGroupId: bookingGroup.id,
+          bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
           bookingStatus,
           gcalError: "GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set",
         },
@@ -264,14 +263,14 @@ export async function POST(request: NextRequest) {
         calendarId,
         summary: createSummary(input),
         description,
-        start: input.selectedSlot.start,
-        end: input.selectedSlot.end,
+        start: primarySlot.start,
+        end: primarySlot.end,
         colorId: input.bookingKind === "tentative" ? "4" : "9",
         accessToken,
       })
 
-      await prisma.booking.update({
-        where: { id: booking.id },
+      await prisma.bookingGroup.update({
+        where: { id: bookingGroup.id },
         data: {
           gcalEventId: event.id,
         },
@@ -296,19 +295,21 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         status: "ok",
-        bookingId: booking.id,
+        bookingGroupId: bookingGroup.id,
+        bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
         bookingStatus,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Google Calendar event write failed"
       console.warn("Booking created but Google Calendar write failed", {
-        bookingId: booking.id,
+        bookingGroupId: bookingGroup.id,
         error: message,
       })
       return NextResponse.json(
         {
           status: "ok_with_warning",
-          bookingId: booking.id,
+          bookingGroupId: bookingGroup.id,
+          bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
           bookingStatus,
           gcalError: message,
         },

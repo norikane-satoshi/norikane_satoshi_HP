@@ -12,7 +12,7 @@ type BookingFooterProps = {
 function nextLabel(step: BookingStep, submitting: boolean): string {
   if (submitting) return "送信中…"
   if (step === "confirm") return "予約を申し込む"
-  return "進む"
+  return "申込内容を確認"
 }
 
 export function BookingFooter({ step, canGoNext, submitting = false, onBack, onNext, onReset }: BookingFooterProps) {
@@ -38,14 +38,16 @@ export function BookingFooter({ step, canGoNext, submitting = false, onBack, onN
           戻る
         </button>
       )}
-      <button
-        className="booking-footer__primary glass-btn"
-        type="button"
-        disabled={!canGoNext || submitting}
-        onClick={onNext}
-      >
-        {nextLabel(step, submitting)}
-      </button>
+      {step === "calendar" ? null : (
+        <button
+          className="booking-footer__primary glass-btn"
+          type="button"
+          disabled={!canGoNext || submitting}
+          onClick={onNext}
+        >
+          {nextLabel(step, submitting)}
+        </button>
+      )}
     </footer>
   )
 }

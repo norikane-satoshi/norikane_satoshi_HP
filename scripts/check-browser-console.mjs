@@ -1,4 +1,6 @@
 import { chromium } from "playwright"
+import { config as loadDotenv } from "dotenv"
+import { createClient } from "@libsql/client"
 
 const [, , targetUrl, waitSecondsArg = "5", clickSelector] = process.argv
 
@@ -50,6 +52,25 @@ try {
   const consoleRunId = `E2E Booking Console ${Date.now()}`
   await page.goto(`${url.origin}/api/dev/auth-bypass`, { waitUntil: "networkidle" })
 
+  async function cleanupConsoleBookings() {
+    loadDotenv({ path: ".env.local", override: false, quiet: true })
+    loadDotenv({ path: ".env", override: false, quiet: true })
+    const dbUrl = process.env.TURSO_DATABASE_URL
+    if (!dbUrl) return
+
+    const client = createClient({ url: dbUrl, authToken: process.env.TURSO_AUTH_TOKEN })
+    const groups = await client.execute({
+      sql: "SELECT id FROM BookingGroup WHERE projectTitle LIKE ?",
+      args: ["E2E Booking Console %"],
+    })
+    const ids = groups.rows.map((row) => String(row.id)).filter(Boolean)
+    for (const id of ids) {
+      await client.execute({ sql: "DELETE FROM BookingTimeSlot WHERE bookingGroupId = ?", args: [id] })
+      await client.execute({ sql: "DELETE FROM BookingGroup WHERE id = ?", args: [id] })
+    }
+    client.close()
+  }
+
   async function clearBookingDrafts() {
     await page.evaluate(() => {
       window.sessionStorage.removeItem("booking-draft-session")
@@ -61,15 +82,16 @@ try {
 
   async function seedBookingDraft(step = "form", valid = false) {
     await page.evaluate(({ draftStep, validDraft, runId }) => {
-      const start = new Date(Number(runId.replace(/\D/g, "")) + 1000 * 60 * 60 * 24 * 120)
+      const start = new Date(Date.now() + 1000 * 60 * 60 * 24 * 120)
       const end = new Date(start.getTime() + 1000 * 60 * 60)
+      const selectedSlot = {
+        start: start.toISOString(),
+        end: end.toISOString(),
+      }
       const payload = {
         formData: {
           bookingKind: "confirmed",
           projectTitle: validDraft ? runId : "",
-          workScopes: validDraft ? ["カラーグレーディング"] : [],
-          otherWorkDetail: "",
-          estimatedDuration: "consult",
           dueDate: "",
           companyName: "",
           contactName: validDraft ? "Console Tester" : "",
@@ -79,10 +101,8 @@ try {
           memo: "",
           agreed: validDraft,
         },
-        selectedSlot: {
-          start: start.toISOString(),
-          end: end.toISOString(),
-        },
+        selectedSlot,
+        selectedSlots: [selectedSlot],
         step: draftStep,
         savedAt: Date.now(),
       }
@@ -116,6 +136,7 @@ try {
   const isBookingSuite = url.pathname === "/booking" && !clickSelector
 
   if (isBookingSuite) {
+    await cleanupConsoleBookings()
     await runScenario("s1-calendar-month", async () => {
       await page.goto(`${url.origin}/booking?step=calendar`, { waitUntil: "networkidle" })
       await page.locator(".booking-calendar__surface").waitFor()
@@ -169,6 +190,7 @@ try {
       await page.locator(".booking-confirm").waitFor()
       await page.locator(".booking-footer__primary").click()
       await page.locator(".booking-done").waitFor()
+      await cleanupConsoleBookings()
     })
   } else {
     await runScenario("single", async () => {

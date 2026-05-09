@@ -109,8 +109,8 @@ model Customer {
   companyName String?
   notes       String?
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookings Booking[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookingGroups BookingGroup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -130,14 +130,18 @@ model Customer {
 // 仮キープも GCal にイベントを書き込むため、gcalEventId は仮キープ作成時点で先行作成される。
 // 本予約確定 / 上書き / キャンセル時には GCal イベントの色・タイトル・状態を更新するか削除する。
 
-model Booking {
-  id         String   @id @default(cuid())
-  customerId String
-  startTime  DateTime
-  endTime    DateTime
-  title      String
-  memo       String?
-  status     String   @default("CONFIRMED")
+model BookingGroup {
+  id           String  @id @default(cuid())
+  customerId   String
+  kind         String  @default("CONFIRMED")
+  status       String  @default("CONFIRMED")
+  projectTitle String
+  memo         String?
+  contactName  String
+  companyName  String?
+  contactEmail String?
+  phone        String?
+  dueDate      String?
 
   // 仮キープの 3日タイマー
   tentativeNotifiedAt DateTime?
@@ -146,11 +150,29 @@ model Booking {
   // Google Calendar Event ID（仮キープ作成時点で先行作成 → 本予約確定 / 上書き / キャンセル時に色・タイトル・状態を更新）
   gcalEventId String?
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer  Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  timeSlots BookingTimeSlot[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([kind])
+}
+
+model BookingTimeSlot {
+  id             String   @id @default(cuid())
+  bookingGroupId String
+  startTime      DateTime
+  endTime        DateTime
+  status         String   @default("CONFIRMED")
+
+  bookingGroup BookingGroup @relation(fields: [bookingGroupId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([startTime, endTime])
   @@index([status])
+  @@index([bookingGroupId])
 }

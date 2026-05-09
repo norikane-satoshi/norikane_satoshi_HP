@@ -2,27 +2,68 @@ import { z } from "zod"
 
 import { bookingFormSchema } from "@/lib/booking/form-schema"
 
+const slotSchema = z.object({
+  start: z.string().datetime(),
+  end: z.string().datetime(),
+})
+
 export const bookingApiSchema = bookingFormSchema
   .extend({
-    selectedSlot: z.object({
-      start: z.string().datetime(),
-      end: z.string().datetime(),
-    }),
+    selectedSlot: slotSchema.optional(),
+    selectedSlots: z.array(slotSchema).min(1).optional(),
   })
   .superRefine((value, context) => {
-    const start = new Date(value.selectedSlot.start)
-    const end = new Date(value.selectedSlot.end)
+    const slots = value.selectedSlots ?? (value.selectedSlot ? [value.selectedSlot] : [])
+    if (slots.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "予約日時を選択してください",
+        path: ["selectedSlots"],
+      })
+      return
+    }
 
+    slots.forEach((slot, index) => {
+      const start = new Date(slot.start)
+      const end = new Date(slot.end)
+
+      if (start >= end) {
+        context.addIssue({
+          code: "custom",
+          message: "終了時刻は開始時刻より後にしてください",
+          path: ["selectedSlots", index, "end"],
+        })
+      }
+    })
+  })
+
+export type BookingApiInput = z.infer<typeof bookingApiSchema>
+
+export const bookingConflictsRequestSchema = z
+  .object({
+    bookingKind: z.enum(["confirmed", "tentative"]),
+    start: z.string().datetime(),
+    end: z.string().datetime(),
+    excludeBookingId: z.string().optional(),
+  })
+  .superRefine((value, context) => {
+    const start = new Date(value.start)
+    const end = new Date(value.end)
     if (start >= end) {
       context.addIssue({
         code: "custom",
         message: "終了時刻は開始時刻より後にしてください",
-        path: ["selectedSlot", "end"],
+        path: ["end"],
       })
     }
   })
 
-export type BookingApiInput = z.infer<typeof bookingApiSchema>
+export type BookingConflictsRequest = z.infer<typeof bookingConflictsRequestSchema>
+
+export type BookingConflictsResponse =
+  | { verdict: "ok" }
+  | { verdict: "block"; reason: "slot_taken" | "slot_pending"; message: string }
+  | { verdict: "warn"; message: string }
 
 export type BookingApiErrorCode =
   | "slot_taken"

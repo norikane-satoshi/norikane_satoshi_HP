@@ -40,21 +40,40 @@ export type RefreshedCalendarToken = {
   scope: string
 }
 
+export class CalendarOAuthEnvMissingError extends Error {
+  code = "calendar_oauth_env_missing" as const
+
+  constructor(missing: string[]) {
+    super(`Missing Google Calendar OAuth env: ${missing.join(", ")}`)
+    this.name = "CalendarOAuthEnvMissingError"
+  }
+}
+
+export class CalendarTokenRevokedError extends Error {
+  code = "calendar_token_revoked" as const
+
+  constructor(message = "Google Calendar refresh token is revoked") {
+    super(message)
+    this.name = "CalendarTokenRevokedError"
+  }
+}
+
 function requireCalendarOAuthEnv(): CalendarOAuthEnv {
   const clientId = process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET
   const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI
 
-  const missing = [
+  const envEntries = [
     ["GOOGLE_CALENDAR_OAUTH_CLIENT_ID", clientId],
     ["GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET", clientSecret],
     ["GOOGLE_CALENDAR_REDIRECT_URI", redirectUri],
-  ]
+  ] satisfies [string, string | undefined][]
+  const missing = envEntries
     .filter(([, value]) => !value)
     .map(([name]) => name)
 
   if (missing.length > 0) {
-    throw new Error(`Missing Google Calendar OAuth env: ${missing.join(", ")}`)
+    throw new CalendarOAuthEnvMissingError(missing)
   }
 
   return {
@@ -101,7 +120,12 @@ export async function refreshCalendarAccessToken(refreshToken: string): Promise<
   const oauth2Client = createCalendarOAuthClient()
   oauth2Client.setCredentials({ refresh_token: refreshToken })
 
-  const { token } = await oauth2Client.getAccessToken()
+  const { token } = await oauth2Client.getAccessToken().catch((error) => {
+    if (isGoogleInvalidGrantError(error)) {
+      throw new CalendarTokenRevokedError()
+    }
+    throw error
+  })
   if (!token) {
     throw new Error("Google Calendar OAuth refresh did not return access_token")
   }
@@ -111,6 +135,20 @@ export async function refreshCalendarAccessToken(refreshToken: string): Promise<
     expiresAt: new Date(oauth2Client.credentials.expiry_date ?? Date.now()),
     scope: oauth2Client.credentials.scope ?? CALENDAR_SCOPES.join(" "),
   }
+}
+
+function isGoogleInvalidGrantError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false
+  const candidate = error as {
+    message?: unknown
+    response?: { data?: { error?: unknown; error_description?: unknown } }
+  }
+  const values = [
+    candidate.message,
+    candidate.response?.data?.error,
+    candidate.response?.data?.error_description,
+  ]
+  return values.some((value) => typeof value === "string" && value.includes("invalid_grant"))
 }
 
 export async function getFreeBusy(

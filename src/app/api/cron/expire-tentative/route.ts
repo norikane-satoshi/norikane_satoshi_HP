@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   }
   const errors: Awaited<ReturnType<typeof processExpiredBooking>>["errors"] = []
 
-  const bookings = await prisma.booking.findMany({
+  const bookings = await prisma.bookingGroup.findMany({
     where: {
       status: { in: ["TENTATIVE", "PENDING_CONFIRMATION"] },
       tentativeDeadlineAt: { lt: new Date() },
@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
           user: true,
         },
       },
+      timeSlots: true,
     },
   })
 

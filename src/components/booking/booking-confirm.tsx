@@ -1,5 +1,6 @@
 import {
-  getDurationLabel,
+  formatDurationMinutes,
+  getTotalDurationMinutes,
   type BookingFormData,
   type BookingSlot,
 } from "@/lib/booking/form-schema"
@@ -7,9 +8,10 @@ import {
 type BookingConfirmProps = {
   formData: BookingFormData
   selectedSlot: BookingSlot | null
+  selectedSlots: BookingSlot[]
   submitError?: string | null
   onDismissSubmitError?: () => void
-  onReselectDate?: () => void
+  onReselectDate?: (slot?: BookingSlot) => void
 }
 
 function formatSlot(slot: BookingSlot | null): string {
@@ -34,9 +36,15 @@ function valueOrDash(value: string | string[]): string {
   return value.trim() || "-"
 }
 
+function formatSlots(slots: BookingSlot[]): string {
+  if (slots.length === 0) return "日時未選択"
+  return slots.map((slot) => formatSlot(slot)).join(" / ")
+}
+
 export function BookingConfirm({
   formData,
   selectedSlot,
+  selectedSlots,
   submitError,
   onDismissSubmitError,
   onReselectDate,
@@ -44,9 +52,7 @@ export function BookingConfirm({
   const rows = [
     ["予約種別", formData.bookingKind === "tentative" ? "仮キープ" : "本予約"],
     ["案件名", formData.projectTitle],
-    ["作業内容", formData.workScopes],
-    ["その他詳細", formData.otherWorkDetail],
-    ["想定作業時間", getDurationLabel(formData.estimatedDuration)],
+    ["想定作業時間合計", formatDurationMinutes(getTotalDurationMinutes(selectedSlots))],
     ["納期", formData.dueDate],
     ["会社名", formData.companyName],
     ["担当者氏名", formData.contactName],
@@ -65,7 +71,7 @@ export function BookingConfirm({
             <p>{submitError}</p>
             <div className="booking-confirm__submit-actions">
               {onReselectDate ? (
-                <button className="booking-section__text-button" type="button" onClick={onReselectDate}>
+                <button className="booking-section__text-button" type="button" onClick={() => onReselectDate()}>
                   日時を選び直す
                 </button>
               ) : null}
@@ -79,7 +85,7 @@ export function BookingConfirm({
         </div>
       ) : null}
       <div>
-        <span className="glass-badge booking-confirm__slot-pill">{formatSlot(selectedSlot)}</span>
+        <span className="glass-badge booking-confirm__slot-pill">{formatSlots(selectedSlots.length > 0 ? selectedSlots : selectedSlot ? [selectedSlot] : [])}</span>
         <h2 className="booking-confirm__title">申込内容の確認</h2>
       </div>
       <dl className="booking-confirm__list glass-inset">
