@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
 import Link from "next/link"
 import { Tweet } from "react-tweet"
 import type { RichTextItemResponse } from "@notionhq/client"
@@ -140,6 +140,34 @@ function columnGridClass(count: number): string {
   if (count === 4) return "md:grid-cols-4"
   if (count === 5) return "md:grid-cols-5"
   return "md:grid-cols-6"
+}
+
+// Notion の column block には UI ドラッグで設定される width_ratio (0..1) が
+// 載る。md breakpoint 以上で gridTemplateColumns を比率で組み立てる。
+//
+// - 全列未設定: null を返し、呼び出し側は従来の md:grid-cols-N にフォールバック
+// - 一部設定: 設定済みは値そのまま、未設定列は残比率を等分
+//   (負値ガード epsilon = 0.05)
+// - 全列設定: 値そのまま
+function buildColumnTracks(columns: BlockWithChildren[]): string | null {
+  if (columns.length === 0) return null
+  const epsilon = 0.05
+  const ratios = columns.map((c): number | null => {
+    if (c.type !== "column") return null
+    const r = c.column.width_ratio
+    return typeof r === "number" ? r : null
+  })
+  if (ratios.every((r) => r === null)) return null
+  const setSum = ratios.reduce<number>(
+    (a, r) => (r === null ? a : a + r),
+    0
+  )
+  const unsetCount = ratios.filter((r) => r === null).length
+  const fallback =
+    unsetCount > 0 ? Math.max(epsilon, (1 - setSum) / unsetCount) : 0
+  return ratios
+    .map((r) => `minmax(0, ${Math.max(epsilon, r ?? fallback)}fr)`)
+    .join(" ")
 }
 
 function renderChildren(
@@ -315,11 +343,15 @@ function renderBlock(
   if (block.type === "column_list") {
     const columns = childrenOf(block)
     const count = columns.length || 1
+    const tracks = buildColumnTracks(columns)
+    const className = tracks
+      ? "grid grid-cols-1 gap-6 md:[grid-template-columns:var(--col-tracks)]"
+      : `grid grid-cols-1 gap-6 ${columnGridClass(count)}`
+    const style = tracks
+      ? ({ "--col-tracks": tracks } as CSSProperties)
+      : undefined
     return (
-      <div
-        key={key}
-        className={`grid grid-cols-1 gap-6 ${columnGridClass(count)}`}
-      >
+      <div key={key} className={className} style={style}>
         {columns.map((child, i) =>
           renderBlock(
             child,
