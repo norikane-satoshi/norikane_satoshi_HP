@@ -26,6 +26,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://norikane.studio"),
   title: SITE_TITLE,
   description: `${SITE_TAGLINE} ${SITE_BRAND_NAME} のポートフォリオサイト。`,
   openGraph: {
