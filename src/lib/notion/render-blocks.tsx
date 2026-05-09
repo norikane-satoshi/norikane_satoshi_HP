@@ -192,7 +192,10 @@ function renderEmbed(
 ): ReactNode {
   if (resolution.type === "tweet") {
     return (
-      <div key={key} className="max-w-xl">
+      <div
+        key={key}
+        className="tweet-embed-reset flow-root max-w-xl"
+      >
         <Tweet id={resolution.statusId} />
       </div>
     )
@@ -345,8 +348,8 @@ function renderBlock(
     const count = columns.length || 1
     const tracks = buildColumnTracks(columns)
     const className = tracks
-      ? "grid grid-cols-1 gap-6 md:[grid-template-columns:var(--col-tracks)]"
-      : `grid grid-cols-1 gap-6 ${columnGridClass(count)}`
+      ? "grid grid-cols-1 items-start gap-6 md:[grid-template-columns:var(--col-tracks)]"
+      : `grid grid-cols-1 items-start gap-6 ${columnGridClass(count)}`
     const style = tracks
       ? ({ "--col-tracks": tracks } as CSSProperties)
       : undefined
@@ -365,7 +368,7 @@ function renderBlock(
   }
   if (block.type === "column") {
     return (
-      <div key={key} className="space-y-5">
+      <div key={key} className="space-y-5 [&>*:first-child]:mt-0 [&>*:first-child]:pt-0">
         {renderChildren(block, key, slugIndex, depth)}
       </div>
     )
