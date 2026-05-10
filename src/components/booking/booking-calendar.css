@@ -523,27 +523,9 @@
   background: color-mix(in srgb, var(--text-primary) 72%, #312f49);
 }
 
-.booking-calendar .fc-event.booking-calendar__booking-event--tentative {
-  overflow: visible;
-  background:
-    repeating-linear-gradient(
-      45deg,
-      color-mix(in srgb, var(--accent-primary) 42%, transparent) 0,
-      color-mix(in srgb, var(--accent-primary) 42%, transparent) 6px,
-      color-mix(in srgb, var(--accent-primary) 24%, transparent) 6px,
-      color-mix(in srgb, var(--accent-primary) 24%, transparent) 12px
-    ),
-    color-mix(in srgb, var(--accent-primary) 34%, var(--glass-bg));
-}
-
 .booking-calendar .booking-calendar__busy-pill .fc-event-main,
 .booking-calendar .fc-event.booking-calendar__booking-event .fc-event-main {
   color: #fff;
-}
-
-.booking-calendar .fc-event.booking-calendar__booking-event--tentative .fc-event-main,
-.booking-calendar .fc-event.booking-calendar__booking-event--tentative .booking-calendar__busy-pill-content {
-  color: var(--text-primary);
 }
 
 .booking-calendar__busy-pill-content {

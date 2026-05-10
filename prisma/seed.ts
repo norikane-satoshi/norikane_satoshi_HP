@@ -36,35 +36,28 @@ async function main() {
     },
   })
 
-  const now = new Date()
   await prisma.bookingGroup.upsert({
-    where: { id: "seed-may-2026-tentative" },
+    where: { id: "seed-may-2026-confirmed" },
     update: {
       customerId: customer.id,
-      kind: "TENTATIVE",
-      status: "TENTATIVE",
-      projectTitle: "【ダミー】仮キープ動作確認",
+      status: "CONFIRMED",
+      projectTitle: "【ダミー】本予約動作確認",
       contactName: "テスト予約者",
       companyName: "ダミー会社",
-      tentativeNotifiedAt: now,
-      tentativeDeadlineAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
     },
     create: {
-      id: "seed-may-2026-tentative",
+      id: "seed-may-2026-confirmed",
       customerId: customer.id,
-      kind: "TENTATIVE",
-      status: "TENTATIVE",
-      projectTitle: "【ダミー】仮キープ動作確認",
+      status: "CONFIRMED",
+      projectTitle: "【ダミー】本予約動作確認",
       contactName: "テスト予約者",
       companyName: "ダミー会社",
-      tentativeNotifiedAt: now,
-      tentativeDeadlineAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
       timeSlots: {
         create: {
           id: "seed-slot-2026-05-15-14",
           startTime: new Date("2026-05-15T14:00:00+09:00"),
           endTime: new Date("2026-05-15T16:00:00+09:00"),
-          status: "TENTATIVE",
+          status: "CONFIRMED",
         },
       },
     },
@@ -73,17 +66,17 @@ async function main() {
   await prisma.bookingTimeSlot.upsert({
     where: { id: "seed-slot-2026-05-15-14" },
     update: {
-      bookingGroupId: "seed-may-2026-tentative",
+      bookingGroupId: "seed-may-2026-confirmed",
       startTime: new Date("2026-05-15T14:00:00+09:00"),
       endTime: new Date("2026-05-15T16:00:00+09:00"),
-      status: "TENTATIVE",
+      status: "CONFIRMED",
     },
     create: {
       id: "seed-slot-2026-05-15-14",
-      bookingGroupId: "seed-may-2026-tentative",
+      bookingGroupId: "seed-may-2026-confirmed",
       startTime: new Date("2026-05-15T14:00:00+09:00"),
       endTime: new Date("2026-05-15T16:00:00+09:00"),
-      status: "TENTATIVE",
+      status: "CONFIRMED",
     },
   })
 }

@@ -50,7 +50,6 @@ export function BookingConfirm({
   onReselectDate,
 }: BookingConfirmProps) {
   const rows = [
-    ["予約種別", formData.bookingKind === "tentative" ? "仮キープ" : "本予約"],
     ["案件名", formData.projectTitle],
     ["想定作業時間合計", formatDurationMinutes(getTotalDurationMinutes(selectedSlots))],
     ["納期", formData.dueDate],

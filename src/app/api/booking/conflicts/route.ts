@@ -32,24 +32,22 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { bookingKind, start, end, excludeBookingId } = parsed.data
+  const { start, end, excludeBookingId } = parsed.data
   const startDate = new Date(start)
   const endDate = new Date(end)
 
   const conflicts = await findConflictingBookings(startDate, endDate, { excludeBookingId })
-  const verdict = evaluateConflicts(conflicts, bookingKind)
+  const verdict = evaluateConflicts(conflicts)
 
   let response: BookingConflictsResponse
   if (verdict.kind === "ok") {
     response = { verdict: "ok" }
-  } else if (verdict.kind === "block") {
+  } else {
     response = {
       verdict: "block",
       reason: verdict.code,
       message: mapErrorCodeToJa(verdict.code),
     }
-  } else {
-    response = { verdict: "warn", message: verdict.message }
   }
 
   return NextResponse.json(response)

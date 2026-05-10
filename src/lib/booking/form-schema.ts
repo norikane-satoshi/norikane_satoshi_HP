@@ -15,9 +15,6 @@ const optionalEmail = z
   })
 
 export const bookingFormSchema = z.object({
-  bookingKind: z.enum(["confirmed", "tentative"], {
-    message: "予約種別を選択してください",
-  }),
   projectTitle: z.string().trim().min(1, "案件名を入力してください").max(100, "100 字以内で入力してください"),
   dueDate: z.string(),
   companyName: z.string().trim().max(100, "100 字以内で入力してください"),
@@ -35,7 +32,6 @@ export type BookingFormData = z.infer<typeof bookingFormSchema>
 
 export function createDefaultBookingFormData(sessionEmail: string): BookingFormData {
   return {
-    bookingKind: "confirmed",
     projectTitle: "",
     dueDate: "",
     companyName: "",

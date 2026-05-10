@@ -23,7 +23,7 @@ async function listBookings(timeMin: string, timeMax: string) {
     where: {
       startTime: { lt: endDate },
       endTime: { gt: startDate },
-      status: { in: ["CONFIRMED", "TENTATIVE", "PENDING_CONFIRMATION"] },
+      status: "CONFIRMED",
     },
     select: {
       id: true,

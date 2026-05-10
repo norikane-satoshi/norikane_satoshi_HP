@@ -54,8 +54,7 @@ type FreeBusyResponse = {
   code?: string
 }
 
-type BookingKind = "confirmed" | "tentative"
-type BookingStatus = "CONFIRMED" | "TENTATIVE" | "PENDING_CONFIRMATION"
+type BookingStatus = "CONFIRMED"
 
 type BusyEventProps = {
   kind: "busy"
@@ -69,7 +68,6 @@ type BusyEventProps = {
 type DraftEventProps = {
   kind: "draft"
   draftId: string
-  sourceKind?: BookingKind
 }
 
 type AnyEventProps = {
@@ -80,14 +78,12 @@ type AnyEventProps = {
   bookingGroupId?: string
   projectTitle?: string
   draftId?: string
-  sourceKind?: BookingKind
 }
 
 type DraftEvent = {
   id: string
   start: string
   end: string
-  sourceKind?: BookingKind
 }
 
 type ModeKind = "normal" | "adjust"
@@ -172,9 +168,7 @@ function toBookingEvent(
 ): EventInput {
   const label = `${format(new Date(booking.start), "HH:mm")}-${format(new Date(booking.end), "HH:mm")}`
   const status = (booking.status as BusyEventProps["status"]) ?? "CONFIRMED"
-  const isConfirmed = status === "CONFIRMED"
-  const isTentative = isTentativeStatus(status)
-  const canEdit = editable && !isConfirmed
+  const canEdit = editable && status !== "CONFIRMED"
   const extendedProps: BusyEventProps = {
     kind: "busy",
     label,
@@ -192,7 +186,7 @@ function toBookingEvent(
     display: "block",
     classNames: [
       "booking-calendar__booking-event",
-      isTentative ? "booking-calendar__booking-event--tentative" : "booking-calendar__booking-event--confirmed",
+      "booking-calendar__booking-event--confirmed",
     ],
     editable: canEdit,
     startEditable: canEdit,
@@ -208,7 +202,6 @@ function toDraftEventInput(
   const extendedProps: DraftEventProps = {
     kind: "draft",
     draftId: draft.id,
-    sourceKind: draft.sourceKind,
   }
   const classes = ["booking-calendar__draft"]
   if (isActive) classes.push("booking-calendar__draft--active")
@@ -271,10 +264,6 @@ function hasMinimumSelectionDuration(start: Date, end: Date): boolean {
   return end.getTime() - start.getTime() >= MIN_SELECTION_MS
 }
 
-function isTentativeStatus(status: BookingStatus | string | undefined): boolean {
-  return status === "TENTATIVE" || status === "PENDING_CONFIRMATION"
-}
-
 function rangesOverlap(start: Date, end: Date, otherStart: string, otherEnd: string): boolean {
   return start.getTime() < new Date(otherEnd).getTime() && end.getTime() > new Date(otherStart).getTime()
 }
@@ -320,7 +309,7 @@ type BookingCalendarProps = {
   adjustRequestKey?: number
   resetRequestKey?: number
   focusSlot?: BookingSlot | null
-  onCommit: (slots: { start: string; end: string }[], kind: BookingKind) => void
+  onCommit: (slots: { start: string; end: string }[]) => void
 }
 
 export function BookingCalendar({
@@ -358,9 +347,6 @@ export function BookingCalendar({
   const [activeDraftId, setActiveDraftId] = useState<string | null>(initialDrafts[0]?.id ?? null)
   const [draftPreview, setDraftPreview] = useState<DraftEvent | null>(null)
 
-  const [warningModal, setWarningModal] = useState<
-    { kind: BookingKind; message: string; slot: { start: string; end: string } } | null
-  >(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [preflighting, setPreflighting] = useState(false)
   const initialSlotsSignature = useMemo(
@@ -571,7 +557,6 @@ export function BookingCalendar({
       return next
     })
     setActionPanelPosition(null)
-    setWarningModal(null)
     setActionError(null)
     refetchDraftEvents()
   }, [refetchDraftEvents])
@@ -603,7 +588,6 @@ export function BookingCalendar({
     setActiveDraftId(null)
     setDraftPreviewValue(null)
     setActionPanelPosition(null)
-    setWarningModal(null)
     setActionError(null)
     refetchDraftEvents()
   }, [refetchDraftEvents, resetRequestKey, setDraftPreviewValue])
@@ -700,7 +684,6 @@ export function BookingCalendar({
       id: props.draftId,
       start: event.start.toISOString(),
       end: event.end.toISOString(),
-      sourceKind: props.sourceKind,
     })
     setActiveDraftId(props.draftId)
   }, [setDraftPreviewValue])
@@ -866,13 +849,11 @@ export function BookingCalendar({
         id: props.draftId,
         start: span.start.toISOString(),
         end: span.end.toISOString(),
-        sourceKind: props.sourceKind,
       }
       setDraftPreviewValue({
         id: preview.id,
         start: preview.start,
         end: preview.end,
-        sourceKind: preview.sourceKind,
       })
       setActiveDraftId(props.draftId)
       if (interactionTypeRef.current === "resize") {
@@ -1063,8 +1044,8 @@ export function BookingCalendar({
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
       )
-      const statusLabel = props.status ? (props.status === "CONFIRMED" ? "本予約" : "仮予約") : "予約不可"
-      const shortLabel = props.status ? (props.status === "CONFIRMED" ? "本" : "仮") : "不"
+      const statusLabel = props.status === "CONFIRMED" ? "本予約" : "予約不可"
+      const shortLabel = props.status === "CONFIRMED" ? "本" : "不"
       const rangeLabel = props.label ?? (arg.event.start && arg.event.end ? `${format(arg.event.start, "HH:mm")}-${format(arg.event.end, "HH:mm")}` : "")
       const monthTimeLabel = arg.event.allDay ? "終日" : arg.event.start ? format(arg.event.start, "HH:mm") : rangeLabel
       const text = isMonthView ? `${monthTimeLabel} ${shortLabel}` : `${statusLabel} ${rangeLabel}`.trim()
@@ -1079,12 +1060,11 @@ export function BookingCalendar({
   }
 
   const runPreflight = useCallback(
-    async (slot: { start: string; end: string }, kind: BookingKind): Promise<BookingConflictsResponse> => {
+    async (slot: { start: string; end: string }): Promise<BookingConflictsResponse> => {
       const response = await fetch("/api/booking/conflicts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bookingKind: kind,
           start: slot.start,
           end: slot.end,
         }),
@@ -1099,24 +1079,20 @@ export function BookingCalendar({
   )
 
   const startCommit = useCallback(
-    async (kind: BookingKind) => {
+    async () => {
       if (!activeDraft || preflighting) return
       const slots = drafts.length > 0 ? drafts.map((draft) => ({ start: draft.start, end: draft.end })) : [{ start: activeDraft.start, end: activeDraft.end }]
       const slot = { start: activeDraft.start, end: activeDraft.end }
       setPreflighting(true)
       setActionError(null)
       try {
-        const verdict = await runPreflight(slot, kind)
+        const verdict = await runPreflight(slot)
         setActionPanelPosition(null)
         if (verdict.verdict === "block") {
           setActionError(verdict.message)
           return
         }
-        if (verdict.verdict === "warn") {
-          setWarningModal({ kind, message: verdict.message, slot })
-          return
-        }
-        onCommit(slots, kind)
+        onCommit(slots)
       } catch (error) {
         const message = error instanceof Error ? error.message : "予約の重なり確認に失敗しました"
         setActionError(message)
@@ -1126,13 +1102,6 @@ export function BookingCalendar({
     },
     [activeDraft, drafts, onCommit, preflighting, runPreflight],
   )
-
-  const confirmAfterWarning = useCallback(() => {
-    if (!warningModal) return
-    const slots = drafts.length > 0 ? drafts.map((draft) => ({ start: draft.start, end: draft.end })) : [warningModal.slot]
-    onCommit(slots, warningModal.kind)
-    setWarningModal(null)
-  }, [drafts, onCommit, warningModal])
 
   const executeMoveCopy = useCallback(
     async (action: "move" | "copy") => {
@@ -1204,18 +1173,10 @@ export function BookingCalendar({
             <button
               type="button"
               className="booking-calendar__action-button booking-calendar__action-button--primary"
-              onClick={() => startCommit("confirmed")}
+              onClick={() => startCommit()}
               disabled={preflighting}
             >
               {preflighting ? "確認中…" : "本予約"}
-            </button>
-            <button
-              type="button"
-              className="booking-calendar__action-button"
-              onClick={() => startCommit("tentative")}
-              disabled={preflighting}
-            >
-              仮キープ
             </button>
             <button
               type="button"
@@ -1301,37 +1262,6 @@ export function BookingCalendar({
           <button type="button" className="booking-calendar__action-button booking-calendar__action-button--ghost" onClick={() => setMoveCopyPopup(null)}>
             Cancel
           </button>
-        </div>
-      ) : null}
-      {warningModal ? (
-        <div
-          className="booking-calendar__modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="booking-warning-title"
-        >
-          <div className="booking-calendar__modal-card glass-flat">
-            <h2 id="booking-warning-title" className="booking-calendar__modal-title">
-              重なりがあります
-            </h2>
-            <p className="booking-calendar__modal-message">{warningModal.message}</p>
-            <div className="booking-calendar__modal-actions">
-              <button
-                type="button"
-                className="booking-calendar__action-button booking-calendar__action-button--ghost"
-                onClick={() => setWarningModal(null)}
-              >
-                やめる
-              </button>
-              <button
-                type="button"
-                className="booking-calendar__action-button booking-calendar__action-button--primary"
-                onClick={confirmAfterWarning}
-              >
-                {warningModal.kind === "tentative" ? "仮キープする" : "確定する"}
-              </button>
-            </div>
-          </div>
         </div>
       ) : null}
     </div>

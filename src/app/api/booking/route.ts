@@ -8,16 +8,14 @@ import {
 } from "@/lib/booking/conflicts"
 import {
   sendBookingConfirmedEmail,
-  sendBookingOverwriteNoticeEmail,
-  sendBookingTentativeEmail,
   type BookingEmailArgs,
 } from "@/lib/booking/email"
 import {
   CALENDAR_TOKEN_USER_ID,
   createCalendarEvent,
   refreshCalendarAccessToken,
-  updateCalendarEvent,
 } from "@/lib/google-calendar"
+import { createBookingTaskPage } from "@/lib/notion/booking-task"
 import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
@@ -44,8 +42,7 @@ function createDescription(input: BookingApiInput): string {
 }
 
 function createSummary(input: BookingApiInput): string {
-  const prefix = input.bookingKind === "tentative" ? "【仮キープ】" : "【予約確定】"
-  return `${prefix}${input.projectTitle} / ${input.contactName}`
+  return `【予約確定】${input.projectTitle} / ${input.contactName}`
 }
 
 function createBookingEmailArgs(input: BookingApiInput, to: string): BookingEmailArgs {
@@ -133,10 +130,6 @@ export async function POST(request: NextRequest) {
 
   const slots = getInputSlots(input)
   const primarySlot = slots[0]
-  const start = new Date(primarySlot.start)
-  const end = new Date(primarySlot.end)
-  const now = new Date()
-  const tentativeDeadline = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
 
   try {
@@ -161,34 +154,13 @@ export async function POST(request: NextRequest) {
       slots.map((slot) => findConflictingBookings(new Date(slot.start), new Date(slot.end))),
     )
     const conflicts = conflictLists.flat()
-    const conflict = resolveConflictForFinalSubmit(conflicts, input.bookingKind)
+    const conflict = resolveConflictForFinalSubmit(conflicts)
     if (conflict) return responseForConflict(conflict)
 
-    const tentativeConflicts = conflicts.filter((booking) => booking.status === "TENTATIVE")
-    if (tentativeConflicts.length > 0) {
-      const tentativeGroupIds = [...new Set(tentativeConflicts.map((booking) => booking.bookingGroupId))]
-      await prisma.bookingGroup.updateMany({
-        where: {
-          id: { in: tentativeGroupIds },
-        },
-        data: {
-          status: "PENDING_CONFIRMATION",
-          tentativeNotifiedAt: now,
-          tentativeDeadlineAt: tentativeDeadline,
-        },
-      })
-      await prisma.bookingTimeSlot.updateMany({
-        where: { bookingGroupId: { in: tentativeGroupIds } },
-        data: { status: "PENDING_CONFIRMATION" },
-      })
-    }
-
-    const bookingStatus = input.bookingKind === "tentative" ? "TENTATIVE" : "CONFIRMED"
     const bookingGroup = await prisma.bookingGroup.create({
       data: {
         customerId: customer.id,
-        kind: bookingStatus,
-        status: bookingStatus,
+        status: "CONFIRMED",
         projectTitle: input.projectTitle,
         memo: nullable(input.memo),
         contactName: input.contactName,
@@ -196,13 +168,11 @@ export async function POST(request: NextRequest) {
         contactEmail: nullable(input.contactEmail),
         phone: nullable(input.phone),
         dueDate: nullable(input.dueDate),
-        tentativeNotifiedAt: bookingStatus === "TENTATIVE" ? now : null,
-        tentativeDeadlineAt: bookingStatus === "TENTATIVE" ? tentativeDeadline : null,
         timeSlots: {
           create: slots.map((slot) => ({
             startTime: new Date(slot.start),
             endTime: new Date(slot.end),
-            status: bookingStatus,
+            status: "CONFIRMED",
           })),
         },
       },
@@ -210,37 +180,11 @@ export async function POST(request: NextRequest) {
     })
 
     const bookingEmailArgs = createBookingEmailArgs(input, userEmail)
-    const emailTasks: Promise<unknown>[] = []
-    if (bookingStatus === "TENTATIVE") {
-      emailTasks.push(warnOnEmailFailure(sendBookingTentativeEmail(bookingEmailArgs), "tentative", userEmail))
-    } else {
-      emailTasks.push(warnOnEmailFailure(sendBookingConfirmedEmail(bookingEmailArgs), "confirmed", userEmail))
-    }
-
-    for (const tentativeConflict of tentativeConflicts) {
-      const conflictEmail = tentativeConflict.customer.user.email
-      if (!conflictEmail) {
-        console.warn(`[email skipped] tag=overwrite to=missing bookingId=${tentativeConflict.id}`)
-        continue
-      }
-      emailTasks.push(
-        warnOnEmailFailure(
-          sendBookingOverwriteNoticeEmail({
-            to: conflictEmail,
-            projectTitle: tentativeConflict.title,
-            start: tentativeConflict.startTime,
-            end: tentativeConflict.endTime,
-            workScopes: [],
-            otherWorkDetail: tentativeConflict.memo ?? "",
-            estimatedDuration: "consult",
-            deadline: tentativeDeadline,
-          }),
-          "overwrite",
-          conflictEmail,
-        ),
-      )
-    }
-    await Promise.all(emailTasks)
+    await warnOnEmailFailure(
+      sendBookingConfirmedEmail(bookingEmailArgs),
+      "confirmed",
+      userEmail,
+    )
 
     if (!calendarId) {
       console.warn("Booking created without Google Calendar event: GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set")
@@ -249,73 +193,89 @@ export async function POST(request: NextRequest) {
           status: "ok_with_warning",
           bookingGroupId: bookingGroup.id,
           bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
-          bookingStatus,
+          bookingStatus: "CONFIRMED",
           gcalError: "GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set",
         },
         { status: 207 },
       )
     }
 
+    const description = createDescription(input)
+    const summary = createSummary(input)
+    let gcalEventId: string | null = null
+    let gcalError: string | null = null
     try {
       const accessToken = await refreshStoredCalendarToken()
-      const description = createDescription(input)
       const event = await createCalendarEvent({
         calendarId,
-        summary: createSummary(input),
+        summary,
         description,
         start: primarySlot.start,
         end: primarySlot.end,
-        colorId: input.bookingKind === "tentative" ? "4" : "9",
+        colorId: "9",
         accessToken,
       })
+      gcalEventId = event.id ?? null
 
       await prisma.bookingGroup.update({
         where: { id: bookingGroup.id },
-        data: {
-          gcalEventId: event.id,
-        },
-      })
-
-      await Promise.all(
-        tentativeConflicts
-          .filter((conflictBooking) => conflictBooking.gcalEventId)
-          .map((conflictBooking) =>
-            updateCalendarEvent({
-              calendarId,
-              eventId: conflictBooking.gcalEventId!,
-              summary: `【仮キープ→上書き予告】${conflictBooking.title} / ${conflictBooking.customer.displayName}`,
-              description: conflictBooking.memo ?? "",
-              start: conflictBooking.startTime.toISOString(),
-              end: conflictBooking.endTime.toISOString(),
-              colorId: "5",
-              accessToken,
-            }),
-          ),
-      )
-
-      return NextResponse.json({
-        status: "ok",
-        bookingGroupId: bookingGroup.id,
-        bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
-        bookingStatus,
+        data: { gcalEventId },
       })
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Google Calendar event write failed"
+      gcalError = error instanceof Error ? error.message : "Google Calendar event write failed"
       console.warn("Booking created but Google Calendar write failed", {
         bookingGroupId: bookingGroup.id,
-        error: message,
+        error: gcalError,
       })
+    }
+
+    let notionPageId: string | null = null
+    let notionError: string | null = null
+    try {
+      const notionResult = await createBookingTaskPage({
+        title: summary,
+        start: primarySlot.start,
+        end: primarySlot.end,
+        gcalEventId,
+        description,
+      })
+      if (!notionResult.skipped) {
+        notionPageId = notionResult.pageId
+        await prisma.bookingGroup.update({
+          where: { id: bookingGroup.id },
+          data: { notionPageId },
+        })
+      }
+    } catch (error) {
+      notionError = error instanceof Error ? error.message : "Notion IB_仕事 page write failed"
+      console.warn("Booking created but Notion IB_仕事 page write failed", {
+        bookingGroupId: bookingGroup.id,
+        error: notionError,
+      })
+    }
+
+    if (gcalError || notionError) {
       return NextResponse.json(
         {
           status: "ok_with_warning",
           bookingGroupId: bookingGroup.id,
           bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
-          bookingStatus,
-          gcalError: message,
+          bookingStatus: "CONFIRMED",
+          gcalError,
+          notionError,
+          notionPageId,
         },
         { status: 207 },
       )
     }
+
+    return NextResponse.json({
+      status: "ok",
+      bookingGroupId: bookingGroup.id,
+      bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
+      bookingStatus: "CONFIRMED",
+      notionPageId,
+    })
   } catch (error) {
     console.error("Booking API failed", error)
     return NextResponse.json({ error: "unknown" }, { status: 500 })

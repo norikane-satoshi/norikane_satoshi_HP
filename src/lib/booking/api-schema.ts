@@ -41,7 +41,6 @@ export type BookingApiInput = z.infer<typeof bookingApiSchema>
 
 export const bookingConflictsRequestSchema = z
   .object({
-    bookingKind: z.enum(["confirmed", "tentative"]),
     start: z.string().datetime(),
     end: z.string().datetime(),
     excludeBookingId: z.string().optional(),
@@ -62,13 +61,10 @@ export type BookingConflictsRequest = z.infer<typeof bookingConflictsRequestSche
 
 export type BookingConflictsResponse =
   | { verdict: "ok" }
-  | { verdict: "block"; reason: "slot_taken" | "slot_pending"; message: string }
-  | { verdict: "warn"; message: string }
+  | { verdict: "block"; reason: "slot_taken"; message: string }
 
 export type BookingApiErrorCode =
   | "slot_taken"
-  | "slot_pending"
-  | "tentative_exists"
   | "unauthorized"
   | "invalid_request"
   | "unknown"
@@ -76,8 +72,6 @@ export type BookingApiErrorCode =
 export function mapErrorCodeToJa(code: string | null | undefined): string {
   const messages = {
     slot_taken: "この時間枠は既に予約が確定しています",
-    slot_pending: "この時間枠は他のお客様の本予約申込が入っており確定待ちです",
-    tentative_exists: "この時間枠は既に他のお客様の仮キープが入っています",
     unauthorized: "セッションが切れました、ログインし直してください",
     invalid_request: "入力内容に不備があります",
     unknown: "予約申込で予期せぬエラーが発生しました",

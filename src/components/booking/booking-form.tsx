@@ -12,6 +12,7 @@ import {
   type BookingSlot,
 } from "@/lib/booking/form-schema"
 
+
 type BookingFormProps = {
   formData: BookingFormData
   selectedSlot: BookingSlot | null
@@ -54,7 +55,6 @@ export function BookingForm({
     values: formData,
   })
 
-  const bookingKind = watch("bookingKind")
   const displaySlots = selectedSlots.length > 0 ? selectedSlots : selectedSlot ? [selectedSlot] : []
 
   useEffect(() => {
@@ -95,27 +95,9 @@ export function BookingForm({
         <strong>{formatDurationMinutes(getTotalDurationMinutes(selectedSlots.length > 0 ? selectedSlots : selectedSlot ? [selectedSlot] : []))}</strong>
       </div>
 
-      <fieldset className="booking-form__group">
-        <legend className="booking-form__label">予約種別</legend>
-        <label className="booking-choice glass-flat">
-          <input type="radio" value="confirmed" {...register("bookingKind")} />
-          <span>本予約</span>
-        </label>
-        <label className="booking-choice glass-flat">
-          <input type="radio" value="tentative" {...register("bookingKind")} />
-          <span>仮キープ</span>
-        </label>
-        {bookingKind === "confirmed" ? (
-          <p className="booking-form__callout glass-flat">
-            本予約はお申し込み時点では確定ではありません。内容を確認のうえ、確定のご連絡を別途お送りします。確定までしばらくお時間をいただきます
-          </p>
-        ) : null}
-        {bookingKind === "tentative" ? (
-          <p className="booking-form__callout glass-flat">
-            仮キープは候補日の先抑え枠です。後から他の方の本予約が入った場合、3 日以内に本予約化または応答が必要で、無応答時は上書きされます
-          </p>
-        ) : null}
-      </fieldset>
+      <p className="booking-form__callout glass-flat">
+        本予約はお申し込み時点では確定ではありません。内容を確認のうえ、確定のご連絡を別途お送りします。確定までしばらくお時間をいただきます
+      </p>
 
       <label className="booking-form__group">
         <span className="booking-form__label">案件名</span>

@@ -7,15 +7,10 @@ const TO = "norikane.satoshi@gmail.com"
 const PROJECT_TITLE = "【テスト】Resend 実送信疎通確認"
 const START = "2026-06-15T10:00:00+09:00"
 const END = "2026-06-15T18:00:00+09:00"
-const DEADLINE = "2026-06-18T18:00:00+09:00"
 
 const emailModule = await import("../src/lib/booking/email.ts")
-const {
-  sendBookingConfirmedEmail,
-  sendBookingTentativeEmail,
-  sendBookingOverwriteNoticeEmail,
-  sendBookingTentativeExpiredEmail,
-} = emailModule.default ?? emailModule["module.exports"] ?? emailModule
+const { sendBookingConfirmedEmail } =
+  emailModule.default ?? emailModule["module.exports"] ?? emailModule
 
 const baseArgs = {
   to: TO,
@@ -27,13 +22,6 @@ const baseArgs = {
   estimatedDuration: "full-day",
 }
 
-const cases = [
-  ["confirmed", () => sendBookingConfirmedEmail(baseArgs)],
-  ["tentative", () => sendBookingTentativeEmail(baseArgs)],
-  ["overwrite", () => sendBookingOverwriteNoticeEmail({ ...baseArgs, deadline: DEADLINE })],
-  ["expired", () => sendBookingTentativeExpiredEmail(baseArgs)],
-]
-
 function assertSendResult(tag, result) {
   if (!result || result.skipped === true) {
     throw new Error(`Resend real-send ${tag} was skipped`)
@@ -44,18 +32,7 @@ function assertSendResult(tag, result) {
   return result.id
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-const ids = {}
-
-for (const [tag, send] of cases) {
-  const result = await send()
-  const id = assertSendResult(tag, result)
-  ids[tag] = id
-  console.log(`sent tag=${tag} id=${id}`)
-  await sleep(1000)
-}
-
-console.log(JSON.stringify(ids, null, 2))
+const result = await sendBookingConfirmedEmail(baseArgs)
+const id = assertSendResult("confirmed", result)
+console.log(`sent tag=confirmed id=${id}`)
+console.log(JSON.stringify({ confirmed: id }, null, 2))

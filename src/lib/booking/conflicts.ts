@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 
-export type ConflictBookingStatus = "CONFIRMED" | "PENDING_CONFIRMATION" | "TENTATIVE"
+export type ConflictBookingStatus = "CONFIRMED"
 
 export type ConflictBooking = {
   id: string
@@ -29,7 +29,7 @@ export async function findConflictingBookings(
       ...(options.excludeBookingId ? { id: { not: options.excludeBookingId } } : {}),
       startTime: { lt: end },
       endTime: { gt: start },
-      status: { in: ["CONFIRMED", "TENTATIVE", "PENDING_CONFIRMATION"] },
+      status: "CONFIRMED",
     },
     include: {
       bookingGroup: {
@@ -50,7 +50,7 @@ export async function findConflictingBookings(
   })
 
   return slots
-    .filter((slot) => ["CONFIRMED", "TENTATIVE", "PENDING_CONFIRMATION"].includes(slot.bookingGroup.status))
+    .filter((slot) => slot.bookingGroup.status === "CONFIRMED")
     .map((slot) => ({
       id: slot.id,
       bookingGroupId: slot.bookingGroupId,
@@ -66,38 +66,18 @@ export async function findConflictingBookings(
 
 export type PreflightVerdict =
   | { kind: "ok" }
-  | { kind: "block"; code: "slot_taken" | "slot_pending" }
-  | { kind: "warn"; message: string }
+  | { kind: "block"; code: "slot_taken" }
 
-export function evaluateConflicts(
-  conflicts: ConflictBooking[],
-  bookingKind: "confirmed" | "tentative",
-): PreflightVerdict {
-  if (conflicts.some((booking) => booking.status === "CONFIRMED")) {
+export function evaluateConflicts(conflicts: ConflictBooking[]): PreflightVerdict {
+  if (conflicts.length > 0) {
     return { kind: "block", code: "slot_taken" }
-  }
-  if (conflicts.some((booking) => booking.status === "PENDING_CONFIRMATION")) {
-    return { kind: "block", code: "slot_pending" }
-  }
-  const tentativeConflict = conflicts.find((booking) => booking.status === "TENTATIVE")
-  if (tentativeConflict) {
-    if (bookingKind === "tentative") {
-      return { kind: "block", code: "slot_pending" }
-    }
-    return {
-      kind: "warn",
-      message: "仮キープと重なります（先着優先で 3 日タイマー）",
-    }
   }
   return { kind: "ok" }
 }
 
 export function resolveConflictForFinalSubmit(
   conflicts: ConflictBooking[],
-  bookingKind: "confirmed" | "tentative",
-): "slot_taken" | "slot_pending" | "tentative_exists" | null {
-  if (conflicts.some((booking) => booking.status === "CONFIRMED")) return "slot_taken"
-  if (conflicts.some((booking) => booking.status === "PENDING_CONFIRMATION")) return "slot_pending"
-  if (conflicts.length > 0 && bookingKind === "tentative") return "tentative_exists"
+): "slot_taken" | null {
+  if (conflicts.length > 0) return "slot_taken"
   return null
 }

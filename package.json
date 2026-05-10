@@ -10,7 +10,8 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "db:migrate:turso": "tsx scripts/turso-migrate-deploy.ts",
-    "e2e:resend:real-send": "tsx scripts/e2e-resend-real-send.mjs"
+    "e2e:resend:real-send": "tsx scripts/e2e-resend-real-send.mjs",
+    "backfill:booking-task-type": "tsx scripts/backfill-booking-task-type.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

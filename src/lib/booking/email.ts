@@ -14,10 +14,6 @@ export type BookingEmailArgs = {
   estimatedDuration?: string
 }
 
-export type BookingOverwriteNoticeEmailArgs = BookingEmailArgs & {
-  deadline: string | Date
-}
-
 const SITE_URL = "https://norikane.studio"
 const SHOP_NAME = "のりかね映像設計室"
 const DEFAULT_FROM_EMAIL = "noreply@norikane.studio"
@@ -76,7 +72,7 @@ function paragraphsToHtml(lines: string[]): string {
 }
 
 async function sendBookingEmail(args: {
-  tag: "confirmed" | "tentative" | "overwrite" | "expired"
+  tag: "confirmed"
   to: string
   subject: string
   lines: string[]
@@ -117,70 +113,6 @@ export async function sendBookingConfirmedEmail(args: BookingEmailArgs): Promise
       `作業内容:\n${formatWork(args)}`,
       "",
       "変更やキャンセルのご相談がある場合は、このメールへの返信でお知らせください。",
-      ...signatureLines(),
-    ],
-  })
-}
-
-export async function sendBookingTentativeEmail(args: BookingEmailArgs): Promise<BookingEmailResult> {
-  const schedule = formatSchedule(args.start, args.end)
-  const subject = `【仮キープ受付】${args.projectTitle} の候補日を仮押さえしました（${schedule}）`
-  return sendBookingEmail({
-    tag: "tentative",
-    to: args.to,
-    subject,
-    lines: [
-      "候補日の仮キープを受け付けました。",
-      "",
-      `案件名: ${args.projectTitle}`,
-      `日時: ${schedule}`,
-      `作業内容:\n${formatWork(args)}`,
-      "",
-      "本予約へ切り替える場合は、HP 予約ページから当該枠を再操作してください。",
-      "同じ枠に他のお客様から本予約申込が入った場合は通知メールをお送りします。その場合は、通知から3日以内のご対応が必要です。",
-      ...signatureLines(),
-    ],
-  })
-}
-
-export async function sendBookingOverwriteNoticeEmail(
-  args: BookingOverwriteNoticeEmailArgs,
-): Promise<BookingEmailResult> {
-  const schedule = formatSchedule(args.start, args.end)
-  const deadline = formatDateTime(args.deadline)
-  const subject = `【ご確認ください】仮キープの枠に他のお客様から本予約申込が入りました（${schedule}）`
-  return sendBookingEmail({
-    tag: "overwrite",
-    to: args.to,
-    subject,
-    lines: [
-      "仮キープ中の枠に、他のお客様から本予約申込が入りました。",
-      "",
-      `案件名: ${args.projectTitle}`,
-      `日時: ${schedule}`,
-      `対応期限: ${deadline}`,
-      "",
-      "期限までに、本予約への切り替えまたは別日への変更をご対応ください。",
-      "期限までにご応答がない場合は、後から本予約申込をされたお客様の予約で上書きされます。",
-      ...signatureLines(),
-    ],
-  })
-}
-
-export async function sendBookingTentativeExpiredEmail(args: BookingEmailArgs): Promise<BookingEmailResult> {
-  const schedule = formatSchedule(args.start, args.end)
-  const subject = `【ご連絡】仮キープが期限切れにより取り消されました（${schedule}）`
-  return sendBookingEmail({
-    tag: "expired",
-    to: args.to,
-    subject,
-    lines: [
-      "仮キープのご案内から3日以内にご応答がなかったため、対象の仮キープを取り消しました。",
-      "",
-      `案件名: ${args.projectTitle}`,
-      `日時: ${schedule}`,
-      "",
-      "あらためてご予約をご希望の場合は、HP 予約ページから再度お申し込みください。",
       ...signatureLines(),
     ],
   })

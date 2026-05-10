@@ -147,10 +147,9 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
   }
 
   const handleCommitSlot = useCallback(
-    (slots: { start: string; end: string }[], kind: "confirmed" | "tentative") => {
+    (slots: { start: string; end: string }[]) => {
       setSubmitError(null)
       setSelectedSlots(slots.map((slot) => ({ start: slot.start, end: slot.end })))
-      setFormData((current) => ({ ...current, bookingKind: kind }))
       goToStep("form")
     },
     [goToStep],

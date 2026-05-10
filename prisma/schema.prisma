@@ -1,9 +1,7 @@
-// HP予約カレンダー機能 Phase 1 スキャフォールド
+// HP予約カレンダー機能 スキーマ
 // 詳細仕様は Notion タスクページ「HP予約カレンダー機能の方針確定と実装」を参照
 //
-// Phase 1 スコープ：Auth.js v5 標準スキーマ + 予約者プロフィール（Customer）+ 予約（Booking）
-// 仮キープの 3日タイマー用フィールドと、GCal 仮キープイベント連携用の gcalEventId を初版から含める
-// 後続 Phase で予約 UI / GCal 連携 / 3日タイマーバッチを実装する
+// 仮キープ機能はフェーズ A（2026-05-10）で完全削除。本予約フローのみが残る。
 
 generator client {
   provider = "prisma-client-js"
@@ -120,20 +118,16 @@ model Customer {
 // 予約
 // ─────────────────────────────────────────────────
 //
-// status は以下の文字列のいずれかを取る（SQLite は enum 非対応のため文字列で表現）：
-//   - TENTATIVE             : 顧客が「仮キープ」として置いた予約。GCal にも仮キープ用の色 / タイトル prefix で書き込み
-//   - PENDING_CONFIRMATION  : 同枠に他客の本予約申込が入って 3日タイマー稼働中の仮キープ
-//   - CONFIRMED             : 本予約として確定
-//   - OVERWRITTEN           : 3日タイマー失効で後着の本予約により上書きされた仮キープ
-//   - CANCELLED             : 顧客 / さとし側でキャンセル
+// 仮キープ削除後の status は以下の文字列のいずれか：
+//   - CONFIRMED : 本予約として確定（GCal にイベント書き込み + 後段 IB_仕事 ページ「タスク種別: スケジュール」）
+//   - CANCELLED : 顧客 / さとし側でキャンセル
 //
-// 仮キープも GCal にイベントを書き込むため、gcalEventId は仮キープ作成時点で先行作成される。
-// 本予約確定 / 上書き / キャンセル時には GCal イベントの色・タイトル・状態を更新するか削除する。
+// gcalEventId は本予約作成時に GCal に書き込まれたイベント ID。
+// notionPageId はその予約に紐づく IB_仕事 ページ ID（タスク種別 = スケジュール 自動セット済み）。
 
 model BookingGroup {
   id           String  @id @default(cuid())
   customerId   String
-  kind         String  @default("CONFIRMED")
   status       String  @default("CONFIRMED")
   projectTitle String
   memo         String?
@@ -143,12 +137,10 @@ model BookingGroup {
   phone        String?
   dueDate      String?
 
-  // 仮キープの 3日タイマー
-  tentativeNotifiedAt DateTime?
-  tentativeDeadlineAt DateTime?
-
-  // Google Calendar Event ID（仮キープ作成時点で先行作成 → 本予約確定 / 上書き / キャンセル時に色・タイトル・状態を更新）
+  // Google Calendar Event ID（本予約作成時に書き込み、キャンセル時に削除）
   gcalEventId String?
+  // Notion IB_仕事 ページ ID（タスク種別 = スケジュール 自動セット済み）
+  notionPageId String?
 
   customer  Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
   timeSlots BookingTimeSlot[]
@@ -157,7 +149,6 @@ model BookingGroup {
   updatedAt DateTime @updatedAt
 
   @@index([status])
-  @@index([kind])
 }
 
 model BookingTimeSlot {
