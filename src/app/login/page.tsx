@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, Suspense, useState } from "react"
+import { FormEvent, Suspense, useEffect, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
@@ -20,6 +20,13 @@ function messageForCode(code: string | null | undefined): string {
 function LoginCard() {
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || FALLBACK_CALLBACK_URL
+
+  const [verified, setVerified] = useState<string | null>(null)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+  useEffect(() => {
+    setVerified(searchParams.get("verified"))
+    setVerifyError(searchParams.get("verifyError"))
+  }, [searchParams])
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -63,6 +70,17 @@ function LoginCard() {
       <p className="mt-3 text-sm text-hp-muted">
         ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。
       </p>
+
+      {verified === "1" && (
+        <p className="mt-6 text-sm text-emerald-500" role="status">
+          メールアドレスの認証が完了しました。ログインしてください
+        </p>
+      )}
+      {verifyError === "invalid_or_expired" && (
+        <p className="mt-6 text-sm text-red-500" role="alert">
+          認証リンクが無効か期限切れです。お手数ですがもう一度サインアップから登録メールを送信してください
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
         <div>
