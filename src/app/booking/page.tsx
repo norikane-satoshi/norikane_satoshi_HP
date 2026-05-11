@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 
 export default async function BookingPage() {
   const session = await auth()
-  if (!session?.user) redirect("/api/auth/signin")
+  if (!session?.user) redirect("/login?callbackUrl=/booking")
 
   return (
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">
