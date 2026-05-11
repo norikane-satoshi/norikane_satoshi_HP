@@ -5,16 +5,22 @@ type RouteContext = {
   params: Promise<{ token: string }>
 }
 
-export async function GET(_request: NextRequest, ctx: RouteContext) {
+export async function GET(request: NextRequest, ctx: RouteContext) {
   const { token } = await ctx.params
 
   const record = await prisma.verificationToken.findUnique({ where: { token } })
   if (!record) {
-    return NextResponse.json({ error: "invalid or expired token" }, { status: 400 })
+    return NextResponse.redirect(
+      new URL("/login?verifyError=invalid_or_expired", request.url),
+      303,
+    )
   }
   if (record.expires.getTime() < Date.now()) {
     await prisma.verificationToken.delete({ where: { token } })
-    return NextResponse.json({ error: "invalid or expired token" }, { status: 400 })
+    return NextResponse.redirect(
+      new URL("/login?verifyError=invalid_or_expired", request.url),
+      303,
+    )
   }
 
   await prisma.$transaction([
@@ -25,5 +31,5 @@ export async function GET(_request: NextRequest, ctx: RouteContext) {
     prisma.verificationToken.delete({ where: { token } }),
   ])
 
-  return NextResponse.json({ ok: true, email: record.identifier })
+  return NextResponse.redirect(new URL("/login?verified=1", request.url), 303)
 }
