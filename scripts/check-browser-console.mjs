@@ -18,7 +18,11 @@ if (!Number.isFinite(waitSeconds) || waitSeconds < 0) {
 const browser = await chromium.launch({ headless: true })
 
 try {
-  const context = await browser.newContext()
+  const contextOptions = {}
+  if (process.env.REDUCED_MOTION === "reduce") {
+    contextOptions.reducedMotion = "reduce"
+  }
+  const context = await browser.newContext(contextOptions)
   const page = await context.newPage()
   const scenarioResults = []
   let activeScenario = null
