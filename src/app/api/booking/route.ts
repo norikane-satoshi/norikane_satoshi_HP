@@ -15,7 +15,6 @@ import {
   createCalendarEvent,
   refreshCalendarAccessToken,
 } from "@/lib/google-calendar"
-import { createBookingTaskPage } from "@/lib/notion/booking-task"
 import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
@@ -229,32 +228,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    let notionPageId: string | null = null
-    let notionError: string | null = null
-    try {
-      const notionResult = await createBookingTaskPage({
-        title: summary,
-        start: primarySlot.start,
-        end: primarySlot.end,
-        gcalEventId,
-        description,
-      })
-      if (!notionResult.skipped) {
-        notionPageId = notionResult.pageId
-        await prisma.bookingGroup.update({
-          where: { id: bookingGroup.id },
-          data: { notionPageId },
-        })
-      }
-    } catch (error) {
-      notionError = error instanceof Error ? error.message : "Notion IB_仕事 page write failed"
-      console.warn("Booking created but Notion IB_仕事 page write failed", {
-        bookingGroupId: bookingGroup.id,
-        error: notionError,
-      })
-    }
-
-    if (gcalError || notionError) {
+    if (gcalError) {
       return NextResponse.json(
         {
           status: "ok_with_warning",
@@ -262,8 +236,6 @@ export async function POST(request: NextRequest) {
           bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
           bookingStatus: "CONFIRMED",
           gcalError,
-          notionError,
-          notionPageId,
         },
         { status: 207 },
       )
@@ -274,7 +246,6 @@ export async function POST(request: NextRequest) {
       bookingGroupId: bookingGroup.id,
       bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
       bookingStatus: "CONFIRMED",
-      notionPageId,
     })
   } catch (error) {
     console.error("Booking API failed", error)
