@@ -132,6 +132,16 @@ export const VISUAL_REGISTRY: Record<string, VisualConfig> = {
     intro: "コントラストひとつで立体感を出そうとした日。顔が暗くなって、服と壁の境目が消えた。",
     loopSec: 14,
   },
+  "grading-visible-vs-hidden": {
+    slug: "grading-visible-vs-hidden",
+    kind: "static",
+    title: "即応と仕込みは、触りやすさの非対称",
+    caption:
+      "4 軸を『ツール上で見える / 即応』と『ツール上で見えない / 仕込み』の上下 2 段に分類する。上段はカーブ（AMBER）と RGB バランス（TEAL）でツール UI が破綻を直接吐く軸。下段は色の広がり・転がり（MAGENTA）と濃度（NAVY）でツール上では平穏に見えるが、シーンを跨ぐと差が出る軸。",
+    alt: "グレーディング 4 軸を『ツール上で見える / 即応』と『ツール上で見えない / 仕込み』の上下 2 段に分類する静止図。上段はカーブ（AMBER）のトーンカーブ模式と RGB バランス（TEAL）のパレード模式で破綻が画面で読める。下段は色の広がり・転がり（MAGENTA）のベクトルスコープ／彩度メーターと濃度（NAVY）のヒストグラム／密度メーターがツール上で平穏に見え、右端のシーン跨ぎミニサムネ列 4 枚で彩度と立体感が徐々にずれる差を示す。",
+    aspect: { width: 16, height: 9 },
+    intro: "カーブと RGB は画面で即気付ける。広がりと濃度は、シーンを跨いで初めて気付く。",
+  },
 }
 
 export function getVisualConfig(slug: string): VisualConfig | null {

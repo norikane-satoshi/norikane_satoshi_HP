@@ -78,6 +78,10 @@ const STATIC_MODULES: Record<string, ComponentType<unknown>> = {
     () => import("@/components/notes/visuals/grading-natural-vs-normal"),
     { loading: () => <VisualSkeleton /> }
   ),
+  "grading-visible-vs-hidden": dynamic(
+    () => import("@/components/notes/visuals/grading-visible-vs-hidden"),
+    { loading: () => <VisualSkeleton /> }
+  ),
 }
 
 export function NoteVisual({ slug }: { slug: string }) {
