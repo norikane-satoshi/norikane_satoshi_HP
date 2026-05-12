@@ -379,18 +379,30 @@ function NodeCanvas({
   )
 }
 
-export default function GradingVisibleVsHidden3D() {
+function HiddenCanvas({ kind }: { kind: NodeKind }) {
   const reducedMotion = useReducedMotion()
   const count = useParticleCount()
 
   return (
-    <div className="absolute inset-0 flex">
-      <div className="relative" style={{ width: "50%", height: "100%" }}>
-        <NodeCanvas kind="left" reducedMotion={reducedMotion} count={count} />
-      </div>
-      <div className="relative" style={{ width: "50%", height: "100%" }}>
-        <NodeCanvas kind="right" reducedMotion={reducedMotion} count={count} />
-      </div>
+    <div className="relative h-full w-full">
+      <NodeCanvas kind={kind} reducedMotion={reducedMotion} count={count} />
     </div>
+  )
+}
+
+export function HiddenLeftCanvas() {
+  return <HiddenCanvas kind="left" />
+}
+
+export function HiddenRightCanvas() {
+  return <HiddenCanvas kind="right" />
+}
+
+export default function GradingVisibleVsHidden3D() {
+  return (
+    <>
+      <HiddenLeftCanvas />
+      <HiddenRightCanvas />
+    </>
   )
 }

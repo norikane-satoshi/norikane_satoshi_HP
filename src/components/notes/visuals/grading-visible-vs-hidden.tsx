@@ -41,6 +41,8 @@ const PANEL_STROKE = "rgba(255,255,255,0.72)"
 
 const AMBER = "rgb(200,146,58)"
 const TEAL = "rgb(46,140,132)"
+const MAGENTA = "rgb(176,82,160)"
+const NAVY = "rgb(58,90,170)"
 
 const FONT_FAMILY = "var(--font-noto-sans-jp), sans-serif"
 const MONO = "var(--font-geist-mono), ui-monospace, monospace"
@@ -52,9 +54,11 @@ const RGB_CURVE_COLORS = {
 } as const
 
 type VisibleAxisKey = "curve" | "rgb"
+type HiddenAxisKey = "spread" | "density"
 
-type VisibleAxisDef = {
-  key: VisibleAxisKey
+type AxisDef<Key extends string> = {
+  key: Key
+  axisLabel: string
   name: string
   tagline: string
   color: string
@@ -63,9 +67,13 @@ type VisibleAxisDef = {
   columnX: number
 }
 
+type VisibleAxisDef = AxisDef<VisibleAxisKey>
+type HiddenAxisDef = AxisDef<HiddenAxisKey>
+
 const AXES_VISIBLE: VisibleAxisDef[] = [
   {
     key: "curve",
+    axisLabel: "CURVE",
     name: "カーブ",
     tagline: "1 本のマスタートーンが画面で動く",
     color: AMBER,
@@ -75,6 +83,7 @@ const AXES_VISIBLE: VisibleAxisDef[] = [
   },
   {
     key: "rgb",
+    axisLabel: "RGB",
     name: "RGB カラーバランス",
     tagline: "R / G / B 3 本のトーンが少しずつ離れる",
     color: TEAL,
@@ -84,8 +93,45 @@ const AXES_VISIBLE: VisibleAxisDef[] = [
   },
 ]
 
-const HiddenSection3D = dynamic(
-  () => import("@/components/notes/visuals/grading-visible-vs-hidden-3d"),
+const AXES_HIDDEN: HiddenAxisDef[] = [
+  {
+    key: "spread",
+    axisLabel: "SPREAD",
+    name: "色の広がり・転がり",
+    tagline: "クラスタの形がねじれて広がる",
+    color: MAGENTA,
+    toolTitle: "COLOR VOLUME / SPREAD",
+    failLabel: "シーンを跨いで色の傾向で気付く",
+    columnX: COL_LEFT_X,
+  },
+  {
+    key: "density",
+    axisLabel: "DENSITY",
+    name: "濃度",
+    tagline: "有彩色帯が中央軸を上下にスライド",
+    color: NAVY,
+    toolTitle: "COLOR VOLUME / DENSITY",
+    failLabel: "カット間で濃度の段違いで気付く",
+    columnX: COL_RIGHT_X,
+  },
+]
+
+const HiddenLeftCanvas = dynamic(
+  () =>
+    import("@/components/notes/visuals/grading-visible-vs-hidden-3d").then(
+      (mod) => mod.HiddenLeftCanvas,
+    ),
+  {
+    ssr: false,
+    loading: () => <HiddenPlaceholder />,
+  },
+)
+
+const HiddenRightCanvas = dynamic(
+  () =>
+    import("@/components/notes/visuals/grading-visible-vs-hidden-3d").then(
+      (mod) => mod.HiddenRightCanvas,
+    ),
   {
     ssr: false,
     loading: () => <HiddenPlaceholder />,
@@ -96,7 +142,7 @@ function HiddenPlaceholder() {
   return (
     <div
       aria-hidden="true"
-      className="absolute inset-0"
+      className="h-full w-full"
       style={{ background: "transparent" }}
     />
   )
@@ -114,7 +160,13 @@ export default function GradingVisibleVsHidden() {
         <VisibleSectionSvg />
       </div>
       <div className="relative w-full" style={{ height: "50%" }}>
-        <HiddenSection3D />
+        <HiddenSectionSvg />
+        <HiddenCanvasSlot side="left">
+          <HiddenLeftCanvas />
+        </HiddenCanvasSlot>
+        <HiddenCanvasSlot side="right">
+          <HiddenRightCanvas />
+        </HiddenCanvasSlot>
       </div>
     </div>
   )
@@ -183,11 +235,75 @@ function VisibleSectionSvg() {
   )
 }
 
+function HiddenSectionSvg() {
+  return (
+    <svg
+      viewBox={`0 0 ${VW} ${VH_TOP}`}
+      preserveAspectRatio="xMidYMid meet"
+      className="absolute inset-0 h-full w-full"
+      aria-hidden="true"
+      fontFamily={FONT_FAMILY}
+    >
+      <defs>
+        <radialGradient id="gvh-hidden-aurora-purple" cx="14%" cy="10%" r="60%">
+          <stop offset="0%" stopColor="#8B7FFF" stopOpacity={0.16} />
+          <stop offset="72%" stopColor="#8B7FFF" stopOpacity={0} />
+        </radialGradient>
+        <radialGradient id="gvh-hidden-aurora-magenta" cx="88%" cy="6%" r="48%">
+          <stop offset="0%" stopColor="#FF8FAB" stopOpacity={0.14} />
+          <stop offset="72%" stopColor="#FF8FAB" stopOpacity={0} />
+        </radialGradient>
+        <radialGradient id="gvh-hidden-aurora-sky" cx="58%" cy="100%" r="58%">
+          <stop offset="0%" stopColor="#7DD3FC" stopOpacity={0.12} />
+          <stop offset="72%" stopColor="#7DD3FC" stopOpacity={0} />
+        </radialGradient>
+        <filter id="gvh-hidden-card-shadow" x="-6%" y="-12%" width="112%" height="128%">
+          <feDropShadow dx={0} dy={6} stdDeviation={12} floodColor="#8B7FFF" floodOpacity={0.13} />
+        </filter>
+        <filter id="gvh-hidden-badge-shadow" x="-6%" y="-30%" width="112%" height="160%">
+          <feDropShadow dx={0} dy={4} stdDeviation={10} floodColor="#8B7FFF" floodOpacity={0.12} />
+        </filter>
+      </defs>
+
+      <rect x={0} y={0} width={VW} height={VH_TOP} fill={BG_BASE} />
+      <rect x={0} y={0} width={VW} height={VH_TOP} fill="url(#gvh-hidden-aurora-purple)" />
+      <rect x={0} y={0} width={VW} height={VH_TOP} fill="url(#gvh-hidden-aurora-magenta)" />
+      <rect x={0} y={0} width={VW} height={VH_TOP} fill="url(#gvh-hidden-aurora-sky)" />
+      <rect x={0} y={0} width={VW} height={VH_TOP} fill="rgba(28,15,110,0.025)" />
+
+      <rect
+        x={COL_PAD - 14}
+        y={SECTION_TOP_Y - 14}
+        width={VW - (COL_PAD - 14) * 2}
+        height={VH_TOP - (SECTION_TOP_Y - 14) - (OUTER_PAD - 14)}
+        rx={CORNER_R + 4}
+        fill="rgba(255,255,255,0.28)"
+        stroke="rgba(176,82,160,0.32)"
+        strokeWidth={1.2}
+      />
+
+      <SectionHeader
+        y={SECTION_TOP_Y}
+        label="仕込み"
+        caption="ツール上で見えない ─ シーンを跨いで気付く"
+        toneLabel="TOOL-HIDDEN / SLOW"
+        toneColor={MAGENTA}
+        color={MAGENTA}
+        shadowPrefix="gvh-hidden"
+      />
+
+      {AXES_HIDDEN.map((axis) => (
+        <HiddenAxisColumn key={axis.key} axis={axis} />
+      ))}
+    </svg>
+  )
+}
+
 function AxisColumn({ axis }: { axis: VisibleAxisDef }) {
   const x = axis.columnX
   return (
     <g>
-      <AxisNameCard x={x} y={COLUMN_TOP_Y} axis={axis} />
+      <AxisNameCard x={x} y={COLUMN_TOP_Y} axis={axis} shadowPrefix="gvh" />
       <ToolPanel x={x} y={TOOL_TOP_Y} title={axis.toolTitle}>
         {axis.key === "curve" ? (
           <MasterCurveUI x={x} y={TOOL_TOP_Y} />
@@ -196,9 +312,57 @@ function AxisColumn({ axis }: { axis: VisibleAxisDef }) {
         )}
       </ToolPanel>
       <FailPanel x={x} y={FAIL_TOP_Y} title="FAILURE / VISIBLE">
-        <InstantFail x={x} y={FAIL_TOP_Y} label={axis.failLabel} color={axis.color} />
+        <FailIndicator
+          x={x}
+          y={FAIL_TOP_Y}
+          headline="その場で気付く"
+          label={axis.failLabel}
+          color={axis.color}
+        />
       </FailPanel>
     </g>
+  )
+}
+
+function HiddenAxisColumn({ axis }: { axis: HiddenAxisDef }) {
+  const x = axis.columnX
+  return (
+    <g>
+      <AxisNameCard x={x} y={COLUMN_TOP_Y} axis={axis} shadowPrefix="gvh-hidden" />
+      <ToolPanel x={x} y={TOOL_TOP_Y} title={axis.toolTitle} shadowPrefix="gvh-hidden" />
+      <FailPanel x={x} y={FAIL_TOP_Y} title="FAILURE / HIDDEN" shadowPrefix="gvh-hidden">
+        <FailIndicator
+          x={x}
+          y={FAIL_TOP_Y}
+          headline="あとで気付く"
+          label={axis.failLabel}
+          color={axis.color}
+        />
+      </FailPanel>
+    </g>
+  )
+}
+
+function HiddenCanvasSlot({
+  side,
+  children,
+}: {
+  side: "left" | "right"
+  children: React.ReactNode
+}) {
+  const left = side === "left" ? "4.875%" : "52.4375%"
+  return (
+    <div
+      className="absolute"
+      style={{
+        left,
+        top: "44.444%",
+        width: "42.6875%",
+        height: "29.778%",
+      }}
+    >
+      {children}
+    </div>
   )
 }
 
@@ -209,6 +373,7 @@ function SectionHeader({
   toneLabel,
   toneColor,
   color,
+  shadowPrefix = "gvh",
 }: {
   y: number
   label: string
@@ -216,6 +381,7 @@ function SectionHeader({
   toneLabel: string
   toneColor: string
   color: string
+  shadowPrefix?: "gvh" | "gvh-hidden"
 }) {
   const x = COL_PAD
   const w = VW - COL_PAD * 2
@@ -231,7 +397,7 @@ function SectionHeader({
         fill={GLASS_FILL}
         stroke={GLASS_STROKE}
         strokeWidth={1}
-        filter="url(#gvh-badge-shadow)"
+        filter={`url(#${shadowPrefix}-badge-shadow)`}
       />
       <rect
         x={x + 16}
@@ -283,10 +449,12 @@ function AxisNameCard({
   x,
   y,
   axis,
+  shadowPrefix = "gvh",
 }: {
   x: number
   y: number
-  axis: VisibleAxisDef
+  axis: AxisDef<string>
+  shadowPrefix?: "gvh" | "gvh-hidden"
 }) {
   const chipW = 12
   const chipX = x + 22
@@ -303,7 +471,7 @@ function AxisNameCard({
         fill={PANEL_FILL}
         stroke={PANEL_STROKE}
         strokeWidth={1}
-        filter="url(#gvh-card-shadow)"
+        filter={`url(#${shadowPrefix}-card-shadow)`}
       />
       <rect
         x={chipX}
@@ -342,7 +510,7 @@ function AxisNameCard({
         fontFamily={MONO}
         letterSpacing="0.18em"
       >
-        AXIS / {axis.key.toUpperCase()}
+        AXIS / {axis.axisLabel}
       </text>
     </g>
   )
@@ -353,11 +521,13 @@ function ToolPanel({
   y,
   title,
   children,
+  shadowPrefix = "gvh",
 }: {
   x: number
   y: number
   title: string
-  children: React.ReactNode
+  children?: React.ReactNode
+  shadowPrefix?: "gvh" | "gvh-hidden"
 }) {
   return (
     <g>
@@ -370,7 +540,7 @@ function ToolPanel({
         fill={PANEL_FILL}
         stroke={PANEL_STROKE}
         strokeWidth={1}
-        filter="url(#gvh-card-shadow)"
+        filter={`url(#${shadowPrefix}-card-shadow)`}
       />
       <text
         x={x + 20}
@@ -392,11 +562,13 @@ function FailPanel({
   y,
   title,
   children,
+  shadowPrefix = "gvh",
 }: {
   x: number
   y: number
   title: string
   children: React.ReactNode
+  shadowPrefix?: "gvh" | "gvh-hidden"
 }) {
   return (
     <g>
@@ -409,7 +581,7 @@ function FailPanel({
         fill={PANEL_FILL}
         stroke={PANEL_STROKE}
         strokeWidth={1}
-        filter="url(#gvh-card-shadow)"
+        filter={`url(#${shadowPrefix}-card-shadow)`}
       />
       <text
         x={x + 20}
@@ -670,14 +842,16 @@ function RgbCurvesUI({ x, y }: { x: number; y: number }) {
   )
 }
 
-function InstantFail({
+function FailIndicator({
   x,
   y,
+  headline,
   label,
   color,
 }: {
   x: number
   y: number
+  headline: string
   label: string
   color: string
 }) {
@@ -710,7 +884,7 @@ function InstantFail({
         fontWeight={700}
         fontFamily={FONT_FAMILY}
       >
-        その場で気付く
+        {headline}
       </text>
       <text
         x={iconCx + iconR + 12}

@@ -112,6 +112,16 @@ export function NoteVisual({ slug }: { slug: string }) {
       </figure>
     )
   }
+  if (config.slug === "grading-visible-vs-hidden") {
+    return (
+      <figure
+        data-diagram-kind={config.kind}
+        className="mx-auto my-12 max-w-[58rem] overflow-hidden rounded-[16px] border border-white/55 bg-white/35 md:my-16"
+      >
+        <VisualBody config={config} />
+      </figure>
+    )
+  }
   return (
     <figure
       data-diagram-kind={config.kind}
