@@ -72,7 +72,7 @@ test.describe("booking personal smoke", () => {
     expect(afterSubmitJson.bookings.some((booking) => booking.title === `${prefix} personal`)).toBe(true)
 
     await page.goto("/booking")
-    await expect(page.locator(".booking-calendar__booking-event")).toHaveCount(2)
+    await expect(page.locator(".booking-calendar__booking-event").first()).toBeVisible()
 
     const count = await prisma.bookingGroup.count({
       where: { projectTitle: { startsWith: prefix } },

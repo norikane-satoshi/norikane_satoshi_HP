@@ -1,10 +1,9 @@
 import { auth } from "@/auth"
-import { BookingBusyProvider } from "@/components/booking/booking-busy-provider"
 import { BookingMonthSkeleton } from "@/components/booking/booking-month-skeleton"
+import { BookingSection } from "@/components/booking/booking-section"
 import { Menu } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Suspense } from "react"
 
 function initialBusyRange(now = new Date()) {
   const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -43,8 +42,10 @@ export default async function BookingPage() {
           </Link>
         </div>
         <div className="mt-8">
-          <Suspense
-            fallback={(
+          <BookingSection
+            userId={session.user.id}
+            userEmail={session.user.email ?? ""}
+            monthSkeleton={(
               <BookingMonthSkeleton
                 initialBusy={[]}
                 initialBookings={[]}
@@ -54,15 +55,7 @@ export default async function BookingPage() {
                 pending
               />
             )}
-          >
-            <BookingBusyProvider
-              userId={session.user.id}
-              userEmail={session.user.email ?? ""}
-              teamId={null}
-              now={now}
-              initialRange={initialRange}
-            />
-          </Suspense>
+          />
         </div>
       </div>
     </section>

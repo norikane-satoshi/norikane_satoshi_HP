@@ -35,6 +35,7 @@ type TeamOption = {
 }
 
 const steps: BookingStep[] = ["calendar", "form", "confirm", "done"]
+const FORCE_REFRESH_AFTER_SUBMIT_KEY = "booking:force-refresh-after-submit"
 
 function getStepFromUrl(): BookingStep {
   if (typeof window === "undefined") return "calendar"
@@ -114,6 +115,12 @@ export function BookingSection({
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    if (window.sessionStorage.getItem(FORCE_REFRESH_AFTER_SUBMIT_KEY) !== "1") return
+    window.sessionStorage.removeItem(FORCE_REFRESH_AFTER_SUBMIT_KEY)
+    setRemoteRefreshRequestKey(Date.now())
   }, [])
 
   const applyDraft = useCallback(
@@ -236,6 +243,7 @@ export function BookingSection({
 
       if (response.ok) {
         clearDraft(userId)
+        window.sessionStorage.setItem(FORCE_REFRESH_AFTER_SUBMIT_KEY, "1")
         setLocalDraftAvailable(false)
         setRemoteRefreshRequestKey((value) => value + 1)
         goToStep("done")
