@@ -9,21 +9,22 @@ const OUTER_PAD = 30
 const HEADER_H = 48
 const HEADER_GAP = 14
 
+const ROW_H = 158
+const ROW_GAP = 12
+
 const COL_PAD = 50
 const COL_GAP = 22
 const COLUMN_W = (VW - COL_PAD * 2 - COL_GAP) / 2
 
 const SECTION_TOP_Y = OUTER_PAD
-const COLUMN_TOP_Y = SECTION_TOP_Y + HEADER_H + HEADER_GAP
-const COLUMN_BOTTOM_Y = VH_TOP - OUTER_PAD
-const COLUMN_H = COLUMN_BOTTOM_Y - COLUMN_TOP_Y
+const ROW1_TOP_Y = SECTION_TOP_Y + HEADER_H + HEADER_GAP
+const ROW2_TOP_Y = ROW1_TOP_Y + ROW_H + ROW_GAP
 
 const NAME_H = 60
 const FAIL_H = 60
-const SUB_GAP = 12
-const TOOL_TOP_Y = COLUMN_TOP_Y + NAME_H + SUB_GAP
-const FAIL_TOP_Y = COLUMN_BOTTOM_Y - FAIL_H
-const TOOL_H = FAIL_TOP_Y - TOOL_TOP_Y - SUB_GAP
+const FAIL_OFFSET_Y = 98
+
+const TOOL_H = ROW_H
 
 const COL_LEFT_X = COL_PAD
 const COL_RIGHT_X = COL_PAD + COLUMN_W + COL_GAP
@@ -58,13 +59,12 @@ type HiddenAxisKey = "spread" | "density"
 
 type AxisDef<Key extends string> = {
   key: Key
-  axisLabel: string
   name: string
   tagline: string
   color: string
   toolTitle: string
   failLabel: string
-  columnX: number
+  rowTopY: number
 }
 
 type VisibleAxisDef = AxisDef<VisibleAxisKey>
@@ -73,46 +73,42 @@ type HiddenAxisDef = AxisDef<HiddenAxisKey>
 const AXES_VISIBLE: VisibleAxisDef[] = [
   {
     key: "curve",
-    axisLabel: "CURVE",
     name: "カーブ",
     tagline: "1 本のマスタートーンが画面で動く",
     color: AMBER,
     toolTitle: "TONE CURVE / MASTER",
     failLabel: "曲線の凹凸が画面に出る",
-    columnX: COL_LEFT_X,
+    rowTopY: ROW1_TOP_Y,
   },
   {
     key: "rgb",
-    axisLabel: "RGB",
     name: "RGB カラーバランス",
     tagline: "R / G / B 3 本のトーンが少しずつ離れる",
     color: TEAL,
     toolTitle: "TONE CURVE / R · G · B",
     failLabel: "ch 別のずれが画面に出る",
-    columnX: COL_RIGHT_X,
+    rowTopY: ROW2_TOP_Y,
   },
 ]
 
 const AXES_HIDDEN: HiddenAxisDef[] = [
   {
     key: "spread",
-    axisLabel: "SPREAD",
     name: "色の広がり・転がり",
     tagline: "クラスタの形がねじれて広がる",
     color: MAGENTA,
     toolTitle: "COLOR VOLUME / SPREAD",
     failLabel: "シーンを跨いで色の傾向で気付く",
-    columnX: COL_LEFT_X,
+    rowTopY: ROW1_TOP_Y,
   },
   {
     key: "density",
-    axisLabel: "DENSITY",
     name: "濃度",
     tagline: "有彩色帯が中央軸を上下にスライド",
     color: NAVY,
     toolTitle: "COLOR VOLUME / DENSITY",
     failLabel: "カット間で濃度の段違いで気付く",
-    columnX: COL_RIGHT_X,
+    rowTopY: ROW2_TOP_Y,
   },
 ]
 
@@ -229,7 +225,7 @@ function VisibleSectionSvg() {
       />
 
       {AXES_VISIBLE.map((axis) => (
-        <AxisColumn key={axis.key} axis={axis} />
+        <AxisRow key={axis.key} axis={axis} />
       ))}
     </svg>
   )
@@ -293,52 +289,52 @@ function HiddenSectionSvg() {
       />
 
       {AXES_HIDDEN.map((axis) => (
-        <HiddenAxisColumn key={axis.key} axis={axis} />
+        <HiddenAxisRow key={axis.key} axis={axis} />
       ))}
     </svg>
   )
 }
 
-function AxisColumn({ axis }: { axis: VisibleAxisDef }) {
-  const x = axis.columnX
+function AxisRow({ axis }: { axis: VisibleAxisDef }) {
+  const rowY = axis.rowTopY
   return (
     <g>
-      <AxisNameCard x={x} y={COLUMN_TOP_Y} axis={axis} shadowPrefix="gvh" />
-      <ToolPanel x={x} y={TOOL_TOP_Y} title={axis.toolTitle}>
-        {axis.key === "curve" ? (
-          <MasterCurveUI x={x} y={TOOL_TOP_Y} />
-        ) : (
-          <RgbCurvesUI x={x} y={TOOL_TOP_Y} />
-        )}
-      </ToolPanel>
-      <FailPanel x={x} y={FAIL_TOP_Y} title="FAILURE / VISIBLE">
+      <AxisNameCard x={COL_LEFT_X} y={rowY} axis={axis} shadowPrefix="gvh" />
+      <FailPanel x={COL_LEFT_X} y={rowY + FAIL_OFFSET_Y} shadowPrefix="gvh">
         <FailIndicator
-          x={x}
-          y={FAIL_TOP_Y}
+          x={COL_LEFT_X}
+          y={rowY + FAIL_OFFSET_Y}
           headline="その場で気付く"
           label={axis.failLabel}
           color={axis.color}
         />
       </FailPanel>
+      <ToolPanel x={COL_RIGHT_X} y={rowY} title={axis.toolTitle}>
+        {axis.key === "curve" ? (
+          <MasterCurveUI x={COL_RIGHT_X} y={rowY} />
+        ) : (
+          <RgbCurvesUI x={COL_RIGHT_X} y={rowY} />
+        )}
+      </ToolPanel>
     </g>
   )
 }
 
-function HiddenAxisColumn({ axis }: { axis: HiddenAxisDef }) {
-  const x = axis.columnX
+function HiddenAxisRow({ axis }: { axis: HiddenAxisDef }) {
+  const rowY = axis.rowTopY
   return (
     <g>
-      <AxisNameCard x={x} y={COLUMN_TOP_Y} axis={axis} shadowPrefix="gvh-hidden" />
-      <ToolPanel x={x} y={TOOL_TOP_Y} title={axis.toolTitle} shadowPrefix="gvh-hidden" />
-      <FailPanel x={x} y={FAIL_TOP_Y} title="FAILURE / HIDDEN" shadowPrefix="gvh-hidden">
+      <AxisNameCard x={COL_LEFT_X} y={rowY} axis={axis} shadowPrefix="gvh-hidden" />
+      <FailPanel x={COL_LEFT_X} y={rowY + FAIL_OFFSET_Y} shadowPrefix="gvh-hidden">
         <FailIndicator
-          x={x}
-          y={FAIL_TOP_Y}
+          x={COL_LEFT_X}
+          y={rowY + FAIL_OFFSET_Y}
           headline="あとで気付く"
           label={axis.failLabel}
           color={axis.color}
         />
       </FailPanel>
+      <ToolPanel x={COL_RIGHT_X} y={rowY} title={axis.toolTitle} shadowPrefix="gvh-hidden" />
     </g>
   )
 }
@@ -350,15 +346,15 @@ function HiddenCanvasSlot({
   side: "left" | "right"
   children: React.ReactNode
 }) {
-  const left = side === "left" ? "4.875%" : "52.4375%"
+  const top = side === "left" ? "28.444%" : "66.222%"
   return (
     <div
       className="absolute"
       style={{
-        left,
-        top: "44.444%",
+        left: "52.4375%",
+        top,
         width: "42.6875%",
-        height: "29.778%",
+        height: "24.000%",
       }}
     >
       {children}
@@ -501,17 +497,6 @@ function AxisNameCard({
       >
         {axis.tagline}
       </text>
-      <text
-        x={x + COLUMN_W - 18}
-        y={y + NAME_H / 2 + 4}
-        textAnchor="end"
-        fill={axis.color}
-        fontSize={10}
-        fontFamily={MONO}
-        letterSpacing="0.18em"
-      >
-        AXIS / {axis.axisLabel}
-      </text>
     </g>
   )
 }
@@ -560,13 +545,11 @@ function ToolPanel({
 function FailPanel({
   x,
   y,
-  title,
   children,
   shadowPrefix = "gvh",
 }: {
   x: number
   y: number
-  title: string
   children: React.ReactNode
   shadowPrefix?: "gvh" | "gvh-hidden"
 }) {
@@ -583,16 +566,6 @@ function FailPanel({
         strokeWidth={1}
         filter={`url(#${shadowPrefix}-card-shadow)`}
       />
-      <text
-        x={x + 20}
-        y={y + 18}
-        fill={TEXT_MUTED}
-        fontSize={9}
-        fontFamily={MONO}
-        letterSpacing="0.2em"
-      >
-        {title}
-      </text>
       {children}
     </g>
   )
@@ -858,7 +831,7 @@ function FailIndicator({
   const innerX = x + 22
   const iconR = 18
   const iconCx = innerX + iconR
-  const iconCy = y + FAIL_H / 2 + 4
+  const iconCy = y + FAIL_H / 2
   return (
     <g>
       <circle
