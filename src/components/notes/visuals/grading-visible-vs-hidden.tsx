@@ -413,7 +413,7 @@ function SectionHeader({
         y={y + HEADER_H / 2 + 6}
         textAnchor="middle"
         fill="#FFFFFF"
-        fontSize={17}
+        fontSize={20}
         fontWeight={700}
         fontFamily={FONT_FAMILY}
         letterSpacing="0.06em"
@@ -424,7 +424,7 @@ function SectionHeader({
         x={x + 16 + badgeW + 20}
         y={y + HEADER_H / 2 + 6}
         fill={TEXT_PRIMARY}
-        fontSize={17}
+        fontSize={20}
         fontWeight={600}
         fontFamily={FONT_FAMILY}
       >
@@ -485,9 +485,9 @@ function AxisNameCard({
       />
       <text
         x={chipX + chipW + 16}
-        y={textCenterY - 10}
+        y={textCenterY - 12}
         fill={TEXT_PRIMARY}
-        fontSize={20}
+        fontSize={24}
         fontWeight={700}
         fontFamily={FONT_FAMILY}
       >
@@ -495,9 +495,9 @@ function AxisNameCard({
       </text>
       <text
         x={chipX + chipW + 16}
-        y={textCenterY + 10}
+        y={textCenterY + 16}
         fill={TEXT_MUTED}
-        fontSize={13}
+        fontSize={16}
         fontFamily={FONT_FAMILY}
       >
         {axis.tagline}
@@ -857,9 +857,9 @@ function FailIndicator({
       <circle cx={iconCx} cy={iconCy + iconR - 8} r={2.4} fill={color} />
       <text
         x={iconCx + iconR + 12}
-        y={iconCy - 2}
+        y={iconCy - 4}
         fill={TEXT_PRIMARY}
-        fontSize={14}
+        fontSize={17}
         fontWeight={700}
         fontFamily={FONT_FAMILY}
       >
@@ -867,9 +867,9 @@ function FailIndicator({
       </text>
       <text
         x={iconCx + iconR + 12}
-        y={iconCy + 14}
+        y={iconCy + 16}
         fill={TEXT_MUTED}
-        fontSize={11}
+        fontSize={14}
         fontFamily={FONT_FAMILY}
       >
         {label}
