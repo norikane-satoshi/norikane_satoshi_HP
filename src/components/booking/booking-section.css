@@ -67,26 +67,10 @@
   gap: 8px;
 }
 
-.booking-section__scope-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.booking-section__scope-label,
 .booking-settings__label {
   color: var(--text-muted);
   font-size: 0.8125rem;
   font-weight: 700;
-}
-
-.booking-section__scope-select {
-  min-height: 44px;
-  min-width: min(100%, 240px);
-  padding: 10px 12px;
-  font: inherit;
 }
 
 .booking-section__text-button,
@@ -550,11 +534,6 @@ button.booking-form__slot-pill:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .booking-section__scope-row {
-    justify-content: stretch;
-  }
-
-  .booking-section__scope-select,
   .booking-settings__button {
     width: 100%;
   }

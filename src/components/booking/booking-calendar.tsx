@@ -32,6 +32,12 @@ import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/a
 import { getHolidayName } from "@/lib/booking/holidays"
 import type { BookingSlot } from "@/lib/booking/form-schema"
 
+type TeamOption = {
+  id: string
+  name: string
+  members: { userId: string; name: string | null; email: string | null }[]
+}
+
 type CalendarView = "dayGridMonth" | "timeGridWeek" | "timeGridDay"
 
 type BusySlot = {
@@ -317,7 +323,9 @@ type BookingCalendarProps = {
   adjustRequestKey?: number
   resetRequestKey?: number
   focusSlot?: BookingSlot | null
+  teams?: TeamOption[]
   selectedTeamId?: string | null
+  onSelectedTeamIdChange?: (teamId: string | null) => void
   onCommit: (slots: { start: string; end: string }[]) => void
 }
 
@@ -327,7 +335,9 @@ export function BookingCalendar({
   adjustRequestKey = 0,
   resetRequestKey = 0,
   focusSlot = null,
+  teams = [],
   selectedTeamId = null,
+  onSelectedTeamIdChange,
   onCommit,
 }: BookingCalendarProps) {
   const [view, setView] = useState<CalendarView>("dayGridMonth")
@@ -1197,11 +1207,36 @@ export function BookingCalendar({
             )
           })}
         </div>
-        {modeKind === "adjust" ? (
-          <div className="booking-calendar__adjust-badge glass-inset">
-            {(adjustingTitle ?? projectTitle)?.trim() ? `${(adjustingTitle ?? projectTitle)!.trim()}案件の日時調整中` : "日時調整中"}
-          </div>
-        ) : null}
+        <div className="booking-calendar__view-row-end">
+          {modeKind === "adjust" ? (
+            <div className="booking-calendar__adjust-badge glass-inset">
+              {(adjustingTitle ?? projectTitle)?.trim() ? `${(adjustingTitle ?? projectTitle)!.trim()}案件の日時調整中` : "日時調整中"}
+            </div>
+          ) : null}
+          {onSelectedTeamIdChange ? (
+            <div className="booking-calendar__scope">
+              <label className="booking-calendar__scope-label" htmlFor="booking-team-scope">
+                <span className="booking-calendar__scope-label-full">表示中チャンネル</span>
+                <span className="booking-calendar__scope-label-compact">チャンネル</span>
+              </label>
+              <select
+                id="booking-team-scope"
+                className="booking-calendar__scope-select glass-input"
+                value={selectedTeamId ?? ""}
+                onChange={(event) => {
+                  onSelectedTeamIdChange(event.target.value || null)
+                }}
+              >
+                <option value="">個人</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+        </div>
       </div>
       {activePanelDraft && view === "timeGridWeek" && actionPanelPosition ? (
         <div

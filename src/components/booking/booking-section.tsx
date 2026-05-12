@@ -246,7 +246,9 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
           adjustRequestKey={adjustRequestKey}
           resetRequestKey={calendarResetRequestKey}
           focusSlot={focusSlot}
+          teams={teams}
           selectedTeamId={selectedTeamId}
+          onSelectedTeamIdChange={setSelectedTeamId}
           onCommit={handleCommitSlot}
         />
       </div>
@@ -278,26 +280,6 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
 
   return (
     <div className="booking-section">
-      <div className="booking-section__scope-row">
-        <label className="booking-section__scope-label" htmlFor="booking-team-scope">
-          表示中チャンネル
-        </label>
-        <select
-          id="booking-team-scope"
-          className="booking-section__scope-select glass-input"
-          value={selectedTeamId ?? ""}
-          onChange={(event) => {
-            setSelectedTeamId(event.target.value || null)
-          }}
-        >
-          <option value="">個人</option>
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>
-              {team.name}
-            </option>
-          ))}
-        </select>
-      </div>
       <BookingProgressBar currentStep={step} />
       {localDraftAvailable && step !== "done" ? (
         <div className="booking-section__draft-banner glass-inset">

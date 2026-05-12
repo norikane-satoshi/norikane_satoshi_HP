@@ -229,6 +229,53 @@
   flex-wrap: wrap;
 }
 
+.booking-calendar__view-row-end {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.booking-calendar__scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.booking-calendar__scope-label {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.booking-calendar__scope-label-compact {
+  display: none;
+}
+
+.booking-calendar__scope-select {
+  min-height: 36px;
+  width: clamp(140px, 22vw, 220px);
+  padding: 6px 10px;
+  font: inherit;
+}
+
+@media (max-width: 640px) {
+  .booking-calendar__scope-label-full {
+    display: none;
+  }
+
+  .booking-calendar__scope-label-compact {
+    display: inline;
+  }
+
+  .booking-calendar__scope-select {
+    width: clamp(120px, 40vw, 180px);
+  }
+}
+
 .booking-calendar__tab {
   min-width: 72px;
   border: 1px solid transparent;
