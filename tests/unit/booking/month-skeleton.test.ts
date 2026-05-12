@@ -55,8 +55,30 @@ describe("BookingMonthSkeleton", () => {
     }))
 
     expect(html).toContain('data-testid="booking-month-skeleton"')
+    expect(html).toContain('data-state="ready"')
     expect(html).toContain('data-date="2026-05-20"')
     expect(html).toContain('data-kind="booking"')
     expect(html).toContain('data-kind="busy"')
+  })
+
+  it("server-renders an empty pending grid for streaming fallback", () => {
+    const html = renderToStaticMarkup(createElement(BookingMonthSkeleton, {
+      initialBusy: [],
+      initialBookings: [],
+      initialRange: {
+        start: "2026-04-01T00:00:00.000Z",
+        end: "2026-07-01T00:00:00.000Z",
+      },
+      now: "2026-05-12T12:00:00.000Z",
+      teamId: null,
+      pending: true,
+    }))
+
+    expect(html).toContain('data-state="pending"')
+    expect(html).toContain('aria-busy="true"')
+    expect(html).toContain('data-date="2026-04-26"')
+    expect(html).toContain('data-date="2026-06-06"')
+    expect(html).not.toContain('data-kind="booking"')
+    expect(html).not.toContain('data-kind="busy"')
   })
 })

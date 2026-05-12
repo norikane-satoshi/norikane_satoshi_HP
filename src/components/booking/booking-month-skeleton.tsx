@@ -26,6 +26,7 @@ type BookingMonthSkeletonProps = {
   initialRange?: { start: string; end: string }
   now: Date | string
   teamId: string | null
+  pending?: boolean
 }
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"]
@@ -215,18 +216,21 @@ export function BookingMonthSkeleton({
   initialRange,
   now,
   teamId,
+  pending = false,
 }: BookingMonthSkeletonProps) {
   const current = toDate(now)
   const days = buildBookingMonthSkeletonDays({ initialBusy, initialBookings, now })
 
   return (
     <div
-      className="booking-month-skeleton"
+      className={`booking-month-skeleton${pending ? " booking-month-skeleton--pending" : ""}`}
       data-testid="booking-month-skeleton"
+      data-state={pending ? "pending" : "ready"}
       data-team-scope={teamId ?? "self"}
       data-range-start={initialRange?.start ?? ""}
       data-range-end={initialRange?.end ?? ""}
-      aria-hidden="true"
+      aria-hidden={pending ? undefined : "true"}
+      aria-busy={pending ? "true" : undefined}
     >
       <div className="booking-month-skeleton__toolbar">
         <div className="booking-month-skeleton__controls">

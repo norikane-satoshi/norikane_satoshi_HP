@@ -664,6 +664,16 @@
   font-family: var(--font-sans), var(--font-inter), sans-serif;
 }
 
+@keyframes booking-month-skeleton-pulse {
+  from {
+    opacity: 0.6;
+  }
+
+  to {
+    opacity: 0.9;
+  }
+}
+
 .booking-month-skeleton__toolbar {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -727,6 +737,10 @@
   border-radius: var(--hp-radius-sm);
   background: var(--glass-bg);
   padding: 10px;
+}
+
+.booking-month-skeleton--pending .booking-month-skeleton__day {
+  animation: booking-month-skeleton-pulse 200ms ease-in-out infinite alternate;
 }
 
 .booking-month-skeleton__day--muted {

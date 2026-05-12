@@ -20,7 +20,9 @@ test.describe("booking personal smoke", () => {
     expect(authResponse?.status()).toBe(200)
     const bookingHtmlResponse = await page.request.get("/booking")
     expect(bookingHtmlResponse.status()).toBe(200)
-    expect(await bookingHtmlResponse.text()).toContain('data-testid="booking-month-skeleton"')
+    const bookingHtml = await bookingHtmlResponse.text()
+    expect(bookingHtml).toContain('data-testid="booking-month-skeleton"')
+    expect(bookingHtml).toContain('data-state="pending"')
 
     const freeBusyUrl = "/api/calendar/free-busy?start=2026-05-01T00:00:00.000Z&end=2026-06-01T00:00:00.000Z"
     const cachedBeforeSubmit = await page.request.get(freeBusyUrl)
@@ -68,6 +70,9 @@ test.describe("booking personal smoke", () => {
     expect(afterSubmit.status()).toBe(200)
     const afterSubmitJson = (await afterSubmit.json()) as { bookings: { title: string }[] }
     expect(afterSubmitJson.bookings.some((booking) => booking.title === `${prefix} personal`)).toBe(true)
+
+    await page.goto("/booking")
+    await expect(page.locator(".booking-calendar__booking-event")).toHaveCount(2)
 
     const count = await prisma.bookingGroup.count({
       where: { projectTitle: { startsWith: prefix } },

@@ -1,10 +1,10 @@
 import { auth } from "@/auth"
+import { BookingBusyProvider } from "@/components/booking/booking-busy-provider"
 import { BookingMonthSkeleton } from "@/components/booking/booking-month-skeleton"
-import { BookingSection } from "@/components/booking/booking-section"
-import { getCalendarFreeBusyForUser } from "@/lib/booking/calendar-free-busy"
 import { Menu } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { Suspense } from "react"
 
 function initialBusyRange(now = new Date()) {
   const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -20,13 +20,6 @@ export default async function BookingPage() {
   if (!session?.user) redirect("/login?callbackUrl=/booking")
   const now = new Date()
   const initialRange = initialBusyRange(now)
-  const initialBusy = await getCalendarFreeBusyForUser({
-    userId: session.user.id,
-    teamId: null,
-    timeMin: initialRange.start,
-    timeMax: initialRange.end,
-    calendarId: process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID,
-  }).catch(() => ({ busy: [], bookings: [] }))
 
   return (
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">
@@ -50,22 +43,26 @@ export default async function BookingPage() {
           </Link>
         </div>
         <div className="mt-8">
-          <BookingSection
-            userId={session.user.id}
-            userEmail={session.user.email ?? ""}
-            initialBusy={initialBusy.busy}
-            initialBookings={initialBusy.bookings}
-            initialRange={initialRange}
-            monthSkeleton={(
+          <Suspense
+            fallback={(
               <BookingMonthSkeleton
-                initialBusy={initialBusy.busy}
-                initialBookings={initialBusy.bookings}
+                initialBusy={[]}
+                initialBookings={[]}
                 initialRange={initialRange}
                 now={now}
                 teamId={null}
+                pending
               />
             )}
-          />
+          >
+            <BookingBusyProvider
+              userId={session.user.id}
+              userEmail={session.user.email ?? ""}
+              teamId={null}
+              now={now}
+              initialRange={initialRange}
+            />
+          </Suspense>
         </div>
       </div>
     </section>
