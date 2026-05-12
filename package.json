@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 41237",
+    "dev": "next dev --port ${PORT:-41237}",
     "build": "next build",
     "check:console": "node scripts/check-browser-console.mjs",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "test:coverage": "vitest run --coverage",
     "postinstall": "prisma generate",
     "db:migrate:turso": "tsx scripts/turso-migrate-deploy.ts",
     "e2e:resend:real-send": "tsx scripts/e2e-resend-real-send.mjs"
@@ -46,17 +51,23 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/ui": "^4.1.6",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
-    "playwright": "^1.59.1",
+    "playwright": "^1.60.0",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
-  }
+    "typescript": "^5",
+    "vitest": "^4.1.6",
+    "vitest-mock-extended": "^4.0.0"
+  },
+  "packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be"
 }
