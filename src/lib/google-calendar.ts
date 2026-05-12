@@ -20,6 +20,10 @@ export type CalendarBusySlot = {
   end: string
 }
 
+export type CalendarBusyEventWithBuffer = CalendarBusySlot & {
+  bufferHours: number | null
+}
+
 export type CalendarEventWriteInput = {
   calendarId: string
   summary: string
@@ -174,6 +178,50 @@ export async function getFreeBusy(
     if (!slot.start || !slot.end) return []
     return [{ start: slot.start, end: slot.end }]
   })
+}
+
+export async function listBusyEventsWithBuffer(
+  calendarId: string,
+  timeMin: string,
+  timeMax: string,
+  accessToken: string,
+): Promise<CalendarBusyEventWithBuffer[]> {
+  const oauth2Client = createCalendarOAuthClient()
+  oauth2Client.setCredentials({ access_token: accessToken })
+
+  const calendar = google.calendar({ version: "v3", auth: oauth2Client })
+  const slots: CalendarBusyEventWithBuffer[] = []
+  let pageToken: string | undefined
+
+  do {
+    const response = await calendar.events.list({
+      calendarId,
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: "startTime",
+      showDeleted: false,
+      pageToken,
+    })
+
+    for (const event of response.data.items ?? []) {
+      if (event.transparency === "transparent") continue
+      const start = event.start?.dateTime ?? event.start?.date
+      const end = event.end?.dateTime ?? event.end?.date
+      if (!start || !end) continue
+
+      const parsedBuffer = Number(event.extendedProperties?.private?.bufferHours)
+      slots.push({
+        start,
+        end,
+        bufferHours: Number.isFinite(parsedBuffer) ? parsedBuffer : null,
+      })
+    }
+
+    pageToken = response.data.nextPageToken ?? undefined
+  } while (pageToken)
+
+  return slots
 }
 
 function createCalendarWriteClient(accessToken: string) {

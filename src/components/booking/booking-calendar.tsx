@@ -37,6 +37,7 @@ type CalendarView = "dayGridMonth" | "timeGridWeek" | "timeGridDay"
 type BusySlot = {
   start: string
   end: string
+  bufferHours?: number | null
 }
 
 type BookingFromApi = {
@@ -105,6 +106,8 @@ const VIEW_OPTIONS: { label: string; value: CalendarView }[] = [
 ]
 
 const MIN_SELECTION_MS = 30 * 60 * 1000
+const DEFAULT_BUSY_BUFFER_HOURS = 2
+const CONFIRMED_BOOKING_BUFFER_MS = 7200000
 const BASE_SLOT_MIN_MINUTES = 10 * 60
 const BASE_SLOT_MAX_MINUTES = 19 * 60
 const TIME_RANGE_EXPAND_STEP_MINUTES = 30
@@ -266,6 +269,10 @@ function hasMinimumSelectionDuration(start: Date, end: Date): boolean {
 
 function rangesOverlap(start: Date, end: Date, otherStart: string, otherEnd: string): boolean {
   return start.getTime() < new Date(otherEnd).getTime() && end.getTime() > new Date(otherStart).getTime()
+}
+
+function toBufferMs(hours: number): number {
+  return Math.max(0, hours) * 60 * 60 * 1000
 }
 
 function parseTimeMinutes(value: string): number {
@@ -466,6 +473,36 @@ export function BookingCalendar({
       toBookingEvent(booking, modeKind === "adjust" && booking.bookingGroupId === adjustingGroupId),
     )
     const bufferEvents: EventInput[] = []
+    for (const slot of data.busy ?? []) {
+      const hours = slot.bufferHours ?? DEFAULT_BUSY_BUFFER_HOURS
+      const ms = toBufferMs(hours)
+      const startMs = new Date(slot.start).getTime()
+      const endMs = new Date(slot.end).getTime()
+      bufferEvents.push({
+        id: `busy-buffer-before-${slot.start}-${slot.end}`,
+        title: `予定前後 ${hours} 時間は保護領域`,
+        start: new Date(startMs - ms).toISOString(),
+        end: slot.start,
+        display: "background",
+        classNames: ["booking-calendar__confirmed-buffer"],
+        editable: false,
+        startEditable: false,
+        durationEditable: false,
+        extendedProps: { kind: "buffer" },
+      })
+      bufferEvents.push({
+        id: `busy-buffer-after-${slot.start}-${slot.end}`,
+        title: `予定前後 ${hours} 時間は保護領域`,
+        start: slot.end,
+        end: new Date(endMs + ms).toISOString(),
+        display: "background",
+        classNames: ["booking-calendar__confirmed-buffer"],
+        editable: false,
+        startEditable: false,
+        durationEditable: false,
+        extendedProps: { kind: "buffer" },
+      })
+    }
     for (const booking of data.bookings ?? []) {
       if (booking.status !== "CONFIRMED") continue
       const startMs = new Date(booking.start).getTime()
@@ -473,7 +510,7 @@ export function BookingCalendar({
       bufferEvents.push({
         id: `buffer-before-${booking.id}`,
         title: "本予約前後 2 時間は保護領域",
-        start: new Date(startMs - 7200000).toISOString(),
+        start: new Date(startMs - CONFIRMED_BOOKING_BUFFER_MS).toISOString(),
         end: booking.start,
         display: "background",
         classNames: ["booking-calendar__confirmed-buffer"],
@@ -486,7 +523,7 @@ export function BookingCalendar({
         id: `buffer-after-${booking.id}`,
         title: "本予約前後 2 時間は保護領域",
         start: booking.end,
-        end: new Date(endMs + 7200000).toISOString(),
+        end: new Date(endMs + CONFIRMED_BOOKING_BUFFER_MS).toISOString(),
         display: "background",
         classNames: ["booking-calendar__confirmed-buffer"],
         editable: false,
@@ -607,11 +644,17 @@ export function BookingCalendar({
 
   const overlapsConfirmedBufferZone = useCallback((start: Date, end: Date, excludeBookingId?: string): boolean => {
     for (const data of fetchedRef.current.values()) {
+      for (const slot of data.busy ?? []) {
+        const ms = toBufferMs(slot.bufferHours ?? DEFAULT_BUSY_BUFFER_HOURS)
+        const bufferStart = new Date(new Date(slot.start).getTime() - ms).toISOString()
+        const bufferEnd = new Date(new Date(slot.end).getTime() + ms).toISOString()
+        if (rangesOverlap(start, end, bufferStart, bufferEnd)) return true
+      }
       for (const booking of data.bookings ?? []) {
         if (booking.id === excludeBookingId) continue
         if (booking.status !== "CONFIRMED") continue
-        const bufferStart = new Date(new Date(booking.start).getTime() - 7200000).toISOString()
-        const bufferEnd = new Date(new Date(booking.end).getTime() + 7200000).toISOString()
+        const bufferStart = new Date(new Date(booking.start).getTime() - CONFIRMED_BOOKING_BUFFER_MS).toISOString()
+        const bufferEnd = new Date(new Date(booking.end).getTime() + CONFIRMED_BOOKING_BUFFER_MS).toISOString()
         if (rangesOverlap(start, end, bufferStart, bufferEnd)) return true
       }
     }

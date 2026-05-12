@@ -4,7 +4,7 @@ import {
   CALENDAR_TOKEN_USER_ID,
   CalendarOAuthEnvMissingError,
   CalendarTokenRevokedError,
-  getFreeBusy,
+  listBusyEventsWithBuffer,
   refreshCalendarAccessToken,
 } from "@/lib/google-calendar"
 
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const busy = await getFreeBusy(calendarId, timeMin, timeMax, refreshed.accessToken)
+    const busy = await listBusyEventsWithBuffer(calendarId, timeMin, timeMax, refreshed.accessToken)
 
     const bookingTimePairs = new Set(
       bookings.map((booking) => `${booking.start}|${booking.end}`),
