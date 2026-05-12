@@ -1,9 +1,9 @@
-import { auth } from "@/auth"
+import { BookingClientShell } from "@/components/booking/booking-client-shell"
 import { BookingMonthSkeleton } from "@/components/booking/booking-month-skeleton"
-import { BookingSection } from "@/components/booking/booking-section"
 import { Menu } from "lucide-react"
 import Link from "next/link"
-import { redirect } from "next/navigation"
+
+export const dynamic = "force-dynamic"
 
 function initialBusyRange(now = new Date()) {
   const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -15,8 +15,6 @@ function initialBusyRange(now = new Date()) {
 }
 
 export default async function BookingPage() {
-  const session = await auth()
-  if (!session?.user) redirect("/login?callbackUrl=/booking")
   const now = new Date()
   const initialRange = initialBusyRange(now)
 
@@ -42,9 +40,7 @@ export default async function BookingPage() {
           </Link>
         </div>
         <div className="mt-8">
-          <BookingSection
-            userId={session.user.id}
-            userEmail={session.user.email ?? ""}
+          <BookingClientShell
             monthSkeleton={(
               <BookingMonthSkeleton
                 initialBusy={[]}
