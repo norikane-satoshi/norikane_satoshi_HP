@@ -106,7 +106,7 @@ const VIEW_OPTIONS: { label: string; value: CalendarView }[] = [
 ]
 
 const MIN_SELECTION_MS = 30 * 60 * 1000
-const DEFAULT_BUSY_BUFFER_HOURS = 2
+const DEFAULT_BUSY_BUFFER_HOURS = 1
 const CONFIRMED_BOOKING_BUFFER_MS = 7200000
 const BASE_SLOT_MIN_MINUTES = 10 * 60
 const BASE_SLOT_MAX_MINUTES = 19 * 60
@@ -222,11 +222,12 @@ function toDraftEventInput(
   }
 }
 
-async function fetchFreeBusy(arg: EventSourceFuncArg): Promise<FreeBusyResponse> {
+async function fetchFreeBusy(arg: EventSourceFuncArg, teamId: string | null): Promise<FreeBusyResponse> {
   const params = new URLSearchParams({
     start: arg.startStr,
     end: arg.endStr,
   })
+  if (teamId) params.set("teamId", teamId)
   const response = await fetch(`/api/calendar/free-busy?${params.toString()}`, {
     cache: "no-store",
   })
@@ -316,6 +317,7 @@ type BookingCalendarProps = {
   adjustRequestKey?: number
   resetRequestKey?: number
   focusSlot?: BookingSlot | null
+  selectedTeamId?: string | null
   onCommit: (slots: { start: string; end: string }[]) => void
 }
 
@@ -325,6 +327,7 @@ export function BookingCalendar({
   adjustRequestKey = 0,
   resetRequestKey = 0,
   focusSlot = null,
+  selectedTeamId = null,
   onCommit,
 }: BookingCalendarProps) {
   const [view, setView] = useState<CalendarView>("dayGridMonth")
@@ -462,10 +465,10 @@ export function BookingCalendar({
   }, [adjustRequestKey, changeCalendarView, drafts, focusSlot, initialSlots])
 
   const fetchEvents = useCallback(async (arg: EventSourceFuncArg): Promise<EventInput[]> => {
-    const cacheKey = `${arg.startStr}|${arg.endStr}`
+    const cacheKey = `${selectedTeamId ?? "personal"}|${arg.startStr}|${arg.endStr}`
     let data = fetchedRef.current.get(cacheKey)
     if (!data) {
-      data = await fetchFreeBusy(arg)
+      data = await fetchFreeBusy(arg, selectedTeamId)
       fetchedRef.current.set(cacheKey, data)
     }
     const busyEvents = (data.busy ?? []).map((slot) => toBusyEvent(slot))
@@ -533,7 +536,7 @@ export function BookingCalendar({
       })
     }
     return [...busyEvents, ...bookingEvents, ...bufferEvents]
-  }, [adjustingGroupId, modeKind])
+  }, [adjustingGroupId, modeKind, selectedTeamId])
 
   const draftEventInputs = useMemo<EventInput[]>(
     () => drafts.map((draft) => toDraftEventInput(draft, draft.id === activeDraftId)),
@@ -663,7 +666,7 @@ export function BookingCalendar({
 
   useEffect(() => {
     refetchRemoteEvents()
-  }, [adjustingGroupId, modeKind, refetchRemoteEvents])
+  }, [adjustingGroupId, modeKind, refetchRemoteEvents, selectedTeamId])
 
   const cancelActiveDraft = useCallback(() => {
     if (!activeDraftId) return

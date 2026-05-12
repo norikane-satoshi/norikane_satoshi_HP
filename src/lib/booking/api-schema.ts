@@ -9,6 +9,7 @@ const slotSchema = z.object({
 
 export const bookingApiSchema = bookingFormSchema
   .extend({
+    teamId: z.string().min(1).nullable().optional(),
     selectedSlot: slotSchema.optional(),
     selectedSlots: z.array(slotSchema).min(1).optional(),
   })

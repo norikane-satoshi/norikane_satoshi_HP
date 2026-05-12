@@ -28,9 +28,13 @@ model User {
   // OAuth ログインのみのユーザーは null のまま
   passwordHash  String?
 
-  accounts Account[]
-  sessions Session[]
-  customer Customer?
+  accounts               Account[]
+  sessions               Session[]
+  customer               Customer?
+  createdTeams           Team[]           @relation("CreatedTeams")
+  teamMemberships        TeamMember[]
+  createdTeamInvitations TeamInvitation[] @relation("CreatedTeamInvitations")
+  usedTeamInvitations    TeamInvitation[] @relation("UsedTeamInvitations")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -128,6 +132,7 @@ model Customer {
 model BookingGroup {
   id           String  @id @default(cuid())
   customerId   String
+  teamId       String?
   status       String  @default("CONFIRMED")
   projectTitle String
   memo         String?
@@ -138,17 +143,19 @@ model BookingGroup {
   dueDate      String?
 
   // Google Calendar Event ID（本予約作成時に書き込み、キャンセル時に削除）
-  gcalEventId String?
+  gcalEventId  String?
   // Notion IB_仕事 ページ ID（タスク種別 = スケジュール 自動セット済み）
   notionPageId String?
 
   customer  Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  team      Team?             @relation(fields: [teamId], references: [id], onDelete: SetNull)
   timeSlots BookingTimeSlot[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
+  @@index([teamId])
 }
 
 model BookingTimeSlot {
@@ -166,4 +173,57 @@ model BookingTimeSlot {
   @@index([startTime, endTime])
   @@index([status])
   @@index([bookingGroupId])
+}
+
+// ─────────────────────────────────────────────────
+// 予約カレンダー チャンネル共有
+// ─────────────────────────────────────────────────
+
+model Team {
+  id              String @id @default(cuid())
+  name            String
+  createdByUserId String
+
+  createdBy     User             @relation("CreatedTeams", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  members       TeamMember[]
+  invitations   TeamInvitation[]
+  bookingGroups BookingGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdByUserId])
+}
+
+model TeamMember {
+  id     String @id @default(cuid())
+  teamId String
+  userId String
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+}
+
+model TeamInvitation {
+  id              String    @id @default(cuid())
+  token           String    @unique
+  teamId          String
+  createdByUserId String
+  usedAt          DateTime?
+  usedByUserId    String?
+
+  team      Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("CreatedTeamInvitations", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  usedBy    User? @relation("UsedTeamInvitations", fields: [usedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([teamId])
+  @@index([createdByUserId])
+  @@index([usedByUserId])
 }

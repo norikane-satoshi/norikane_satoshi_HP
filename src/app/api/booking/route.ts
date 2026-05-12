@@ -6,6 +6,7 @@ import {
   findConflictingBookings,
   resolveConflictForFinalSubmit,
 } from "@/lib/booking/conflicts"
+import { isTeamMember } from "@/lib/booking/team-access"
 import {
   sendBookingConfirmedEmail,
   type BookingEmailArgs,
@@ -127,6 +128,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
+  const teamId = input.teamId ?? null
+  if (teamId && !(await isTeamMember(userId, teamId))) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const slots = getInputSlots(input)
   const primarySlot = slots[0]
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
@@ -159,6 +165,7 @@ export async function POST(request: NextRequest) {
     const bookingGroup = await prisma.bookingGroup.create({
       data: {
         customerId: customer.id,
+        teamId,
         status: "CONFIRMED",
         projectTitle: input.projectTitle,
         memo: nullable(input.memo),

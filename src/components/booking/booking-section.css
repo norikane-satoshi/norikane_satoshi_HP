@@ -67,6 +67,28 @@
   gap: 8px;
 }
 
+.booking-section__scope-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.booking-section__scope-label,
+.booking-settings__label {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.booking-section__scope-select {
+  min-height: 44px;
+  min-width: min(100%, 240px);
+  padding: 10px 12px;
+  font: inherit;
+}
+
 .booking-section__text-button,
 .booking-form__text-link {
   border: 0;
@@ -83,6 +105,137 @@
   display: flex;
   min-height: 0;
   flex: 1 1 auto;
+}
+
+.booking-settings {
+  display: grid;
+  gap: 16px;
+}
+
+.booking-settings__create {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.booking-settings__create-row,
+.booking-settings__copy-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.booking-settings__input,
+.booking-settings__select {
+  min-height: 44px;
+  min-width: 0;
+  flex: 1 1 260px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.booking-settings__button,
+.booking-settings__icon-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--glass-border);
+  padding: 0 16px;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 700;
+}
+
+.booking-settings__button:disabled,
+.booking-settings__icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.booking-settings__icon-button {
+  width: 44px;
+  flex: 0 0 44px;
+  padding: 0;
+}
+
+.booking-settings__notice,
+.booking-settings__error {
+  margin: 0;
+  padding: 12px 14px;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.booking-settings__error {
+  color: var(--accent-primary);
+}
+
+.booking-settings__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 16px;
+}
+
+.booking-settings__panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.booking-settings__panel-head,
+.booking-settings__team-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.booking-settings__member-count {
+  width: fit-content;
+  padding: 6px 10px;
+}
+
+.booking-settings__team-name {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.booking-settings__members {
+  display: grid;
+  gap: 8px;
+}
+
+.booking-settings__member {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.booking-settings__member small,
+.booking-settings__empty {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.booking-settings__invite {
+  display: grid;
+  gap: 10px;
 }
 
 .booking-section__pane {
@@ -358,6 +511,10 @@ button.booking-form__slot-pill:focus-visible {
     --booking-card-min-height: 840px;
   }
 
+  .booking-settings__grid {
+    grid-template-columns: 1fr;
+  }
+
   .booking-section__pane > .booking-calendar .fc-daygrid-day-frame {
     min-height: 80px;
   }
@@ -391,5 +548,14 @@ button.booking-form__slot-pill:focus-visible {
   .booking-form__checkbox-grid,
   .booking-footer {
     grid-template-columns: 1fr;
+  }
+
+  .booking-section__scope-row {
+    justify-content: stretch;
+  }
+
+  .booking-section__scope-select,
+  .booking-settings__button {
+    width: 100%;
   }
 }

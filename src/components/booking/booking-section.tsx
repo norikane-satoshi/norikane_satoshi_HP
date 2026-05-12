@@ -22,6 +22,12 @@ type BookingSectionProps = {
   userEmail: string
 }
 
+type TeamOption = {
+  id: string
+  name: string
+  members: { userId: string; name: string | null; email: string | null }[]
+}
+
 const steps: BookingStep[] = ["calendar", "form", "confirm", "done"]
 
 function getStepFromUrl(): BookingStep {
@@ -74,6 +80,27 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
   const [adjustRequestKey, setAdjustRequestKey] = useState(0)
   const [calendarResetRequestKey, setCalendarResetRequestKey] = useState(0)
   const [focusSlot, setFocusSlot] = useState<BookingSlot | null>(null)
+  const [teams, setTeams] = useState<TeamOption[]>([])
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadTeams() {
+      try {
+        const response = await fetch("/api/teams", { cache: "no-store" })
+        if (!response.ok) return
+        const payload = (await response.json()) as { teams?: TeamOption[] }
+        if (!cancelled) setTeams(payload.teams ?? [])
+      } catch {
+        if (!cancelled) setTeams([])
+      }
+    }
+
+    void loadTeams()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const applyDraft = useCallback(
     (draft: ReturnType<typeof loadDraft>, restoreStep = false, restoreSlots = true) => {
@@ -186,6 +213,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
         },
         body: JSON.stringify({
           ...formData,
+          teamId: selectedTeamId,
           selectedSlot: selectedSlots[0],
           selectedSlots,
         }),
@@ -218,6 +246,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
           adjustRequestKey={adjustRequestKey}
           resetRequestKey={calendarResetRequestKey}
           focusSlot={focusSlot}
+          selectedTeamId={selectedTeamId}
           onCommit={handleCommitSlot}
         />
       </div>
@@ -249,6 +278,26 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
 
   return (
     <div className="booking-section">
+      <div className="booking-section__scope-row">
+        <label className="booking-section__scope-label" htmlFor="booking-team-scope">
+          表示中チャンネル
+        </label>
+        <select
+          id="booking-team-scope"
+          className="booking-section__scope-select glass-input"
+          value={selectedTeamId ?? ""}
+          onChange={(event) => {
+            setSelectedTeamId(event.target.value || null)
+          }}
+        >
+          <option value="">個人</option>
+          {teams.map((team) => (
+            <option key={team.id} value={team.id}>
+              {team.name}
+            </option>
+          ))}
+        </select>
+      </div>
       <BookingProgressBar currentStep={step} />
       {localDraftAvailable && step !== "done" ? (
         <div className="booking-section__draft-banner glass-inset">
