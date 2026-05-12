@@ -4,10 +4,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { useEffect, useMemo, useRef, useState } from "react"
 import * as THREE from "three"
 
-const MAGENTA_THREE = new THREE.Color(0.7529, 0.2902, 0.5569)
-const NAVY_THREE = new THREE.Color(0.1647, 0.3098, 0.5608)
-const NAVY_CSS = "rgb(42,79,143)"
-
 const LEFT_SPREAD_PERIOD_SEC = 10.0
 const LEFT_SPREAD_FREQ = (2.0 * Math.PI) / LEFT_SPREAD_PERIOD_SEC
 const LEFT_SPREAD_AMP = 0.5
@@ -140,13 +136,13 @@ function buildBundle(count: number, kind: NodeKind): ParticleBundle {
   const colors = new Float32Array(total * 3)
 
   const rng = mulberry32(kind === "left" ? 1481 + total : 2729 + total)
-  const radiusMin = 0.18
-  const radiusSpan = 0.82
+  const radiusMin = 0.02
+  const radiusSpan = 0.88
   const yLimit = 0.92
 
   for (let i = 0; i < total; i += 1) {
     const theta = rng() * Math.PI * 2
-    const r01 = Math.sqrt(rng())
+    const r01 = rng() * rng()
     const radius = radiusMin + r01 * radiusSpan
     const y = (rng() * 2 - 1) * yLimit
     thetas[i] = theta
@@ -154,18 +150,10 @@ function buildBundle(count: number, kind: NodeKind): ParticleBundle {
     baseY[i] = y
     seeds[i] = rng()
 
-    const radialT = THREE.MathUtils.clamp(
-      (radius - radiusMin) / radiusSpan,
-      0,
-      1,
-    )
-    const verticalT = THREE.MathUtils.clamp(Math.abs(y) / yLimit, 0, 1)
-    const m = THREE.MathUtils.clamp(
-      radialT * 0.62 + verticalT * 0.42 + (rng() - 0.5) * 0.18,
-      0,
-      1,
-    )
-    const c = new THREE.Color().lerpColors(NAVY_THREE, MAGENTA_THREE, m)
+    const h = theta / (Math.PI * 2)
+    const s = THREE.MathUtils.clamp((radius - radiusMin) / radiusSpan, 0, 1)
+    const l = THREE.MathUtils.clamp((y / yLimit + 1) * 0.5, 0, 1)
+    const c = new THREE.Color().setHSL(h, s, l)
     colors[i * 3 + 0] = c.r
     colors[i * 3 + 1] = c.g
     colors[i * 3 + 2] = c.b
@@ -264,6 +252,23 @@ function NodeParticles({
   )
 }
 
+const AXIS_VERTEX_SHADER = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const AXIS_FRAGMENT_SHADER = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  void main() {
+    gl_FragColor = vec4(mix(vec3(0.0), vec3(1.0), vUv.y), 0.65);
+  }
+`
+
 function CylinderFrame() {
   const ringGeometry = useMemo(() => {
     const segments = 96
@@ -279,11 +284,23 @@ function CylinderFrame() {
     return g
   }, [])
 
+  const axisMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: AXIS_VERTEX_SHADER,
+        fragmentShader: AXIS_FRAGMENT_SHADER,
+        transparent: true,
+        depthWrite: false,
+      }),
+    [],
+  )
+
   useEffect(() => {
     return () => {
       ringGeometry.dispose()
+      axisMaterial.dispose()
     }
-  }, [ringGeometry])
+  }, [ringGeometry, axisMaterial])
 
   return (
     <>
@@ -305,9 +322,8 @@ function CylinderFrame() {
           <lineBasicMaterial color="#8B7FFF" transparent opacity={0.42} />
         </line>
       </group>
-      <mesh>
+      <mesh material={axisMaterial}>
         <cylinderGeometry args={[0.006, 0.006, 1.6, 6]} />
-        <meshBasicMaterial color={NAVY_CSS} transparent opacity={0.55} />
       </mesh>
     </>
   )
