@@ -1,12 +1,30 @@
 import { auth } from "@/auth"
 import { BookingSection } from "@/components/booking/booking-section"
+import { getCalendarFreeBusyForUser } from "@/lib/booking/calendar-free-busy"
 import { Menu } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
+function initialBusyRange(now = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 2, 1)
+  return {
+    start: start.toISOString(),
+    end: end.toISOString(),
+  }
+}
+
 export default async function BookingPage() {
   const session = await auth()
   if (!session?.user) redirect("/login?callbackUrl=/booking")
+  const initialRange = initialBusyRange()
+  const initialBusy = await getCalendarFreeBusyForUser({
+    userId: session.user.id,
+    teamId: null,
+    timeMin: initialRange.start,
+    timeMax: initialRange.end,
+    calendarId: process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID,
+  }).catch(() => ({ busy: [], bookings: [] }))
 
   return (
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">
@@ -30,7 +48,13 @@ export default async function BookingPage() {
           </Link>
         </div>
         <div className="mt-8">
-          <BookingSection userId={session.user.id} userEmail={session.user.email ?? ""} />
+          <BookingSection
+            userId={session.user.id}
+            userEmail={session.user.email ?? ""}
+            initialBusy={initialBusy.busy}
+            initialBookings={initialBusy.bookings}
+            initialRange={initialRange}
+          />
         </div>
       </div>
     </section>

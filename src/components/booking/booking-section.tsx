@@ -9,6 +9,8 @@ import { BookingFooter } from "@/components/booking/booking-footer"
 import { BookingForm } from "@/components/booking/booking-form"
 import { BookingProgressBar } from "@/components/booking/booking-progress-bar"
 import { mapErrorCodeToJa } from "@/lib/booking/api-schema"
+import type { CalendarBookingFromApi } from "@/lib/booking/calendar-free-busy"
+import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar"
 import { clearDraft, hasDraft, loadDraft, saveDraft } from "@/lib/booking/draft-storage"
 import {
   createDefaultBookingFormData,
@@ -20,6 +22,9 @@ import {
 type BookingSectionProps = {
   userId: string
   userEmail: string
+  initialBusy?: CalendarBusyEventWithBuffer[]
+  initialBookings?: CalendarBookingFromApi[]
+  initialRange?: { start: string; end: string }
 }
 
 type TeamOption = {
@@ -67,7 +72,13 @@ function pushStep(step: BookingStep): void {
   window.history.pushState({ step }, "", url.toString())
 }
 
-export function BookingSection({ userId, userEmail }: BookingSectionProps) {
+export function BookingSection({
+  userId,
+  userEmail,
+  initialBusy = [],
+  initialBookings = [],
+  initialRange,
+}: BookingSectionProps) {
   const defaultFormData = useMemo(() => createDefaultBookingFormData(userEmail), [userEmail])
   const [step, setStep] = useState<BookingStep>("calendar")
   const [formData, setFormData] = useState<BookingFormData>(defaultFormData)
@@ -82,6 +93,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
   const [focusSlot, setFocusSlot] = useState<BookingSlot | null>(null)
   const [teams, setTeams] = useState<TeamOption[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+  const [remoteRefreshRequestKey, setRemoteRefreshRequestKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -223,6 +235,7 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
       if (response.ok) {
         clearDraft(userId)
         setLocalDraftAvailable(false)
+        setRemoteRefreshRequestKey((value) => value + 1)
         goToStep("done")
         return
       }
@@ -249,6 +262,10 @@ export function BookingSection({ userId, userEmail }: BookingSectionProps) {
           teams={teams}
           selectedTeamId={selectedTeamId}
           onSelectedTeamIdChange={setSelectedTeamId}
+          initialBusy={initialBusy}
+          initialBookings={initialBookings}
+          initialRange={initialRange}
+          remoteRefreshRequestKey={remoteRefreshRequestKey}
           onCommit={handleCommitSlot}
         />
       </div>

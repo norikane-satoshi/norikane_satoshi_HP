@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
 import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/api-schema"
+import { invalidateCalendarFreeBusyCacheForUser } from "@/lib/booking/calendar-free-busy"
 import {
   findConflictingBookings,
   resolveConflictForFinalSubmit,
@@ -184,6 +185,7 @@ export async function POST(request: NextRequest) {
       },
       include: { timeSlots: true },
     })
+    invalidateCalendarFreeBusyCacheForUser(userId, teamId)
 
     const bookingEmailArgs = createBookingEmailArgs(input, userEmail)
     await warnOnEmailFailure(

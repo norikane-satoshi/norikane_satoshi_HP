@@ -1,19 +1,32 @@
 import { expect, test } from "@playwright/test"
 
-import { prismaForE2E, testUserEmail, upsertUser } from "./booking-test-utils"
+import { createBookingForUser, prismaForE2E, testUserEmail, upsertUser } from "./booking-test-utils"
 
 const prefix = `booking-smoke-${Date.now()}`
 
 test.describe("booking personal smoke", () => {
   test("personal booking reaches done without a red-band error and creates one BookingGroup", async ({ page }) => {
     const prisma = prismaForE2E()
-    await upsertUser(prisma, testUserEmail, "E2E Satoshi")
+    const user = await upsertUser(prisma, testUserEmail, "E2E Satoshi")
     await prisma.bookingGroup.deleteMany({ where: { projectTitle: { startsWith: prefix } } })
+    await createBookingForUser(prisma, user, {
+      prefix,
+      label: "existing",
+      start: "2026-05-20T01:00:00.000Z",
+      end: "2026-05-20T02:00:00.000Z",
+    })
 
     const authResponse = await page.goto("/api/dev/auth-bypass")
     expect(authResponse?.status()).toBe(200)
 
+    const freeBusyUrl = "/api/calendar/free-busy?start=2026-05-01T00:00:00.000Z&end=2026-06-01T00:00:00.000Z"
+    const cachedBeforeSubmit = await page.request.get(freeBusyUrl)
+    expect(cachedBeforeSubmit.status()).toBe(200)
+
     await page.goto("/booking")
+    await expect(page.locator(".booking-calendar__booking-event")).toHaveCount(1)
+    await page.waitForTimeout(750)
+    await expect(page.locator(".booking-calendar__booking-event")).toHaveCount(1)
     await page.getByRole("button", { name: "週" }).click()
     await page.locator(".fc-timegrid-slot-lane").first().waitFor()
 
@@ -47,10 +60,15 @@ test.describe("booking personal smoke", () => {
     await expect(page.getByRole("heading", { name: "予約を受け付けました" })).toBeVisible()
     await expect(page.getByText("予約申込で予期せぬエラーが発生しました")).toHaveCount(0)
 
+    const afterSubmit = await page.request.get(freeBusyUrl)
+    expect(afterSubmit.status()).toBe(200)
+    const afterSubmitJson = (await afterSubmit.json()) as { bookings: { title: string }[] }
+    expect(afterSubmitJson.bookings.some((booking) => booking.title === `${prefix} personal`)).toBe(true)
+
     const count = await prisma.bookingGroup.count({
       where: { projectTitle: { startsWith: prefix } },
     })
-    expect(count).toBe(1)
+    expect(count).toBe(2)
 
     await prisma.bookingGroup.deleteMany({ where: { projectTitle: { startsWith: prefix } } })
     await prisma.user.deleteMany({ where: { email: testUserEmail } })

@@ -61,6 +61,13 @@ type FreeBusyResponse = {
   code?: string
 }
 
+type CachedRange = {
+  teamId: string | null
+  startMs: number
+  endMs: number
+  data: FreeBusyResponse
+}
+
 type BookingStatus = "CONFIRMED"
 
 type BusyEventProps = {
@@ -228,15 +235,19 @@ function toDraftEventInput(
   }
 }
 
-async function fetchFreeBusy(arg: EventSourceFuncArg, teamId: string | null): Promise<FreeBusyResponse> {
+async function fetchFreeBusy(
+  start: string,
+  end: string,
+  teamId: string | null,
+  refreshNonce: number | null,
+): Promise<FreeBusyResponse> {
   const params = new URLSearchParams({
-    start: arg.startStr,
-    end: arg.endStr,
+    start,
+    end,
   })
   if (teamId) params.set("teamId", teamId)
-  const response = await fetch(`/api/calendar/free-busy?${params.toString()}`, {
-    cache: "no-store",
-  })
+  if (refreshNonce !== null) params.set("refresh", String(refreshNonce))
+  const response = await fetch(`/api/calendar/free-busy?${params.toString()}`)
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 503) {
@@ -250,6 +261,64 @@ async function fetchFreeBusy(arg: EventSourceFuncArg, teamId: string | null): Pr
 
 function makeDraftId(): string {
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function toTime(value: string | Date): number {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime()
+}
+
+function overlapsRange(item: { start: string; end: string }, startMs: number, endMs: number): boolean {
+  return toTime(item.start) < endMs && toTime(item.end) > startMs
+}
+
+function filterResponseToRange(data: FreeBusyResponse, startMs: number, endMs: number): FreeBusyResponse {
+  return {
+    busy: (data.busy ?? []).filter((slot) => overlapsRange(slot, startMs, endMs)),
+    bookings: (data.bookings ?? []).filter((booking) => overlapsRange(booking, startMs, endMs)),
+    code: data.code,
+  }
+}
+
+function mergeResponses(responses: FreeBusyResponse[], startMs: number, endMs: number): FreeBusyResponse {
+  const busy = new Map<string, BusySlot>()
+  const bookings = new Map<string, BookingFromApi>()
+  let code: string | undefined
+
+  for (const response of responses) {
+    const filtered = filterResponseToRange(response, startMs, endMs)
+    code ??= filtered.code
+    for (const slot of filtered.busy ?? []) {
+      busy.set(`${slot.start}|${slot.end}|${slot.bufferHours ?? ""}`, slot)
+    }
+    for (const booking of filtered.bookings ?? []) {
+      bookings.set(booking.id, booking)
+    }
+  }
+
+  return {
+    busy: Array.from(busy.values()),
+    bookings: Array.from(bookings.values()),
+    code,
+  }
+}
+
+function missingRanges(startMs: number, endMs: number, cachedRanges: CachedRange[]): { startMs: number; endMs: number }[] {
+  const ranges = cachedRanges
+    .filter((range) => range.startMs < endMs && range.endMs > startMs)
+    .sort((a, b) => a.startMs - b.startMs)
+  const missing: { startMs: number; endMs: number }[] = []
+  let cursor = startMs
+
+  for (const range of ranges) {
+    if (range.startMs > cursor) {
+      missing.push({ startMs: cursor, endMs: Math.min(range.startMs, endMs) })
+    }
+    cursor = Math.max(cursor, range.endMs)
+    if (cursor >= endMs) break
+  }
+  if (cursor < endMs) missing.push({ startMs: cursor, endMs })
+
+  return missing
 }
 
 function formatRange(start: string, end: string): string {
@@ -319,9 +388,13 @@ function recomputeTimeRangeBounds(slots: { start: string; end: string }[]): { sl
 
 type BookingCalendarProps = {
   initialSlots?: { start: string; end: string }[]
+  initialBusy?: BusySlot[]
+  initialBookings?: BookingFromApi[]
+  initialRange?: { start: string; end: string }
   projectTitle?: string
   adjustRequestKey?: number
   resetRequestKey?: number
+  remoteRefreshRequestKey?: number
   focusSlot?: BookingSlot | null
   teams?: TeamOption[]
   selectedTeamId?: string | null
@@ -331,9 +404,13 @@ type BookingCalendarProps = {
 
 export function BookingCalendar({
   initialSlots = [],
+  initialBusy = [],
+  initialBookings = [],
+  initialRange,
   projectTitle,
   adjustRequestKey = 0,
   resetRequestKey = 0,
+  remoteRefreshRequestKey = 0,
   focusSlot = null,
   teams = [],
   selectedTeamId = null,
@@ -357,7 +434,17 @@ export function BookingCalendar({
   const lastTopExpandAtRef = useRef<number | null>(null)
   const lastBottomExpandAtRef = useRef<number | null>(null)
   const draftPreviewRef = useRef<DraftEvent | null>(null)
-  const fetchedRef = useRef<Map<string, FreeBusyResponse>>(new Map())
+  const fetchedRef = useRef<CachedRange[]>(
+    initialRange
+      ? [{
+          teamId: null,
+          startMs: toTime(initialRange.start),
+          endMs: toTime(initialRange.end),
+          data: { busy: initialBusy, bookings: initialBookings },
+        }]
+      : [],
+  )
+  const forceRefreshNonceRef = useRef<number | null>(null)
 
   const initialDrafts = useMemo<DraftEvent[]>(() => {
     return initialSlots.map((slot) => ({ id: makeDraftId(), start: slot.start, end: slot.end }))
@@ -405,13 +492,12 @@ export function BookingCalendar({
     const calendarApi = calendarRef.current?.getApi()
     if (calendarApi) {
       calendarApi.changeView(nextView, dateStr)
-      calendarApi.refetchEvents()
     }
   }, [])
 
   const getReservationTimeRangeSlots = useCallback((extraSlots: { start: string; end: string }[] = []) => {
-    const remoteBookings = Array.from(fetchedRef.current.values()).flatMap((data) =>
-      (data.bookings ?? []).map((booking) => ({ start: booking.start, end: booking.end })),
+    const remoteBookings = fetchedRef.current.flatMap((entry) =>
+      (entry.data.bookings ?? []).map((booking) => ({ start: booking.start, end: booking.end })),
     )
     const focusedSlots = focusSlot ? [{ start: focusSlot.start, end: focusSlot.end }] : []
     return [...drafts, ...remoteBookings, ...focusedSlots, ...extraSlots]
@@ -475,12 +561,32 @@ export function BookingCalendar({
   }, [adjustRequestKey, changeCalendarView, drafts, focusSlot, initialSlots])
 
   const fetchEvents = useCallback(async (arg: EventSourceFuncArg): Promise<EventInput[]> => {
-    const cacheKey = `${selectedTeamId ?? "personal"}|${arg.startStr}|${arg.endStr}`
-    let data = fetchedRef.current.get(cacheKey)
-    if (!data) {
-      data = await fetchFreeBusy(arg, selectedTeamId)
-      fetchedRef.current.set(cacheKey, data)
+    const startMs = arg.start.getTime()
+    const endMs = arg.end.getTime()
+    const teamRanges = fetchedRef.current.filter((range) => range.teamId === selectedTeamId)
+    const rangesToFetch = missingRanges(startMs, endMs, teamRanges)
+    for (const range of rangesToFetch) {
+      const data = await fetchFreeBusy(
+        new Date(range.startMs).toISOString(),
+        new Date(range.endMs).toISOString(),
+        selectedTeamId,
+        forceRefreshNonceRef.current,
+      )
+      fetchedRef.current.push({
+        teamId: selectedTeamId,
+        startMs: range.startMs,
+        endMs: range.endMs,
+        data,
+      })
     }
+    if (rangesToFetch.length > 0) forceRefreshNonceRef.current = null
+    const data = mergeResponses(
+      fetchedRef.current
+        .filter((range) => range.teamId === selectedTeamId && range.startMs < endMs && range.endMs > startMs)
+        .map((range) => range.data),
+      startMs,
+      endMs,
+    )
     const busyEvents = (data.busy ?? []).map((slot) => toBusyEvent(slot))
     const bookingEvents = (data.bookings ?? []).map((booking) =>
       toBookingEvent(booking, modeKind === "adjust" && booking.bookingGroupId === adjustingGroupId),
@@ -569,8 +675,11 @@ export function BookingCalendar({
     [draftEventInputs, fetchEvents],
   )
 
-  const refetchRemoteEvents = useCallback(() => {
-    fetchedRef.current.clear()
+  const refetchRemoteEvents = useCallback((clearCache = false) => {
+    if (clearCache) {
+      fetchedRef.current = []
+      forceRefreshNonceRef.current = Date.now()
+    }
     calendarRef.current?.getApi().getEventSourceById("remote-events")?.refetch()
   }, [])
 
@@ -644,10 +753,10 @@ export function BookingCalendar({
 
   const overlapsBlockedEvent = useCallback((start: Date, end: Date, excludeBookingId?: string): boolean => {
     for (const data of fetchedRef.current.values()) {
-      for (const slot of data.busy ?? []) {
+      for (const slot of data.data.busy ?? []) {
         if (rangesOverlap(start, end, slot.start, slot.end)) return true
       }
-      for (const booking of data.bookings ?? []) {
+      for (const booking of data.data.bookings ?? []) {
         if (booking.id === excludeBookingId) continue
         if (rangesOverlap(start, end, booking.start, booking.end)) return true
       }
@@ -657,13 +766,13 @@ export function BookingCalendar({
 
   const overlapsConfirmedBufferZone = useCallback((start: Date, end: Date, excludeBookingId?: string): boolean => {
     for (const data of fetchedRef.current.values()) {
-      for (const slot of data.busy ?? []) {
+      for (const slot of data.data.busy ?? []) {
         const ms = toBufferMs(slot.bufferHours ?? DEFAULT_BUSY_BUFFER_HOURS)
         const bufferStart = new Date(new Date(slot.start).getTime() - ms).toISOString()
         const bufferEnd = new Date(new Date(slot.end).getTime() + ms).toISOString()
         if (rangesOverlap(start, end, bufferStart, bufferEnd)) return true
       }
-      for (const booking of data.bookings ?? []) {
+      for (const booking of data.data.bookings ?? []) {
         if (booking.id === excludeBookingId) continue
         if (booking.status !== "CONFIRMED") continue
         const bufferStart = new Date(new Date(booking.start).getTime() - CONFIRMED_BOOKING_BUFFER_MS).toISOString()
@@ -677,6 +786,11 @@ export function BookingCalendar({
   useEffect(() => {
     refetchRemoteEvents()
   }, [adjustingGroupId, modeKind, refetchRemoteEvents, selectedTeamId])
+
+  useEffect(() => {
+    if (remoteRefreshRequestKey === 0) return
+    refetchRemoteEvents(true)
+  }, [refetchRemoteEvents, remoteRefreshRequestKey])
 
   const cancelActiveDraft = useCallback(() => {
     if (!activeDraftId) return
@@ -1311,6 +1425,7 @@ export function BookingCalendar({
           navLinks
           navLinkDayClick={(date) => changeCalendarView("timeGridDay", toDateKey(date))}
           eventSources={eventSources}
+          lazyFetching
           eventContent={renderEventContent}
           eventDidMount={handleEventDidMount}
           dayCellClassNames={dayCellClassNames}

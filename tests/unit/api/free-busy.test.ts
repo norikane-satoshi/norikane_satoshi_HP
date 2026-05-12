@@ -37,6 +37,12 @@ vi.mock("@/lib/google-calendar", () => ({
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }))
 
 import { GET } from "@/app/api/calendar/free-busy/route"
+import {
+  calendarErrorStatus,
+  clearCalendarFreeBusyCachesForTest,
+  getCalendarFreeBusyForUser,
+  invalidateCalendarFreeBusyCacheForUser,
+} from "@/lib/booking/calendar-free-busy"
 
 function request(teamId?: string) {
   const url = new URL("http://localhost/api/calendar/free-busy")
@@ -66,9 +72,26 @@ function mockCalendar() {
   ])
 }
 
+function mockBookingRows() {
+  mocks.prisma.bookingTimeSlot.findMany.mockResolvedValue([
+    {
+      id: "slot_1",
+      bookingGroupId: "group_1",
+      startTime: new Date("2026-06-12T01:00:00.000Z"),
+      endTime: new Date("2026-06-12T02:00:00.000Z"),
+      status: "CONFIRMED",
+      bookingGroup: {
+        projectTitle: "Existing booking",
+        status: "CONFIRMED",
+      },
+    },
+  ])
+}
+
 describe("GET /api/calendar/free-busy", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearCalendarFreeBusyCachesForTest()
     delete process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   })
 
@@ -95,6 +118,7 @@ describe("GET /api/calendar/free-busy", () => {
       "2026-06-30T00:00:00.000Z",
       "access_token",
     )
+    expect(response.headers.get("cache-control")).toBe("private, max-age=15, stale-while-revalidate=60")
   })
 
   it("queries team member bookings when teamId is present", async () => {
@@ -116,5 +140,136 @@ describe("GET /api/calendar/free-busy", () => {
         }),
       }),
     )
+  })
+
+  it("serves duplicate warm requests from the in-memory cache", async () => {
+    mockCalendar()
+
+    const first = await GET(request())
+    const second = await GET(request())
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(mocks.prisma.bookingTimeSlot.findMany).toHaveBeenCalledTimes(1)
+    expect(mocks.refreshCalendarAccessToken).toHaveBeenCalledTimes(1)
+    expect(mocks.listBusyEventsWithBuffer).toHaveBeenCalledTimes(1)
+    expect(second.headers.get("server-timing")).toContain('cache;desc="hit"')
+  })
+
+  it("re-fetches after the user cache is invalidated", async () => {
+    mockCalendar()
+
+    await GET(request())
+    invalidateCalendarFreeBusyCacheForUser("user_1")
+    await GET(request())
+
+    expect(mocks.prisma.bookingTimeSlot.findMany).toHaveBeenCalledTimes(2)
+    expect(mocks.refreshCalendarAccessToken).toHaveBeenCalledTimes(1)
+    expect(mocks.listBusyEventsWithBuffer).toHaveBeenCalledTimes(2)
+  })
+
+  it("returns 404 when the team is not available to the user", async () => {
+    mockCalendar()
+    mocks.listTeamMemberUserIds.mockResolvedValue(null)
+
+    const response = await GET(request("missing_team"))
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({ error: "team_not_found" })
+  })
+
+  it("returns confirmed bookings with 503 when the calendar id is missing", async () => {
+    mockCalendar()
+    mockBookingRows()
+    delete process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
+
+    const response = await GET(request())
+    const json = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(json).toMatchObject({
+      code: "calendar_busy_source_missing",
+      busy: [],
+      bookings: [
+        expect.objectContaining({
+          id: "slot_1",
+          title: "Existing booking",
+        }),
+      ],
+    })
+    expect(mocks.refreshCalendarAccessToken).not.toHaveBeenCalled()
+  })
+
+  it("returns confirmed bookings when the shared calendar token is not connected", async () => {
+    mockCalendar()
+    mockBookingRows()
+    mocks.prisma.calendarToken.findUnique.mockResolvedValue(null)
+
+    const response = await GET(request())
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      code: "calendar_token_not_connected",
+      busy: [],
+      bookings: [expect.objectContaining({ id: "slot_1" })],
+    })
+  })
+
+  it("returns known oauth errors with already loaded bookings", async () => {
+    mockCalendar()
+    mockBookingRows()
+    mocks.refreshCalendarAccessToken.mockRejectedValue(new mocks.CalendarOAuthEnvMissingError())
+
+    const response = await GET(request())
+    const json = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(json).toMatchObject({
+      code: "calendar_oauth_env_missing",
+      bookings: [expect.objectContaining({ id: "slot_1" })],
+    })
+  })
+
+  it("supports bypass mode without storing a free-busy cache entry", async () => {
+    mockCalendar()
+
+    const first = await getCalendarFreeBusyForUser({
+      userId: "user_1",
+      teamId: null,
+      timeMin: "2026-06-01T00:00:00.000Z",
+      timeMax: "2026-06-30T00:00:00.000Z",
+      calendarId: "calendar_1",
+      useCache: false,
+    })
+    const second = await getCalendarFreeBusyForUser({
+      userId: "user_1",
+      teamId: null,
+      timeMin: "2026-06-01T00:00:00.000Z",
+      timeMax: "2026-06-30T00:00:00.000Z",
+      calendarId: "calendar_1",
+      useCache: false,
+    })
+
+    expect(first.cache).toBe("bypass")
+    expect(second.cache).toBe("bypass")
+    expect(mocks.prisma.bookingTimeSlot.findMany).toHaveBeenCalledTimes(2)
+    expect(mocks.refreshCalendarAccessToken).toHaveBeenCalledTimes(1)
+    expect(mocks.listBusyEventsWithBuffer).toHaveBeenCalledTimes(2)
+  })
+
+  it("maps calendar errors for route fallback handling", () => {
+    expect(calendarErrorStatus(new mocks.CalendarTokenRevokedError())).toEqual({
+      code: "calendar_token_revoked",
+      status: 401,
+    })
+    expect(calendarErrorStatus(new mocks.CalendarOAuthEnvMissingError())).toEqual({
+      code: "calendar_oauth_env_missing",
+      status: 503,
+    })
+    expect(calendarErrorStatus(new Error("other"))).toEqual({
+      code: "calendar_free_busy_failed",
+      status: 503,
+    })
   })
 })

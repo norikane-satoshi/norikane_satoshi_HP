@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   findConflictingBookings: vi.fn(),
   resolveConflictForFinalSubmit: vi.fn(),
   isTeamMember: vi.fn(),
+  invalidateCalendarFreeBusyCacheForUser: vi.fn(),
   sendBookingConfirmedEmail: vi.fn(),
   refreshCalendarAccessToken: vi.fn(),
   createCalendarEvent: vi.fn(),
@@ -38,6 +39,9 @@ vi.mock("@/lib/booking/conflicts", () => ({
   resolveConflictForFinalSubmit: mocks.resolveConflictForFinalSubmit,
 }))
 vi.mock("@/lib/booking/team-access", () => ({ isTeamMember: mocks.isTeamMember }))
+vi.mock("@/lib/booking/calendar-free-busy", () => ({
+  invalidateCalendarFreeBusyCacheForUser: mocks.invalidateCalendarFreeBusyCacheForUser,
+}))
 vi.mock("@/lib/booking/email", () => ({ sendBookingConfirmedEmail: mocks.sendBookingConfirmedEmail }))
 vi.mock("@/lib/google-calendar", () => ({
   CALENDAR_TOKEN_USER_ID: "satoshi-calendar-owner",
@@ -129,6 +133,7 @@ describe("POST /api/booking", () => {
         data: expect.objectContaining({ teamId: null }),
       }),
     )
+    expect(mocks.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("user_1", null)
   })
 
   it("rejects team bookings when the user is not a member", async () => {
@@ -154,6 +159,7 @@ describe("POST /api/booking", () => {
         data: expect.objectContaining({ teamId: "team_1" }),
       }),
     )
+    expect(mocks.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("user_1", "team_1")
   })
 
   it("returns invalid_request for malformed input", async () => {
@@ -204,6 +210,7 @@ describe("POST /api/booking", () => {
       gcalError: "GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set",
     })
     expect(mocks.createCalendarEvent).not.toHaveBeenCalled()
+    expect(mocks.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("user_1", null)
   })
 })
 
