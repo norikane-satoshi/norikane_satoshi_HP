@@ -265,7 +265,6 @@ describe("form, draft, holiday, and email helpers", () => {
     const formData = createDefaultBookingFormData("satoshi@example.com")
     saveDraft("user_1", {
       formData,
-      selectedSlot: null,
       selectedSlots: [],
       step: "calendar",
     })
@@ -278,12 +277,33 @@ describe("form, draft, holiday, and email helpers", () => {
 
     saveDraft("user_1", {
       formData,
-      selectedSlot: null,
       selectedSlots: [],
       step: "form",
     })
     clearDraft("user_1")
     expect(loadDraft("user_1")).toBeNull()
+  })
+
+  it("migrates legacy single-selectedSlot drafts into selectedSlots", () => {
+    const localStorage = storage()
+    const sessionStorage = storage()
+    vi.stubGlobal("window", { localStorage, sessionStorage })
+
+    const formData = createDefaultBookingFormData("legacy@example.com")
+    const legacySlot = {
+      startTime: "2026-06-10T09:00:00.000Z",
+      endTime: "2026-06-10T10:00:00.000Z",
+    }
+    const legacyPayload = JSON.stringify({
+      formData,
+      selectedSlot: legacySlot,
+      step: "form",
+      savedAt: Date.now(),
+    })
+    sessionStorage.setItem("booking-draft-session", legacyPayload)
+
+    const restored = loadDraft("legacy_user", "session")
+    expect(restored?.selectedSlots).toEqual([legacySlot])
   })
 
   it("recognizes Japanese holidays", () => {

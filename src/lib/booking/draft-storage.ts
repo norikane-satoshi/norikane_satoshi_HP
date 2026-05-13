@@ -6,10 +6,13 @@ const DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 
 export type BookingDraft = {
   formData: BookingFormData
-  selectedSlot: BookingSlot | null
-  selectedSlots?: BookingSlot[]
+  selectedSlots: BookingSlot[]
   step: BookingStep
   savedAt: number
+}
+
+type LegacyBookingDraft = BookingDraft & {
+  selectedSlot?: BookingSlot | null
 }
 
 type LoadSource = "session" | "local" | "any"
@@ -22,13 +25,27 @@ function localDraftKey(userId: string): string {
   return `${LOCAL_DRAFT_KEY_PREFIX}${userId}`
 }
 
+function migrateDraft(draft: Partial<LegacyBookingDraft>): BookingDraft | null {
+  if (!draft.formData || typeof draft.savedAt !== "number") return null
+  const selectedSlots = Array.isArray(draft.selectedSlots)
+    ? draft.selectedSlots
+    : draft.selectedSlot
+      ? [draft.selectedSlot]
+      : []
+  return {
+    formData: draft.formData,
+    selectedSlots,
+    step: draft.step as BookingStep,
+    savedAt: draft.savedAt,
+  }
+}
+
 function parseDraft(value: string | null): BookingDraft | null {
   if (!value) return null
 
   try {
-    const draft = JSON.parse(value) as Partial<BookingDraft>
-    if (!draft.formData || typeof draft.savedAt !== "number") return null
-    return draft as BookingDraft
+    const draft = JSON.parse(value) as Partial<LegacyBookingDraft>
+    return migrateDraft(draft)
   } catch {
     return null
   }
