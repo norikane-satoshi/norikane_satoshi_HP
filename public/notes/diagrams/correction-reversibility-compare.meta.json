@@ -1,0 +1,65 @@
+{
+  "slug": "correction-reversibility-compare",
+  "title": "correction-reversibility-compare",
+  "model": "gpt-image-2",
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "auth": "OPENAI_API_KEY (Bearer) — same path as x-post-pipeline lib/image-generator/concept-image-generate.mjs",
+  "size": "1536x1024",
+  "quality": "high",
+  "output_format": "webp",
+  "output_format_actual": "webp",
+  "prompt": "Light, airy editorial illustration aligned with the host site's Glass Design System. Background is overwhelmingly bright: a calm white-to-soft-lavender canvas (~#F8F6FF) with very subtle aurora gradients used only as quiet directional light. Palette is strictly limited to the HP tokens: base #F8F6FF, accent #8B7FFF (soft lavender purple), and the three aurora washes ── aurora-purple ~rgba(139,127,255,0.28), aurora-pink ~rgba(255,143,171,0.20), aurora-sky ~rgba(125,211,252,0.20). All other colors (orange / teal / green / vivid saturated tones) are forbidden — they are not part of the HP implementation. Compositions feel spacious and uncluttered: generous negative space (at least 35% of the frame), few elements, low color count, soft thin lines, no thick borders. Contrast is tuned for in-article reading: shapes are visible but never demand attention — they are scaffolding only; HTML labels, numbers, and small boxes are overlaid in post by note-diagram.tsx. Output: 16:9 horizontal banner that sits inside an article body column, comfortably readable next to body text. DESIGN INTENT — chaos-vs-structured-style left/right split, but with a different meaning: left = clean single-stage path that can be reversed, right = nested multi-stage tangle that cannot be cleanly reversed. The image is background only — labels, node names, verdicts, and small boxes are NOT drawn here; they are overlaid in HTML by note-diagram.tsx (compare-pair layout). Background: bright white-to-soft-lavender canvas (~#F8F6FF) with very faint aurora wash (purple / pink / sky only). No dark fills, no cinematic noir, no warm peach, no teal, no green. Composition rule: the frame is split into two equal halves by a thin luminous seam at the horizontal center. No hard line — just a quiet brighter ridge (subtle aurora-pink hairline) so the eye reads the seam as a soft boundary. Identical top and bottom margins on both halves. LEFT HALF (clean / reversible) — a single thin softly-glowing horizontal path runs left-to-right, calm and parallel to the image axis. The path is built from aurora-sky at low opacity, with #8B7FFF as a quiet luminous head at the right end. 2-3 evenly spaced soft luminous nodes sit on the path (small open rings, NOT filled disks), all aligned and identical in size — suggesting 'all multiplications, same family, easy to reverse'. Plenty of negative space above and below the path. RIGHT HALF (nested / irreversible) — multiple thin softly-glowing paths curve, cross, and overlap in a relaxed cluster around the middle of the half. The paths interweave above and below each other (some translucent crossings deepen slightly without becoming dark), suggesting 'addition + exponent stacked into each other'. Each path is built ONLY from the HP palette (aurora-purple, aurora-pink, with the lavender accent #8B7FFF as a quiet highlight at one of the crossings). 4-5 small soft luminous nodes sit at irregular crossings — not aligned, varying in size, suggesting 'cannot cleanly walk back through'. Stay BRIGHT — never crash to dark, never use saturated colors. The tangle reads as 'sticky, not catastrophic'. MIDDLE SEAM — a single quiet luminous ridge running top-to-bottom, slightly brighter than the rest of the canvas. The ridge is built from the aurora-pink wash only, kept extremely subtle. No arrowheads, no funnel walls, no hard boundaries. Empty negative space (>= 35% of frame) above, below, and between the two halves so HTML overlay (left header 'Clean / Reversible' + verdict '戻せる' + 3 nodes, right header 'Nested / Irreversible' + verdict '戻しにくい' + 4 nodes, takeaway at the bottom) lands cleanly. Visual reference (tone only, do not reproduce any text or saturated color): public/slides/5複合操作の影響と復元性.png (reversibility tone), public/slides/11分解と整理によるアプローチ.png (left/right contrast feel). Use ONLY the HP palette: base #F8F6FF, accent #8B7FFF, aurora purple/pink/sky. NO orange. NO teal. NO warm peach. NO muted teal. NO green. No arrowheads. No hard outlines. No text. No symbols. STRICT NEGATIVE CONSTRAINTS — do NOT include any of the following: text, letters, words, numbers, captions, labels, titles, sentences, characters in any language (especially Japanese kana / kanji / Latin / numerals), UI elements, icons with letters, logos, watermarks, signatures, button shapes, screenshots, photos of people, faces, hands, arrows, arrowheads, connectors, callouts, dark backgrounds, navy or charcoal fills, heavy black, neon-on-black aesthetics, cinematic noir, saturated bold colors, vivid orange, teal, green, hard outlines, thick borders, busy compositions.",
+  "source_spec_notion_url": "https://www.notion.so/8b38762c77fc4a048787c83ee7e8cb56",
+  "target_article_notion_url": "https://www.notion.so/1510399661d64891aee912320df39b91",
+  "source_spec_summary": "追加図解 (2026-04-29 / correction 記事) compare-pair。主張『乗算中心は戻せる、加算とべき乗の入れ子は戻せない』。AI 画像は左右二分割の背景レイヤーで、左 = 1 段の真っ直ぐな経路 (clean / reversible)、右 = 多段に絡まった経路 (nested / irreversible) を暗示する。色域は #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) のみ。",
+  "overlay_labels": [
+    "Clean / Reversible",
+    "Nested / Irreversible",
+    "戻せる",
+    "戻しにくい",
+    "Gain (×)",
+    "Lift (+)",
+    "Gamma (^γ)",
+    "乗算中心は戻る。加算とべき乗の入れ子は、くすみとして残る。"
+  ],
+  "success_criteria": [
+    "左 = 真っ直ぐで透明な 1 経路、右 = 絡まり合う多段経路、の左右対比が一目で読める",
+    "左の経路は薄く半透明で『どこを通っても元に戻せそうな』軽さがある",
+    "右の経路は半透明の交差・重なりで『戻すのが面倒そうな』粘性がある (ただし暗くしない)",
+    "中央の luminous seam が左右の境界を補助している (主役にはならない)",
+    "色域が #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) だけで構成され、orange / teal / warm peach / muted teal が出てこない",
+    "HTML overlay (左右ヘッダー + verdict バッジ + ノードリスト + takeaway) が乗る空白が確保されている"
+  ],
+  "local_research_assets_used": [
+    {
+      "path": "public/slides/5複合操作の影響と復元性.png",
+      "exists": true,
+      "bytes": 1104537
+    },
+    {
+      "path": "public/slides/11分解と整理によるアプローチ.png",
+      "exists": true,
+      "bytes": 1076883
+    }
+  ],
+  "local_research_assets_checked_but_not_used": [
+    {
+      "path": "public/slides/4プライマリーコントロール概要.png",
+      "exists": true,
+      "reason": "ノブ概要は別図 (correction-control-math) で扱うのでここでは不採用"
+    }
+  ],
+  "generation_rationale": "追加図解 (correction 記事 / compare-pair) 専用。AI 画像は左右二分割の背景レイヤーで、左 = 1 段経路、右 = 多段絡まりを暗示する。 slides/5 複合操作の影響と復元性 → 戻しやすさは『重ねる順』で決まるという主張の根拠。乗算中心 = 戻せる、加算とべき乗の入れ子 = 戻せない。 slides/11 分解と整理によるアプローチ → 整列 (左) と混線 (右) の左右対比トーンの根拠。ただしこちらでは『戻せる/戻せない』という別の意味付け。 色域は HP 実コードのトークンに同期: #F8F6FF base、#8B7FFF accent、aurora purple/pink/sky の 3 色のみ。",
+  "notion_draft_preview": {
+    "mechanism": "Notion file_upload API → image block 挿入。caption は 'HP図解プレビュー: <slug> (対応仕様書: <name>)'。HP用 marker paragraph は残す。",
+    "filled_at_runtime": "scripts/diagrams/insert-preview.mjs が file_upload → block 挿入し、ここに { method, block_id, file_upload_id, caption } を後追記する"
+  },
+  "bytes": 18780,
+  "generated_at": "2026-04-29T14:56:30.518Z",
+  "finished_at": "2026-04-29T14:58:24.500Z",
+  "pipeline_origin": {
+    "repo": "x-post-pipeline",
+    "file": "lib/image-generator/concept-image-generate.mjs",
+    "summary": "POST https://api.openai.com/v1/images/generations with model gpt-image-2, Bearer OPENAI_API_KEY, b64_json response. HP 用は size/quality/output_format を上書きしつつ同じ認証経路と同じ no-text negative prompt 方針を踏襲。"
+  }
+}

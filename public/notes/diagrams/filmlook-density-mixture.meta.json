@@ -1,0 +1,73 @@
+{
+  "slug": "filmlook-density-mixture",
+  "title": "filmlook-density-mixture",
+  "model": "gpt-image-2",
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "auth": "OPENAI_API_KEY (Bearer) — same path as x-post-pipeline lib/image-generator/concept-image-generate.mjs",
+  "size": "1536x1024",
+  "quality": "high",
+  "output_format": "webp",
+  "output_format_actual": "webp",
+  "prompt": "Light, airy editorial illustration aligned with the host site's Glass Design System. Background is overwhelmingly bright: a calm white-to-soft-lavender canvas (~#F8F6FF) with very subtle aurora gradients used only as quiet directional light. Palette is strictly limited to the HP tokens: base #F8F6FF, accent #8B7FFF (soft lavender purple), and the three aurora washes ── aurora-purple ~rgba(139,127,255,0.28), aurora-pink ~rgba(255,143,171,0.20), aurora-sky ~rgba(125,211,252,0.20). All other colors (orange / teal / green / vivid saturated tones) are forbidden — they are not part of the HP implementation. Compositions feel spacious and uncluttered: generous negative space (at least 35% of the frame), few elements, low color count, soft thin lines, no thick borders. Contrast is tuned for in-article reading: shapes are visible but never demand attention — they are scaffolding only; HTML labels, numbers, and small boxes are overlaid in post by note-diagram.tsx. Output: 16:9 horizontal banner that sits inside an article body column, comfortably readable next to body text. DESIGN INTENT — chaos-vs-structured: film-ness reduces to TWO axes laid out side by side. Left half = density axis (how each brightness sinks). Right half = color mixture axis (how three dye layers cross-contaminate). Both halves share the same vertical area and identical breathing space. The image is background only — labels, numbers, and small boxes are NOT drawn here; they are overlaid in HTML by note-diagram.tsx (chaos-vs-structured layout). Background: bright white-to-soft-lavender canvas (~#F8F6FF) with very faint aurora wash (purple / pink / sky only). No dark fills, no cinematic noir, no warm peach, no teal, no green. Composition rule: the frame is split into two equal halves by a thin luminous seam at the horizontal center. No hard line — just a quiet brighter ridge (subtle aurora-pink hairline) so the eye reads the seam as a soft boundary. Identical top and bottom margins on both halves. LEFT HALF (density axis) — a vertical luminance wedge: bright highlights at the top softly rolling off (a gentle shoulder), neutral midtones in the middle, deeper tones at the bottom that linger and never crash to pure black. A faint S-shaped luminous ridge crosses the wedge from upper-right to lower-left, shape inherited from FilmLookEmulator wu8_weight_functions.png — gentle toe at the bottom, gentle shoulder at the top, log-like response. The wedge body is built ONLY from aurora-purple at varying opacity (densest at the bottom, palest at the top), with the lavender accent #8B7FFF as the most saturated note along the S ridge. NO warm peach, NO teal. RIGHT HALF (color-mixture axis) — three translucent layers overlap in a soft Venn-like cluster (one upper-left, one upper-right, one lower-center), with subtle inter-layer offsets suggesting cross-contamination. The three layers use ONLY the HP palette: layer A = aurora-purple, layer B = aurora-pink, layer C = aurora-sky. Where any two layers overlap, the blend deepens slightly without becoming dark. Three short faint parallel beams cross the cluster horizontally — one aurora-purple, one aurora-pink, one aurora-sky — gently shifting the resulting blend (printer light reference from phaseE/wu1_plots/svd_spectrum_iems1.png, but re-painted in HP palette only). Layer overlap shape inherited from wu8_basis_vectors.png. NO warm peach, NO teal, NO cyan/magenta/yellow saturated tones. MIDDLE SEAM — a single quiet luminous ridge running top-to-bottom, slightly brighter than the rest of the canvas. The ridge is built from the aurora-pink wash only, kept extremely subtle. No arrowheads, no funnel walls, no hard boundaries. The seam reads as 'these two axes belong to the same film'. Empty negative space (>= 35% of frame) above, below, and between the two halves so HTML overlay (left header '濃度（縦軸）', right header '色の混ざり（横軸）', 3 chaosLabels stacked along the left, 4 structured-layer labels along the right, and a short intro tagline) lands cleanly. Visual reference (tone only, do not reproduce any text or saturated color): wu8_weight_functions.png (S-curve shape), wu8_basis_vectors.png (Venn-like layer overlap), phaseE/wu1_plots/svd_spectrum_iems1.png (3-beam printer-light abstraction). Re-paint everything in aurora purple / pink / sky only. Use ONLY the HP palette: base #F8F6FF, accent #8B7FFF, aurora purple/pink/sky. NO orange. NO teal. NO warm peach. NO muted teal. NO cyan/magenta/yellow saturated tones. NO green. No arrows. No text. No axis labels. STRICT NEGATIVE CONSTRAINTS — do NOT include any of the following: text, letters, words, numbers, captions, labels, titles, sentences, characters in any language (especially Japanese kana / kanji / Latin / numerals), UI elements, icons with letters, logos, watermarks, signatures, button shapes, screenshots, photos of people, faces, hands, arrows, arrowheads, connectors, callouts, dark backgrounds, navy or charcoal fills, heavy black, neon-on-black aesthetics, cinematic noir, saturated bold colors, vivid orange, teal, green, hard outlines, thick borders, busy compositions.",
+  "source_spec_notion_url": "https://www.notion.so/8b38762c77fc4a048787c83ee7e8cb56",
+  "target_article_notion_url": "https://www.notion.so/7202c1ee64c04c97a4821b8e4f2e0f67",
+  "source_spec_summary": "図解仕様書 v3 (2026-04-29 / 8b38762c) filmlook-density-mixture。layout=chaos-vs-structured。主張『フィルムらしさ = 濃度（縦軸） + 色の混ざり（横軸）』。左半=縦方向の濃度 wedge (S 字の肩・対数応答)、中央=細い luminous seam、右半=3 層染料のヴェン状重なり + RGB 3 ビーム。色域は #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) のみ。文字・記号・矢印は note-diagram.tsx 側で描画。",
+  "overlay_labels": [
+    "濃度（縦軸）",
+    "色の混ざり（横軸）",
+    "暗部の粘り",
+    "S 字の肩",
+    "対数応答",
+    "3 層染料",
+    "分光密度曲線",
+    "DIR カプラー",
+    "プリンター光",
+    "フィルムの正体は、二軸に絞れる。"
+  ],
+  "success_criteria": [
+    "左半=縦方向の濃度 wedge、右半=3 層染料 + 3 ビーム、の左右対比が一目で読める",
+    "中央の luminous seam が左右の境界を補助している (主役にはならない)",
+    "色域が #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) だけで構成され、orange / teal / warm peach / muted teal が出てこない",
+    "HTML overlay の左右ヘッダー + 3 chaosLabels + 4 structuredLayers + intro が乗る空白がある",
+    "filmlook-physics-flow (8 段時系列) と並べたときに、形状で補完関係になる (左右二分割の本質抽出 vs 横フロー時系列)"
+  ],
+  "local_research_assets_used": [
+    {
+      "path": "../FilmLookEmulator_project/analysis/stage2/wu8_weight_functions.png",
+      "exists": false
+    },
+    {
+      "path": "../FilmLookEmulator_project/analysis/stage2/wu8_basis_vectors.png",
+      "exists": false
+    },
+    {
+      "path": "../FilmLookEmulator_project/analysis/phaseE/wu1_plots/svd_spectrum_iems1.png",
+      "exists": false
+    }
+  ],
+  "local_research_assets_checked_but_not_used": [
+    {
+      "path": "../FilmLookEmulator_project/analysis/stage2/wu8_variance_explained.png",
+      "exists": false,
+      "reason": "寄与度のバープロットで、二軸の視覚化に直接寄与しないので不採用"
+    },
+    {
+      "path": "../FilmLookEmulator_project/analysis/phaseE/wu1_plots/pareto_front.png",
+      "exists": false,
+      "reason": "別議論 (分離可能性) のプロット。本図解の「濃度+色の混ざり」とは関心が違うので不採用"
+    }
+  ],
+  "generation_rationale": "v3 (2026-04-29 / 8b38762c) filmlook-density-mixture (chaos-vs-structured) に再アライン。AI 画像は左右対比の構図と気分だけを担う背景レイヤーで、文字・番号・矢印・3 層染料の R/G/B 表象は描かない (色は HP palette に置き換え)。 wu8_weight_functions.png → 左半 (濃度) の S 字の肩・対数応答ロールオフの形状根拠。S ライン全体を aurora-purple-into-pink で描く。 wu8_basis_vectors.png → 右半 (色の混ざり) の 3 層基底の重なり構図根拠。3 層は R/G/B / C/M/Y ではなく aurora purple / pink / sky に置き換える (HP palette 外の色相は禁止)。 phaseE/wu1_plots/svd_spectrum_iems1.png → 右半のプリンタ光 3 ビームの構図根拠。3 ビームを aurora purple / pink / sky で描く。 filmlook-physics-flow との重複回避: あちらは 8 段時系列フロー、こちらは 2 軸の本質抽出。構図 (左右二分割) で補完。 色域は HP 実コードのトークンに同期: #F8F6FF base、#8B7FFF accent、aurora purple/pink/sky の 3 色のみ。orange / teal / warm peach / muted teal は実装に存在しないため除去。",
+  "notion_draft_preview": {
+    "mechanism": "Notion file_upload API → image block 挿入。caption は 'HP図解プレビュー: <slug> (対応仕様書: <name>)'。HP用 marker paragraph は残す。",
+    "filled_at_runtime": "scripts/diagrams/insert-preview.mjs が file_upload → block 挿入し、ここに { method, block_id, file_upload_id, caption } を後追記する"
+  },
+  "bytes": 15782,
+  "generated_at": "2026-04-29T05:20:26.497Z",
+  "finished_at": "2026-04-29T05:22:34.457Z",
+  "pipeline_origin": {
+    "repo": "x-post-pipeline",
+    "file": "lib/image-generator/concept-image-generate.mjs",
+    "summary": "POST https://api.openai.com/v1/images/generations with model gpt-image-2, Bearer OPENAI_API_KEY, b64_json response. HP 用は size/quality/output_format を上書きしつつ同じ認証経路と同じ no-text negative prompt 方針を踏襲。"
+  }
+}

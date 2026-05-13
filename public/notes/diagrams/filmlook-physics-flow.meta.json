@@ -1,0 +1,88 @@
+{
+  "slug": "filmlook-physics-flow",
+  "title": "filmlook-physics-flow",
+  "model": "gpt-image-2",
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "auth": "OPENAI_API_KEY (Bearer) — same path as x-post-pipeline lib/image-generator/concept-image-generate.mjs",
+  "size": "1536x1024",
+  "quality": "high",
+  "output_format": "webp",
+  "output_format_actual": "webp",
+  "prompt": "Light, airy editorial illustration aligned with the host site's Glass Design System. Background is overwhelmingly bright: a calm white-to-soft-lavender canvas (~#F8F6FF) with very subtle aurora gradients used only as quiet directional light. Palette is strictly limited to the HP tokens: base #F8F6FF, accent #8B7FFF (soft lavender purple), and the three aurora washes ── aurora-purple ~rgba(139,127,255,0.28), aurora-pink ~rgba(255,143,171,0.20), aurora-sky ~rgba(125,211,252,0.20). All other colors (orange / teal / green / vivid saturated tones) are forbidden — they are not part of the HP implementation. Compositions feel spacious and uncluttered: generous negative space (at least 35% of the frame), few elements, low color count, soft thin lines, no thick borders. Contrast is tuned for in-article reading: shapes are visible but never demand attention — they are scaffolding only; HTML labels, numbers, and small boxes are overlaid in post by note-diagram.tsx. Output: 16:9 horizontal banner that sits inside an article body column, comfortably readable next to body text. DESIGN INTENT — Background hero for an 8-stage physical pipeline that turns a digital signal into a film look. Left-to-right read. The image is background only — labels, numbers, stage glyphs, and arrows are NOT drawn here; they are overlaid in HTML by note-diagram.tsx (horizontal-flow-8 layout, md:grid-cols-4 4×2 derivative on desktop, single column on mobile). Background: bright white-to-soft-lavender canvas (~#F8F6FF) with very faint aurora wash (purple / pink / sky only). No dark fills, no cinematic noir, no warm peach, no teal, no green. Layout: EIGHT softly-glowing vertical bands span the frame from left to right at roughly equal horizontal intervals, each band occupying a similar horizontal slot. Bands 1-2 (input cluster) sit on the left, bands 3-7 (film-internal cluster) in the middle, band 8 (output) on the right. Insert slightly larger gap between band 2 and band 3, and between band 7 and band 8, so the three clusters are subtly readable as separate groups while still feeling like one pipeline. Each band's body is built ONLY from the HP palette (aurora purple / pink / sky and the lavender accent #8B7FFF), with bright base #F8F6FF showing through. Band hue rotates gently across the 8 slots — bands 1-2 lean aurora-sky (cool input), bands 3-5 mix aurora-purple-into-pink (the film internal), bands 6-7 add the lavender accent #8B7FFF as a quiet highlight, band 8 resolves into a soft balanced aurora orb that is slightly brighter than the others (the resolved final look). Each band carries a tiny embedded structural hint (background only, no labels): band 3 = three faint stacked horizontal sub-layers (3 dye layers, shape from FilmLookEmulator wu8_basis_vectors.png), band 4 = faint smooth wavelength-like ridges (shape from phaseE/wu1_plots/svd_spectrum_iems1 / svd_spectrum_rochp), band 5 = one gentle S-shaped luminous ridge (shape from wu8_weight_functions), band 6 = three short faint parallel filaments (printer light, hue = aurora purple / pink / sky, NO warm peach, NO teal), band 7 = delicate non-uniform fine-grain texture (denser in the middle, sparser at edges; shape from wu8_mean_residual). All hints are extremely subtle — each band still reads first as a soft vertical band. A single thin softly-glowing horizontal flow filament passes through all eight bands at the vertical center so the banner reads as one pipeline. The filament is built from the lavender accent #8B7FFF at low opacity. No arrowheads, no hard joins. Generous empty negative space (>= 35% of frame) above and below the bands so HTML overlay (flowHeading at top, 8 step labels with sublabels in 4×2 grid below the image, bottom takeaway) lands cleanly. Bands themselves stay in the central horizontal band of the image. Visual reference (tone only, do not reproduce any text): wu8_basis_vectors.png (dye-layer stack), wu8_weight_functions.png (S-curve shape), wu8_variance_explained.png (subtle weight differences as opacity micro-variation), wu8_mean_residual.png (grain non-uniformity), phaseE/wu1_plots/svd_spectrum_iems1 / svd_spectrum_rochp (smooth wavelength ridges), phaseE/wu1_plots/separability.png (clean band boundaries), Tetra_Reverse/ANALYSIS.md (3-beam printer-light abstraction). Do NOT inherit any saturated R/G/B color — re-paint everything in aurora purple / pink / sky only. Use ONLY the HP palette: base #F8F6FF, accent #8B7FFF, aurora purple/pink/sky. NO orange. NO teal. NO warm peach. NO muted teal. NO green. No arrows. No text. No axis labels. STRICT NEGATIVE CONSTRAINTS — do NOT include any of the following: text, letters, words, numbers, captions, labels, titles, sentences, characters in any language (especially Japanese kana / kanji / Latin / numerals), UI elements, icons with letters, logos, watermarks, signatures, button shapes, screenshots, photos of people, faces, hands, arrows, arrowheads, connectors, callouts, dark backgrounds, navy or charcoal fills, heavy black, neon-on-black aesthetics, cinematic noir, saturated bold colors, vivid orange, teal, green, hard outlines, thick borders, busy compositions.",
+  "source_spec_notion_url": "https://www.notion.so/8b38762c77fc4a048787c83ee7e8cb56",
+  "target_article_notion_url": "https://www.notion.so/7202c1ee64c04c97a4821b8e4f2e0f67",
+  "source_spec_summary": "図解仕様書 v3 (2026-04-29 / 8b38762c) filmlook-physics-flow。layout=horizontal-flow-8 (新)。主張『フィルムルックは物理の流れで読める』。左から右へ 8 段の柔らかいバンドが等間隔に並び、塊 (入力 1-2 / 内部 3-7 / 出力 8) の境界に少しだけ余白が空く。色域は #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) のみ。文字・記号・矢印は note-diagram.tsx 側で描画。",
+  "overlay_labels": [
+    "物理の 8 段フロー",
+    "デジタル信号",
+    "露光",
+    "3 層の染料",
+    "分光密度曲線",
+    "S 字カーブ",
+    "プリンタ光",
+    "グレイン",
+    "最終ルック",
+    "フィルムルックは、物理の流れで読める。"
+  ],
+  "success_criteria": [
+    "8 段の柔らかいバンドが等間隔・等幅で左から右へ並んで見える",
+    "塊 (入力 1-2 / 内部 3-7 / 出力 8) の境界に少しだけ余白があり、塊が読み取れる",
+    "色域が #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) だけで構成され、orange / teal / warm peach / muted teal が出てこない",
+    "HTML overlay の flowHeading + 8 step ラベル + takeaway が乗る空白がある",
+    "filmlook-density-mixture (左右二分割) と並べたときに、形状で補完関係になる (時系列フロー vs 二軸の本質抽出)"
+  ],
+  "local_research_assets_used": [
+    {
+      "path": "../FilmLookEmulator_project/analysis/stage2/wu8_basis_vectors.png",
+      "exists": false
+    },
+    {
+      "path": "../FilmLookEmulator_project/analysis/stage2/wu8_weight_functions.png",
+      "exists": false
+    },
+    {
+      "path": "../FilmLookEmulator_project/analysis/stage2/wu8_variance_explained.png",
+      "exists": false
+    },
+    {
+      "path": "../FilmLookEmulator_project/analysis/stage2/wu8_mean_residual.png",
+      "exists": false
+    },
+    {
+      "path": "../FilmLookEmulator_project/analysis/phaseE/wu1_plots/svd_spectrum_iems1.png",
+      "exists": false
+    },
+    {
+      "path": "../FilmLookEmulator_project/analysis/phaseE/wu1_plots/svd_spectrum_rochp.png",
+      "exists": false
+    },
+    {
+      "path": "../FilmLookEmulator_project/analysis/phaseE/wu1_plots/separability.png",
+      "exists": false
+    },
+    {
+      "path": "../Tetra_Reverse/ANALYSIS.md",
+      "exists": false
+    }
+  ],
+  "local_research_assets_checked_but_not_used": [
+    {
+      "path": "../FilmLookEmulator_project/analysis/phaseE/wu1_plots/pareto_front.png",
+      "exists": false,
+      "reason": "別議論 (分離可能性) のプロット。本図解は時系列フローなので不採用"
+    }
+  ],
+  "generation_rationale": "v3 (2026-04-29 / 8b38762c) filmlook-physics-flow (horizontal-flow-8) に再アライン。AI 画像は 8 段の柔らかいバンドの構図と気分だけを担う背景レイヤーで、文字・番号・矢印・stage 表象は描かない。 wu8_basis_vectors.png → Stage 3 (3 層の染料) のバンドが 3 本の柔らかい層として読める根拠。色は cyan / magenta / yellow ではなく、HP palette の aurora purple / pink / sky に置き換える (実装トークン外の色相は禁止)。 wu8_weight_functions.png → Stage 5 (S 字カーブ) のバンドがゆるい S ライン的なリズムを持つ根拠。 wu8_variance_explained.png → 各バンドの透明度に微差を与える根拠 (重みは等しくない)。ただし bar plot 形状は描かない。 wu8_mean_residual.png → Stage 7 (グレイン) のバンドが非一様な微粒テクスチャを持つ根拠。中間調で密、端で疎。 phaseE/wu1_plots/svd_spectrum_(iems1/rochp).png → Stage 4 (分光密度曲線) のバンドが波長方向に滑らかな波を内包する根拠。 phaseE/wu1_plots/separability.png → 8 段の境界がぼやけすぎず、隣接バンドが識別できる根拠。塊 (入力 / 内部 / 出力) の境界には少しだけ余白を確保。 Tetra_Reverse/ANALYSIS.md → Stage 6 (プリンタ光) を 3 ビーム抽象として描く根拠。aurora purple / pink / sky の 3 ビームに置き換える。 色域は HP 実コードのトークンに同期: #F8F6FF base、#8B7FFF accent、aurora purple/pink/sky の 3 色のみ。orange / teal / warm peach / muted teal は実装に存在しないため除去。",
+  "notion_draft_preview": {
+    "mechanism": "Notion file_upload API → image block 挿入。caption は 'HP図解プレビュー: <slug> (対応仕様書: <name>)'。HP用 marker paragraph は残す。",
+    "filled_at_runtime": "scripts/diagrams/insert-preview.mjs が file_upload → block 挿入し、ここに { method, block_id, file_upload_id, caption } を後追記する"
+  },
+  "bytes": 26486,
+  "generated_at": "2026-04-29T05:20:25.216Z",
+  "finished_at": "2026-04-29T05:22:27.300Z",
+  "pipeline_origin": {
+    "repo": "x-post-pipeline",
+    "file": "lib/image-generator/concept-image-generate.mjs",
+    "summary": "POST https://api.openai.com/v1/images/generations with model gpt-image-2, Bearer OPENAI_API_KEY, b64_json response. HP 用は size/quality/output_format を上書きしつつ同じ認証経路と同じ no-text negative prompt 方針を踏襲。"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "slug": "correction-factor-map",
+  "title": "correction-factor-map",
+  "model": "gpt-image-2",
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "auth": "OPENAI_API_KEY (Bearer) — same path as x-post-pipeline lib/image-generator/concept-image-generate.mjs",
+  "size": "1536x1024",
+  "quality": "high",
+  "output_format": "webp",
+  "output_format_actual": "webp",
+  "prompt": "Light, airy editorial illustration aligned with the host site's Glass Design System. Background is overwhelmingly bright: a calm white-to-soft-lavender canvas (~#F8F6FF) with very subtle aurora gradients used only as quiet directional light. Palette is strictly limited to the HP tokens: base #F8F6FF, accent #8B7FFF (soft lavender purple), and the three aurora washes ── aurora-purple ~rgba(139,127,255,0.28), aurora-pink ~rgba(255,143,171,0.20), aurora-sky ~rgba(125,211,252,0.20). All other colors (orange / teal / green / vivid saturated tones) are forbidden — they are not part of the HP implementation. Compositions feel spacious and uncluttered: generous negative space (at least 35% of the frame), few elements, low color count, soft thin lines, no thick borders. Contrast is tuned for in-article reading: shapes are visible but never demand attention — they are scaffolding only; HTML labels, numbers, and small boxes are overlaid in post by note-diagram.tsx. Output: 16:9 horizontal banner that sits inside an article body column, comfortably readable next to body text. DESIGN INTENT — chaos-vs-structured: two states placed side by side. Left half = entangled mix. Right half = sorted into 5 calm horizontal bands. Both halves share the same vertical area and identical breathing space. Background: bright white-to-soft-lavender canvas (~#F8F6FF) with very faint aurora wash (purple / pink / sky only). Composition rule: the frame is split into two equal halves by a thin luminous seam at the horizontal center. No hard line — just a quiet brighter ridge (subtle aurora-pink hairline) so the eye reads the seam as a soft boundary. Identical top and bottom margins on both halves. LEFT HALF (state A — 'mixed') — EIGHT slender translucent ribbons drift loosely and gently CROSS each other in a relaxed cluster around the middle of the half. Each ribbon represents one mixed correction factor (camera type, exposure, color temperature, VE iris-follow, skin-tone consistency, smoke-born atmospheric color, overall film tone, per-song direction). Ribbons use ONLY the HP palette: faint aurora-purple body, with occasional aurora-pink and aurora-sky tints, and the lavender accent #8B7FFF as the most saturated note. Ribbon thickness and opacity vary subtly to echo the +2 / +1 / normal / -1 / -2 STOP exposure bracket — a quiet non-uniform vibration, not chaos. The ribbons read as 'mixed but bright' — never crashed-dark, never warm-peach, never teal. MIDDLE SEAM — a single quiet luminous ridge running top-to-bottom, slightly brighter than the rest of the canvas. No arrowheads, no funnel walls, no hard boundaries. The ridge is built from the aurora-pink wash only, kept extremely subtle. RIGHT HALF (state B — 'sorted') — FIVE clean horizontal bands stacked top-to-bottom with generous breathing space between them. Each band is a thin softly-glowing horizon line of subtle aurora gradient (top band uses aurora-purple, second mixes purple-into-pink, middle is pure aurora-pink, fourth blends pink-into-sky, bottom is aurora-sky). All five bands are IDENTICAL in height, length, and spacing — equal-weight is critical because HTML labels of identical size will sit one per band. Each band casts a faint diffused shadow of the same aurora hue as itself. Empty negative space (>= 35% of frame) above, below, and between the two halves so HTML overlay (left header '混ざると迷宮', right header '分けると制御できる', 8 chaosLabels stacked along the left, and 5 structured-layer labels with sublabels per band on the right) lands cleanly. Visual reference (tone only, do not reproduce any text): public/slides/11分解と整理によるアプローチ.png (calm three-act feel) and public/slides/5複合操作の影響と復元性.png (sober contrast tone — adopt the rhythm, not the dark aesthetic). No arrows, no symbols, no glyphs, no text, no UI elements, no orange, no teal. STRICT NEGATIVE CONSTRAINTS — do NOT include any of the following: text, letters, words, numbers, captions, labels, titles, sentences, characters in any language (especially Japanese kana / kanji / Latin / numerals), UI elements, icons with letters, logos, watermarks, signatures, button shapes, screenshots, photos of people, faces, hands, arrows, arrowheads, connectors, callouts, dark backgrounds, navy or charcoal fills, heavy black, neon-on-black aesthetics, cinematic noir, saturated bold colors, vivid orange, teal, green, hard outlines, thick borders, busy compositions.",
+  "source_spec_notion_url": "https://www.notion.so/8b38762c77fc4a048787c83ee7e8cb56",
+  "target_article_notion_url": "https://www.notion.so/1510399661d64891aee912320df39b91",
+  "source_spec_summary": "図解仕様書 v3 (2026-04-29 / 8b38762c) chaos-vs-structured。主張『混ざると迷宮 / 分けると制御できる』。左半=ゆるく交差する 8 本の細い帯テクスチャ、中央=細い luminous seam、右半=水平バンドの陰影 5 段。色域は #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) のみ。文字・記号・矢印は note-diagram.tsx 側で描画。",
+  "overlay_labels": [
+    "混ざると迷宮",
+    "カメラの種類",
+    "露出",
+    "色温度",
+    "VEさんのアイリスフォロー",
+    "肌色の一貫性",
+    "スモークで生まれる大気の色",
+    "作品全体のトーン",
+    "曲ごとの方向性",
+    "分けると制御できる",
+    "カメラ単位",
+    "フレーム単位",
+    "アングル単位",
+    "シーン単位",
+    "作品単位",
+    "混ぜたら迷う。粒度に分けると制御できる。"
+  ],
+  "success_criteria": [
+    "左半分=混線/右半分=整列、の左右対比が一目で読める",
+    "左半の 8 本リボンが重なって混ざっている感覚が伝わる",
+    "右半の 5 段水平バンドが等高・等幅で揃って見える",
+    "中央の luminous seam が左右の境界を補助している (主役にはならない)",
+    "HTML overlay の左右ヘッダー + 8 chaosLabels + 5 structuredLayers が乗る空白がある",
+    "色域が #F8F6FF + #8B7FFF + aurora 3 色だけで構成され、orange / teal が出てこない"
+  ],
+  "local_research_assets_used": [
+    {
+      "path": "public/slides/11分解と整理によるアプローチ.png",
+      "exists": true,
+      "bytes": 1076883
+    },
+    {
+      "path": "public/slides/5複合操作の影響と復元性.png",
+      "exists": true,
+      "bytes": 1104537
+    },
+    {
+      "path": "public/demo/+2STOP.jpg",
+      "exists": true,
+      "bytes": 2000319
+    },
+    {
+      "path": "public/demo/+1STOP.jpg",
+      "exists": true,
+      "bytes": 2305029
+    },
+    {
+      "path": "public/demo/チャートノーマル.jpg",
+      "exists": true,
+      "bytes": 2692856
+    },
+    {
+      "path": "public/demo/-1STOP.jpg",
+      "exists": true,
+      "bytes": 2970406
+    },
+    {
+      "path": "public/demo/-2STOP.jpg",
+      "exists": true,
+      "bytes": 3289262
+    }
+  ],
+  "local_research_assets_checked_but_not_used": [
+    {
+      "path": "public/slides/4プライマリーコントロール概要.png",
+      "exists": true,
+      "reason": "コントロール粒度参考だが、本図解の「混線→粒度」軸とはレイヤーが異なるので不採用"
+    }
+  ],
+  "generation_rationale": "v3 (2026-04-29 / 8b38762c) chaos-vs-structured 左右対比に再アライン。 左半: 8 要因の細い帯がゆるく交差する柔らかいテクスチャ。slides/11 の三幕構成『分解前』を抽象化。帯の太さ/透明度のばらつきは demo の ±STOP 露出ブラケットを反映。 中央: 細い luminous seam (ハードラインなし)。左右の境界を示すだけで、漏斗のように主張しない。 右半: 5 段の水平バンドの陰影。上から per-camera / per-frame / per-angle / per-scene / per-project の支配域を均等高さで配置 (HTML 5 ラベル + サブラベルが乗る前提)。 色域は HP 実コードのトークンに同期: #F8F6FF base、#8B7FFF accent、aurora purple/pink/sky の 3 色のみ。 両半は同じ縦幅・同じ余白。",
+  "notion_draft_preview": {
+    "mechanism": "Notion file_upload API → image block 挿入。caption は 'HP図解プレビュー: <slug> (対応仕様書: <name>)'。HP用 marker paragraph は残す。",
+    "filled_at_runtime": "scripts/diagrams/insert-preview.mjs が file_upload → block 挿入し、ここに { method, block_id, file_upload_id, caption } を後追記する"
+  },
+  "bytes": 26680,
+  "generated_at": "2026-04-29T04:18:17.752Z",
+  "finished_at": "2026-04-29T04:20:37.198Z",
+  "pipeline_origin": {
+    "repo": "x-post-pipeline",
+    "file": "lib/image-generator/concept-image-generate.mjs",
+    "summary": "POST https://api.openai.com/v1/images/generations with model gpt-image-2, Bearer OPENAI_API_KEY, b64_json response. HP 用は size/quality/output_format を上書きしつつ同じ認証経路と同じ no-text negative prompt 方針を踏襲。"
+  }
+}

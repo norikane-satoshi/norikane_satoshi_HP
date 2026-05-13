@@ -1,0 +1,59 @@
+{
+  "slug": "correction-space-choice",
+  "title": "correction-space-choice",
+  "model": "gpt-image-2",
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "auth": "OPENAI_API_KEY (Bearer) — same path as x-post-pipeline lib/image-generator/concept-image-generate.mjs",
+  "size": "1536x1024",
+  "quality": "high",
+  "output_format": "webp",
+  "output_format_actual": "webp",
+  "prompt": "Light, airy editorial illustration aligned with the host site's Glass Design System. Background is overwhelmingly bright: a calm white-to-soft-lavender canvas (~#F8F6FF) with very subtle aurora gradients used only as quiet directional light. Palette is strictly limited to the HP tokens: base #F8F6FF, accent #8B7FFF (soft lavender purple), and the three aurora washes ── aurora-purple ~rgba(139,127,255,0.28), aurora-pink ~rgba(255,143,171,0.20), aurora-sky ~rgba(125,211,252,0.20). All other colors (orange / teal / green / vivid saturated tones) are forbidden — they are not part of the HP implementation. Compositions feel spacious and uncluttered: generous negative space (at least 35% of the frame), few elements, low color count, soft thin lines, no thick borders. Contrast is tuned for in-article reading: shapes are visible but never demand attention — they are scaffolding only; HTML labels, numbers, and small boxes are overlaid in post by note-diagram.tsx. Output: 16:9 horizontal banner that sits inside an article body column, comfortably readable next to body text. DESIGN INTENT — A 3-column compare-band background for a triple-compare diagram about working spaces (Log / Linear / Gamma). Three identical-width vertical lanes side by side, equally spaced left to right with thin luminous gutters between lanes. Each lane carries one extremely subtle response-curve hint that suggests the kind of math that lane represents. The image is background only — labels, column headings, row labels, verdicts, and small boxes are NOT drawn here; they are overlaid in HTML by note-diagram.tsx (triple-compare layout). Background: bright white-to-soft-lavender canvas (~#F8F6FF) with very faint aurora wash (purple / pink / sky only). No dark fills, no cinematic noir, no warm peach, no teal, no green. Layout: THREE vertical lanes of identical width, equally spaced. Each lane has IDENTICAL top and bottom margins. Lane gutters are subtle aurora-pink hairlines, not hard lines. LANE 1 (Log) — a soft logarithmic-like luminous curve climbs steeply at the bottom and flattens slowly toward the top, suggesting log compression on a wide signal range. Built ONLY from aurora-purple at varying opacity, with #8B7FFF as a quiet luminous note at the bottom (where the curve compresses the dark end). LANE 2 (Linear) — a soft straight luminous diagonal line runs from the lower-left corner to the upper-right corner of the lane, suggesting a 1:1 linear response. Built ONLY from aurora-sky at varying opacity, with #8B7FFF as a quiet luminous note where the diagonal crosses the lane center. LANE 3 (Gamma) — a soft gentle power-curve luminous ridge bows from the lower-left toward the upper-right with a small dip in the lower-third, suggesting a midtone-friendly power response. Built ONLY from aurora-pink at varying opacity, with #8B7FFF as a quiet luminous note at the midtone bend. All three curves have IDENTICAL line weight, identical opacity envelope, and identical bounding box — equal-weight is critical because HTML labels of identical size will sit one per lane. Each curve is extremely subtle so HTML labels remain the dominant reading element. All main visual elements stay inside the central ~70% of the frame so that on mobile (single-column stack) and desktop (3-column row), the image scales without horizontal overflow. Plenty of empty negative space at top, between lanes, and at bottom for HTML labels. Visual reference (tone only, do not reproduce any text or saturated color): public/slides/5複合操作の影響と復元性.png (curve shapes for log/linear/gamma feel). Use ONLY the HP palette: base #F8F6FF, accent #8B7FFF, aurora purple/pink/sky. NO orange. NO teal. NO warm peach. NO muted teal. NO green. No arrows. No text. No axis labels. STRICT NEGATIVE CONSTRAINTS — do NOT include any of the following: text, letters, words, numbers, captions, labels, titles, sentences, characters in any language (especially Japanese kana / kanji / Latin / numerals), UI elements, icons with letters, logos, watermarks, signatures, button shapes, screenshots, photos of people, faces, hands, arrows, arrowheads, connectors, callouts, dark backgrounds, navy or charcoal fills, heavy black, neon-on-black aesthetics, cinematic noir, saturated bold colors, vivid orange, teal, green, hard outlines, thick borders, busy compositions.",
+  "source_spec_notion_url": "https://www.notion.so/8b38762c77fc4a048787c83ee7e8cb56",
+  "target_article_notion_url": "https://www.notion.so/1510399661d64891aee912320df39b91",
+  "source_spec_summary": "追加図解 (2026-04-29 / correction 記事) triple-compare。主張『Log / Linear / Gamma の 3 空間で操作感が変わる、実務はガンマ空間が一番扱いやすい』。AI 画像は 3 列縦バンドの背景レイヤーで、各列のトーン応答カーブを極めて控えめに暗示する。色域は #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) のみ。",
+  "overlay_labels": [
+    "3 空間の比較",
+    "Log",
+    "Linear",
+    "Gamma",
+    "操作感",
+    "信号範囲",
+    "色抽出",
+    "迷ったらガンマ空間。物理に近く、目にも合う。"
+  ],
+  "success_criteria": [
+    "3 列の縦バンドが等幅・等高で並んで見える",
+    "各列のカーブ気分 (log = 対数 / linear = 直線 / gamma = べき乗) が極めて控えめに伝わる",
+    "色域が #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) だけで構成され、orange / teal / warm peach / muted teal が出てこない",
+    "HTML overlay (3 列 × ラベル + 3 行 + verdict + takeaway) が乗る空白が確保されている",
+    "mobile (縦積み) でも desktop (3 列) でも横スクロールが起きない構図 (背景の中央 70% に主要素が収まる)"
+  ],
+  "local_research_assets_used": [
+    {
+      "path": "public/slides/5複合操作の影響と復元性.png",
+      "exists": true,
+      "bytes": 1104537
+    }
+  ],
+  "local_research_assets_checked_but_not_used": [
+    {
+      "path": "public/slides/4プライマリーコントロール概要.png",
+      "exists": true,
+      "reason": "ノブの分類は別図 (correction-control-math) で扱うのでここでは不採用"
+    }
+  ],
+  "generation_rationale": "追加図解 (correction 記事 / triple-compare) 専用。AI 画像は 3 列縦バンドの背景レイヤーで、各列のカーブ気分だけを担う。 slides/5 複合操作の影響と復元性 → 対数・直線・べき乗のカーブ形状の根拠。3 列に対応させる。 色域は HP 実コードのトークンに同期: #F8F6FF base、#8B7FFF accent、aurora purple/pink/sky の 3 色のみ。",
+  "notion_draft_preview": {
+    "mechanism": "Notion file_upload API → image block 挿入。caption は 'HP図解プレビュー: <slug> (対応仕様書: <name>)'。HP用 marker paragraph は残す。",
+    "filled_at_runtime": "scripts/diagrams/insert-preview.mjs が file_upload → block 挿入し、ここに { method, block_id, file_upload_id, caption } を後追記する"
+  },
+  "bytes": 17450,
+  "generated_at": "2026-04-29T14:56:33.654Z",
+  "finished_at": "2026-04-29T14:59:22.098Z",
+  "pipeline_origin": {
+    "repo": "x-post-pipeline",
+    "file": "lib/image-generator/concept-image-generate.mjs",
+    "summary": "POST https://api.openai.com/v1/images/generations with model gpt-image-2, Bearer OPENAI_API_KEY, b64_json response. HP 用は size/quality/output_format を上書きしつつ同じ認証経路と同じ no-text negative prompt 方針を踏襲。"
+  }
+}

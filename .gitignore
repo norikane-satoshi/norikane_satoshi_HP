@@ -45,6 +45,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# diagram review artifacts (rendered HTML / screenshots for local QA)
+/public/notes/diagrams/review/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

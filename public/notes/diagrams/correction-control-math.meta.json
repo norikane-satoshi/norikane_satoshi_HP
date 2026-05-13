@@ -1,0 +1,66 @@
+{
+  "slug": "correction-control-math",
+  "title": "correction-control-math",
+  "model": "gpt-image-2",
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "auth": "OPENAI_API_KEY (Bearer) — same path as x-post-pipeline lib/image-generator/concept-image-generate.mjs",
+  "size": "1536x1024",
+  "quality": "high",
+  "output_format": "webp",
+  "output_format_actual": "webp",
+  "prompt": "Light, airy editorial illustration aligned with the host site's Glass Design System. Background is overwhelmingly bright: a calm white-to-soft-lavender canvas (~#F8F6FF) with very subtle aurora gradients used only as quiet directional light. Palette is strictly limited to the HP tokens: base #F8F6FF, accent #8B7FFF (soft lavender purple), and the three aurora washes ── aurora-purple ~rgba(139,127,255,0.28), aurora-pink ~rgba(255,143,171,0.20), aurora-sky ~rgba(125,211,252,0.20). All other colors (orange / teal / green / vivid saturated tones) are forbidden — they are not part of the HP implementation. Compositions feel spacious and uncluttered: generous negative space (at least 35% of the frame), few elements, low color count, soft thin lines, no thick borders. Contrast is tuned for in-article reading: shapes are visible but never demand attention — they are scaffolding only; HTML labels, numbers, and small boxes are overlaid in post by note-diagram.tsx. Output: 16:9 horizontal banner that sits inside an article body column, comfortably readable next to body text. DESIGN INTENT — A 2x2 grid background hero for a quad-cards diagram about 'four primary controls = four pieces of arithmetic'. The frame is split into 4 equal cells of identical size and identical padding, organized in a clean 2-column × 2-row grid with a thin luminous gutter (subtle aurora-pink hairline) between cells. The image is background only — labels, operation names, knob names, and small boxes are NOT drawn here; they are overlaid in HTML by note-diagram.tsx (quad-cards layout). Background: bright white-to-soft-lavender canvas (~#F8F6FF) with very faint aurora wash (purple / pink / sky only). No dark fills, no cinematic noir. CELL TOP-LEFT (Lift = additive on shadows) — a soft luminous curve that rises gently from the lower-left and flattens toward the upper-right, suggesting addition on the dark end. Built ONLY from aurora-purple at varying opacity, with the lavender accent #8B7FFF as a quiet luminous note. The dark-end region is slightly more saturated to show 'lift on shadows', but never crashes to dark. CELL TOP-RIGHT (Gamma = exponent on midtones) — a soft S-shaped luminous ridge centered in the cell, with the bend in the middle to suggest power-curve behavior on midtones. Built ONLY from aurora-pink at varying opacity, with #8B7FFF as a quiet midtone highlight. Symmetric around the cell center. CELL BOTTOM-LEFT (Gain = multiplicative on highlights) — a soft luminous wedge that fans outward from the lower-left toward the upper-right, suggesting multiplication scaling the bright end. Built ONLY from aurora-sky at varying opacity, with #8B7FFF as a quiet highlight at the bright corner. CELL BOTTOM-RIGHT (Offset = uniform additive across the whole signal) — a soft uniform luminous plane with a single thin horizontal ridge passing straight through the middle of the cell, suggesting a parallel translation of the entire signal. Built from a balanced blend of aurora-purple / aurora-pink / aurora-sky at low opacity. Very subtle — no exaggerated curve, just a steady lift across the whole cell. All four cells share IDENTICAL bounding-box size, IDENTICAL inner padding, and IDENTICAL line weight — equal-weight is critical because HTML labels of identical size will sit one per cell. Each curve / wedge / ridge is extremely subtle so that HTML labels remain the dominant reading element. Plenty of empty negative space (>= 35% of frame) inside each cell so HTML overlay (cell number, knob name, op label, scope label, sublabel) lands cleanly in the upper portion of each cell. Visual reference (tone only, do not reproduce any text or saturated color): public/slides/4プライマリーコントロール概要.png (4-knob structure), public/slides/5複合操作の影響と復元性.png (curve shape feel). Use ONLY the HP palette: base #F8F6FF, accent #8B7FFF, aurora purple/pink/sky. NO orange. NO teal. NO warm peach. NO muted teal. NO green. No arrows. No text. No equations. No symbols. STRICT NEGATIVE CONSTRAINTS — do NOT include any of the following: text, letters, words, numbers, captions, labels, titles, sentences, characters in any language (especially Japanese kana / kanji / Latin / numerals), UI elements, icons with letters, logos, watermarks, signatures, button shapes, screenshots, photos of people, faces, hands, arrows, arrowheads, connectors, callouts, dark backgrounds, navy or charcoal fills, heavy black, neon-on-black aesthetics, cinematic noir, saturated bold colors, vivid orange, teal, green, hard outlines, thick borders, busy compositions.",
+  "source_spec_notion_url": "https://www.notion.so/8b38762c77fc4a048787c83ee7e8cb56",
+  "target_article_notion_url": "https://www.notion.so/1510399661d64891aee912320df39b91",
+  "source_spec_summary": "追加図解 (2026-04-29 / correction 記事) quad-cards。主張『プライマリは加算 / べき乗 / 乗算 / 複合の 4 種類の算数』。AI 画像は 2x2 グリッドの背景レイヤーで、各セルに 1 種類のオペが暗示する曲線・トーン感だけを置く (文字・式・記号は HTML/CSS 側)。色域は #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) のみ。",
+  "overlay_labels": [
+    "4 ノブ × 4 算数オペ",
+    "Lift",
+    "Gamma",
+    "Gain",
+    "Offset",
+    "暗部に効く",
+    "中間に効く",
+    "明部に効く",
+    "全帯に効く",
+    "4 つの算数で、ほとんどの一次補正は組み立てられる。"
+  ],
+  "success_criteria": [
+    "2x2 グリッドの 4 セルが等サイズ・等余白で並んで見える",
+    "各セルに『加算 / べき乗 / 乗算 / 全帯一律』の気分を伝える曲線・トーンが極めて控えめに乗っている",
+    "色域が #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) だけで構成され、orange / teal / warm peach / muted teal が出てこない",
+    "HTML overlay (4 セル × ラベル + オペ + 効く帯 + 一行説明) が乗る空白が確保されている",
+    "correction-factor-map / correction-scope-map と並べたときに、形状で補完関係になる (左右対比 vs ヒーロー同心円 vs 2x2 行列)"
+  ],
+  "local_research_assets_used": [
+    {
+      "path": "public/slides/4プライマリーコントロール概要.png",
+      "exists": true,
+      "bytes": 1028814
+    },
+    {
+      "path": "public/slides/5複合操作の影響と復元性.png",
+      "exists": true,
+      "bytes": 1104537
+    }
+  ],
+  "local_research_assets_checked_but_not_used": [
+    {
+      "path": "public/slides/11分解と整理によるアプローチ.png",
+      "exists": true,
+      "reason": "粒度の分解は別図 (correction-factor-map / correction-scope-map) で扱うのでここでは不採用"
+    }
+  ],
+  "generation_rationale": "追加図解 (correction 記事 / quad-cards) 専用。AI 画像は 2x2 グリッドの背景レイヤーで、各セルに 1 種類のオペの曲線・トーン感だけを暗示する。 slides/4 プライマリーコントロール概要 → 4 ノブが暗部・中間・明部・全帯に効くという対応関係を、4 セルの位置 (左上=暗部、右上=中間、左下=明部、右下=全帯) に反映。 slides/5 複合操作の影響と復元性 → 加算 / べき乗 / 乗算 / 全帯一律の曲線形状を、各セルに極めて控えめに置く根拠。 色域は HP 実コードのトークンに同期: #F8F6FF base、#8B7FFF accent、aurora purple/pink/sky の 3 色のみ。",
+  "notion_draft_preview": {
+    "mechanism": "Notion file_upload API → image block 挿入。caption は 'HP図解プレビュー: <slug> (対応仕様書: <name>)'。HP用 marker paragraph は残す。",
+    "filled_at_runtime": "scripts/diagrams/insert-preview.mjs が file_upload → block 挿入し、ここに { method, block_id, file_upload_id, caption } を後追記する"
+  },
+  "bytes": 19024,
+  "generated_at": "2026-04-29T14:56:27.636Z",
+  "finished_at": "2026-04-29T14:58:42.981Z",
+  "pipeline_origin": {
+    "repo": "x-post-pipeline",
+    "file": "lib/image-generator/concept-image-generate.mjs",
+    "summary": "POST https://api.openai.com/v1/images/generations with model gpt-image-2, Bearer OPENAI_API_KEY, b64_json response. HP 用は size/quality/output_format を上書きしつつ同じ認証経路と同じ no-text negative prompt 方針を踏襲。"
+  }
+}

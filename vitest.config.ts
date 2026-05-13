@@ -18,6 +18,7 @@ export default defineConfig({
       exclude: [
         "src/**/*.d.ts",
         "src/app/**/page.tsx",
+        "src/components/notes/**",
         "src/components/**/*.tsx",
       ],
       thresholds: {

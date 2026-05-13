@@ -38,11 +38,17 @@ export function BookingClientShell({ monthSkeleton }: BookingClientShellProps) {
     }
   }, [])
 
+  const userId = session?.user?.id
+
+  useEffect(() => {
+    if (loaded && !userId) {
+      window.location.href = "/login?callbackUrl=/booking"
+    }
+  }, [loaded, userId])
+
   if (!loaded) return monthSkeleton
 
-  const userId = session?.user?.id
   if (!userId) {
-    window.location.href = "/login?callbackUrl=/booking"
     return monthSkeleton
   }
 

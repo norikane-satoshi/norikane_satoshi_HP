@@ -1,0 +1,78 @@
+{
+  "slug": "grading-look-decomposition",
+  "title": "grading-look-decomposition",
+  "model": "gpt-image-2",
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "auth": "OPENAI_API_KEY (Bearer) — same path as x-post-pipeline lib/image-generator/concept-image-generate.mjs",
+  "size": "1536x1024",
+  "quality": "high",
+  "output_format": "webp",
+  "output_format_actual": "webp",
+  "prompt": "Light, airy editorial illustration aligned with the host site's Glass Design System. Background is overwhelmingly bright: a calm white-to-soft-lavender canvas (~#F8F6FF) with very subtle aurora gradients used only as quiet directional light. Palette is strictly limited to the HP tokens: base #F8F6FF, accent #8B7FFF (soft lavender purple), and the three aurora washes ── aurora-purple ~rgba(139,127,255,0.28), aurora-pink ~rgba(255,143,171,0.20), aurora-sky ~rgba(125,211,252,0.20). All other colors (orange / teal / green / vivid saturated tones) are forbidden — they are not part of the HP implementation. Compositions feel spacious and uncluttered: generous negative space (at least 35% of the frame), few elements, low color count, soft thin lines, no thick borders. Contrast is tuned for in-article reading: shapes are visible but never demand attention — they are scaffolding only; HTML labels, numbers, and small boxes are overlaid in post by note-diagram.tsx. Output: 16:9 horizontal banner that sits inside an article body column, comfortably readable next to body text. DESIGN INTENT — Look Decomposition centered-axes hero background. ONE luminous central orb at the geometric center of the frame, with FOUR equal-weight soft glowing axis bands radiating toward upper-left, upper-right, lower-left, lower-right. The image is background only — labels, numbers, and small boxes are NOT drawn here; they are overlaid in HTML by note-diagram.tsx (centered-axes layout). Background: bright white-to-soft-lavender canvas (~#F8F6FF) with very faint aurora wash (purple / pink / sky only). No dark fills, no cinematic noir. CENTER — a soft glowing orb, bright and pale, distilling the 'look of a film' into one luminous nucleus. The orb body is built ONLY from the HP palette: a quiet blend of aurora-purple core, aurora-pink mid, aurora-sky outer halo, with the lavender accent #8B7FFF as the most saturated note at the very center. Abstract — no eyes, no faces, no scenery, no warm peach, no teal. FOUR RADIAL AXIS BANDS — extending outward toward upper-left, upper-right, lower-left, lower-right at roughly 45 degree angles. The four bands have IDENTICAL length, identical line weight, identical opacity, and identical end-cap size, so they read as equal-weight at a glance (slides/10 'まとめ' rule of equal weight). AXIS 1 (upper-left, hue arc) — a thin softly-glowing band that terminates in a small soft chromatic arc fragment using aurora-purple-into-pink hint of hue rotation. No saturated colors, no full color wheel. AXIS 2 (upper-right, density bar) — a thin softly-glowing band that terminates in a small stack of three short vertical translucent bars of varying luminance (all built from aurora-purple at different opacities). No warm peach. AXIS 3 (lower-left, S-curve) — a thin softly-glowing band that terminates in a small smooth S-shaped luminous line drawn in aurora-pink over a faint pale lavender plane. AXIS 4 (lower-right, RGB 3 beams) — a thin softly-glowing band that terminates in three short faint parallel beams using aurora-purple, aurora-pink, aurora-sky (one per beam) gently shifting an underlying soft plane. NO orange, NO teal, NO warm peach. The four axis bands connect to the central orb via thin softly-glowing filaments. Axes never cross each other (slides/3 'independent axes' rule). Plenty of empty negative space (>= 35% of frame) between axes so HTML labels overlay cleanly. Tone: calm, structural, framework-like. Use ONLY the HP palette: base #F8F6FF, accent #8B7FFF, aurora purple/pink/sky. No vivid saturated colors. No arrows, no symbols, no glyphs, no text. Visual reference (tone only, do not reproduce any text): public/slides/7カラーグレーディングのフレームワーク.png (center+axes structure), public/slides/10カラーグレーディングのフレームワーク - まとめ.png (equal-weight 4-axis layout), public/slides/8フレームワーク関連コントロール.png (axis-end control glyph feel), public/slides/3カラーグレーディングの基本概念.png (independent axes). STRICT NEGATIVE CONSTRAINTS — do NOT include any of the following: text, letters, words, numbers, captions, labels, titles, sentences, characters in any language (especially Japanese kana / kanji / Latin / numerals), UI elements, icons with letters, logos, watermarks, signatures, button shapes, screenshots, photos of people, faces, hands, arrows, arrowheads, connectors, callouts, dark backgrounds, navy or charcoal fills, heavy black, neon-on-black aesthetics, cinematic noir, saturated bold colors, vivid orange, teal, green, hard outlines, thick borders, busy compositions.",
+  "source_spec_notion_url": "https://www.notion.so/8b38762c77fc4a048787c83ee7e8cb56",
+  "target_article_notion_url": "https://www.notion.so/2d61194573e140789602864a9040affe",
+  "source_spec_summary": "図解仕様書 v3 (2026-04-29 / 8b38762c) grading-look-decomposition。layout=centered-axes。主張『ルックは独立した4軸の合成』。中心に soft glowing orb、四方向 (upper-left / upper-right / lower-left / lower-right) に等重み・等長の柔らかい光の帯が伸びる。色域は #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) のみ。文字・番号・グリフは note-diagram.tsx 側で描画。",
+  "overlay_labels": [
+    "作品のルック",
+    "監督の言葉が、ここに落ちる",
+    "色相弧",
+    "濃度バー",
+    "S 曲線",
+    "RGB 3 ビーム",
+    "軸独立性"
+  ],
+  "success_criteria": [
+    "中心 + 4 方向放射のヒーロービジュアルとして読める",
+    "4 軸が等重み (等長・等線幅) で並んで見える",
+    "色域が #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) だけで構成され、orange / teal / warm peach / muted teal が出てこない",
+    "HTML overlay の中心ラベル + 4 軸ラベル + ヒントリストが乗る空白がある",
+    "correction-factor-map (左右対比) や grading-words-to-knobs (横フロー) と並べたとき、形状で補完関係になる (放射 vs 横並び)"
+  ],
+  "local_research_assets_used": [
+    {
+      "path": "public/slides/7カラーグレーディングのフレームワーク.png",
+      "exists": true,
+      "bytes": 1029984
+    },
+    {
+      "path": "public/slides/10カラーグレーディングのフレームワーク - まとめ.png",
+      "exists": true,
+      "bytes": 937960
+    },
+    {
+      "path": "public/slides/8フレームワーク関連コントロール.png",
+      "exists": true,
+      "bytes": 1072528
+    },
+    {
+      "path": "public/slides/3カラーグレーディングの基本概念.png",
+      "exists": true,
+      "bytes": 867776
+    }
+  ],
+  "local_research_assets_checked_but_not_used": [
+    {
+      "path": "~/Library/CloudStorage/GoogleDrive-norikane.satoshi@gmail.com/マイドライブ/ルックコミュニケーションツール（仮名） — ピッチスライド.gslides",
+      "exists": false,
+      "reason": "ツールビジョン資料 (27枚) で、Look Decomposition 概念図そのものは含まれない。中心+4軸構図の下敷きにはならないので不採用。"
+    },
+    {
+      "path": "~/Library/CloudStorage/GoogleDrive-norikane.satoshi@gmail.com/マイドライブ/mars_queen_grading_workflow_20260112094639.gslides",
+      "exists": false,
+      "reason": "実プロジェクトのワークフロー図。4軸構造とは別の関心事 (作業順序) なので不採用"
+    }
+  ],
+  "generation_rationale": "v3 (2026-04-29 / 8b38762c) grading-look-decomposition (centered-axes) に再アライン。AI 画像は中心+4軸の放射構図で、気分・空気感だけを担う背景レイヤー。軸末端のコントロール表象 (色相弧 / 濃度バー / S曲線 / RGB3ビーム) は note-diagram.tsx 側のラベルで意味付けし、画像内には文字・番号・矢印を描かない。 slides/7 → 中心+周辺軸の framework 構図を継承。 slides/10 → 4 軸が等重み (等長・等線幅) で並ぶ整列感を、4 方向の柔らかい光の帯の太さ・長さを揃えることで反映。 slides/8 → 各軸が「具体的なコントロールに対応する」感覚を、各軸末端の極めて控えめな表象 (色相弧フラグメント / 短い縦バンド3本 / 緩いS字ライン / 平行ビーム3本) に反映。すべて aurora 3 色のみ。 slides/3 → 軸同士が交差せず独立に描かれる構図に反映。 色域は HP 実コードのトークンに同期: #F8F6FF base、#8B7FFF accent、aurora purple/pink/sky の 3 色のみ。orange / teal / warm peach / muted teal は実装に存在しないため除去。",
+  "notion_draft_preview": {
+    "mechanism": "Notion file_upload API → image block 挿入。caption は 'HP図解プレビュー: <slug> (対応仕様書: <name>)'。HP用 marker paragraph は残す。",
+    "filled_at_runtime": "scripts/diagrams/insert-preview.mjs が file_upload → block 挿入し、ここに { method, block_id, file_upload_id, caption } を後追記する"
+  },
+  "bytes": 16316,
+  "generated_at": "2026-04-29T04:50:10.932Z",
+  "finished_at": "2026-04-29T04:52:30.031Z",
+  "pipeline_origin": {
+    "repo": "x-post-pipeline",
+    "file": "lib/image-generator/concept-image-generate.mjs",
+    "summary": "POST https://api.openai.com/v1/images/generations with model gpt-image-2, Bearer OPENAI_API_KEY, b64_json response. HP 用は size/quality/output_format を上書きしつつ同じ認証経路と同じ no-text negative prompt 方針を踏襲。"
+  }
+}

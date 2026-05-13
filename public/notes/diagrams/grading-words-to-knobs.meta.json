@@ -1,0 +1,66 @@
+{
+  "slug": "grading-words-to-knobs",
+  "title": "grading-words-to-knobs",
+  "model": "gpt-image-2",
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "auth": "OPENAI_API_KEY (Bearer) — same path as x-post-pipeline lib/image-generator/concept-image-generate.mjs",
+  "size": "1536x1024",
+  "quality": "high",
+  "output_format": "webp",
+  "output_format_actual": "webp",
+  "prompt": "Light, airy editorial illustration aligned with the host site's Glass Design System. Background is overwhelmingly bright: a calm white-to-soft-lavender canvas (~#F8F6FF) with very subtle aurora gradients used only as quiet directional light. Palette is strictly limited to the HP tokens: base #F8F6FF, accent #8B7FFF (soft lavender purple), and the three aurora washes ── aurora-purple ~rgba(139,127,255,0.28), aurora-pink ~rgba(255,143,171,0.20), aurora-sky ~rgba(125,211,252,0.20). All other colors (orange / teal / green / vivid saturated tones) are forbidden — they are not part of the HP implementation. Compositions feel spacious and uncluttered: generous negative space (at least 35% of the frame), few elements, low color count, soft thin lines, no thick borders. Contrast is tuned for in-article reading: shapes are visible but never demand attention — they are scaffolding only; HTML labels, numbers, and small boxes are overlaid in post by note-diagram.tsx. Output: 16:9 horizontal banner that sits inside an article body column, comfortably readable next to body text. DESIGN INTENT — A 3-hop translation lane background: spoken word → axis → control. FOUR parallel vertical translation lanes side by side, one per phrase. The image is background only — labels, numbers, arrows, and small boxes are NOT drawn here; they are overlaid in HTML by note-diagram.tsx (horizontal-flow layout). Background: bright white-to-soft-lavender canvas (~#F8F6FF) with very faint aurora wash (purple / pink / sky only). No dark fills, no cinematic noir. Layout: FOUR identical-width vertical lanes, equally spaced left to right with generous gaps between lanes. Each lane occupies the full vertical height of the canvas with the same top and bottom margins. Lane width and lane height are IDENTICAL across all four — equal-weight is critical because HTML labels of identical size will sit one per lane. Each lane has THREE stages stacked top-to-bottom with IDENTICAL vertical spacing across all lanes (so all four lanes' top stages align horizontally, all middle stages align, all bottom stages align). Stages within a lane are visually connected by a single thin vertical softly-glowing filament so the eye reads top-to-bottom. TOP STAGE (per lane) — a small soft luminous ripple, like a gentle sound wave or speech wave. All four ripples have IDENTICAL size and identical line weight; they differ only in aurora hue: lane 1 = aurora-purple ripple, lane 2 = aurora-pink ripple, lane 3 = aurora-sky ripple, lane 4 = a balanced aurora-purple-into-pink ripple. NO warm peach, NO teal. MIDDLE STAGE (per lane) — a small abstract fragment of the colorist's framework, drawn ONLY in aurora 3-color palette: lane 1 = a small soft chromatic hue arc fragment (aurora-purple-into-pink), lane 2 = a short vertical density bar stack (aurora-purple at varying opacity), lane 3 = a small 3-beam parallel cluster (aurora-purple / aurora-pink / aurora-sky), lane 4 = a small smooth S-curve segment (aurora-pink). Identical bounding-box size across lanes. BOTTOM STAGE (per lane) — a small thin softly-glowing horizontal band (knob / slider abstraction) glowing in the lane's destination aurora hue. Identical band length and band height across all four lanes. Lanes are visually independent — clear empty negative space between lanes. Plenty of empty space (>= 35% of frame) at top, between lanes, and at bottom for HTML labels (flowHeading at top, 4 step labels with sublabels in each lane, takeaway at bottom). Use ONLY the HP palette: base #F8F6FF, accent #8B7FFF, aurora purple/pink/sky. No arrows, no text, no symbols beyond the abstract ripple/fragment/band shapes. NO warm peach. NO teal. NO muted teal. NO orange. NO green. Visual reference (tone only, do not reproduce any text): public/slides/8フレームワーク関連コントロール.png (knob/slider feel), public/slides/7カラーグレーディングのフレームワーク.png (equal-weight axis layout). STRICT NEGATIVE CONSTRAINTS — do NOT include any of the following: text, letters, words, numbers, captions, labels, titles, sentences, characters in any language (especially Japanese kana / kanji / Latin / numerals), UI elements, icons with letters, logos, watermarks, signatures, button shapes, screenshots, photos of people, faces, hands, arrows, arrowheads, connectors, callouts, dark backgrounds, navy or charcoal fills, heavy black, neon-on-black aesthetics, cinematic noir, saturated bold colors, vivid orange, teal, green, hard outlines, thick borders, busy compositions.",
+  "source_spec_notion_url": "https://www.notion.so/8b38762c77fc4a048787c83ee7e8cb56",
+  "target_article_notion_url": "https://www.notion.so/2d61194573e140789602864a9040affe",
+  "source_spec_summary": "図解仕様書 v3 (2026-04-29 / 8b38762c) grading-words-to-knobs。layout=horizontal-flow。主張『言葉 → 軸 → 操作 の 3 段ホップ』。4 列の柔らかい縦バンドが等幅で並び、上から下へ『さざ波 → 断片 → 細い帯』と段階的に変化する横フロー。色域は #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) のみ。文字・番号・矢印は note-diagram.tsx 側で描画。",
+  "overlay_labels": [
+    "言葉 → 軸 → 操作",
+    "「もう少し暖かく」",
+    "「もう少し抜けを」",
+    "「青を深く」",
+    "「映画っぽく」",
+    "色相弧の方向に振る",
+    "濃度バーで暗部を整理する",
+    "RGB 3 ビームで青のバランスを下げる",
+    "S 曲線の肩を作る",
+    "監督の言葉は、4 軸のどこかに落ちる。"
+  ],
+  "success_criteria": [
+    "4 列の縦バンドが等幅・等高で並んで見える (3 段ホップの土台として読める)",
+    "各列の上 (さざ波) → 中 (断片) → 下 (細い帯) の段階変化が一目で分かる",
+    "色域が #F8F6FF + #8B7FFF + aurora 3 色 (purple / pink / sky) だけで構成され、orange / teal / warm peach / muted teal が出てこない",
+    "HTML overlay の flowHeading + 4 列ラベル + takeaway が乗る空白がある",
+    "grading-look-decomposition (中心+4軸の放射) と並べたとき、形状で補完関係になる (放射 vs 横並び 3 段ホップ)"
+  ],
+  "local_research_assets_used": [
+    {
+      "path": "public/slides/8フレームワーク関連コントロール.png",
+      "exists": true,
+      "bytes": 1072528
+    },
+    {
+      "path": "public/slides/7カラーグレーディングのフレームワーク.png",
+      "exists": true,
+      "bytes": 1029984
+    }
+  ],
+  "local_research_assets_checked_but_not_used": [
+    {
+      "path": "public/slides/3カラーグレーディングの基本概念.png",
+      "exists": true,
+      "reason": "前提知識スライド。3段ホップ構図とは別レイヤーなので不採用"
+    }
+  ],
+  "generation_rationale": "v3 (2026-04-29 / 8b38762c) grading-words-to-knobs (horizontal-flow) に再アライン。AI 画像は 4 列の縦バンド + 段階変化を担う背景レイヤーで、文字・番号・矢印は描かない。 slides/8 → 「コントロール = ノブ・スライダー・ホイール」の表象を、各列下段の細い帯 (knob / slider 抽象) に反映。ただし aurora 3 色のみで描く。 slides/7 → 「フレームワーク = 軸の整列」感を、4 列を等幅・等高で並べることで反映。 grading-look-decomposition との重複回避: あちらは 1 中心+4 軸の放射、こちらは 4 列の縦並び 3 段ホップ (さざ波 → 断片 → 細い帯)。構図形状で補完関係。 色域は HP 実コードのトークンに同期: #F8F6FF base、#8B7FFF accent、aurora purple/pink/sky の 3 色のみ。orange / teal / warm peach / muted teal は実装に存在しないため除去。",
+  "notion_draft_preview": {
+    "mechanism": "Notion file_upload API → image block 挿入。caption は 'HP図解プレビュー: <slug> (対応仕様書: <name>)'。HP用 marker paragraph は残す。",
+    "filled_at_runtime": "scripts/diagrams/insert-preview.mjs が file_upload → block 挿入し、ここに { method, block_id, file_upload_id, caption } を後追記する"
+  },
+  "bytes": 17842,
+  "generated_at": "2026-04-29T04:52:32.936Z",
+  "finished_at": "2026-04-29T04:54:52.953Z",
+  "pipeline_origin": {
+    "repo": "x-post-pipeline",
+    "file": "lib/image-generator/concept-image-generate.mjs",
+    "summary": "POST https://api.openai.com/v1/images/generations with model gpt-image-2, Bearer OPENAI_API_KEY, b64_json response. HP 用は size/quality/output_format を上書きしつつ同じ認証経路と同じ no-text negative prompt 方針を踏襲。"
+  }
+}
