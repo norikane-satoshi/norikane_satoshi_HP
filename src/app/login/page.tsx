@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, Suspense, useEffect, useState } from "react"
+import { FormEvent, Suspense, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
@@ -21,12 +21,8 @@ function LoginCard() {
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || FALLBACK_CALLBACK_URL
 
-  const [verified, setVerified] = useState<string | null>(null)
-  const [verifyError, setVerifyError] = useState<string | null>(null)
-  useEffect(() => {
-    setVerified(searchParams.get("verified"))
-    setVerifyError(searchParams.get("verifyError"))
-  }, [searchParams])
+  const verified = searchParams.get("verified")
+  const verifyError = searchParams.get("verifyError")
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")

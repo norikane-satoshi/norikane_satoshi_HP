@@ -74,6 +74,13 @@ function pushStep(step: BookingStep): void {
   window.history.pushState({ step }, "", url.toString())
 }
 
+function getInitialRemoteRefreshRequestKey(): number {
+  if (typeof window === "undefined") return 0
+  if (window.sessionStorage.getItem(FORCE_REFRESH_AFTER_SUBMIT_KEY) !== "1") return 0
+  window.sessionStorage.removeItem(FORCE_REFRESH_AFTER_SUBMIT_KEY)
+  return Date.now()
+}
+
 export function BookingSection({
   userId,
   userEmail,
@@ -96,7 +103,7 @@ export function BookingSection({
   const [focusSlot, setFocusSlot] = useState<BookingSlot | null>(null)
   const [teams, setTeams] = useState<TeamOption[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
-  const [remoteRefreshRequestKey, setRemoteRefreshRequestKey] = useState(0)
+  const [remoteRefreshRequestKey, setRemoteRefreshRequestKey] = useState(getInitialRemoteRefreshRequestKey)
 
   useEffect(() => {
     let cancelled = false
@@ -115,12 +122,6 @@ export function BookingSection({
     return () => {
       cancelled = true
     }
-  }, [])
-
-  useEffect(() => {
-    if (window.sessionStorage.getItem(FORCE_REFRESH_AFTER_SUBMIT_KEY) !== "1") return
-    window.sessionStorage.removeItem(FORCE_REFRESH_AFTER_SUBMIT_KEY)
-    setRemoteRefreshRequestKey(Date.now())
   }, [])
 
   const applyDraft = useCallback(

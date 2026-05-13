@@ -205,8 +205,10 @@ function NodeParticles({
   const invalidate = useThree((s) => s.invalidate)
 
   const bundle = useMemo(() => buildBundle(count, kind), [count, kind])
+  const bundleRef = useRef(bundle)
 
   useEffect(() => {
+    bundleRef.current = bundle
     return () => {
       bundle.geometry.dispose()
       bundle.material.dispose()
@@ -215,7 +217,7 @@ function NodeParticles({
 
   useEffect(() => {
     if (reducedMotion) {
-      const u = bundle.material.uniforms
+      const u = bundleRef.current.material.uniforms
       u.uTime.value = 0
       u.uSpread.value = 1.0
       if (groupRef.current) {
@@ -234,7 +236,7 @@ function NodeParticles({
     if (startTimeRef.current === null) startTimeRef.current = state.clock.elapsedTime
     const t = state.clock.elapsedTime - startTimeRef.current
 
-    const u = bundle.material.uniforms
+    const u = bundleRef.current.material.uniforms
     u.uTime.value = t
 
     if (kind === "left") {
