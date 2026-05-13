@@ -10,7 +10,7 @@ import {
   getTotalDurationMinutes,
   type BookingFormData,
   type BookingSlot,
-} from "@/lib/booking/form-schema"
+} from "@/lib/booking/domain/form-schema"
 
 
 type BookingFormProps = {

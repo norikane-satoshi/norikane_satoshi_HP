@@ -28,9 +28,9 @@ import type {
 import { format } from "date-fns"
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
-import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/api-schema"
-import { getHolidayName } from "@/lib/booking/holidays"
-import type { BookingSlot } from "@/lib/booking/form-schema"
+import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
+import { getHolidayName } from "@/lib/booking/domain/holidays"
+import type { BookingSlot } from "@/lib/booking/domain/form-schema"
 
 type TeamOption = {
   id: string

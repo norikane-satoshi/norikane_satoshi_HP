@@ -1,4 +1,4 @@
-import type { BookingStep } from "@/lib/booking/form-schema"
+import type { BookingStep } from "@/lib/booking/domain/form-schema"
 
 type BookingFooterProps = {
   step: BookingStep

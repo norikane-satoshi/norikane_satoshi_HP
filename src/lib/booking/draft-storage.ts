@@ -1,4 +1,4 @@
-import type { BookingFormData, BookingSlot, BookingStep } from "@/lib/booking/form-schema"
+import type { BookingFormData, BookingSlot, BookingStep } from "@/lib/booking/domain/form-schema"
 
 const SESSION_DRAFT_KEY = "booking-draft-session"
 const LOCAL_DRAFT_KEY_PREFIX = "booking-draft-"

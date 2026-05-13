@@ -1,4 +1,4 @@
-import type { BookingSlot } from "@/lib/booking/form-schema"
+import type { BookingSlot } from "@/lib/booking/domain/form-schema"
 
 type BookingDoneProps = {
   selectedSlot: BookingSlot | null

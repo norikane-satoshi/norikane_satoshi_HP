@@ -1,6 +1,6 @@
 import { eachDayOfInterval, endOfDay, format, startOfDay } from "date-fns"
 
-import { getWeekDays, type BookingWithRelations } from "@/lib/booking/calendar-utils"
+import { getWeekDays, type BookingWithRelations } from "@/lib/booking/domain/calendar-utils"
 
 interface WeekBookingPlacement {
   booking: BookingWithRelations

@@ -5,7 +5,7 @@ import {
   bookingConflictsRequestSchema,
   mapErrorCodeToJa,
   type BookingConflictsResponse,
-} from "@/lib/booking/api-schema"
+} from "@/lib/booking/domain/api-schema"
 import { evaluateConflicts, findConflictingBookings } from "@/lib/booking/conflicts"
 
 export const runtime = "nodejs"

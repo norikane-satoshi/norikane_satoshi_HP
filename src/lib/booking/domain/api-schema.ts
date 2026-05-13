@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { bookingFormSchema } from "@/lib/booking/form-schema"
+import { bookingFormSchema } from "@/lib/booking/domain/form-schema"
 
 const slotSchema = z.object({
   start: z.string().datetime(),

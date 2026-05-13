@@ -8,7 +8,7 @@ import { BookingDone } from "@/components/booking/booking-done"
 import { BookingFooter } from "@/components/booking/booking-footer"
 import { BookingForm } from "@/components/booking/booking-form"
 import { BookingProgressBar } from "@/components/booking/booking-progress-bar"
-import { mapErrorCodeToJa } from "@/lib/booking/api-schema"
+import { mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 import type { CalendarBookingFromApi } from "@/lib/booking/calendar-free-busy/bookings-repository"
 import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar"
 import { clearDraft, hasDraft, loadDraft, saveDraft } from "@/lib/booking/draft-storage"
@@ -17,7 +17,7 @@ import {
   type BookingFormData,
   type BookingSlot,
   type BookingStep,
-} from "@/lib/booking/form-schema"
+} from "@/lib/booking/domain/form-schema"
 
 type BookingSectionProps = {
   userId: string

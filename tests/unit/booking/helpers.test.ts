@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { getBookingBlockStyle, getBookingColorLabel, getBookingCSSColor } from "@/lib/booking/booking-colors"
+import { getBookingBlockStyle, getBookingColorLabel, getBookingCSSColor } from "@/lib/booking/domain/booking-colors"
 import {
   formatMonth,
   formatWeek,
@@ -15,7 +15,7 @@ import {
   navigateWeek,
   normalizeCalendarDate,
   splitIntoWeeks,
-} from "@/lib/booking/calendar-utils"
+} from "@/lib/booking/domain/calendar-utils"
 import { clearDraft, hasDraft, loadDraft, saveDraft } from "@/lib/booking/draft-storage"
 import { getResendClient, sendBookingConfirmedEmail } from "@/lib/booking/email"
 import {
@@ -23,20 +23,20 @@ import {
   formatDurationMinutes,
   getSlotDurationMinutes,
   getTotalDurationMinutes,
-} from "@/lib/booking/form-schema"
-import { getHolidayName, isJapaneseHoliday } from "@/lib/booking/holidays"
+} from "@/lib/booking/domain/form-schema"
+import { getHolidayName, isJapaneseHoliday } from "@/lib/booking/domain/holidays"
 import {
   calculateCopyData,
   calculateTimedMoveData,
   calculateTimedResizeData,
   moveSlotByDates,
-} from "@/lib/booking/slot-operations"
+} from "@/lib/booking/domain/slot-operations"
 import {
   assignWeekBookingLanes,
   getWeekBookingPlacements,
   getWeekTimeWindow,
   getWeekTimeWindowFromPlacements,
-} from "@/lib/booking/week-calendar-utils"
+} from "@/lib/booking/domain/week-calendar-utils"
 
 function storage() {
   const map = new Map<string, string>()

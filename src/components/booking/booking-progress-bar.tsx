@@ -1,4 +1,4 @@
-import type { BookingStep } from "@/lib/booking/form-schema"
+import type { BookingStep } from "@/lib/booking/domain/form-schema"
 
 const steps: { value: BookingStep; label: string }[] = [
   { value: "calendar", label: "日時" },

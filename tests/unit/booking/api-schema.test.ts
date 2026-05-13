@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { bookingApiSchema, mapErrorCodeToJa } from "@/lib/booking/api-schema"
+import { bookingApiSchema, mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 
 function validBooking(overrides: Record<string, unknown> = {}) {
   return {
