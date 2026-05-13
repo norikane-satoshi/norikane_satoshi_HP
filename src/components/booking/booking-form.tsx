@@ -54,6 +54,7 @@ export function BookingForm({
   })
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/incompatible-library
     const subscription = watch((value) => onChange(value as BookingFormData))
     return () => subscription.unsubscribe()
   }, [onChange, watch])

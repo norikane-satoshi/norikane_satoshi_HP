@@ -55,10 +55,6 @@ function easeInOutCubic(v: number) {
   return v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2
 }
 
-function easeOutCubic(v: number) {
-  return 1 - Math.pow(1 - v, 3)
-}
-
 function lerp(a: number, b: number, p: number) {
   return a + (b - a) * p
 }
@@ -210,12 +206,12 @@ function pourOpacity(bottle: Bottle, t: number) {
   return clamp01(Math.min((localT - 0.5) / 0.1, (1.6 - localT) / 0.1))
 }
 
-function pourLip(pose: BottlePose, _mirror: boolean) {
+function pourLip(pose: BottlePose) {
   return { x: pose.x + 70, y: pose.y + 18 }
 }
 
-function pourPath(pose: BottlePose, mirror: boolean) {
-  const lip = pourLip(pose, mirror)
+function pourPath(pose: BottlePose) {
+  const lip = pourLip(pose)
   const x0 = lip.x
   const y0 = lip.y
   const x1 = PREVIEW_CX
@@ -458,7 +454,7 @@ export default function GradingSecretPantry({
           strokeWidth={2}
         />
         {bottleStates.map(({ bottle, pose, pourOpacity }) => {
-          const path = pourPath(pose, bottle.mirror)
+          const path = pourPath(pose)
           const tiltScale = clamp01(Math.abs(pose.bottleRotate) / 90)
           return pourOpacity > 0 ? (
             <g key={`pour-${bottle.id}`} opacity={pourOpacity}>

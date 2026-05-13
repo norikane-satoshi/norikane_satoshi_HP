@@ -31,7 +31,7 @@
  *   POST <upload_url> multipart/form-data { file: <binary> }
  *   PATCH /v1/blocks/<page_id>/children { children: [image{file_upload}], after }
  */
-import { readFile, stat } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { resolve, dirname, basename } from "node:path"

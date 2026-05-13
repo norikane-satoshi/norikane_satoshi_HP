@@ -98,14 +98,6 @@ function easeInOutCubic(v: number) {
   return v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2
 }
 
-function easeOutCubic(v: number) {
-  return 1 - Math.pow(1 - v, 3)
-}
-
-function lerp(a: number, b: number, p: number) {
-  return a + (b - a) * p
-}
-
 function axisX(axisId: AxisId) {
   return CARD_X + (axisId - 1) * (CARD_W + CARD_GAP)
 }
@@ -175,22 +167,6 @@ function hslToRgb(h: number, s: number, l: number): Rgb {
     r: clamp255(channel(hue + 1 / 3) * 255),
     g: clamp255(channel(hue) * 255),
     b: clamp255(channel(hue - 1 / 3) * 255),
-  }
-}
-
-function sCurve(l: number, k: number) {
-  return clamp01(l + k * 0.5 * Math.sin((l - 0.5) * Math.PI))
-}
-
-function sCurveChannel(v: number, k: number) {
-  return clamp01(v + k * Math.sin((v - 0.5) * Math.PI))
-}
-
-function sCurveRgb({ r, g, b }: Rgb, k: number): Rgb {
-  return {
-    r: clamp255(sCurveChannel(r / 255, k) * 255),
-    g: clamp255(sCurveChannel(g / 255, k) * 255),
-    b: clamp255(sCurveChannel(b / 255, k) * 255),
   }
 }
 

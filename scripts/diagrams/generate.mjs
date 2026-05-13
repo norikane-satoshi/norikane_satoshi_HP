@@ -13,7 +13,7 @@
  * 認証経路は X-post-pipeline (lib/image-generator/concept-image-generate.mjs) と
  * 同じ。OPENAI_API_KEY を環境から読み、Bearer で v1/images/generations を叩く。
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from "node:fs"
+import { writeFileSync, existsSync, mkdirSync, statSync } from "node:fs"
 import { resolve, dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
@@ -103,7 +103,7 @@ async function callOpenAI({ prompt, size, quality, output_format }) {
   return Buffer.from(b64, "base64")
 }
 
-async function ensureWebp(buf, requestedFormat) {
+async function ensureWebp(buf) {
   // OpenAI が webp を返さなかった/png でフォールバックした場合に sharp で webp に統一。
   // PNG/JPEG/WebP どれが渡ってきても WebP にエンコードし直して保存する。
   return sharp(buf).webp({ quality: 88 }).toBuffer()
@@ -147,7 +147,7 @@ async function main() {
     }
   }
 
-  const webp = await ensureWebp(pngOrWebp, cfg.output_format)
+  const webp = await ensureWebp(pngOrWebp)
   writeFileSync(imgPath, webp)
 
   const meta = {

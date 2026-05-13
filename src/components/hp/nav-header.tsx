@@ -6,7 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { SITE_BRAND_NAME, SITE_OWNER_NAME } from "@/lib/site-brand"
+import { SITE_BRAND_NAME } from "@/lib/site-brand"
 
 const navItems = [
   { href: "/", label: "ホーム" },

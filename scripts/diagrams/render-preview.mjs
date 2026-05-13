@@ -16,7 +16,7 @@
  *   引数なしなら 10 slug 全て生成する。
  */
 import { createHash } from "node:crypto"
-import { readFile, writeFile, mkdir, stat } from "node:fs/promises"
+import { readFile, writeFile, mkdir } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
