@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { listPublishedNotes } from "@/lib/notion/fetch-note";
+import { listPublishedNotes } from "@/lib/notion/server/fetch-note";
 
 const SITE_URL = "https://norikane.studio";
 

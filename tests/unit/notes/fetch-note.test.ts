@@ -10,7 +10,7 @@ vi.mock("next/cache", () => ({
   unstable_cache: (fn: unknown) => fn,
 }))
 
-vi.mock("@/lib/notion/client", () => ({
+vi.mock("@/lib/notion/server/client", () => ({
   getNotionClient: mocks.getNotionClient,
   IB_NOTE_DATA_SOURCE_ID: "notes-db",
   PUBLISHED_PROPERTY: "Published",
@@ -21,7 +21,7 @@ vi.mock("@/lib/notion/client", () => ({
 import {
   getPublishedNoteBySlug,
   listPublishedNotes,
-} from "@/lib/notion/fetch-note"
+} from "@/lib/notion/server/fetch-note"
 
 function page({
   id,

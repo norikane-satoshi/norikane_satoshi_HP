@@ -49,8 +49,8 @@ vi.mock("@/components/notes/note-visual", async () => {
   }
 })
 
-import { buildSlugIndex, RenderBlocks } from "@/lib/notion/render-blocks"
-import type { BlockWithChildren } from "@/lib/notion/types"
+import { buildSlugIndex, RenderBlocks } from "@/lib/notion/server/render-blocks"
+import type { BlockWithChildren } from "@/lib/notion/server/types"
 
 function rich(
   plainText: string,

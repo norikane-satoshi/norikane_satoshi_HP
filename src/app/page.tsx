@@ -6,7 +6,7 @@ import { ContactForm } from "@/components/hp/contact-form"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
-import { listPublishedNotes } from "@/lib/notion/fetch-note"
+import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
 export const revalidate = 3600
 

@@ -4,8 +4,8 @@ import { notFound } from "next/navigation"
 import {
   getPublishedNoteBySlug,
   listPublishedNotes,
-} from "@/lib/notion/fetch-note"
-import { buildSlugIndex, RenderBlocks } from "@/lib/notion/render-blocks"
+} from "@/lib/notion/server/fetch-note"
+import { buildSlugIndex, RenderBlocks } from "@/lib/notion/server/render-blocks"
 import { SITE_BRAND_NAME } from "@/lib/site-brand"
 
 export const revalidate = 3600
