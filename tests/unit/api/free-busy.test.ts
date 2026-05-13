@@ -327,4 +327,99 @@ describe("GET /api/calendar/free-busy", () => {
       status: 503,
     })
   })
+
+  it("re-throws unexpected oauth-refresh errors so the route can fall back", async () => {
+    mockCalendar()
+    mocks.refreshCalendarAccessToken.mockRejectedValue(new Error("oauth network down"))
+
+    await expect(
+      getCalendarFreeBusyForUser({
+        userId: "user_1",
+        teamId: null,
+        timeMin: "2026-06-01T00:00:00.000Z",
+        timeMax: "2026-06-30T00:00:00.000Z",
+        calendarId: "calendar_1",
+        useCache: false,
+      }),
+    ).rejects.toThrow("oauth network down")
+  })
+
+  it("re-throws unexpected free-busy errors so the route can fall back", async () => {
+    mockCalendar()
+    mocks.listBusyEventsWithBuffer.mockRejectedValue(new Error("gcal network down"))
+
+    await expect(
+      getCalendarFreeBusyForUser({
+        userId: "user_1",
+        teamId: null,
+        timeMin: "2026-06-01T00:00:00.000Z",
+        timeMax: "2026-06-30T00:00:00.000Z",
+        calendarId: "calendar_1",
+        useCache: false,
+      }),
+    ).rejects.toThrow("gcal network down")
+  })
+
+  it("drops busy events whose start/end exactly match an existing booking", async () => {
+    mockCalendar()
+    mocks.prisma.bookingTimeSlot.findMany.mockResolvedValue([
+      {
+        id: "slot_overlap",
+        bookingGroupId: "group_overlap",
+        startTime: new Date("2026-06-10T01:00:00.000Z"),
+        endTime: new Date("2026-06-10T02:00:00.000Z"),
+        status: "CONFIRMED",
+        bookingGroup: { projectTitle: "Overlap", status: "CONFIRMED" },
+      },
+    ])
+
+    const result = await getCalendarFreeBusyForUser({
+      userId: "user_1",
+      teamId: null,
+      timeMin: "2026-06-01T00:00:00.000Z",
+      timeMax: "2026-06-30T00:00:00.000Z",
+      calendarId: "calendar_1",
+      useCache: false,
+    })
+
+    expect(result.status).toBe(200)
+    expect(result.busy).toEqual([])
+    expect(result.bookings).toEqual([
+      expect.objectContaining({ id: "slot_overlap" }),
+    ])
+  })
+
+  it("invalidates only the matching team-scoped cache entries", async () => {
+    mockCalendar()
+    mocks.listTeamMemberUserIds.mockResolvedValue(["user_1", "user_2"])
+
+    await GET(request("team_1"))
+    invalidateCalendarFreeBusyCacheForUser("user_1", "team_1")
+    await GET(request("team_1"))
+
+    expect(mocks.listTeamMemberUserIds).toHaveBeenCalledTimes(2)
+    expect(mocks.prisma.bookingTimeSlot.findMany).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps unrelated user caches intact when invalidating without teamId", async () => {
+    mockCalendar()
+    mocks.listTeamMemberUserIds.mockResolvedValue(["user_1", "user_2"])
+
+    await GET(request("team_1"))
+    invalidateCalendarFreeBusyCacheForUser("user_other")
+    await GET(request("team_1"))
+
+    expect(mocks.prisma.bookingTimeSlot.findMany).toHaveBeenCalledTimes(1)
+  })
+
+  it("invalidates other users' cache entries that share a team id", async () => {
+    mockCalendar()
+    mocks.listTeamMemberUserIds.mockResolvedValue(["user_1", "user_2"])
+
+    await GET(request("team_1"))
+    invalidateCalendarFreeBusyCacheForUser("someone_else", "team_1")
+    await GET(request("team_1"))
+
+    expect(mocks.prisma.bookingTimeSlot.findMany).toHaveBeenCalledTimes(2)
+  })
 })
