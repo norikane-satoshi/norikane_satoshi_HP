@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getCalendarAuthUrl } from "@/lib/google-calendar"
+import { getCalendarAuthUrl } from "@/lib/google-calendar/server"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"

@@ -1,4 +1,4 @@
-import { CALENDAR_TOKEN_USER_ID, refreshCalendarAccessToken } from "@/lib/google-calendar"
+import { CALENDAR_TOKEN_USER_ID, refreshCalendarAccessToken } from "@/lib/google-calendar/server"
 
 const ACCESS_TOKEN_TTL_MS = 50 * 60 * 1000
 const TOKEN_EXPIRY_SKEW_MS = 5 * 60 * 1000

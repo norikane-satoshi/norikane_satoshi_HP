@@ -14,7 +14,7 @@ import {
   CALENDAR_TOKEN_USER_ID,
   createCalendarEvent,
   refreshCalendarAccessToken,
-} from "@/lib/google-calendar"
+} from "@/lib/google-calendar/server"
 import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"

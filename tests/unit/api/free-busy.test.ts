@@ -27,7 +27,7 @@ vi.mock("@/auth", () => ({ auth: mocks.auth }))
 vi.mock("@/lib/booking/server/team-access", () => ({
   listTeamMemberUserIds: mocks.listTeamMemberUserIds,
 }))
-vi.mock("@/lib/google-calendar", () => ({
+vi.mock("@/lib/google-calendar/server", () => ({
   CALENDAR_TOKEN_USER_ID: "satoshi-calendar-owner",
   CalendarOAuthEnvMissingError: mocks.CalendarOAuthEnvMissingError,
   CalendarTokenRevokedError: mocks.CalendarTokenRevokedError,

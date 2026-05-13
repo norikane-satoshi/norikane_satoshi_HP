@@ -7,7 +7,7 @@ import {
   buildBookingMonthSkeletonDays,
 } from "@/components/booking/booking-month-skeleton"
 import type { CalendarBookingFromApi } from "@/lib/booking/server/calendar-free-busy/bookings-repository"
-import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar"
+import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar/server"
 
 const busy: CalendarBusyEventWithBuffer[] = [
   {

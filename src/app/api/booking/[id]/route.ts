@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
-import { deleteCalendarEvent } from "@/lib/google-calendar"
+import { deleteCalendarEvent } from "@/lib/google-calendar/server"
 import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"

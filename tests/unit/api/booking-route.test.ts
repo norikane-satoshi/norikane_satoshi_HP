@@ -45,7 +45,7 @@ vi.mock("@/lib/booking/server/calendar-free-busy/free-busy", () => ({
   invalidateCalendarFreeBusyCacheForUser: mocks.invalidateCalendarFreeBusyCacheForUser,
 }))
 vi.mock("@/lib/booking/server/email", () => ({ sendBookingConfirmedEmail: mocks.sendBookingConfirmedEmail }))
-vi.mock("@/lib/google-calendar", () => ({
+vi.mock("@/lib/google-calendar/server", () => ({
   CALENDAR_TOKEN_USER_ID: "satoshi-calendar-owner",
   createCalendarEvent: mocks.createCalendarEvent,
   deleteCalendarEvent: mocks.deleteCalendarEvent,

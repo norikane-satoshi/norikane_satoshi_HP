@@ -3,7 +3,7 @@ import {
   CalendarTokenRevokedError,
   listBusyEventsWithBuffer,
   type CalendarBusyEventWithBuffer,
-} from "@/lib/google-calendar"
+} from "@/lib/google-calendar/server"
 import { listBookings, type CalendarBookingFromApi } from "./bookings-repository"
 import {
   clearCalendarAccessTokenCacheForTest,

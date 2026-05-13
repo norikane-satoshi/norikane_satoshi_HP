@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
-import { CALENDAR_TOKEN_USER_ID, exchangeCalendarCode } from "@/lib/google-calendar"
+import { CALENDAR_TOKEN_USER_ID, exchangeCalendarCode } from "@/lib/google-calendar/server"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"

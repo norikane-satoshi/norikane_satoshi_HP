@@ -57,7 +57,7 @@ import {
   getFreeBusy,
   listBusyEventsWithBuffer,
   refreshCalendarAccessToken,
-} from "@/lib/google-calendar"
+} from "@/lib/google-calendar/server"
 
 function setOAuthEnv() {
   process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_ID = "client_id"
