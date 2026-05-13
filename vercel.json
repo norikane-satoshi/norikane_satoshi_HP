@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npm run db:migrate:turso && next build",
+  "crons": [
+    {
+      "path": "/api/cron/expire-tentative",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

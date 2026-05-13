@@ -1,0 +1,74 @@
+import type { NextRequest } from "next/server"
+import { NextResponse } from "next/server"
+import { auth } from "@/auth"
+import {
+  calendarErrorStatus,
+  getCalendarFreeBusyForUser,
+  type CalendarBookingFromApi,
+} from "@/lib/booking/calendar-free-busy"
+
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
+const FREE_BUSY_CACHE_CONTROL = "private, max-age=15, stale-while-revalidate=60"
+
+function isValidDateTime(value: string): boolean {
+  return !Number.isNaN(Date.parse(value))
+}
+
+function freeBusyResponse(
+  body: { busy: unknown[]; bookings: CalendarBookingFromApi[]; code?: string },
+  status = 200,
+  serverTiming?: string,
+) {
+  const response = NextResponse.json(body, { status })
+  response.headers.set("Cache-Control", FREE_BUSY_CACHE_CONTROL)
+  if (serverTiming) response.headers.set("Server-Timing", serverTiming)
+  return response
+}
+
+export async function GET(request: NextRequest) {
+  const timeMin = request.nextUrl.searchParams.get("timeMin") ?? request.nextUrl.searchParams.get("start")
+  const timeMax = request.nextUrl.searchParams.get("timeMax") ?? request.nextUrl.searchParams.get("end")
+  const teamId = request.nextUrl.searchParams.get("teamId")
+  const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
+  const session = await auth()
+  const userId = session?.user?.id
+
+  if (!userId) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  if (!timeMin || !timeMax) {
+    return NextResponse.json({ error: "Missing timeMin or timeMax" }, { status: 400 })
+  }
+  if (!isValidDateTime(timeMin) || !isValidDateTime(timeMax)) {
+    return NextResponse.json({ error: "Invalid timeMin or timeMax" }, { status: 400 })
+  }
+  try {
+    const result = await getCalendarFreeBusyForUser({
+      userId,
+      teamId,
+      timeMin,
+      timeMax,
+      calendarId,
+    })
+    const serverTiming = [
+      `db;dur=${result.timings.db}`,
+      `oauth;dur=${result.timings.oauthRefresh}`,
+      `gcal;dur=${result.timings.gcal}`,
+      `cache;desc="${result.cache}"`,
+    ].join(", ")
+    if (result.code === "team_not_found") {
+      return NextResponse.json({ error: "team_not_found" }, { status: 404 })
+    }
+    return freeBusyResponse(
+      { code: result.code, busy: result.busy, bookings: result.bookings },
+      result.status,
+      serverTiming,
+    )
+  } catch (error) {
+    const known = calendarErrorStatus(error)
+    return freeBusyResponse({ code: known.code, busy: [], bookings: [] }, known.status)
+  }
+}

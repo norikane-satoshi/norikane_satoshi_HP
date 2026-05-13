@@ -18,7 +18,7 @@ Before changing UI, layout, styling, copy placement, diagrams, or visual assets:
 2. Read `src/app/globals.css`.
 3. Read the component you are about to modify.
 
-`DESIGN.md` is the design contract. It supersedes older neumorphism notes and the previous HP Design Skill text that used `neu-*` examples.
+`DESIGN.md` is the design contract. It supersedes older neumorphism notes. If `AGENTS.md` and `DESIGN.md` conflict on visual design, follow `DESIGN.md` and the actual tokens in `src/app/globals.css`.
 
 ## Design source of truth
 
@@ -26,26 +26,28 @@ The current site uses a light Glass Design System:
 
 - `--bg-base #F8F6FF`
 - `--accent-primary #8B7FFF`
+- `--accent-secondary #C4B5FD`
+- `--aurora-purple rgba(139, 127, 255, 0.28)`
+- `--aurora-pink rgba(255, 143, 171, 0.20)`
+- `--aurora-sky rgba(125, 211, 252, 0.20)`
+- `--glass-bg rgba(255, 255, 255, 0.55)`
+- `--glass-border rgba(139, 127, 255, 0.22)`
+- `--glass-shadow 0 8px 32px rgba(139, 127, 255, 0.15)`
 - `--text-primary #1C0F6E`
 - `--text-muted #6B5FA8`
-- `.glass-card`, `.glass-card-sm`, `.glass-bar`, `.glass-btn`, `.glass-input`, `.glass-badge`
+- `.glass-card`, `.glass-card-sm`, `.glass-bar`, `.glass-btn`, `.glass-input`, `.glass-badge`, `.glass-inset`, `.glass-flat`
 
-Do not use or reintroduce retired neumorphism classes/tokens:
-
-- `neu-*`
-- `--neu-*`
-- old teal-only neumorphism palette
-
-If `AGENTS.md` and `DESIGN.md` ever seem to conflict on visual design, follow `DESIGN.md` and the actual tokens in `src/app/globals.css`.
+Retired `neu-*` / `--neu-*` classes and tokens may remain for compatibility only. Do not use them in new implementation.
 
 ## Implementation rules
 
-- Use the existing components and utilities before creating new styles.
+- Use existing components and utilities before creating new styles.
 - Keep page shells consistent: `max-w-[1440px] px-6 md:px-10 xl:px-14`.
 - Keep Japanese body text readable; avoid cramped line-height or excessive letter-spacing.
 - Do not add dark sections outside the hero without explicit instruction.
 - Do not add new color tokens, shadows, or fonts without updating `DESIGN.md` and `globals.css` together.
 - Avoid nested blur-heavy glass cards. Inside a glass parent, prefer `bg-white/35`, `bg-white/40`, `border-white/55`, and `rounded-[12px]` without additional blur.
+- Booking pages and new booking-adjacent UI use `glass-*` / `text-hp*` as canonical classes. Reservation unavailable states use muted text-derived neutrals, not the primary accent.
 
 ## Diagram rules
 
@@ -73,7 +75,7 @@ After code changes:
 Verification dev servers (`pnpm next dev`, etc.) launched during a cc-notion session are owned by Satoshi, not by the session that started them. They are reused across phases for repeated visual verification.
 
 - Do not kill a verification dev server at session end without an explicit instruction from Satoshi. Treat it the same as the launchctl-managed cc-notion daemon: shared infrastructure that outlives any single session.
-- Do not kill a dev server you find already running just because you did not start it. Reuse it (probe the port, attach to the existing PID) and only restart it if it is actually broken.
-- Start dev servers fully detached (e.g. `os.fork()` + `os.setsid()` + `os.execvp("pnpm", ...)` with stdio redirected to a log file) so the cc-notion job exit does not take the server down.
+- Do not kill a dev server you find already running just because you did not start it. Reuse it, probe the port, attach to the existing PID, and only restart it if it is actually broken.
+- Start dev servers fully detached, with stdio redirected to a log file, so the cc-notion job exit does not take the server down.
 - When you do start or restart one, report URL, PID, and log path so the next session can find it without rediscovery.
 - If Satoshi explicitly says "kill the dev server" / "stop the dev server" / "restart the dev server", that is the only condition under which terminating it is allowed.

@@ -1,0 +1,229 @@
+// HP予約カレンダー機能 スキーマ
+// 詳細仕様は Notion タスクページ「HP予約カレンダー機能の方針確定と実装」を参照
+//
+// 仮キープ機能はフェーズ A（2026-05-10）で完全削除。本予約フローのみが残る。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: datasource からは provider のみ宣言。
+// 接続 URL（TURSO_DATABASE_URL / TURSO_AUTH_TOKEN）は Phase 2B で prisma.config.ts と
+// PrismaClient コンストラクタの adapter (libsql) 経由で注入する。
+datasource db {
+  provider = "sqlite"
+}
+
+// ─────────────────────────────────────────────────
+// Auth.js v5 標準スキーマ
+// ─────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  // Credentials Provider 用 自前パスワード（bcrypt ハッシュ）
+  // OAuth ログインのみのユーザーは null のまま
+  passwordHash  String?
+
+  accounts               Account[]
+  sessions               Session[]
+  customer               Customer?
+  createdTeams           Team[]           @relation("CreatedTeams")
+  teamMemberships        TeamMember[]
+  createdTeamInvitations TeamInvitation[] @relation("CreatedTeamInvitations")
+  usedTeamInvitations    TeamInvitation[] @relation("UsedTeamInvitations")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// パスワードリセット用トークン。identifier はリセット要求時のメールアドレス。
+// expires 過ぎた行と消費済み行はバッチで掃除してよい。
+model PasswordResetToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Google Calendar Free/Busy 取得用の独立 OAuth flow で保存する owner token。
+// NextAuth の Account とは分離し、さとし本人が一度だけ同意した refresh_token を保持する。
+model CalendarToken {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  scope        String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────
+// 予約者プロフィール
+// ─────────────────────────────────────────────────
+
+model Customer {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  displayName String
+  phone       String?
+  companyName String?
+  notes       String?
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookingGroups BookingGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────
+// 予約
+// ─────────────────────────────────────────────────
+//
+// 仮キープ削除後の status は以下の文字列のいずれか：
+//   - CONFIRMED : 本予約として確定（GCal にイベント書き込み + 後段 IB_仕事 ページ「タスク種別: スケジュール」）
+//   - CANCELLED : 顧客 / さとし側でキャンセル
+//
+// gcalEventId は本予約作成時に GCal に書き込まれたイベント ID。
+// notionPageId はその予約に紐づく IB_仕事 ページ ID（タスク種別 = スケジュール 自動セット済み）。
+
+model BookingGroup {
+  id           String  @id @default(cuid())
+  customerId   String
+  teamId       String?
+  status       String  @default("CONFIRMED")
+  projectTitle String
+  memo         String?
+  contactName  String
+  companyName  String?
+  contactEmail String?
+  phone        String?
+  dueDate      String?
+
+  // Google Calendar Event ID（本予約作成時に書き込み、キャンセル時に削除）
+  gcalEventId  String?
+  // Notion IB_仕事 ページ ID（タスク種別 = スケジュール 自動セット済み）
+  notionPageId String?
+
+  customer  Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  team      Team?             @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  timeSlots BookingTimeSlot[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([teamId])
+}
+
+model BookingTimeSlot {
+  id             String   @id @default(cuid())
+  bookingGroupId String
+  startTime      DateTime
+  endTime        DateTime
+  status         String   @default("CONFIRMED")
+
+  bookingGroup BookingGroup @relation(fields: [bookingGroupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startTime, endTime])
+  @@index([status])
+  @@index([bookingGroupId])
+}
+
+// ─────────────────────────────────────────────────
+// 予約カレンダー チャンネル共有
+// ─────────────────────────────────────────────────
+
+model Team {
+  id              String @id @default(cuid())
+  name            String
+  createdByUserId String
+
+  createdBy     User             @relation("CreatedTeams", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  members       TeamMember[]
+  invitations   TeamInvitation[]
+  bookingGroups BookingGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdByUserId])
+}
+
+model TeamMember {
+  id     String @id @default(cuid())
+  teamId String
+  userId String
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+}
+
+model TeamInvitation {
+  id              String    @id @default(cuid())
+  token           String    @unique
+  teamId          String
+  createdByUserId String
+  usedAt          DateTime?
+  usedByUserId    String?
+
+  team      Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("CreatedTeamInvitations", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  usedBy    User? @relation("UsedTeamInvitations", fields: [usedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([teamId])
+  @@index([createdByUserId])
+  @@index([usedByUserId])
+}
