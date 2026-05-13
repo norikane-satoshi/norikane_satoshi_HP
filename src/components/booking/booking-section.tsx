@@ -11,7 +11,7 @@ import { BookingProgressBar } from "@/components/booking/booking-progress-bar"
 import { mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 import type { CalendarBookingFromApi } from "@/lib/booking/server/calendar-free-busy/bookings-repository"
 import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar"
-import { clearDraft, hasDraft, loadDraft, saveDraft } from "@/lib/booking/draft-storage"
+import { clearDraft, hasDraft, loadDraft, saveDraft } from "@/lib/booking/client/draft-storage"
 import {
   createDefaultBookingFormData,
   type BookingFormData,
