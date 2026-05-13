@@ -5,7 +5,7 @@ import {
   calendarErrorStatus,
   getCalendarFreeBusyForUser,
   type CalendarBookingFromApi,
-} from "@/lib/booking/calendar-free-busy"
+} from "@/lib/booking/calendar-free-busy/free-busy"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"

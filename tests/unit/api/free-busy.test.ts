@@ -42,7 +42,7 @@ import {
   clearCalendarFreeBusyCachesForTest,
   getCalendarFreeBusyForUser,
   invalidateCalendarFreeBusyCacheForUser,
-} from "@/lib/booking/calendar-free-busy"
+} from "@/lib/booking/calendar-free-busy/free-busy"
 
 function request(teamId?: string) {
   const url = new URL("http://localhost/api/calendar/free-busy")

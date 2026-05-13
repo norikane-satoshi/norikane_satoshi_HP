@@ -9,7 +9,7 @@ import { BookingFooter } from "@/components/booking/booking-footer"
 import { BookingForm } from "@/components/booking/booking-form"
 import { BookingProgressBar } from "@/components/booking/booking-progress-bar"
 import { mapErrorCodeToJa } from "@/lib/booking/api-schema"
-import type { CalendarBookingFromApi } from "@/lib/booking/calendar-free-busy"
+import type { CalendarBookingFromApi } from "@/lib/booking/calendar-free-busy/bookings-repository"
 import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar"
 import { clearDraft, hasDraft, loadDraft, saveDraft } from "@/lib/booking/draft-storage"
 import {

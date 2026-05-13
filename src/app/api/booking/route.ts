@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
 import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/api-schema"
-import { invalidateCalendarFreeBusyCacheForUser } from "@/lib/booking/calendar-free-busy"
+import { invalidateCalendarFreeBusyCacheForUser } from "@/lib/booking/calendar-free-busy/free-busy"
 import {
   findConflictingBookings,
   resolveConflictForFinalSubmit,
