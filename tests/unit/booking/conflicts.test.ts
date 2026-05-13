@@ -18,18 +18,35 @@ import {
 } from "@/lib/booking/conflicts"
 
 function conflict(overrides: Partial<ConflictBooking> = {}): ConflictBooking {
+  const now = new Date("2026-06-10T00:00:00.000Z")
   return {
     id: "slot_1",
     bookingGroupId: "group_1",
     startTime: new Date("2026-06-10T01:00:00.000Z"),
     endTime: new Date("2026-06-10T02:00:00.000Z"),
-    title: "Booked",
     status: "CONFIRMED",
-    memo: null,
-    gcalEventId: null,
-    customer: {
-      displayName: "Satoshi",
-      user: { email: "satoshi@example.com" },
+    createdAt: now,
+    updatedAt: now,
+    bookingGroup: {
+      id: "group_1",
+      customerId: "customer_1",
+      teamId: null,
+      status: "CONFIRMED",
+      projectTitle: "Booked",
+      memo: null,
+      contactName: "Satoshi",
+      companyName: null,
+      contactEmail: null,
+      phone: null,
+      dueDate: null,
+      gcalEventId: null,
+      notionPageId: null,
+      createdAt: now,
+      updatedAt: now,
+      customer: {
+        displayName: "Satoshi",
+        user: { email: "satoshi@example.com" },
+      },
     },
     ...overrides,
   }
@@ -94,14 +111,16 @@ describe("findConflictingBookings", () => {
         }),
       }),
     )
-    expect(result).toEqual([
-      expect.objectContaining({
-        id: "slot_1",
-        bookingGroupId: "group_1",
-        title: "Project",
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      id: "slot_1",
+      bookingGroupId: "group_1",
+      status: "CONFIRMED",
+      bookingGroup: expect.objectContaining({
         status: "CONFIRMED",
+        projectTitle: "Project",
       }),
-    ])
+    })
   })
 
   it("returns no conflicts when Prisma returns no overlap", async () => {

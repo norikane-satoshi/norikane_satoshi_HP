@@ -1,23 +1,21 @@
+import type { Prisma } from "@prisma/client"
+
 import { prisma } from "@/lib/prisma"
 
-export type ConflictBookingStatus = "CONFIRMED"
-
-export type ConflictBooking = {
-  id: string
-  bookingGroupId: string
-  startTime: Date
-  endTime: Date
-  title: string
-  status: string
-  memo: string | null
-  gcalEventId: string | null
-  customer: {
-    displayName: string
-    user: {
-      email: string | null
+export type ConflictBooking = Prisma.BookingTimeSlotGetPayload<{
+  include: {
+    bookingGroup: {
+      include: {
+        customer: {
+          select: {
+            displayName: true
+            user: { select: { email: true } }
+          }
+        }
+      }
     }
   }
-}
+}>
 
 export async function findConflictingBookings(
   start: Date,
@@ -49,19 +47,7 @@ export async function findConflictingBookings(
     },
   })
 
-  return slots
-    .filter((slot) => slot.bookingGroup.status === "CONFIRMED")
-    .map((slot) => ({
-      id: slot.id,
-      bookingGroupId: slot.bookingGroupId,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      title: slot.bookingGroup.projectTitle,
-      status: slot.bookingGroup.status,
-      memo: slot.bookingGroup.memo,
-      gcalEventId: slot.bookingGroup.gcalEventId,
-      customer: slot.bookingGroup.customer,
-    }))
+  return slots.filter((slot) => slot.bookingGroup.status === "CONFIRMED")
 }
 
 export type PreflightVerdict =
