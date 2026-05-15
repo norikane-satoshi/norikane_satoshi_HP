@@ -401,6 +401,7 @@ type BookingCalendarProps = {
   onSelectedTeamIdChange?: (teamId: string | null) => void
   monthSkeleton?: ReactNode
   onCommit: (slots: { start: string; end: string }[]) => void
+  onCodeChange?: (code: string | null) => void
 }
 
 export function BookingCalendar({
@@ -418,6 +419,7 @@ export function BookingCalendar({
   onSelectedTeamIdChange,
   monthSkeleton,
   onCommit,
+  onCodeChange,
 }: BookingCalendarProps) {
   const [view, setView] = useState<CalendarView>("dayGridMonth")
   const [isFullCalendarReady, setIsFullCalendarReady] = useState(false)
@@ -453,6 +455,7 @@ export function BookingCalendar({
       : [],
   )
   const forceRefreshNonceRef = useRef<number | null>(null)
+  const lastEmittedCodeRef = useRef<string | null>(null)
 
   const initialDrafts = useMemo<DraftEvent[]>(() => {
     return initialSlots.map((slot) => ({ id: makeDraftId(), start: slot.start, end: slot.end }))
@@ -656,6 +659,11 @@ export function BookingCalendar({
       startMs,
       endMs,
     )
+    const nextCode = data.code ?? null
+    if (lastEmittedCodeRef.current !== nextCode) {
+      lastEmittedCodeRef.current = nextCode
+      onCodeChange?.(nextCode)
+    }
     const busyEvents = (data.busy ?? []).map((slot) => toBusyEvent(slot))
     const bookingEvents = (data.bookings ?? []).map((booking) =>
       toBookingEvent(booking, modeKind === "adjust" && booking.bookingGroupId === adjustingGroupId),
@@ -723,7 +731,7 @@ export function BookingCalendar({
     fullCalendarEventsSettledRef.current = true
     markFullCalendarReadyIfSettled()
     return [...busyEvents, ...bookingEvents, ...bufferEvents]
-  }, [adjustingGroupId, markFullCalendarReadyIfSettled, modeKind, selectedTeamId])
+  }, [adjustingGroupId, markFullCalendarReadyIfSettled, modeKind, onCodeChange, selectedTeamId])
 
   const draftEventInputs = useMemo<EventInput[]>(
     () => drafts.map((draft) => toDraftEventInput(draft, draft.id === activeDraftId)),

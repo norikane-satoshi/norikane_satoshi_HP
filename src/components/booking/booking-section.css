@@ -61,6 +61,82 @@
   font-weight: 600;
 }
 
+.admin-reconnect-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--accent-primary);
+  padding: 12px 14px;
+  color: var(--text-primary);
+}
+
+.admin-reconnect-banner__icon {
+  flex: 0 0 auto;
+  color: var(--accent-primary);
+}
+
+.admin-reconnect-banner__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-reconnect-banner__message {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.admin-reconnect-banner__message strong {
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+
+.admin-reconnect-banner__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-reconnect-banner__cta {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.admin-reconnect-banner__dismiss {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.admin-reconnect-banner__dismiss:hover,
+.admin-reconnect-banner__dismiss:focus-visible {
+  color: var(--text-primary);
+}
+
+@media (max-width: 640px) {
+  .admin-reconnect-banner {
+    flex-wrap: wrap;
+  }
+
+  .admin-reconnect-banner__actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+}
+
 .booking-section__draft-actions {
   display: flex;
   flex-wrap: wrap;

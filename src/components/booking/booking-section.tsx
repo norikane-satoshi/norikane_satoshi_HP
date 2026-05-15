@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 
+import { AdminReconnectBanner } from "@/components/booking/admin-reconnect-banner"
 import { BookingCalendar } from "@/components/booking/booking-calendar"
 import { BookingConfirm } from "@/components/booking/booking-confirm"
 import { BookingDone } from "@/components/booking/booking-done"
@@ -22,6 +23,7 @@ import {
 type BookingSectionProps = {
   userId: string
   userEmail: string
+  isCalendarAdmin?: boolean
   initialBusy?: CalendarBusyEventWithBuffer[]
   initialBookings?: CalendarBookingFromApi[]
   initialRange?: { start: string; end: string }
@@ -84,6 +86,7 @@ function getInitialRemoteRefreshRequestKey(): number {
 export function BookingSection({
   userId,
   userEmail,
+  isCalendarAdmin = false,
   initialBusy = [],
   initialBookings = [],
   initialRange,
@@ -104,6 +107,7 @@ export function BookingSection({
   const [teams, setTeams] = useState<TeamOption[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [remoteRefreshRequestKey, setRemoteRefreshRequestKey] = useState(getInitialRemoteRefreshRequestKey)
+  const [calendarCode, setCalendarCode] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -278,6 +282,7 @@ export function BookingSection({
           monthSkeleton={monthSkeleton}
           remoteRefreshRequestKey={remoteRefreshRequestKey}
           onCommit={handleCommitSlot}
+          onCodeChange={setCalendarCode}
         />
       </div>
       <div className={step === "form" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>
@@ -306,6 +311,7 @@ export function BookingSection({
 
   return (
     <div className="booking-section">
+      <AdminReconnectBanner isCalendarAdmin={isCalendarAdmin} code={calendarCode} />
       <BookingProgressBar currentStep={step} />
       {localDraftAvailable && step !== "done" ? (
         <div className="booking-section__draft-banner glass-inset">

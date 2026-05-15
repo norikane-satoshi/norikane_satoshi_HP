@@ -1,3 +1,4 @@
+import { auth } from "@/auth"
 import { BookingClientShell } from "@/components/booking/booking-client-shell"
 import { BookingMonthSkeleton } from "@/components/booking/booking-month-skeleton"
 import { Menu } from "lucide-react"
@@ -22,6 +23,11 @@ function initialBusyRange(now = new Date()) {
 export default async function BookingPage() {
   const now = new Date()
   const initialRange = initialBusyRange(now)
+  const session = await auth()
+  const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL ?? null
+  const isCalendarAdmin = Boolean(
+    adminEmail && session?.user?.email && session.user.email === adminEmail,
+  )
 
   return (
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">
@@ -46,6 +52,7 @@ export default async function BookingPage() {
         </div>
         <div className="mt-8">
           <BookingClientShell
+            isCalendarAdmin={isCalendarAdmin}
             monthSkeleton={(
               <BookingMonthSkeleton
                 initialBusy={[]}

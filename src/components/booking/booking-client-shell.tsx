@@ -13,9 +13,10 @@ type SessionPayload = {
 
 type BookingClientShellProps = {
   monthSkeleton: ReactNode
+  isCalendarAdmin: boolean
 }
 
-export function BookingClientShell({ monthSkeleton }: BookingClientShellProps) {
+export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingClientShellProps) {
   const [session, setSession] = useState<SessionPayload | null>(null)
   const [loaded, setLoaded] = useState(false)
 
@@ -56,6 +57,7 @@ export function BookingClientShell({ monthSkeleton }: BookingClientShellProps) {
     <BookingSection
       userId={userId}
       userEmail={session.user?.email ?? ""}
+      isCalendarAdmin={isCalendarAdmin}
       monthSkeleton={monthSkeleton}
     />
   )
