@@ -1,9 +1,14 @@
 import { BookingClientShell } from "@/components/booking/booking-client-shell"
 import { BookingMonthSkeleton } from "@/components/booking/booking-month-skeleton"
 import { Menu } from "lucide-react"
+import type { Metadata } from "next"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
 
 function initialBusyRange(now = new Date()) {
   const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
