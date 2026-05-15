@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/expire-tentative",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/calendar-health-check",
+      "schedule": "0 0 * * *"
     }
   ]
 }

@@ -39,6 +39,11 @@ type FreeBusyCacheEntry = {
 }
 
 const freeBusyCache = new Map<string, FreeBusyCacheEntry>()
+const SURFACED_CALENDAR_CODES = new Set([
+  "calendar_token_revoked",
+  "calendar_token_not_connected",
+  "calendar_oauth_env_missing",
+])
 
 function nowMs(): number {
   return Date.now()
@@ -55,6 +60,13 @@ function floorBucket(value: string): string {
 
 function cacheKey(userId: string, teamId: string | null, timeMin: string, timeMax: string): string {
   return `${userId}:${teamId ?? "self"}:${floorBucket(timeMin)}:${floorBucket(timeMax)}`
+}
+
+function withCalendarIssueLog<T extends CalendarFreeBusyResult>(result: T, userId: string): T {
+  if (result.code && SURFACED_CALENDAR_CODES.has(result.code)) {
+    console.warn(`[calendar-free-busy] code=${result.code} userId=${userId} at=${new Date().toISOString()}`)
+  }
+  return result
 }
 
 export async function getCalendarFreeBusyForUser(input: {
@@ -113,24 +125,24 @@ export async function getCalendarFreeBusyForUser(input: {
     timings.oauthRefresh = tokenResult.refreshMs
   } catch (error) {
     if (error instanceof Error && error.message === "calendar_token_not_connected") {
-      return {
+      return withCalendarIssueLog({
         code: "calendar_token_not_connected",
         busy: [],
         bookings,
         status: 200,
         timings,
         cache: useCache ? "miss" : "bypass",
-      }
+      }, userId)
     }
     if (error instanceof CalendarTokenRevokedError || error instanceof CalendarOAuthEnvMissingError) {
-      return {
+      return withCalendarIssueLog({
         code: error.code,
         busy: [],
         bookings,
         status: error instanceof CalendarTokenRevokedError ? 401 : 503,
         timings,
         cache: useCache ? "miss" : "bypass",
-      }
+      }, userId)
     }
     throw error
   }
@@ -142,14 +154,14 @@ export async function getCalendarFreeBusyForUser(input: {
     timings.gcal = elapsedSince(gcalStarted)
   } catch (error) {
     if (error instanceof CalendarTokenRevokedError || error instanceof CalendarOAuthEnvMissingError) {
-      return {
+      return withCalendarIssueLog({
         code: error.code,
         busy: [],
         bookings,
         status: error instanceof CalendarTokenRevokedError ? 401 : 503,
         timings,
         cache: useCache ? "miss" : "bypass",
-      }
+      }, userId)
     }
     throw error
   }

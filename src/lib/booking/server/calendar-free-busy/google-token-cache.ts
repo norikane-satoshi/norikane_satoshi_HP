@@ -1,4 +1,8 @@
-import { CALENDAR_TOKEN_USER_ID, refreshCalendarAccessToken } from "@/lib/google-calendar/server"
+import {
+  CALENDAR_TOKEN_USER_ID,
+  CalendarTokenRevokedError,
+  refreshCalendarAccessToken,
+} from "@/lib/google-calendar/server"
 
 const ACCESS_TOKEN_TTL_MS = 50 * 60 * 1000
 const TOKEN_EXPIRY_SKEW_MS = 5 * 60 * 1000
@@ -34,7 +38,17 @@ export async function getCachedCalendarAccessToken(
   if (!storedToken) throw new Error("calendar_token_not_connected")
 
   const started = performance.now()
-  const refreshed = await refreshCalendarAccessToken(storedToken.refreshToken)
+  let refreshed: Awaited<ReturnType<typeof refreshCalendarAccessToken>>
+  try {
+    refreshed = await refreshCalendarAccessToken(storedToken.refreshToken)
+  } catch (error) {
+    if (error instanceof CalendarTokenRevokedError) {
+      console.error(
+        `[calendar-token-cache] code=calendar_token_revoked cacheUserId=${cacheUserId} at=${new Date().toISOString()}`,
+      )
+    }
+    throw error
+  }
   const refreshMs = elapsedSince(started)
   await prisma.calendarToken.update({
     where: { userId: CALENDAR_TOKEN_USER_ID },
