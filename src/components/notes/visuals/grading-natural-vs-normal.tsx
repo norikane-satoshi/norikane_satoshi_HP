@@ -31,28 +31,28 @@ const AXIS_LINE_GAP = 8
 const QUADRANTS = [
   {
     role: "hero" as const,
-    href: "/notes-assets/grading/natural-vs-normal/quadrant-natural-not-normal.png",
+    href: "/notes-assets/quadrant-natural-not-normal.png",
     x: COL_L_X,
     y: ROW_T_Y,
     label: "狙う狭い場所",
   },
   {
     role: "support" as const,
-    href: "/notes-assets/grading/natural-vs-normal/quadrant-normal.png",
+    href: "/notes-assets/quadrant-normal.png",
     x: COL_R_X,
     y: ROW_T_Y,
     label: "設計上の中立",
   },
   {
     role: "support" as const,
-    href: "/notes-assets/grading/natural-vs-normal/quadrant-outdated.png",
+    href: "/notes-assets/quadrant-outdated.png",
     x: COL_R_X,
     y: ROW_B_Y,
     label: "現在の感覚とずれる",
   },
   {
     role: "support" as const,
-    href: "/notes-assets/grading/natural-vs-normal/quadrant-aza.png",
+    href: "/notes-assets/quadrant-aza.png",
     x: COL_L_X,
     y: ROW_B_Y,
     label: "あざとい",
