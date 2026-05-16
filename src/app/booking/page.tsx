@@ -25,6 +25,25 @@ export default async function BookingPage() {
   const initialRange = initialBusyRange(now)
   const session = await auth()
   const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL ?? null
+  const __sessionEmail = session?.user?.email ?? null
+  console.log("[admin-gate-diag]", {
+    adminEmailLen: adminEmail?.length ?? null,
+    adminEmailTrimLen: adminEmail?.trim().length ?? null,
+    adminEmailFirstCode:
+      adminEmail && adminEmail.length > 0 ? adminEmail.charCodeAt(0) : null,
+    adminEmailLastCode:
+      adminEmail && adminEmail.length > 0
+        ? adminEmail.charCodeAt(adminEmail.length - 1)
+        : null,
+    adminEmailStartsWithNorikane: adminEmail?.startsWith("norikane") ?? false,
+    adminEmailEndsWithGmail: adminEmail?.endsWith("gmail.com") ?? false,
+    sessionEmailLen: __sessionEmail?.length ?? null,
+    sessionEmailTrimLen: __sessionEmail?.trim().length ?? null,
+    equalsRaw: adminEmail === __sessionEmail,
+    equalsTrim:
+      (adminEmail?.trim() ?? null) === (__sessionEmail?.trim() ?? null),
+    ts: new Date().toISOString(),
+  })
   const isCalendarAdmin = Boolean(
     adminEmail && session?.user?.email && session.user.email === adminEmail,
   )
