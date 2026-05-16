@@ -4,6 +4,31 @@ import Link from "next/link"
 
 export async function HomeScheduleSection() {
   const session = await auth()
+  const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL ?? null
+  const __sessionEmail = session?.user?.email ?? null
+  const isCalendarAdmin = Boolean(
+    adminEmail && __sessionEmail && __sessionEmail === adminEmail,
+  )
+
+  console.log("[admin-gate-diag]", {
+    route: "/",
+    adminEmailLen: adminEmail?.length ?? null,
+    adminEmailTrimLen: adminEmail?.trim().length ?? null,
+    adminEmailFirstCode:
+      adminEmail && adminEmail.length > 0 ? adminEmail.charCodeAt(0) : null,
+    adminEmailLastCode:
+      adminEmail && adminEmail.length > 0
+        ? adminEmail.charCodeAt(adminEmail.length - 1)
+        : null,
+    adminEmailStartsWithNorikane: adminEmail?.startsWith("norikane") ?? false,
+    adminEmailEndsWithGmail: adminEmail?.endsWith("gmail.com") ?? false,
+    sessionEmailLen: __sessionEmail?.length ?? null,
+    sessionEmailTrimLen: __sessionEmail?.trim().length ?? null,
+    equalsRaw: adminEmail === __sessionEmail,
+    equalsTrim:
+      (adminEmail?.trim() ?? null) === (__sessionEmail?.trim() ?? null),
+    ts: new Date().toISOString(),
+  })
 
   return (
     <section
@@ -21,6 +46,7 @@ export async function HomeScheduleSection() {
         <div className="mt-8">
           {session?.user?.id ? (
             <BookingSection
+              isCalendarAdmin={isCalendarAdmin}
               userId={session.user.id}
               userEmail={session.user.email ?? ""}
             />
