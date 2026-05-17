@@ -6,13 +6,15 @@ const PAD_BOTTOM = 100
 const PAD_LEFT = 100
 const PAD_RIGHT = 100
 const GAP = 0
-const IMG_W = 700
-const IMG_H = 350
+const IMG_W = (W - PAD_LEFT - PAD_RIGHT - GAP) / 2
+const IMG_H = (H - PAD_TOP - PAD_BOTTOM - GAP) / 2
 const CORNER_R = 0
 
 const BG_BASE = "#F8F6FF"
 const ACCENT = "#8B7FFF"
 const TEXT_PRIMARY = "#1C0F6E"
+const PILL_W = 290
+const PILL_H = 40
 
 const QUADRANTS = [
   {
@@ -43,18 +45,77 @@ const QUADRANTS = [
 
 function AxisLabels() {
   return (
-    <g fill={ACCENT} fontSize={36} fontWeight={700}>
-      <text x={800} y={75} textAnchor="middle">
+    <g
+      fill={ACCENT}
+      fontSize={28}
+      fontWeight={500}
+      letterSpacing="0.05em"
+      textAnchor="middle"
+      dominantBaseline="central"
+    >
+      <text x={800} y={70}>
         ナチュラル高
       </text>
-      <text x={800} y={840} textAnchor="middle">
+      <text x={800} y={830}>
         ナチュラル低
       </text>
-      <text x={50} y={450} textAnchor="middle" transform="rotate(-90 50 450)">
+      <text x={55} y={450} transform="rotate(-90 55 450)">
         ノーマル低
       </text>
-      <text x={1550} y={450} textAnchor="middle" transform="rotate(-90 1550 450)">
+      <text x={1545} y={450} transform="rotate(-90 1545 450)">
         ノーマル高
+      </text>
+    </g>
+  )
+}
+
+function AxisCross() {
+  return (
+    <g
+      stroke={ACCENT}
+      strokeWidth="1.5"
+      strokeOpacity="0.25"
+      strokeLinecap="round"
+      fill="none"
+    >
+      <path d="M 800 100 V 800" />
+      <path d="M 100 450 H 1500" />
+    </g>
+  )
+}
+
+function QuadrantPill({
+  x,
+  y,
+  label,
+  hero = false,
+}: {
+  x: number
+  y: number
+  label: string
+  hero?: boolean
+}) {
+  return (
+    <g transform={`translate(${x - PILL_W / 2} ${y - PILL_H / 2})`}>
+      <rect
+        width={PILL_W}
+        height={PILL_H}
+        rx={20}
+        fill={hero ? ACCENT : "rgba(255,255,255,0.72)"}
+        stroke={hero ? "none" : "rgba(139,127,255,0.35)"}
+        strokeWidth={hero ? 0 : 1}
+        filter={hero ? "url(#gnvn-hero-pill-shadow)" : "url(#gnvn-pill-shadow)"}
+      />
+      <text
+        x={PILL_W / 2}
+        y={PILL_H / 2}
+        fill={hero ? "#FFFFFF" : TEXT_PRIMARY}
+        fontSize={20}
+        fontWeight={hero ? 700 : 600}
+        textAnchor="middle"
+        dominantBaseline="central"
+      >
+        {label}
       </text>
     </g>
   )
@@ -62,19 +123,11 @@ function AxisLabels() {
 
 function QuadrantLabels() {
   return (
-    <g fontSize={26} fontWeight={600}>
-      <text x={450} y={40} textAnchor="middle" fill={ACCENT}>
-        狙う狭い場所
-      </text>
-      <text x={1150} y={40} textAnchor="middle" fill={TEXT_PRIMARY}>
-        設計上の中立
-      </text>
-      <text x={450} y={880} textAnchor="middle" fill={TEXT_PRIMARY}>
-        あざとい
-      </text>
-      <text x={1150} y={880} textAnchor="middle" fill={TEXT_PRIMARY}>
-        現在の感覚とずれる
-      </text>
+    <g>
+      <QuadrantPill x={455} y={35} label="狙う狭い場所" hero />
+      <QuadrantPill x={1145} y={35} label="設計上の中立" />
+      <QuadrantPill x={455} y={865} label="あざとい" />
+      <QuadrantPill x={1145} y={865} label="現在の感覚とずれる" />
     </g>
   )
 }
@@ -87,10 +140,33 @@ export default function GradingNaturalVsNormal() {
       className="absolute inset-0 h-full w-full"
       preserveAspectRatio="xMidYMid meet"
       role="img"
-      aria-label="ナチュラル軸（上=ナチュラル高 / 下=ナチュラル低）とノーマル軸（右=ノーマル高 / 左=ノーマル低）の二軸を、外周ラベル付きの 4 象限独立画像で対比する図。4 枚の画像は角丸なしで密着し、中央十字、矢印、accent point、ガラスピル背景は使わない。"
+      aria-label="ナチュラル軸（上=ナチュラル高 / 下=ナチュラル低）とノーマル軸（右=ノーマル高 / 左=ノーマル低）の二軸を、中央十字線と外周の象限ピル付き 4 象限独立画像で対比する図。4 枚の画像は角丸なしで密着し、矢印と accent point は使わない。"
       fontFamily="var(--font-noto-sans-jp), sans-serif"
     >
-      <rect x={0} y={0} width={W} height={H} fill={BG_BASE} />
+      <defs>
+        <filter
+          id="gnvn-pill-shadow"
+          x="-10%"
+          y="-40%"
+          width="120%"
+          height="180%"
+          colorInterpolationFilters="sRGB"
+        >
+          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#1C0F6E" floodOpacity="0.08" />
+        </filter>
+        <filter
+          id="gnvn-hero-pill-shadow"
+          x="-10%"
+          y="-45%"
+          width="120%"
+          height="190%"
+          colorInterpolationFilters="sRGB"
+        >
+          <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#8B7FFF" floodOpacity="0.35" />
+        </filter>
+      </defs>
+
+      <rect x={0} y={0} width={W} height={H} rx={CORNER_R} fill={BG_BASE} />
 
       {QUADRANTS.map((q) => (
         <image
@@ -104,6 +180,7 @@ export default function GradingNaturalVsNormal() {
         />
       ))}
 
+      <AxisCross />
       <AxisLabels />
       <QuadrantLabels />
     </svg>
