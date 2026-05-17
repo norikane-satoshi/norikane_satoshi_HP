@@ -27,6 +27,7 @@ import type {
 } from "@fullcalendar/core"
 import { format } from "date-fns"
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
+import { signOut } from "next-auth/react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
 import { getHolidayName } from "@/lib/booking/domain/holidays"
@@ -454,6 +455,8 @@ export function BookingCalendar({
   const [slotMinTime, setSlotMinTime] = useState("10:00:00")
   const [slotMaxTime, setSlotMaxTime] = useState("19:00:00")
   const [moveCopyPopup, setMoveCopyPopup] = useState<MoveCopyPopupState>(null)
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [actionPanelPosition, setActionPanelPosition] = useState<{ top: number; left: number } | null>(null)
   const calendarRef = useRef<FullCalendar | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -1159,6 +1162,11 @@ export function BookingCalendar({
     [changeCalendarView],
   )
 
+  const handleLogoutConfirm = useCallback(async () => {
+    setIsLoggingOut(true)
+    await signOut({ callbackUrl: "/" })
+  }, [])
+
   const handleEventClick = useCallback((arg: EventClickArg) => {
     const props = arg.event.extendedProps as AnyEventProps
     if (props.kind === "draft" && props.draftId) {
@@ -1492,10 +1500,52 @@ export function BookingCalendar({
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                className="booking-calendar__logout-button"
+                onClick={() => setIsLogoutConfirmOpen(true)}
+              >
+                ログアウト
+              </button>
             </div>
           ) : null}
         </div>
       </div>
+      {isLogoutConfirmOpen ? (
+        <div
+          className="booking-calendar__modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="booking-logout-title"
+        >
+          <div className="booking-calendar__modal-card glass-flat">
+            <h2 id="booking-logout-title" className="booking-calendar__modal-title">
+              ログアウトしますか？
+            </h2>
+            <p className="booking-calendar__modal-message">
+              予約カレンダーを使うには再ログインが必要になります。
+            </p>
+            <div className="booking-calendar__modal-actions">
+              <button
+                type="button"
+                className="booking-calendar__action-button"
+                onClick={() => setIsLogoutConfirmOpen(false)}
+                disabled={isLoggingOut}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                className="booking-calendar__action-button booking-calendar__action-button--primary"
+                onClick={handleLogoutConfirm}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? "ログアウト中..." : "ログアウト"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {activePanelDraft && view === "timeGridWeek" && actionPanelPosition ? (
         <div
           ref={actionPanelRef}
