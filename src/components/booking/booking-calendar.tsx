@@ -49,6 +49,7 @@ type BusySlot = {
 type BookingFromApi = {
   id: string
   bookingGroupId: string
+  customerUserId: string
   start: string
   end: string
   title: string
@@ -77,6 +78,8 @@ type BusyEventProps = {
   bookingId?: string
   bookingGroupId?: string
   projectTitle?: string
+  canView?: boolean
+  canEdit?: boolean
 }
 
 type DraftEventProps = {
@@ -91,6 +94,8 @@ type AnyEventProps = {
   bookingId?: string
   bookingGroupId?: string
   projectTitle?: string
+  canView?: boolean
+  canEdit?: boolean
   draftId?: string
 }
 
@@ -181,10 +186,17 @@ function toBusyEvent(slot: BusySlot): EventInput {
 function toBookingEvent(
   booking: BookingFromApi,
   editable: boolean,
+  viewerUserId: string,
+  isCalendarAdmin: boolean,
+  teamMemberUserIds: string[],
 ): EventInput {
   const label = `${format(new Date(booking.start), "HH:mm")}-${format(new Date(booking.end), "HH:mm")}`
   const status = (booking.status as BusyEventProps["status"]) ?? "CONFIRMED"
-  const canEdit = editable && status !== "CONFIRMED"
+  const isOwner = booking.customerUserId === viewerUserId
+  const isTeamMember = teamMemberUserIds.includes(booking.customerUserId)
+  const canView = isCalendarAdmin || isOwner || isTeamMember
+  const canEdit = isCalendarAdmin || isOwner
+  const isCalendarEditable = editable && canEdit && status !== "CONFIRMED"
   const extendedProps: BusyEventProps = {
     kind: "busy",
     label,
@@ -192,6 +204,8 @@ function toBookingEvent(
     bookingId: booking.id,
     bookingGroupId: booking.bookingGroupId,
     projectTitle: booking.title,
+    canView,
+    canEdit,
   }
   return {
     id: `booking-${booking.id}`,
@@ -203,10 +217,11 @@ function toBookingEvent(
     classNames: [
       "booking-calendar__booking-event",
       "booking-calendar__booking-event--confirmed",
-    ],
-    editable: canEdit,
-    startEditable: canEdit,
-    durationEditable: canEdit,
+      canView ? "booking-calendar__booking-event--clickable" : "",
+    ].filter(Boolean),
+    editable: isCalendarEditable,
+    startEditable: isCalendarEditable,
+    durationEditable: isCalendarEditable,
     extendedProps,
   }
 }
@@ -387,6 +402,9 @@ function recomputeTimeRangeBounds(slots: { start: string; end: string }[]): { sl
 }
 
 type BookingCalendarProps = {
+  viewerUserId: string
+  isCalendarAdmin: boolean
+  teamMemberUserIds: string[]
   initialSlots?: { start: string; end: string }[]
   initialBusy?: BusySlot[]
   initialBookings?: BookingFromApi[]
@@ -405,6 +423,9 @@ type BookingCalendarProps = {
 }
 
 export function BookingCalendar({
+  viewerUserId,
+  isCalendarAdmin,
+  teamMemberUserIds,
   initialSlots = [],
   initialBusy = [],
   initialBookings = [],
@@ -666,7 +687,13 @@ export function BookingCalendar({
     }
     const busyEvents = (data.busy ?? []).map((slot) => toBusyEvent(slot))
     const bookingEvents = (data.bookings ?? []).map((booking) =>
-      toBookingEvent(booking, modeKind === "adjust" && booking.bookingGroupId === adjustingGroupId),
+      toBookingEvent(
+        booking,
+        modeKind === "adjust" && booking.bookingGroupId === adjustingGroupId,
+        viewerUserId,
+        isCalendarAdmin,
+        teamMemberUserIds,
+      ),
     )
     const bufferEvents: EventInput[] = []
     for (const slot of data.busy ?? []) {
@@ -731,7 +758,16 @@ export function BookingCalendar({
     fullCalendarEventsSettledRef.current = true
     markFullCalendarReadyIfSettled()
     return [...busyEvents, ...bookingEvents, ...bufferEvents]
-  }, [adjustingGroupId, markFullCalendarReadyIfSettled, modeKind, onCodeChange, selectedTeamId])
+  }, [
+    adjustingGroupId,
+    isCalendarAdmin,
+    markFullCalendarReadyIfSettled,
+    modeKind,
+    onCodeChange,
+    selectedTeamId,
+    teamMemberUserIds,
+    viewerUserId,
+  ])
 
   const draftEventInputs = useMemo<EventInput[]>(
     () => drafts.map((draft) => toDraftEventInput(draft, draft.id === activeDraftId)),
@@ -1128,7 +1164,11 @@ export function BookingCalendar({
       setActionError(null)
       return
     }
-  }, [])
+    if (props.kind === "busy" && props.bookingId && props.canView) {
+      if (modeKind === "adjust" && props.bookingGroupId === adjustingGroupId) return
+      window.location.href = `/booking/${props.bookingId}`
+    }
+  }, [adjustingGroupId, modeKind])
 
   const handleEventDrop = useCallback(
     (arg: EventDropArg) => {
@@ -1297,7 +1337,17 @@ export function BookingCalendar({
       const shortLabel = props.status === "CONFIRMED" ? "本" : "不"
       const rangeLabel = props.label ?? (arg.event.start && arg.event.end ? `${format(arg.event.start, "HH:mm")}-${format(arg.event.end, "HH:mm")}` : "")
       const monthTimeLabel = arg.event.allDay ? "終日" : arg.event.start ? format(arg.event.start, "HH:mm") : rangeLabel
-      const text = isMonthView ? `${monthTimeLabel} ${shortLabel}` : `${statusLabel} ${rangeLabel}`.trim()
+      const title = props.projectTitle?.trim()
+      const canShowTitle = props.status === "CONFIRMED" && props.canView && title
+      const text = canShowTitle
+        ? isMonthView
+          ? `${monthTimeLabel} 本: ${title}`
+          : `本予約 ${rangeLabel}: ${title}`
+        : props.status === "CONFIRMED" && !props.canView
+          ? "本予約"
+          : isMonthView
+            ? `${monthTimeLabel} ${shortLabel}`
+            : `${statusLabel} ${rangeLabel}`.trim()
       return (
         <span className="booking-calendar__busy-pill-content">
           {lockIcon}

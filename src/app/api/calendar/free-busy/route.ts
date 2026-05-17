@@ -34,6 +34,8 @@ export async function GET(request: NextRequest) {
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   const session = await auth()
   const userId = session?.user?.id
+  const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL
+  const isCalendarAdmin = Boolean(adminEmail && session?.user?.email === adminEmail)
 
   if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
@@ -52,6 +54,7 @@ export async function GET(request: NextRequest) {
       timeMin,
       timeMax,
       calendarId,
+      isCalendarAdmin,
     })
     const serverTiming = [
       `db;dur=${result.timings.db}`,

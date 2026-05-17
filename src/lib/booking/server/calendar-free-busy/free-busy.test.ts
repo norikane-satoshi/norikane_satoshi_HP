@@ -109,10 +109,12 @@ describe("getCalendarFreeBusyForUser dedupe (B)", () => {
     }))
 
     vi.doMock("./bookings-repository", () => ({
+      listAllBookings: vi.fn(),
       listBookings: vi.fn().mockResolvedValue([
         {
           id: "booking_1",
           bookingGroupId: "group_1",
+          customerUserId: "user_1",
           start: "2026-05-18T01:00:00.000Z",
           end: "2026-05-18T02:00:00.000Z",
           title: "test booking",

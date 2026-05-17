@@ -1,16 +1,21 @@
 export type CalendarBookingFromApi = {
   id: string
   bookingGroupId: string
+  customerUserId: string
   start: string
   end: string
   title: string
   status: string
 }
 
-export async function listBookings(
+async function listBookingsWithWhere(
   timeMin: string,
   timeMax: string,
-  userIds: string[],
+  bookingGroupWhere: {
+    customer?: {
+      userId: { in: string[] }
+    }
+  },
 ): Promise<CalendarBookingFromApi[]> {
   const { prisma } = await import("@/lib/prisma")
   const startDate = new Date(timeMin)
@@ -20,11 +25,7 @@ export async function listBookings(
       startTime: { lt: endDate },
       endTime: { gt: startDate },
       status: "CONFIRMED",
-      bookingGroup: {
-        customer: {
-          userId: { in: userIds },
-        },
-      },
+      bookingGroup: bookingGroupWhere,
     },
     select: {
       id: true,
@@ -36,6 +37,11 @@ export async function listBookings(
         select: {
           projectTitle: true,
           status: true,
+          customer: {
+            select: {
+              userId: true,
+            },
+          },
         },
       },
     },
@@ -44,9 +50,29 @@ export async function listBookings(
   return dbBookings.map((booking) => ({
     id: booking.id,
     bookingGroupId: booking.bookingGroupId,
+    customerUserId: booking.bookingGroup.customer.userId,
     start: booking.startTime.toISOString(),
     end: booking.endTime.toISOString(),
     title: booking.bookingGroup.projectTitle,
     status: booking.bookingGroup.status,
   }))
+}
+
+export async function listBookings(
+  timeMin: string,
+  timeMax: string,
+  userIds: string[],
+): Promise<CalendarBookingFromApi[]> {
+  return listBookingsWithWhere(timeMin, timeMax, {
+    customer: {
+      userId: { in: userIds },
+    },
+  })
+}
+
+export async function listAllBookings(
+  timeMin: string,
+  timeMax: string,
+): Promise<CalendarBookingFromApi[]> {
+  return listBookingsWithWhere(timeMin, timeMax, {})
 }
