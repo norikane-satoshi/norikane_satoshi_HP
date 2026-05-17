@@ -12,6 +12,7 @@ export default async function BookingEditPage({
   params: Promise<{ id: string }>
 }) {
   const session = await auth()
+  const sessionEmail = session?.user?.email ?? null
   const userId = session?.user?.id
   if (!userId) notFound()
 
@@ -40,6 +41,7 @@ export default async function BookingEditPage({
             scope={booking.scope}
             isCalendarAdmin={isCalendarAdmin}
             isPast={isPast}
+            sessionEmail={sessionEmail}
           />
         </div>
       </div>
