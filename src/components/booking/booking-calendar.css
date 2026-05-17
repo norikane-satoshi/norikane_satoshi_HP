@@ -603,6 +603,10 @@
   background: color-mix(in srgb, var(--text-primary) 72%, #312f49);
 }
 
+.booking-calendar .fc-event.booking-calendar__booking-event--clickable {
+  cursor: pointer;
+}
+
 .booking-calendar .booking-calendar__busy-pill .fc-event-main,
 .booking-calendar .fc-event.booking-calendar__booking-event .fc-event-main {
   color: #fff;

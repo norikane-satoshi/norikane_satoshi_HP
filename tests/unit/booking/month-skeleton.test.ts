@@ -21,6 +21,7 @@ const bookings: CalendarBookingFromApi[] = [
   {
     id: "booking_1",
     bookingGroupId: "group_1",
+    customerUserId: "user_1",
     start: "2026-05-20T12:00:00.000Z",
     end: "2026-05-20T13:30:00.000Z",
     title: "SSR test",

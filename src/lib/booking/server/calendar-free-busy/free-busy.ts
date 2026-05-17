@@ -4,7 +4,7 @@ import {
   listBusyEventsWithBuffer,
   type CalendarBusyEventWithBuffer,
 } from "@/lib/google-calendar/server"
-import { listBookings, type CalendarBookingFromApi } from "./bookings-repository"
+import { listAllBookings, listBookings, type CalendarBookingFromApi } from "./bookings-repository"
 import {
   clearCalendarAccessTokenCacheForTest,
   getCachedCalendarAccessToken,
@@ -58,8 +58,8 @@ function floorBucket(value: string): string {
   return String(Math.floor(time / RANGE_BUCKET_MS) * RANGE_BUCKET_MS)
 }
 
-function cacheKey(userId: string, teamId: string | null, timeMin: string, timeMax: string): string {
-  return `${userId}:${teamId ?? "self"}:${floorBucket(timeMin)}:${floorBucket(timeMax)}`
+function cacheKey(userId: string, teamId: string | null, timeMin: string, timeMax: string, isCalendarAdmin: boolean): string {
+  return `${userId}:${teamId ?? "self"}:${isCalendarAdmin ? "admin" : "user"}:${floorBucket(timeMin)}:${floorBucket(timeMax)}`
 }
 
 function withCalendarIssueLog<T extends CalendarFreeBusyResult>(result: T, userId: string): T {
@@ -75,10 +75,11 @@ export async function getCalendarFreeBusyForUser(input: {
   timeMin: string
   timeMax: string
   calendarId: string | undefined
+  isCalendarAdmin?: boolean
   useCache?: boolean
 }): Promise<CalendarFreeBusyResult> {
-  const { userId, teamId, timeMin, timeMax, calendarId, useCache = true } = input
-  const key = cacheKey(userId, teamId, timeMin, timeMax)
+  const { userId, teamId, timeMin, timeMax, calendarId, isCalendarAdmin = false, useCache = true } = input
+  const key = cacheKey(userId, teamId, timeMin, timeMax, isCalendarAdmin)
   const now = nowMs()
   const cached = useCache ? freeBusyCache.get(key) : undefined
   if (cached && cached.expiresAt > now) {
@@ -92,19 +93,24 @@ export async function getCalendarFreeBusyForUser(input: {
 
   const timings: CalendarFreeBusyTimings = { db: 0, oauthRefresh: 0, gcal: 0 }
   const dbStarted = performance.now()
-  const { listTeamMemberUserIds } = await import("@/lib/booking/server/team-access")
-  const bookingUserIds = teamId ? await listTeamMemberUserIds(userId, teamId) : [userId]
-  if (!bookingUserIds) {
-    return {
-      busy: [],
-      bookings: [],
-      code: "team_not_found",
-      status: 404,
-      timings,
-      cache: useCache ? "miss" : "bypass",
+  let bookings: CalendarBookingFromApi[]
+  if (isCalendarAdmin) {
+    bookings = await listAllBookings(timeMin, timeMax)
+  } else {
+    const { listTeamMemberUserIds } = await import("@/lib/booking/server/team-access")
+    const bookingUserIds = teamId ? await listTeamMemberUserIds(userId, teamId) : [userId]
+    if (!bookingUserIds) {
+      return {
+        busy: [],
+        bookings: [],
+        code: "team_not_found",
+        status: 404,
+        timings,
+        cache: useCache ? "miss" : "bypass",
+      }
     }
+    bookings = await listBookings(timeMin, timeMax, bookingUserIds)
   }
-  const bookings = await listBookings(timeMin, timeMax, bookingUserIds)
   timings.db = elapsedSince(dbStarted)
 
   if (!calendarId) {

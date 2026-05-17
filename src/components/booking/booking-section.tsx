@@ -108,6 +108,9 @@ export function BookingSection({
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [remoteRefreshRequestKey, setRemoteRefreshRequestKey] = useState(getInitialRemoteRefreshRequestKey)
   const [calendarCode, setCalendarCode] = useState<string | null>(null)
+  const teamMemberUserIds = useMemo(() => {
+    return teams.find((team) => team.id === selectedTeamId)?.members.map((member) => member.userId) ?? [userId]
+  }, [selectedTeamId, teams, userId])
 
   useEffect(() => {
     let cancelled = false
@@ -268,6 +271,9 @@ export function BookingSection({
     <>
       <div className={step === "calendar" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>
         <BookingCalendar
+          viewerUserId={userId}
+          isCalendarAdmin={isCalendarAdmin}
+          teamMemberUserIds={teamMemberUserIds}
           initialSlots={selectedSlots}
           projectTitle={formData.projectTitle}
           adjustRequestKey={adjustRequestKey}
