@@ -45,41 +45,74 @@ const QUADRANTS = [
 
 function AxisLabels() {
   return (
-    <g
-      fill={ACCENT}
-      fontSize={28}
-      fontWeight={500}
-      letterSpacing="0.05em"
-      textAnchor="middle"
-      dominantBaseline="central"
-    >
-      <text x={800} y={70}>
-        ナチュラル高
-      </text>
-      <text x={800} y={830}>
-        ナチュラル低
-      </text>
-      <text x={55} y={450} transform="rotate(-90 55 450)">
-        ノーマル低
-      </text>
-      <text x={1545} y={450} transform="rotate(-90 1545 450)">
-        ノーマル高
-      </text>
+    <g fontFamily="var(--font-noto-sans-jp), system-ui, sans-serif" textAnchor="middle" dominantBaseline="central">
+      <g fontSize={20} fontWeight={600} letterSpacing="0.12em" fill={TEXT_PRIMARY}>
+        <text x={800} y={50}>
+          ナチュラル
+        </text>
+        <text x={800} y={860}>
+          ナチュラル
+        </text>
+        <text x={40} y={450} transform="rotate(-90 40 450)">
+          ノーマル
+        </text>
+        <text x={1560} y={450} transform="rotate(-90 1560 450)">
+          ノーマル
+        </text>
+      </g>
+      <g fontSize={11} fontWeight={600} letterSpacing="0.28em" fill={ACCENT}>
+        <text x={800} y={72}>
+          HIGH
+        </text>
+        <text x={800} y={838}>
+          LOW
+        </text>
+        <text x={62} y={450} transform="rotate(-90 62 450)">
+          LOW
+        </text>
+        <text x={1538} y={450} transform="rotate(-90 1538 450)">
+          HIGH
+        </text>
+      </g>
     </g>
   )
 }
 
 function AxisCross() {
   return (
-    <g
-      stroke={ACCENT}
-      strokeWidth="1.5"
-      strokeOpacity="0.25"
-      strokeLinecap="round"
-      fill="none"
-    >
-      <path d="M 800 100 V 800" />
-      <path d="M 100 450 H 1500" />
+    <g strokeWidth="2" strokeOpacity="0.42" strokeLinecap="round" fill="none">
+      <path
+        d="M 800 80 L 800 820"
+        stroke={TEXT_PRIMARY}
+        markerStart="url(#gnvn-axis-arrow)"
+        markerEnd="url(#gnvn-axis-arrow)"
+      />
+      <path
+        d="M 80 450 L 1520 450"
+        stroke={TEXT_PRIMARY}
+        markerStart="url(#gnvn-axis-arrow)"
+        markerEnd="url(#gnvn-axis-arrow)"
+      />
+    </g>
+  )
+}
+
+function QuadrantFrames() {
+  return (
+    <g>
+      {QUADRANTS.map((q) => (
+        <rect
+          key={`${q.href}-frame`}
+          x={q.x}
+          y={q.y}
+          width={IMG_W}
+          height={IMG_H}
+          fill="none"
+          stroke="rgba(28,15,110,0.16)"
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
     </g>
   )
 }
@@ -140,7 +173,7 @@ export default function GradingNaturalVsNormal() {
       className="absolute inset-0 h-full w-full"
       preserveAspectRatio="xMidYMid meet"
       role="img"
-      aria-label="ナチュラル軸（上=ナチュラル高 / 下=ナチュラル低）とノーマル軸（右=ノーマル高 / 左=ノーマル低）の二軸を、中央十字線と外周の象限ピル付き 4 象限独立画像で対比する図。4 枚の画像は角丸なしで密着し、矢印と accent point は使わない。"
+      aria-label="ナチュラル軸（上=ナチュラル高 / 下=ナチュラル低）とノーマル軸（右=ノーマル高 / 左=ノーマル低）の二軸を、中央十字線と外周の象限ピル付き 4 象限独立画像で対比する図。4 枚の画像は角丸なしで密着し、中央十字線の両端矢じりで方向を示す。"
       fontFamily="var(--font-noto-sans-jp), sans-serif"
     >
       <defs>
@@ -164,6 +197,17 @@ export default function GradingNaturalVsNormal() {
         >
           <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#8B7FFF" floodOpacity="0.35" />
         </filter>
+        <marker
+          id="gnvn-axis-arrow"
+          viewBox="0 0 10 10"
+          markerWidth={9}
+          markerHeight={9}
+          refX={8}
+          refY={5}
+          orient="auto-start-reverse"
+        >
+          <path d="M0,0 L10,5 L0,10 Z" fill={TEXT_PRIMARY} fillOpacity="0.42" />
+        </marker>
       </defs>
 
       <rect x={0} y={0} width={W} height={H} rx={CORNER_R} fill={BG_BASE} />
@@ -180,6 +224,7 @@ export default function GradingNaturalVsNormal() {
         />
       ))}
 
+      <QuadrantFrames />
       <AxisCross />
       <AxisLabels />
       <QuadrantLabels />
