@@ -272,6 +272,7 @@ export function BookingSection({
       <div className={step === "calendar" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>
         <BookingCalendar
           viewerUserId={userId}
+          viewerEmail={userEmail}
           isCalendarAdmin={isCalendarAdmin}
           teamMemberUserIds={teamMemberUserIds}
           initialSlots={selectedSlots}

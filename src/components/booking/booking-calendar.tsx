@@ -403,6 +403,7 @@ function recomputeTimeRangeBounds(slots: { start: string; end: string }[]): { sl
 
 type BookingCalendarProps = {
   viewerUserId: string
+  viewerEmail: string
   isCalendarAdmin: boolean
   teamMemberUserIds: string[]
   initialSlots?: { start: string; end: string }[]
@@ -424,6 +425,7 @@ type BookingCalendarProps = {
 
 export function BookingCalendar({
   viewerUserId,
+  viewerEmail,
   isCalendarAdmin,
   teamMemberUserIds,
   initialSlots = [],
@@ -1472,8 +1474,8 @@ export function BookingCalendar({
           {onSelectedTeamIdChange ? (
             <div className="booking-calendar__scope">
               <label className="booking-calendar__scope-label" htmlFor="booking-team-scope">
-                <span className="booking-calendar__scope-label-full">表示中チャンネル</span>
-                <span className="booking-calendar__scope-label-compact">チャンネル</span>
+                <span className="booking-calendar__scope-label-full">ログイン状態</span>
+                <span className="booking-calendar__scope-label-compact">ログイン状態</span>
               </label>
               <select
                 id="booking-team-scope"
@@ -1483,7 +1485,7 @@ export function BookingCalendar({
                   onSelectedTeamIdChange(event.target.value || null)
                 }}
               >
-                <option value="">個人</option>
+                <option value="">{viewerEmail || "個人"}</option>
                 {teams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}

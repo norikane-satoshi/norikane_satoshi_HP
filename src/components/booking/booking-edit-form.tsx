@@ -18,6 +18,7 @@ type BookingEditFormProps = {
   scope: BookingAccessScope
   isCalendarAdmin: boolean
   isPast: boolean
+  sessionEmail?: string | null
 }
 
 type DetailState = {
@@ -48,12 +49,12 @@ function fromDateTimeLocal(value: string): string {
   return new Date(value).toISOString()
 }
 
-function toDetailsState(details: EditableBookingDetails): DetailState {
+function toDetailsState(details: EditableBookingDetails, sessionEmail?: string | null): DetailState {
   return {
     projectTitle: details.projectTitle,
     contactName: details.contactName,
     companyName: details.companyName ?? "",
-    contactEmail: details.contactEmail ?? "",
+    contactEmail: details.contactEmail ?? sessionEmail ?? "",
     phone: details.phone ?? "",
     memo: details.memo ?? "",
     dueDate: details.dueDate ?? "",
@@ -76,9 +77,10 @@ export function BookingEditForm({
   scope,
   isCalendarAdmin,
   isPast,
+  sessionEmail,
 }: BookingEditFormProps) {
   const router = useRouter()
-  const initialDetailState = useMemo(() => toDetailsState(initialDetails), [initialDetails])
+  const initialDetailState = useMemo(() => toDetailsState(initialDetails, sessionEmail), [initialDetails, sessionEmail])
   const initialSlotState = useMemo(() => initialTimeSlots.map(toSlotState), [initialTimeSlots])
   const [details, setDetails] = useState<DetailState>(initialDetailState)
   const [slots, setSlots] = useState<SlotState[]>(initialSlotState)
