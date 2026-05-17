@@ -167,10 +167,12 @@ export async function getCalendarFreeBusyForUser(input: {
   }
 
   const bookingTimePairs = new Set(
-    bookings.map((booking) => `${booking.start}|${booking.end}`),
+    bookings.map((booking) => `${new Date(booking.start).getTime()}|${new Date(booking.end).getTime()}`),
   )
   const value = {
-    busy: busy.filter((slot) => !bookingTimePairs.has(`${slot.start}|${slot.end}`)),
+    busy: busy.filter(
+      (slot) => !bookingTimePairs.has(`${new Date(slot.start).getTime()}|${new Date(slot.end).getTime()}`),
+    ),
     bookings,
   }
 
