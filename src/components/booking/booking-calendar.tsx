@@ -1374,7 +1374,7 @@ export function BookingCalendar({
             : `${statusLabel} ${rangeLabel}`.trim()
       return (
         <span className="booking-calendar__busy-pill-content">
-          {lockIcon}
+          {!props.canEdit && lockIcon}
           <span className="booking-calendar__booking-label">{text}</span>
         </span>
       )
