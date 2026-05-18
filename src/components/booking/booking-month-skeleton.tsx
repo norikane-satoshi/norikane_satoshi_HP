@@ -30,8 +30,7 @@ type BookingMonthSkeletonProps = {
 }
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"]
-const DEFAULT_BUSY_BUFFER_HOURS = 1
-const CONFIRMED_BOOKING_BUFFER_MS = 7200000
+const BOOKING_BUFFER_HOURS = 1
 const MAX_ITEMS_PER_DAY = 4
 
 function toDate(value: Date | string): Date {
@@ -88,6 +87,10 @@ function rangeOverlaps(startMs: number, endMs: number, dayStartMs: number, dayEn
   return startMs < dayEndMs && endMs > dayStartMs
 }
 
+function toBufferMs(hours: number): number {
+  return Math.max(0, hours) * 60 * 60 * 1000
+}
+
 function busyLabel(slot: CalendarBusyEventWithBuffer): string {
   if (isFullDayRange(slot.start, slot.end)) return "終日 不"
   return `${formatTime(slot.start)} 不`
@@ -106,8 +109,8 @@ function bufferItemsForDay(
   const items: MonthSkeletonItem[] = []
 
   for (const slot of busy) {
-    const hours = slot.bufferHours ?? DEFAULT_BUSY_BUFFER_HOURS
-    const bufferMs = Math.max(0, hours) * 60 * 60 * 1000
+    const hours = slot.bufferHours ?? BOOKING_BUFFER_HOURS
+    const bufferMs = toBufferMs(hours)
     const startMs = new Date(slot.start).getTime()
     const endMs = new Date(slot.end).getTime()
     if (bufferMs <= 0) continue
@@ -134,16 +137,17 @@ function bufferItemsForDay(
     if (booking.status !== "CONFIRMED") continue
     const startMs = new Date(booking.start).getTime()
     const endMs = new Date(booking.end).getTime()
+    const bufferMs = toBufferMs(BOOKING_BUFFER_HOURS)
 
-    if (rangeOverlaps(startMs - CONFIRMED_BOOKING_BUFFER_MS, startMs, dayStartMs, dayEndMs)) {
+    if (rangeOverlaps(startMs - bufferMs, startMs, dayStartMs, dayEndMs)) {
       items.push({
         id: `booking-buffer-before-${booking.id}`,
         kind: "buffer",
         label: "保護",
-        startsAt: startMs - CONFIRMED_BOOKING_BUFFER_MS,
+        startsAt: startMs - bufferMs,
       })
     }
-    if (rangeOverlaps(endMs, endMs + CONFIRMED_BOOKING_BUFFER_MS, dayStartMs, dayEndMs)) {
+    if (rangeOverlaps(endMs, endMs + bufferMs, dayStartMs, dayEndMs)) {
       items.push({
         id: `booking-buffer-after-${booking.id}`,
         kind: "buffer",

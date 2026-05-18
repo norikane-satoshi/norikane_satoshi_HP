@@ -6,6 +6,10 @@ import { findAccessibleSlot } from "@/lib/booking/server/edit-access"
 
 export const dynamic = "force-dynamic"
 
+function isBookingSlotPast(startTime: string): boolean {
+  return Date.now() > new Date(startTime).getTime()
+}
+
 export default async function BookingEditPage({
   params,
 }: {
@@ -23,7 +27,7 @@ export default async function BookingEditPage({
   if (!booking) notFound()
 
   const currentSlot = booking.timeSlots.find((slot) => slot.id === booking.bookingId)
-  const isPast = currentSlot ? Date.now() > new Date(currentSlot.startTime).getTime() : false
+  const isPast = currentSlot ? isBookingSlotPast(currentSlot.startTime) : false
 
   return (
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">

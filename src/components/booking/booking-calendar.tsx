@@ -125,8 +125,7 @@ const VIEW_OPTIONS: { label: string; value: CalendarView }[] = [
 ]
 
 const MIN_SELECTION_MS = 30 * 60 * 1000
-const DEFAULT_BUSY_BUFFER_HOURS = 1
-const CONFIRMED_BOOKING_BUFFER_MS = 7200000
+const BOOKING_BUFFER_HOURS = 1
 const BASE_SLOT_MIN_MINUTES = 10 * 60
 const BASE_SLOT_MAX_MINUTES = 19 * 60
 const TIME_RANGE_EXPAND_STEP_MINUTES = 30
@@ -702,7 +701,7 @@ export function BookingCalendar({
     )
     const bufferEvents: EventInput[] = []
     for (const slot of data.busy ?? []) {
-      const hours = slot.bufferHours ?? DEFAULT_BUSY_BUFFER_HOURS
+      const hours = slot.bufferHours ?? BOOKING_BUFFER_HOURS
       const ms = toBufferMs(hours)
       const startMs = new Date(slot.start).getTime()
       const endMs = new Date(slot.end).getTime()
@@ -737,8 +736,8 @@ export function BookingCalendar({
       const endMs = new Date(booking.end).getTime()
       bufferEvents.push({
         id: `buffer-before-${booking.id}`,
-        title: "本予約前後 2 時間は保護領域",
-        start: new Date(startMs - CONFIRMED_BOOKING_BUFFER_MS).toISOString(),
+        title: `本予約前後 ${BOOKING_BUFFER_HOURS} 時間は保護領域`,
+        start: new Date(startMs - toBufferMs(BOOKING_BUFFER_HOURS)).toISOString(),
         end: booking.start,
         display: "background",
         classNames: ["booking-calendar__confirmed-buffer"],
@@ -749,9 +748,9 @@ export function BookingCalendar({
       })
       bufferEvents.push({
         id: `buffer-after-${booking.id}`,
-        title: "本予約前後 2 時間は保護領域",
+        title: `本予約前後 ${BOOKING_BUFFER_HOURS} 時間は保護領域`,
         start: booking.end,
-        end: new Date(endMs + CONFIRMED_BOOKING_BUFFER_MS).toISOString(),
+        end: new Date(endMs + toBufferMs(BOOKING_BUFFER_HOURS)).toISOString(),
         display: "background",
         classNames: ["booking-calendar__confirmed-buffer"],
         editable: false,
@@ -887,7 +886,7 @@ export function BookingCalendar({
   const overlapsConfirmedBufferZone = useCallback((start: Date, end: Date, excludeBookingId?: string): boolean => {
     for (const data of fetchedRef.current.values()) {
       for (const slot of data.data.busy ?? []) {
-        const ms = toBufferMs(slot.bufferHours ?? DEFAULT_BUSY_BUFFER_HOURS)
+        const ms = toBufferMs(slot.bufferHours ?? BOOKING_BUFFER_HOURS)
         const bufferStart = new Date(new Date(slot.start).getTime() - ms).toISOString()
         const bufferEnd = new Date(new Date(slot.end).getTime() + ms).toISOString()
         if (rangesOverlap(start, end, bufferStart, bufferEnd)) return true
@@ -895,8 +894,8 @@ export function BookingCalendar({
       for (const booking of data.data.bookings ?? []) {
         if (booking.id === excludeBookingId) continue
         if (booking.status !== "CONFIRMED") continue
-        const bufferStart = new Date(new Date(booking.start).getTime() - CONFIRMED_BOOKING_BUFFER_MS).toISOString()
-        const bufferEnd = new Date(new Date(booking.end).getTime() + CONFIRMED_BOOKING_BUFFER_MS).toISOString()
+        const bufferStart = new Date(new Date(booking.start).getTime() - toBufferMs(BOOKING_BUFFER_HOURS)).toISOString()
+        const bufferEnd = new Date(new Date(booking.end).getTime() + toBufferMs(BOOKING_BUFFER_HOURS)).toISOString()
         if (rangesOverlap(start, end, bufferStart, bufferEnd)) return true
       }
     }
