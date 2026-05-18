@@ -27,6 +27,8 @@ const bookings: CalendarBookingFromApi[] = [
     end: "2026-05-20T13:30:00.000Z",
     title: "SSR test",
     status: "CONFIRMED",
+    bufferBeforeHours: 1,
+    bufferAfterHours: 1,
   },
 ]
 

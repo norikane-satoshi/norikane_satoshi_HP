@@ -142,6 +142,11 @@ model BookingGroup {
   phone        String?
   dueDate      String?
 
+  // 予約ごとの前後マージン（時間）。null/未設定は default 1.0 で動かす想定。
+  // admin はここを per-booking で動かして表示時の buffer 領域を独立に調整する。
+  bufferBeforeHours Float? @default(1)
+  bufferAfterHours  Float? @default(1)
+
   // Google Calendar Event ID（本予約作成時に書き込み、キャンセル時に削除）
   gcalEventId  String?
   // Notion IB_仕事 ページ ID（タスク種別 = スケジュール 自動セット済み）

@@ -41,6 +41,8 @@ function conflict(overrides: Partial<ConflictBooking> = {}): ConflictBooking {
       contactEmail: null,
       phone: null,
       dueDate: null,
+      bufferBeforeHours: 1,
+      bufferAfterHours: 1,
       gcalEventId: null,
       notionPageId: null,
       createdAt: now,

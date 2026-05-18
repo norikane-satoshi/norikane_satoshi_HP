@@ -56,6 +56,8 @@ type BookingFromApi = {
   end: string
   title: string
   status: BookingStatus | string
+  bufferBeforeHours: number
+  bufferAfterHours: number
 }
 
 type FreeBusyResponse = {
@@ -753,10 +755,12 @@ export function BookingCalendar({
       if (booking.status !== "CONFIRMED") continue
       const startMs = new Date(booking.start).getTime()
       const endMs = new Date(booking.end).getTime()
+      const beforeHours = booking.bufferBeforeHours
+      const afterHours = booking.bufferAfterHours
       bufferEvents.push({
         id: `buffer-before-${booking.id}`,
-        title: `本予約前後 ${BOOKING_BUFFER_HOURS} 時間は保護領域`,
-        start: new Date(startMs - toBufferMs(BOOKING_BUFFER_HOURS)).toISOString(),
+        title: `本予約前 ${beforeHours} 時間は保護領域`,
+        start: new Date(startMs - toBufferMs(beforeHours)).toISOString(),
         end: booking.start,
         display: "background",
         classNames: ["booking-calendar__confirmed-buffer"],
@@ -767,9 +771,9 @@ export function BookingCalendar({
       })
       bufferEvents.push({
         id: `buffer-after-${booking.id}`,
-        title: `本予約前後 ${BOOKING_BUFFER_HOURS} 時間は保護領域`,
+        title: `本予約後 ${afterHours} 時間は保護領域`,
         start: booking.end,
-        end: new Date(endMs + toBufferMs(BOOKING_BUFFER_HOURS)).toISOString(),
+        end: new Date(endMs + toBufferMs(afterHours)).toISOString(),
         display: "background",
         classNames: ["booking-calendar__confirmed-buffer"],
         editable: false,
@@ -913,8 +917,8 @@ export function BookingCalendar({
       for (const booking of data.data.bookings ?? []) {
         if (booking.id === excludeBookingId) continue
         if (booking.status !== "CONFIRMED") continue
-        const bufferStart = new Date(new Date(booking.start).getTime() - toBufferMs(BOOKING_BUFFER_HOURS)).toISOString()
-        const bufferEnd = new Date(new Date(booking.end).getTime() + toBufferMs(BOOKING_BUFFER_HOURS)).toISOString()
+        const bufferStart = new Date(new Date(booking.start).getTime() - toBufferMs(booking.bufferBeforeHours)).toISOString()
+        const bufferEnd = new Date(new Date(booking.end).getTime() + toBufferMs(booking.bufferAfterHours)).toISOString()
         if (rangesOverlap(start, end, bufferStart, bufferEnd)) return true
       }
     }

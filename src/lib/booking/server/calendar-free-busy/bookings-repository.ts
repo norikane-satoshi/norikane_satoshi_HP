@@ -6,6 +6,8 @@ export type CalendarBookingFromApi = {
   end: string
   title: string
   status: string
+  bufferBeforeHours: number
+  bufferAfterHours: number
 }
 
 async function listBookingsWithWhere(
@@ -37,6 +39,8 @@ async function listBookingsWithWhere(
         select: {
           projectTitle: true,
           status: true,
+          bufferBeforeHours: true,
+          bufferAfterHours: true,
           customer: {
             select: {
               userId: true,
@@ -55,6 +59,8 @@ async function listBookingsWithWhere(
     end: booking.endTime.toISOString(),
     title: booking.bookingGroup.projectTitle,
     status: booking.bookingGroup.status,
+    bufferBeforeHours: booking.bookingGroup.bufferBeforeHours ?? 1,
+    bufferAfterHours: booking.bookingGroup.bufferAfterHours ?? 1,
   }))
 }
 
