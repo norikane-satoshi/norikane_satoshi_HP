@@ -8,9 +8,7 @@ const PAD_RIGHT = 100
 const GAP = 0
 const IMG_W = (W - PAD_LEFT - PAD_RIGHT - GAP) / 2
 const IMG_H = (H - PAD_TOP - PAD_BOTTOM - GAP) / 2
-const CORNER_R = 0
 
-const BG_BASE = "#F8F6FF"
 const ACCENT = "#8B7FFF"
 const TEXT_PRIMARY = "#1C0F6E"
 const PILL_W = 290
@@ -47,10 +45,10 @@ function AxisLabels() {
   return (
     <g fontFamily="var(--font-noto-sans-jp), system-ui, sans-serif" textAnchor="middle" dominantBaseline="central">
       <g fontSize={20} fontWeight={600} letterSpacing="0.12em" fill={TEXT_PRIMARY}>
-        <text x={800} y={50}>
+        <text x={800} y={22}>
           ナチュラル
         </text>
-        <text x={800} y={860}>
+        <text x={800} y={888}>
           ナチュラル
         </text>
         <text x={0} y={440}>
@@ -61,10 +59,10 @@ function AxisLabels() {
         </text>
       </g>
       <g fontSize={11} fontWeight={600} letterSpacing="0.28em" fill={ACCENT}>
-        <text x={800} y={72}>
+        <text x={800} y={48}>
           HIGH
         </text>
-        <text x={800} y={838}>
+        <text x={800} y={862}>
           LOW
         </text>
         <text x={0} y={460}>
@@ -83,17 +81,17 @@ function AxisCrossDashed() {
     <g fill="none">
       <path
         d="M 800 100 L 800 800"
-        stroke={TEXT_PRIMARY}
+        stroke="#FFFFFF"
         strokeWidth={1.5}
-        strokeOpacity={0.28}
+        strokeOpacity={0.65}
         strokeDasharray="5 5"
         strokeLinecap="butt"
       />
       <path
         d="M 100 450 L 1500 450"
-        stroke={TEXT_PRIMARY}
+        stroke="#FFFFFF"
         strokeWidth={1.5}
-        strokeOpacity={0.28}
+        strokeOpacity={0.65}
         strokeDasharray="5 5"
         strokeLinecap="butt"
       />
@@ -105,10 +103,10 @@ function AxisCrossExtensions() {
   return (
     <g fill="none">
       <g>
-        <path d="M 800 100 L 800 84" stroke={ACCENT} strokeWidth={2} strokeOpacity={0.7} strokeDasharray="5 5" strokeLinecap="butt" />
-        <path d="M 800 800 L 800 816" stroke={ACCENT} strokeWidth={2} strokeOpacity={0.7} strokeDasharray="5 5" strokeLinecap="butt" />
-        <path d="M 100 450 L 84 450" stroke={ACCENT} strokeWidth={2} strokeOpacity={0.7} strokeDasharray="5 5" strokeLinecap="butt" />
-        <path d="M 1500 450 L 1516 450" stroke={ACCENT} strokeWidth={2} strokeOpacity={0.7} strokeDasharray="5 5" strokeLinecap="butt" />
+        <path d="M 800 100 L 800 84" stroke="#FFFFFF" strokeWidth={2} strokeOpacity={0.85} strokeDasharray="5 5" strokeLinecap="butt" />
+        <path d="M 800 800 L 800 816" stroke="#FFFFFF" strokeWidth={2} strokeOpacity={0.85} strokeDasharray="5 5" strokeLinecap="butt" />
+        <path d="M 100 450 L 84 450" stroke="#FFFFFF" strokeWidth={2} strokeOpacity={0.85} strokeDasharray="5 5" strokeLinecap="butt" />
+        <path d="M 1500 450 L 1516 450" stroke="#FFFFFF" strokeWidth={2} strokeOpacity={0.85} strokeDasharray="5 5" strokeLinecap="butt" />
       </g>
       <g stroke="none">
         <path d="M 800 80 L 800 81" markerStart="url(#cross-head)" />
@@ -243,11 +241,9 @@ export default function GradingNaturalVsNormal() {
           refY={5}
           orient="auto-start-reverse"
         >
-          <path d="M0,0 L10,5 L0,10 Z" fill={TEXT_PRIMARY} fillOpacity="0.42" />
+          <path d="M0,0 L10,5 L0,10 Z" fill="#FFFFFF" fillOpacity="0.9" />
         </marker>
       </defs>
-
-      <rect x={0} y={0} width={W} height={H} rx={CORNER_R} fill={BG_BASE} />
 
       {QUADRANTS.map((q) => (
         <image
