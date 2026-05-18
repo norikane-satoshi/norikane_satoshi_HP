@@ -208,7 +208,6 @@ export async function listBusyEventsWithBuffer(
 
     for (const event of response.data.items ?? []) {
       if (event.transparency === "transparent") continue
-      if (event.extendedProperties?.private?.source === "hp-booking") continue
       const start = event.start?.dateTime ?? event.start?.date
       const end = event.end?.dateTime ?? event.end?.date
       if (!start || !end) continue
