@@ -132,11 +132,13 @@ describe("google-calendar helpers", () => {
         start: "2026-06-10T01:00:00.000Z",
         end: "2026-06-10T02:00:00.000Z",
         bufferHours: null,
+        summary: null,
       },
       {
         start: "2026-06-11",
         end: "2026-06-12",
         bufferHours: null,
+        summary: null,
       },
     ])
     expect(mocks.list).toHaveBeenNthCalledWith(2, expect.objectContaining({ pageToken: "page_2" }))

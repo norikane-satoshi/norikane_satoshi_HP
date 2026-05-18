@@ -14,6 +14,7 @@ const busy: CalendarBusyEventWithBuffer[] = [
     start: "2026-05-21T12:00:00.000Z",
     end: "2026-05-21T13:00:00.000Z",
     bufferHours: 1,
+    summary: null,
   },
 ]
 

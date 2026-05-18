@@ -45,6 +45,7 @@ type BusySlot = {
   start: string
   end: string
   bufferHours?: number | null
+  summary?: string | null
 }
 
 type BookingFromApi = {
@@ -175,10 +176,12 @@ function toBusyEvent(slot: BusySlot, isCalendarAdmin: boolean): EventInput {
   const ms = shouldMergeBuffer ? toBufferMs(slot.bufferHours ?? BOOKING_BUFFER_HOURS) : 0
   const start = shouldMergeBuffer ? new Date(new Date(slot.start).getTime() - ms).toISOString() : slot.start
   const end = shouldMergeBuffer ? new Date(new Date(slot.end).getTime() + ms).toISOString() : slot.end
+  const summary = slot.summary?.trim()
   const extendedProps: BusyEventProps = {
     kind: "busy",
     label,
     canEdit: isCalendarAdmin,
+    ...(isCalendarAdmin && summary ? { projectTitle: summary } : {}),
   }
 
   return {
@@ -1364,7 +1367,7 @@ export function BookingCalendar({
       const monthTimeLabel = arg.event.allDay ? "終日" : arg.event.start ? format(arg.event.start, "HH:mm") : rangeLabel
       const title = props.projectTitle?.trim()
       const canShowTitle = props.status === "CONFIRMED" && props.canView && title
-      const text = canShowTitle
+      const baseText = canShowTitle
         ? isMonthView
           ? `${monthTimeLabel} 本: ${title}`
           : `本予約 ${rangeLabel}: ${title}`
@@ -1373,6 +1376,9 @@ export function BookingCalendar({
           : isMonthView
             ? `${monthTimeLabel} ${shortLabel}`
             : `${statusLabel} ${rangeLabel}`.trim()
+      const text = !canShowTitle && !props.bookingId && title
+        ? `${baseText}: ${title}`
+        : baseText
       return (
         <span className="booking-calendar__busy-pill-content">
           {!props.canEdit && lockIcon}

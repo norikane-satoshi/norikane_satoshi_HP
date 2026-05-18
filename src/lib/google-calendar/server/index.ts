@@ -22,6 +22,7 @@ export type CalendarBusySlot = {
 
 export type CalendarBusyEventWithBuffer = CalendarBusySlot & {
   bufferHours: number | null
+  summary: string | null
 }
 
 export type CalendarEventWriteInput = {
@@ -221,6 +222,7 @@ export async function listBusyEventsWithBuffer(
         start,
         end,
         bufferHours: Number.isFinite(parsedBuffer) ? parsedBuffer : null,
+        summary: event.summary ?? null,
       })
     }
 
