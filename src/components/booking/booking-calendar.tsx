@@ -83,6 +83,7 @@ type BusyEventProps = {
   status?: BookingStatus
   bookingId?: string
   bookingGroupId?: string
+  customerUserId?: string
   projectTitle?: string
   canView?: boolean
   canEdit?: boolean
@@ -109,6 +110,7 @@ type AnyEventProps = {
   status?: BookingStatus
   bookingId?: string
   bookingGroupId?: string
+  customerUserId?: string
   projectTitle?: string
   canView?: boolean
   canEdit?: boolean
@@ -258,6 +260,7 @@ function toBookingEvent(
     status,
     bookingId: booking.id,
     bookingGroupId: booking.bookingGroupId,
+    customerUserId: booking.customerUserId,
     projectTitle: booking.title,
     canView,
     canEdit,
@@ -279,6 +282,28 @@ function toBookingEvent(
     durationEditable: isCalendarEditable,
     extendedProps,
   }
+}
+
+export function shouldConfirmAdminMove(
+  props: {
+    kind?: "draft" | "busy" | "buffer"
+    status?: BookingStatus
+    bookingGroupId?: string
+    customerUserId?: string
+    projectTitle?: string
+  },
+  viewerUserId: string,
+  isCalendarAdmin: boolean,
+): boolean {
+  return Boolean(
+    props.kind === "busy" &&
+    isCalendarAdmin &&
+    props.status === "CONFIRMED" &&
+    props.bookingGroupId &&
+    props.projectTitle &&
+    props.customerUserId !== undefined &&
+    props.customerUserId !== viewerUserId,
+  )
 }
 
 function toDraftEventInput(
@@ -821,7 +846,7 @@ export function BookingCalendar({
         start: new Date(startMs - toBufferMs(beforeHours)).toISOString(),
         end: booking.start,
         ...(isCalendarAdmin ? {} : { display: "background" as const }),
-        classNames: ["booking-calendar__confirmed-buffer"],
+        classNames: ["booking-calendar__confirmed-buffer", "booking-calendar__confirmed-buffer--before"],
         editable: isCalendarAdmin,
         startEditable: isCalendarAdmin,
         durationEditable: false,
@@ -833,7 +858,7 @@ export function BookingCalendar({
         start: booking.end,
         end: new Date(endMs + toBufferMs(afterHours)).toISOString(),
         ...(isCalendarAdmin ? {} : { display: "background" as const }),
-        classNames: ["booking-calendar__confirmed-buffer"],
+        classNames: ["booking-calendar__confirmed-buffer", "booking-calendar__confirmed-buffer--after"],
         editable: isCalendarAdmin,
         startEditable: false,
         durationEditable: isCalendarAdmin,
@@ -1261,6 +1286,32 @@ export function BookingCalendar({
     }
   }, [adjustingGroupId, modeKind])
 
+  const moveBookingImmediately = useCallback((bookingId: string, start: string, end: string, revert: () => void) => {
+    void (async () => {
+      try {
+        const response = await fetch(`/api/booking/${bookingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "move",
+            start,
+            end,
+          }),
+        })
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => ({}))) as { error?: string }
+          setActionError(mapErrorCodeToJa(payload.error ?? "unknown"))
+          revert()
+          return
+        }
+        refetchRemoteEvents()
+      } catch {
+        setActionError(mapErrorCodeToJa("unknown"))
+        revert()
+      }
+    })()
+  }, [refetchRemoteEvents])
+
   const handleEventDrop = useCallback(
     (arg: EventDropArg) => {
       const props = arg.event.extendedProps as AnyEventProps
@@ -1285,22 +1336,24 @@ export function BookingCalendar({
       }
 
       if (props.kind === "busy" && props.bookingId) {
-        if (
-          isCalendarAdmin &&
-          props.status === "CONFIRMED" &&
-          props.bookingGroupId &&
-          props.projectTitle
-        ) {
+        if (shouldConfirmAdminMove(props, viewerUserId, isCalendarAdmin)) {
           arg.revert()
+          const bookingGroupId = props.bookingGroupId
+          const projectTitle = props.projectTitle
+          if (!bookingGroupId || !projectTitle) return
           setAdminMoveConfirm({
             bookingId: props.bookingId,
-            bookingGroupId: props.bookingGroupId,
-            projectTitle: props.projectTitle,
+            bookingGroupId,
+            projectTitle,
             oldStart: arg.oldEvent.start?.toISOString() ?? props.label ?? "",
             oldEnd: arg.oldEvent.end?.toISOString() ?? "",
             newStart: newStart.toISOString(),
             newEnd: newEnd.toISOString(),
           })
+          return
+        }
+        if (isCalendarAdmin && props.status === "CONFIRMED") {
+          moveBookingImmediately(props.bookingId, newStart.toISOString(), newEnd.toISOString(), () => arg.revert())
           return
         }
         arg.revert()
@@ -1317,7 +1370,7 @@ export function BookingCalendar({
 
       arg.revert()
     },
-    [adjustingGroupId, isCalendarAdmin, modeKind, overlapsBlockedEvent, overlapsConfirmedBufferZone, setDraftPreviewValue, updateDraftRange],
+    [adjustingGroupId, isCalendarAdmin, modeKind, moveBookingImmediately, overlapsBlockedEvent, overlapsConfirmedBufferZone, setDraftPreviewValue, updateDraftRange, viewerUserId],
   )
 
   const handleEventResize = useCallback((arg: EventResizeDoneArg) => {
@@ -1374,28 +1427,25 @@ export function BookingCalendar({
       setDraftPreviewValue(null)
       return
     }
-    if (
-      props.kind === "busy" &&
-      isCalendarAdmin &&
-      props.status === "CONFIRMED" &&
-      props.bookingId &&
-      props.bookingGroupId &&
-      props.projectTitle
-    ) {
-      arg.revert()
-      setAdminMoveConfirm({
-        bookingId: props.bookingId,
-        bookingGroupId: props.bookingGroupId,
-        projectTitle: props.projectTitle,
-        oldStart: arg.oldEvent.start?.toISOString() ?? "",
-        oldEnd: arg.oldEvent.end?.toISOString() ?? "",
-        newStart: newStart.toISOString(),
-        newEnd: newEnd.toISOString(),
-      })
+    if (props.kind === "busy" && props.bookingId && isCalendarAdmin && props.status === "CONFIRMED") {
+      if (shouldConfirmAdminMove(props, viewerUserId, isCalendarAdmin)) {
+        arg.revert()
+        setAdminMoveConfirm({
+          bookingId: props.bookingId,
+          bookingGroupId: props.bookingGroupId!,
+          projectTitle: props.projectTitle!,
+          oldStart: arg.oldEvent.start?.toISOString() ?? "",
+          oldEnd: arg.oldEvent.end?.toISOString() ?? "",
+          newStart: newStart.toISOString(),
+          newEnd: newEnd.toISOString(),
+        })
+        return
+      }
+      moveBookingImmediately(props.bookingId, newStart.toISOString(), newEnd.toISOString(), () => arg.revert())
       return
     }
     arg.revert()
-  }, [isCalendarAdmin, overlapsBlockedEvent, overlapsConfirmedBufferZone, refetchRemoteEvents, setDraftPreviewValue, updateDraftRange])
+  }, [isCalendarAdmin, moveBookingImmediately, overlapsBlockedEvent, overlapsConfirmedBufferZone, refetchRemoteEvents, setDraftPreviewValue, updateDraftRange, viewerUserId])
 
   const dayCellClassNames = (arg: DayCellContentArg): string[] => {
     const classes: string[] = []

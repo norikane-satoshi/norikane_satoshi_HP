@@ -546,6 +546,14 @@
   opacity: 1;
 }
 
+.booking-calendar .fc-event.booking-calendar__confirmed-buffer--before .fc-event-resizer-end {
+  display: none;
+}
+
+.booking-calendar .fc-event.booking-calendar__confirmed-buffer--after .fc-event-resizer-start {
+  display: none;
+}
+
 .booking-calendar .fc-event.booking-calendar__busy {
   overflow: hidden;
   border: 0;

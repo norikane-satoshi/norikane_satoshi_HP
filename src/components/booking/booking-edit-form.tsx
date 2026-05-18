@@ -18,7 +18,6 @@ type BookingEditFormProps = {
   scope: BookingAccessScope
   isCalendarAdmin: boolean
   isPast: boolean
-  sessionEmail?: string | null
 }
 
 type DetailState = {
@@ -49,12 +48,12 @@ function fromDateTimeLocal(value: string): string {
   return new Date(value).toISOString()
 }
 
-function toDetailsState(details: EditableBookingDetails, sessionEmail?: string | null): DetailState {
+export function toDetailsState(details: EditableBookingDetails): DetailState {
   return {
     projectTitle: details.projectTitle,
     contactName: details.contactName,
     companyName: details.companyName ?? "",
-    contactEmail: details.contactEmail ?? sessionEmail ?? "",
+    contactEmail: details.contactEmail ?? "",
     phone: details.phone ?? "",
     memo: details.memo ?? "",
     dueDate: details.dueDate ?? "",
@@ -69,6 +68,10 @@ function toSlotState(slot: EditableBookingTimeSlot): SlotState {
   }
 }
 
+function hasDetailChanges(current: DetailState, initial: DetailState): boolean {
+  return (Object.keys(initial) as (keyof DetailState)[]).some((key) => current[key] !== initial[key])
+}
+
 export function BookingEditForm({
   bookingId,
   bookingGroupId,
@@ -77,10 +80,9 @@ export function BookingEditForm({
   scope,
   isCalendarAdmin,
   isPast,
-  sessionEmail,
 }: BookingEditFormProps) {
   const router = useRouter()
-  const initialDetailState = useMemo(() => toDetailsState(initialDetails, sessionEmail), [initialDetails, sessionEmail])
+  const initialDetailState = useMemo(() => toDetailsState(initialDetails), [initialDetails])
   const initialSlotState = useMemo(() => initialTimeSlots.map(toSlotState), [initialTimeSlots])
   const [details, setDetails] = useState<DetailState>(initialDetailState)
   const [slots, setSlots] = useState<SlotState[]>(initialSlotState)
@@ -115,14 +117,16 @@ export function BookingEditForm({
     setSaving(true)
     setError(null)
     try {
-      await requireOk(await fetch(`/api/booking/${bookingId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update_details",
-          ...details,
-        }),
-      }))
+      if (hasDetailChanges(details, initialDetailState)) {
+        await requireOk(await fetch(`/api/booking/${bookingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update_details",
+            ...details,
+          }),
+        }))
+      }
 
       for (const slot of slots) {
         const original = initialSlotState.find((item) => item.id === slot.id)

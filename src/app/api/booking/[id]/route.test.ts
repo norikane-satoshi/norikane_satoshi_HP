@@ -266,6 +266,39 @@ describe("/api/booking/[id] access control", () => {
     })
   })
 
+  it("PATCH action=move lets admins move customer bookings and emails the customer", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({ customerUserId: "owner_user", gcalEventId: "gcal_evt_1" }),
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "move",
+        start: "2099-05-18T02:00:00.000Z",
+        end: "2099-05-18T03:30:00.000Z",
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(200)
+    expect(route.prisma.bookingTimeSlot.update).toHaveBeenCalledWith({
+      where: { id: "slot_1" },
+      data: {
+        startTime: new Date("2099-05-18T02:00:00.000Z"),
+        endTime: new Date("2099-05-18T03:30:00.000Z"),
+      },
+    })
+    expect(route.sendBookingTimeChangedEmail).toHaveBeenCalledWith({
+      to: "old@example.com",
+      projectTitle: "Original Project",
+      oldStart: FUTURE_START.toISOString(),
+      oldEnd: FUTURE_END.toISOString(),
+      newStart: "2099-05-18T02:00:00.000Z",
+      newEnd: "2099-05-18T03:30:00.000Z",
+    })
+  })
+
   it("PATCH action=move returns 502 and does not update DB when GCal update fails", async () => {
     const route = await loadRoute(
       { user: { id: "owner_user", email: "owner@example.com" } },
