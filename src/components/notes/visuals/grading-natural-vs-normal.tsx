@@ -241,7 +241,7 @@ export default function GradingNaturalVsNormal() {
           refY={5}
           orient="auto-start-reverse"
         >
-          <path d="M0,0 L10,5 L0,10 Z" fill="#FFFFFF" fillOpacity="0.9" />
+          <path d="M0,0 L10,5 L0,10 Z" fill={TEXT_PRIMARY} fillOpacity="0.9" />
         </marker>
       </defs>
 
