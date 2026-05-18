@@ -157,22 +157,29 @@ function isFullDayBusySlot(slot: BusySlot): boolean {
 function getBusyLabel(slot: BusySlot): string {
   if (isFullDayBusySlot(slot)) return "終日"
 
-  return `${format(new Date(slot.start), "HH:mm")}-${format(new Date(slot.end), "HH:mm")}`
+  const ms = toBufferMs(slot.bufferHours ?? BOOKING_BUFFER_HOURS)
+  const start = new Date(new Date(slot.start).getTime() - ms)
+  const end = new Date(new Date(slot.end).getTime() + ms)
+
+  return `${format(start, "HH:mm")}-${format(end, "HH:mm")}`
 }
 
 function toBusyEvent(slot: BusySlot): EventInput {
   const allDay = isFullDayBusySlot(slot)
   const label = getBusyLabel(slot)
+  const ms = allDay ? 0 : toBufferMs(slot.bufferHours ?? BOOKING_BUFFER_HOURS)
+  const start = allDay ? slot.start : new Date(new Date(slot.start).getTime() - ms).toISOString()
+  const end = allDay ? slot.end : new Date(new Date(slot.end).getTime() + ms).toISOString()
   const extendedProps: BusyEventProps = {
     kind: "busy",
     label,
   }
 
   return {
-    id: `busy-${slot.start}-${slot.end}`,
+    id: `busy-merged-${slot.start}-${slot.end}`,
     title: "予約不可",
-    start: slot.start,
-    end: slot.end,
+    start,
+    end,
     allDay,
     display: "block",
     classNames: ["booking-calendar__busy"],
@@ -700,36 +707,6 @@ export function BookingCalendar({
       ),
     )
     const bufferEvents: EventInput[] = []
-    for (const slot of data.busy ?? []) {
-      const hours = slot.bufferHours ?? BOOKING_BUFFER_HOURS
-      const ms = toBufferMs(hours)
-      const startMs = new Date(slot.start).getTime()
-      const endMs = new Date(slot.end).getTime()
-      bufferEvents.push({
-        id: `busy-buffer-before-${slot.start}-${slot.end}`,
-        title: `予定前後 ${hours} 時間は保護領域`,
-        start: new Date(startMs - ms).toISOString(),
-        end: slot.start,
-        display: "background",
-        classNames: ["booking-calendar__confirmed-buffer"],
-        editable: false,
-        startEditable: false,
-        durationEditable: false,
-        extendedProps: { kind: "buffer" },
-      })
-      bufferEvents.push({
-        id: `busy-buffer-after-${slot.start}-${slot.end}`,
-        title: `予定前後 ${hours} 時間は保護領域`,
-        start: slot.end,
-        end: new Date(endMs + ms).toISOString(),
-        display: "background",
-        classNames: ["booking-calendar__confirmed-buffer"],
-        editable: false,
-        startEditable: false,
-        durationEditable: false,
-        extendedProps: { kind: "buffer" },
-      })
-    }
     for (const booking of data.bookings ?? []) {
       if (booking.status !== "CONFIRMED") continue
       const startMs = new Date(booking.start).getTime()
