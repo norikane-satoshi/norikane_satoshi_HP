@@ -45,6 +45,8 @@ export type CalendarEventUpdateInput = {
   accessToken: string
   start: string
   end: string
+  bufferBeforeHours?: number | null
+  bufferAfterHours?: number | null
 }
 
 export type RefreshedCalendarToken = {
@@ -288,6 +290,13 @@ export async function createCalendarEvent(input: CalendarEventWriteInput): Promi
 
 export async function updateCalendarEvent(input: CalendarEventUpdateInput): Promise<void> {
   const calendar = createCalendarWriteClient(input.accessToken)
+  const privateProperties: Record<string, string> = {}
+  if (Number.isFinite(input.bufferBeforeHours)) {
+    privateProperties.bufferBeforeHours = String(input.bufferBeforeHours)
+  }
+  if (Number.isFinite(input.bufferAfterHours)) {
+    privateProperties.bufferAfterHours = String(input.bufferAfterHours)
+  }
   await calendar.events.patch({
     calendarId: input.calendarId,
     eventId: input.eventId,
@@ -298,6 +307,13 @@ export async function updateCalendarEvent(input: CalendarEventUpdateInput): Prom
       end: {
         dateTime: input.end,
       },
+      ...(Object.keys(privateProperties).length > 0
+        ? {
+            extendedProperties: {
+              private: privateProperties,
+            },
+          }
+        : {}),
     },
   })
 }

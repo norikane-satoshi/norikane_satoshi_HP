@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
+import { findConflictingBookings } from "@/lib/booking/server/conflicts"
 import { findAccessibleSlot, type AccessibleBooking } from "@/lib/booking/server/edit-access"
 import { sendBookingTimeChangedEmail } from "@/lib/booking/server/email"
 import { getCachedCalendarAccessToken } from "@/lib/booking/server/calendar-free-busy/google-token-cache"
@@ -153,6 +154,8 @@ export async function PATCH(
     action?: unknown
     start?: unknown
     end?: unknown
+    side?: unknown
+    hours?: unknown
     projectTitle?: unknown
     contactName?: unknown
     contactEmail?: unknown
@@ -162,7 +165,7 @@ export async function PATCH(
     dueDate?: unknown
   } | null
 
-  if (!raw || (raw.action !== "move" && raw.action !== "update_details")) {
+  if (!raw || (raw.action !== "move" && raw.action !== "update_details" && raw.action !== "resize_buffer")) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 })
   }
 
@@ -205,6 +208,67 @@ export async function PATCH(
       status: "ok",
       action: "update_details",
       bookingGroupId: updated.id,
+    })
+  }
+
+  if (raw.action === "resize_buffer") {
+    if (booking.scope !== "admin") {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 })
+    }
+    if (raw.side !== "before" && raw.side !== "after") {
+      return NextResponse.json({ error: "invalid_request" }, { status: 400 })
+    }
+    if (!Number.isFinite(raw.hours) || typeof raw.hours !== "number" || raw.hours < 0) {
+      return NextResponse.json({ error: "invalid_request" }, { status: 400 })
+    }
+    const currentSlot = booking.timeSlots.find((slot) => slot.id === booking.bookingId)
+    if (!currentSlot) {
+      return NextResponse.json({ error: "invalid_request" }, { status: 400 })
+    }
+    const slotStart = new Date(currentSlot.startTime)
+    const slotEnd = new Date(currentSlot.endTime)
+    const bufferMs = raw.hours * 60 * 60 * 1000
+    const bufferStart = raw.side === "before" ? new Date(slotStart.getTime() - bufferMs) : slotEnd
+    const bufferEnd = raw.side === "before" ? slotStart : new Date(slotEnd.getTime() + bufferMs)
+    const conflicts = await findConflictingBookings(bufferStart, bufferEnd, { excludeBookingId: booking.bookingId })
+    if (conflicts.length > 0) {
+      return NextResponse.json({ error: "slot_taken" }, { status: 409 })
+    }
+
+    const updatedGroup = await prisma.bookingGroup.update({
+      where: { id: booking.bookingGroupId },
+      data: raw.side === "before"
+        ? { bufferBeforeHours: raw.hours }
+        : { bufferAfterHours: raw.hours },
+    })
+
+    const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
+    if (calendarId && booking.gcalEventId) {
+      try {
+        const { token } = await getCachedCalendarAccessToken(CALENDAR_TOKEN_USER_ID)
+        await updateCalendarEvent({
+          calendarId,
+          eventId: booking.gcalEventId,
+          accessToken: token,
+          start: currentSlot.startTime,
+          end: currentSlot.endTime,
+          bufferBeforeHours: updatedGroup.bufferBeforeHours,
+          bufferAfterHours: updatedGroup.bufferAfterHours,
+        })
+      } catch (error) {
+        console.error(
+          `[booking resize buffer gcal update failed] bookingId=${id} eventId=${booking.gcalEventId} error=${error instanceof Error ? error.message : String(error)}`,
+        )
+        return NextResponse.json({ error: "calendar_update_failed" }, { status: 502 })
+      }
+    }
+
+    return NextResponse.json({
+      status: "ok",
+      action: "resize_buffer",
+      bookingGroupId: booking.bookingGroupId,
+      side: raw.side,
+      hours: raw.hours,
     })
   }
 

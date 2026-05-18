@@ -379,6 +379,7 @@ describe("POST /api/booking/conflicts", () => {
 describe("/api/booking/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.findConflictingBookings.mockResolvedValue([])
   })
 
   function context(id = "slot_1") {
@@ -386,16 +387,38 @@ describe("/api/booking/[id]", () => {
   }
 
   function ownedSlot(overrides: Record<string, unknown> = {}) {
+    const bookingGroupOverrides = (overrides.bookingGroup ?? {}) as Record<string, unknown>
     return {
       id: "slot_1",
       bookingGroupId: "group_1",
       status: "CONFIRMED",
+      ...overrides,
       bookingGroup: {
+        id: "group_1",
+        projectTitle: "Color grading",
+        contactName: "Satoshi",
+        contactEmail: "satoshi@example.com",
+        phone: null,
+        companyName: null,
+        memo: null,
+        dueDate: null,
+        teamId: null,
         status: "CONFIRMED",
         gcalEventId: null,
+        bufferBeforeHours: 1,
+        bufferAfterHours: 1,
         customer: { userId: "user_1" },
+        team: { members: [] },
+        timeSlots: [
+          {
+            id: "slot_1",
+            startTime: new Date("2026-06-10T01:00:00.000Z"),
+            endTime: new Date("2026-06-10T02:00:00.000Z"),
+            status: "CONFIRMED",
+          },
+        ],
+        ...bookingGroupOverrides,
       },
-      ...overrides,
     }
   }
 
@@ -411,7 +434,7 @@ describe("/api/booking/[id]", () => {
     const response = await DELETE(new NextRequest("http://localhost/api/booking/slot_1"), context())
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ status: "ok", bookingId: "slot_1" })
+    await expect(response.json()).resolves.toEqual({ status: "ok", mode: "cancel", bookingId: "slot_1" })
     expect(mocks.deleteCalendarEvent).toHaveBeenCalledWith("gcal_1")
   })
 

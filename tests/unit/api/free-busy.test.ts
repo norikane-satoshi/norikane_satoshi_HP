@@ -86,6 +86,9 @@ function mockBookingRows() {
       bookingGroup: {
         projectTitle: "Existing booking",
         status: "CONFIRMED",
+        bufferBeforeHours: 1,
+        bufferAfterHours: 1,
+        customer: { userId: "user_1" },
       },
     },
   ])
@@ -372,7 +375,13 @@ describe("GET /api/calendar/free-busy", () => {
         startTime: new Date("2026-06-10T01:00:00.000Z"),
         endTime: new Date("2026-06-10T02:00:00.000Z"),
         status: "CONFIRMED",
-        bookingGroup: { projectTitle: "Overlap", status: "CONFIRMED" },
+        bookingGroup: {
+          projectTitle: "Overlap",
+          status: "CONFIRMED",
+          bufferBeforeHours: 1,
+          bufferAfterHours: 1,
+          customer: { userId: "user_1" },
+        },
       },
     ])
 

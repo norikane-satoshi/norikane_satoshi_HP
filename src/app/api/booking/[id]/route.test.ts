@@ -39,6 +39,8 @@ function createSlot(input: SlotInput = {}) {
       teamId: "team_1",
       status: "CONFIRMED",
       gcalEventId: "gcalEventId" in input ? input.gcalEventId : "gcal_1",
+      bufferBeforeHours: 1,
+      bufferAfterHours: 1,
       customer: {
         userId: input.customerUserId ?? "owner_user",
       },
@@ -84,6 +86,8 @@ async function loadRoute(
     ? vi.fn().mockImplementation(options.updateCalendarEventImpl)
     : vi.fn().mockResolvedValue(undefined)
   const getCachedCalendarAccessToken = vi.fn().mockResolvedValue({ token: "access_token", refreshMs: 0 })
+  const findConflictingBookings = vi.fn().mockResolvedValue([])
+  const sendBookingTimeChangedEmail = vi.fn().mockResolvedValue(undefined)
   const prisma = {
     bookingTimeSlot: {
       findUnique: vi.fn().mockResolvedValue(slot),
@@ -94,7 +98,12 @@ async function loadRoute(
       })),
     },
     bookingGroup: {
-      update: vi.fn().mockImplementation(({ where, data }) => Promise.resolve({ id: where.id, ...data })),
+      update: vi.fn().mockImplementation(({ where, data }) => Promise.resolve({
+        id: where.id,
+        bufferBeforeHours: slot?.bookingGroup.bufferBeforeHours ?? 1,
+        bufferAfterHours: slot?.bookingGroup.bufferAfterHours ?? 1,
+        ...data,
+      })),
       delete: vi.fn().mockResolvedValue({ id: "group_1" }),
     },
   }
@@ -109,9 +118,11 @@ async function loadRoute(
   vi.doMock("@/lib/booking/server/calendar-free-busy/google-token-cache", () => ({
     getCachedCalendarAccessToken,
   }))
+  vi.doMock("@/lib/booking/server/conflicts", () => ({ findConflictingBookings }))
+  vi.doMock("@/lib/booking/server/email", () => ({ sendBookingTimeChangedEmail }))
 
   const route = await import("./route")
-  return { ...route, prisma, deleteCalendarEvent, updateCalendarEvent, getCachedCalendarAccessToken }
+  return { ...route, prisma, deleteCalendarEvent, updateCalendarEvent, getCachedCalendarAccessToken, findConflictingBookings, sendBookingTimeChangedEmail }
 }
 
 function context(id = "slot_1") {
@@ -303,5 +314,129 @@ describe("/api/booking/[id] access control", () => {
         endTime: new Date("2099-05-18T03:30:00.000Z"),
       },
     })
+  })
+
+  it("PATCH action=resize_buffer updates before buffer for admins", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({ customerUserId: "owner_user", gcalEventId: "gcal_evt_1" }),
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "resize_buffer",
+        side: "before",
+        hours: 0.5,
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      status: "ok",
+      action: "resize_buffer",
+      bookingGroupId: "group_1",
+      side: "before",
+      hours: 0.5,
+    })
+    expect(route.prisma.bookingGroup.update).toHaveBeenCalledWith({
+      where: { id: "group_1" },
+      data: { bufferBeforeHours: 0.5 },
+    })
+    expect(route.findConflictingBookings).toHaveBeenCalledWith(
+      new Date("2099-05-18T00:30:00.000Z"),
+      FUTURE_START,
+      { excludeBookingId: "slot_1" },
+    )
+    expect(route.getCachedCalendarAccessToken).toHaveBeenCalledWith("satoshi-calendar-owner")
+    expect(route.updateCalendarEvent).toHaveBeenCalledWith({
+      calendarId: "calendar_id_test",
+      eventId: "gcal_evt_1",
+      accessToken: "access_token",
+      start: FUTURE_START.toISOString(),
+      end: FUTURE_END.toISOString(),
+      bufferBeforeHours: 0.5,
+      bufferAfterHours: 1,
+    })
+    expect(route.sendBookingTimeChangedEmail).not.toHaveBeenCalled()
+  })
+
+  it("PATCH action=resize_buffer rejects owners", async () => {
+    const route = await loadRoute(
+      { user: { id: "owner_user", email: "owner@example.com" } },
+      createSlot({ customerUserId: "owner_user" }),
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "resize_buffer",
+        side: "before",
+        hours: 0.5,
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(403)
+    expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
+  })
+
+  it("PATCH action=resize_buffer rejects negative hours", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({ customerUserId: "owner_user" }),
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "resize_buffer",
+        side: "before",
+        hours: -1,
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(400)
+    expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
+  })
+
+  it("PATCH action=resize_buffer rejects invalid side", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({ customerUserId: "owner_user" }),
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "resize_buffer",
+        side: "invalid",
+        hours: 0.5,
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(400)
+    expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
+  })
+
+  it("PATCH action=resize_buffer rejects overlaps with confirmed bookings", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({ customerUserId: "owner_user" }),
+    )
+    route.findConflictingBookings.mockResolvedValue([{ id: "slot_busy" }])
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "resize_buffer",
+        side: "after",
+        hours: 1,
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({ error: "slot_taken" })
+    expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
+    expect(route.updateCalendarEvent).not.toHaveBeenCalled()
   })
 })

@@ -93,8 +93,18 @@ type DraftEventProps = {
   draftId: string
 }
 
+type BufferEventProps = {
+  kind: "buffer"
+  side?: "before" | "after"
+  bookingId?: string
+  bookingGroupId?: string
+  bookingStart?: string
+  bookingEnd?: string
+  canEdit?: boolean
+}
+
 type AnyEventProps = {
-  kind?: "draft" | "busy"
+  kind?: "draft" | "busy" | "buffer"
   label?: string
   status?: BookingStatus
   bookingId?: string
@@ -103,6 +113,9 @@ type AnyEventProps = {
   canView?: boolean
   canEdit?: boolean
   draftId?: string
+  side?: "before" | "after"
+  bookingStart?: string
+  bookingEnd?: string
 }
 
 type DraftEvent = {
@@ -784,29 +797,47 @@ export function BookingCalendar({
       const endMs = new Date(booking.end).getTime()
       const beforeHours = booking.bufferBeforeHours
       const afterHours = booking.bufferAfterHours
+      const beforeProps: BufferEventProps = {
+        kind: "buffer",
+        side: "before",
+        bookingId: booking.id,
+        bookingGroupId: booking.bookingGroupId,
+        bookingStart: booking.start,
+        bookingEnd: booking.end,
+        canEdit: isCalendarAdmin,
+      }
+      const afterProps: BufferEventProps = {
+        kind: "buffer",
+        side: "after",
+        bookingId: booking.id,
+        bookingGroupId: booking.bookingGroupId,
+        bookingStart: booking.start,
+        bookingEnd: booking.end,
+        canEdit: isCalendarAdmin,
+      }
       bufferEvents.push({
         id: `buffer-before-${booking.id}`,
         title: `本予約前 ${beforeHours} 時間は保護領域`,
         start: new Date(startMs - toBufferMs(beforeHours)).toISOString(),
         end: booking.start,
-        display: "background",
+        ...(isCalendarAdmin ? {} : { display: "background" as const }),
         classNames: ["booking-calendar__confirmed-buffer"],
-        editable: false,
-        startEditable: false,
+        editable: isCalendarAdmin,
+        startEditable: isCalendarAdmin,
         durationEditable: false,
-        extendedProps: { kind: "buffer" },
+        extendedProps: beforeProps,
       })
       bufferEvents.push({
         id: `buffer-after-${booking.id}`,
         title: `本予約後 ${afterHours} 時間は保護領域`,
         start: booking.end,
         end: new Date(endMs + toBufferMs(afterHours)).toISOString(),
-        display: "background",
+        ...(isCalendarAdmin ? {} : { display: "background" as const }),
         classNames: ["booking-calendar__confirmed-buffer"],
-        editable: false,
+        editable: isCalendarAdmin,
         startEditable: false,
-        durationEditable: false,
-        extendedProps: { kind: "buffer" },
+        durationEditable: isCalendarAdmin,
+        extendedProps: afterProps,
       })
     }
     fullCalendarEventsSettledRef.current = true
@@ -1179,6 +1210,7 @@ export function BookingCalendar({
 
   const handleEventAllow = useCallback<AllowFunc>((span, movingEvent) => {
     const props = movingEvent?.extendedProps as AnyEventProps | undefined
+    if (props?.kind === "buffer") return isCalendarAdmin
     if (props?.status === "CONFIRMED" && !isCalendarAdmin) return false
     const allowed =
       !overlapsBlockedEvent(span.start, span.end, props?.bookingId) &&
@@ -1296,6 +1328,40 @@ export function BookingCalendar({
       arg.revert()
       return
     }
+    if (props.kind === "buffer") {
+      if (!isCalendarAdmin || !props.bookingId || !props.side || !props.bookingStart || !props.bookingEnd) {
+        arg.revert()
+        return
+      }
+      const rawHours = props.side === "before"
+        ? (new Date(props.bookingStart).getTime() - newStart.getTime()) / (60 * 60 * 1000)
+        : (newEnd.getTime() - new Date(props.bookingEnd).getTime()) / (60 * 60 * 1000)
+      const hours = Math.max(0, Math.round(rawHours * 2) / 2)
+      void (async () => {
+        try {
+          const response = await fetch(`/api/booking/${props.bookingId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "resize_buffer",
+              side: props.side,
+              hours,
+            }),
+          })
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => ({}))) as { error?: string }
+            setActionError(mapErrorCodeToJa(payload.error ?? "unknown"))
+            arg.revert()
+            return
+          }
+          refetchRemoteEvents(true)
+        } catch {
+          setActionError(mapErrorCodeToJa("unknown"))
+          arg.revert()
+        }
+      })()
+      return
+    }
     if (
       overlapsBlockedEvent(newStart, newEnd, props.bookingId) ||
       overlapsConfirmedBufferZone(newStart, newEnd, props.bookingId)
@@ -1329,7 +1395,7 @@ export function BookingCalendar({
       return
     }
     arg.revert()
-  }, [isCalendarAdmin, overlapsBlockedEvent, overlapsConfirmedBufferZone, setDraftPreviewValue, updateDraftRange])
+  }, [isCalendarAdmin, overlapsBlockedEvent, overlapsConfirmedBufferZone, refetchRemoteEvents, setDraftPreviewValue, updateDraftRange])
 
   const dayCellClassNames = (arg: DayCellContentArg): string[] => {
     const classes: string[] = []
