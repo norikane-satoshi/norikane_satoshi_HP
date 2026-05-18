@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
 import { findAccessibleSlot, type AccessibleBooking } from "@/lib/booking/server/edit-access"
+import { sendBookingTimeChangedEmail } from "@/lib/booking/server/email"
 import { getCachedCalendarAccessToken } from "@/lib/booking/server/calendar-free-busy/google-token-cache"
 import {
   CALENDAR_TOKEN_USER_ID,
@@ -43,7 +44,11 @@ function nullable(value: string): string | null {
   return trimmed === "" ? null : trimmed
 }
 
-async function getAccessibleBooking(id: string) {
+type AccessibleBookingResult =
+  | { response: NextResponse; booking?: undefined; userId?: undefined }
+  | { response?: undefined; booking: AccessibleBooking; userId: string }
+
+async function getAccessibleBooking(id: string): Promise<AccessibleBookingResult> {
   const session = await auth()
   const userId = session?.user?.id
   if (!userId) {
@@ -55,7 +60,7 @@ async function getAccessibleBooking(id: string) {
     return { response: NextResponse.json({ error: "not_found" }, { status: 404 }) }
   }
 
-  return { booking }
+  return { booking, userId }
 }
 
 function assertMutable(booking: AccessibleBooking) {
@@ -140,6 +145,7 @@ export async function PATCH(
   if (result.response) return result.response
 
   const booking = result.booking
+  const userId = result.userId
   const mutableResponse = assertMutable(booking)
   if (mutableResponse) return mutableResponse
 
@@ -234,6 +240,29 @@ export async function PATCH(
       endTime: new Date(end),
     },
   })
+
+  if (booking.scope === "admin" && booking.details.customerUserId !== userId && booking.details.contactEmail) {
+    const oldSlot = booking.timeSlots.find((slot) => slot.id === id)
+    if (oldSlot) {
+      try {
+        await sendBookingTimeChangedEmail({
+          to: booking.details.contactEmail,
+          projectTitle: booking.details.projectTitle,
+          oldStart: oldSlot.startTime,
+          oldEnd: oldSlot.endTime,
+          newStart: start,
+          newEnd: end,
+        })
+      } catch (error) {
+        console.warn(
+          `[booking move email failed] bookingId=${id} error=${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+    } else {
+      console.warn(`[booking move email skipped] bookingId=${id} error=old_slot_not_found`)
+    }
+  }
+
   return NextResponse.json({
     status: "ok",
     action: "move",

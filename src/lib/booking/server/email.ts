@@ -14,6 +14,15 @@ export type BookingEmailArgs = {
   estimatedDuration?: string
 }
 
+export type BookingTimeChangedEmailArgs = {
+  to: string
+  projectTitle: string
+  oldStart: string | Date
+  oldEnd: string | Date
+  newStart: string | Date
+  newEnd: string | Date
+}
+
 const SITE_URL = "https://norikane.studio"
 const SHOP_NAME = "のりかね映像設計室"
 const DEFAULT_FROM_EMAIL = "noreply@norikane.studio"
@@ -72,7 +81,7 @@ function paragraphsToHtml(lines: string[]): string {
 }
 
 async function sendBookingEmail(args: {
-  tag: "confirmed"
+  tag: "confirmed" | "time_changed"
   to: string
   subject: string
   lines: string[]
@@ -113,6 +122,27 @@ export async function sendBookingConfirmedEmail(args: BookingEmailArgs): Promise
       `作業内容:\n${formatWork(args)}`,
       "",
       "変更やキャンセルのご相談がある場合は、このメールへの返信でお知らせください。",
+      ...signatureLines(),
+    ],
+  })
+}
+
+export async function sendBookingTimeChangedEmail(
+  args: BookingTimeChangedEmailArgs,
+): Promise<BookingEmailResult> {
+  const subject = `【予約時間変更】${args.projectTitle} のご予約時間を変更しました`
+  return sendBookingEmail({
+    tag: "time_changed",
+    to: args.to,
+    subject,
+    lines: [
+      "ご予約いただいている案件の予約時間を変更しました。",
+      "",
+      `案件名: ${args.projectTitle}`,
+      `変更前: ${formatSchedule(args.oldStart, args.oldEnd)}`,
+      `変更後: ${formatSchedule(args.newStart, args.newEnd)}`,
+      "",
+      "ご都合が合わない場合は、このメールへの返信でお知らせください。",
       ...signatureLines(),
     ],
   })
