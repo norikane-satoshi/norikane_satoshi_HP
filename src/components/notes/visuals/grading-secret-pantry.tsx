@@ -234,54 +234,59 @@ function PreviewLayers({
 }) {
   return (
     <g>
-      <rect
+      <image
         id="sp-step-0"
+        href="/notes-assets/secret-pantry-step-0.png"
         x={PREVIEW_X}
         y={PREVIEW_Y}
         width={PREVIEW_W}
         height={PREVIEW_H}
-        rx={20}
-        fill="url(#sp-step-0-fill)"
+        preserveAspectRatio="xMidYMid slice"
+        clipPath="url(#sp-preview-clip)"
         opacity={baseOpacity(t, reducedMotion)}
       />
-      <rect
+      <image
         id="sp-step-1"
+        href="/notes-assets/secret-pantry-step-1.png"
         x={PREVIEW_X}
         y={PREVIEW_Y}
         width={PREVIEW_W}
         height={PREVIEW_H}
-        rx={20}
-        fill="url(#sp-step-1-fill)"
+        preserveAspectRatio="xMidYMid slice"
+        clipPath="url(#sp-preview-clip)"
         opacity={layerOpacity(1, t, reducedMotion)}
       />
-      <rect
+      <image
         id="sp-step-2"
+        href="/notes-assets/secret-pantry-step-2.png"
         x={PREVIEW_X}
         y={PREVIEW_Y}
         width={PREVIEW_W}
         height={PREVIEW_H}
-        rx={20}
-        fill="url(#sp-step-2-fill)"
+        preserveAspectRatio="xMidYMid slice"
+        clipPath="url(#sp-preview-clip)"
         opacity={layerOpacity(2, t, reducedMotion)}
       />
-      <rect
+      <image
         id="sp-step-3"
+        href="/notes-assets/secret-pantry-step-3.png"
         x={PREVIEW_X}
         y={PREVIEW_Y}
         width={PREVIEW_W}
         height={PREVIEW_H}
-        rx={20}
-        fill="url(#sp-step-3-fill)"
+        preserveAspectRatio="xMidYMid slice"
+        clipPath="url(#sp-preview-clip)"
         opacity={layerOpacity(3, t, reducedMotion)}
       />
-      <rect
+      <image
         id="sp-step-4"
+        href="/notes-assets/secret-pantry-step-4.png"
         x={PREVIEW_X}
         y={PREVIEW_Y}
         width={PREVIEW_W}
         height={PREVIEW_H}
-        rx={20}
-        fill="url(#sp-step-4-fill)"
+        preserveAspectRatio="xMidYMid slice"
+        clipPath="url(#sp-preview-clip)"
         opacity={layerOpacity(4, t, reducedMotion)}
       />
     </g>
@@ -388,6 +393,9 @@ export default function GradingSecretPantry({
       <defs>
         <clipPath id="sp-bottle-clip">
           <path d="M 28 52 C 28 36, 44 31, 54 24 L 54 9 L 86 9 L 86 24 C 96 31, 112 36, 112 52 L 112 118 C 112 132, 99 142, 70 142 C 41 142, 28 132, 28 118 Z" />
+        </clipPath>
+        <clipPath id="sp-preview-clip">
+          <rect x={PREVIEW_X} y={PREVIEW_Y} width={PREVIEW_W} height={PREVIEW_H} rx={20} />
         </clipPath>
         <linearGradient id="sp-step-0-fill" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="rgb(176,182,187)" />
