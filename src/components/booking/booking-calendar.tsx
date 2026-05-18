@@ -1304,7 +1304,7 @@ export function BookingCalendar({
           revert()
           return
         }
-        refetchRemoteEvents()
+        refetchRemoteEvents(true)
       } catch {
         setActionError(mapErrorCodeToJa("unknown"))
         revert()
@@ -1636,7 +1636,7 @@ export function BookingCalendar({
         return
       }
       setMoveCopyPopup(null)
-      refetchRemoteEvents()
+      refetchRemoteEvents(true)
     },
     [moveCopyPopup, refetchRemoteEvents],
   )
@@ -1660,7 +1660,7 @@ export function BookingCalendar({
         return
       }
       setAdminMoveConfirm(null)
-      refetchRemoteEvents()
+      refetchRemoteEvents(true)
     },
     [adminMoveConfirm, refetchRemoteEvents],
   )

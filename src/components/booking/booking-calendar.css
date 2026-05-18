@@ -550,8 +550,20 @@
   display: none;
 }
 
+.booking-calendar .fc-event.booking-calendar__confirmed-buffer--before .fc-event-resizer-start {
+  display: block;
+  pointer-events: auto;
+  z-index: 2;
+}
+
 .booking-calendar .fc-event.booking-calendar__confirmed-buffer--after .fc-event-resizer-start {
   display: none;
+}
+
+.booking-calendar .fc-event.booking-calendar__confirmed-buffer--after .fc-event-resizer-end {
+  display: block;
+  pointer-events: auto;
+  z-index: 2;
 }
 
 .booking-calendar .fc-event.booking-calendar__busy {

@@ -44,11 +44,12 @@ import {
   invalidateCalendarFreeBusyCacheForUser,
 } from "@/lib/booking/server/calendar-free-busy/free-busy"
 
-function request(teamId?: string) {
+function request(teamId?: string, refresh?: string) {
   const url = new URL("http://localhost/api/calendar/free-busy")
   url.searchParams.set("start", "2026-06-01T00:00:00.000Z")
   url.searchParams.set("end", "2026-06-30T00:00:00.000Z")
   if (teamId) url.searchParams.set("teamId", teamId)
+  if (refresh) url.searchParams.set("refresh", refresh)
   return new NextRequest(url)
 }
 
@@ -184,6 +185,19 @@ describe("GET /api/calendar/free-busy", () => {
     expect(mocks.refreshCalendarAccessToken).toHaveBeenCalledTimes(1)
     expect(mocks.listBusyEventsWithBuffer).toHaveBeenCalledTimes(1)
     expect(second.headers.get("server-timing")).toContain('cache;desc="hit"')
+  })
+
+  it("bypasses the in-memory cache when refresh nonce is present", async () => {
+    mockCalendar()
+
+    const first = await GET(request())
+    const second = await GET(request(undefined, "nonce_1"))
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(mocks.prisma.bookingTimeSlot.findMany).toHaveBeenCalledTimes(2)
+    expect(mocks.listBusyEventsWithBuffer).toHaveBeenCalledTimes(2)
+    expect(second.headers.get("server-timing")).toContain('cache;desc="bypass"')
   })
 
   it("re-fetches after the user cache is invalidated", async () => {

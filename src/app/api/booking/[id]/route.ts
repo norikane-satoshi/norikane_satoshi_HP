@@ -4,6 +4,7 @@ import { auth } from "@/auth"
 import { findConflictingBookings } from "@/lib/booking/server/conflicts"
 import { findAccessibleSlot, type AccessibleBooking } from "@/lib/booking/server/edit-access"
 import { sendBookingTimeChangedEmail } from "@/lib/booking/server/email"
+import { invalidateCalendarFreeBusyCacheForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
 import { getCachedCalendarAccessToken } from "@/lib/booking/server/calendar-free-busy/google-token-cache"
 import {
   CALENDAR_TOKEN_USER_ID,
@@ -43,6 +44,13 @@ function isValidDateRange(start: unknown, end: unknown): start is string {
 function nullable(value: string): string | null {
   const trimmed = value.trim()
   return trimmed === "" ? null : trimmed
+}
+
+function invalidateBookingFreeBusyCaches(booking: AccessibleBooking, viewerUserId: string): void {
+  invalidateCalendarFreeBusyCacheForUser(viewerUserId, booking.details.teamId)
+  if (booking.details.customerUserId !== viewerUserId) {
+    invalidateCalendarFreeBusyCacheForUser(booking.details.customerUserId, booking.details.teamId)
+  }
 }
 
 type AccessibleBookingResult =
@@ -263,6 +271,8 @@ export async function PATCH(
       }
     }
 
+    invalidateBookingFreeBusyCaches(booking, userId)
+
     return NextResponse.json({
       status: "ok",
       action: "resize_buffer",
@@ -326,6 +336,8 @@ export async function PATCH(
       console.warn(`[booking move email skipped] bookingId=${id} error=old_slot_not_found`)
     }
   }
+
+  invalidateBookingFreeBusyCaches(booking, userId)
 
   return NextResponse.json({
     status: "ok",

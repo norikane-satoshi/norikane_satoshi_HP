@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
   const timeMin = request.nextUrl.searchParams.get("timeMin") ?? request.nextUrl.searchParams.get("start")
   const timeMax = request.nextUrl.searchParams.get("timeMax") ?? request.nextUrl.searchParams.get("end")
   const teamId = request.nextUrl.searchParams.get("teamId")
+  const useCache = !request.nextUrl.searchParams.has("refresh")
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   const session = await auth()
   const userId = session?.user?.id
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
       timeMax,
       calendarId,
       isCalendarAdmin,
+      useCache,
     })
     const serverTiming = [
       `db;dur=${result.timings.db}`,

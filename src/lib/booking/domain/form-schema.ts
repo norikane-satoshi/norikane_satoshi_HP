@@ -44,6 +44,19 @@ export function createDefaultBookingFormData(sessionEmail: string): BookingFormD
   }
 }
 
+export function mergeBookingFormData(
+  current: BookingFormData,
+  next: Partial<BookingFormData>,
+  sessionEmail: string,
+): BookingFormData {
+  return {
+    ...current,
+    ...next,
+    sessionEmail,
+    contactEmail: next.contactEmail ?? current.contactEmail,
+  }
+}
+
 export function getSlotDurationMinutes(slot: BookingSlot): number {
   const start = new Date(slot.start).getTime()
   const end = new Date(slot.end).getTime()

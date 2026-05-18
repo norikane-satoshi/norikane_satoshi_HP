@@ -15,6 +15,7 @@ import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar/server"
 import { clearDraft, hasDraft, loadDraft, saveDraft } from "@/lib/booking/client/draft-storage"
 import {
   createDefaultBookingFormData,
+  mergeBookingFormData,
   type BookingFormData,
   type BookingSlot,
   type BookingStep,
@@ -228,6 +229,10 @@ export function BookingSection({
     goToStep("calendar")
   }
 
+  const handleFormChange = useCallback((next: Partial<BookingFormData>) => {
+    setFormData((current) => mergeBookingFormData(current, next, userEmail))
+  }, [userEmail])
+
   const handleSubmitBooking = async () => {
     if (selectedSlots.length === 0 || submitting) return
 
@@ -296,7 +301,7 @@ export function BookingSection({
         <BookingForm
           formData={formData}
           selectedSlots={selectedSlots}
-          onChange={setFormData}
+          onChange={handleFormChange}
           onValidityChange={setFormValid}
           onReselectDate={handleReselectDate}
         />

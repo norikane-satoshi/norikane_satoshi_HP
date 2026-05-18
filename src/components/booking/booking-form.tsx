@@ -16,7 +16,7 @@ import {
 type BookingFormProps = {
   formData: BookingFormData
   selectedSlots: BookingSlot[]
-  onChange: (data: BookingFormData) => void
+  onChange: (data: Partial<BookingFormData>) => void
   onValidityChange: (isValid: boolean) => void
   onReselectDate: (slot?: BookingSlot) => void
 }
@@ -55,7 +55,7 @@ export function BookingForm({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/incompatible-library
-    const subscription = watch((value) => onChange(value as BookingFormData))
+    const subscription = watch((value) => onChange(value))
     return () => subscription.unsubscribe()
   }, [onChange, watch])
 

@@ -6,14 +6,30 @@ type CapturedFullCalendarProps = Record<string, unknown> & {
   eventDrop: (arg: unknown) => void
 }
 
-const fullCalendar = vi.hoisted((): { props: CapturedFullCalendarProps | null } => ({ props: null }))
-
-vi.mock("@fullcalendar/react", () => ({
-  default: (props: CapturedFullCalendarProps) => {
-    fullCalendar.props = props
-    return null
-  },
+const fullCalendar = vi.hoisted((): {
+  props: CapturedFullCalendarProps | null
+  refetchRemoteEvents: ReturnType<typeof vi.fn>
+} => ({
+  props: null,
+  refetchRemoteEvents: vi.fn(),
 }))
+
+vi.mock("@fullcalendar/react", async () => {
+  const ReactModule = await vi.importActual<typeof import("react")>("react")
+  return {
+    default: ReactModule.forwardRef((props: Record<string, unknown>, ref: React.ForwardedRef<unknown>) => {
+      fullCalendar.props = props as CapturedFullCalendarProps
+      const api = {
+        getApi: () => ({
+          getEventSourceById: (id: string) => (id === "remote-events" ? { refetch: fullCalendar.refetchRemoteEvents } : null),
+        }),
+      }
+      if (typeof ref === "function") ref(api)
+      else if (ref) ref.current = api
+      return null
+    }),
+  }
+})
 vi.mock("@fullcalendar/daygrid", () => ({ default: {} }))
 vi.mock("@fullcalendar/interaction", () => ({ default: {} }))
 vi.mock("@fullcalendar/timegrid", () => ({ default: {} }))
@@ -65,6 +81,7 @@ function eventDropArg(customerUserId: string) {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.clearAllMocks()
+  fullCalendar.refetchRemoteEvents.mockClear()
 })
 
 describe("BookingCalendar admin move confirmation", () => {
@@ -89,6 +106,7 @@ describe("BookingCalendar admin move confirmation", () => {
         end: "2099-05-18T03:00:00.000Z",
       }),
     })
+    expect(fullCalendar.refetchRemoteEvents).toHaveBeenCalledTimes(1)
   })
 
   it("keeps the confirmation path for another user's confirmed booking", () => {

@@ -86,6 +86,7 @@ async function loadRoute(
     ? vi.fn().mockImplementation(options.updateCalendarEventImpl)
     : vi.fn().mockResolvedValue(undefined)
   const getCachedCalendarAccessToken = vi.fn().mockResolvedValue({ token: "access_token", refreshMs: 0 })
+  const invalidateCalendarFreeBusyCacheForUser = vi.fn()
   const findConflictingBookings = vi.fn().mockResolvedValue([])
   const sendBookingTimeChangedEmail = vi.fn().mockResolvedValue(undefined)
   const prisma = {
@@ -118,11 +119,14 @@ async function loadRoute(
   vi.doMock("@/lib/booking/server/calendar-free-busy/google-token-cache", () => ({
     getCachedCalendarAccessToken,
   }))
+  vi.doMock("@/lib/booking/server/calendar-free-busy/free-busy", () => ({
+    invalidateCalendarFreeBusyCacheForUser,
+  }))
   vi.doMock("@/lib/booking/server/conflicts", () => ({ findConflictingBookings }))
   vi.doMock("@/lib/booking/server/email", () => ({ sendBookingTimeChangedEmail }))
 
   const route = await import("./route")
-  return { ...route, prisma, deleteCalendarEvent, updateCalendarEvent, getCachedCalendarAccessToken, findConflictingBookings, sendBookingTimeChangedEmail }
+  return { ...route, prisma, deleteCalendarEvent, updateCalendarEvent, getCachedCalendarAccessToken, invalidateCalendarFreeBusyCacheForUser, findConflictingBookings, sendBookingTimeChangedEmail }
 }
 
 function context(id = "slot_1") {
@@ -264,6 +268,7 @@ describe("/api/booking/[id] access control", () => {
         endTime: new Date("2099-05-18T03:30:00.000Z"),
       },
     })
+    expect(route.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("owner_user", "team_1")
   })
 
   it("PATCH action=move lets admins move customer bookings and emails the customer", async () => {
@@ -297,6 +302,8 @@ describe("/api/booking/[id] access control", () => {
       newStart: "2099-05-18T02:00:00.000Z",
       newEnd: "2099-05-18T03:30:00.000Z",
     })
+    expect(route.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("admin_user", "team_1")
+    expect(route.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("owner_user", "team_1")
   })
 
   it("PATCH action=move returns 502 and does not update DB when GCal update fails", async () => {
@@ -391,6 +398,8 @@ describe("/api/booking/[id] access control", () => {
       bufferBeforeHours: 0.5,
       bufferAfterHours: 1,
     })
+    expect(route.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("admin_user", "team_1")
+    expect(route.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("owner_user", "team_1")
     expect(route.sendBookingTimeChangedEmail).not.toHaveBeenCalled()
   })
 

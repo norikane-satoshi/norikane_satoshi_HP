@@ -187,6 +187,19 @@ describe("POST /api/booking", () => {
     expect(mocks.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("user_1", "team_1")
   })
 
+  it("persists the submitted contact email on bookingGroup creation", async () => {
+    mockHappyPath()
+
+    const response = await POST(request(validBooking({ contactEmail: "customer-contact@example.com" })))
+
+    expect(response.status).toBe(200)
+    expect(mocks.prisma.bookingGroup.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ contactEmail: "customer-contact@example.com" }),
+      }),
+    )
+  })
+
   it("returns invalid_request for malformed input", async () => {
     mockHappyPath()
 
