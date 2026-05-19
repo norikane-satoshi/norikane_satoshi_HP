@@ -30,7 +30,7 @@ export async function GET() {
     const cookieStore = await cookies()
     cookieStore.set(CALENDAR_OAUTH_STATE_COOKIE, state, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: STATE_COOKIE_MAX_AGE_SEC,
