@@ -13,6 +13,7 @@ type SlotInput = {
   teamMemberUserIds?: string[]
   startTime?: Date
   gcalEventId?: string | null
+  timeSlots?: { id: string; startTime: Date; endTime: Date; status?: string }[]
 }
 
 const ORIGINAL_ENV = { ...process.env }
@@ -47,7 +48,7 @@ function createSlot(input: SlotInput = {}) {
       team: {
         members: (input.teamMemberUserIds ?? []).map((userId) => ({ userId })),
       },
-      timeSlots: [
+      timeSlots: input.timeSlots ?? [
         {
           id: "slot_1",
           startTime,
@@ -69,6 +70,7 @@ function request(method: string, path = "/api/booking/slot_1", body?: unknown) {
 
 type LoadRouteOptions = {
   updateCalendarEventImpl?: (...args: unknown[]) => Promise<unknown>
+  sendBookingTimeChangedEmailImpl?: (...args: unknown[]) => Promise<unknown>
 }
 
 async function loadRoute(
@@ -88,7 +90,9 @@ async function loadRoute(
   const getCachedCalendarAccessToken = vi.fn().mockResolvedValue({ token: "access_token", refreshMs: 0 })
   const invalidateCalendarFreeBusyCacheForUser = vi.fn()
   const findConflictingBookings = vi.fn().mockResolvedValue([])
-  const sendBookingTimeChangedEmail = vi.fn().mockResolvedValue(undefined)
+  const sendBookingTimeChangedEmail = options.sendBookingTimeChangedEmailImpl
+    ? vi.fn().mockImplementation(options.sendBookingTimeChangedEmailImpl)
+    : vi.fn().mockResolvedValue(undefined)
   const prisma = {
     bookingTimeSlot: {
       findUnique: vi.fn().mockResolvedValue(slot),
@@ -186,6 +190,18 @@ describe("/api/booking/[id] access control", () => {
     expect(route.prisma.bookingGroup.delete).toHaveBeenCalledWith({ where: { id: "group_1" } })
   })
 
+  it("rejects hard DELETE mode for owners", async () => {
+    const route = await loadRoute(
+      { user: { id: "owner_user", email: "owner@example.com" } },
+      createSlot({ customerUserId: "owner_user" }),
+    )
+
+    const response = await route.DELETE(request("DELETE", "/api/booking/slot_1?mode=hard"), context())
+
+    expect(response.status).toBe(403)
+    expect(route.prisma.bookingGroup.delete).not.toHaveBeenCalled()
+  })
+
   it("locks PATCH and DELETE for past bookings when the user is not admin", async () => {
     const route = await loadRoute(
       { user: { id: "owner_user", email: "owner@example.com" } },
@@ -236,6 +252,38 @@ describe("/api/booking/[id] access control", () => {
         memo: "Updated Memo",
       },
     })
+  })
+
+  it("rejects invalid PATCH action payloads", async () => {
+    const route = await loadRoute(
+      { user: { id: "owner_user", email: "owner@example.com" } },
+      createSlot({ customerUserId: "owner_user" }),
+    )
+
+    const response = await route.PATCH(request("PATCH", "/api/booking/slot_1", { action: "unknown" }), context())
+
+    expect(response.status).toBe(400)
+    expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
+  })
+
+  it("rejects blank projectTitle and contactName detail updates", async () => {
+    const route = await loadRoute(
+      { user: { id: "owner_user", email: "owner@example.com" } },
+      createSlot({ customerUserId: "owner_user" }),
+    )
+
+    const blankTitle = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", { action: "update_details", projectTitle: "  " }),
+      context(),
+    )
+    const blankName = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", { action: "update_details", contactName: "  " }),
+      context(),
+    )
+
+    expect(blankTitle.status).toBe(400)
+    expect(blankName.status).toBe(400)
+    expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
   })
 
   it("PATCH action=move updates GCal then DB when gcalEventId is set", async () => {
@@ -305,6 +353,63 @@ describe("/api/booking/[id] access control", () => {
     })
     expect(route.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("admin_user", "team_1")
     expect(route.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("owner_user", "team_1")
+  })
+
+  it("PATCH action=move keeps the DB update when customer email notification fails", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({ customerUserId: "owner_user", gcalEventId: "gcal_evt_1" }),
+      { sendBookingTimeChangedEmailImpl: () => Promise.reject(new Error("smtp_down")) },
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "move",
+        start: "2099-05-18T02:00:00.000Z",
+        end: "2099-05-18T03:30:00.000Z",
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(200)
+    expect(route.sendBookingTimeChangedEmail).toHaveBeenCalledTimes(1)
+    expect(route.prisma.bookingTimeSlot.update).toHaveBeenCalledWith({
+      where: { id: "slot_1" },
+      data: {
+        startTime: new Date("2099-05-18T02:00:00.000Z"),
+        endTime: new Date("2099-05-18T03:30:00.000Z"),
+      },
+    })
+  })
+
+  it("PATCH action=move skips customer email when the original slot is absent", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({
+        customerUserId: "owner_user",
+        gcalEventId: "gcal_evt_1",
+        timeSlots: [{ id: "slot_other", startTime: FUTURE_START, endTime: FUTURE_END, status: "CONFIRMED" }],
+      }),
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "move",
+        start: "2099-05-18T02:00:00.000Z",
+        end: "2099-05-18T03:30:00.000Z",
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(200)
+    expect(route.sendBookingTimeChangedEmail).not.toHaveBeenCalled()
+    expect(route.prisma.bookingTimeSlot.update).toHaveBeenCalledWith({
+      where: { id: "slot_1" },
+      data: {
+        startTime: new Date("2099-05-18T02:00:00.000Z"),
+        endTime: new Date("2099-05-18T03:30:00.000Z"),
+      },
+    })
   })
 
   it("PATCH action=move returns 502 and does not update DB when GCal update fails", async () => {
@@ -461,6 +566,47 @@ describe("/api/booking/[id] access control", () => {
     expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
   })
 
+  it("PATCH action=resize_buffer rejects non-numeric hours", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({ customerUserId: "owner_user" }),
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "resize_buffer",
+        side: "before",
+        hours: "1",
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(400)
+    expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
+  })
+
+  it("PATCH action=resize_buffer rejects when the current slot is absent", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({
+        customerUserId: "owner_user",
+        timeSlots: [{ id: "slot_other", startTime: FUTURE_START, endTime: FUTURE_END, status: "CONFIRMED" }],
+      }),
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "resize_buffer",
+        side: "before",
+        hours: 0.5,
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(400)
+    expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
+  })
+
   it("PATCH action=resize_buffer rejects overlaps with confirmed bookings", async () => {
     const route = await loadRoute(
       { user: { id: "admin_user", email: "admin@example.com" } },
@@ -481,5 +627,32 @@ describe("/api/booking/[id] access control", () => {
     await expect(response.json()).resolves.toEqual({ error: "slot_taken" })
     expect(route.prisma.bookingGroup.update).not.toHaveBeenCalled()
     expect(route.updateCalendarEvent).not.toHaveBeenCalled()
+  })
+
+  it("PATCH action=resize_buffer returns 502 when GCal update fails", async () => {
+    const route = await loadRoute(
+      { user: { id: "admin_user", email: "admin@example.com" } },
+      createSlot({ customerUserId: "owner_user", gcalEventId: "gcal_evt_1" }),
+      { updateCalendarEventImpl: () => Promise.reject(new Error("gcal_down")) },
+    )
+
+    const response = await route.PATCH(
+      request("PATCH", "/api/booking/slot_1", {
+        action: "resize_buffer",
+        side: "after",
+        hours: 0.5,
+      }),
+      context(),
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(502)
+    expect(payload.error).toBe("calendar_update_failed")
+    expect(route.prisma.bookingGroup.update).toHaveBeenCalledWith({
+      where: { id: "group_1" },
+      data: { bufferAfterHours: 0.5 },
+    })
+    expect(route.updateCalendarEvent).toHaveBeenCalledTimes(1)
+    expect(route.invalidateCalendarFreeBusyCacheForUser).not.toHaveBeenCalled()
   })
 })
