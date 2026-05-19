@@ -26,14 +26,12 @@ import { createCalendarEvent } from "@/lib/google-calendar/server"
 
 const baseInput = {
   calendarId: "primary",
-  summary: "【予約確定】Color grading / Satoshi",
+  summary: "【予約確定】Color grading",
   description: "案件名: Color grading\n会社名: NCS",
   start: "2026-06-10T01:00:00.000Z",
   end: "2026-06-10T02:00:00.000Z",
   colorId: "9",
   accessToken: "ya29.access-token",
-  contactName: "Satoshi Norikane",
-  companyName: "NCS Grading",
 }
 
 describe("createCalendarEvent", () => {
@@ -45,7 +43,7 @@ describe("createCalendarEvent", () => {
     process.env.GOOGLE_CALENDAR_REDIRECT_URI = "http://localhost/callback"
   })
 
-  it("stamps extendedProperties.private with source/customer_name/customer_company", async () => {
+  it("stamps extendedProperties.private with source only (no customer PII)", async () => {
     mocks.insert.mockResolvedValue({ data: { id: "evt-1" } })
 
     await createCalendarEvent(baseInput)
@@ -53,8 +51,8 @@ describe("createCalendarEvent", () => {
     expect(mocks.insert).toHaveBeenCalledTimes(1)
     const args = mocks.insert.mock.calls[0][0]
     expect(args.requestBody.extendedProperties.private.source).toBe("hp-booking")
-    expect(args.requestBody.extendedProperties.private.customer_name).toBe(baseInput.contactName)
-    expect(args.requestBody.extendedProperties.private.customer_company).toBe(baseInput.companyName)
+    expect(args.requestBody.extendedProperties.private.customer_name).toBeUndefined()
+    expect(args.requestBody.extendedProperties.private.customer_company).toBeUndefined()
   })
 
   it("preserves summary, description, colorId, start, end (regression)", async () => {

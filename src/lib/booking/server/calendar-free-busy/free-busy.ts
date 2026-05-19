@@ -172,11 +172,20 @@ export async function getCalendarFreeBusyForUser(input: {
     throw error
   }
 
+  const scrubbedBusy = isCalendarAdmin
+    ? busy
+    : busy.map((slot) => ({
+        ...slot,
+        summary: null,
+        bufferBeforeHours: null,
+        bufferAfterHours: null,
+      }))
+
   const bookingTimePairs = new Set(
     bookings.map((booking) => `${new Date(booking.start).getTime()}|${new Date(booking.end).getTime()}`),
   )
   const value = {
-    busy: busy.filter(
+    busy: scrubbedBusy.filter(
       (slot) => !bookingTimePairs.has(`${new Date(slot.start).getTime()}|${new Date(slot.end).getTime()}`),
     ),
     bookings,

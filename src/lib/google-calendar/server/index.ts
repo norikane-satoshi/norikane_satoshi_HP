@@ -35,8 +35,6 @@ export type CalendarEventWriteInput = {
   end: string
   colorId: string
   accessToken: string
-  contactName: string
-  companyName: string
 }
 
 export type CalendarEventUpdateInput = {
@@ -103,12 +101,13 @@ export function createCalendarOAuthClient() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 }
 
-export function getCalendarAuthUrl(): string {
+export function getCalendarAuthUrl(state: string): string {
   const oauth2Client = createCalendarOAuthClient()
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
     scope: CALENDAR_SCOPES,
+    state,
   })
 }
 
@@ -274,8 +273,6 @@ export async function createCalendarEvent(input: CalendarEventWriteInput): Promi
       extendedProperties: {
         private: {
           source: "hp-booking",
-          customer_name: input.contactName,
-          customer_company: input.companyName,
         },
       },
     },

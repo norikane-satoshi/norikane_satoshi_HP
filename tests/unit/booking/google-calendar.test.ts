@@ -74,10 +74,11 @@ describe("google-calendar helpers", () => {
   it("builds the Google Calendar consent URL", () => {
     mocks.generateAuthUrl.mockReturnValue("https://accounts.google.com/o/oauth2/v2/auth")
 
-    expect(getCalendarAuthUrl()).toBe("https://accounts.google.com/o/oauth2/v2/auth")
+    expect(getCalendarAuthUrl("state_token_value")).toBe("https://accounts.google.com/o/oauth2/v2/auth")
     expect(mocks.generateAuthUrl).toHaveBeenCalledWith(expect.objectContaining({
       access_type: "offline",
       prompt: "consent",
+      state: "state_token_value",
       scope: expect.arrayContaining([
         "https://www.googleapis.com/auth/calendar.freebusy",
         "https://www.googleapis.com/auth/calendar.events",

@@ -40,7 +40,7 @@ function createDescription(input: BookingApiInput): string {
 }
 
 function createSummary(input: BookingApiInput): string {
-  return `【予約確定】${input.projectTitle} / ${input.contactName}`
+  return `【予約確定】${input.projectTitle}`
 }
 
 function createBookingEmailArgs(input: BookingApiInput, to: string): BookingEmailArgs {
@@ -215,8 +215,6 @@ export async function POST(request: NextRequest) {
         end: primarySlot.end,
         colorId: "9",
         accessToken,
-        contactName: input.contactName,
-        companyName: input.companyName ?? "",
       })
       gcalEventId = event.id ?? null
 
