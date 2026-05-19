@@ -483,8 +483,15 @@ function formatTimeMinutes(minutes: number): string {
   return `${String(hours).padStart(2, "0")}:${String(restMinutes).padStart(2, "0")}:00`
 }
 
-export function recomputeTimeRangeBounds(slots: { start: string; end: string }[]): { slotMinTime: string; slotMaxTime: string } {
-  if (slots.length === 0) {
+export function recomputeTimeRangeBounds(
+  slots: { start: string; end: string }[],
+  visibleRange?: { start: Date; end: Date },
+): { slotMinTime: string; slotMaxTime: string } {
+  const filteredSlots = visibleRange
+    ? slots.filter((slot) => new Date(slot.start).getTime() < visibleRange.end.getTime() && new Date(slot.end).getTime() > visibleRange.start.getTime())
+    : slots
+
+  if (filteredSlots.length === 0) {
     return {
       slotMinTime: formatTimeMinutes(BASE_SLOT_MIN_MINUTES),
       slotMaxTime: formatTimeMinutes(BASE_SLOT_MAX_MINUTES),
@@ -493,7 +500,7 @@ export function recomputeTimeRangeBounds(slots: { start: string; end: string }[]
 
   const allMinutes: number[] = []
 
-  for (const slot of slots) {
+  for (const slot of filteredSlots) {
     const startDate = new Date(slot.start)
     const endDate = new Date(slot.end)
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) continue
@@ -727,7 +734,10 @@ export function BookingCalendar({
   }, [drafts, focusSlot])
 
   const applyDynamicTimeRangeBounds = useCallback((extraSlots: { start: string; end: string }[] = []) => {
-    const bounds = recomputeTimeRangeBounds(getReservationTimeRangeSlots(extraSlots))
+    const calendarApi = calendarRef.current?.getApi()
+    const view = calendarApi?.view
+    const visibleRange = view?.activeStart && view?.activeEnd ? { start: view.activeStart, end: view.activeEnd } : undefined
+    const bounds = recomputeTimeRangeBounds(getReservationTimeRangeSlots(extraSlots), visibleRange)
     setSlotMinTime(bounds.slotMinTime)
     setSlotMaxTime(bounds.slotMaxTime)
   }, [getReservationTimeRangeSlots])
@@ -1977,6 +1987,7 @@ export function BookingCalendar({
               eventSources={eventSources}
               lazyFetching
               loading={handleFullCalendarLoading}
+              datesSet={() => applyDynamicTimeRangeBounds()}
               viewDidMount={handleFullCalendarViewDidMount}
               eventContent={renderEventContent}
               eventDidMount={handleEventDidMount}
