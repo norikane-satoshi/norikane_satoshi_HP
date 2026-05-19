@@ -487,28 +487,39 @@ export function recomputeTimeRangeBounds(
   slots: { start: string; end: string }[],
   visibleRange?: { start: Date; end: Date },
 ): { slotMinTime: string; slotMaxTime: string } {
-  const filteredSlots = visibleRange
-    ? slots.filter((slot) => new Date(slot.start).getTime() < visibleRange.end.getTime() && new Date(slot.end).getTime() > visibleRange.start.getTime())
-    : slots
+  const allMinutes: number[] = []
 
-  if (filteredSlots.length === 0) {
+  for (const slot of slots) {
+    const startDate = new Date(slot.start)
+    const endDate = new Date(slot.end)
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) continue
+    if (endDate.getTime() <= startDate.getTime()) continue
+
+    const clipStart = visibleRange
+      ? new Date(Math.max(startDate.getTime(), visibleRange.start.getTime()))
+      : startDate
+    const clipEnd = visibleRange
+      ? new Date(Math.min(endDate.getTime(), visibleRange.end.getTime()))
+      : endDate
+    if (clipEnd.getTime() <= clipStart.getTime()) continue
+
+    let cursor = new Date(clipStart)
+    while (cursor.getTime() < clipEnd.getTime()) {
+      const dayStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 0, 0, 0, 0)
+      const nextDayStart = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
+      const segmentEnd = new Date(Math.min(clipEnd.getTime(), nextDayStart.getTime()))
+      const startMinutes = Math.round((cursor.getTime() - dayStart.getTime()) / 60000)
+      const endMinutes = Math.round((segmentEnd.getTime() - dayStart.getTime()) / 60000)
+      allMinutes.push(startMinutes, endMinutes)
+      cursor = nextDayStart
+    }
+  }
+
+  if (allMinutes.length === 0) {
     return {
       slotMinTime: formatTimeMinutes(BASE_SLOT_MIN_MINUTES),
       slotMaxTime: formatTimeMinutes(BASE_SLOT_MAX_MINUTES),
     }
-  }
-
-  const allMinutes: number[] = []
-
-  for (const slot of filteredSlots) {
-    const startDate = new Date(slot.start)
-    const endDate = new Date(slot.end)
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) continue
-
-    const dayStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0)
-    const startMinutes = Math.round((startDate.getTime() - dayStart.getTime()) / 60000)
-    const endMinutes = Math.round((endDate.getTime() - dayStart.getTime()) / 60000)
-    allMinutes.push(startMinutes, endMinutes)
   }
 
   const minMinutes = Math.min(BASE_SLOT_MIN_MINUTES, ...allMinutes)

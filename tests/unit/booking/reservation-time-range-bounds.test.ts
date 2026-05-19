@@ -87,4 +87,63 @@ describe("recomputeTimeRangeBounds", () => {
       slotMaxTime: "24:00:00",
     })
   })
+
+  it("keeps the base range when a midnight-starting slot is outside the previous visible day", () => {
+    expect(
+      recomputeTimeRangeBounds(
+        [{ start: "2026-05-20T00:00:00", end: "2026-05-20T01:00:00" }],
+        { start: new Date(2026, 4, 19, 0, 0, 0), end: new Date(2026, 4, 20, 0, 0, 0) },
+      ),
+    ).toEqual({
+      slotMinTime: "10:00:00",
+      slotMaxTime: "19:00:00",
+    })
+  })
+
+  it("expands slotMinTime to 00:00 for the visible day of a midnight-starting slot", () => {
+    expect(
+      recomputeTimeRangeBounds(
+        [{ start: "2026-05-20T00:00:00", end: "2026-05-20T01:00:00" }],
+        { start: new Date(2026, 4, 20, 0, 0, 0), end: new Date(2026, 4, 21, 0, 0, 0) },
+      ),
+    ).toEqual({
+      slotMinTime: "00:00:00",
+      slotMaxTime: "19:00:00",
+    })
+  })
+
+  it("keeps the base range when a day-crossing slot ends exactly at the visible day start", () => {
+    expect(
+      recomputeTimeRangeBounds(
+        [{ start: "2026-05-19T22:00:00", end: "2026-05-20T00:00:00" }],
+        { start: new Date(2026, 4, 20, 0, 0, 0), end: new Date(2026, 4, 21, 0, 0, 0) },
+      ),
+    ).toEqual({
+      slotMinTime: "10:00:00",
+      slotMaxTime: "19:00:00",
+    })
+  })
+
+  it("expands slotMaxTime to 24:00 for the first visible day of a day-crossing slot", () => {
+    expect(
+      recomputeTimeRangeBounds(
+        [{ start: "2026-05-19T23:00:00", end: "2026-05-20T02:00:00" }],
+        { start: new Date(2026, 4, 19, 0, 0, 0), end: new Date(2026, 4, 20, 0, 0, 0) },
+      ),
+    ).toMatchObject({
+      slotMaxTime: "24:00:00",
+    })
+  })
+
+  it("expands slotMinTime to 00:00 for the second visible day of a day-crossing slot", () => {
+    expect(
+      recomputeTimeRangeBounds(
+        [{ start: "2026-05-19T23:00:00", end: "2026-05-20T02:00:00" }],
+        { start: new Date(2026, 4, 20, 0, 0, 0), end: new Date(2026, 4, 21, 0, 0, 0) },
+      ),
+    ).toEqual({
+      slotMinTime: "00:00:00",
+      slotMaxTime: "19:00:00",
+    })
+  })
 })
