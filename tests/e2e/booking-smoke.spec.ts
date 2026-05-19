@@ -40,6 +40,7 @@ test.describe("booking personal smoke", () => {
     const slotLane = page.locator('.fc-timegrid-slot-lane[data-time="13:00:00"]').first()
     await dayColumn.waitFor()
     await slotLane.waitFor()
+    await slotLane.scrollIntoViewIfNeeded()
     const dayBox = await dayColumn.boundingBox()
     const slotBox = await slotLane.boundingBox()
     expect(dayBox).not.toBeNull()
