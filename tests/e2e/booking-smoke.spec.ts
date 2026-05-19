@@ -60,8 +60,8 @@ test.describe("booking personal smoke", () => {
     await page.getByLabel("納期").fill("2026-06-30")
     await page.getByLabel("会社名").fill("NCS")
     await page.getByLabel("担当者氏名").fill("E2E Satoshi")
-    await page.getByLabel("連絡用メール").fill("e2e-contact@example.com")
-    await page.getByLabel("電話番号").fill("09000000000")
+    await page.getByLabel("メールアドレス").fill("e2e-contact@example.com")
+    await page.getByLabel("電話番号(任意)").fill("09000000000")
     await page.getByLabel("補足メモ").fill("e2e smoke")
     await page.getByRole("checkbox").check()
 
