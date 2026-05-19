@@ -27,6 +27,7 @@ model User {
   // Credentials Provider 用 自前パスワード（bcrypt ハッシュ）
   // OAuth ログインのみのユーザーは null のまま
   passwordHash  String?
+  tokenVersion  Int       @default(0)
 
   accounts               Account[]
   sessions               Session[]
@@ -69,9 +70,10 @@ model Session {
 }
 
 model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
+  identifier     String
+  token          String   @unique
+  expires        DateTime
+  failedAttempts Int      @default(0)
 
   @@unique([identifier, token])
 }
@@ -79,9 +81,10 @@ model VerificationToken {
 // パスワードリセット用トークン。identifier はリセット要求時のメールアドレス。
 // expires 過ぎた行と消費済み行はバッチで掃除してよい。
 model PasswordResetToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
+  identifier     String
+  token          String   @unique
+  expires        DateTime
+  failedAttempts Int      @default(0)
 
   @@unique([identifier, token])
 }
@@ -130,17 +133,18 @@ model Customer {
 // notionPageId はその予約に紐づく IB_仕事 ページ ID（タスク種別 = スケジュール 自動セット済み）。
 
 model BookingGroup {
-  id           String  @id @default(cuid())
-  customerId   String
-  teamId       String?
-  status       String  @default("CONFIRMED")
-  projectTitle String
-  memo         String?
-  contactName  String
-  companyName  String?
-  customerEmail String?
-  phone        String?
-  dueDate      String?
+  id               String    @id @default(cuid())
+  customerId       String
+  teamId           String?
+  status           String    @default("CONFIRMED")
+  projectTitle     String
+  memo             String?
+  contactName      String
+  companyName      String?
+  customerEmail    String?
+  phone            String?
+  dueDate          String?
+  pendingExpiresAt DateTime?
 
   // 予約ごとの前後マージン（時間）。null/未設定は default 1.0 で動かす想定。
   // admin はここを per-booking で動かして表示時の buffer 領域を独立に調整する。
@@ -164,11 +168,13 @@ model BookingGroup {
 }
 
 model BookingTimeSlot {
-  id             String   @id @default(cuid())
-  bookingGroupId String
-  startTime      DateTime
-  endTime        DateTime
-  status         String   @default("CONFIRMED")
+  id                String    @id @default(cuid())
+  bookingGroupId    String
+  startTime         DateTime
+  endTime           DateTime
+  previousStartTime DateTime?
+  previousEndTime   DateTime?
+  status            String    @default("CONFIRMED")
 
   bookingGroup BookingGroup @relation(fields: [bookingGroupId], references: [id], onDelete: Cascade)
 
@@ -204,6 +210,7 @@ model TeamMember {
   id     String @id @default(cuid())
   teamId String
   userId String
+  role   String @default("MEMBER")
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -217,8 +224,12 @@ model TeamMember {
 model TeamInvitation {
   id              String    @id @default(cuid())
   token           String    @unique
+  tokenHash       String?
   teamId          String
   createdByUserId String
+  invitedEmail    String?
+  expiresAt       DateTime?
+  failedAttempts  Int       @default(0)
   usedAt          DateTime?
   usedByUserId    String?
 
@@ -231,4 +242,19 @@ model TeamInvitation {
   @@index([teamId])
   @@index([createdByUserId])
   @@index([usedByUserId])
+}
+
+model AdminActionLog {
+  id         String   @id @default(cuid())
+  actorEmail String
+  action     String
+  targetType String?
+  targetId   String?
+  payload    String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([action])
+  @@index([createdAt])
 }
