@@ -32,4 +32,28 @@ describe("recomputeTimeRangeBounds", () => {
       slotMaxTime: "19:00:00",
     })
   })
+
+  it("expands slotMaxTime to 24:00 when a buffered slot ends at the next midnight", () => {
+    expect(
+      recomputeTimeRangeBounds([{ start: "2026-05-19T22:00:00", end: "2026-05-20T00:00:00" }]),
+    ).toMatchObject({
+      slotMaxTime: "24:00:00",
+    })
+  })
+
+  it("keeps a late slot visible when it ends at the next midnight", () => {
+    expect(
+      recomputeTimeRangeBounds([{ start: "2026-05-19T23:30:00", end: "2026-05-20T00:00:00" }]),
+    ).toMatchObject({
+      slotMaxTime: "24:00:00",
+    })
+  })
+
+  it("keeps non-day-crossing late slots bounded by their end time", () => {
+    expect(
+      recomputeTimeRangeBounds([{ start: "2026-05-19T21:00:00", end: "2026-05-19T22:00:00" }]),
+    ).toMatchObject({
+      slotMaxTime: "22:00:00",
+    })
+  })
 })

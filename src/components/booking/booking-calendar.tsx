@@ -483,22 +483,29 @@ function formatTimeMinutes(minutes: number): string {
   return `${String(hours).padStart(2, "0")}:${String(restMinutes).padStart(2, "0")}:00`
 }
 
-function timeOfDayMinutes(value: string): number | null {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return date.getHours() * 60 + date.getMinutes()
-}
-
 export function recomputeTimeRangeBounds(slots: { start: string; end: string }[]): { slotMinTime: string; slotMaxTime: string } {
-  let minMinutes = BASE_SLOT_MIN_MINUTES
-  let maxMinutes = BASE_SLOT_MAX_MINUTES
+  if (slots.length === 0) {
+    return {
+      slotMinTime: formatTimeMinutes(BASE_SLOT_MIN_MINUTES),
+      slotMaxTime: formatTimeMinutes(BASE_SLOT_MAX_MINUTES),
+    }
+  }
+
+  const allMinutes: number[] = []
 
   for (const slot of slots) {
-    const startMinutes = timeOfDayMinutes(slot.start)
-    const endMinutes = timeOfDayMinutes(slot.end)
-    if (startMinutes !== null) minMinutes = Math.min(minMinutes, startMinutes)
-    if (endMinutes !== null) maxMinutes = Math.max(maxMinutes, endMinutes)
+    const startDate = new Date(slot.start)
+    const endDate = new Date(slot.end)
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) continue
+
+    const dayStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0)
+    const startMinutes = Math.round((startDate.getTime() - dayStart.getTime()) / 60000)
+    const endMinutes = Math.round((endDate.getTime() - dayStart.getTime()) / 60000)
+    allMinutes.push(startMinutes, endMinutes)
   }
+
+  const minMinutes = Math.min(BASE_SLOT_MIN_MINUTES, ...allMinutes)
+  const maxMinutes = Math.max(BASE_SLOT_MAX_MINUTES, ...allMinutes)
 
   return {
     slotMinTime: formatTimeMinutes(Math.max(0, minMinutes)),
