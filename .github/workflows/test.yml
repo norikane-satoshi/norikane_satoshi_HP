@@ -6,6 +6,10 @@ on:
       - master
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   unit:
     runs-on: ubuntu-latest
@@ -19,6 +23,7 @@ jobs:
       - run: corepack pnpm install --frozen-lockfile
       - run: corepack pnpm prisma generate
       - name: Unit tests with coverage
+        id: run_unit
         shell: bash
         run: |
           set -o pipefail
@@ -36,6 +41,87 @@ jobs:
           name: coverage
           path: coverage/
           if-no-files-found: ignore
+      - uses: actions/github-script@v7
+        if: failure() && github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const marker = '<!-- noritchan-ci-report:unit -->';
+            const shortSha = process.env.GITHUB_SHA.slice(0, 7);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            let coverageText = '';
+            try {
+              coverageText = fs.readFileSync('coverage-summary.txt', 'utf8');
+            } catch (error) {
+              coverageText = `coverage-summary.txt not found: ${error.message}`;
+            }
+
+            const thresholdMisses = coverageText
+              .split(/\r?\n/)
+              .filter((line) => line.startsWith('ERROR: Coverage for'));
+
+            const rows = [];
+            try {
+              const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+              const addRow = (label, metrics) => {
+                rows.push(`| ${label} | ${metrics.statements?.pct ?? 'n/a'} | ${metrics.branches?.pct ?? 'n/a'} |`);
+              };
+
+              if (summary.total) {
+                addRow('total', summary.total);
+              }
+
+              Object.entries(summary)
+                .filter(([file]) => file.startsWith('src/app/api/booking/'))
+                .sort(([a], [b]) => a.localeCompare(b))
+                .forEach(([file, metrics]) => addRow(file, metrics));
+            } catch (error) {
+              rows.push(`| coverage/coverage-summary.json | unavailable: ${error.message.replace(/\|/g, '\\|')} | n/a |`);
+            }
+
+            const body = [
+              marker,
+              `### 📉 Unit / coverage failed at ${shortSha}`,
+              '',
+              thresholdMisses.length > 0
+                ? thresholdMisses.map((line) => `- ${line}`).join('\n')
+                : '- No `ERROR: Coverage for` threshold lines found.',
+              '',
+              '| file | statements % | branches % |',
+              '| --- | ---: | ---: |',
+              rows.join('\n'),
+              '',
+              `Run: ${runUrl}`,
+            ].join('\n');
+
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body,
+              });
+            }
 
   e2e:
     runs-on: ubuntu-latest
@@ -54,4 +140,86 @@ jobs:
       - run: corepack pnpm install --frozen-lockfile
       - run: corepack pnpm prisma generate
       - run: corepack pnpm exec playwright install --with-deps chromium
-      - run: corepack pnpm test:e2e
+      - id: run_e2e
+        run: corepack pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+      - uses: actions/github-script@v7
+        if: failure() && github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const marker = '<!-- noritchan-ci-report:e2e -->';
+            const shortSha = process.env.GITHUB_SHA.slice(0, 7);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            let entries = [];
+            try {
+              entries = fs.readdirSync('test-results', { recursive: true });
+            } catch (error) {
+              entries = [];
+            }
+
+            const errorContextFiles = entries
+              .filter((entry) => entry.endsWith('error-context.md'))
+              .map((entry) => path.join('test-results', entry))
+              .sort();
+
+            let errorContext = 'No error-context.md found under test-results/.';
+            if (errorContextFiles.length > 0) {
+              errorContext = fs.readFileSync(errorContextFiles[0], 'utf8').slice(0, 4000);
+            }
+
+            const failedTests = [...new Set(errorContextFiles
+              .map((file) => path.dirname(path.relative('test-results', file)).split(path.sep)[0])
+              .filter(Boolean))]
+              .sort();
+
+            const body = [
+              marker,
+              `### 🚫 E2E failed at ${shortSha}`,
+              '',
+              failedTests.length > 0
+                ? failedTests.map((name) => `- ${name}`).join('\n')
+                : '- Failed test name unavailable from test-results/.',
+              '',
+              '```text',
+              errorContext,
+              '```',
+              '',
+              `Run: ${runUrl}`,
+            ].join('\n');
+
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body,
+              });
+            }
