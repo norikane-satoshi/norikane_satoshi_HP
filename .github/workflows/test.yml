@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          corepack pnpm test:coverage | tee coverage-summary.txt
+          corepack pnpm test:coverage 2>&1 | tee coverage-summary.txt
           {
             echo "## Coverage"
             echo
