@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
+import { isAdmin } from "@/lib/auth/server/is-admin"
 import { findConflictingBookings } from "@/lib/booking/server/conflicts"
 import { findAccessibleSlot, type AccessibleBooking } from "@/lib/booking/server/edit-access"
 import { sendBookingTimeChangedEmail } from "@/lib/booking/server/email"
@@ -15,11 +16,6 @@ import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-
-function isCalendarAdmin(email?: string | null): boolean {
-  const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL
-  return Boolean(adminEmail && email === adminEmail)
-}
 
 function isPastBooking(booking: AccessibleBooking): boolean {
   const currentSlot = booking.timeSlots.find((slot) => slot.id === booking.bookingId)
@@ -64,7 +60,7 @@ async function getAccessibleBooking(id: string): Promise<AccessibleBookingResult
     return { response: NextResponse.json({ error: "unauthorized" }, { status: 401 }) }
   }
 
-  const booking = await findAccessibleSlot(id, userId, isCalendarAdmin(session.user?.email))
+  const booking = await findAccessibleSlot(id, userId, isAdmin(session.user?.email))
   if (!booking) {
     return { response: NextResponse.json({ error: "not_found" }, { status: 404 }) }
   }

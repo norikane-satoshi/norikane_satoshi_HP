@@ -1,6 +1,7 @@
 import { auth } from "@/auth"
 import { BookingClientShell } from "@/components/booking/booking-client-shell"
 import { BookingMonthSkeleton } from "@/components/booking/booking-month-skeleton"
+import { isAdmin } from "@/lib/auth/server/is-admin"
 import { Menu } from "lucide-react"
 import type { Metadata } from "next"
 import Link from "next/link"
@@ -24,10 +25,7 @@ export default async function BookingPage() {
   const now = new Date()
   const initialRange = initialBusyRange(now)
   const session = await auth()
-  const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL ?? null
-  const isCalendarAdmin = Boolean(
-    adminEmail && session?.user?.email && session.user.email === adminEmail,
-  )
+  const isCalendarAdmin = isAdmin(session?.user?.email)
 
   return (
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">

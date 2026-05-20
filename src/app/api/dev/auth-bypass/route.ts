@@ -8,7 +8,9 @@ const TEST_USER_EMAIL = "norikane.satoshi@gmail.com"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  if (process.env.NODE_ENV === "production") return new Response("Not Found", { status: 404 })
+  if (process.env.VERCEL === "1") return new Response("Not Found", { status: 404 })
+  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "development") return new Response("Not Found", { status: 404 })
+  if (process.env.NODE_ENV !== "development") return new Response("Not Found", { status: 404 })
 
   const secret = process.env.AUTH_SECRET
   if (!secret) return new Response("AUTH_SECRET is not set", { status: 500 })

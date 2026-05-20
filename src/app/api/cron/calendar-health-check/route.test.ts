@@ -36,9 +36,10 @@ function request(token = "secret") {
 describe("GET /api/cron/calendar-health-check", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.CRON_SECRET = "secret"
-    process.env.RESEND_FROM_EMAIL = "noreply@norikane.studio"
-    process.env.BOOKING_CALENDAR_ADMIN_EMAIL = "admin@example.com"
+    vi.unstubAllEnvs()
+    vi.stubEnv("CRON_SECRET", "secret")
+    vi.stubEnv("RESEND_FROM_EMAIL", "noreply@norikane.studio")
+    vi.stubEnv("BOOKING_CALENDAR_ADMIN_EMAIL", "admin@example.com")
     mocks.getResendClient.mockReturnValue({ emails: { send: mocks.send } })
     mocks.send.mockResolvedValue({ data: { id: "email_1" }, error: null })
   })

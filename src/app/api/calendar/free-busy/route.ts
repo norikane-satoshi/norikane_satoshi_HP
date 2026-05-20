@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
+import { isAdmin } from "@/lib/auth/server/is-admin"
 import {
   calendarErrorStatus,
   getCalendarFreeBusyForUser,
@@ -35,8 +36,7 @@ export async function GET(request: NextRequest) {
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   const session = await auth()
   const userId = session?.user?.id
-  const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL
-  const isCalendarAdmin = Boolean(adminEmail && session?.user?.email === adminEmail)
+  const isCalendarAdmin = isAdmin(session?.user?.email)
 
   if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
