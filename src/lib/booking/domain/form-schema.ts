@@ -8,13 +8,13 @@ export type BookingSlot = {
 }
 
 export const bookingFormSchema = z.object({
-  projectTitle: z.string().trim().min(1, "案件名を入力してください").max(100, "100 字以内で入力してください"),
+  projectTitle: z.string().trim().min(1, "案件名を入力してください").max(200, "200 字以内で入力してください"),
   dueDate: z.string(),
-  companyName: z.string().trim().max(100, "100 字以内で入力してください"),
-  contactName: z.string().trim().min(1, "担当者氏名を入力してください").max(100, "100 字以内で入力してください"),
-  sessionEmail: z.string().email("認証済みメールアドレスを確認できません"),
-  phone: z.string().trim().max(50, "50 字以内で入力してください"),
-  memo: z.string().trim().max(1000, "1000 字以内で入力してください"),
+  companyName: z.string().trim().max(120, "120 字以内で入力してください"),
+  contactName: z.string().trim().min(1, "担当者氏名を入力してください").max(80, "80 字以内で入力してください"),
+  sessionEmail: z.string().email("認証済みメールアドレスを確認できません").max(254, "254 字以内で入力してください"),
+  phone: z.string().trim().max(32, "32 字以内で入力してください"),
+  memo: z.string().trim().max(2000, "2000 字以内で入力してください"),
   agreed: z.boolean().refine((value) => value, {
     message: "規約への同意が必要です",
   }),

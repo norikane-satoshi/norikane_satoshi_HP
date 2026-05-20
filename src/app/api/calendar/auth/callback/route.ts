@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 import { auth } from "@/auth"
+import { respondInternalError } from "@/lib/api/server/error-response"
 import { getBookingCalendarAdminEmail, isAdmin } from "@/lib/auth/server/is-admin"
 import { CALENDAR_TOKEN_USER_ID, exchangeCalendarCode } from "@/lib/google-calendar/server"
 
@@ -69,9 +70,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to store Google Calendar token" },
-      { status: 500 },
-    )
+    return respondInternalError(error, "calendar.auth.callback")
   }
 }

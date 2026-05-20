@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
 import { auth } from "@/auth"
+import { respondInternalError } from "@/lib/api/server/error-response"
 import { getBookingCalendarAdminEmail, isAdmin } from "@/lib/auth/server/is-admin"
 import { getCalendarAuthUrl } from "@/lib/google-calendar/server"
 
@@ -38,9 +39,6 @@ export async function GET() {
     })
     return NextResponse.redirect(getCalendarAuthUrl(state), 302)
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create Google Calendar auth URL" },
-      { status: 500 },
-    )
+    return respondInternalError(error, "calendar.auth")
   }
 }

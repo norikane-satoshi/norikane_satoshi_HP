@@ -14,7 +14,9 @@ const mocks = vi.hoisted(() => ({
     },
   },
   rateLimited: vi.fn(),
+  randomDelay: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
+  timingSafeCompare: vi.fn(),
 }))
 
 vi.mock("@/lib/auth/server/email", () => ({
@@ -23,6 +25,10 @@ vi.mock("@/lib/auth/server/email", () => ({
 vi.mock("@/lib/auth/server/tokens", () => ({
   PASSWORD_RESET_TTL_MS: 3_600_000,
   newToken: mocks.newToken,
+}))
+vi.mock("@/lib/auth/server/timing-safe", () => ({
+  randomDelay: mocks.randomDelay,
+  timingSafeCompare: mocks.timingSafeCompare,
 }))
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }))
 vi.mock("@/lib/rate-limit/server", () => ({
@@ -52,6 +58,8 @@ describe("POST /api/auth/forgot-password rate limits", () => {
     mocks.limitByIp.mockResolvedValue({ limited: false, headers: new Headers() })
     mocks.rateLimited.mockResolvedValue({ limited: false, headers: new Headers() })
     mocks.newToken.mockReturnValue("reset_token")
+    mocks.randomDelay.mockResolvedValue(undefined)
+    mocks.timingSafeCompare.mockResolvedValue(false)
     mocks.prisma.user.findUnique.mockResolvedValue({
       email: "satoshi@example.com",
       emailVerified: new Date("2026-05-19T00:00:00.000Z"),

@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
+import { enforceBodyLimit } from "@/lib/api/server/body-limit"
+import { respondInternalError } from "@/lib/api/server/error-response"
 import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { resolveConflictForFinalSubmit } from "@/lib/booking/domain/conflicts"
 import { invalidateCalendarFreeBusyCacheForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
@@ -103,6 +105,9 @@ function wait(ms: number) {
 }
 
 export async function POST(request: NextRequest) {
+  const bodyLimit = enforceBodyLimit(request)
+  if (bodyLimit) return bodyLimit
+
   const session = await auth()
   const userId = session?.user?.id
   const userEmail = session?.user?.email
@@ -331,7 +336,6 @@ export async function POST(request: NextRequest) {
     if (error instanceof BookingConflictError) {
       return responseForConflict(error.message)
     }
-    console.error("Booking API failed", error)
-    return NextResponse.json({ error: "unknown" }, { status: 500 })
+    return respondInternalError(error, "booking.POST")
   }
 }
