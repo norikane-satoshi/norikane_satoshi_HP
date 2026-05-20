@@ -3,17 +3,21 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { createHmac, timingSafeEqual } from "node:crypto"
 
 const SIGNATURE_HEADER = "x-cc-notion-signature"
+const TIMESTAMP_HEADER = "x-cc-notion-timestamp"
+const REPLAY_WINDOW_SECONDS = 300
 
 type Payload = {
   slug: string
   reason?: string
 }
 
-function verifySignature(rawBody: string, header: string, secret: string): boolean {
+function verifySignature(rawBody: string, timestamp: number, header: string, secret: string): boolean {
   const prefix = "sha256="
   if (!header.startsWith(prefix)) return false
   const hex = header.slice(prefix.length).trim()
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex")
+  const expected = createHmac("sha256", secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest("hex")
   const a = Buffer.from(hex, "hex")
   const b = Buffer.from(expected, "hex")
   if (a.length === 0 || a.length !== b.length) return false
@@ -46,12 +50,23 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const timestampRaw = request.headers.get(TIMESTAMP_HEADER)
+  const timestamp = Number(timestampRaw)
+  if (!timestampRaw || !Number.isFinite(timestamp)) {
+    return NextResponse.json({ ok: false, error: "invalid_timestamp" }, { status: 403 })
+  }
+
+  const now = Math.floor(Date.now() / 1000)
+  if (Math.abs(now - timestamp) > REPLAY_WINDOW_SECONDS) {
+    return NextResponse.json({ ok: false, error: "stale_request" }, { status: 403 })
+  }
+
   const rawBody = await request.text()
   const header = request.headers.get(SIGNATURE_HEADER) ?? ""
-  if (!verifySignature(rawBody, header, secret)) {
+  if (!verifySignature(rawBody, timestamp, header, secret)) {
     return NextResponse.json(
-      { ok: false, error: "invalid signature" },
-      { status: 401 }
+      { ok: false, error: "invalid_signature" },
+      { status: 403 }
     )
   }
 

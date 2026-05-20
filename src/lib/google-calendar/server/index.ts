@@ -301,6 +301,25 @@ export async function createCalendarEvent(input: CalendarEventWriteInput): Promi
   }
 }
 
+export async function getCalendarEvent(input: {
+  calendarId: string
+  eventId: string
+  accessToken: string
+}): Promise<{ id: string } | null> {
+  const calendar = createCalendarWriteClient(input.accessToken)
+  try {
+    const response = await calendar.events.get({
+      calendarId: input.calendarId,
+      eventId: input.eventId,
+    })
+    return response.data.id ? { id: response.data.id } : null
+  } catch (error) {
+    const status = getGoogleErrorStatus(error)
+    if (status === 404 || status === 410) return null
+    throw error
+  }
+}
+
 export async function updateCalendarEvent(input: CalendarEventUpdateInput): Promise<void> {
   const calendar = createCalendarWriteClient(input.accessToken)
   const privateProperties: Record<string, string> = {}

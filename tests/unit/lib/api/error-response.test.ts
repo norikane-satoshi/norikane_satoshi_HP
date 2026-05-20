@@ -10,6 +10,8 @@ describe("respondInternalError", () => {
 
   it("does not expose details in production", async () => {
     vi.stubEnv("NODE_ENV", "production")
+    vi.stubEnv("VERCEL", "1")
+    vi.stubEnv("VERCEL_ENV", "production")
     vi.spyOn(console, "error").mockImplementation(() => {})
 
     const response = respondInternalError(new Error("db password leaked"), "test")
