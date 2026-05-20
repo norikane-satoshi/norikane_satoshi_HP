@@ -5,7 +5,7 @@ import { createBookingForUser, prismaForE2E, testUserEmail, upsertUser } from ".
 const prefix = `booking-smoke-${Date.now()}`
 
 test.describe("booking personal smoke", () => {
-  test("personal booking reaches done without a red-band error and creates one BookingGroup", async ({ page }) => {
+  test("personal booking surfaces calendar failure and marks the pending group failed", async ({ page }) => {
     const prisma = prismaForE2E()
     const user = await upsertUser(prisma, testUserEmail, "E2E Satoshi")
     await prisma.bookingGroup.deleteMany({ where: { projectTitle: { startsWith: prefix } } })
@@ -69,13 +69,14 @@ test.describe("booking personal smoke", () => {
     await expect(page.getByRole("heading", { name: "申込内容の確認" })).toBeVisible()
     await page.getByRole("button", { name: "予約を申し込む" }).click()
 
-    await expect(page.getByRole("heading", { name: "予約を受け付けました" })).toBeVisible()
+    await expect(page.getByText("カレンダー連携に一時的な問題が発生しています。時間をおいて再度お試しください")).toBeVisible()
+    await expect(page.getByRole("heading", { name: "予約を受け付けました" })).toHaveCount(0)
     await expect(page.getByText("予約申込で予期せぬエラーが発生しました")).toHaveCount(0)
 
     const afterSubmit = await page.request.get(freeBusyUrl)
     expect(afterSubmit.status()).toBe(200)
     const afterSubmitJson = (await afterSubmit.json()) as { bookings: { title: string }[] }
-    expect(afterSubmitJson.bookings.some((booking) => booking.title === `${prefix} personal`)).toBe(true)
+    expect(afterSubmitJson.bookings.some((booking) => booking.title === `${prefix} personal`)).toBe(false)
 
     await page.goto("/booking")
     await expect(page.locator(".booking-calendar__booking-event").first()).toBeVisible()
@@ -84,6 +85,10 @@ test.describe("booking personal smoke", () => {
       where: { projectTitle: { startsWith: prefix } },
     })
     expect(count).toBe(2)
+    const failedCount = await prisma.bookingGroup.count({
+      where: { projectTitle: `${prefix} personal`, status: "FAILED" },
+    })
+    expect(failedCount).toBe(1)
 
     await prisma.bookingGroup.deleteMany({ where: { projectTitle: { startsWith: prefix } } })
     await prisma.user.deleteMany({ where: { email: testUserEmail } })

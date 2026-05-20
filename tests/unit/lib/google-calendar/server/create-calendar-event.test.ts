@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
+  get: vi.fn(),
   setCredentials: vi.fn(),
 }))
 
@@ -14,7 +15,7 @@ vi.mock("googleapis", () => {
     google: {
       auth: { OAuth2 },
       calendar: () => ({
-        events: { insert: mocks.insert },
+        events: { insert: mocks.insert, get: mocks.get },
       }),
     },
   }
@@ -37,6 +38,7 @@ const baseInput = {
 describe("createCalendarEvent", () => {
   beforeEach(() => {
     mocks.insert.mockReset()
+    mocks.get.mockReset()
     mocks.setCredentials.mockReset()
     process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_ID = "client-id"
     process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET = "client-secret"
@@ -73,6 +75,26 @@ describe("createCalendarEvent", () => {
     mocks.insert.mockResolvedValue({ data: { id: "evt-3" } })
 
     await expect(createCalendarEvent(baseInput)).resolves.toEqual({ id: "evt-3" })
+  })
+
+  it("passes optional eventId through to requestBody.id", async () => {
+    mocks.insert.mockResolvedValue({ data: { id: "eventid1" } })
+
+    await createCalendarEvent({ ...baseInput, eventId: "eventid1" })
+
+    expect(mocks.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestBody: expect.objectContaining({ id: "eventid1" }),
+      }),
+    )
+  })
+
+  it("treats an existing eventId 409 as idempotent success", async () => {
+    mocks.insert.mockRejectedValue({ response: { status: 409 } })
+    mocks.get.mockResolvedValue({ data: { id: "eventid1" } })
+
+    await expect(createCalendarEvent({ ...baseInput, eventId: "eventid1" })).resolves.toEqual({ id: "eventid1" })
+    expect(mocks.get).toHaveBeenCalledWith({ calendarId: "primary", eventId: "eventid1" })
   })
 
   it("throws when the API does not return an id", async () => {

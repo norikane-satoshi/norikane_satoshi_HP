@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   createCalendarEvent: vi.fn(),
   deleteCalendarEvent: vi.fn(),
   prisma: {
+    $transaction: vi.fn(),
     customer: {
       upsert: vi.fn(),
     },
@@ -24,10 +25,14 @@ const mocks = vi.hoisted(() => ({
       findUnique: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
+      updateMany: vi.fn(),
     },
     calendarToken: {
       findUnique: vi.fn(),
       update: vi.fn(),
+    },
+    adminActionLog: {
+      create: vi.fn(),
     },
   },
 }))
@@ -91,6 +96,7 @@ function mockHappyPath() {
   mocks.prisma.customer.upsert.mockResolvedValue({ id: "customer_1" })
   mocks.findConflictingBookings.mockResolvedValue([])
   mocks.resolveConflictForFinalSubmit.mockReturnValue(null)
+  mocks.prisma.$transaction.mockImplementation((callback) => callback(mocks.prisma))
   mocks.sendBookingConfirmedEmail.mockResolvedValue({ skipped: true })
   mocks.prisma.calendarToken.findUnique.mockResolvedValue({
     refreshToken: "refresh_token",
@@ -106,6 +112,7 @@ function mockHappyPath() {
     timeSlots: [{ id: "slot_1" }],
   })
   mocks.prisma.bookingGroup.update.mockResolvedValue({})
+  mocks.prisma.bookingTimeSlot.updateMany.mockResolvedValue({ count: 1 })
   process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID = "calendar_1"
 }
 
@@ -280,7 +287,7 @@ describe("POST /api/booking", () => {
     warn.mockRestore()
   })
 
-  it("returns 207 when the Google Calendar write fails after DB booking creation", async () => {
+  it("returns 502 when the Google Calendar write fails after the pending hold", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     mockHappyPath()
     mocks.createCalendarEvent.mockRejectedValue(new Error("gcal down"))
@@ -288,17 +295,23 @@ describe("POST /api/booking", () => {
     const response = await POST(request(validBooking()))
     const json = await response.json()
 
-    expect(response.status).toBe(207)
-    expect(json).toMatchObject({
-      status: "ok_with_warning",
+    expect(response.status).toBe(502)
+    expect(json).toEqual({
+      error: "calendar_unavailable",
       bookingGroupId: "group_1",
-      gcalError: "gcal down",
     })
-    expect(mocks.prisma.bookingGroup.update).not.toHaveBeenCalled()
+    expect(mocks.prisma.bookingGroup.update).toHaveBeenCalledWith({
+      where: { id: "group_1" },
+      data: { status: "FAILED", pendingExpiresAt: null },
+    })
+    expect(mocks.prisma.bookingTimeSlot.updateMany).toHaveBeenCalledWith({
+      where: { bookingGroupId: "group_1" },
+      data: { status: "FAILED" },
+    })
     warn.mockRestore()
   })
 
-  it("returns 207 when the shared Google Calendar token is missing", async () => {
+  it("returns 502 when the shared Google Calendar token is missing", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     mockHappyPath()
     mocks.prisma.calendarToken.findUnique.mockResolvedValue(null)
@@ -306,8 +319,11 @@ describe("POST /api/booking", () => {
     const response = await POST(request(validBooking()))
     const json = await response.json()
 
-    expect(response.status).toBe(207)
-    expect(json.gcalError).toBe("Google Calendar token is not connected")
+    expect(response.status).toBe(502)
+    expect(json).toEqual({
+      error: "calendar_unavailable",
+      bookingGroupId: "group_1",
+    })
     expect(mocks.refreshCalendarAccessToken).not.toHaveBeenCalled()
     warn.mockRestore()
   })

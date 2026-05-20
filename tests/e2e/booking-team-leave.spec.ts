@@ -30,14 +30,14 @@ test.describe("booking team leave", () => {
       const bookingA = await createBookingForUser(prisma, userA, {
         prefix,
         label: "A booking",
-        start: "2026-05-20T01:00:00.000Z",
-        end: "2026-05-20T02:00:00.000Z",
+        start: "2026-05-25T01:00:00.000Z",
+        end: "2026-05-25T02:00:00.000Z",
       })
       const bookingB = await createBookingForUser(prisma, userB, {
         prefix,
         label: "B booking",
-        start: "2026-05-21T01:00:00.000Z",
-        end: "2026-05-21T02:00:00.000Z",
+        start: "2026-05-26T01:00:00.000Z",
+        end: "2026-05-26T02:00:00.000Z",
       })
 
       await addSessionCookie(page.context(), userB)

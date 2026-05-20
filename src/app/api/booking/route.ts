@@ -5,6 +5,7 @@ import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/domain/api
 import { resolveConflictForFinalSubmit } from "@/lib/booking/domain/conflicts"
 import { invalidateCalendarFreeBusyCacheForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
 import { findConflictingBookings } from "@/lib/booking/server/conflicts"
+import { BookingConflictError } from "@/lib/booking/server/errors"
 import { isTeamMember } from "@/lib/booking/server/team-access"
 import {
   sendBookingConfirmedEmail,
@@ -89,6 +90,18 @@ function responseForConflict(error: string) {
   return NextResponse.json({ error }, { status: 409 })
 }
 
+function sanitizeGcalEventId(id: string): string {
+  return id.toLowerCase().replace(/[^a-v0-9]/g, "")
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function POST(request: NextRequest) {
   const session = await auth()
   const userId = session?.user?.id
@@ -149,51 +162,72 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const conflictLists = await Promise.all(
-      slots.map((slot) => findConflictingBookings(new Date(slot.start), new Date(slot.end))),
-    )
-    const conflicts = conflictLists.flat()
-    const conflict = resolveConflictForFinalSubmit(conflicts)
-    if (conflict) return responseForConflict(conflict)
+    const bookingGroup = await prisma.$transaction(async (tx) => {
+      const conflictLists = []
+      for (const slot of slots) {
+        conflictLists.push(
+          await findConflictingBookings(new Date(slot.start), new Date(slot.end), {}, tx),
+        )
+      }
+      const conflicts = conflictLists.flat()
+      const conflict = resolveConflictForFinalSubmit(conflicts)
+      if (conflict) throw new BookingConflictError(conflict)
 
-    const bookingGroup = await prisma.bookingGroup.create({
-      data: {
-        customerId: customer.id,
-        teamId,
-        status: "CONFIRMED",
-        projectTitle: input.projectTitle,
-        memo: nullable(input.memo),
-        contactName: input.contactName,
-        companyName: nullable(input.companyName),
-        customerEmail: userEmail,
-        phone: nullable(input.phone),
-        dueDate: nullable(input.dueDate),
-        timeSlots: {
-          create: slots.map((slot) => ({
-            startTime: new Date(slot.start),
-            endTime: new Date(slot.end),
-            status: "CONFIRMED",
-          })),
+      return tx.bookingGroup.create({
+        data: {
+          customerId: customer.id,
+          teamId,
+          status: "PENDING_GCAL",
+          pendingExpiresAt: new Date(Date.now() + 60_000),
+          projectTitle: input.projectTitle,
+          memo: nullable(input.memo),
+          contactName: input.contactName,
+          companyName: nullable(input.companyName),
+          customerEmail: userEmail,
+          phone: nullable(input.phone),
+          dueDate: nullable(input.dueDate),
+          timeSlots: {
+            create: slots.map((slot) => ({
+              startTime: new Date(slot.start),
+              endTime: new Date(slot.end),
+              status: "PENDING_GCAL",
+            })),
+          },
         },
-      },
-      include: { timeSlots: true },
-    })
-    invalidateCalendarFreeBusyCacheForUser(userId, teamId)
+        include: { timeSlots: true },
+      })
+    }, { maxWait: 5000, timeout: 10000 })
 
-    const bookingEmailArgs = createBookingEmailArgs(input, userEmail)
-    await warnOnEmailFailure(
-      sendBookingConfirmedEmail(bookingEmailArgs),
-      "confirmed",
-      userEmail,
-    )
+    const bookingIds = bookingGroup.timeSlots.map((slot) => slot.id)
+    const confirmBooking = async (gcalEventId?: string | null) => {
+      await prisma.bookingGroup.update({
+        where: { id: bookingGroup.id },
+        data: {
+          status: "CONFIRMED",
+          gcalEventId,
+          pendingExpiresAt: null,
+        },
+      })
+      await prisma.bookingTimeSlot.updateMany({
+        where: { bookingGroupId: bookingGroup.id },
+        data: { status: "CONFIRMED" },
+      })
+    }
 
     if (!calendarId) {
+      await confirmBooking(null)
+      invalidateCalendarFreeBusyCacheForUser(userId, teamId)
+      await warnOnEmailFailure(
+        sendBookingConfirmedEmail(createBookingEmailArgs(input, userEmail)),
+        "confirmed",
+        userEmail,
+      )
       console.warn("Booking created without Google Calendar event: GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set")
       return NextResponse.json(
         {
           status: "ok_with_warning",
           bookingGroupId: bookingGroup.id,
-          bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
+          bookingIds,
           bookingStatus: "CONFIRMED",
           gcalError: "GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set",
         },
@@ -203,11 +237,11 @@ export async function POST(request: NextRequest) {
 
     const description = createDescription(input)
     const summary = createSummary(input)
-    let gcalEventId: string | null = null
-    let gcalError: string | null = null
+    let gcalEventId: string | null
     try {
       const accessToken = await refreshStoredCalendarToken()
-      const event = await createCalendarEvent({
+      const eventId = sanitizeGcalEventId(bookingGroup.id)
+      const createEvent = () => createCalendarEvent({
         calendarId,
         summary,
         description,
@@ -215,41 +249,88 @@ export async function POST(request: NextRequest) {
         end: primarySlot.end,
         colorId: "9",
         accessToken,
+        eventId,
       })
+      let event
+      try {
+        event = await createEvent()
+      } catch {
+        await wait(500)
+        event = await createEvent()
+      }
       gcalEventId = event.id ?? null
-
-      await prisma.bookingGroup.update({
-        where: { id: bookingGroup.id },
-        data: { gcalEventId },
-      })
     } catch (error) {
-      gcalError = error instanceof Error ? error.message : "Google Calendar event write failed"
-      console.warn("Booking created but Google Calendar write failed", {
+      const gcalError = errorMessage(error) || "Google Calendar event write failed"
+      console.warn("Booking Google Calendar write failed", {
         bookingGroupId: bookingGroup.id,
         error: gcalError,
       })
-    }
+      await prisma.bookingGroup.update({
+        where: { id: bookingGroup.id },
+        data: { status: "FAILED", pendingExpiresAt: null },
+      })
+      await prisma.bookingTimeSlot.updateMany({
+        where: { bookingGroupId: bookingGroup.id },
+        data: { status: "FAILED" },
+      })
 
-    if (gcalError) {
       return NextResponse.json(
         {
-          status: "ok_with_warning",
+          error: "calendar_unavailable",
           bookingGroupId: bookingGroup.id,
-          bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
-          bookingStatus: "CONFIRMED",
-          gcalError,
         },
-        { status: 207 },
+        { status: 502 },
       )
     }
+
+    try {
+      await confirmBooking(gcalEventId)
+    } catch (error) {
+      const message = errorMessage(error)
+      console.error("GCal OK but DB confirm failed", {
+        bookingGroupId: bookingGroup.id,
+        gcalEventId,
+        error: message,
+      })
+      try {
+        await prisma.adminActionLog.create({
+          data: {
+            actorEmail: userEmail,
+            action: "GCAL_OK_DB_CONFIRM_FAILED",
+            payload: JSON.stringify({
+              bookingGroupId: bookingGroup.id,
+              gcalEventId,
+              error: message,
+            }),
+          },
+        })
+      } catch (logError) {
+        console.error("Failed to log GCal OK DB confirm failure", logError)
+      }
+
+      return NextResponse.json(
+        { status: "pending_reconcile", bookingGroupId: bookingGroup.id, gcalEventId },
+        { status: 202, headers: { "Retry-After": "60" } },
+      )
+    }
+
+    invalidateCalendarFreeBusyCacheForUser(userId, teamId)
+    await warnOnEmailFailure(
+      sendBookingConfirmedEmail(createBookingEmailArgs(input, userEmail)),
+      "confirmed",
+      userEmail,
+    )
 
     return NextResponse.json({
       status: "ok",
       bookingGroupId: bookingGroup.id,
-      bookingIds: bookingGroup.timeSlots.map((slot) => slot.id),
+      bookingIds,
       bookingStatus: "CONFIRMED",
     })
   } catch (error) {
+    if (error instanceof BookingConflictError) {
+      return responseForConflict(error.message)
+    }
     console.error("Booking API failed", error)
     return NextResponse.json({ error: "unknown" }, { status: 500 })
   }
