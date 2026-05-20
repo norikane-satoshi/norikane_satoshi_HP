@@ -4,6 +4,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { sendVerificationEmail } from "@/lib/auth/server/email"
 import { newToken, VERIFICATION_TOKEN_TTL_MS } from "@/lib/auth/server/tokens"
+import { limitByIp, rateLimitEmailIdentifier, rateLimited } from "@/lib/rate-limit/server"
 
 const BCRYPT_COST = 12
 
@@ -31,6 +32,12 @@ export async function POST(request: NextRequest) {
 
   const { email, password, name } = parsed.data
   const normalizedEmail = email.toLowerCase()
+  const ipLimit = await limitByIp("signupIp", request)
+  if (ipLimit.limited) return ipLimit.response
+
+  const emailLimit = await rateLimited("signupEmail", rateLimitEmailIdentifier(normalizedEmail))
+  if (emailLimit.limited) return emailLimit.response
+
   const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } })

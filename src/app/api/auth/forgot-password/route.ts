@@ -3,6 +3,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { sendPasswordResetEmail } from "@/lib/auth/server/email"
 import { newToken, PASSWORD_RESET_TTL_MS } from "@/lib/auth/server/tokens"
+import { limitByIp, rateLimitEmailIdentifier, rateLimited } from "@/lib/rate-limit/server"
 
 const forgotSchema = z.object({
   email: z.string().email(),
@@ -22,6 +23,15 @@ export async function POST(request: NextRequest) {
   }
 
   const normalizedEmail = parsed.data.email.toLowerCase()
+  const ipLimit = await limitByIp("forgotPasswordIp", request)
+  if (ipLimit.limited) return ipLimit.response
+
+  const emailLimit = await rateLimited(
+    "forgotPasswordEmail",
+    rateLimitEmailIdentifier(normalizedEmail),
+  )
+  if (emailLimit.limited) return emailLimit.response
+
   const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
 
   if (user && user.emailVerified) {

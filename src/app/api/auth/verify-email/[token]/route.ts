@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { limitByIp } from "@/lib/rate-limit/server"
 
 type RouteContext = {
   params: Promise<{ token: string }>
@@ -7,6 +8,15 @@ type RouteContext = {
 
 export async function GET(request: NextRequest, ctx: RouteContext) {
   const { token } = await ctx.params
+  const ipLimit = await limitByIp("verifyEmailIp", request)
+  if (ipLimit.limited) {
+    const response = NextResponse.redirect(
+      new URL("/login?verifyError=rate_limited", request.url),
+      303,
+    )
+    ipLimit.headers.forEach((value, key) => response.headers.set(key, value))
+    return response
+  }
 
   const record = await prisma.verificationToken.findUnique({ where: { token } })
   if (!record) {
