@@ -184,6 +184,7 @@ model BookingTimeSlot {
   @@index([startTime, endTime])
   @@index([status])
   @@index([bookingGroupId])
+  // non-Prisma partial unique index, see migration 20260520115903_booking_no_overlap_partial_unique
 }
 
 // ─────────────────────────────────────────────────

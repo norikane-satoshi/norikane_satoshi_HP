@@ -25,8 +25,8 @@ test.describe("booking invitation flow", () => {
       const bookingA = await createBookingForUser(prisma, userA, {
         prefix,
         label: "A booking",
-        start: "2026-05-20T01:00:00.000Z",
-        end: "2026-05-20T02:00:00.000Z",
+        start: "2026-05-24T01:00:00.000Z",
+        end: "2026-05-24T02:00:00.000Z",
       })
 
       await addSessionCookie(page.context(), userA)

@@ -57,6 +57,7 @@ export type BookingApiErrorCode =
   | "slot_taken"
   | "unauthorized"
   | "invalid_request"
+  | "calendar_unavailable"
   | "unknown"
 
 export function mapErrorCodeToJa(code: string | null | undefined): string {
@@ -64,6 +65,7 @@ export function mapErrorCodeToJa(code: string | null | undefined): string {
     slot_taken: "この時間枠は既に予約が確定しています",
     unauthorized: "セッションが切れました、ログインし直してください",
     invalid_request: "入力内容に不備があります",
+    calendar_unavailable: "カレンダー連携に一時的な問題が発生しています。時間をおいて再度お試しください",
     unknown: "予約申込で予期せぬエラーが発生しました",
   } satisfies Record<BookingApiErrorCode, string>
 

@@ -35,6 +35,7 @@ export type CalendarEventWriteInput = {
   end: string
   colorId: string
   accessToken: string
+  eventId?: string
 }
 
 export type CalendarEventUpdateInput = {
@@ -258,31 +259,46 @@ function getGoogleErrorStatus(error: unknown): number | null {
 
 export async function createCalendarEvent(input: CalendarEventWriteInput): Promise<{ id: string }> {
   const calendar = createCalendarWriteClient(input.accessToken)
-  const response = await calendar.events.insert({
-    calendarId: input.calendarId,
-    requestBody: {
-      summary: input.summary,
-      description: input.description,
-      colorId: input.colorId,
-      start: {
-        dateTime: input.start,
-      },
-      end: {
-        dateTime: input.end,
-      },
-      extendedProperties: {
-        private: {
-          source: "hp-booking",
+  try {
+    const response = await calendar.events.insert({
+      calendarId: input.calendarId,
+      requestBody: {
+        id: input.eventId,
+        summary: input.summary,
+        description: input.description,
+        colorId: input.colorId,
+        start: {
+          dateTime: input.start,
+        },
+        end: {
+          dateTime: input.end,
+        },
+        extendedProperties: {
+          private: {
+            source: "hp-booking",
+          },
         },
       },
-    },
-  })
+    })
 
-  if (!response.data.id) {
-    throw new Error("Google Calendar event insert did not return event id")
+    if (!response.data.id) {
+      throw new Error("Google Calendar event insert did not return event id")
+    }
+
+    return { id: response.data.id }
+  } catch (error) {
+    if (input.eventId && getGoogleErrorStatus(error) === 409) {
+      const existing = await calendar.events.get({
+        calendarId: input.calendarId,
+        eventId: input.eventId,
+      })
+      if (!existing.data.id) {
+        throw new Error("Google Calendar event get did not return event id")
+      }
+      return { id: existing.data.id }
+    }
+    throw error
   }
-
-  return { id: response.data.id }
 }
 
 export async function updateCalendarEvent(input: CalendarEventUpdateInput): Promise<void> {

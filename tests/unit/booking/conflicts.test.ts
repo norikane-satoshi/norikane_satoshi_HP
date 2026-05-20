@@ -74,6 +74,7 @@ describe("findConflictingBookings", () => {
         status: "CONFIRMED",
         bookingGroup: {
           status: "CONFIRMED",
+          pendingExpiresAt: null,
           projectTitle: "Project",
           memo: "memo",
           gcalEventId: "gcal_1",
@@ -91,6 +92,7 @@ describe("findConflictingBookings", () => {
         status: "CONFIRMED",
         bookingGroup: {
           status: "CANCELLED",
+          pendingExpiresAt: null,
           projectTitle: "Cancelled",
           memo: null,
           gcalEventId: null,
@@ -114,7 +116,14 @@ describe("findConflictingBookings", () => {
           id: { not: "slot_old" },
           startTime: { lt: new Date("2026-06-10T02:30:00.000Z") },
           endTime: { gt: new Date("2026-06-10T01:30:00.000Z") },
-          status: "CONFIRMED",
+          status: { in: ["PENDING_GCAL", "CONFIRMED"] },
+          bookingGroup: expect.objectContaining({
+            status: { in: ["PENDING_GCAL", "CONFIRMED"] },
+            OR: expect.arrayContaining([
+              { pendingExpiresAt: null },
+              { pendingExpiresAt: { gt: expect.any(Date) } },
+            ]),
+          }),
         }),
       }),
     )
@@ -156,6 +165,36 @@ describe("findConflictingBookings", () => {
     )
   })
 
+  it("filters expired PENDING_GCAL holds out of conflicts", async () => {
+    mocks.prisma.bookingTimeSlot.findMany.mockResolvedValue([
+      {
+        id: "slot_expired",
+        bookingGroupId: "group_expired",
+        startTime: new Date("2026-06-10T01:00:00.000Z"),
+        endTime: new Date("2026-06-10T02:00:00.000Z"),
+        status: "PENDING_GCAL",
+        bookingGroup: {
+          status: "PENDING_GCAL",
+          pendingExpiresAt: new Date("2026-05-19T00:00:00.000Z"),
+          projectTitle: "Expired",
+          memo: null,
+          gcalEventId: null,
+          customer: {
+            displayName: "Satoshi",
+            user: { email: "satoshi@example.com" },
+          },
+        },
+      },
+    ])
+
+    await expect(
+      findConflictingBookings(
+        new Date("2026-06-10T01:00:00.000Z"),
+        new Date("2026-06-10T02:00:00.000Z"),
+      ),
+    ).resolves.toEqual([])
+  })
+
   it.each([
     ["complete match", "2026-06-10T01:00:00.000Z", "2026-06-10T02:00:00.000Z"],
     ["one second overlap at start", "2026-06-10T00:59:59.000Z", "2026-06-10T01:00:01.000Z"],
@@ -170,6 +209,7 @@ describe("findConflictingBookings", () => {
         status: "CONFIRMED",
         bookingGroup: {
           status: "CONFIRMED",
+          pendingExpiresAt: null,
           projectTitle: "Project",
           memo: null,
           gcalEventId: null,
