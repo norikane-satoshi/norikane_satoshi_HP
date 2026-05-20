@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
+import { enforceBodyLimit } from "@/lib/api/server/body-limit"
 import {
   bookingConflictsRequestSchema,
   mapErrorCodeToJa,
@@ -13,6 +14,9 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function POST(request: NextRequest) {
+  const bodyLimit = enforceBodyLimit(request)
+  if (bodyLimit) return bodyLimit
+
   const session = await auth()
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })

@@ -328,7 +328,7 @@ describe("POST /api/booking", () => {
     warn.mockRestore()
   })
 
-  it("returns unknown for unexpected persistence failures", async () => {
+  it("returns normalized internal errors for unexpected persistence failures", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
     mockHappyPath()
     mocks.prisma.bookingGroup.create.mockRejectedValue(new Error("db down"))
@@ -336,7 +336,7 @@ describe("POST /api/booking", () => {
     const response = await POST(request(validBooking()))
 
     expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({ error: "unknown" })
+    await expect(response.json()).resolves.toEqual({ error: "INTERNAL_ERROR", detail: "db down" })
     error.mockRestore()
   })
 })

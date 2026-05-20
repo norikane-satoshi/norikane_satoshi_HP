@@ -156,15 +156,15 @@ describe("/api/booking/[id] access control", () => {
     expect((await route.DELETE(request("DELETE"), context())).status).toBe(404)
   })
 
-  it("allows team members to GET but rejects PATCH and DELETE", async () => {
+  it("allows team members to GET but hides PATCH and DELETE", async () => {
     const route = await loadRoute(
       { user: { id: "team_user", email: "team@example.com" } },
       createSlot({ customerUserId: "owner_user", teamMemberUserIds: ["team_user"] }),
     )
 
     expect((await route.GET(request("GET"), context())).status).toBe(200)
-    expect((await route.PATCH(request("PATCH", "/api/booking/slot_1", { action: "update_details", memo: "x" }), context())).status).toBe(403)
-    expect((await route.DELETE(request("DELETE"), context())).status).toBe(403)
+    expect((await route.PATCH(request("PATCH", "/api/booking/slot_1", { action: "update_details", memo: "x" }), context())).status).toBe(404)
+    expect((await route.DELETE(request("DELETE"), context())).status).toBe(404)
   })
 
   it("allows admins to GET, PATCH, and DELETE another user's booking", async () => {

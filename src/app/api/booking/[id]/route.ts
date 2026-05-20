@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
+import { enforceBodyLimit } from "@/lib/api/server/body-limit"
 import { isAdmin } from "@/lib/auth/server/is-admin"
 import { findConflictingBookings } from "@/lib/booking/server/conflicts"
 import { findAccessibleSlot, type AccessibleBooking } from "@/lib/booking/server/edit-access"
@@ -73,7 +74,7 @@ function assertMutable(booking: AccessibleBooking) {
     return NextResponse.json({ error: "past_booking_locked" }, { status: 403 })
   }
   if (!canMutateBooking(booking)) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 })
+    return NextResponse.json({ error: "not_found" }, { status: 404 })
   }
   return null
 }
@@ -145,6 +146,9 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
+  const bodyLimit = enforceBodyLimit(request)
+  if (bodyLimit) return bodyLimit
+
   const { id } = await context.params
   const result = await getAccessibleBooking(id)
   if (result.response) return result.response

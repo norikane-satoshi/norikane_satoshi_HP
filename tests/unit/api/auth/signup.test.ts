@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
+  compare: vi.fn(),
   hash: vi.fn(),
+  hashSync: vi.fn(),
   limitByIp: vi.fn(),
   newToken: vi.fn(),
   prisma: {
@@ -20,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   sendVerificationEmail: vi.fn(),
 }))
 
-vi.mock("bcryptjs", () => ({ default: { hash: mocks.hash } }))
+vi.mock("bcryptjs", () => ({ default: { compare: mocks.compare, hash: mocks.hash, hashSync: mocks.hashSync } }))
 vi.mock("@/lib/auth/server/email", () => ({
   sendVerificationEmail: mocks.sendVerificationEmail,
 }))
@@ -53,7 +55,9 @@ describe("POST /api/auth/signup rate limits", () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-05-20T00:00:00.000Z"))
     vi.clearAllMocks()
+    mocks.compare.mockResolvedValue(true)
     mocks.hash.mockResolvedValue("hashed_password")
+    mocks.hashSync.mockReturnValue("dummy_hash")
     mocks.limitByIp.mockResolvedValue({ limited: false, headers: new Headers() })
     mocks.rateLimited.mockResolvedValue({ limited: false, headers: new Headers() })
     mocks.newToken.mockReturnValue("verification_token")

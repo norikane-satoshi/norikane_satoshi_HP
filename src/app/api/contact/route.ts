@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { enforceBodyLimit } from "@/lib/api/server/body-limit"
 import { limitByIp } from "@/lib/rate-limit/server"
 import { getClientIp } from "@/lib/security/server/client-ip"
 
 const contactSchema = z.object({
-  name: z.string().min(1, "名前は必須です"),
-  email: z.string().email("有効なメールアドレスを入力してください"),
-  body: z.string().min(10, "お問い合わせ内容は10文字以上で入力してください"),
-  website: z.string().optional(),
+  name: z.string().min(1, "名前は必須です").max(80, "名前は80文字以内で入力してください"),
+  email: z.string().email("有効なメールアドレスを入力してください").max(254, "メールアドレスは254文字以内で入力してください"),
+  body: z.string().min(10, "お問い合わせ内容は10文字以上で入力してください").max(4000, "お問い合わせ内容は4000文字以内で入力してください"),
+  website: z.string().max(200, "websiteは200文字以内で入力してください").optional(),
 })
 
 export async function POST(request: NextRequest) {
+  const bodyLimit = enforceBodyLimit(request)
+  if (bodyLimit) return bodyLimit
+
   const limit = await limitByIp(
     "contactIp",
     request,
