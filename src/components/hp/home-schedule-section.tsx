@@ -1,13 +1,11 @@
 import { auth } from "@/auth"
 import { BookingSection } from "@/components/booking/booking-section"
+import { isAdmin } from "@/lib/auth/server/is-admin"
 import Link from "next/link"
 
 export async function HomeScheduleSection() {
   const session = await auth()
-  const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL ?? null
-  const isCalendarAdmin = Boolean(
-    adminEmail && session?.user?.email && session.user.email === adminEmail,
-  )
+  const isCalendarAdmin = isAdmin(session?.user?.email)
 
   return (
     <section

@@ -79,8 +79,8 @@ async function loadRoute(
   options: LoadRouteOptions = {},
 ) {
   vi.resetModules()
-  process.env.BOOKING_CALENDAR_ADMIN_EMAIL = "admin@example.com"
-  process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID = "calendar_id_test"
+  vi.stubEnv("BOOKING_CALENDAR_ADMIN_EMAIL", "admin@example.com")
+  vi.stubEnv("GOOGLE_CALENDAR_BUSY_SOURCE_ID", "calendar_id_test")
 
   const auth = vi.fn().mockResolvedValue(session)
   const deleteCalendarEvent = vi.fn().mockResolvedValue(undefined)
@@ -139,6 +139,7 @@ function context(id = "slot_1") {
 
 afterEach(() => {
   process.env = { ...ORIGINAL_ENV }
+  vi.unstubAllEnvs()
   vi.resetModules()
   vi.clearAllMocks()
 })

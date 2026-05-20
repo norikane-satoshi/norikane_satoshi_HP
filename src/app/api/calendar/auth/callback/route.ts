@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 import { auth } from "@/auth"
+import { getBookingCalendarAdminEmail, isAdmin } from "@/lib/auth/server/is-admin"
 import { CALENDAR_TOKEN_USER_ID, exchangeCalendarCode } from "@/lib/google-calendar/server"
 
 export const runtime = "nodejs"
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic"
 const STATE_COOKIE_NAME = "calendar_oauth_state"
 
 export async function GET(request: NextRequest) {
-  const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL
+  const adminEmail = getBookingCalendarAdminEmail()
   if (!adminEmail) {
     return NextResponse.json(
       { error: "calendar_admin_email_missing" },
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
   }
 
   const session = await auth()
-  if (session?.user?.email !== adminEmail) {
+  if (!isAdmin(session?.user?.email)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
 

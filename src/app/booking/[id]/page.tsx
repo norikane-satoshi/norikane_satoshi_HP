@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 
 import { auth } from "@/auth"
 import { BookingEditForm } from "@/components/booking/booking-edit-form"
+import { isAdmin } from "@/lib/auth/server/is-admin"
 import { findAccessibleSlot } from "@/lib/booking/server/edit-access"
 
 export const dynamic = "force-dynamic"
@@ -19,8 +20,7 @@ export default async function BookingEditPage({
   const userId = session?.user?.id
   if (!userId) notFound()
 
-  const adminEmail = process.env.BOOKING_CALENDAR_ADMIN_EMAIL
-  const isCalendarAdmin = Boolean(adminEmail && session?.user?.email === adminEmail)
+  const isCalendarAdmin = isAdmin(session?.user?.email)
   const { id } = await params
   const booking = await findAccessibleSlot(id, userId, isCalendarAdmin)
   if (!booking) notFound()

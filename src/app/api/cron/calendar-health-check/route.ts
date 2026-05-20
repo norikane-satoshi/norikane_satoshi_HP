@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { getCachedCalendarAccessToken } from "@/lib/booking/server/calendar-free-busy/google-token-cache"
 import { getResendClient } from "@/lib/booking/server/email"
+import { getBookingCalendarAdminEmail } from "@/lib/auth/server/is-admin"
 import {
   CALENDAR_TOKEN_USER_ID,
   CalendarOAuthEnvMissingError,
@@ -20,7 +21,7 @@ async function sendCalendarHealthAlert(args: {
 }): Promise<void> {
   const resend = getResendClient()
   const from = process.env.RESEND_FROM_EMAIL ?? DEFAULT_FROM_EMAIL
-  const to = process.env.BOOKING_CALENDAR_ADMIN_EMAIL ?? process.env.RESEND_FROM_EMAIL
+  const to = getBookingCalendarAdminEmail() || process.env.RESEND_FROM_EMAIL
   if (!resend || !to) {
     console.warn(`[calendar-health-check] email_skipped subject=${args.subject}`)
     return
