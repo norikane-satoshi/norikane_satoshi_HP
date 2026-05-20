@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { limitByIp } from "@/lib/rate-limit/server"
+import { getClientIp } from "@/lib/security/server/client-ip"
 
 const contactSchema = z.object({
   name: z.string().min(1, "名前は必須です"),
@@ -8,39 +10,14 @@ const contactSchema = z.object({
   website: z.string().optional(),
 })
 
-// In-memory rate limiter (resets on server restart - adequate for personal site)
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000 // 5 minutes
-const RATE_LIMIT_MAX = 1 // 1 request per window
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now()
-  const entry = rateLimitMap.get(ip)
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-    return false
-  }
-
-  if (entry.count >= RATE_LIMIT_MAX) {
-    return true
-  }
-
-  entry.count++
-  return false
-}
-
 export async function POST(request: NextRequest) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown"
-
-  if (isRateLimited(ip)) {
-    return NextResponse.json(
-      { error: "送信回数の上限に達しました。5分後にお試しください。" },
-      { status: 429 }
-    )
+  const limit = await limitByIp(
+    "contactIp",
+    request,
+    "送信回数の上限に達しました。5分後にお試しください。",
+  )
+  if (limit.limited) {
+    return limit.response
   }
 
   let data: unknown
@@ -68,7 +45,7 @@ export async function POST(request: NextRequest) {
     name,
     email,
     body: body.substring(0, 200),
-    ip,
+    ip: getClientIp(request),
     timestamp: new Date().toISOString(),
   })
 
