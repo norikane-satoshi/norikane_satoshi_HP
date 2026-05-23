@@ -28,6 +28,8 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     "**/.next/**",
+    ".codex-worktrees/**",
+    "**/.codex-worktrees/**",
     ".claude/**",
     ".claire/**",
     "coverage/**",

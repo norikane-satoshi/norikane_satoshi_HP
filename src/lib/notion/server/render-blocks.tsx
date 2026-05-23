@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react"
 import Link from "next/link"
-import { Tweet } from "react-tweet"
+import { TweetEmbed } from "@/components/notes/tweet-embed"
 import type { RichTextItemResponse } from "@notionhq/client"
 import { NoteDiagram } from "@/components/notes/note-diagram"
 import { NoteVisual } from "@/components/notes/note-visual"
@@ -196,7 +196,7 @@ function renderEmbed(
         key={key}
         className="tweet-embed-reset flow-root max-w-xl"
       >
-        <Tweet id={resolution.statusId} />
+        <TweetEmbed id={resolution.statusId} />
       </div>
     )
   }
