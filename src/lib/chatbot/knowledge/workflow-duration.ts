@@ -1,6 +1,7 @@
 import type { FinalMedium, JobKind, WorkSite } from "@/lib/chatbot/domain/workflow-estimate"
 
 export const tightDeadlineThresholdDays = 3
+export const tightishDeadlineMaxDays = 7
 export const settledConversationTurnThreshold = 8
 export const complexConversationTurnThreshold = 16
 

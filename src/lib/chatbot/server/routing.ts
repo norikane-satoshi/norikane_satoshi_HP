@@ -9,6 +9,7 @@ import {
   complexConversationTurnThreshold,
   settledConversationTurnThreshold,
   tightDeadlineThresholdDays,
+  tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 
@@ -33,7 +34,7 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
 
   if (
     conversationState.daysUntilStart !== undefined &&
-    conversationState.daysUntilStart < settledConversationTurnThreshold
+    conversationState.daysUntilStart <= tightishDeadlineMaxDays
   ) {
     return {
       kind: "continue",
@@ -89,7 +90,8 @@ function directContact(reason: Extract<RoutingDecision, { kind: "to-direct-conta
     kind: "to-direct-contact",
     reason,
     requireEmail: true,
-    suggestedMessage: "のりかねさんに直接確認するので、連絡送りましょうか？",
+    suggestedMessage:
+      "のりかね映像設計室の担当者が直接ご対応いたしますので、ご連絡先を共有いただけますか？",
   } as const
 }
 

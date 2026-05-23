@@ -10,6 +10,7 @@ import {
   complexConversationTurnThreshold,
   settledConversationTurnThreshold,
   tightDeadlineThresholdDays,
+  tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 
@@ -166,6 +167,27 @@ describe("chatbot fallback router", () => {
     expect(nextDay).toMatchObject({
       kind: "continue",
       nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
+    })
+  })
+
+  it("keeps the tightish deadline boundary inclusive and the next day on the normal route", () => {
+    const boundary = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({ daysUntilStart: tightishDeadlineMaxDays }),
+    })
+    const nextDay = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({
+        daysUntilStart: tightishDeadlineMaxDays + 1,
+      }),
+    })
+
+    expect(boundary).toMatchObject({
+      kind: "continue",
+      nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
+    })
+    expect(nextDay).toMatchObject({
+      kind: "to-booking-inline",
     })
   })
 
