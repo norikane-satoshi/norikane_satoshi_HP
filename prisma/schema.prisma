@@ -155,6 +155,8 @@ model BookingGroup {
   gcalEventId  String?
   // Notion IB_仕事 ページ ID（タスク種別 = スケジュール 自動セット済み）
   notionPageId String?
+  originatedFrom String?
+  chatConversationId String?
 
   customer  Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
   team      Team?             @relation(fields: [teamId], references: [id], onDelete: SetNull)
@@ -185,6 +187,87 @@ model BookingTimeSlot {
   @@index([status])
   @@index([bookingGroupId])
   // non-Prisma partial unique index, see migration 20260520115903_booking_no_overlap_partial_unique
+}
+
+model ChatbotConversation {
+  id              String                  @id @default(cuid())
+  sessionId       String                  @unique
+  userId          String?
+  startedAt       DateTime                @default(now())
+  lastMessageAt   DateTime                @updatedAt
+  routingDecision String?
+  inquirySentAt   DateTime?
+  bookingId       String?
+  customerName    String?
+  customerCompany String?
+  customerEmail   String?
+  customerPhone   String?
+  finalMedium     String?
+  jobType         String?
+  mainDuration    String?
+  workSite        String?
+  workSiteDetails String?
+  attachments     String?
+  additionalWork  String?
+  referenceUrls   String?
+  ndaFlag         Boolean                 @default(false)
+  messages        ChatbotMessage[]
+  inquiry         ChatbotInquiry?
+  surveyResponses ChatbotSurveyResponse[]
+
+  @@index([startedAt])
+  @@index([routingDecision])
+  @@index([userId])
+}
+
+model ChatbotMessage {
+  id             String              @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  confidence     String?
+  llmModel       String?
+  llmThinking    Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  conversation   ChatbotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model ChatbotSurveyResponse {
+  id             String              @id @default(cuid())
+  conversationId String
+  question       String
+  selectedValues String
+  freeText       String?
+  createdAt      DateTime            @default(now())
+  conversation   ChatbotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model ChatbotInquiry {
+  id                  String              @id @default(cuid())
+  conversationId      String              @unique
+  customerEmail       String
+  finalMedium         String?
+  jobType             String?
+  mainDuration        String?
+  workSite            String?
+  workSiteDetails     String?
+  attachments         String?
+  additionalWork      String?
+  referenceUrls       String?
+  desiredDeadline     String?
+  freeText            String
+  aiSummary           String
+  workflowEstimate    String?
+  candidateWindows    String?
+  sentReason          String
+  sentAt              DateTime            @default(now())
+  conversation        ChatbotConversation @relation(fields: [conversationId], references: [id])
+
+  @@index([sentAt])
 }
 
 // ─────────────────────────────────────────────────
