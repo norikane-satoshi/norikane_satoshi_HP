@@ -1,0 +1,66 @@
+export type SurveyChoice = {
+  id: string
+  label: string
+}
+
+export type SurveyChoiceSet = {
+  id: string
+  question: string
+  choices: SurveyChoice[]
+}
+
+export const finalMediumChoices = {
+  id: "final-medium",
+  question: "最終媒体を教えてください",
+  choices: [
+    { id: "ott", label: "OTT 配信" },
+    { id: "cinema", label: "劇場公開" },
+    { id: "tv-broadcast", label: "地上波放送" },
+    { id: "live", label: "ライブ" },
+    { id: "web", label: "Web" },
+    { id: "vertical-sns", label: "縦型 SNS" },
+    { id: "other", label: "その他" },
+  ],
+} as const satisfies SurveyChoiceSet
+
+export const additionalWorkChoices = {
+  id: "additional-work",
+  question: "カラグレ以外の追加作業はありますか",
+  choices: [
+    { id: "retouch", label: "消し物" },
+    { id: "background-cleanup", label: "背修正" },
+    { id: "other", label: "その他" },
+    { id: "none", label: "なし" },
+  ],
+} as const satisfies SurveyChoiceSet
+
+export const documentaryAttachmentChoices = {
+  id: "documentary-attachment",
+  question: "付随する映像はありますか",
+  choices: [
+    { id: "digest", label: "ダイジェスト" },
+    { id: "interview", label: "インタビュー" },
+    { id: "bonus", label: "特典映像" },
+    { id: "making", label: "メイキング" },
+    { id: "none", label: "なし" },
+  ],
+} as const satisfies SurveyChoiceSet
+
+export const workSiteChoices = {
+  id: "work-site",
+  question: "作業場所の希望はありますか",
+  choices: [
+    { id: "client-facility-attended", label: "クライアント施設立ち会い" },
+    { id: "remote-grading", label: "リモートグレーディング" },
+    { id: "on-site-post-production", label: "出張ポスプロ常駐" },
+    { id: "satoshi-studio", label: "さとしさんのスタジオ※10月以降" },
+    { id: "entrust", label: "お任せ" },
+  ],
+} as const satisfies SurveyChoiceSet
+
+export const surveyChoiceSets = [
+  finalMediumChoices,
+  additionalWorkChoices,
+  documentaryAttachmentChoices,
+  workSiteChoices,
+] as const satisfies readonly SurveyChoiceSet[]
