@@ -16,3 +16,10 @@ export {
 export type { JobKind } from "@/lib/chatbot/server/duration-estimator"
 export { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 export type { RoutingDecisionInput } from "@/lib/chatbot/server/routing"
+export { ChatbotLlmError, defaultLlmTierOrder } from "@/lib/chatbot/server/llm-client"
+export type {
+  ChatbotLlmClient,
+  ChatbotLlmRequest,
+  ChatbotLlmResponse,
+  ChatbotLlmTier,
+} from "@/lib/chatbot/server/llm-client"
