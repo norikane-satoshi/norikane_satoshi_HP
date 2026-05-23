@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { HeroSection } from "@/components/hp/hero-section"
-import { ContactForm } from "@/components/hp/contact-form"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
@@ -264,29 +263,6 @@ export default async function HomePage() {
             </div>
           </div>
         </div>
-      </section>
-
-      {/* Contact */}
-      <section
-        id="contact"
-        className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28 space-y-6"
-      >
-        <div className="glass-card p-8 md:p-10 xl:p-14">
-          <p className="text-xs uppercase tracking-[0.28em] text-hp-muted">Contact</p>
-          <h2 className="mt-2 text-2xl font-semibold text-hp md:text-3xl">
-            お問い合わせ
-          </h2>
-          <p className="mt-5 text-base text-hp-muted leading-relaxed md:text-lg">
-            お仕事のご相談・ご依頼はフォームよりお気軽にどうぞ。
-            <br />
-            ご返信の際に、カレンダー予約用のパスワードをお伝えします。
-          </p>
-
-          <div className="mt-8">
-            <ContactForm />
-          </div>
-        </div>
-
       </section>
 
       <HomeScheduleSection />
