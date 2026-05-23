@@ -23,3 +23,7 @@ export type {
   ChatbotLlmResponse,
   ChatbotLlmTier,
 } from "@/lib/chatbot/server/llm-client"
+export {
+  createTier1ChromeClaudeClient,
+  Tier1ChromeClaudeClient,
+} from "@/lib/chatbot/server/llm-clients/tier1-chrome-claude"

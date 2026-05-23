@@ -42,6 +42,7 @@
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "bcryptjs": "^3.0.3",
+    "chrome-remote-interface": "^0.34.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -63,6 +64,7 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
+    "@types/chrome-remote-interface": "^0.34.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
