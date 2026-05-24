@@ -31,3 +31,7 @@ export {
   createTier2OllamaDeepSeekClient,
   Tier2OllamaDeepSeekClient,
 } from "@/lib/chatbot/server/llm-clients/tier2-ollama-deepseek"
+export {
+  createTier3GeminiFlashLiteClient,
+  Tier3GeminiFlashLiteClient,
+} from "@/lib/chatbot/server/llm-clients/tier3-gemini-flash-lite"
