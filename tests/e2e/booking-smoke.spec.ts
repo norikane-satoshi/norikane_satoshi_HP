@@ -3,6 +3,9 @@ import { expect, test } from "@playwright/test"
 import { createBookingForUser, prismaForE2E, testUserEmail, upsertUser } from "./booking-test-utils"
 
 const prefix = `booking-smoke-${Date.now()}`
+const bookingWeekStartIso = "2026-05-24T00:00:00.000Z"
+const bookingWeekEndIso = "2026-05-31T00:00:00.000Z"
+const bookingWeekSelectionDate = "2026-05-25"
 
 test.describe("booking personal smoke", () => {
   test("personal booking surfaces calendar failure and marks the pending group failed", async ({ page }) => {
@@ -12,8 +15,8 @@ test.describe("booking personal smoke", () => {
     await createBookingForUser(prisma, user, {
       prefix,
       label: "existing",
-      start: "2026-05-20T01:00:00.000Z",
-      end: "2026-05-20T02:00:00.000Z",
+      start: `${bookingWeekSelectionDate}T01:00:00.000Z`,
+      end: `${bookingWeekSelectionDate}T02:00:00.000Z`,
     })
 
     const authResponse = await page.goto("/api/dev/auth-bypass")
@@ -24,7 +27,7 @@ test.describe("booking personal smoke", () => {
     expect(bookingHtml).toContain('data-testid="booking-month-skeleton"')
     expect(bookingHtml).toContain('data-state="pending"')
 
-    const freeBusyUrl = "/api/calendar/free-busy?start=2026-05-01T00:00:00.000Z&end=2026-06-01T00:00:00.000Z"
+    const freeBusyUrl = `/api/calendar/free-busy?start=${bookingWeekStartIso}&end=${bookingWeekEndIso}`
     const cachedBeforeSubmit = await page.request.get(freeBusyUrl)
     expect(cachedBeforeSubmit.status()).toBe(200)
 
@@ -36,7 +39,7 @@ test.describe("booking personal smoke", () => {
     await page.getByRole("button", { name: "週" }).click()
     await page.locator(".fc-timegrid-slot-lane").first().waitFor()
 
-    const dayColumn = page.locator('.fc-timegrid-col[data-date="2026-05-21"]').first()
+    const dayColumn = page.locator(`.fc-timegrid-col[data-date="${bookingWeekSelectionDate}"]`).first()
     const slotLane = page.locator('.fc-timegrid-slot-lane[data-time="13:00:00"]').first()
     await dayColumn.waitFor()
     await slotLane.waitFor()
