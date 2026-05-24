@@ -6,7 +6,7 @@ import type {
 } from "@/lib/chatbot/domain"
 
 export type ChatbotLlmTier =
-  | "tier-1-chrome-claude"
+  | "tier-1-chrome-notion-ai"
   | "tier-2-ollama-deepseek"
   | "tier-3-gemini-flash-lite"
   | "tier-4-form-fallback"
@@ -71,7 +71,7 @@ export class ChatbotLlmError extends Error {
  * not a generate target for ChatbotLlmClient implementations.
  */
 export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
-  "tier-1-chrome-claude",
+  "tier-1-chrome-notion-ai",
   "tier-2-ollama-deepseek",
   "tier-3-gemini-flash-lite",
   "tier-4-form-fallback",

@@ -4,7 +4,7 @@ import { ChatbotLlmError, defaultLlmTierOrder } from "@/lib/chatbot/server/llm-c
 import type { ChatbotLlmTier } from "@/lib/chatbot/server/llm-client"
 
 const expectedDefaultLlmTierOrder = [
-  "tier-1-chrome-claude",
+  "tier-1-chrome-notion-ai",
   "tier-2-ollama-deepseek",
   "tier-3-gemini-flash-lite",
   "tier-4-form-fallback",
@@ -14,18 +14,18 @@ describe("chatbot LLM client interface", () => {
   it("keeps ChatbotLlmError fields and Error inheritance", () => {
     const cause = new Error("upstream refused the request")
     const error = new ChatbotLlmError({
-      message: "Claude browser tier timed out",
+      message: "Notion AI browser tier timed out",
       code: "timeout",
-      tier: "tier-1-chrome-claude",
+      tier: "tier-1-chrome-notion-ai",
       isRetryable: true,
       cause,
     })
 
     expect(error).toBeInstanceOf(Error)
     expect(error.name).toBe("ChatbotLlmError")
-    expect(error.message).toBe("Claude browser tier timed out")
+    expect(error.message).toBe("Notion AI browser tier timed out")
     expect(error.code).toBe("timeout")
-    expect(error.tier).toBe("tier-1-chrome-claude")
+    expect(error.tier).toBe("tier-1-chrome-notion-ai")
     expect(error.isRetryable).toBe(true)
     expect(error.cause).toBe(cause)
   })

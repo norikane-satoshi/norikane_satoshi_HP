@@ -24,6 +24,10 @@ export type {
   ChatbotLlmTier,
 } from "@/lib/chatbot/server/llm-client"
 export {
+  createTier1ChromeNotionAiClient,
+  Tier1ChromeNotionAiClient,
+} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
+export {
   createTier2OllamaDeepSeekClient,
   Tier2OllamaDeepSeekClient,
 } from "@/lib/chatbot/server/llm-clients/tier2-ollama-deepseek"
