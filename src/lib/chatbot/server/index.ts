@@ -23,6 +23,11 @@ export type {
   ChatbotLlmResponse,
   ChatbotLlmTier,
 } from "@/lib/chatbot/server/llm-client"
+export { createChatbotLlmTierOrchestrator } from "@/lib/chatbot/server/llm-orchestrator"
+export type {
+  ChatbotLlmTierOrchestrator,
+  TierAttemptEvent,
+} from "@/lib/chatbot/server/llm-orchestrator"
 export {
   createTier1ChromeNotionAiClient,
   Tier1ChromeNotionAiClient,
