@@ -66,9 +66,8 @@ export class ChatbotLlmError extends Error {
 }
 
 /**
- * Tier 4 is the final glass-card form fallback chosen by the caller after all
- * AI assistant tiers fail. It is included only as a routing identifier and is
- * not a generate target for ChatbotLlmClient implementations.
+ * Tier 4 is the final deterministic form fallback chosen after all AI assistant
+ * tiers fail.
  */
 export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
   "tier-1-chrome-notion-ai",
