@@ -4,14 +4,22 @@ import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import {
+  assertNotionAiChatbotTargetUrl,
   buildRunInferenceHeaders,
   buildRunInferencePayload,
   buildWorkflowValue,
   createTier1ChromeNotionAiClient,
   extractAssistantTextFromNdjson,
+  isNotionAiChatbotTargetUrl,
   parseInferenceNdjsonStream,
   Tier1ChromeNotionAiClient,
+  tier1ChromeNotionAiDefaults,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
+import {
+  getNotionAiChatbotThreadUrl,
+  notionAiChatbotThreadId,
+  notionAiChatbotThreadUrl,
+} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 import type {
   NotionAiCdpSession,
   NotionAiCdpTarget,
@@ -19,9 +27,11 @@ import type {
 
 const target: NotionAiCdpTarget = {
   type: "page",
-  url: "https://www.notion.so/ai",
+  url: "https://www.notion.so/chat?t=36b13ee3141a8073885d00a99ebb676c&wfv=chat",
   webSocketDebuggerUrl: "ws://127.0.0.1:9223/devtools/page/notion-ai",
 }
+const operationsThreadUrl =
+  "https://www.notion.so/chat?t=36b13ee3141a805b9bf600a92a4641a4&wfv=chat"
 
 function conversationState(): ConversationState {
   return {
@@ -104,6 +114,20 @@ describe("Tier1ChromeNotionAiClient", () => {
     const client = createTier1ChromeNotionAiClient()
 
     expect(client.tier).toBe("tier-1-chrome-notion-ai")
+  })
+
+  it("keeps the default target scoped to the chatbot-only Notion AI thread", () => {
+    expect(notionAiChatbotThreadId).toBe("36b13ee3-141a-8073-885d-00a99ebb676c")
+    expect(tier1ChromeNotionAiDefaults.targetUrlIncludes).toBe(notionAiChatbotThreadUrl)
+    expect(getNotionAiChatbotThreadUrl({ NOTION_AI_CHATBOT_THREAD_URL: "" })).toBe(
+      notionAiChatbotThreadUrl,
+    )
+    expect(
+      getNotionAiChatbotThreadUrl({
+        NOTION_AI_CHATBOT_THREAD_URL:
+          "https://www.notion.so/chat?t=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+    ).toBe("https://www.notion.so/chat?t=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
   })
 
   it("builds the observed runInferenceTranscript payload shape", () => {
@@ -450,7 +474,7 @@ describe("Tier1ChromeNotionAiClient", () => {
     await expect(missingTargetClient.isHealthy()).resolves.toBe(false)
   })
 
-  it("does not require the Notion AI target URL to use the www host", async () => {
+  it("does not require the chatbot Notion AI target URL to use the www host", async () => {
     const session = sessionReturning([
       {
         spaceId: "space-id",
@@ -460,11 +484,36 @@ describe("Tier1ChromeNotionAiClient", () => {
       },
     ])
     const client = new Tier1ChromeNotionAiClient({
-      fetchClient: cdpFetch([{ type: "page", url: "https://notion.so/ai" }]),
+      fetchClient: cdpFetch([
+        { type: "page", url: "https://notion.so/chat?t=36b13ee3141a8073885d00a99ebb676c" },
+      ]),
       sessionFactory: async () => session,
     })
 
     await expect(client.isHealthy()).resolves.toBe(true)
+  })
+
+  it("rejects non-chatbot Notion AI targets before attaching", async () => {
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch([
+        { type: "page", url: operationsThreadUrl },
+        {
+          type: "page",
+          url: "https://www.notion.so/3088971f957b481baff8499ff911051b?d=ee7696789d034f89b17f16b942ff24c7&pvs=42",
+        },
+      ]),
+      sessionFactory: async () => sessionReturning([]),
+    })
+
+    expect(isNotionAiChatbotTargetUrl(target.url, notionAiChatbotThreadUrl)).toBe(true)
+    expect(isNotionAiChatbotTargetUrl(operationsThreadUrl, notionAiChatbotThreadUrl)).toBe(false)
+    expect(() => assertNotionAiChatbotTargetUrl(operationsThreadUrl, notionAiChatbotThreadUrl)).toThrow(
+      ChatbotLlmError,
+    )
+    await expectLlmError(client.generate(llmRequest()), {
+      code: "connection",
+      isRetryable: true,
+    })
   })
 
   it("maps login redirects and missing space id to auth errors", async () => {

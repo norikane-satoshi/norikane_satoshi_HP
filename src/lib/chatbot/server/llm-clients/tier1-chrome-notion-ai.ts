@@ -1,5 +1,6 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
+import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 
 type Tier1ChromeNotionAiClientConfig = {
   cdpBaseUrl: string
@@ -157,7 +158,16 @@ type RunInferenceHeaders = {
 }
 
 type NotionAiInferenceResult =
-  | { ok: true; rawText: string; chunkCount: number }
+  | {
+      ok: true
+      rawText: string
+      chunkCount: number
+      postDataBytes: number
+      responseBytes: number
+      responseContentType: string
+      parsedPartial: boolean
+      parsedFinal: boolean
+    }
   | { ok: false; status?: number; code: "auth" | "invalid-output" | "unknown"; message: string }
 
 export type ParsedInferenceNdjsonChunk = {
@@ -202,7 +212,7 @@ const emptyText = ""
 
 export const tier1ChromeNotionAiDefaults = {
   cdpBaseUrl: "http://127.0.0.1:9223",
-  targetUrlIncludes: "notion.so",
+  targetUrlIncludes: getNotionAiChatbotThreadUrl(),
   requestTimeoutMs: 180000,
   healthCheckTimeoutMs: 3000,
 } as const
@@ -266,6 +276,15 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         rawText,
         tier: this.tier,
         latencyMs: Date.now() - startedAt,
+        diagnostics: {
+          endpoint: "/api/v3/runInferenceTranscript",
+          contentType: result.responseContentType,
+          postDataBytes: result.postDataBytes,
+          responseBytes: result.responseBytes,
+          ndjsonPartialParsed: result.parsedPartial,
+          ndjsonFinalParsed: result.parsedFinal,
+          chunkCount: result.chunkCount,
+        },
       }
     } catch (error) {
       throw this.mapGenerateError(error)
@@ -326,6 +345,8 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           isRetryable: false,
         })
       }
+
+      assertNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes)
 
       return await withTimeout(this.sessionFactory(target), timeoutMs, timeoutTag)
     } catch (error) {
@@ -700,12 +721,40 @@ function findNotionAiTarget(
   targetUrlIncludes: string,
 ): NotionAiCdpTarget | undefined {
   return targets.find((target) => {
-    const url = target.url ?? emptyText
-    return (
-      target.type === targetTypePage &&
-      url.includes(targetUrlIncludes) &&
-      (url.includes("/ai") || url.includes("/chat"))
-    )
+    return target.type === targetTypePage && isNotionAiChatbotTargetUrl(target.url, targetUrlIncludes)
+  })
+}
+
+export function isNotionAiChatbotTargetUrl(url: string | undefined, targetUrlIncludes: string): boolean {
+  if (!url) return false
+  const expected = targetUrlIncludes.trim()
+  if (!expected) return false
+  if (!(url.includes("/ai") || url.includes("/chat"))) return false
+  if (url.includes(expected)) return true
+
+  try {
+    const actualUrl = new URL(url)
+    const expectedUrl = new URL(expected)
+    const actualThreadId = actualUrl.searchParams.get("t")
+    const expectedThreadId = expectedUrl.searchParams.get("t")
+
+    return Boolean(expectedThreadId && actualThreadId === expectedThreadId)
+  } catch {
+    return url.includes(expected)
+  }
+}
+
+export function assertNotionAiChatbotTargetUrl(
+  url: string | undefined,
+  targetUrlIncludes: string,
+): void {
+  if (isNotionAiChatbotTargetUrl(url, targetUrlIncludes)) return
+
+  throw new ChatbotLlmError({
+    message: "Notion AI target URL does not match the configured chatbot-only thread.",
+    code: "connection",
+    tier,
+    isRetryable: true,
   })
 }
 
@@ -713,9 +762,10 @@ function findNotionLoginTarget(
   targets: CdpTargetsResponse,
   targetUrlIncludes: string,
 ): NotionAiCdpTarget | undefined {
+  void targetUrlIncludes
   return targets.find((target) => {
     const url = target.url ?? emptyText
-    return target.type === targetTypePage && url.includes(targetUrlIncludes) && url.includes("/login")
+    return target.type === targetTypePage && url.includes("notion.so") && url.includes("/login")
   })
 }
 
@@ -971,6 +1021,8 @@ async function runInferenceInPage(input: {
       headers,
       body: JSON.stringify(payload),
     })
+    const postDataBytes = JSON.stringify(payload).length
+    const responseContentType = response.headers.get("content-type") ?? ""
 
     if (response.status === 401 || response.status === 403) {
       const errorText = await response.text().catch(() => "")
@@ -993,6 +1045,7 @@ async function runInferenceInPage(input: {
     }
 
     const responseText = await response.text()
+    const responseBytes = responseText.length
     let partialText = ""
     let finalText = ""
     let chunkCount = 0
@@ -1018,7 +1071,16 @@ async function runInferenceInPage(input: {
       }
     }
 
-    return { ok: true, rawText, chunkCount }
+    return {
+      ok: true,
+      rawText,
+      chunkCount,
+      postDataBytes,
+      responseBytes,
+      responseContentType,
+      parsedPartial: partialText.length > 0,
+      parsedFinal: finalText.length > 0,
+    }
   } catch (error) {
     return {
       ok: false,

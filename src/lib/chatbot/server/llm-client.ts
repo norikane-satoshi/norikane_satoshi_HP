@@ -27,6 +27,7 @@ export type ChatbotLlmResponse = {
   tokensUsed?: number
   latencyMs?: number
   tier: ChatbotLlmTier
+  diagnostics?: Record<string, unknown>
 }
 
 export interface ChatbotLlmClient {

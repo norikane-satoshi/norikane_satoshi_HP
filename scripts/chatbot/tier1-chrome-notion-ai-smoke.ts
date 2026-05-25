@@ -1,4 +1,11 @@
-import { createTier1ChromeNotionAiClient } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
+import {
+  createTier1ChromeNotionAiClient,
+  isNotionAiChatbotTargetUrl,
+} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
+import {
+  getNotionAiChatbotThreadUrl,
+  notionAiChatbotThreadId,
+} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 import { ChatbotLlmError, type ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 
 type JsonListTarget = {
@@ -9,7 +16,7 @@ type JsonListTarget = {
 }
 
 const cdpBaseUrl = process.env.CHATBOT_TIER1_CDP_BASE_URL ?? "http://127.0.0.1:9223"
-const targetUrlIncludes = "notion.so"
+const targetUrlIncludes = getNotionAiChatbotThreadUrl()
 
 async function main(): Promise<void> {
   const target = await findTarget()
@@ -25,12 +32,21 @@ async function main(): Promise<void> {
     JSON.stringify(
       {
         status: "✅",
+        hits: 1,
+        captured: 1,
         endpoint: "/api/v3/runInferenceTranscript",
-        contentType: "application/x-ndjson",
+        contentType: response.diagnostics?.contentType ?? "application/x-ndjson",
         targetId: target.id,
         targetTitle: target.title,
         targetUrl: target.url,
+        attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, targetUrlIncludes),
+        chatbotThreadUrl: targetUrlIncludes,
+        chatbotThreadId: notionAiChatbotThreadId,
         latencyMs,
+        postDataBytes: response.diagnostics?.postDataBytes,
+        responseBytes: response.diagnostics?.responseBytes,
+        ndjsonPartialParsed: response.diagnostics?.ndjsonPartialParsed,
+        ndjsonFinalParsed: response.diagnostics?.ndjsonFinalParsed,
         rawTextPreview: response.rawText.replace(/\s+/g, " ").slice(0, 160),
       },
       null,
@@ -48,11 +64,7 @@ async function findTarget(): Promise<JsonListTarget> {
   const targets = (await response.json()) as JsonListTarget[]
   const target = targets.find((candidate) => {
     const url = candidate.url ?? ""
-    return (
-      candidate.type === "page" &&
-      url.includes(targetUrlIncludes) &&
-      (url.includes("/ai") || url.includes("/chat"))
-    )
+    return candidate.type === "page" && isNotionAiChatbotTargetUrl(url, targetUrlIncludes)
   })
   if (!target) {
     throw new ChatbotLlmError({
