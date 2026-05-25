@@ -677,7 +677,11 @@ function findNotionAiTarget(
 ): NotionAiCdpTarget | undefined {
   return targets.find((target) => {
     const url = target.url ?? emptyText
-    return target.type === targetTypePage && url.includes(targetUrlIncludes) && url.includes("/ai")
+    return (
+      target.type === targetTypePage &&
+      url.includes(targetUrlIncludes) &&
+      (url.includes("/ai") || url.includes("/chat"))
+    )
   })
 }
 
@@ -734,7 +738,14 @@ const runtimeContextExpression = `(() => {
   const readStorage = (key) => {
     try {
       const value = localStorage.getItem(key);
-      return typeof value === "string" && value.length > 0 ? value : undefined;
+      if (typeof value !== "string" || value.length === 0) return undefined;
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === "object" && typeof parsed.value === "string") {
+          return parsed.value;
+        }
+      } catch {}
+      return value;
     } catch {
       return undefined;
     }

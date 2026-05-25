@@ -48,7 +48,11 @@ async function findTarget(): Promise<JsonListTarget> {
   const targets = (await response.json()) as JsonListTarget[]
   const target = targets.find((candidate) => {
     const url = candidate.url ?? ""
-    return candidate.type === "page" && url.includes(targetUrlIncludes) && url.includes("/ai")
+    return (
+      candidate.type === "page" &&
+      url.includes(targetUrlIncludes) &&
+      (url.includes("/ai") || url.includes("/chat"))
+    )
   })
   if (!target) {
     throw new ChatbotLlmError({
