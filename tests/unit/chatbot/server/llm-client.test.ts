@@ -6,7 +6,6 @@ import type { ChatbotLlmTier } from "@/lib/chatbot/server/llm-client"
 const expectedDefaultLlmTierOrder = [
   "tier-1-chrome-notion-ai",
   "tier-2-ollama-deepseek",
-  "tier-3-gemini-flash-lite",
   "tier-4-form-fallback",
 ] as const satisfies ReadonlyArray<ChatbotLlmTier>
 
@@ -32,9 +31,9 @@ describe("chatbot LLM client interface", () => {
 
   it("supports instanceof checks for the concrete error class", () => {
     const error = new ChatbotLlmError({
-      message: "Gemini returned invalid JSON",
+      message: "Upstream assistant returned invalid JSON",
       code: "invalid-output",
-      tier: "tier-3-gemini-flash-lite",
+      tier: "tier-2-ollama-deepseek",
       isRetryable: false,
     })
 

@@ -144,20 +144,17 @@ describe("createChatbotLlmTierOrchestrator", () => {
     expect(tier2.generate).toHaveBeenCalledOnce()
   })
 
-  it("uses tier 4 form fallback after tiers 1 through 3 fail", async () => {
+  it("uses tier 4 form fallback after tiers 1 and 2 fail", async () => {
     const tier1 = fakeClient("tier-1-chrome-notion-ai", {
       generateError: llmError("tier-1-chrome-notion-ai"),
     })
     const tier2 = fakeClient("tier-2-ollama-deepseek", {
       generateError: llmError("tier-2-ollama-deepseek"),
     })
-    const tier3 = fakeClient("tier-3-gemini-flash-lite", {
-      generateError: llmError("tier-3-gemini-flash-lite"),
-    })
     const tier4 = fakeClient("tier-4-form-fallback", {
       generateResult: llmResponse("tier-4-form-fallback", "fallback form"),
     })
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, tier3, tier4] })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, tier4] })
 
     await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
       llmResponse("tier-4-form-fallback", "fallback form"),
@@ -165,21 +162,18 @@ describe("createChatbotLlmTierOrchestrator", () => {
     expect(tier4.generate).toHaveBeenCalledOnce()
   })
 
-  it("throws unknown ChatbotLlmError when tier 4 is missing and tiers 1 through 3 fail", async () => {
+  it("throws unknown ChatbotLlmError when tier 4 is missing and tiers 1 and 2 fail", async () => {
     const tier1 = fakeClient("tier-1-chrome-notion-ai", {
       generateError: llmError("tier-1-chrome-notion-ai"),
     })
     const tier2 = fakeClient("tier-2-ollama-deepseek", {
       generateError: llmError("tier-2-ollama-deepseek"),
     })
-    const tier3 = fakeClient("tier-3-gemini-flash-lite", {
-      generateError: llmError("tier-3-gemini-flash-lite"),
-    })
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, tier3] })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
 
     await expect(orchestrator.generate(llmRequest())).rejects.toMatchObject({
       code: "unknown",
-      tier: "tier-3-gemini-flash-lite",
+      tier: "tier-2-ollama-deepseek",
       isRetryable: false,
     })
   })
@@ -187,10 +181,9 @@ describe("createChatbotLlmTierOrchestrator", () => {
   it("honors custom tierOrder and skips omitted tiers", async () => {
     const tier1 = fakeClient("tier-1-chrome-notion-ai")
     const tier2 = fakeClient("tier-2-ollama-deepseek")
-    const tier3 = fakeClient("tier-3-gemini-flash-lite")
     const tier4 = fakeClient("tier-4-form-fallback")
     const orchestrator = createChatbotLlmTierOrchestrator({
-      clients: [tier1, tier2, tier3, tier4],
+      clients: [tier1, tier2, tier4],
       tierOrder: ["tier-2-ollama-deepseek", "tier-4-form-fallback"],
     })
 
@@ -198,7 +191,7 @@ describe("createChatbotLlmTierOrchestrator", () => {
       llmResponse("tier-2-ollama-deepseek"),
     )
     expect(tier1.isHealthy).not.toHaveBeenCalled()
-    expect(tier3.isHealthy).not.toHaveBeenCalled()
+    expect(tier4.isHealthy).not.toHaveBeenCalled()
   })
 
   it("emits health-check and generate attempt events for each tried tier", async () => {
