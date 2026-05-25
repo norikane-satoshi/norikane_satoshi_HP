@@ -1,0 +1,225 @@
+import { describe, expect, it, vi } from "vitest"
+
+import type { JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
+import {
+  ChatbotAvailabilityError,
+  findCandidateWindows,
+  type AttendanceConflictResolver,
+  type FreeBusyFetcher,
+} from "@/lib/chatbot/server/availability-finder"
+
+function jobContext(overrides: Partial<JobContext> = {}): JobContext {
+  return {
+    jobKind: "cm-30s",
+    finalMedium: "web",
+    workSite: "remote-grading",
+    documentaryAttachment: { kind: "none" },
+    ...overrides,
+  }
+}
+
+function workflowEstimate(totalMinDays: number): WorkflowEstimate {
+  return {
+    stages: [{ stage: "attended", minDays: totalMinDays, maxDays: totalMinDays }],
+    totalMinDays,
+    totalMaxDays: totalMinDays,
+    riskFlags: [],
+  }
+}
+
+function freeBusy(slots: Array<{ start: string; end: string }> = []): FreeBusyFetcher {
+  return vi.fn(async () => slots)
+}
+
+function attendance(
+  slots: Array<{ start: string; end: string; bookingId: string }> = [],
+): AttendanceConflictResolver {
+  return vi.fn(async () => slots)
+}
+
+const NOW_BEFORE_STUDIO = new Date("2026-05-25T10:00:00+09:00")
+const NOW_AFTER_STUDIO = new Date("2026-10-01T10:00:00+09:00")
+
+describe("findCandidateWindows", () => {
+  it("rejects satoshi-studio before 2026-10-01 JST", async () => {
+    await expect(
+      findCandidateWindows({
+        jobContext: jobContext({ workSite: "satoshi-studio" }),
+        workflowEstimate: workflowEstimate(1),
+        now: NOW_BEFORE_STUDIO,
+        freeBusyFetcher: freeBusy(),
+        attendanceConflictResolver: attendance(),
+      }),
+    ).rejects.toMatchObject({ kind: "studio-not-yet-active" })
+  })
+
+  it("rejects an unspecified work site without assigning a default", async () => {
+    await expect(
+      findCandidateWindows({
+        jobContext: jobContext({ workSite: undefined as unknown as JobContext["workSite"] }),
+        workflowEstimate: workflowEstimate(1),
+        now: NOW_AFTER_STUDIO,
+        freeBusyFetcher: freeBusy(),
+        attendanceConflictResolver: attendance(),
+      }),
+    ).rejects.toMatchObject({ kind: "work-site-unspecified" })
+  })
+
+  it("filters out windows that overlap attended booking intervals", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      now: new Date("2026-10-05T10:00:00+09:00"),
+      freeBusyFetcher: freeBusy(),
+      attendanceConflictResolver: attendance([
+        {
+          bookingId: "booking-1",
+          start: "2026-10-04T15:00:00.000Z",
+          end: "2026-10-05T15:00:00.000Z",
+        },
+      ]),
+    })
+
+    expect(windows[0]?.label).toBe("2026-10-06 - 2026-10-06")
+  })
+
+  it("uses Free/Busy as soft scoring instead of a hard exclusion", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      desiredDeadline: "2026-10-06T00:00:00+09:00",
+      now: new Date("2026-10-05T10:00:00+09:00"),
+      freeBusyFetcher: freeBusy([
+        {
+          start: "2026-10-04T15:00:00.000Z",
+          end: "2026-10-05T15:00:00.000Z",
+        },
+      ]),
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(windows).toHaveLength(1)
+    expect(windows[0]?.label).toBe("2026-10-05 - 2026-10-05")
+  })
+
+  it("returns the top 3 candidate windows", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      now: NOW_AFTER_STUDIO,
+      freeBusyFetcher: freeBusy(),
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(windows).toHaveLength(3)
+  })
+
+  it("filters out windows that end after desiredDeadline", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      desiredDeadline: "2026-10-02",
+      now: NOW_AFTER_STUDIO,
+      freeBusyFetcher: freeBusy(),
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(windows.map((window) => window.label)).toEqual(["2026-10-01 - 2026-10-01"])
+  })
+
+  it("returns an empty array instead of throwing when no window remains", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      desiredDeadline: "2026-09-30",
+      now: NOW_AFTER_STUDIO,
+      freeBusyFetcher: freeBusy(),
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(windows).toEqual([])
+  })
+
+  it("rounds totalMinDays up to business days", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1.2),
+      now: NOW_AFTER_STUDIO,
+      freeBusyFetcher: freeBusy(),
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(windows[0]?.label).toBe("2026-10-01 - 2026-10-02")
+  })
+
+  it("skips Saturday and Sunday while counting business days", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(2),
+      now: new Date("2026-10-02T10:00:00+09:00"),
+      freeBusyFetcher: freeBusy(),
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(windows[0]?.label).toBe("2026-10-02 - 2026-10-05")
+  })
+
+  it("uses an 8 week default lookahead", async () => {
+    const fetcher = freeBusy()
+
+    await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      now: NOW_AFTER_STUDIO,
+      freeBusyFetcher: fetcher,
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(fetcher).toHaveBeenCalledWith({
+      from: "2026-09-30T15:00:00.000Z",
+      to: "2026-11-26T01:00:00.000Z",
+    })
+  })
+
+  it("keeps scoring reasoning in CandidateWindow.note", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      desiredDeadline: "2026-10-20",
+      now: NOW_AFTER_STUDIO,
+      freeBusyFetcher: freeBusy(),
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(windows[0]?.note).toContain("businessDays=1")
+    expect(windows[0]?.note).toContain("busyRatio=0.00")
+    expect(windows[0]?.note).toContain("deadlineSlackDays=")
+    expect(windows[0]?.note).toContain("attendanceConflicts=0")
+  })
+
+  it("wraps injected fetch and attendance resolver failures", async () => {
+    await expect(
+      findCandidateWindows({
+        jobContext: jobContext(),
+        workflowEstimate: workflowEstimate(1),
+        now: NOW_AFTER_STUDIO,
+        freeBusyFetcher: vi.fn(async () => {
+          throw new Error("fetch failed")
+        }),
+        attendanceConflictResolver: attendance(),
+      }),
+    ).rejects.toBeInstanceOf(ChatbotAvailabilityError)
+
+    await expect(
+      findCandidateWindows({
+        jobContext: jobContext(),
+        workflowEstimate: workflowEstimate(1),
+        now: NOW_AFTER_STUDIO,
+        freeBusyFetcher: freeBusy(),
+        attendanceConflictResolver: vi.fn(async () => {
+          throw new Error("resolver failed")
+        }),
+      }),
+    ).rejects.toMatchObject({ kind: "attendance-resolver-failed" })
+  })
+})

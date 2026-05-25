@@ -14,6 +14,14 @@ export {
   estimateWorkflow,
 } from "@/lib/chatbot/server/duration-estimator"
 export type { JobKind } from "@/lib/chatbot/server/duration-estimator"
+export {
+  ChatbotAvailabilityError,
+  findCandidateWindows,
+} from "@/lib/chatbot/server/availability-finder"
+export type {
+  AttendanceConflictResolver,
+  FreeBusyFetcher,
+} from "@/lib/chatbot/server/availability-finder"
 export { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 export type { RoutingDecisionInput } from "@/lib/chatbot/server/routing"
 export { ChatbotLlmError, defaultLlmTierOrder } from "@/lib/chatbot/server/llm-client"
