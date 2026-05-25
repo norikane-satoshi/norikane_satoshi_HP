@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
@@ -9,6 +9,7 @@ import {
 } from "@/lib/chatbot/server/llm-clients/tier2-ollama-deepseek"
 
 const modelName = "hf.co/cyberagent/DeepSeek-R1-Distill-Qwen-Japanese-14B-gguf:Q4_K_M"
+const resolvedModelName = "hf.co/mmnga/cyberagent-DeepSeek-R1-Distill-Qwen-14B-Japanese-gguf:Q4_K_M"
 const baseConfig = {
   baseUrl: "http://localhost:11434",
   modelName,
@@ -77,10 +78,68 @@ async function expectLlmError(
 }
 
 describe("Tier2OllamaDeepSeekClient", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it("keeps the tier property fixed to tier 2 Ollama DeepSeek", () => {
     const client = createTier2OllamaDeepSeekClient()
 
     expect(client.tier).toBe("tier-2-ollama-deepseek")
+  })
+
+  it("uses the locally installed HF model host by default", async () => {
+    const httpClient = vi.fn(async () =>
+      jsonResponse({ model: resolvedModelName, message: { content: "OK" } }),
+    )
+    const client = createTier2OllamaDeepSeekClient({ ...baseConfig, modelName: resolvedModelName, httpClient })
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      rawText: "OK",
+      diagnostics: { model: resolvedModelName },
+    })
+  })
+
+  it("loads Ollama base URL and model name from tier-specific env", async () => {
+    vi.stubEnv("CHATBOT_TIER2_OLLAMA_BASE_URL", "http://127.0.0.1:11435")
+    vi.stubEnv("CHATBOT_TIER2_OLLAMA_MODEL", "local-model:Q4_K_M")
+    const httpClient = vi.fn(async () => jsonResponse({ message: { content: "OK" } }))
+    const client = createTier2OllamaDeepSeekClient({
+      requestTimeoutMs: 20,
+      healthCheckTimeoutMs: 20,
+      httpClient,
+    })
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({ rawText: "OK" })
+    expect(httpClient).toHaveBeenCalledWith(
+      "http://127.0.0.1:11435/api/chat",
+      expect.objectContaining({
+        body: expect.stringContaining("local-model:Q4_K_M"),
+      }),
+    )
+  })
+
+  it("reports Ollama load time and tokens per second when timings are present", async () => {
+    const httpClient = vi.fn(async () =>
+      jsonResponse({
+        model: modelName,
+        message: { content: "OK" },
+        load_duration: 2_000_000_000,
+        eval_count: 24,
+        eval_duration: 2_000_000_000,
+      }),
+    )
+    const client = ollamaClient(httpClient)
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      diagnostics: {
+        model: modelName,
+        loadDurationMs: 2000,
+        evalCount: 24,
+        evalDurationMs: 2000,
+        tokensPerSecond: 12,
+      },
+    })
   })
 
   it("returns raw text and tier when Ollama returns a valid chat response", async () => {

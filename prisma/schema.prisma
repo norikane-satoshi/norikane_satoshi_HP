@@ -270,6 +270,30 @@ model ChatbotInquiry {
   @@index([sentAt])
 }
 
+model ChatbotGateVerificationLog {
+  id          String   @id @default(cuid())
+  gateNumber  Int
+  iteration   Int
+  passed      Boolean
+  detailsJson String
+  executedAt  DateTime @default(now())
+
+  @@index([gateNumber, iteration])
+  @@index([executedAt])
+}
+
+model ChatbotHealthCheckLog {
+  id                   String   @id @default(cuid())
+  probeAt              DateTime @default(now())
+  rateLimitRemaining   Float?
+  modelSelectorPresent Boolean
+  responseSuccess      Boolean
+  detailsJson          String
+
+  @@index([probeAt])
+  @@index([responseSuccess])
+}
+
 // ─────────────────────────────────────────────────
 // 予約カレンダー チャンネル共有
 // ─────────────────────────────────────────────────

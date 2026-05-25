@@ -17,9 +17,13 @@ type Tier2OllamaHttpClient = (input: string, init?: RequestInit) => Promise<Resp
 type TimeoutTag = "timeout"
 
 type OllamaChatResponse = {
+  model?: unknown
   message?: {
     content?: unknown
   }
+  load_duration?: unknown
+  eval_count?: unknown
+  eval_duration?: unknown
 }
 
 type OllamaTagsResponse = {
@@ -40,7 +44,7 @@ class OllamaHttpStatusError extends Error {
 
 export const tier2OllamaDeepSeekDefaults = {
   baseUrl: "http://localhost:11434",
-  modelName: "hf.co/cyberagent/DeepSeek-R1-Distill-Qwen-Japanese-14B-gguf:Q4_K_M",
+  modelName: "hf.co/mmnga/cyberagent-DeepSeek-R1-Distill-Qwen-14B-Japanese-gguf:Q4_K_M",
   requestTimeoutMs: 90000,
   healthCheckTimeoutMs: 3000,
 } as const
@@ -105,6 +109,7 @@ export class Tier2OllamaDeepSeekClient implements ChatbotLlmClient {
         rawText,
         tier: this.tier,
         latencyMs: Date.now() - startedAt,
+        diagnostics: buildOllamaDiagnostics(response),
       }
     } catch (error) {
       throw this.mapGenerateError(error)
@@ -202,10 +207,15 @@ export class Tier2OllamaDeepSeekClient implements ChatbotLlmClient {
 }
 
 export function createTier2OllamaDeepSeekClient(
-  overrides: Partial<Tier2OllamaDeepSeekClientConfig> = {},
+  overrides: Partial<Tier2OllamaDeepSeekClientConfig> & {
+    httpClient?: Tier2OllamaHttpClient
+  } = {},
 ): Tier2OllamaDeepSeekClient {
   return new Tier2OllamaDeepSeekClient({
-    ...tier2OllamaDeepSeekDefaults,
+    baseUrl: process.env.CHATBOT_TIER2_OLLAMA_BASE_URL ?? tier2OllamaDeepSeekDefaults.baseUrl,
+    modelName: process.env.CHATBOT_TIER2_OLLAMA_MODEL ?? tier2OllamaDeepSeekDefaults.modelName,
+    requestTimeoutMs: tier2OllamaDeepSeekDefaults.requestTimeoutMs,
+    healthCheckTimeoutMs: tier2OllamaDeepSeekDefaults.healthCheckTimeoutMs,
     ...overrides,
   })
 }
@@ -224,6 +234,33 @@ function buildMessages(request: ChatbotLlmRequest) {
 
 function getOllamaMessageContent(response: OllamaChatResponse): string {
   return typeof response.message?.content === "string" ? response.message.content : emptyText
+}
+
+function buildOllamaDiagnostics(response: OllamaChatResponse): Record<string, unknown> {
+  const evalCount = numberOrUndefined(response.eval_count)
+  const evalDurationMs = nanosecondsToMilliseconds(response.eval_duration)
+  const loadDurationMs = nanosecondsToMilliseconds(response.load_duration)
+  const tokensPerSecond =
+    typeof evalCount === "number" && typeof evalDurationMs === "number" && evalDurationMs > 0
+      ? evalCount / (evalDurationMs / 1000)
+      : undefined
+
+  return {
+    model: typeof response.model === "string" ? response.model : undefined,
+    loadDurationMs,
+    evalCount,
+    evalDurationMs,
+    tokensPerSecond,
+  }
+}
+
+function numberOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function nanosecondsToMilliseconds(value: unknown): number | undefined {
+  const numeric = numberOrUndefined(value)
+  return typeof numeric === "number" ? numeric / 1_000_000 : undefined
 }
 
 function hasModel(models: unknown, modelName: string): boolean {

@@ -48,6 +48,14 @@ type NotionAiRuntimeContext = {
   workflowValue?: Partial<NotionAiWorkflowValue>
 }
 
+export type NotionAiRuntimeInspection = {
+  targetUrl?: string
+  selectedModel?: string
+  finalModelName?: string
+  availableModels?: string[]
+  preferredModelAvailable: boolean
+}
+
 type NotionAiWorkflowValue = {
   type: "workflow"
   model: string
@@ -165,6 +173,7 @@ type NotionAiInferenceResult =
       postDataBytes: number
       responseBytes: number
       responseContentType: string
+      responseHeaders: Record<string, string>
       parsedPartial: boolean
       parsedFinal: boolean
     }
@@ -204,7 +213,7 @@ const jsonListPath = "/json/list"
 const jsonVersionPath = "/json/version"
 const httpGet = "GET"
 const targetTypePage = "page"
-const observedNotionAiModel = "apricot-sorbet-high"
+export const tier1ObservedNotionAiModel = "apricot-sorbet-high"
 const defaultCreatedSource = "assistant"
 const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
@@ -240,7 +249,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
 
   async generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse> {
     const startedAt = Date.now()
-    const session = await this.openSession(this.config.requestTimeoutMs)
+    const { session, target } = await this.openTargetSession(this.config.requestTimeoutMs)
 
     try {
       const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
@@ -279,11 +288,14 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         diagnostics: {
           endpoint: "/api/v3/runInferenceTranscript",
           contentType: result.responseContentType,
+          responseHeaders: result.responseHeaders,
           postDataBytes: result.postDataBytes,
           responseBytes: result.responseBytes,
           ndjsonPartialParsed: result.parsedPartial,
           ndjsonFinalParsed: result.parsedFinal,
           chunkCount: result.chunkCount,
+          attachTargetUrl: target.url,
+          attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
         },
       }
     } catch (error) {
@@ -297,7 +309,8 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     let session: NotionAiCdpSession | undefined
 
     try {
-      session = await this.openSession(this.config.healthCheckTimeoutMs)
+      const opened = await this.openTargetSession(this.config.healthCheckTimeoutMs)
+      session = opened.session
       const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
         session,
         runtimeContextExpression,
@@ -315,7 +328,32 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     }
   }
 
-  private async openSession(timeoutMs: number): Promise<NotionAiCdpSession> {
+  async inspectRuntimeContext(): Promise<NotionAiRuntimeInspection> {
+    const { session, target } = await this.openTargetSession(this.config.healthCheckTimeoutMs)
+
+    try {
+      const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
+        session,
+        runtimeContextExpression,
+        this.config.healthCheckTimeoutMs,
+      )
+      const preferredModel = this.config.preferredModel ?? tier1ObservedNotionAiModel
+
+      return {
+        targetUrl: target.url,
+        selectedModel: runtimeContext.selectedModel,
+        finalModelName: runtimeContext.finalModelName,
+        availableModels: runtimeContext.availableModels,
+        preferredModelAvailable: modelIsAvailable(preferredModel, runtimeContext.availableModels),
+      }
+    } finally {
+      await session.close()
+    }
+  }
+
+  private async openTargetSession(
+    timeoutMs: number,
+  ): Promise<{ session: NotionAiCdpSession; target: NotionAiCdpTarget }> {
     try {
       await this.requestJson<unknown>(jsonVersionPath, timeoutMs)
       const targets = await this.requestJson<CdpTargetsResponse>(jsonListPath, timeoutMs)
@@ -348,7 +386,10 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
 
       assertNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes)
 
-      return await withTimeout(this.sessionFactory(target), timeoutMs, timeoutTag)
+      return {
+        session: await withTimeout(this.sessionFactory(target), timeoutMs, timeoutTag),
+        target,
+      }
     } catch (error) {
       if (error instanceof ChatbotLlmError) throw error
       if (error === timeoutTag) {
@@ -681,7 +722,7 @@ export function parseInferenceNdjsonStream(ndjson: string): ParsedInferenceNdjso
 
 function resolveModel(runtimeContext: NotionAiRuntimeContext, preferredModel?: string): string {
   const availableModels = runtimeContext.availableModels
-  const selectedModel = preferredModel ?? observedNotionAiModel
+  const selectedModel = preferredModel ?? tier1ObservedNotionAiModel
 
   if (availableModels && !modelIsAvailable(selectedModel, availableModels)) {
     throw new ChatbotLlmError({
@@ -902,7 +943,7 @@ const runtimeContextExpression = `(() => {
     notionClientVersion: root.__notionClientVersion || buildId || readMeta("notion-client-version"),
     contextPageId: root.__notionAiContextPageId || readNotionAiContextPageId(),
     threadId,
-    selectedModel: root.__notionAiSelectedModel || "${observedNotionAiModel}",
+    selectedModel: root.__notionAiSelectedModel || "${tier1ObservedNotionAiModel}",
     finalModelName: root.__notionAiFinalModelName,
     availableModels: Array.isArray(root.__notionAiAvailableModels) ? root.__notionAiAvailableModels : undefined,
     modelFromUser: true,
@@ -1023,6 +1064,7 @@ async function runInferenceInPage(input: {
     })
     const postDataBytes = JSON.stringify(payload).length
     const responseContentType = response.headers.get("content-type") ?? ""
+    const responseHeaders = Object.fromEntries(response.headers.entries())
 
     if (response.status === 401 || response.status === 403) {
       const errorText = await response.text().catch(() => "")
@@ -1078,6 +1120,7 @@ async function runInferenceInPage(input: {
       postDataBytes,
       responseBytes,
       responseContentType,
+      responseHeaders,
       parsedPartial: partialText.length > 0,
       parsedFinal: finalText.length > 0,
     }
