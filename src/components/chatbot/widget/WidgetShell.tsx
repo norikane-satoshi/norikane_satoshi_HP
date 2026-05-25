@@ -1,12 +1,47 @@
 "use client"
 
-import { Minus, Send, Sparkles } from "lucide-react"
+import { useState } from "react"
+import { Minus, Sparkles } from "lucide-react"
+
+import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
+
+import { ChatInput } from "./ChatInput"
+import { ChatMessage } from "./ChatMessage"
+import { SecurityNote } from "./SecurityNote"
 
 type WidgetShellProps = {
   onMinimize: () => void
 }
 
+type WidgetMessage = {
+  role: ChatbotMessageRole
+  content: string
+  createdAt: Date
+}
+
+const initialMessage = {
+  role: "assistant",
+  content: "ご相談や案件依頼はこちらです。最終媒体、公開時期、作業時期などを会話で整理します。",
+  createdAt: new Date(),
+} satisfies WidgetMessage
+
 export function WidgetShell({ onMinimize }: WidgetShellProps) {
+  const [messages, setMessages] = useState<WidgetMessage[]>([initialMessage])
+
+  const handleSubmit = (text: string) => {
+    const createdAt = new Date()
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      { role: "user", content: text, createdAt },
+      // TODO(PR 10): replace echo placeholder with /api/chatbot/message call.
+      {
+        role: "assistant",
+        content: "ご相談内容を受け付けました。続けてお話しください。",
+        createdAt: new Date(),
+      },
+    ])
+  }
+
   return (
     <section
       className="glass-card pointer-events-auto flex h-[min(560px,calc(100dvh-2rem))] w-full max-w-[384px] animate-in fade-in slide-in-from-bottom-2 duration-300 flex-col overflow-hidden rounded-t-[20px] md:rounded-[20px]"
@@ -35,39 +70,20 @@ export function WidgetShell({ onMinimize }: WidgetShellProps) {
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
-        <div className="glass-card-sm max-w-[92%] px-4 py-3">
-          <p className="text-sm leading-relaxed text-hp">
-            ご相談や案件依頼はこちら。最終媒体、公開時期、作業時期などを会話で整理します。
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {["カラーグレーディング", "公開時期から逆算", "予約まで進めたい"].map((label) => (
-            <span key={label} className="glass-badge px-3 py-2 text-xs">
-              {label}
-            </span>
+        <SecurityNote defaultOpen={false} />
+        <div className="space-y-3" role="log" aria-live="polite">
+          {messages.map((message, index) => (
+            <ChatMessage
+              key={`${message.role}-${message.createdAt.toISOString()}-${index}`}
+              role={message.role}
+              content={message.content}
+              createdAt={message.createdAt}
+            />
           ))}
         </div>
       </div>
 
-      <form
-        className="border-t border-[var(--glass-border)] p-4"
-        onSubmit={(event) => event.preventDefault()}
-      >
-        <div className="glass-card-sm flex items-center gap-2 px-3 py-2 focus-within:border-[var(--accent-primary)]">
-          <input
-            className="min-w-0 flex-1 bg-transparent text-sm text-hp outline-none placeholder:text-hp-muted"
-            placeholder="相談内容を入力"
-            aria-label="相談内容"
-          />
-          <button
-            type="submit"
-            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
-            aria-label="送信"
-          >
-            <Send className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-      </form>
+      <ChatInput onSubmit={handleSubmit} />
     </section>
   )
 }

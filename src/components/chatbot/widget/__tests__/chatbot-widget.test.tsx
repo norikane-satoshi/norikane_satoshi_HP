@@ -146,6 +146,27 @@ describe("chatbot widget shell", () => {
     screen.getByRole("button", { name: "最小化" }).click()
     expect(onMinimize).toHaveBeenCalledTimes(1)
   })
+
+  it("does not render the previous placeholder badges", () => {
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const removedLabels = ["カラー" + "グレーディング", "公開時期" + "から逆算", "予約まで" + "進めたい"]
+    for (const label of removedLabels) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument()
+    }
+  })
+
+  it("renders the initial assistant message", () => {
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    expect(screen.getByText("ご相談や案件依頼はこちらです。最終媒体、公開時期、作業時期などを会話で整理します。")).toBeInTheDocument()
+  })
+
+  it("renders the security note inside the shell", () => {
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    expect(screen.getByRole("button", { name: "安全に扱います" })).toBeInTheDocument()
+  })
 })
 
 describe("chatbot widget hooks", () => {
