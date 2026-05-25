@@ -1,0 +1,22 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "text": "内容を整理しました。日程候補を確認して、のりかねさんに共有します。"
+          }
+        ]
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 64,
+    "candidatesTokenCount": 22,
+    "totalTokenCount": 86
+  },
+  "modelVersion": "gemini-2.5-flash-lite"
+}

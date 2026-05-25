@@ -1,8 +1,9 @@
-import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
+import type { ChatbotLlmClient, ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import { createTier1ChromeNotionAiClient, tier1ObservedNotionAiModel } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 import { runTier1HealthCheck } from "@/lib/chatbot/server/llm-clients/tier1-health-check"
 import { createTier2OllamaDeepSeekClient } from "@/lib/chatbot/server/llm-clients/tier2-ollama-deepseek"
 import { createTier3GeminiFlashLiteClient } from "@/lib/chatbot/server/llm-clients/tier3-gemini-flash-lite"
+import { createChatbotLlmTierOrchestrator } from "@/lib/chatbot/server/llm-orchestrator"
 import { normalizeChatbotLlmResponse } from "@/lib/chatbot/server/llm-response-normalizer"
 import { recordChatbotGateVerification } from "@/lib/chatbot/server/chatbot-ops-log"
 import { createLocalPrismaClient } from "./local-prisma"
@@ -136,57 +137,112 @@ async function runGate3(logClient: ReturnType<typeof createLocalPrismaClient>) {
   const tier2 = createTier2OllamaDeepSeekClient()
   const tier3 = createTier3GeminiFlashLiteClient()
   const cases = [
-    buildRequest("Gate3 topic gating: VFX合成主体の相談は直接確認へ誘導してください"),
-    buildRequest("Gate3 conversation: 30秒Web CMのカラーグレーディング相談です"),
-    buildRequest("Gate3 reasoning: 2分のWeb動画で追加作業なし、工程感だけ一文で返してください"),
-    buildRequest("Gate3 JSON: content role model finish_reason を含むJSON互換で返してください"),
+    {
+      name: "topic-gating",
+      request: buildRequest("Gate3 topic gating: VFX合成主体の相談は直接確認へ誘導してください"),
+    },
+    {
+      name: "conversation",
+      request: buildRequest("Gate3 conversation: 30秒Web CMのカラーグレーディング相談です"),
+    },
+    {
+      name: "reasoning",
+      request: buildRequest("Gate3 reasoning: 2分のWeb動画で追加作業なし、工程感だけ一文で返してください"),
+    },
+    {
+      name: "json",
+      request: buildRequest("Gate3 JSON: content role model finish_reason を含むJSON互換で返してください"),
+    },
   ]
+  const clients = [tier1, tier2, tier3]
   const details: unknown[] = []
   let passed = 0
   let failed = 0
+  let invocationCount = 0
 
-  for (let iteration = 1; iteration <= gateIterations; iteration += 1) {
-    const request = cases[(iteration - 1) % cases.length]
-    const results = await Promise.all(
-      [tier1, tier2, tier3].map(async (client) => {
-        try {
-          const response = await client.generate(request)
-          return { ok: true as const, response: normalizeChatbotLlmResponse(response) }
-        } catch (error) {
-          return {
-            ok: false as const,
-            tier: client.tier,
-            error: error instanceof Error ? error.message : String(error),
+  for (let gateIteration = 1; gateIteration <= gateIterations; gateIteration += 1) {
+    for (let caseIndex = 0; caseIndex < cases.length; caseIndex += 1) {
+      const currentCase = cases[caseIndex]
+      const results = await Promise.all(
+        clients.map(async (client) => {
+          invocationCount += 1
+          let lastError: unknown
+          try {
+            const orchestrator = createChatbotLlmTierOrchestrator({
+              clients: clients.map(withLiveGenerateOnlyHealth),
+              tierOrder: [client.tier],
+              onTierAttempt: (event) => {
+                if (event.outcome === "error") lastError = event.error
+              },
+            })
+            const response = await orchestrator.generate(currentCase.request)
+            return {
+              ok: true as const,
+              tier: client.tier,
+              response: normalizeChatbotLlmResponse(response),
+              attachTargetUrlMatches: response.diagnostics?.attachTargetUrlMatches,
+            }
+          } catch (error) {
+            return {
+              ok: false as const,
+              tier: client.tier,
+              error: formatGateError(lastError ?? error),
+            }
           }
-        }
-      }),
-    )
-    const normalized = results.flatMap((result) => (result.ok ? [result.response] : []))
-    const iterationPassed = results.every((result) => result.ok) && normalized.every((response) => {
-      return Boolean(response.content && response.role && response.model && response.finish_reason)
-    })
-    const detail = {
-      iteration,
-      caseIndex: (iteration - 1) % cases.length,
-      models: normalized.map((response) => response.model),
-      contentLengths: normalized.map((response) => response.content.length),
-      finishReasons: normalized.map((response) => response.finish_reason),
-      errors: results.flatMap((result) => (result.ok ? [] : [{ tier: result.tier, error: result.error }])),
-    }
+        }),
+      )
+      const normalized = results.flatMap((result) => (result.ok ? [result.response] : []))
+      const iterationPassed =
+        results.every((result) => result.ok) &&
+        normalized.every((response) => {
+          return Boolean(response.content && response.role && response.model && response.finish_reason)
+        })
+      const detail = {
+        iteration: (gateIteration - 1) * cases.length + caseIndex + 1,
+        gateIteration,
+        caseIndex,
+        caseName: currentCase.name,
+        models: normalized.map((response) => response.model),
+        contentLengths: normalized.map((response) => response.content.length),
+        finishReasons: normalized.map((response) => response.finish_reason),
+        attachTargetUrlMatches: results
+          .filter((result) => result.ok && result.tier === "tier-1-chrome-notion-ai")
+          .every((result) => result.attachTargetUrlMatches === true),
+        tierOrderSmoke: results.map((result) => result.tier),
+        errors: results.flatMap((result) => (result.ok ? [] : [{ tier: result.tier, error: result.error }])),
+      }
 
-    if (iterationPassed) passed += 1
-    else failed += 1
-    details.push(detail)
-    await recordChatbotGateVerification({
-      client: logClient,
-      gateNumber: 3,
-      iteration,
-      passed: iterationPassed,
-      details: detail,
-    })
+      if (iterationPassed) passed += 1
+      else failed += 1
+      details.push(detail)
+      await recordChatbotGateVerification({
+        client: logClient,
+        gateNumber: 3,
+        iteration: detail.iteration,
+        passed: iterationPassed,
+        details: detail,
+      })
+    }
   }
 
-  return { gate: 3, passed, failed, details }
+  return { gate: 3, passed, failed, invocationCount, details }
+}
+
+function withLiveGenerateOnlyHealth(client: ChatbotLlmClient): ChatbotLlmClient {
+  return {
+    tier: client.tier,
+    generate: (request) => client.generate(request),
+    isHealthy: async () => true,
+  }
+}
+
+function formatGateError(error: unknown): string {
+  if (error instanceof Error) {
+    const code = "code" in error ? String(error.code) : undefined
+    return code ? `${code}: ${error.message}` : error.message
+  }
+
+  return String(error)
 }
 
 async function runGate4(logClient: ReturnType<typeof createLocalPrismaClient>) {

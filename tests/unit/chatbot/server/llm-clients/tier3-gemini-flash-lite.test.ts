@@ -7,6 +7,8 @@ import {
   createTier3GeminiFlashLiteClient,
   Tier3GeminiFlashLiteClient,
 } from "@/lib/chatbot/server/llm-clients/tier3-gemini-flash-lite"
+import geminiFlashLiteFixture from "@/lib/chatbot/server/llm-clients/fixtures/tier3-gemini-flash-lite-response.json"
+import { normalizeChatbotLlmResponse } from "@/lib/chatbot/server/llm-response-normalizer"
 
 const apiKey = "test-gemini-key"
 const modelName = "gemini-2.5-flash-lite"
@@ -112,6 +114,20 @@ describe("Tier3GeminiFlashLiteClient", () => {
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=test-gemini-key",
       expect.objectContaining({ method: "POST" }),
     )
+  })
+
+  it("normalizes the captured Gemini Flash-Lite response fixture to the shared schema", async () => {
+    const client = geminiClient(async () => jsonResponse(geminiFlashLiteFixture))
+
+    const response = await client.generate(llmRequest())
+    const normalized = normalizeChatbotLlmResponse(response)
+
+    expect(normalized).toMatchObject({
+      content: "内容を整理しました。日程候補を確認して、のりかねさんに共有します。",
+      role: "assistant",
+      model: "tier-3-gemini-flash-lite",
+      finish_reason: "stop",
+    })
   })
 
   it("uses preferredModel for the generateContent model path", async () => {
