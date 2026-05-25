@@ -115,6 +115,7 @@ describe("Tier1ChromeNotionAiClient", () => {
         userId: "user-id",
         notionClientVersion: "23.13.20260523.0626",
         contextPageId: "context-page-id",
+        threadId: "thread-id",
         selectedModel: "ignored-page-model",
         availableModels: ["apricot-sorbet-high"],
         modelFromUser: true,
@@ -124,9 +125,10 @@ describe("Tier1ChromeNotionAiClient", () => {
     const normalizedPayload = {
       ...payload,
       transcript: payload.transcript.map((entry) => {
-        if (entry.type !== "context") return entry
+        const normalizedEntry = entry.createdAt ? { ...entry, createdAt: "<iso>" } : entry
+        if (entry.type !== "context") return normalizedEntry
         return {
-          ...entry,
+          ...normalizedEntry,
           value: {
             ...(entry.value as Record<string, unknown>),
             currentDatetime: "<iso>",
@@ -166,42 +168,41 @@ describe("Tier1ChromeNotionAiClient", () => {
       id: "context-id",
       type: "context",
       value: {
-        type: "context",
-        contextPageId: "context-page-id",
+        context_page_id: "context-page-id",
+        surface: "full_page_chat",
       },
     })
     expect(payload.transcript[2]).toMatchObject({
       id: "user-id",
       type: "user",
-      value: {
-        type: "text",
-        model: "apricot-sorbet-high",
-      },
+      userId: "user-id",
+      value: [[expect.stringContaining("Collect only new project intake details.")]],
     })
     expect(payload.debugOverrides).toEqual({
-      emitAgentSearchExtractedResults: false,
-      cachedInferences: [],
-      annotationInferences: [],
-      emitInferences: true,
+      emitAgentSearchExtractedResults: true,
+      cachedInferences: {},
+      annotationInferences: {},
+      emitInferences: false,
     })
+    expect(JSON.stringify(payload).length).toBeGreaterThanOrEqual(2800)
     expect(normalizedPayload).toMatchInlineSnapshot(`
       {
-        "asPatchResponse": false,
-        "createThread": true,
-        "createdSource": "assistant",
+        "asPatchResponse": true,
+        "createThread": false,
+        "createdSource": "workflows",
         "debugOverrides": {
-          "annotationInferences": [],
-          "cachedInferences": [],
-          "emitAgentSearchExtractedResults": false,
-          "emitInferences": true,
+          "annotationInferences": {},
+          "cachedInferences": {},
+          "emitAgentSearchExtractedResults": true,
+          "emitInferences": false,
         },
         "generateTitle": false,
         "hasHeartbeat": false,
-        "isPartialTranscript": false,
+        "isPartialTranscript": true,
         "isSpaceSalesAssisted": false,
         "isUserInAnySalesAssistedSpace": false,
         "saveAllThreadOperations": true,
-        "setUnreadState": false,
+        "setUnreadState": true,
         "spaceId": "space-id",
         "threadId": "thread-id",
         "threadType": "workflow",
@@ -212,8 +213,10 @@ describe("Tier1ChromeNotionAiClient", () => {
             "type": "config",
             "value": {
               "agentShortUpdatePageResult": false,
-              "availableConnectors": [],
-              "databaseAgentConfigMode": null,
+              "availableConnectors": [
+                "slack",
+              ],
+              "databaseAgentConfigMode": false,
               "enableAgentAskSurvey": false,
               "enableAgentAutomations": false,
               "enableAgentCardCustomization": false,
@@ -226,7 +229,7 @@ describe("Tier1ChromeNotionAiClient", () => {
               "enableComputer": false,
               "enableCrdtOperations": false,
               "enableCreateAndRunThread": false,
-              "enableCsvAttachmentSupport": false,
+              "enableCsvAttachmentSupport": true,
               "enableCustomAgents": false,
               "enableDatabaseAgents": false,
               "enableExperimentalIntegrations": false,
@@ -234,7 +237,7 @@ describe("Tier1ChromeNotionAiClient", () => {
               "enableMailAgentMultiProviderSupport": false,
               "enableMailExplicitToolCalls": false,
               "enableMailNotificationPreferences": false,
-              "enableMarkdownVNext": true,
+              "enableMarkdownVNext": false,
               "enableQueryCalendar": false,
               "enableQueryMail": false,
               "enableScriptAgent": false,
@@ -258,20 +261,21 @@ describe("Tier1ChromeNotionAiClient", () => {
               "isHipaa": false,
               "isMobile": false,
               "isOnboardingAgent": false,
-              "isThreadStartedByAdmin": false,
               "model": "apricot-sorbet-high",
               "modelFromUser": true,
-              "searchScopes": [],
+              "searchScopes": [
+                {
+                  "type": "everything",
+                },
+              ],
               "showDatabaseAgentsDiscoverability": false,
               "type": "workflow",
               "updatePageStaleViewGuardEnabled": false,
-              "useContextualCoreDocsAutoLoad": false,
               "useCustomAgentDraft": false,
-              "useDocPreviewsForCoreAutoLoad": false,
-              "useReadOnlyMode": true,
-              "useRulePrioritization": false,
+              "useReadOnlyMode": false,
+              "useRulePrioritization": true,
               "useSearchToolV2": false,
-              "useWebSearch": false,
+              "useWebSearch": true,
               "use_draft_actor_pointer": false,
               "writerMode": false,
               "yoloMode": false,
@@ -281,21 +285,26 @@ describe("Tier1ChromeNotionAiClient", () => {
             "id": "context-id",
             "type": "context",
             "value": {
-              "contextPageId": "context-page-id",
+              "context_page_id": "context-page-id",
               "currentDatetime": "<iso>",
-              "type": "context",
+              "spaceId": "space-id",
+              "surface": "full_page_chat",
+              "timezone": "Asia/Tokyo",
+              "userId": "user-id",
             },
           },
           {
+            "createdAt": "<iso>",
             "id": "user-id",
             "type": "user",
-            "value": {
-              "model": "apricot-sorbet-high",
-              "text": "Collect only new project intake details.
+            "userId": "user-id",
+            "value": [
+              [
+                "Collect only new project intake details.
       user: 来月のWeb CM案件です
       user: 立ち会い候補を相談したいです",
-              "type": "text",
-            },
+              ],
+            ],
           },
         ],
       }
@@ -376,8 +385,6 @@ describe("Tier1ChromeNotionAiClient", () => {
       "enableScriptAgentMcpServers",
       "enableAgentCardCustomization",
       "enableUpdatePageOrderUpdates",
-      "useContextualCoreDocsAutoLoad",
-      "useDocPreviewsForCoreAutoLoad",
       "enableExperimentalIntegrations",
       "updatePageStaleViewGuardEnabled",
       "enableAgentSupportPropertyReorder",
@@ -389,7 +396,6 @@ describe("Tier1ChromeNotionAiClient", () => {
       "enableScriptAgentGoogleDriveInCustomAgent",
       "enableScriptAgentGoogleDriveOAuthInCustomAgent",
       "enableScriptAgentSearchConnectorsInCustomAgent",
-      "isThreadStartedByAdmin",
     ])
   })
 
@@ -551,6 +557,45 @@ describe("Tier1ChromeNotionAiClient", () => {
       finalText: "確認しました。",
       assistantText: "確認しました。",
       chunkCount: 2,
+    })
+  })
+
+  it("reconstructs Notion patch chunks and final record-map text", () => {
+    const parsed = parseInferenceNdjsonStream(
+      [
+        JSON.stringify({ type: "patch-start", data: { s: [{ type: "agent-turn-full-record-map" }] } }),
+        JSON.stringify({
+          type: "patch",
+          v: [{ o: "x", p: "/s/2/value/1/content", v: "途中" }],
+        }),
+        JSON.stringify({
+          type: "record-map",
+          recordMap: {
+            workflow: {
+              step: {
+                value: {
+                  value: {
+                    step: {
+                      type: "agent-inference",
+                      value: [
+                        { type: "thinking", content: "hidden" },
+                        { type: "text", content: "最終回答" },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+      ].join("\n"),
+    )
+
+    expect(parsed).toMatchObject({
+      partialText: "途中",
+      finalText: "最終回答",
+      assistantText: "最終回答",
+      chunkCount: 3,
     })
   })
 })

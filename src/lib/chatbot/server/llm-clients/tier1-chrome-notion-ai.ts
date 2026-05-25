@@ -39,6 +39,7 @@ type NotionAiRuntimeContext = {
   userId?: string
   notionClientVersion?: string
   contextPageId?: string
+  threadId?: string
   selectedModel?: string
   finalModelName?: string
   availableModels?: string[]
@@ -79,7 +80,7 @@ type NotionAiWorkflowValue = {
   enableAgentThreadTools: boolean
   enableScriptAgentSlack: boolean
   isAgentResearchRequest: boolean
-  databaseAgentConfigMode: string | null
+  databaseAgentConfigMode: string | boolean | null
   enableAgentIntegrations: boolean
   enableSpeculativeSearch: boolean
   use_draft_actor_pointer: boolean
@@ -97,8 +98,8 @@ type NotionAiWorkflowValue = {
   enableScriptAgentMcpServers: boolean
   enableAgentCardCustomization: boolean
   enableUpdatePageOrderUpdates: boolean
-  useContextualCoreDocsAutoLoad: boolean
-  useDocPreviewsForCoreAutoLoad: boolean
+  useContextualCoreDocsAutoLoad?: boolean
+  useDocPreviewsForCoreAutoLoad?: boolean
   enableExperimentalIntegrations: boolean
   updatePageStaleViewGuardEnabled: boolean
   enableAgentSupportPropertyReorder: boolean
@@ -110,19 +111,19 @@ type NotionAiWorkflowValue = {
   enableScriptAgentGoogleDriveInCustomAgent: boolean
   enableScriptAgentGoogleDriveOAuthInCustomAgent: boolean
   enableScriptAgentSearchConnectorsInCustomAgent: boolean
-  isThreadStartedByAdmin: boolean
+  isThreadStartedByAdmin?: boolean
 }
 
 type RunInferencePayload = {
   traceId: string
   spaceId: string
-  transcript: Array<{ id: string; type: string; value: unknown }>
+  transcript: Array<{ id: string; type: string; value: unknown; userId?: string; createdAt?: string }>
   threadId: string
   createThread: boolean
   debugOverrides: {
     emitAgentSearchExtractedResults: boolean
-    cachedInferences: unknown[]
-    annotationInferences: unknown[]
+    cachedInferences: unknown[] | Record<string, never>
+    annotationInferences: unknown[] | Record<string, never>
     emitInferences: boolean
   }
   generateTitle: boolean
@@ -135,6 +136,15 @@ type RunInferencePayload = {
   hasHeartbeat: boolean
   isUserInAnySalesAssistedSpace: boolean
   isSpaceSalesAssisted: boolean
+}
+
+type RunInferenceContextValue = {
+  userId?: string
+  spaceId: string
+  surface: string
+  timezone: string
+  context_page_id?: string
+  currentDatetime: string
 }
 
 type RunInferenceHeaders = {
@@ -193,7 +203,7 @@ const emptyText = ""
 export const tier1ChromeNotionAiDefaults = {
   cdpBaseUrl: "http://127.0.0.1:9223",
   targetUrlIncludes: "notion.so",
-  requestTimeoutMs: 90000,
+  requestTimeoutMs: 180000,
   healthCheckTimeoutMs: 3000,
 } as const
 
@@ -426,6 +436,8 @@ export function buildRunInferencePayload(input: {
 }): RunInferencePayload {
   const spaceId = input.runtimeContext.spaceId
   const contextPageId = input.contextPageId ?? input.runtimeContext.contextPageId
+  const currentDatetime = new Date().toISOString()
+  const threadId = input.runtimeContext.threadId ?? input.idFactory()
 
   if (!spaceId) {
     throw new ChatbotLlmError({
@@ -451,40 +463,55 @@ export function buildRunInferencePayload(input: {
       {
         id: input.idFactory(),
         type: "context",
-        value: {
-          type: "context",
-          currentDatetime: new Date().toISOString(),
+        value: buildContextValue({
+          spaceId,
+          userId: input.runtimeContext.userId,
           contextPageId,
-        },
+          currentDatetime,
+        }),
       },
       {
         id: input.idFactory(),
         type: "user",
-        value: {
-          type: "text",
-          model,
-          text: buildUserPrompt(input.request),
-        },
+        value: [[buildUserPrompt(input.request)]],
+        userId: input.runtimeContext.userId,
+        createdAt: currentDatetime,
       },
     ],
-    threadId: input.idFactory(),
-    createThread: true,
+    threadId,
+    createThread: !input.runtimeContext.threadId,
     debugOverrides: {
-      emitAgentSearchExtractedResults: false,
-      cachedInferences: [],
-      annotationInferences: [],
-      emitInferences: true,
+      emitAgentSearchExtractedResults: true,
+      cachedInferences: {},
+      annotationInferences: {},
+      emitInferences: false,
     },
     generateTitle: false,
     saveAllThreadOperations: true,
-    setUnreadState: false,
-    createdSource: defaultCreatedSource,
+    setUnreadState: true,
+    createdSource: input.runtimeContext.threadId ? "workflows" : defaultCreatedSource,
     threadType: defaultThreadType,
-    isPartialTranscript: false,
-    asPatchResponse: false,
+    isPartialTranscript: Boolean(input.runtimeContext.threadId),
+    asPatchResponse: Boolean(input.runtimeContext.threadId),
     hasHeartbeat: false,
     isUserInAnySalesAssistedSpace: false,
     isSpaceSalesAssisted: false,
+  }
+}
+
+function buildContextValue(input: {
+  spaceId: string
+  userId?: string
+  contextPageId?: string
+  currentDatetime: string
+}): RunInferenceContextValue {
+  return {
+    userId: input.userId,
+    spaceId: input.spaceId,
+    surface: "full_page_chat",
+    timezone: "Asia/Tokyo",
+    context_page_id: input.contextPageId,
+    currentDatetime: input.currentDatetime,
   }
 }
 
@@ -522,20 +549,20 @@ export function buildWorkflowValue(input: {
     isMobile: false,
     yoloMode: false,
     writerMode: false,
-    searchScopes: [],
-    useWebSearch: false,
+    searchScopes: [{ type: "everything" }],
+    useWebSearch: true,
     isCustomAgent: false,
     modelFromUser: input.modelFromUser,
     enableComputer: false,
     enableQueryMail: false,
-    useReadOnlyMode: true,
+    useReadOnlyMode: false,
     useSearchToolV2: false,
     enableAgentDiffs: false,
     enableScriptAgent: false,
     isOnboardingAgent: false,
     enableCustomAgents: false,
-    availableConnectors: [],
-    enableMarkdownVNext: true,
+    availableConnectors: ["slack"],
+    enableMarkdownVNext: false,
     enableQueryCalendar: false,
     useCustomAgentDraft: false,
     enableAgentAskSurvey: false,
@@ -543,12 +570,12 @@ export function buildWorkflowValue(input: {
     enableDatabaseAgents: false,
     enableScriptAgentGtm: false,
     isCustomAgentBuilder: false,
-    useRulePrioritization: false,
+    useRulePrioritization: true,
     enableAgentAutomations: false,
     enableAgentThreadTools: false,
     enableScriptAgentSlack: false,
     isAgentResearchRequest: false,
-    databaseAgentConfigMode: null,
+    databaseAgentConfigMode: false,
     enableAgentIntegrations: false,
     enableSpeculativeSearch: false,
     use_draft_actor_pointer: false,
@@ -561,13 +588,11 @@ export function buildWorkflowValue(input: {
     enableUpdatePageAutofixer: false,
     agentShortUpdatePageResult: false,
     enableAgentUpdatePagePatch: false,
-    enableCsvAttachmentSupport: false,
+    enableCsvAttachmentSupport: true,
     enableMailExplicitToolCalls: false,
     enableScriptAgentMcpServers: false,
     enableAgentCardCustomization: false,
     enableUpdatePageOrderUpdates: false,
-    useContextualCoreDocsAutoLoad: false,
-    useDocPreviewsForCoreAutoLoad: false,
     enableExperimentalIntegrations: false,
     updatePageStaleViewGuardEnabled: false,
     enableAgentSupportPropertyReorder: false,
@@ -579,7 +604,6 @@ export function buildWorkflowValue(input: {
     enableScriptAgentGoogleDriveInCustomAgent: false,
     enableScriptAgentGoogleDriveOAuthInCustomAgent: false,
     enableScriptAgentSearchConnectorsInCustomAgent: false,
-    isThreadStartedByAdmin: false,
   }
 
   return {
@@ -696,7 +720,7 @@ function findNotionLoginTarget(
 }
 
 function buildRunInferenceExpression(payload: RunInferencePayload, headers: RunInferenceHeaders): string {
-  return `(${runInferenceInPage.toString()})(${JSON.stringify({ payload, headers })})`
+  return `(() => { const __name = (target) => target; return (${runInferenceInPage.toString()})(${JSON.stringify({ payload, headers })}); })()`
 }
 
 function collectText(value: unknown): string {
@@ -708,10 +732,14 @@ function collectText(value: unknown): string {
   }
 
   const record = value as Record<string, unknown>
+  const agentInferenceText = collectAgentInferenceText(record)
+  if (agentInferenceText) return agentInferenceText
+
   const directText = record.text ?? record.content ?? record.plainText ?? record.markdown ?? record.delta
   if (typeof directText === "string") return directText
 
   return [
+    record.v,
     record.message,
     record.value,
     record.result,
@@ -719,6 +747,8 @@ function collectText(value: unknown): string {
     record.assistant,
     record.response,
     record.data,
+    record.recordMap,
+    record.step,
   ]
     .map((entry) => collectText(entry))
     .join(emptyText)
@@ -727,7 +757,30 @@ function collectText(value: unknown): string {
 function isPartialInferenceChunk(value: unknown): boolean {
   if (!value || typeof value !== "object") return false
   const record = value as Record<string, unknown>
-  return record.isPartialTranscript === true || record.type === "partial"
+  return record.isPartialTranscript === true || record.type === "partial" || record.type === "patch"
+}
+
+function collectAgentInferenceText(value: unknown): string {
+  if (!value || typeof value !== "object") return emptyText
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => collectAgentInferenceText(entry)).join(emptyText)
+  }
+
+  const record = value as Record<string, unknown>
+  if (record.type === "agent-inference" && Array.isArray(record.value)) {
+    return record.value
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return emptyText
+        const item = entry as Record<string, unknown>
+        return item.type === "text" && typeof item.content === "string" ? item.content : emptyText
+      })
+      .join(emptyText)
+  }
+
+  return Object.values(record)
+    .map((entry) => collectAgentInferenceText(entry))
+    .join(emptyText)
 }
 
 const runtimeContextExpression = `(() => {
@@ -750,6 +803,25 @@ const runtimeContextExpression = `(() => {
       return undefined;
     }
   };
+  const readNotionAiContextPageId = () => {
+    try {
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index) || "";
+        if (!key.includes("sidebarSection:itemStores") || !key.endsWith(":private")) continue;
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
+        const items = Array.isArray(parsed && parsed.value) ? parsed.value : [];
+        const match = items.find((item) => {
+          const title = item && Array.isArray(item.title) ? item.title.flat(Infinity).join("") : "";
+          return title === "Notion AI";
+        });
+        const id = match && match.pointer && match.pointer.id;
+        if (typeof id === "string" && id.length > 0) return id;
+      }
+    } catch {}
+    return undefined;
+  };
   const readMeta = (name) => {
     const element =
       document.querySelector(\`meta[name="\${name}"]\`) ||
@@ -761,12 +833,25 @@ const runtimeContextExpression = `(() => {
     typeof root.__NOTION_BUILD_ID__ === "string" && root.__NOTION_BUILD_ID__.length > 0
       ? root.__NOTION_BUILD_ID__
       : undefined;
+  const threadId = (() => {
+    try {
+      const value = new URL(location.href).searchParams.get("t");
+      if (!value) return undefined;
+      if (/^[0-9a-f]{32}$/i.test(value)) {
+        return value.slice(0, 8) + "-" + value.slice(8, 12) + "-" + value.slice(12, 16) + "-" + value.slice(16, 20) + "-" + value.slice(20);
+      }
+      return value.length > 0 ? value : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
 
   return {
     spaceId: root.__notionAiSpaceId || readStorage("LRU:KeyValueStore2:lastVisitedRouteSpaceId"),
     userId: root.__notionAiUserId || readStorage("LRU:KeyValueStore2:lastVisitedRouteUserId"),
     notionClientVersion: root.__notionClientVersion || buildId || readMeta("notion-client-version"),
-    contextPageId: root.__notionAiContextPageId,
+    contextPageId: root.__notionAiContextPageId || readNotionAiContextPageId(),
+    threadId,
     selectedModel: root.__notionAiSelectedModel || "${observedNotionAiModel}",
     finalModelName: root.__notionAiFinalModelName,
     availableModels: Array.isArray(root.__notionAiAvailableModels) ? root.__notionAiAvailableModels : undefined,
@@ -781,6 +866,28 @@ async function runInferenceInPage(input: {
 }): Promise<NotionAiInferenceResult> {
   const endpoint = "/api/v3/runInferenceTranscript"
   const { payload, headers } = input
+  const collectAgentInferenceTextInPage = (value: unknown): string => {
+    if (!value || typeof value !== "object") return ""
+
+    if (Array.isArray(value)) {
+      return value.map((entry) => collectAgentInferenceTextInPage(entry)).join("")
+    }
+
+    const record = value as Record<string, unknown>
+    if (record.type === "agent-inference" && Array.isArray(record.value)) {
+      return record.value
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") return ""
+          const item = entry as Record<string, unknown>
+          return item.type === "text" && typeof item.content === "string" ? item.content : ""
+        })
+        .join("")
+    }
+
+    return Object.values(record)
+      .map((entry) => collectAgentInferenceTextInPage(entry))
+      .join("")
+  }
   const collectTextInPage = (value: unknown): string => {
     if (typeof value === "string") return value
     if (!value || typeof value !== "object") return ""
@@ -790,10 +897,14 @@ async function runInferenceInPage(input: {
     }
 
     const record = value as Record<string, unknown>
+    const agentInferenceText = collectAgentInferenceTextInPage(record)
+    if (agentInferenceText) return agentInferenceText
+
     const directText = record.text ?? record.content ?? record.plainText ?? record.markdown ?? record.delta
     if (typeof directText === "string") return directText
 
     return [
+      record.v,
       record.message,
       record.value,
       record.result,
@@ -801,16 +912,52 @@ async function runInferenceInPage(input: {
       record.assistant,
       record.response,
       record.data,
+      record.recordMap,
+      record.step,
     ]
       .map((entry) => collectTextInPage(entry))
       .join("")
   }
+  const extractResponseTextInPage = (value: unknown): string => {
+    const chunks: string[] = []
+    const visit = (entry: unknown): void => {
+      if (!entry || typeof entry !== "object") return
+      if (Array.isArray(entry)) {
+        entry.forEach(visit)
+        return
+      }
+
+      const record = entry as Record<string, unknown>
+      if (record.type === "text" && typeof record.content === "string") {
+        chunks.push(record.content)
+        return
+      }
+      if (record.type === "agent-inference" && Array.isArray(record.value)) {
+        record.value.forEach(visit)
+        return
+      }
+      if (
+        typeof record.p === "string" &&
+        record.p.includes("/content") &&
+        typeof record.v === "string"
+      ) {
+        chunks.push(record.v)
+        return
+      }
+
+      Object.values(record).forEach(visit)
+    }
+    visit(value)
+    return chunks.join("")
+  }
   const parseLine = (line: string): { isPartialTranscript: boolean; text: string } => {
     try {
       const raw = JSON.parse(line) as Record<string, unknown>
+      const responseText = extractResponseTextInPage(raw)
       return {
-        isPartialTranscript: raw.isPartialTranscript === true || raw.type === "partial",
-        text: collectTextInPage(raw),
+        isPartialTranscript:
+          raw.isPartialTranscript === true || raw.type === "partial" || raw.type === "patch",
+        text: responseText || collectTextInPage(raw),
       }
     } catch {
       return { isPartialTranscript: false, text: "" }
@@ -826,60 +973,35 @@ async function runInferenceInPage(input: {
     })
 
     if (response.status === 401 || response.status === 403) {
+      const errorText = await response.text().catch(() => "")
       return {
         ok: false,
         status: response.status,
         code: "auth",
-        message: "Notion AI request was rejected by auth.",
+        message: `Notion AI request was rejected by auth. ${errorText}`.trim(),
       }
     }
 
     if (!response.ok) {
+      const errorText = await response.text().catch(() => "")
       return {
         ok: false,
         status: response.status,
         code: "unknown",
-        message: "Notion AI request returned an unsuccessful response.",
+        message: `Notion AI request returned ${response.status}. ${errorText}`.trim(),
       }
     }
 
-    if (!response.body) {
-      return {
-        ok: false,
-        code: "invalid-output",
-        message: "Notion AI response did not expose a readable NDJSON body.",
-      }
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let pending = ""
+    const responseText = await response.text()
     let partialText = ""
     let finalText = ""
     let chunkCount = 0
 
-    while (true) {
-      const chunk = await reader.read()
-      if (chunk.done) break
-
-      pending += decoder.decode(chunk.value, { stream: true })
-      const lines = pending.split("\n")
-      pending = lines.pop() ?? ""
-
-      for (const line of lines) {
-        const parsed = parseLine(line)
-        if (parsed.text) {
-          if (parsed.isPartialTranscript) partialText += parsed.text
-          else finalText = parsed.text
-        }
-        chunkCount += 1
-      }
-    }
-
-    const flushed = decoder.decode()
-    if (flushed) pending += flushed
-    if (pending.trim()) {
-      const parsed = parseLine(pending)
+    for (const line of responseText
+      .split("\n")
+      .map((entry) => entry.trim())
+      .filter(Boolean)) {
+      const parsed = parseLine(line)
       if (parsed.text) {
         if (parsed.isPartialTranscript) partialText += parsed.text
         else finalText = parsed.text
@@ -887,7 +1009,16 @@ async function runInferenceInPage(input: {
       chunkCount += 1
     }
 
-    return { ok: true, rawText: finalText || partialText, chunkCount }
+    const rawText = finalText || partialText
+    if (!rawText) {
+      return {
+        ok: false,
+        code: "invalid-output",
+        message: `Notion AI response text could not be extracted. bytes=${responseText.length} preview=${responseText.slice(0, 300)}`,
+      }
+    }
+
+    return { ok: true, rawText, chunkCount }
   } catch (error) {
     return {
       ok: false,
@@ -966,7 +1097,7 @@ class DefaultCdpSession implements NotionAiCdpSession {
     })
 
     if (result.exceptionDetails) {
-      throw new Error("Notion AI page evaluation raised an exception.")
+      throw new Error(`Notion AI page evaluation raised an exception: ${JSON.stringify(result.exceptionDetails)}`)
     }
 
     return result.result?.value as T
