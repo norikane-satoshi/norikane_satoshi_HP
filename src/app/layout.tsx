@@ -3,7 +3,7 @@ import { Noto_Sans_JP, Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "@/components/booking/booking-calendar.css";
 import "@/components/booking/booking-section.css";
-import { ChatbotShell } from "@/components/hp/chatbot-shell";
+import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
 import { NavHeader } from "@/components/hp/nav-header";
 import { SITE_BRAND_NAME, SITE_OWNER_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand";
 
@@ -61,7 +61,7 @@ export default function RootLayout({
         >
           <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
         </footer>
-        <ChatbotShell />
+        <ChatbotWidget />
       </body>
     </html>
   );
