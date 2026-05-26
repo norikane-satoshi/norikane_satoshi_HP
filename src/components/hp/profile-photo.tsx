@@ -37,7 +37,7 @@ export function ProfilePhoto() {
         aria-label="プロフィール写真を拡大表示"
       >
         <Image
-          src="/profile-hero.jpg"
+          src="/profile-hero.png"
           alt="則兼 智志"
           fill
           sizes="220px"
@@ -78,7 +78,7 @@ export function ProfilePhoto() {
             }}
           >
             <Image
-              src="/profile-hero.jpg"
+              src="/profile-hero.png"
               alt="則兼 智志"
               fill
               sizes="90vmin"

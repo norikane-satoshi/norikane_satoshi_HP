@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react"
 import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
+import { isBookingEnabled } from "@/lib/feature-flags"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
@@ -37,7 +38,7 @@ const timeline = [
     year: "2023",
     event: "バーチャルプロダクション カラークリエイター兼任",
     detail:
-      "LED ウォールを用いた撮影現場でのオンセットカラーマネジメントを担当。ACES ワークフローで異なるソース間のカラースペースを統一し、CG 素材・LED 背景と実写素材の自然な馴染ませを実現。",
+      "LED ウォールを用いた撮影現場でのオンセットカラーマネジメントを担当。異なるソース間のカラーを統一し、CG 素材・LED 背景と実写素材の自然な馴染ませを実現。",
   },
   {
     year: "2026",
@@ -112,7 +113,7 @@ export default async function HomePage() {
       {/* Intro */}
       <section className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14">
         <p className="text-base leading-relaxed text-hp md:text-lg">
-          劇場映画・配信作品・CM・ブランドフィルムのカラーグレーディングを承っています。DaVinci Resolve 認定トレーナー / フリーランスカラリストとして、現場対応・リモート対応どちらも可能です。DaVinci Resolve を中心に、プロジェクトの規模・スケジュール・納品仕様に合わせた柔軟なワークフローで承ります。
+          フリーランスカラリストとして、劇場映画・配信作品・CM・ブランドフィルムのカラーグレーディングを承っています。立ち会い対応・リモート対応どちらも可能です。プロジェクトの規模・スケジュール・納品仕様に合わせた柔軟なワークフローでご提案いたします。DaVinci Resolve 認定トレーナーとして講義、講習会のご依頼も承ってます。
         </p>
       </section>
 
@@ -265,7 +266,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <HomeScheduleSection />
+      {isBookingEnabled() ? <HomeScheduleSection /> : null}
     </div>
   )
 }

@@ -5,6 +5,7 @@ import "@/components/booking/booking-calendar.css";
 import "@/components/booking/booking-section.css";
 import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
 import { NavHeader } from "@/components/hp/nav-header";
+import { isChatbotEnabled } from "@/lib/feature-flags";
 import { SITE_BRAND_NAME, SITE_OWNER_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand";
 
 const notoSansJP = Noto_Sans_JP({
@@ -61,7 +62,7 @@ export default function RootLayout({
         >
           <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
         </footer>
-        <ChatbotWidget />
+        {isChatbotEnabled() ? <ChatbotWidget /> : null}
       </body>
     </html>
   );
