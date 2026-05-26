@@ -1,4 +1,5 @@
 export { ChatbotWidget } from "./ChatbotWidget"
+export { ChatbotLoginCard } from "./ChatbotLoginCard"
 export { ChatInput } from "./ChatInput"
 export { ChatMessage } from "./ChatMessage"
 export { ChoicePanel } from "./ChoicePanel"

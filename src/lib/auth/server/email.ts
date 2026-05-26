@@ -64,3 +64,24 @@ export async function sendPasswordResetEmail(args: {
   })
   if (error) throw new Error(`Resend send failed: ${error.message}`)
 }
+
+export async function sendMagicLinkEmail(args: {
+  to: string
+  url: string
+}): Promise<void> {
+  const resend = getResend()
+  const { error } = await resend.emails.send({
+    from: getFrom(),
+    to: args.to,
+    subject: "ログインリンク / norikane.studio",
+    text: [
+      "norikane.studio へのログインリンクをお送りします。",
+      "下記のリンクから短時間内にログインしてください。",
+      "",
+      args.url,
+      "",
+      "このメールにお心当たりがない場合は破棄してください。",
+    ].join("\n"),
+  })
+  if (error) throw new Error(`Resend send failed: ${error.message}`)
+}

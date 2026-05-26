@@ -2,11 +2,14 @@ import NextAuth, { CredentialsSignin } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
 import Line from "next-auth/providers/line"
+import Resend from "next-auth/providers/resend"
 import Twitter from "next-auth/providers/twitter"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 import authConfig from "@/auth.config"
+import { MAGIC_LINK_PROVIDER_ID } from "@/lib/auth/provider-ids"
+import { sendMagicLinkEmail } from "@/lib/auth/server/email"
 import { prisma } from "@/lib/prisma"
 import { getTokenVersion } from "@/lib/auth/server/token-version-cache"
 
@@ -83,6 +86,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: process.env.AUTH_LINE_ID!,
       clientSecret: process.env.AUTH_LINE_SECRET!,
       authorization: { params: { scope: "profile openid" } },
+    }),
+    Resend({
+      id: MAGIC_LINK_PROVIDER_ID,
+      apiKey: process.env.RESEND_API_KEY,
+      from: process.env.RESEND_FROM_EMAIL,
+      maxAge: 15 * 60,
+      async sendVerificationRequest({ identifier, url }) {
+        await sendMagicLinkEmail({ to: identifier, url })
+      },
     }),
   ],
   callbacks: {

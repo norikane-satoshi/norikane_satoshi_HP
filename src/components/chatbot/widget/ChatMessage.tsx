@@ -32,7 +32,11 @@ export function ChatMessage({ role, content, createdAt }: ChatMessageProps) {
         <span>{roleLabel[role]}</span>
         {createdAt ? (
           <time dateTime={createdAt.toISOString()}>
-            {createdAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+            {createdAt.toLocaleTimeString("ja-JP", {
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "Asia/Tokyo",
+            })}
           </time>
         ) : null}
       </div>
