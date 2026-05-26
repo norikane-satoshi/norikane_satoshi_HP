@@ -12,7 +12,7 @@ export function HeroSection() {
     >
       <div className="mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-6 pb-10 pt-28 md:px-10 md:pb-14 md:pt-32 xl:px-14">
         <p className="text-xs font-medium uppercase tracking-[0.28em] text-white/70">
-          デモリール・2026
+          デモリール準備中
         </p>
 
         <div className="mt-auto grid grid-cols-1 gap-10 md:grid-cols-[1fr_auto] md:items-end md:gap-12">

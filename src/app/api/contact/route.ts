@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { Resend } from "resend"
 import { z } from "zod"
 import { enforceBodyLimit } from "@/lib/api/server/body-limit"
+import { getBookingCalendarAdminEmail } from "@/lib/auth/server/is-admin"
 import { limitByIp } from "@/lib/rate-limit/server"
 import { getClientIp } from "@/lib/security/server/client-ip"
 
@@ -52,6 +54,23 @@ export async function POST(request: NextRequest) {
     ip: getClientIp(request),
     timestamp: new Date().toISOString(),
   })
+
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[Contact] RESEND_API_KEY not set, skipping send")
+  } else {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY)
+      await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL ?? "noreply@norikane.studio",
+        to: getBookingCalendarAdminEmail() || "norikane.satoshi@gmail.com",
+        replyTo: email,
+        subject: `[HP お問い合わせ] ${name} 様より`,
+        text: `差出人: ${name}\nメール: ${email}\nIP: ${getClientIp(request)}\n受付: ${new Date().toISOString()}\n\n${body}`,
+      })
+    } catch (err) {
+      console.error("[Contact] resend send failed", err)
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }
