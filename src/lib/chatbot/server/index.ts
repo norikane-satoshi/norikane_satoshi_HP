@@ -52,3 +52,8 @@ export {
   Tier4FormFallbackClient,
 } from "@/lib/chatbot/server/llm-clients/tier4-form-fallback"
 export { normalizeChatbotLlmResponse } from "@/lib/chatbot/server/llm-response-normalizer"
+export {
+  formatUserChatbotContextForPrompt,
+  loadUserChatbotContext,
+} from "@/lib/chatbot/server/user-context-loader"
+export type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"

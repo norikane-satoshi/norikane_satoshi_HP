@@ -12,12 +12,15 @@ import {
   createTier1ChromeNotionAiClient,
   createTier2OllamaDeepSeekClient,
   createTier4FormFallbackClient,
+  formatUserChatbotContextForPrompt,
   linkConversationToUser,
+  loadUserChatbotContext,
   loadConversationBySessionId,
   updateConversationRouting,
   type ChatbotLlmClient,
   type ChatbotLlmResponse,
   type ChatbotLlmTierOrchestrator,
+  type UserChatbotContext,
 } from "@/lib/chatbot/server"
 
 type ChatbotMessageUi =
@@ -63,6 +66,8 @@ type ChatbotMessageRepository = {
 type HandleChatbotMessageOptions = {
   repository?: ChatbotMessageRepository
   orchestratorFactory?: () => ChatbotLlmTierOrchestrator
+  userContextLoader?: typeof loadUserChatbotContext
+  userContextFormatter?: typeof formatUserChatbotContextForPrompt
 }
 
 const defaultRepository: ChatbotMessageRepository = {
@@ -79,11 +84,18 @@ export async function handleChatbotMessage(
 ): Promise<ChatbotMessageApiResult> {
   const repository = options.repository ?? defaultRepository
   const orchestrator = options.orchestratorFactory?.() ?? createDefaultChatbotLlmOrchestrator()
-  const conversation =
+  const userContextLoader = options.userContextLoader ?? loadUserChatbotContext
+  const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
+  let conversation =
     (await repository.loadConversationBySessionId(input.sessionId)) ??
     (await repository.createConversation({ sessionId: input.sessionId, userId: input.userId ?? null }))
 
-  if (input.userId && conversation.context.userId !== input.userId) {
+  if (shouldIsolateExistingConversation(conversation, input.userId)) {
+    const isolatedSessionId = `${input.sessionId}:${input.userId ?? "anonymous"}`
+    conversation =
+      (await repository.loadConversationBySessionId(isolatedSessionId)) ??
+      (await repository.createConversation({ sessionId: isolatedSessionId, userId: input.userId ?? null }))
+  } else if (input.userId && conversation.context.userId !== input.userId) {
     await repository.linkConversationToUser({ conversationId: conversation.id, userId: input.userId })
   }
 
@@ -92,10 +104,16 @@ export async function handleChatbotMessage(
     role: "user",
     content: input.message,
   })
+  const userContext = input.userId
+    ? await userContextLoader({
+        userId: input.userId,
+        currentConversationId: conversation.id,
+      })
+    : null
   const jobContext = buildJobContext(input.jobContext, conversation)
   const conversationState = buildConversationState(input.conversationState, conversation, userMessage)
   const llmResponse = await orchestrator.generate({
-    systemPrompt: buildChatbotSystemPrompt(),
+    systemPrompt: buildChatbotSystemPrompt(userContext, userContextFormatter),
     messages: [
       ...conversation.messages.map(({ role, content }) => ({ role, content })),
       { role: userMessage.role, content: userMessage.content },
@@ -133,6 +151,14 @@ export async function handleChatbotMessage(
   }
 }
 
+function shouldIsolateExistingConversation(
+  conversation: ChatbotConversation,
+  userId: string | undefined,
+): boolean {
+  if (!conversation.context.userId) return false
+  return conversation.context.userId !== userId
+}
+
 function createDefaultChatbotLlmOrchestrator(): ChatbotLlmTierOrchestrator {
   const clients: ChatbotLlmClient[] = [
     createTier1ChromeNotionAiClient(),
@@ -142,15 +168,24 @@ function createDefaultChatbotLlmOrchestrator(): ChatbotLlmTierOrchestrator {
   return createChatbotLlmTierOrchestrator({ clients })
 }
 
-function buildChatbotSystemPrompt(): string {
-  return [
+function buildChatbotSystemPrompt(
+  userContext?: UserChatbotContext | null,
+  userContextFormatter: typeof formatUserChatbotContextForPrompt = formatUserChatbotContextForPrompt,
+): string {
+  const lines = [
     "あなたは新規映像案件の相談受付アシスタントです。",
     "回答範囲は新規案件の調整、要件整理、予約導線に限定し、技術指導、作品レビュー、標準外要望は担当者確認へ誘導します。",
     "不明なことを推測で断定せず、未確認事項として質問します。",
     "LOOK Decomposer v2 の詳細には触れず、直接確認が必要な事項として扱います。",
     "2026年10月より前は作業場所のデフォルト提案をせず、クライアントの希望を先に確認します。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
-  ].join("\n")
+  ]
+
+  if (userContext) {
+    lines.push(userContextFormatter(userContext))
+  }
+
+  return lines.join("\n")
 }
 
 function buildJobContext(

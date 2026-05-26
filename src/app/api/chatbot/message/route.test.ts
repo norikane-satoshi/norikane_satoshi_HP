@@ -62,6 +62,14 @@ async function loadPost({
     )
   const updateConversationRouting = vi.fn().mockResolvedValue(undefined)
   const linkConversationToUser = vi.fn().mockResolvedValue(undefined)
+  const loadUserChatbotContext = vi.fn().mockResolvedValue({
+    userId: "user_1",
+    recentConversations: [],
+    recentBookings: [],
+    knownProfile: { finalMediums: [], jobTypes: [], workSites: [] },
+    referenceUrls: [],
+  })
+  const formatUserChatbotContextForPrompt = vi.fn(() => "本人文脈:\n- 既存の本人文脈はありません。")
   const generate = vi.fn().mockResolvedValue(llmResponse)
 
   vi.doMock("@/auth", () => ({ auth }))
@@ -71,6 +79,8 @@ async function loadPost({
     appendMessage,
     updateConversationRouting,
     linkConversationToUser,
+    loadUserChatbotContext,
+    formatUserChatbotContextForPrompt,
     createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),
     createTier2OllamaDeepSeekClient: vi.fn(() => ({ tier: "tier-2-ollama-deepseek" })),
     createTier4FormFallbackClient: vi.fn(() => ({ tier: "tier-4-form-fallback" })),
@@ -89,6 +99,8 @@ async function loadPost({
     appendMessage,
     updateConversationRouting,
     linkConversationToUser,
+    loadUserChatbotContext,
+    formatUserChatbotContextForPrompt,
     generate,
   }
 }
@@ -127,6 +139,10 @@ describe("POST /api/chatbot/message", () => {
     expect(route.createConversation).toHaveBeenCalledWith({
       sessionId: "session_1",
       userId: "user_1",
+    })
+    expect(route.loadUserChatbotContext).toHaveBeenCalledWith({
+      userId: "user_1",
+      currentConversationId: "conv_1",
     })
   })
 
