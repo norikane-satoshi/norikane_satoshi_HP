@@ -1,4 +1,9 @@
 export {
+  CHATBOT_CONVERSATION_RETENTION_DAYS,
+  cleanupExpiredChatbotConversations,
+} from "@/lib/chatbot/server/cleanup-conversations"
+export type { CleanupExpiredChatbotConversationsResult } from "@/lib/chatbot/server/cleanup-conversations"
+export {
   appendMessage,
   createConversation,
   linkChatToBookingGroup,

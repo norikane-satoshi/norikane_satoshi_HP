@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { getCachedCalendarAccessToken } from "@/lib/booking/server/calendar-free-busy/google-token-cache"
 import {
+  cleanupExpiredChatbotConversations,
+  type CleanupExpiredChatbotConversationsResult,
+} from "@/lib/chatbot/server/cleanup-conversations"
+import {
   CALENDAR_TOKEN_USER_ID,
   getCalendarEvent,
 } from "@/lib/google-calendar/server"
@@ -17,6 +21,10 @@ type ReconcileCounters = {
   failedCount: number
   rollbackCount: number
 }
+
+type ChatbotCleanupSummary =
+  | ({ ok: true } & CleanupExpiredChatbotConversationsResult)
+  | { ok: false; error: "cleanup_failed" }
 
 function sanitizeGcalEventId(id: string): string {
   return id.toLowerCase().replace(/[^a-v0-9]/g, "")
@@ -92,6 +100,18 @@ async function logReconcile(counters: ReconcileCounters) {
   })
 }
 
+async function runChatbotCleanup(): Promise<ChatbotCleanupSummary> {
+  try {
+    return {
+      ok: true,
+      ...(await cleanupExpiredChatbotConversations()),
+    }
+  } catch (error) {
+    console.error("[cleanup-chatbot-conversations]", error)
+    return { ok: false, error: "cleanup_failed" }
+  }
+}
+
 export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
@@ -104,61 +124,63 @@ export async function GET(request: NextRequest) {
     rollbackCount: 0,
   }
 
+  let chatbotCleanup: ChatbotCleanupSummary
   try {
     const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
     if (!calendarId) {
       console.error("[RECONCILE_PENDING]", "GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set")
-      return NextResponse.json({ ok: true, ...counters })
-    }
-
-    const { token } = await getCachedCalendarAccessToken(CALENDAR_TOKEN_USER_ID)
-    const expiredGroups = await prisma.bookingGroup.findMany({
-      where: {
-        status: { in: [...PENDING_STATUSES] },
-        pendingExpiresAt: { lt: new Date() },
-      },
-      include: {
-        timeSlots: {
-          select: {
-            id: true,
-            previousStartTime: true,
-            previousEndTime: true,
+    } else {
+      const { token } = await getCachedCalendarAccessToken(CALENDAR_TOKEN_USER_ID)
+      const expiredGroups = await prisma.bookingGroup.findMany({
+        where: {
+          status: { in: [...PENDING_STATUSES] },
+          pendingExpiresAt: { lt: new Date() },
+        },
+        include: {
+          timeSlots: {
+            select: {
+              id: true,
+              previousStartTime: true,
+              previousEndTime: true,
+            },
           },
         },
-      },
-      take: 50,
-    })
-
-    for (const bookingGroup of expiredGroups) {
-      const eventId = bookingGroup.gcalEventId ?? sanitizeGcalEventId(bookingGroup.id)
-      const event = await getCalendarEvent({
-        calendarId,
-        eventId,
-        accessToken: token,
+        take: 50,
       })
 
-      if (event) {
-        await markConfirmed(bookingGroup.id, event.id)
-        counters.reconciledCount += 1
-        continue
-      }
+      for (const bookingGroup of expiredGroups) {
+        const eventId = bookingGroup.gcalEventId ?? sanitizeGcalEventId(bookingGroup.id)
+        const event = await getCalendarEvent({
+          calendarId,
+          eventId,
+          accessToken: token,
+        })
 
-      if (bookingGroup.status === "PENDING_GCAL") {
-        await markFailed(bookingGroup.id)
-        counters.failedCount += 1
-      } else if (bookingGroup.status === "PENDING_GCAL_MOVE") {
-        await rollbackMove(bookingGroup)
-        counters.rollbackCount += 1
-      } else if (bookingGroup.status === "PENDING_GCAL_DELETE") {
-        await markConfirmed(bookingGroup.id, bookingGroup.gcalEventId)
-        counters.rollbackCount += 1
+        if (event) {
+          await markConfirmed(bookingGroup.id, event.id)
+          counters.reconciledCount += 1
+          continue
+        }
+
+        if (bookingGroup.status === "PENDING_GCAL") {
+          await markFailed(bookingGroup.id)
+          counters.failedCount += 1
+        } else if (bookingGroup.status === "PENDING_GCAL_MOVE") {
+          await rollbackMove(bookingGroup)
+          counters.rollbackCount += 1
+        } else if (bookingGroup.status === "PENDING_GCAL_DELETE") {
+          await markConfirmed(bookingGroup.id, bookingGroup.gcalEventId)
+          counters.rollbackCount += 1
+        }
       }
     }
 
     await logReconcile(counters)
   } catch (error) {
     console.error("[RECONCILE_PENDING]", error)
+  } finally {
+    chatbotCleanup = await runChatbotCleanup()
   }
 
-  return NextResponse.json({ ok: true, ...counters })
+  return NextResponse.json({ ok: true, ...counters, chatbotCleanup })
 }
