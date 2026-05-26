@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Sans_JP, Inter, Geist_Mono } from "next/font/google";
+import Link from "next/link";
 import "./globals.css";
 import "@/components/booking/booking-calendar.css";
 import "@/components/booking/booking-section.css";
@@ -57,10 +58,20 @@ export default function RootLayout({
           {children}
         </main>
         <footer
-          className="text-center py-8 text-sm text-hp-muted"
+          className="px-6 py-8 text-center text-sm text-hp-muted"
           style={{ background: "rgba(248, 246, 255, 0.85)", borderTop: "1px solid rgba(255,255,255,0.6)" }}
         >
-          <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
+          <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-center gap-3 md:flex-row md:gap-6">
+            <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
+            <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2" aria-label="法務">
+              <Link className="underline decoration-dotted underline-offset-4 hover:text-hp" href="/privacy">
+                プライバシーポリシー
+              </Link>
+              <Link className="underline decoration-dotted underline-offset-4 hover:text-hp" href="/terms">
+                利用規約
+              </Link>
+            </nav>
+          </div>
         </footer>
         {isChatbotEnabled() ? <ChatbotWidget /> : null}
       </body>

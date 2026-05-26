@@ -33,6 +33,17 @@ export function SecurityNote({ defaultOpen = false }: SecurityNoteProps) {
           <li>チャットログは 30 日自動削除の対象です。</li>
           <li>他案件情報は参照せず、本人文脈のみを使います。</li>
           <li>カレンダーは busy 時間帯のみ参照します。</li>
+          <li>
+            詳しくは{" "}
+            <a className="underline decoration-dotted underline-offset-4 hover:text-hp" href="/privacy">
+              プライバシーポリシー
+            </a>
+            と{" "}
+            <a className="underline decoration-dotted underline-offset-4 hover:text-hp" href="/terms">
+              利用規約
+            </a>
+            をご確認ください。
+          </li>
         </ul>
       ) : null}
     </section>
