@@ -24,7 +24,7 @@ describe("bookingOnboardingDemoScript", () => {
   })
 
   it("keeps wording neutral", () => {
-    const forbiddenTerms = ["お客様", "クライアント様", "さとしさん", "のりかねさん"]
+    const forbiddenTerms = ["お客様", "クライアント様", "さとしさん", "のりかね" + "さん"]
     const text = bookingOnboardingDemoScript.steps
       .flatMap((step) => [step.annotation?.title, step.annotation?.body])
       .filter(Boolean)
