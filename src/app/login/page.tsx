@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
+import { MAGIC_LINK_PROVIDER_ID } from "@/lib/auth/provider-ids"
 
 const FALLBACK_CALLBACK_URL = "/booking"
 
@@ -17,7 +18,7 @@ function messageForCode(code: string | null | undefined): string {
   return "ログインに失敗しました"
 }
 
-function LoginCard() {
+export function LoginCard() {
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || FALLBACK_CALLBACK_URL
 
@@ -26,8 +27,12 @@ function LoginCard() {
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [magicLinkEmail, setMagicLinkEmail] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [magicLinkSubmitting, setMagicLinkSubmitting] = useState(false)
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [magicLinkErrorMessage, setMagicLinkErrorMessage] = useState<string | null>(null)
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -52,6 +57,33 @@ function LoginCard() {
 
   const socialSignIn = (provider: "google" | "twitter" | "line") => {
     signIn(provider, { callbackUrl })
+  }
+
+  const handleMagicLinkSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const trimmedEmail = magicLinkEmail.trim()
+    if (!trimmedEmail) return
+
+    setMagicLinkSubmitting(true)
+    setMagicLinkSent(false)
+    setMagicLinkErrorMessage(null)
+
+    try {
+      const result = await signIn(MAGIC_LINK_PROVIDER_ID, {
+        email: trimmedEmail,
+        redirect: false,
+        callbackUrl,
+      })
+      if (result?.error) {
+        setMagicLinkErrorMessage("ログインリンクを送信できませんでした")
+        return
+      }
+      setMagicLinkSent(true)
+    } catch {
+      setMagicLinkErrorMessage("ログインリンクを送信できませんでした")
+    } finally {
+      setMagicLinkSubmitting(false)
+    }
   }
 
   const signupHref =
@@ -136,6 +168,45 @@ function LoginCard() {
           </Link>
         </p>
       </form>
+
+      <div className="mt-8 rounded-[20px] border border-[var(--glass-border)] p-4">
+        <h2 className="text-sm font-semibold text-hp">メールリンクでログイン</h2>
+        <p className="mt-2 text-sm text-hp-muted">
+          パスワードを使わず、メールに届くリンクからログインできます。
+        </p>
+        <form onSubmit={handleMagicLinkSubmit} className="mt-4 space-y-3" noValidate>
+          <label htmlFor="magic-link-email" className="block text-sm font-medium text-hp">
+            ログインリンク送信用メールアドレス
+          </label>
+          <input
+            id="magic-link-email"
+            name="magic-link-email"
+            type="email"
+            autoComplete="email"
+            value={magicLinkEmail}
+            onChange={(event) => setMagicLinkEmail(event.target.value)}
+            className="glass-input w-full px-4 py-3 text-sm"
+            placeholder="you@example.com"
+          />
+          {magicLinkSent && (
+            <p className="text-sm text-hp-muted" role="status">
+              ログインリンクを送信しました。メールをご確認ください。
+            </p>
+          )}
+          {magicLinkErrorMessage && (
+            <p className="text-sm text-red-500" role="alert">
+              {magicLinkErrorMessage}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={magicLinkSubmitting}
+            className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {magicLinkSubmitting ? "送信中..." : "ログインリンクを送信"}
+          </button>
+        </form>
+      </div>
 
       <div className="mt-8 flex items-center gap-3">
         <span className="h-px flex-1 bg-[var(--glass-border)]" />
