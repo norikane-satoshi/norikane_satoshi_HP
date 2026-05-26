@@ -146,6 +146,16 @@ export async function updateConversationRouting(input: {
   })
 }
 
+export async function linkConversationToUser(input: {
+  conversationId: string
+  userId: string
+}): Promise<void> {
+  await prisma.chatbotConversation.update({
+    where: { id: input.conversationId },
+    data: { userId: input.userId },
+  })
+}
+
 export async function linkChatToBookingGroup(input: {
   conversationId: string
   bookingGroupId: string

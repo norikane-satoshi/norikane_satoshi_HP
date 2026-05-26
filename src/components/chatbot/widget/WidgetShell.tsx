@@ -5,8 +5,13 @@ import { Minus, Sparkles } from "lucide-react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 
+import { submitChatbotInquiry, submitChatbotMessage, type SubmitInquiryInput, type WidgetUi } from "./api"
 import { ChatInput } from "./ChatInput"
 import { ChatMessage } from "./ChatMessage"
+import { ChatbotBookingCard } from "./ChatbotBookingCard"
+import { ChoicePanel } from "./ChoicePanel"
+import { DirectContactCard } from "./DirectContactCard"
+import { InquiryForm } from "./InquiryForm"
 import { SecurityNote } from "./SecurityNote"
 
 type WidgetShellProps = {
@@ -25,21 +30,65 @@ const initialMessage = {
   createdAt: new Date(),
 } satisfies WidgetMessage
 
+const noUi = { kind: "none" } satisfies WidgetUi
+const networkErrorMessage = "通信に失敗しました。少し時間をおいてもう一度お試しください。"
+const inquirySentMessage = "送信しました。担当者からの返信をお待ちください。"
+
 export function WidgetShell({ onMinimize }: WidgetShellProps) {
   const [messages, setMessages] = useState<WidgetMessage[]>([initialMessage])
+  const [conversationId, setConversationId] = useState<string | undefined>()
+  const [activeUi, setActiveUi] = useState<WidgetUi>(noUi)
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = (text: string) => {
+  const appendMessage = (message: WidgetMessage) => {
+    setMessages((currentMessages) => [...currentMessages, message])
+  }
+
+  const handleSubmit = async (text: string) => {
     const createdAt = new Date()
     setMessages((currentMessages) => [
       ...currentMessages,
       { role: "user", content: text, createdAt },
-      // TODO(PR 10): replace echo placeholder with /api/chatbot/message call.
-      {
-        role: "assistant",
-        content: "ご相談内容を受け付けました。続けてお話しください。",
-        createdAt: new Date(),
-      },
     ])
+    setActiveUi(noUi)
+    setSubmitting(true)
+
+    try {
+      const payload = await submitChatbotMessage({ message: text, conversationId })
+      setConversationId(payload.conversationId)
+      appendMessage({
+        role: payload.assistantMessage.role,
+        content: payload.assistantMessage.content,
+        createdAt: new Date(payload.assistantMessage.createdAt),
+      })
+      setActiveUi(payload.ui)
+    } catch {
+      appendMessage({
+        role: "system",
+        content: networkErrorMessage,
+        createdAt: new Date(),
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleInquirySubmit = async (input: Omit<SubmitInquiryInput, "conversationId">) => {
+    try {
+      await submitChatbotInquiry({ ...input, conversationId })
+      appendMessage({
+        role: "assistant",
+        content: inquirySentMessage,
+        createdAt: new Date(),
+      })
+      setActiveUi(noUi)
+    } catch {
+      appendMessage({
+        role: "system",
+        content: networkErrorMessage,
+        createdAt: new Date(),
+      })
+    }
   }
 
   return (
@@ -81,9 +130,68 @@ export function WidgetShell({ onMinimize }: WidgetShellProps) {
             />
           ))}
         </div>
+        <ActiveWidgetUi ui={activeUi} conversationId={conversationId} onSubmit={handleSubmit} onInquirySubmit={handleInquirySubmit} />
       </div>
 
-      <ChatInput onSubmit={handleSubmit} />
+      <ChatInput onSubmit={handleSubmit} disabled={submitting} />
     </section>
   )
+}
+
+function ActiveWidgetUi({
+  ui,
+  conversationId,
+  onSubmit,
+  onInquirySubmit,
+}: {
+  ui: WidgetUi
+  conversationId?: string
+  onSubmit: (text: string) => void
+  onInquirySubmit: (input: Omit<SubmitInquiryInput, "conversationId">) => void
+}) {
+  if (ui.kind === "choice-panel") {
+    return (
+      <ChoicePanel
+        choiceSet={ui.choiceSet}
+        onSelect={(selectedIds) => onSubmit(`選択: ${selectedIds.join(", ")}`)}
+      />
+    )
+  }
+
+  if (ui.kind === "booking-card") {
+    return (
+      <ChatbotBookingCard
+        conversationId={conversationId}
+        candidates={ui.suggestedSlots}
+        estimate={ui.jobContext.workflowEstimate}
+        defaultDueDate={ui.jobContext.publicReleaseDate}
+        defaultMemo={ui.jobContext.referenceUrls?.join("\n")}
+      />
+    )
+  }
+
+  if (ui.kind === "direct-contact-card") {
+    return (
+      <DirectContactCard
+        reason={ui.reason}
+        suggestedMessage={ui.suggestedMessage}
+        onSubmitEmail={(email, companyName, personName) =>
+          onInquirySubmit({
+            name: personName || "未入力",
+            email,
+            jobType: ui.reason,
+            duration: "",
+            desiredDeadline: "",
+            freeText: [companyName, ui.suggestedMessage].filter(Boolean).join("\n"),
+          })
+        }
+      />
+    )
+  }
+
+  if (ui.kind === "tier4-inquiry-form") {
+    return <InquiryForm onSubmit={onInquirySubmit} />
+  }
+
+  return null
 }
