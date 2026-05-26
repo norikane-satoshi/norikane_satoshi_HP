@@ -52,6 +52,7 @@ describe("chatbot widget shell", () => {
   beforeEach(() => {
     installLocalStorage()
     window.localStorage.clear()
+    window.location.hash = ""
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-05-26T00:00:00.000Z"))
     setScrollGeometry({ innerHeight: 800, scrollHeight: 4000, scrollY: 0 })
@@ -62,6 +63,7 @@ describe("chatbot widget shell", () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     window.localStorage.clear()
+    window.location.hash = ""
   })
 
   it("keeps SSR output empty before hydration", () => {
@@ -106,6 +108,30 @@ describe("chatbot widget shell", () => {
     await act(async () => {
       window.dispatchEvent(new Event("hp-chatbot:open"))
     })
+    expect(screen.getByRole("complementary", { name: "AI 相談窓口" })).toBeInTheDocument()
+  })
+
+  it("opens from the legacy contact hash after hydration", async () => {
+    window.location.hash = "#contact"
+    render(<ChatbotWidget />)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(screen.getByRole("complementary", { name: "AI 相談窓口" })).toBeInTheDocument()
+  })
+
+  it("opens when the hash later changes to the legacy contact anchor", async () => {
+    render(<ChatbotWidget />)
+    await vi.runOnlyPendingTimersAsync()
+    expect(screen.queryByRole("complementary", { name: "AI 相談窓口" })).not.toBeInTheDocument()
+
+    await act(async () => {
+      window.location.hash = "#contact"
+      window.dispatchEvent(new HashChangeEvent("hashchange"))
+    })
+
     expect(screen.getByRole("complementary", { name: "AI 相談窓口" })).toBeInTheDocument()
   })
 

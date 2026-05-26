@@ -7,6 +7,7 @@ import { useScrollTrigger } from "./useScrollTrigger"
 import { useWidgetState } from "./useWidgetState"
 
 const CHATBOT_OPEN_EVENT = "hp-chatbot:open"
+const CONTACT_HASH = "#contact"
 
 export function ChatbotWidget() {
   const widgetState = useWidgetState()
@@ -16,6 +17,16 @@ export function ChatbotWidget() {
     const handleOpen = () => open()
     window.addEventListener(CHATBOT_OPEN_EVENT, handleOpen)
     return () => window.removeEventListener(CHATBOT_OPEN_EVENT, handleOpen)
+  }, [open])
+
+  useEffect(() => {
+    const openForContactHash = () => {
+      if (window.location.hash === CONTACT_HASH) open()
+    }
+
+    openForContactHash()
+    window.addEventListener("hashchange", openForContactHash)
+    return () => window.removeEventListener("hashchange", openForContactHash)
   }, [open])
 
   useScrollTrigger({
