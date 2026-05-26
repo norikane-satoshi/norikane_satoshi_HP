@@ -2,6 +2,7 @@ export {
   appendMessage,
   createConversation,
   linkChatToBookingGroup,
+  linkConversationToUser,
   loadConversationBySessionId,
   recordInquiry,
   recordSurveyResponse,
