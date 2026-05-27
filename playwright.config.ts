@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test"
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:41241"
 const devPort = new URL(baseURL).port || "41241"
-const e2eDatabaseUrl = process.env.TURSO_DATABASE_URL ?? "file:./.playwright/e2e.db"
+const e2eDatabaseUrl = process.env.TURSO_DATABASE_URL ?? "file:./test-results/e2e.db"
 const authSecret = process.env.AUTH_SECRET ?? "booking-e2e-auth-secret"
 const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID ?? "e2e-calendar"
 const bookingFlag = process.env.NEXT_PUBLIC_ENABLE_BOOKING ?? "true"
@@ -37,6 +37,7 @@ export default defineConfig({
     baseURL,
     trace: "retain-on-failure",
   },
+  outputDir: ".playwright/test-results",
   projects: [
     {
       name: "chromium",

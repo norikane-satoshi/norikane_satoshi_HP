@@ -30,6 +30,8 @@ test.describe("booking personal smoke", () => {
     const freeBusyUrl = `/api/calendar/free-busy?start=${bookingWeekStartIso}&end=${bookingWeekEndIso}`
     const cachedBeforeSubmit = await page.request.get(freeBusyUrl)
     expect(cachedBeforeSubmit.status()).toBe(200)
+    const cachedBeforeSubmitJson = (await cachedBeforeSubmit.json()) as { bookings: { title: string }[] }
+    expect(cachedBeforeSubmitJson.bookings.some((booking) => booking.title === `${prefix} existing`)).toBe(true)
 
     await page.goto("/booking")
     await expect(page.locator(".booking-calendar__booking-event")).toHaveCount(1)
