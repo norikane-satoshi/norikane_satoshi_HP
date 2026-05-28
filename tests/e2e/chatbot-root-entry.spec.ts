@@ -70,6 +70,7 @@ test.describe("root chatbot entry", () => {
     await expectChatbotOpen(page)
     await page.getByLabel("相談内容").fill("Web CM の相談です")
     await page.getByRole("button", { name: "送信" }).click()
+    await expect(page.getByText("Local debug: Tier 4 form fallback (tier-4-form-fallback)")).toBeVisible()
     await expect(page.getByRole("region", { name: "最終媒体を教えてください" })).toBeVisible()
     await expect(page.getByRole("button", { name: "Web" })).toBeVisible()
     expect(postedMessage).toBe("Web CM の相談です")

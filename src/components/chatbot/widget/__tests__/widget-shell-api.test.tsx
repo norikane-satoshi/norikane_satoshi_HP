@@ -51,6 +51,7 @@ describe("WidgetShell API wiring", () => {
     submitMessage()
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText("Local debug: Tier 2 Ollama DeepSeek (tier-2-ollama-deepseek)")).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/chatbot/message",
       expect.objectContaining({
