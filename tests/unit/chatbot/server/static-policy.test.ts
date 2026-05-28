@@ -17,6 +17,16 @@ describe("chatbot static policy knowledge", () => {
       "2d61194573e140789602864a9040affe",
       "7202c1ee64c04c97a4821b8e4f2e0f67",
     ])
+    expect(approvedSourceNotes.map((note) => note.notionUrl)).toEqual([
+      "https://www.notion.so/1510399661d64891aee912320df39b91",
+      "https://www.notion.so/2d61194573e140789602864a9040affe",
+      "https://www.notion.so/7202c1ee64c04c97a4821b8e4f2e0f67",
+    ])
+    expect(approvedSourceNotes.map((note) => note.title)).toEqual([
+      "カラーコレクションの因数分解 ── 5000カットの迷宮から、設計にたどり着くまで",
+      "カラーグレーディングの因数分解 ── 「映画っぽく」と言われて、手が止まった日から",
+      "フィルムルックについてわかっていること ── 市販のLUTでも届かない「フィルムっぽく」の正体を、自分のネガで追った日から",
+    ])
     expect(buildChatbotStaticPolicyPrompt()).toContain("Notionページを実行時にRAG参照せず")
   })
 
