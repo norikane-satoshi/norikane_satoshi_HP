@@ -5,13 +5,20 @@ import { Minus, Sparkles } from "lucide-react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 
-import { submitChatbotInquiry, submitChatbotMessage, type SubmitInquiryInput, type WidgetUi } from "./api"
+import {
+  submitChatbotInquiry,
+  submitChatbotMessage,
+  type ChatbotResponseTier,
+  type SubmitInquiryInput,
+  type WidgetUi,
+} from "./api"
 import { ChatInput } from "./ChatInput"
 import { ChatMessage } from "./ChatMessage"
 import { ChatbotBookingCard } from "./ChatbotBookingCard"
 import { ChoicePanel } from "./ChoicePanel"
 import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
+import { formatChatbotTierDebugLabel, isLocalChatbotTierDebugHostname } from "./local-tier-debug"
 import { SecurityNote } from "./SecurityNote"
 
 type WidgetShellProps = {
@@ -39,6 +46,9 @@ export function WidgetShell({ onMinimize }: WidgetShellProps) {
   const [conversationId, setConversationId] = useState<string | undefined>()
   const [activeUi, setActiveUi] = useState<WidgetUi>(noUi)
   const [submitting, setSubmitting] = useState(false)
+  const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>()
+  const showLocalTierDebug =
+    typeof window !== "undefined" && isLocalChatbotTierDebugHostname(window.location.hostname)
 
   const appendMessage = (message: WidgetMessage) => {
     setMessages((currentMessages) => [...currentMessages, message])
@@ -56,6 +66,7 @@ export function WidgetShell({ onMinimize }: WidgetShellProps) {
     try {
       const payload = await submitChatbotMessage({ message: text, conversationId })
       setConversationId(payload.conversationId)
+      setLastResponseTier(payload.tier)
       appendMessage({
         role: payload.assistantMessage.role,
         content: payload.assistantMessage.content,
@@ -117,6 +128,13 @@ export function WidgetShell({ onMinimize }: WidgetShellProps) {
           <Minus className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
+      {showLocalTierDebug && lastResponseTier ? (
+        <div className="border-b border-[var(--glass-border)] px-5 py-2">
+          <p className="glass-badge inline-flex max-w-full px-3 py-1 text-[11px] font-medium">
+            Local debug: {formatChatbotTierDebugLabel(lastResponseTier)}
+          </p>
+        </div>
+      ) : null}
 
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
         <SecurityNote defaultOpen={false} />

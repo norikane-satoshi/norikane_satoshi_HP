@@ -84,6 +84,12 @@ async function loadPost({
     createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),
     createTier2OllamaDeepSeekClient: vi.fn(() => ({ tier: "tier-2-ollama-deepseek" })),
     createTier4FormFallbackClient: vi.fn(() => ({ tier: "tier-4-form-fallback" })),
+    normalizeChatbotLlmResponse: vi.fn((response: { rawText: string; tier: string }) => ({
+      content: response.rawText.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, "").trim(),
+      role: "assistant",
+      model: response.tier,
+      finish_reason: "stop",
+    })),
     createChatbotLlmTierOrchestrator: vi.fn(() => ({
       generate,
       isHealthy: vi.fn().mockResolvedValue(true),
@@ -160,6 +166,28 @@ describe("POST /api/chatbot/message", () => {
     await expect(response.json()).resolves.toMatchObject({
       tier: "tier-2-ollama-deepseek",
       ui: { kind: "choice-panel", choiceSet: { id: "final-medium" } },
+    })
+  })
+
+  it("returns sanitized assistant message content", async () => {
+    const route = await loadPost({
+      llmResponse: {
+        rawText: "<think>内部推論です。</think>\n\n最終媒体を教えてください",
+        tier: "tier-2-ollama-deepseek",
+        proposedRoutingDecision: { kind: "continue", nextQuestion: "最終媒体を教えてください" },
+      },
+    })
+
+    const response = await route.POST(request({ message: "相談です" }, "chatbot_session_id=session_1"))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      assistantMessage: { content: "最終媒体を教えてください" },
+    })
+    expect(route.appendMessage).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      role: "assistant",
+      content: "最終媒体を教えてください",
     })
   })
 

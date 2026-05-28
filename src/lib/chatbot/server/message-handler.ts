@@ -21,6 +21,7 @@ import {
   type ChatbotLlmResponse,
   type ChatbotLlmTierOrchestrator,
   type UserChatbotContext,
+  normalizeChatbotLlmResponse,
 } from "@/lib/chatbot/server"
 
 type ChatbotMessageUi =
@@ -125,10 +126,11 @@ export async function handleChatbotMessage(
     maxOutputTokens: 900,
   })
   const routingDecision = llmResponse.proposedRoutingDecision
+  const normalizedLlmResponse = normalizeChatbotLlmResponse(llmResponse)
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
     role: "assistant",
-    content: llmResponse.rawText,
+    content: normalizedLlmResponse.content,
   })
 
   if (routingDecision) {
