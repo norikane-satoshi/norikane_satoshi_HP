@@ -156,6 +156,27 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("stores and returns sanitized assistant text", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "<think>内部推論です。</think>\n\n最終媒体と尺を教えてください。",
+      tier: "tier-2-ollama-deepseek",
+      proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "相談です" },
+      harness.options,
+    )
+
+    expect(harness.repository.appendMessage).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      role: "assistant",
+      content: "最終媒体と尺を教えてください。",
+    })
+    expect(result.assistantMessage.content).toBe("最終媒体と尺を教えてください。")
+  })
+
   it("isolates a previous user's conversation when the authenticated user changes", async () => {
     const harness = setup({
       existingConversation: conversation({
