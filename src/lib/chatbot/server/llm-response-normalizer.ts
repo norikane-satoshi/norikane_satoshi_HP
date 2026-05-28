@@ -1,3 +1,10 @@
+import type { RoutingDecision } from "@/lib/chatbot/domain"
+import {
+  containsPriceQuote,
+  directContactPolicyMessage,
+  enforceAssistantQuestionLimit,
+  removeForbiddenAssistantSurface,
+} from "@/lib/chatbot/knowledge"
 import type { ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 
 export type NormalizedChatbotLlmResponse = {
@@ -12,19 +19,31 @@ export const fallbackChatbotAssistantContent =
 
 export function normalizeChatbotLlmResponse(
   response: ChatbotLlmResponse,
+  options: { routingDecision?: RoutingDecision } = {},
 ): NormalizedChatbotLlmResponse {
   return {
-    content: sanitizeChatbotLlmText(response.rawText),
+    content: sanitizeChatbotLlmText(response.rawText, options),
     role: "assistant",
     model: response.tier,
     finish_reason: "stop",
   }
 }
 
-export function sanitizeChatbotLlmText(rawText: string): string {
+export function sanitizeChatbotLlmText(
+  rawText: string,
+  options: { routingDecision?: RoutingDecision } = {},
+): string {
+  if (options.routingDecision?.kind === "to-direct-contact") {
+    return directContactPolicyMessage
+  }
+
   const strippedThoughtBlocks = stripThinkBlocksOutsideCodeFences(rawText)
   const strippedLeadingThought = stripLeadingThoughtExplanation(strippedThoughtBlocks)
-  const normalizedWhitespace = strippedLeadingThought.trim()
+  const normalizedWhitespace = enforceAssistantQuestionLimit(
+    removeForbiddenAssistantSurface(strippedLeadingThought),
+  )
+
+  if (containsPriceQuote(normalizedWhitespace)) return directContactPolicyMessage
 
   return normalizedWhitespace.length > 0 ? normalizedWhitespace : fallbackChatbotAssistantContent
 }

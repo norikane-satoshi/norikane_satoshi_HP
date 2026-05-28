@@ -21,6 +21,11 @@ const reasonLabels: Record<DirectContactReason, string> = {
   "raw-edit-included": "編集反映あり",
   "heavy-retouch": "重めの修正",
   "plugin-detail": "詳細確認",
+  pricing: "料金確認",
+  "contract-decision": "契約確認",
+  "personal-life": "個人情報",
+  "other-client": "他案件情報",
+  "confidential-technique": "非公開情報",
   complex: "個別確認",
 }
 

@@ -34,6 +34,7 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
     hasReferenceUrls: true,
     hasContactEmail: true,
     hasDesiredSchedule: true,
+    hasCustomerIdentity: true,
     turnCount: settledConversationTurnThreshold,
     contactEmail: "client@example.com",
     ...overrides,
@@ -54,6 +55,30 @@ describe("chatbot fallback router", () => {
     expect(result).toMatchObject({
       kind: "continue",
       presentChoices: finalMediumChoices,
+    })
+  })
+
+  it("starts with the required three intake questions on the first turn", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({
+        hasJobKind: false,
+        hasDesiredSchedule: false,
+        hasCustomerIdentity: false,
+        hasContactEmail: false,
+        turnCount: 1,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("案件種類"),
+    })
+    expect(result).toMatchObject({
+      nextQuestion: expect.stringContaining("スケジュールがだいたい決まっているか"),
+    })
+    expect(result).toMatchObject({
+      nextQuestion: expect.stringContaining("お名前・会社名"),
     })
   })
 
@@ -213,6 +238,41 @@ describe("chatbot fallback router", () => {
       kind: "to-direct-contact",
       reason: "tech-question",
     })
+  })
+
+  it("routes pricing questions to direct contact without returning amounts", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({ asksPricing: true }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "to-direct-contact",
+      reason: "pricing",
+      suggestedMessage: expect.not.stringMatching(/\d+円|万円|¥|￥/u),
+    })
+  })
+
+  it("routes contract, personal, other-client, and private-technique boundaries to direct contact", () => {
+    const cases: Array<[Partial<ConversationState>, string]> = [
+      [{ contractDecision: true }, "contract-decision"],
+      [{ personalQuestion: true }, "personal-life"],
+      [{ otherClientInformation: true }, "other-client"],
+      [{ confidentialTechniqueQuestion: true }, "confidential-technique"],
+      [{ privateMethodNameExposure: true }, "confidential-technique"],
+    ]
+
+    for (const [state, reason] of cases) {
+      const result = decideRoutingFallback({
+        jobContext: jobContext(),
+        conversationState: conversationState(state),
+      })
+
+      expect(result).toMatchObject({
+        kind: "to-direct-contact",
+        reason,
+      })
+    }
   })
 
   it("routes work review requests to direct contact", () => {

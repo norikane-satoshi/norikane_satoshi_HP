@@ -6,7 +6,7 @@ export const settledConversationTurnThreshold = 8
 export const complexConversationTurnThreshold = 16
 
 export type WorkflowDurationPreset = {
-  id: string
+  id: JobKind
   label: string
   minDays: number
   maxDays: number
@@ -37,6 +37,16 @@ export const workflowDurationJobKindMap = {
     baselineMinutes: number | undefined
   }
 >
+
+export const candidateWindowGranularityByJobKind = {
+  "cm-30s": "1時間単位",
+  "mv-5m": "1時間単位",
+  "feature-90m": "日付単位",
+  "drama-first": "日付単位",
+  "drama-follow-up": "日付単位",
+  "vertical-60s": "1時間単位",
+  "live-60m": "日付単位",
+} as const satisfies Record<JobKind, "1時間単位" | "日付単位">
 
 export const additionalWorkDurationRules = {
   noAdditionalDays: 0,

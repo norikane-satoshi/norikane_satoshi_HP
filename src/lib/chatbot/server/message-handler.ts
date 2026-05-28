@@ -21,10 +21,13 @@ import {
   type ChatbotLlmClient,
   type ChatbotLlmResponse,
   type ChatbotLlmTierOrchestrator,
+  decideRoutingFallback,
   type UserChatbotContext,
   normalizeChatbotLlmResponse,
   tier1ObservedNotionAiModel,
 } from "@/lib/chatbot/server"
+import { buildChatbotStaticPolicyPrompt } from "@/lib/chatbot/knowledge"
+import { classifyChatbotTopic } from "@/lib/chatbot/server/topic-gate"
 
 type ChatbotMessageUi =
   | { kind: "none" }
@@ -127,8 +130,16 @@ export async function handleChatbotMessage(
     temperature: 0.2,
     maxOutputTokens: 900,
   })
-  const routingDecision = llmResponse.proposedRoutingDecision
-  const normalizedLlmResponse = normalizeChatbotLlmResponse(llmResponse)
+  const deterministicRoutingDecision = decideRoutingFallback({
+    jobContext,
+    conversationState,
+    latestUserMessage: input.message,
+  })
+  const routingDecision =
+    deterministicRoutingDecision.kind === "to-direct-contact"
+      ? deterministicRoutingDecision
+      : llmResponse.proposedRoutingDecision ?? deterministicRoutingDecision
+  const normalizedLlmResponse = normalizeChatbotLlmResponse(llmResponse, { routingDecision })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
     role: "assistant",
@@ -180,10 +191,9 @@ function buildChatbotSystemPrompt(
   userContextFormatter: typeof formatUserChatbotContextForPrompt = formatUserChatbotContextForPrompt,
 ): string {
   const lines = [
-    "あなたは新規映像案件の相談受付アシスタントです。",
+    buildChatbotStaticPolicyPrompt(),
     "回答範囲は新規案件の調整、要件整理、予約導線に限定し、技術指導、作品レビュー、標準外要望は担当者確認へ誘導します。",
     "不明なことを推測で断定せず、未確認事項として質問します。",
-    "LOOK Decomposer v2 の詳細には触れず、直接確認が必要な事項として扱います。",
     "2026年10月より前は作業場所のデフォルト提案をせず、クライアントの希望を先に確認します。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
   ]
@@ -218,6 +228,8 @@ function buildConversationState(
     conversation.messages.filter((message) => message.role === "user").length +
     (userMessage.role === "user" ? 1 : 0)
 
+  const topicGate = classifyChatbotTopic(userMessage.content)
+
   return {
     hasFinalMedium: false,
     hasJobKind: false,
@@ -227,8 +239,10 @@ function buildConversationState(
     hasReferenceUrls: false,
     hasContactEmail: false,
     hasDesiredSchedule: false,
-    turnCount: userTurnCount,
+    hasCustomerIdentity: Boolean(input?.hasCustomerIdentity ?? input?.customerName ?? input?.companyName),
+    turnCount: input?.turnCount ?? userTurnCount,
     ...input,
+    ...topicGate,
   }
 }
 

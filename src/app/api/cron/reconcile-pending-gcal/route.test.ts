@@ -45,8 +45,8 @@ describe("GET /api/cron/reconcile-pending-gcal", () => {
     mocks.prisma.bookingGroup.findMany.mockResolvedValue([])
     mocks.prisma.adminActionLog.create.mockResolvedValue({})
     mocks.cleanupExpiredChatbotConversations.mockResolvedValue({
-      cutoffIso: "2026-04-26T00:00:00.000Z",
-      retentionDays: 30,
+      cutoffIso: "2026-05-25T00:00:00.000Z",
+    retentionDays: 1,
       scannedConversationCount: 1,
       deletedConversationCount: 1,
       deletedMessageCount: 2,
@@ -67,8 +67,8 @@ describe("GET /api/cron/reconcile-pending-gcal", () => {
       rollbackCount: 0,
       chatbotCleanup: {
         ok: true,
-        cutoffIso: "2026-04-26T00:00:00.000Z",
-        retentionDays: 30,
+        cutoffIso: "2026-05-25T00:00:00.000Z",
+      retentionDays: 1,
         scannedConversationCount: 1,
         deletedConversationCount: 1,
         deletedMessageCount: 2,

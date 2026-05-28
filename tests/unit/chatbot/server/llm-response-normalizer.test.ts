@@ -66,4 +66,23 @@ describe("normalizeChatbotLlmResponse", () => {
       sanitizeChatbotLlmText("思考: ユーザーの意図を整理する。\n\n最終媒体と公開時期を教えてください。"),
     ).toBe("最終媒体と公開時期を教えてください。")
   })
+
+  it("limits assistant questions to three", () => {
+    expect(
+      sanitizeChatbotLlmText(
+        "案件種類は何ですか？スケジュールは決まっていますか？お名前・会社名は何ですか？参考URLはありますか？",
+      ),
+    ).toBe("案件種類は何ですか？スケジュールは決まっていますか？お名前・会社名は何ですか？")
+  })
+
+  it("replaces price quotes with the direct-contact policy message", () => {
+    expect(sanitizeChatbotLlmText("概算で10万円です。")).not.toMatch(/\d+万円/u)
+    expect(sanitizeChatbotLlmText("概算で10万円です。")).toContain("のりかねさんに直接確認")
+  })
+
+  it("does not expose private method names", () => {
+    expect(sanitizeChatbotLlmText("LOOK Decomposer v2 の詳細はこうです。")).not.toContain(
+      "LOOK Decomposer",
+    )
+  })
 })

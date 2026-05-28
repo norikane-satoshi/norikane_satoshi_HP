@@ -128,6 +128,10 @@ describe("handleChatbotMessage user context", () => {
         systemPrompt: expect.stringContaining("本人だけの過去要約"),
       }),
     )
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("Notionページを実行時にRAG参照せず")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("1510399661d64891aee912320df39b91")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("案件種類")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("1返答で質問は最大3問")
   })
 
   it("does not load user context for unauthenticated requests", async () => {
@@ -175,6 +179,27 @@ describe("handleChatbotMessage user context", () => {
       content: "最終媒体と尺を教えてください。",
     })
     expect(result.assistantMessage.content).toBe("最終媒体と尺を教えてください。")
+  })
+
+  it("overrides pricing output with direct contact policy", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "概算で10万円です。",
+      tier: "tier-2-ollama-deepseek",
+      proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "料金はいくらですか" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "to-direct-contact",
+      reason: "pricing",
+    })
+    expect(result.assistantMessage.content).toContain("のりかねさんに直接確認")
+    expect(result.assistantMessage.content).not.toMatch(/\d+万円|¥|￥/u)
   })
 
   it("isolates a previous user's conversation when the authenticated user changes", async () => {

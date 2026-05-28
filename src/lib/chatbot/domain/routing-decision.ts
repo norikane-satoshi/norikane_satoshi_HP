@@ -16,6 +16,11 @@ export type RoutingDecision =
         | "raw-edit-included"
         | "heavy-retouch"
         | "plugin-detail"
+        | "pricing"
+        | "contract-decision"
+        | "personal-life"
+        | "other-client"
+        | "confidential-technique"
         | "complex"
       requireEmail: true
       suggestedMessage: string

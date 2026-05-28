@@ -30,6 +30,8 @@ export type {
 } from "@/lib/chatbot/server/availability-finder"
 export { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 export type { RoutingDecisionInput } from "@/lib/chatbot/server/routing"
+export { classifyChatbotTopic } from "@/lib/chatbot/server/topic-gate"
+export type { TopicGateResult } from "@/lib/chatbot/server/topic-gate"
 export { ChatbotLlmError, defaultLlmTierOrder } from "@/lib/chatbot/server/llm-client"
 export type {
   ChatbotLlmClient,
