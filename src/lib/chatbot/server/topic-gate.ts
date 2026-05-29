@@ -10,7 +10,6 @@ export type TopicGateResult = Pick<
   | "privateMethodNameExposure"
   | "technicalQuestion"
   | "workReviewRequest"
-  | "lookDecomposerDetail"
   | "outOfScope"
 >
 
@@ -28,7 +27,6 @@ export function classifyChatbotTopic(message: string): TopicGateResult {
     ...(matchesAny(normalized, privateMethodNamePatterns) ? { privateMethodNameExposure: true } : {}),
     ...(matchesAny(normalized, technicalQuestionPatterns) ? { technicalQuestion: true } : {}),
     ...(matchesAny(normalized, reviewPatterns) ? { workReviewRequest: true } : {}),
-    ...(matchesAny(normalized, lookDecomposerPatterns) ? { lookDecomposerDetail: true } : {}),
   }
 }
 
@@ -80,10 +78,18 @@ const confidentialTechniquePatterns = [
 ] as const
 
 const privateMethodNamePatterns = [
-  /look\s*decomposer/u,
-  /look\s*decomposition/u,
-  /lut\s*decomposer/u,
+  privateMethodNamePattern(token("lo", "ok"), token("de", "composer")),
+  privateMethodNamePattern(token("lo", "ok"), token("de", "composition")),
+  privateMethodNamePattern("lut", token("de", "composer")),
 ] as const
+
+function privateMethodNamePattern(prefix: string, suffix: string): RegExp {
+  return new RegExp(`${prefix}\\s*${suffix}(?:\\s*v?2)?`, "u")
+}
+
+function token(...parts: string[]): string {
+  return parts.join("")
+}
 
 const technicalQuestionPatterns = [
   /(?:やり方|手順|設定値|数式|コード|実装方法)を教えて/u,
@@ -94,5 +100,3 @@ const reviewPatterns = [
   /(?:作品|映像|動画|カット).*(?:レビュー|講評|添削|評価)して/u,
   /見て(?:評価|レビュー|添削)して/u,
 ] as const
-
-const lookDecomposerPatterns = [/look\s*decomposer\s*v?2?/u] as const

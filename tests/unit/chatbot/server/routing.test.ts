@@ -301,15 +301,15 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("routes Look Decomposer detail requests to direct contact", () => {
+  it("routes private method detail requests to direct contact", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
-      conversationState: conversationState({ lookDecomposerDetail: true }),
+      conversationState: conversationState({ privateMethodNameExposure: true }),
     })
 
     expect(result).toMatchObject({
       kind: "to-direct-contact",
-      reason: "plugin-detail",
+      reason: "confidential-technique",
     })
   })
 

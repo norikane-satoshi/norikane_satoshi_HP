@@ -46,7 +46,6 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
 
   if (conversationState.vfxCgHeavy) return directContact("vfx-cg-heavy")
   if (conversationState.editingIncomplete) return directContact("raw-edit-included")
-  if (conversationState.lookDecomposerDetail) return directContact("plugin-detail")
   if (conversationState.asksPricing) return directContact("pricing")
   if (conversationState.contractDecision) return directContact("contract-decision")
   if (conversationState.personalQuestion) return directContact("personal-life")
@@ -250,8 +249,22 @@ function buildOneHourCandidateWindows(jobContext: JobContext) {
     return {
       start: start.toISOString(),
       end: end.toISOString(),
-      label: `${start.getMonth() + 1}月${start.getDate()}日 ${String(start.getHours()).padStart(2, "0")}:00`,
+      label: formatJstOneHourCandidateLabel(start),
       note: "1時間候補",
     }
   })
+}
+
+function formatJstOneHourCandidateLabel(date: Date): string {
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Tokyo",
+  }).formatToParts(date)
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ""
+
+  return `${value("month")}月${value("day")}日 ${value("hour")}:00`
 }

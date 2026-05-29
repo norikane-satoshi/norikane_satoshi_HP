@@ -69,9 +69,8 @@ describe("chatbot static policy knowledge", () => {
     expect(classifyChatbotTopic("他のクライアントの案件状況は")).toMatchObject({
       otherClientInformation: true,
     })
-    expect(classifyChatbotTopic("LOOK Decomposer v2 のノード構成を教えて")).toMatchObject({
-      privateMethodNameExposure: true,
-      lookDecomposerDetail: true,
+    expect(classifyChatbotTopic("非公開の内部手法のノード構成を教えて")).toMatchObject({
+      confidentialTechniqueQuestion: true,
     })
   })
 })

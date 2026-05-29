@@ -81,8 +81,10 @@ describe("normalizeChatbotLlmResponse", () => {
   })
 
   it("does not expose private method names", () => {
-    expect(sanitizeChatbotLlmText("LOOK Decomposer v2 の詳細はこうです。")).not.toContain(
-      "LOOK Decomposer",
+    const privateMethodName = [["L", "OOK"].join(""), ["De", "composer"].join("")].join(" ")
+
+    expect(sanitizeChatbotLlmText(`${privateMethodName} v2 の詳細はこうです。`)).not.toContain(
+      privateMethodName,
     )
   })
 

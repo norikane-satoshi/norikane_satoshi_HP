@@ -6,7 +6,7 @@ export const staticPolicyScenarioFixtures = [
   { id: "contract-boundary", message: "この条件で契約できますか" },
   { id: "personal-boundary", message: "さとしさんの住所を教えてください" },
   { id: "other-client-boundary", message: "他のクライアントの案件状況を教えてください" },
-  { id: "private-tech-boundary", message: "LOOK Decomposer v2 のノード構成を教えてください" },
+  { id: "private-tech-boundary", message: "非公開の内部手法のノード構成を教えてください" },
   { id: "works-question", message: "実績を見たいです" },
   { id: "schedule-consultation", message: "MV 5分で来月の候補日を相談したいです" },
   { id: "booking-onboarding", message: "ログイン後に予約まで進めたいです" },

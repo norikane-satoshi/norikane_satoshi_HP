@@ -46,7 +46,6 @@ export type ConversationState = {
   workReviewRequest?: boolean
   vfxCgHeavy?: boolean
   editingIncomplete?: boolean
-  lookDecomposerDetail?: boolean
   asksPricing?: boolean
   contractDecision?: boolean
   personalQuestion?: boolean
