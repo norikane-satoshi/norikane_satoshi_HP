@@ -71,3 +71,25 @@ export {
   loadUserChatbotContext,
 } from "@/lib/chatbot/server/user-context-loader"
 export type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"
+export {
+  createHostedWorkerQueue,
+  createHostedWorkerRequestHandler,
+  createHostedWorkerRuntimeState,
+  createHostedWorkerServer,
+  ensureHostedWorkerChrome,
+  generateHostedWorkerResponse,
+  getHostedWorkerHealth,
+  hostedWorkerTier,
+  inspectHostedWorkerChrome,
+  resolveHostedWorkerChromeConfig,
+  startHostedWorkerServer,
+} from "@/lib/chatbot/hosted-worker"
+export type {
+  HostedWorkerChromeConfig,
+  HostedWorkerEnsureResult,
+  HostedWorkerGenerateRequest,
+  HostedWorkerGenerateResponse,
+  HostedWorkerHealthResponse,
+  HostedWorkerQueueState,
+  HostedWorkerRuntimeState,
+} from "@/lib/chatbot/hosted-worker"
