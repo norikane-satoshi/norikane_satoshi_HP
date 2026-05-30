@@ -164,27 +164,24 @@ function PreviewThumbnail({
   )
 }
 
-function NeutralWorkPreview({ title, client }: { title: string; client: string }) {
-  return (
-    <div
-      className="absolute inset-0 z-20 flex h-full w-full flex-col justify-start rounded-[11px] bg-[radial-gradient(circle_at_18%_18%,rgba(139,127,255,0.28),transparent_34%),radial-gradient(circle_at_82%_22%,rgba(121,199,199,0.25),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.62),rgba(255,255,255,0.28))] p-3 pb-20"
-      data-featured-work-neutral-placeholder="visible"
-    >
-      <span className="text-xs font-semibold leading-snug text-hp">{title}</span>
-      <span className="mt-1 text-[0.68rem] leading-tight text-hp-muted">{client}</span>
-    </div>
-  )
-}
-
 function WorkLinkBadges({
   links,
   workTitle,
+  placement = "overlay",
 }: {
   links: FeaturedWorkLink[]
   workTitle: string
+  placement?: "overlay" | "inline"
 }) {
   return (
-    <div className="absolute inset-x-2 bottom-2 z-30 flex flex-wrap gap-1.5">
+    <div
+      className={
+        placement === "overlay"
+          ? "absolute bottom-2 right-2 z-30 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1.5"
+          : "mt-4 flex flex-wrap gap-1.5"
+      }
+      data-featured-work-link-badges={placement}
+    >
       {links.map((link) => (
         <a
           key={`${link.label}:${link.url}`}
@@ -344,23 +341,28 @@ function FeaturedWorkCard({
       aria-label={`${work.title} 代表作品カード`}
       data-featured-work-card={work.title}
     >
-      <PreviewFrame>
-        {work.youtubeId ? (
+      {work.youtubeId ? (
+        <PreviewFrame>
           <VideoSurface
             videoId={work.youtubeId}
             title={work.title}
             isActive={isInViewport}
             prefersReducedMotion={prefersReducedMotion}
           />
-        ) : (
-          <NeutralWorkPreview title={work.title} client={work.client} />
-        )}
-        <WorkLinkBadges links={work.links} workTitle={work.title} />
-      </PreviewFrame>
+          <WorkLinkBadges links={work.links} workTitle={work.title} />
+        </PreviewFrame>
+      ) : null}
       <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         {work.title}
       </p>
       <p className="mt-auto pt-3 text-xs text-hp-muted md:text-sm">{work.client}</p>
+      {!work.youtubeId ? (
+        <WorkLinkBadges
+          links={work.links}
+          workTitle={work.title}
+          placement="inline"
+        />
+      ) : null}
     </div>
   )
 }
