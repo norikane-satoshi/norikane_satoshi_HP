@@ -162,6 +162,64 @@ describe("FeaturedWorks", () => {
     ).toBeNull()
   })
 
+  it("renders Rilakkuma as a playable Netflix video card with inline badges", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+
+    render(<FeaturedWorks />)
+
+    const card = screen.getByLabelText("リラックマと遊園地 代表作品カード")
+    const title = Array.from(card.querySelectorAll("p")).find(
+      (element) => element.textContent === "リラックマと遊園地",
+    )
+    const client = Array.from(card.querySelectorAll("p")).find(
+      (element) => element.textContent === "NETFLIX",
+    )
+    const frame = card.querySelector(".aspect-video")
+    const thumbnail = card.querySelector(
+      '[data-featured-work-preview-thumbnail="visible"]',
+    )
+    const media = card.querySelector('[data-featured-work-preview-media="preparing"]')
+    const badges = card.querySelector('[data-featured-work-link-badges="inline"]')
+
+    expect(card.tagName).toBe("DIV")
+    expect(card).not.toHaveAttribute("href")
+    expect(frame).toHaveClass("aspect-video")
+    expect(frame).toHaveClass("overflow-hidden")
+    expect(frame).toHaveClass("-mt-4")
+    expect(frame).toHaveClass("-mx-4")
+    expect(frame).toHaveClass("rounded-t-[12px]")
+    expect(thumbnail).toBeInTheDocument()
+    expect(thumbnail).toHaveClass("rounded-none")
+    expect(media).toBeInTheDocument()
+    expect(media).toHaveClass("rounded-none")
+    expect(title).toBeInTheDocument()
+    expect(client).toBeInTheDocument()
+    expect(title?.nextElementSibling).toBe(client?.parentElement)
+    expect(badges?.parentElement).toBe(client?.parentElement)
+
+    expect(
+      screen.getByRole("link", {
+        name: "リラックマと遊園地 公式HPを新しいタブで開く",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "https://www.san-x.co.jp/rilakkuma/theme_park_adventure/",
+    )
+    expect(
+      screen.getByRole("link", {
+        name: "リラックマと遊園地 YouTubeを新しいタブで開く",
+      }),
+    ).toHaveAttribute("href", "https://www.youtube.com/watch?v=-X5BMqt0m2c")
+  })
+
   it("prepares YouTube API players behind thumbnail covers", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
