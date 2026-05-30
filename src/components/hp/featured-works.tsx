@@ -60,6 +60,7 @@ declare global {
 }
 
 let youtubeApiPromise: Promise<void> | null = null
+const STARTUP_COVER_HOLD_MS = 900
 
 function loadYouTubeIframeApi() {
   if (typeof window === "undefined") {
@@ -135,7 +136,7 @@ function useInViewport<T extends HTMLElement>() {
 
 function PreviewFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="relative aspect-video rounded-[12px] border border-white/55 bg-white/35">
+    <div className="relative aspect-video overflow-hidden rounded-[12px] border border-white/55 bg-white/35">
       {children}
     </div>
   )
@@ -152,7 +153,7 @@ function PreviewThumbnail({
     <img
       src={getYouTubeThumbnailUrl(videoId)}
       alt=""
-      className={`absolute inset-0 h-full w-full rounded-[11px] object-cover transition-opacity duration-300 ${
+      className={`pointer-events-none absolute inset-0 z-20 h-full w-full rounded-[11px] object-cover transition-opacity duration-300 ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
       loading="lazy"
@@ -160,6 +161,37 @@ function PreviewThumbnail({
       data-featured-work-preview-thumbnail={isVisible ? "visible" : "hidden"}
     />
   )
+}
+
+function NeutralWorkPreview({ title, client }: { title: string; client: string }) {
+  return (
+    <div
+      className="absolute inset-0 z-20 flex h-full w-full flex-col justify-end rounded-[11px] bg-[radial-gradient(circle_at_18%_18%,rgba(139,127,255,0.28),transparent_34%),radial-gradient(circle_at_82%_22%,rgba(121,199,199,0.25),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.62),rgba(255,255,255,0.28))] p-4"
+      data-featured-work-neutral-placeholder="visible"
+    >
+      <span className="w-fit rounded-full border border-white/60 bg-white/45 px-3 py-1 text-[0.68rem] font-semibold text-hp">
+        公式ページ
+      </span>
+      <span className="mt-3 text-sm font-semibold leading-snug text-hp">{title}</span>
+      <span className="mt-1 text-xs text-hp-muted">{client}</span>
+    </div>
+  )
+}
+
+function getYouTubePlayerVars(videoId?: string) {
+  return {
+    autoplay: 1,
+    controls: 0,
+    disablekb: 1,
+    fs: 0,
+    iv_load_policy: 3,
+    modestbranding: 1,
+    mute: 1,
+    origin: window.location.origin,
+    playsinline: 1,
+    rel: 0,
+    ...(videoId ? { loop: 1, playlist: videoId } : {}),
+  }
 }
 
 function VideoSurface({
@@ -175,12 +207,21 @@ function VideoSurface({
 }) {
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
+  const coverTimerRef = useRef<number | null>(null)
+  const [isCoverVisible, setIsCoverVisible] = useState(true)
   const shouldPlay = isActive && !prefersReducedMotion
 
   useEffect(() => {
+    const clearCoverTimer = () => {
+      if (coverTimerRef.current) {
+        window.clearTimeout(coverTimerRef.current)
+        coverTimerRef.current = null
+      }
+    }
+
     if (!shouldPlay) {
-      window.setTimeout(() => setIsPlaying(false), 0)
+      clearCoverTimer()
+      window.setTimeout(() => setIsCoverVisible(true), 0)
       playerRef.current?.stopVideo()
       return
     }
@@ -191,7 +232,11 @@ function VideoSurface({
       if (!window.YT || event.data !== window.YT.PlayerState.PLAYING) {
         return
       }
-      setIsPlaying(true)
+      clearCoverTimer()
+      coverTimerRef.current = window.setTimeout(() => {
+        setIsCoverVisible(false)
+        coverTimerRef.current = null
+      }, STARTUP_COVER_HOLD_MS)
     }
 
     loadYouTubeIframeApi().then(() => {
@@ -206,35 +251,32 @@ function VideoSurface({
 
       playerRef.current = new window.YT.Player(playerHostRef.current, {
         videoId,
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-          loop: 1,
-          modestbranding: 1,
-          origin: window.location.origin,
-          playlist: videoId,
-          playsinline: 1,
-          rel: 0,
-        },
+        playerVars: getYouTubePlayerVars(videoId),
         events: {
           onReady: (event) => {
             event.target.mute()
             event.target.playVideo()
           },
           onStateChange: handleStateChange,
-          onError: () => setIsPlaying(false),
+          onError: () => {
+            clearCoverTimer()
+            setIsCoverVisible(true)
+          },
         },
       })
     })
 
     return () => {
       cancelled = true
+      clearCoverTimer()
     }
   }, [shouldPlay, videoId])
 
   useEffect(() => {
     return () => {
+      if (coverTimerRef.current) {
+        window.clearTimeout(coverTimerRef.current)
+      }
       playerRef.current?.destroy()
     }
   }, [])
@@ -244,10 +286,10 @@ function VideoSurface({
       {shouldPlay ? (
         <div
           className={`pointer-events-none absolute inset-0 h-full w-full rounded-[11px] transition-opacity duration-300 ${
-            isPlaying ? "opacity-100" : "opacity-0"
+            isCoverVisible ? "opacity-0" : "opacity-100"
           }`}
           aria-hidden="true"
-          data-featured-work-preview-media={isPlaying ? "playing" : "preparing"}
+          data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
         >
           <div
             ref={playerHostRef}
@@ -256,7 +298,7 @@ function VideoSurface({
           />
         </div>
       ) : null}
-      <PreviewThumbnail videoId={videoId} isVisible={!isPlaying} />
+      <PreviewThumbnail videoId={videoId} isVisible={isCoverVisible} />
     </>
   )
 }
@@ -281,12 +323,16 @@ function FeaturedWorkCard({
       aria-label={`${work.title} 公式ページを新しいタブで開く`}
     >
       <PreviewFrame>
-        <VideoSurface
-          videoId={work.youtubeId}
-          title={work.title}
-          isActive={isInViewport}
-          prefersReducedMotion={prefersReducedMotion}
-        />
+        {work.youtubeId ? (
+          <VideoSurface
+            videoId={work.youtubeId}
+            title={work.title}
+            isActive={isInViewport}
+            prefersReducedMotion={prefersReducedMotion}
+          />
+        ) : (
+          <NeutralWorkPreview title={work.title} client={work.client} />
+        )}
       </PreviewFrame>
       <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         {work.title}
@@ -303,28 +349,34 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
   const queueRef = useRef<string[]>([])
   const clipRef = useRef<ClipWindow | null>(null)
   const timerRef = useRef<number | null>(null)
+  const coverTimerRef = useRef<number | null>(null)
   const [previewVideoId, setPreviewVideoId] = useState<string>(LIVE_REEL_VIDEO_IDS[0])
-  const [isPlaying, setIsPlaying] = useState(false)
+  const [isCoverVisible, setIsCoverVisible] = useState(true)
 
   useEffect(() => {
-    if (!isInViewport || prefersReducedMotion) {
-      window.setTimeout(() => setIsPlaying(false), 0)
-      playerRef.current?.stopVideo()
-      if (timerRef.current) {
-        window.clearTimeout(timerRef.current)
-        timerRef.current = null
-      }
-      return
-    }
-
-    let cancelled = false
-
     const clearNextTimer = () => {
       if (timerRef.current) {
         window.clearTimeout(timerRef.current)
         timerRef.current = null
       }
     }
+
+    const clearCoverTimer = () => {
+      if (coverTimerRef.current) {
+        window.clearTimeout(coverTimerRef.current)
+        coverTimerRef.current = null
+      }
+    }
+
+    if (!isInViewport || prefersReducedMotion) {
+      clearNextTimer()
+      clearCoverTimer()
+      window.setTimeout(() => setIsCoverVisible(true), 0)
+      playerRef.current?.stopVideo()
+      return
+    }
+
+    let cancelled = false
 
     const nextVideoId = () => {
       if (queueRef.current.length === 0) {
@@ -342,7 +394,8 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
       clipRef.current = null
       const videoId = nextVideoId()
       setPreviewVideoId(videoId)
-      setIsPlaying(false)
+      clearCoverTimer()
+      setIsCoverVisible(true)
       player.loadVideoById(videoId)
     }
 
@@ -362,15 +415,21 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
 
       const player = event.target
       const existingClip = clipRef.current
+      const duration = player.getDuration()
       const clip =
-        existingClip ?? calculateClipWindow(player.getDuration(), Math.random, 30)
+        existingClip ??
+        calculateClipWindow(Number.isFinite(duration) ? duration : 30, Math.random, 30)
       clipRef.current = clip
 
       if (!existingClip && clip.startSeconds > 0) {
         player.seekTo(clip.startSeconds, true)
       }
 
-      setIsPlaying(true)
+      clearCoverTimer()
+      coverTimerRef.current = window.setTimeout(() => {
+        setIsCoverVisible(false)
+        coverTimerRef.current = null
+      }, STARTUP_COVER_HOLD_MS)
       clearNextTimer()
       timerRef.current = window.setTimeout(
         playNext,
@@ -391,25 +450,17 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
       queueRef.current = shuffleVideoIds(LIVE_REEL_VIDEO_IDS)
       const firstVideoId = nextVideoId()
       setPreviewVideoId(firstVideoId)
-      setIsPlaying(false)
+      setIsCoverVisible(true)
       playerRef.current = new window.YT.Player(playerHostRef.current, {
         videoId: firstVideoId,
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-          modestbranding: 1,
-          origin: window.location.origin,
-          playsinline: 1,
-          rel: 0,
-        },
+        playerVars: getYouTubePlayerVars(),
         events: {
           onReady: (event) => {
             event.target.mute()
             event.target.playVideo()
           },
           onStateChange: handleStateChange,
-          onError: () => setIsPlaying(false),
+          onError: () => playNext(),
         },
       })
     })
@@ -417,6 +468,7 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
     return () => {
       cancelled = true
       clearNextTimer()
+      clearCoverTimer()
     }
   }, [isInViewport, prefersReducedMotion])
 
@@ -424,6 +476,9 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
     return () => {
       if (timerRef.current) {
         window.clearTimeout(timerRef.current)
+      }
+      if (coverTimerRef.current) {
+        window.clearTimeout(coverTimerRef.current)
       }
       playerRef.current?.destroy()
     }
@@ -440,15 +495,16 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
         {isInViewport && !prefersReducedMotion ? (
           <div
             className={`pointer-events-none absolute inset-0 h-full w-full rounded-[11px] transition-opacity duration-300 ${
-              isPlaying ? "opacity-100" : "opacity-0"
+              isCoverVisible ? "opacity-0" : "opacity-100"
             }`}
             aria-hidden="true"
-            data-featured-work-preview-media={isPlaying ? "playing" : "preparing"}
+            data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
+            data-featured-work-live-current-video-id={previewVideoId}
           >
             <div ref={playerHostRef} className="h-full w-full" />
           </div>
         ) : null}
-        <PreviewThumbnail videoId={previewVideoId} isVisible={!isPlaying} />
+        <PreviewThumbnail videoId={previewVideoId} isVisible={isCoverVisible} />
       </PreviewFrame>
       <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         ライブ映像作品多数
@@ -472,7 +528,7 @@ export function FeaturedWorks() {
         <div className="flex snap-x snap-mandatory gap-4 px-8 pb-4 md:gap-5 md:px-10 xl:px-12">
           {FEATURED_WORKS.map((work) => (
             <FeaturedWorkCard
-              key={work.youtubeId}
+              key={work.youtubeId ?? work.officialUrl}
               work={work}
               prefersReducedMotion={prefersReducedMotion}
             />

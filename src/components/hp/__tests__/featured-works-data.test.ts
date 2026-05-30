@@ -11,7 +11,6 @@ describe("featured works data", () => {
     expect(FEATURED_WORKS).toEqual([
       expect.objectContaining({
         title: "火星の女王",
-        youtubeId: "IQb3beIbE1I",
         officialUrl:
           "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pYElk2QVvW/",
       }),
@@ -31,6 +30,7 @@ describe("featured works data", () => {
         officialUrl: "https://www.geki-cine.jp/",
       }),
     ])
+    expect(FEATURED_WORKS[0]).not.toHaveProperty("youtubeId")
   })
 
   it("defines the five live reel YouTube ids", () => {

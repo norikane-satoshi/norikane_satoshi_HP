@@ -7,6 +7,8 @@ import { FEATURED_WORKS } from "@/components/hp/featured-works-data"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 
 describe("FeaturedWorks", () => {
+  const embeddedWorkCount = FEATURED_WORKS.filter((work) => work.youtubeId).length
+
   beforeEach(() => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
@@ -43,7 +45,7 @@ describe("FeaturedWorks", () => {
     expect(screen.queryByRole("link", { name: /ライブ映像作品多数/ })).not.toBeInTheDocument()
   })
 
-  it("keeps each YouTube preview in a native 16:9 frame with a thumbnail cover", () => {
+  it("keeps each preview in a native 16:9 frame with safe covers", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -64,11 +66,17 @@ describe("FeaturedWorks", () => {
     const thumbnailCovers = container.querySelectorAll(
       '[data-featured-work-preview-thumbnail="visible"]',
     )
+    const neutralPlaceholders = container.querySelectorAll(
+      '[data-featured-work-neutral-placeholder="visible"]',
+    )
 
     expect(previewFrames).toHaveLength(FEATURED_WORKS.length + 1)
     expect(cropFrames).toHaveLength(0)
     expect(scaledMedia).toHaveLength(0)
-    expect(thumbnailCovers).toHaveLength(FEATURED_WORKS.length + 1)
+    expect(thumbnailCovers).toHaveLength(embeddedWorkCount + 1)
+    expect(neutralPlaceholders).toHaveLength(1)
+    expect(container.innerHTML).not.toContain("IQb3beIbE1I")
+    expect(container.innerHTML).not.toContain("i.ytimg.com/vi/IQb3beIbE1I")
 
     for (const frame of previewFrames) {
       expect(frame).toHaveClass("aspect-video")
@@ -95,8 +103,8 @@ describe("FeaturedWorks", () => {
       '[data-featured-work-preview-thumbnail="visible"]',
     )
 
-    expect(preparingMedia).toHaveLength(FEATURED_WORKS.length + 1)
-    expect(thumbnailCovers).toHaveLength(FEATURED_WORKS.length + 1)
+    expect(preparingMedia).toHaveLength(embeddedWorkCount + 1)
+    expect(thumbnailCovers).toHaveLength(embeddedWorkCount + 1)
 
     for (const media of preparingMedia) {
       expect(media).toHaveClass("pointer-events-none")

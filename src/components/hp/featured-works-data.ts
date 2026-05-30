@@ -1,7 +1,7 @@
 export type FeaturedWork = {
   title: string
   client: string
-  youtubeId: string
+  youtubeId?: string
   officialUrl: string
 }
 
@@ -9,7 +9,6 @@ export const FEATURED_WORKS: FeaturedWork[] = [
   {
     title: "火星の女王",
     client: "NHK100周年記念ドラマ",
-    youtubeId: "IQb3beIbE1I",
     officialUrl:
       "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pYElk2QVvW/",
   },
