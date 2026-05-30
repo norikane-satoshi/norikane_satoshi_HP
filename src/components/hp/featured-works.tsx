@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import {
   FEATURED_WORKS,
   LIVE_REEL_VIDEO_IDS,
@@ -54,6 +54,9 @@ declare global {
 }
 
 let youtubeApiPromise: Promise<void> | null = null
+const CINEMASCOPE_ASPECT_RATIO = "2.39 / 1"
+const YOUTUBE_CHROME_CROP_SCALE = 2.2
+const YOUTUBE_NATIVE_WIDTH_IN_CINEMASCOPE_FRAME = "calc(100% * 16 / 9 / 2.39)"
 
 function loadYouTubeIframeApi() {
   if (typeof window === "undefined") {
@@ -142,6 +145,34 @@ function buildPreviewEmbedUrl(videoId: string) {
   return `https://www.youtube.com/embed/${videoId}?${params.toString()}`
 }
 
+function PreviewCropFrame({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="relative overflow-hidden rounded-[12px] border border-white/55 bg-white/35"
+      style={{ aspectRatio: CINEMASCOPE_ASPECT_RATIO }}
+      data-featured-work-preview-crop="cinemascope"
+    >
+      {children}
+    </div>
+  )
+}
+
+function ScaledYouTubeFrame({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="pointer-events-none absolute left-1/2 top-1/2 h-full max-w-none"
+      style={{
+        width: YOUTUBE_NATIVE_WIDTH_IN_CINEMASCOPE_FRAME,
+        aspectRatio: "16 / 9",
+        transform: `translate(-50%, -50%) scale(${YOUTUBE_CHROME_CROP_SCALE})`,
+      }}
+      data-featured-work-preview-media="youtube-scale"
+    >
+      {children}
+    </div>
+  )
+}
+
 function VideoSurface({
   videoId,
   title,
@@ -166,15 +197,17 @@ function VideoSurface({
   }
 
   return (
-    <iframe
-      title={`${title} preview`}
-      src={buildPreviewEmbedUrl(videoId)}
-      className="h-full w-full pointer-events-none"
-      allow="autoplay; encrypted-media; picture-in-picture"
-      referrerPolicy="strict-origin-when-cross-origin"
-      tabIndex={-1}
-      aria-hidden="true"
-    />
+    <ScaledYouTubeFrame>
+      <iframe
+        title={`${title} preview`}
+        src={buildPreviewEmbedUrl(videoId)}
+        className="h-full w-full"
+        allow="autoplay; encrypted-media; picture-in-picture"
+        referrerPolicy="strict-origin-when-cross-origin"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+    </ScaledYouTubeFrame>
   )
 }
 
@@ -197,14 +230,14 @@ function FeaturedWorkCard({
       style={{ width: "min(72vw, 260px)" }}
       aria-label={`${work.title} 公式ページを新しいタブで開く`}
     >
-      <div className="aspect-video overflow-hidden rounded-[12px] border border-white/55 bg-white/35">
+      <PreviewCropFrame>
         <VideoSurface
           videoId={work.youtubeId}
           title={work.title}
           isActive={isInViewport}
           prefersReducedMotion={prefersReducedMotion}
         />
-      </div>
+      </PreviewCropFrame>
       <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         {work.title}
       </p>
@@ -342,7 +375,7 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
       style={{ width: "min(72vw, 260px)" }}
       aria-label="ライブ映像作品多数のランダムループ再生カード"
     >
-      <div className="aspect-video overflow-hidden rounded-[12px] border border-white/55 bg-white/35">
+      <PreviewCropFrame>
         {!isInViewport || prefersReducedMotion ? (
           <img
             src={getYouTubeThumbnailUrl(LIVE_REEL_VIDEO_IDS[0])}
@@ -352,9 +385,11 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
             decoding="async"
           />
         ) : (
-          <div ref={playerHostRef} className="h-full w-full pointer-events-none" />
+          <ScaledYouTubeFrame>
+            <div ref={playerHostRef} className="h-full w-full" />
+          </ScaledYouTubeFrame>
         )}
-      </div>
+      </PreviewCropFrame>
       <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         ライブ映像作品多数
       </p>
