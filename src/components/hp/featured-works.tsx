@@ -137,7 +137,7 @@ function useInViewport<T extends HTMLElement>() {
 
 function PreviewFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="relative aspect-video overflow-hidden rounded-[12px]">
+    <div className="relative -mx-4 -mt-4 aspect-video overflow-hidden rounded-t-[12px] md:-mx-5 md:-mt-5">
       {children}
     </div>
   )
@@ -154,7 +154,7 @@ function PreviewThumbnail({
     <img
       src={getYouTubeThumbnailUrl(videoId)}
       alt=""
-      className={`pointer-events-none absolute inset-0 z-20 h-full w-full rounded-[12px] object-cover transition-opacity duration-300 ${
+      className={`pointer-events-none absolute inset-0 z-20 h-full w-full rounded-none object-cover transition-opacity duration-300 ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
       loading="lazy"
@@ -300,7 +300,7 @@ function VideoSurface({
     <>
       {shouldPlay ? (
         <div
-          className={`pointer-events-none absolute inset-0 h-full w-full rounded-[12px] transition-opacity duration-300 ${
+          className={`pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-300 ${
             isCoverVisible ? "opacity-0" : "opacity-100"
           }`}
           aria-hidden="true"
@@ -330,7 +330,7 @@ function FeaturedWorkCard({
   return (
     <div
       ref={cardRef}
-      className="group flex shrink-0 snap-start flex-col glass-card-sm p-4 transition-transform hover:-translate-y-0.5 md:p-5"
+      className="group flex shrink-0 snap-start flex-col overflow-hidden glass-card-sm p-4 transition-transform hover:-translate-y-0.5 md:p-5"
       style={{ width: "min(72vw, 260px)" }}
       aria-label={`${work.title} 代表作品カード`}
       data-featured-work-card={work.title}
@@ -502,14 +502,14 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
   return (
     <div
       ref={cardRef}
-      className="flex shrink-0 snap-start flex-col glass-card-sm p-4 md:p-5"
+      className="flex shrink-0 snap-start flex-col overflow-hidden glass-card-sm p-4 md:p-5"
       style={{ width: "min(72vw, 260px)" }}
       aria-label="ライブ映像作品多数のランダムループ再生カード"
     >
       <PreviewFrame>
         {isInViewport && !prefersReducedMotion ? (
           <div
-            className={`pointer-events-none absolute inset-0 h-full w-full rounded-[12px] transition-opacity duration-300 ${
+            className={`pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-300 ${
               isCoverVisible ? "opacity-0" : "opacity-100"
             }`}
             aria-hidden="true"

@@ -74,6 +74,7 @@ describe("FeaturedWorks", () => {
     const thumbnailCovers = container.querySelectorAll(
       '[data-featured-work-preview-thumbnail="visible"]',
     )
+    const mediaCovers = container.querySelectorAll("[data-featured-work-preview-media]")
     const neutralPlaceholders = container.querySelectorAll(
       "[data-featured-work-neutral-placeholder]",
     )
@@ -82,6 +83,7 @@ describe("FeaturedWorks", () => {
     expect(cropFrames).toHaveLength(0)
     expect(scaledMedia).toHaveLength(0)
     expect(thumbnailCovers).toHaveLength(embeddedWorkCount + 1)
+    expect(mediaCovers).toHaveLength(embeddedWorkCount + 1)
     expect(neutralPlaceholders).toHaveLength(0)
     expect(container.innerHTML).not.toContain("i.ytimg.com/vi/IQb3beIbE1I")
 
@@ -92,14 +94,33 @@ describe("FeaturedWorks", () => {
 
     for (const frame of previewFrames) {
       expect(frame).toHaveClass("aspect-video")
-      expect(frame).toHaveClass("rounded-[12px]")
+      expect(frame).toHaveClass("overflow-hidden")
+      expect(frame).toHaveClass("-mt-4")
+      expect(frame).toHaveClass("-mx-4")
+      expect(frame).toHaveClass("rounded-t-[12px]")
+      expect(frame).not.toHaveClass("rounded-[12px]")
       expect(frame).not.toHaveClass("border")
       expect(frame).not.toHaveClass("bg-white/35")
     }
 
     for (const thumbnail of thumbnailCovers) {
-      expect(thumbnail).toHaveClass("rounded-[12px]")
+      expect(thumbnail).toHaveClass("rounded-none")
+      expect(thumbnail).not.toHaveClass("rounded-[12px]")
     }
+
+    for (const media of mediaCovers) {
+      expect(media).toHaveClass("rounded-none")
+      expect(media).not.toHaveClass("rounded-[12px]")
+    }
+
+    for (const work of FEATURED_WORKS) {
+      expect(screen.getByLabelText(`${work.title} 代表作品カード`)).toHaveClass(
+        "overflow-hidden",
+      )
+    }
+    expect(screen.getByLabelText("ライブ映像作品多数のランダムループ再生カード")).toHaveClass(
+      "overflow-hidden",
+    )
   })
 
   it("places every featured work badge group inline below the title", () => {
