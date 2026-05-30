@@ -135,9 +135,18 @@ function useInViewport<T extends HTMLElement>() {
   return [ref, isInViewport] as const
 }
 
-function PreviewFrame({ children }: { children: ReactNode }) {
+function PreviewFrame({
+  children,
+  abstractCover = false,
+}: {
+  children: ReactNode
+  abstractCover?: boolean
+}) {
   return (
-    <div className="relative -mx-4 -mt-4 aspect-video overflow-hidden rounded-t-[12px] md:-mx-5 md:-mt-5">
+    <div
+      className="relative -mx-4 -mt-4 aspect-video overflow-hidden rounded-t-[12px] md:-mx-5 md:-mt-5"
+      data-featured-work-abstract-cover={abstractCover ? "true" : undefined}
+    >
       {children}
     </div>
   )
@@ -344,13 +353,23 @@ function FeaturedWorkCard({
             prefersReducedMotion={prefersReducedMotion}
           />
         </PreviewFrame>
-      ) : null}
+      ) : (
+        <PreviewFrame abstractCover>
+          <div className="absolute inset-0 bg-[radial-gradient(130%_130%_at_18%_12%,#C9BCFF_0%,var(--accent-primary)_48%,#3B2A9E_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(90%_90%_at_86%_84%,rgba(121,199,199,0.42)_0%,rgba(255,255,255,0)_62%)]" />
+          <div className="absolute inset-0 z-10 flex flex-wrap content-end items-end justify-end gap-1.5 p-3 md:p-4">
+            <WorkLinkBadges links={work.links} workTitle={work.title} />
+          </div>
+        </PreviewFrame>
+      )}
       <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         {work.title}
       </p>
       <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
         <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
-        <WorkLinkBadges links={work.links} workTitle={work.title} />
+        {work.youtubeId ? (
+          <WorkLinkBadges links={work.links} workTitle={work.title} />
+        ) : null}
       </div>
     </div>
   )

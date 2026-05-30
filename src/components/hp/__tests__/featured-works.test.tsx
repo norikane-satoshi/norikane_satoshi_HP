@@ -75,11 +75,15 @@ describe("FeaturedWorks", () => {
       '[data-featured-work-preview-thumbnail="visible"]',
     )
     const mediaCovers = container.querySelectorAll("[data-featured-work-preview-media]")
+    const abstractCovers = container.querySelectorAll(
+      '[data-featured-work-abstract-cover="true"]',
+    )
     const neutralPlaceholders = container.querySelectorAll(
       "[data-featured-work-neutral-placeholder]",
     )
 
-    expect(previewFrames).toHaveLength(embeddedWorkCount + 1)
+    expect(previewFrames).toHaveLength(embeddedWorkCount + 2)
+    expect(abstractCovers).toHaveLength(1)
     expect(cropFrames).toHaveLength(0)
     expect(scaledMedia).toHaveLength(0)
     expect(thumbnailCovers).toHaveLength(embeddedWorkCount + 1)
@@ -88,7 +92,8 @@ describe("FeaturedWorks", () => {
     expect(container.innerHTML).not.toContain("i.ytimg.com/vi/IQb3beIbE1I")
 
     const marsCard = screen.getByLabelText("火星の女王 代表作品カード")
-    expect(marsCard.querySelector(".aspect-video")).toBeNull()
+    const marsFrame = marsCard.querySelector('[data-featured-work-abstract-cover="true"]')
+    expect(marsFrame).toHaveClass("aspect-video")
     expect(marsCard.querySelector('[data-featured-work-preview-media]')).toBeNull()
     expect(marsCard.querySelector("img")).toBeNull()
 
@@ -123,10 +128,10 @@ describe("FeaturedWorks", () => {
     )
   })
 
-  it("places every featured work badge group inline below the title", () => {
+  it("places video work badge groups inline with clients", () => {
     const { container } = render(<FeaturedWorks />)
 
-    for (const work of FEATURED_WORKS) {
+    for (const work of FEATURED_WORKS.filter((item) => item.youtubeId)) {
       const card = screen.getByLabelText(`${work.title} 代表作品カード`)
       const badges = card.querySelector('[data-featured-work-link-badges="inline"]')
       expect(badges).toBeInTheDocument()
@@ -160,6 +165,59 @@ describe("FeaturedWorks", () => {
         .getByLabelText("ライブ映像作品多数のランダムループ再生カード")
         .querySelector("[data-featured-work-link-badges]"),
     ).toBeNull()
+  })
+
+  it("places Mars badges inside an abstract cover without media", () => {
+    const { container } = render(<FeaturedWorks />)
+    const mars = FEATURED_WORKS.find((work) => work.title === "火星の女王")
+    expect(mars).toBeDefined()
+
+    const card = screen.getByLabelText("火星の女王 代表作品カード")
+    const abstractCover = card.querySelector(
+      '[data-featured-work-abstract-cover="true"]',
+    )
+    const badges = abstractCover?.querySelector(
+      '[data-featured-work-link-badges="inline"]',
+    )
+    const title = Array.from(card.querySelectorAll("p")).find(
+      (element) => element.textContent === "火星の女王",
+    )
+    const client = Array.from(card.querySelectorAll("p")).find(
+      (element) => element.textContent === mars?.client,
+    )
+    const metaRow = title?.nextElementSibling
+
+    expect(abstractCover).toHaveClass("aspect-video")
+    expect(abstractCover).toHaveClass("overflow-hidden")
+    expect(abstractCover).toHaveClass("-mt-4")
+    expect(abstractCover).toHaveClass("-mx-4")
+    expect(abstractCover).toHaveClass("rounded-t-[12px]")
+    expect(abstractCover?.querySelector("img")).toBeNull()
+    expect(abstractCover?.querySelector('[data-featured-work-preview-media]')).toBeNull()
+    expect(abstractCover?.querySelector("iframe")).toBeNull()
+    expect(badges).toBeInTheDocument()
+    expect(title).toBeInTheDocument()
+    expect(abstractCover?.nextElementSibling).toBe(title)
+    expect(client).toBeInTheDocument()
+    expect(metaRow).toBe(client?.parentElement)
+    expect(metaRow?.querySelector("[data-featured-work-link-badges]")).toBeNull()
+
+    for (const link of mars?.links ?? []) {
+      const badge = abstractCover?.querySelector(
+        `[data-featured-work-link-badge="${link.label}"]`,
+      )
+      expect(badge).toHaveAttribute("href", link.url)
+      expect(badge).toHaveAttribute("target", "_blank")
+      expect(badge).toHaveAttribute("rel", "noopener noreferrer")
+      expect(badge).toHaveAttribute(
+        "aria-label",
+        `火星の女王 ${link.label}を新しいタブで開く`,
+      )
+    }
+
+    expect(
+      container.querySelectorAll('[data-featured-work-abstract-cover="true"]'),
+    ).toHaveLength(1)
   })
 
   it("renders Rilakkuma as a playable Netflix video card with inline badges", () => {
