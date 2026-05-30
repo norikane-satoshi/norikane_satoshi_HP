@@ -137,7 +137,7 @@ function useInViewport<T extends HTMLElement>() {
 
 function PreviewFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="relative aspect-video overflow-hidden rounded-[12px] border border-white/55 bg-white/35">
+    <div className="relative aspect-video overflow-hidden rounded-[12px]">
       {children}
     </div>
   )
@@ -154,7 +154,7 @@ function PreviewThumbnail({
     <img
       src={getYouTubeThumbnailUrl(videoId)}
       alt=""
-      className={`pointer-events-none absolute inset-0 z-20 h-full w-full rounded-[11px] object-cover transition-opacity duration-300 ${
+      className={`pointer-events-none absolute inset-0 z-20 h-full w-full rounded-[12px] object-cover transition-opacity duration-300 ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
       loading="lazy"
@@ -173,7 +173,7 @@ function WorkLinkBadges({
 }) {
   return (
     <div
-      className="mt-3 flex flex-wrap gap-1.5"
+      className="flex flex-wrap justify-end gap-1.5"
       data-featured-work-link-badges="inline"
     >
       {links.map((link) => (
@@ -300,7 +300,7 @@ function VideoSurface({
     <>
       {shouldPlay ? (
         <div
-          className={`pointer-events-none absolute inset-0 h-full w-full rounded-[11px] transition-opacity duration-300 ${
+          className={`pointer-events-none absolute inset-0 h-full w-full rounded-[12px] transition-opacity duration-300 ${
             isCoverVisible ? "opacity-0" : "opacity-100"
           }`}
           aria-hidden="true"
@@ -348,8 +348,10 @@ function FeaturedWorkCard({
       <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         {work.title}
       </p>
-      <WorkLinkBadges links={work.links} workTitle={work.title} />
-      <p className="mt-auto pt-3 text-xs text-hp-muted md:text-sm">{work.client}</p>
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
+        <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
+        <WorkLinkBadges links={work.links} workTitle={work.title} />
+      </div>
     </div>
   )
 }
@@ -507,7 +509,7 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
       <PreviewFrame>
         {isInViewport && !prefersReducedMotion ? (
           <div
-            className={`pointer-events-none absolute inset-0 h-full w-full rounded-[11px] transition-opacity duration-300 ${
+            className={`pointer-events-none absolute inset-0 h-full w-full rounded-[12px] transition-opacity duration-300 ${
               isCoverVisible ? "opacity-0" : "opacity-100"
             }`}
             aria-hidden="true"

@@ -92,6 +92,13 @@ describe("FeaturedWorks", () => {
 
     for (const frame of previewFrames) {
       expect(frame).toHaveClass("aspect-video")
+      expect(frame).toHaveClass("rounded-[12px]")
+      expect(frame).not.toHaveClass("border")
+      expect(frame).not.toHaveClass("bg-white/35")
+    }
+
+    for (const thumbnail of thumbnailCovers) {
+      expect(thumbnail).toHaveClass("rounded-[12px]")
     }
   })
 
@@ -102,17 +109,27 @@ describe("FeaturedWorks", () => {
       const card = screen.getByLabelText(`${work.title} 代表作品カード`)
       const badges = card.querySelector('[data-featured-work-link-badges="inline"]')
       expect(badges).toBeInTheDocument()
-      expect(badges).toHaveClass("mt-3")
+      expect(badges).toHaveClass("flex")
+      expect(badges).toHaveClass("justify-end")
       expect(badges).not.toHaveClass("absolute")
+      expect(badges).not.toHaveClass("mt-3")
       expect(badges).not.toHaveClass("bottom-2")
       expect(badges).not.toHaveClass("right-2")
-      expect(badges).not.toHaveClass("justify-end")
       expect(badges).not.toHaveClass("z-30")
 
-      const title = screen.getByText(work.title)
-      const client = screen.getByText(work.client)
-      expect(title.nextElementSibling).toBe(badges)
-      expect(badges?.nextElementSibling).toBe(client)
+      const title = Array.from(card.querySelectorAll("p")).find(
+        (element) => element.textContent === work.title,
+      )
+      const client = Array.from(card.querySelectorAll("p")).find(
+        (element) => element.textContent === work.client,
+      )
+      const metaRow = title?.nextElementSibling
+      expect(title).toBeInTheDocument()
+      expect(client).toBeInTheDocument()
+      expect(metaRow).toBe(client?.parentElement)
+      expect(badges?.parentElement).toBe(client?.parentElement)
+      expect(metaRow).toHaveClass("mt-auto")
+      expect(metaRow).toHaveClass("flex")
     }
 
     const badgeGroups = container.querySelectorAll("[data-featured-work-link-badges]")
