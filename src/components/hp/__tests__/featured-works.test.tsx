@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { FEATURED_WORKS } from "@/components/hp/featured-works-data"
 import { FeaturedWorks } from "@/components/hp/featured-works"
@@ -53,7 +53,7 @@ describe("FeaturedWorks", () => {
     }
   })
 
-  it("uses only the Featured Works label and renders a seamless marquee shell", () => {
+  it("uses only the Featured Works label and renders a scroll-driven marquee shell", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -80,24 +80,78 @@ describe("FeaturedWorks", () => {
     const clone = container.querySelector(
       '[data-featured-work-marquee-segment="clone"]',
     )
+    const clones = container.querySelectorAll(
+      '[data-featured-work-marquee-segment="clone"]',
+    )
+    const cloneBeforeStart = container.querySelector(
+      '[data-featured-work-marquee-segment-start="clone-before"]',
+    )
+    const cloneAfterStart = container.querySelector(
+      '[data-featured-work-marquee-segment-start="clone-after"]',
+    )
 
-    expect(viewport).toHaveClass("overflow-hidden")
+    expect(viewport).toHaveClass("overflow-x-auto")
+    expect(viewport).toHaveClass("overflow-y-hidden")
+    expect(viewport).toHaveAttribute("tabindex", "0")
+    expect(viewport).toHaveAttribute("data-featured-work-marquee-idle-ms", "1300")
     expect(track).toHaveClass("w-max")
-    expect(track).toHaveClass("will-change-transform")
+    expect(track).toHaveClass("gap-4")
+    expect(track).toHaveClass("px-8")
+    expect(track).not.toHaveClass("will-change-transform")
     expect(track?.textContent).toContain("火星の女王")
     expect(primary.querySelectorAll("[data-featured-work-card]")).toHaveLength(
       FEATURED_WORKS.length,
     )
+    expect(primary).toHaveClass("contents")
+    expect(primary).not.toHaveClass("gap-4")
+    expect(primary).not.toHaveClass("px-8")
+    expect(clones).toHaveLength(2)
     expect(clone).toHaveAttribute("aria-hidden", "true")
+    expect(clone).toHaveClass("contents")
+    expect(clone).not.toHaveClass("gap-4")
+    expect(clone).not.toHaveClass("px-8")
     expect(clone?.querySelectorAll("[data-featured-work-card]")).toHaveLength(
       FEATURED_WORKS.length,
     )
-    expect(container.querySelector("style")?.textContent).toContain(
-      "featured-works-marquee 72s linear infinite",
+    expect(cloneBeforeStart).toBeInTheDocument()
+    expect(primary.querySelector(
+      '[data-featured-work-marquee-segment-start="primary"]',
+    )).toBeInTheDocument()
+    expect(cloneAfterStart).toBeInTheDocument()
+    expect(container.querySelector("style")?.textContent).not.toContain(
+      "@keyframes featured-works-marquee",
     )
     expect(container.querySelector("style")?.textContent).toContain(
       "prefers-reduced-motion: reduce",
     )
+  })
+
+  it("pauses autoplay from input events without relying on scroll events", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+
+    const { container } = render(<FeaturedWorks />)
+    const viewport = container.querySelector(
+      '[data-featured-work-marquee-viewport="true"]',
+    ) as HTMLElement
+
+    expect(viewport.dataset.featuredWorkMarqueeState).not.toBe("paused")
+    fireEvent.scroll(viewport)
+    expect(viewport.dataset.featuredWorkMarqueeState).not.toBe("paused")
+
+    fireEvent.wheel(viewport)
+    expect(viewport).toHaveAttribute("data-featured-work-marquee-state", "paused")
+
+    viewport.dataset.featuredWorkMarqueeState = "running"
+    fireEvent.keyDown(viewport, { key: "ArrowRight" })
+    expect(viewport).toHaveAttribute("data-featured-work-marquee-state", "paused")
   })
 
   it("does not render the clone track when reduced motion is requested", () => {
