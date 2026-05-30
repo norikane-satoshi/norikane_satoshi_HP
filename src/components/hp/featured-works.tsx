@@ -18,6 +18,11 @@ type YouTubePlayerStateChangeEvent = {
   target: YouTubePlayer
 }
 
+type YouTubePlayerErrorEvent = {
+  data: number
+  target: YouTubePlayer
+}
+
 type YouTubePlayer = {
   mute: () => void
   playVideo: () => void
@@ -36,6 +41,7 @@ type YouTubePlayerConstructor = new (
     events?: {
       onReady?: (event: { target: YouTubePlayer }) => void
       onStateChange?: (event: YouTubePlayerStateChangeEvent) => void
+      onError?: (event: YouTubePlayerErrorEvent) => void
     }
   },
 ) => YouTubePlayer
@@ -54,9 +60,6 @@ declare global {
 }
 
 let youtubeApiPromise: Promise<void> | null = null
-const CINEMASCOPE_ASPECT_RATIO = "2.39 / 1"
-const YOUTUBE_CHROME_CROP_SCALE = 2.8
-const YOUTUBE_NATIVE_WIDTH_IN_CINEMASCOPE_FRAME = "calc(100% * 16 / 9 / 2.39)"
 
 function loadYouTubeIframeApi() {
   if (typeof window === "undefined") {
@@ -130,46 +133,32 @@ function useInViewport<T extends HTMLElement>() {
   return [ref, isInViewport] as const
 }
 
-function buildPreviewEmbedUrl(videoId: string) {
-  const params = new URLSearchParams({
-    mute: "1",
-    autoplay: "1",
-    controls: "0",
-    loop: "1",
-    playlist: videoId,
-    playsinline: "1",
-    modestbranding: "1",
-    disablekb: "1",
-    rel: "0",
-  })
-  return `https://www.youtube.com/embed/${videoId}?${params.toString()}`
-}
-
-function PreviewCropFrame({ children }: { children: ReactNode }) {
+function PreviewFrame({ children }: { children: ReactNode }) {
   return (
-    <div
-      className="relative overflow-hidden rounded-[12px] border border-white/55 bg-white/35"
-      style={{ aspectRatio: CINEMASCOPE_ASPECT_RATIO }}
-      data-featured-work-preview-crop="cinemascope"
-    >
+    <div className="relative aspect-video rounded-[12px] border border-white/55 bg-white/35">
       {children}
     </div>
   )
 }
 
-function ScaledYouTubeFrame({ children }: { children: ReactNode }) {
+function PreviewThumbnail({
+  videoId,
+  isVisible,
+}: {
+  videoId: string
+  isVisible: boolean
+}) {
   return (
-    <div
-      className="pointer-events-none absolute left-1/2 top-1/2 h-full max-w-none"
-      style={{
-        width: YOUTUBE_NATIVE_WIDTH_IN_CINEMASCOPE_FRAME,
-        aspectRatio: "16 / 9",
-        transform: `translate(-50%, -50%) scale(${YOUTUBE_CHROME_CROP_SCALE})`,
-      }}
-      data-featured-work-preview-media="youtube-scale"
-    >
-      {children}
-    </div>
+    <img
+      src={getYouTubeThumbnailUrl(videoId)}
+      alt=""
+      className={`absolute inset-0 h-full w-full rounded-[11px] object-cover transition-opacity duration-300 ${
+        isVisible ? "opacity-100" : "opacity-0"
+      }`}
+      loading="lazy"
+      decoding="async"
+      data-featured-work-preview-thumbnail={isVisible ? "visible" : "hidden"}
+    />
   )
 }
 
@@ -184,30 +173,91 @@ function VideoSurface({
   isActive: boolean
   prefersReducedMotion: boolean
 }) {
-  if (!isActive || prefersReducedMotion) {
-    return (
-      <img
-        src={getYouTubeThumbnailUrl(videoId)}
-        alt=""
-        className="h-full w-full object-cover"
-        loading="lazy"
-        decoding="async"
-      />
-    )
-  }
+  const playerHostRef = useRef<HTMLDivElement | null>(null)
+  const playerRef = useRef<YouTubePlayer | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const shouldPlay = isActive && !prefersReducedMotion
+
+  useEffect(() => {
+    if (!shouldPlay) {
+      window.setTimeout(() => setIsPlaying(false), 0)
+      playerRef.current?.stopVideo()
+      return
+    }
+
+    let cancelled = false
+
+    const handleStateChange = (event: YouTubePlayerStateChangeEvent) => {
+      if (!window.YT || event.data !== window.YT.PlayerState.PLAYING) {
+        return
+      }
+      setIsPlaying(true)
+    }
+
+    loadYouTubeIframeApi().then(() => {
+      if (cancelled || !window.YT || !playerHostRef.current) {
+        return
+      }
+
+      if (playerRef.current) {
+        playerRef.current.playVideo()
+        return
+      }
+
+      playerRef.current = new window.YT.Player(playerHostRef.current, {
+        videoId,
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          disablekb: 1,
+          loop: 1,
+          modestbranding: 1,
+          origin: window.location.origin,
+          playlist: videoId,
+          playsinline: 1,
+          rel: 0,
+        },
+        events: {
+          onReady: (event) => {
+            event.target.mute()
+            event.target.playVideo()
+          },
+          onStateChange: handleStateChange,
+          onError: () => setIsPlaying(false),
+        },
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [shouldPlay, videoId])
+
+  useEffect(() => {
+    return () => {
+      playerRef.current?.destroy()
+    }
+  }, [])
 
   return (
-    <ScaledYouTubeFrame>
-      <iframe
-        title={`${title} preview`}
-        src={buildPreviewEmbedUrl(videoId)}
-        className="h-full w-full"
-        allow="autoplay; encrypted-media; picture-in-picture"
-        referrerPolicy="strict-origin-when-cross-origin"
-        tabIndex={-1}
-        aria-hidden="true"
-      />
-    </ScaledYouTubeFrame>
+    <>
+      {shouldPlay ? (
+        <div
+          className={`pointer-events-none absolute inset-0 h-full w-full rounded-[11px] transition-opacity duration-300 ${
+            isPlaying ? "opacity-100" : "opacity-0"
+          }`}
+          aria-hidden="true"
+          data-featured-work-preview-media={isPlaying ? "playing" : "preparing"}
+        >
+          <div
+            ref={playerHostRef}
+            title={`${title} preview`}
+            className="h-full w-full"
+          />
+        </div>
+      ) : null}
+      <PreviewThumbnail videoId={videoId} isVisible={!isPlaying} />
+    </>
   )
 }
 
@@ -230,14 +280,14 @@ function FeaturedWorkCard({
       style={{ width: "min(72vw, 260px)" }}
       aria-label={`${work.title} 公式ページを新しいタブで開く`}
     >
-      <PreviewCropFrame>
+      <PreviewFrame>
         <VideoSurface
           videoId={work.youtubeId}
           title={work.title}
           isActive={isInViewport}
           prefersReducedMotion={prefersReducedMotion}
         />
-      </PreviewCropFrame>
+      </PreviewFrame>
       <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         {work.title}
       </p>
@@ -253,9 +303,12 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
   const queueRef = useRef<string[]>([])
   const clipRef = useRef<ClipWindow | null>(null)
   const timerRef = useRef<number | null>(null)
+  const [previewVideoId, setPreviewVideoId] = useState<string>(LIVE_REEL_VIDEO_IDS[0])
+  const [isPlaying, setIsPlaying] = useState(false)
 
   useEffect(() => {
     if (!isInViewport || prefersReducedMotion) {
+      window.setTimeout(() => setIsPlaying(false), 0)
       playerRef.current?.stopVideo()
       if (timerRef.current) {
         window.clearTimeout(timerRef.current)
@@ -287,7 +340,10 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
       }
       clearNextTimer()
       clipRef.current = null
-      player.loadVideoById(nextVideoId())
+      const videoId = nextVideoId()
+      setPreviewVideoId(videoId)
+      setIsPlaying(false)
+      player.loadVideoById(videoId)
     }
 
     const handleStateChange = (event: YouTubePlayerStateChangeEvent) => {
@@ -314,6 +370,7 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
         player.seekTo(clip.startSeconds, true)
       }
 
+      setIsPlaying(true)
       clearNextTimer()
       timerRef.current = window.setTimeout(
         playNext,
@@ -333,6 +390,8 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
 
       queueRef.current = shuffleVideoIds(LIVE_REEL_VIDEO_IDS)
       const firstVideoId = nextVideoId()
+      setPreviewVideoId(firstVideoId)
+      setIsPlaying(false)
       playerRef.current = new window.YT.Player(playerHostRef.current, {
         videoId: firstVideoId,
         playerVars: {
@@ -340,6 +399,7 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
           controls: 0,
           disablekb: 1,
           modestbranding: 1,
+          origin: window.location.origin,
           playsinline: 1,
           rel: 0,
         },
@@ -349,6 +409,7 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
             event.target.playVideo()
           },
           onStateChange: handleStateChange,
+          onError: () => setIsPlaying(false),
         },
       })
     })
@@ -375,21 +436,20 @@ function LiveReelCard({ prefersReducedMotion }: { prefersReducedMotion: boolean 
       style={{ width: "min(72vw, 260px)" }}
       aria-label="ライブ映像作品多数のランダムループ再生カード"
     >
-      <PreviewCropFrame>
-        {!isInViewport || prefersReducedMotion ? (
-          <img
-            src={getYouTubeThumbnailUrl(LIVE_REEL_VIDEO_IDS[0])}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <ScaledYouTubeFrame>
+      <PreviewFrame>
+        {isInViewport && !prefersReducedMotion ? (
+          <div
+            className={`pointer-events-none absolute inset-0 h-full w-full rounded-[11px] transition-opacity duration-300 ${
+              isPlaying ? "opacity-100" : "opacity-0"
+            }`}
+            aria-hidden="true"
+            data-featured-work-preview-media={isPlaying ? "playing" : "preparing"}
+          >
             <div ref={playerHostRef} className="h-full w-full" />
-          </ScaledYouTubeFrame>
-        )}
-      </PreviewCropFrame>
+          </div>
+        ) : null}
+        <PreviewThumbnail videoId={previewVideoId} isVisible={!isPlaying} />
+      </PreviewFrame>
       <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         ライブ映像作品多数
       </p>

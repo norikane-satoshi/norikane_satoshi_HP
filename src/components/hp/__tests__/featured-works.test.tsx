@@ -43,7 +43,7 @@ describe("FeaturedWorks", () => {
     expect(screen.queryByRole("link", { name: /ライブ映像作品多数/ })).not.toBeInTheDocument()
   })
 
-  it("crops each YouTube preview to a cinemascope frame", () => {
+  it("keeps each YouTube preview in a native 16:9 frame with a thumbnail cover", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -56,27 +56,55 @@ describe("FeaturedWorks", () => {
 
     const { container } = render(<FeaturedWorks />)
 
-    const cropFrames = container.querySelectorAll(
-      '[data-featured-work-preview-crop="cinemascope"]',
-    )
+    const previewFrames = container.querySelectorAll(".aspect-video")
+    const cropFrames = container.querySelectorAll("[data-featured-work-preview-crop]")
     const scaledMedia = container.querySelectorAll(
       '[data-featured-work-preview-media="youtube-scale"]',
     )
+    const thumbnailCovers = container.querySelectorAll(
+      '[data-featured-work-preview-thumbnail="visible"]',
+    )
 
-    expect(cropFrames).toHaveLength(FEATURED_WORKS.length + 1)
-    expect(scaledMedia).toHaveLength(FEATURED_WORKS.length + 1)
+    expect(previewFrames).toHaveLength(FEATURED_WORKS.length + 1)
+    expect(cropFrames).toHaveLength(0)
+    expect(scaledMedia).toHaveLength(0)
+    expect(thumbnailCovers).toHaveLength(FEATURED_WORKS.length + 1)
 
-    for (const frame of cropFrames) {
-      expect((frame as HTMLElement).style.aspectRatio).toBe("2.39 / 1")
-      expect(frame).toHaveClass("overflow-hidden")
-      expect(frame).not.toHaveClass("aspect-video")
+    for (const frame of previewFrames) {
+      expect(frame).toHaveClass("aspect-video")
+    }
+  })
+
+  it("prepares YouTube API players behind thumbnail covers", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+
+    const { container } = render(<FeaturedWorks />)
+
+    const preparingMedia = container.querySelectorAll(
+      '[data-featured-work-preview-media="preparing"]',
+    )
+    const thumbnailCovers = container.querySelectorAll(
+      '[data-featured-work-preview-thumbnail="visible"]',
+    )
+
+    expect(preparingMedia).toHaveLength(FEATURED_WORKS.length + 1)
+    expect(thumbnailCovers).toHaveLength(FEATURED_WORKS.length + 1)
+
+    for (const media of preparingMedia) {
+      expect(media).toHaveClass("pointer-events-none")
+      expect(media).toHaveClass("opacity-0")
     }
 
-    for (const media of scaledMedia) {
-      expect((media as HTMLElement).style.aspectRatio).toBe("16 / 9")
-      expect((media as HTMLElement).style.transform).toBe(
-        "translate(-50%, -50%) scale(2.8)",
-      )
+    for (const thumbnail of thumbnailCovers) {
+      expect(thumbnail).toHaveClass("opacity-100")
     }
   })
 })
