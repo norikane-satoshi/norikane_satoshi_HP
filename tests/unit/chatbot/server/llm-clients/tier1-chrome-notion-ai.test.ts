@@ -90,6 +90,38 @@ function sessionReturning(values: unknown[]): NotionAiCdpSession {
   }
 }
 
+function sessionEvaluatingRuntimeContext(storage: Record<string, string>): NotionAiCdpSession {
+  const localStorage = {
+    getItem: vi.fn((key: string) => storage[key] ?? null),
+    key: vi.fn((index: number) => Object.keys(storage)[index] ?? null),
+    get length() {
+      return Object.keys(storage).length
+    },
+  }
+  const document = {
+    querySelector: vi.fn(() => null),
+  }
+  const location = {
+    href: target.url,
+  }
+  const evaluate = vi.fn(async <T,>(expression: string, timeoutMs: number): Promise<T> => {
+    void timeoutMs
+    const run = new Function(
+      "localStorage",
+      "document",
+      "location",
+      "console",
+      `const globalThis = {}; return ${expression}`,
+    )
+    return run(localStorage, document, location, { warn: vi.fn() }) as T
+  }) as unknown as NotionAiCdpSession["evaluate"]
+
+  return {
+    evaluate,
+    close: vi.fn(async () => undefined),
+  }
+}
+
 function cdpFetch(targets: NotionAiCdpTarget[] = [target]) {
   return vi.fn(async (input: string) => {
     if (input.endsWith("/json/version")) return jsonResponse({ Browser: "Chrome" })
@@ -481,6 +513,58 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     await expect(healthyClient.isHealthy()).resolves.toBe(true)
     await expect(missingTargetClient.isHealthy()).resolves.toBe(false)
+  })
+
+  it("resolves runtime space id and user id from KeyValueStore fallbacks", async () => {
+    const session = sessionEvaluatingRuntimeContext({
+      "LRU:KeyValueStore2:spaceIdToShortId": JSON.stringify({
+        value: {
+          "space-from-map": "short-id",
+        },
+      }),
+      "LRU:KeyValueStore2:current-user-id": JSON.stringify({
+        value: "user-from-current-user-id",
+      }),
+    })
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () => session,
+      preferredModel: "apricot-sorbet-high",
+    })
+
+    await expect(client.isHealthy()).resolves.toBe(true)
+    await expect(client.inspectRuntimeContext()).resolves.toMatchObject({
+      spaceId: "space-from-map",
+      userId: "user-from-current-user-id",
+      spaceCountInMap: 1,
+      spaceIdResolutionSource: "spaceIdToShortId",
+      userIdResolutionSource: "current-user-id",
+    })
+  })
+
+  it("uses a deterministic space id fallback when multiple space ids are stored", async () => {
+    const session = sessionEvaluatingRuntimeContext({
+      "LRU:KeyValueStore2:spaceIdToShortId": JSON.stringify({
+        value: {
+          "z-space": "z",
+          "a-space": "a",
+        },
+      }),
+      "LRU:KeyValueStore2:current-user-id": JSON.stringify({
+        value: "user-from-current-user-id",
+      }),
+    })
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () => session,
+      preferredModel: "apricot-sorbet-high",
+    })
+
+    await expect(client.inspectRuntimeContext()).resolves.toMatchObject({
+      spaceId: "a-space",
+      spaceCountInMap: 2,
+      spaceIdResolutionSource: "spaceIdToShortId:first-sorted-key",
+    })
   })
 
   it("does not require the chatbot Notion AI target URL to use the www host", async () => {
