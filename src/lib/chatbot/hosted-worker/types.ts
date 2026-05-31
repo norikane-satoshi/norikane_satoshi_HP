@@ -80,8 +80,20 @@ export type HostedWorkerErrorResponse = {
   ok: false
   tier: typeof hostedWorkerTier
   error: {
-    code: ChatbotLlmError["code"] | HostedWorkerEnsureStatus | "missing_token" | "not_found" | "method_not_allowed"
+    code:
+      | ChatbotLlmError["code"]
+      | HostedWorkerEnsureStatus
+      | "invalid-request"
+      | "missing_token"
+      | "not_found"
+      | "method_not_allowed"
     message: string
     retryable: boolean
+    fields?: ReadonlyArray<{
+      field: string
+      reason: "missing" | "invalid_type"
+      expected: string
+      received: string
+    }>
   }
 }

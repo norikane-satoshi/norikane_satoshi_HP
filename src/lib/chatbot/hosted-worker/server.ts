@@ -38,6 +38,18 @@ const defaultPort = 8787
 const maxBodyBytes = 64 * 1024
 const contentTypeJson = "application/json; charset=utf-8"
 
+type RequestValidationField = NonNullable<HostedWorkerErrorResponse["error"]["fields"]>[number]
+
+class HostedWorkerRequestValidationError extends Error {
+  readonly fields: RequestValidationField[]
+
+  constructor(message: string, fields: RequestValidationField[]) {
+    super(message)
+    this.name = "HostedWorkerRequestValidationError"
+    this.fields = fields
+  }
+}
+
 export function createHostedWorkerServer(options: HostedWorkerServerOptions = {}): Server {
   const state = options.state ?? createHostedWorkerRuntimeState()
   const queue = options.queue ?? createHostedWorkerQueue(state)
@@ -100,7 +112,7 @@ export function createHostedWorkerRequestHandler(options: HostedWorkerHandlerOpt
 
     if (request.method === "POST" && url.pathname === "/generate") {
       try {
-        const body = (await readJsonBody(request)) as HostedWorkerGenerateRequest
+        const body = validateHostedWorkerGenerateRequest(await readJsonBody(request))
         writeJson(response, 200, await generate(body, state, queue))
       } catch (error) {
         const normalized = normalizeServerError(error)
@@ -119,6 +131,13 @@ export function createHostedWorkerRequestHandler(options: HostedWorkerHandlerOpt
 }
 
 function normalizeServerError(error: unknown): { status: number; body: HostedWorkerErrorResponse } {
+  if (error instanceof HostedWorkerRequestValidationError) {
+    return {
+      status: 400,
+      body: errorResponse("invalid-request", error.message, false, error.fields),
+    }
+  }
+
   if (error instanceof ChatbotLlmError) {
     return {
       status: httpStatusForLlmError(error),
@@ -145,6 +164,7 @@ function errorResponse(
   code: HostedWorkerErrorResponse["error"]["code"],
   message: string,
   retryable: boolean,
+  fields?: RequestValidationField[],
 ): HostedWorkerErrorResponse {
   return {
     ok: false,
@@ -153,6 +173,7 @@ function errorResponse(
       code,
       message,
       retryable,
+      ...(fields ? { fields } : {}),
     },
   }
 }
@@ -170,7 +191,94 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 
   const rawBody = Buffer.concat(chunks).toString("utf8")
   if (!rawBody) return {}
-  return JSON.parse(rawBody)
+  try {
+    return JSON.parse(rawBody)
+  } catch {
+    throw new HostedWorkerRequestValidationError("Request body must be valid JSON.", [
+      { field: "body", reason: "invalid_type", expected: "valid JSON", received: "invalid JSON" },
+    ])
+  }
+}
+
+function validateHostedWorkerGenerateRequest(value: unknown): HostedWorkerGenerateRequest {
+  const fields: RequestValidationField[] = []
+  if (!isRecord(value)) {
+    throw new HostedWorkerRequestValidationError("Invalid hosted worker generate request.", [
+      { field: "body", reason: "invalid_type", expected: "object", received: typeName(value) },
+    ])
+  }
+
+  addRequiredStringField(fields, value, "systemPrompt")
+  addRequiredArrayField(fields, value, "messages")
+  addRequiredObjectField(fields, value, "conversationState")
+  addRequiredObjectField(fields, value, "jobContext")
+
+  if (Array.isArray(value.messages)) {
+    value.messages.forEach((message, index) => {
+      if (!isRecord(message)) {
+        fields.push({
+          field: `messages.${index}`,
+          reason: "invalid_type",
+          expected: "object",
+          received: typeName(message),
+        })
+        return
+      }
+      addRequiredStringField(fields, message, "role", `messages.${index}.role`)
+      addRequiredStringField(fields, message, "content", `messages.${index}.content`)
+    })
+  }
+
+  if (fields.length > 0) {
+    throw new HostedWorkerRequestValidationError("Invalid hosted worker generate request.", fields)
+  }
+
+  return value as HostedWorkerGenerateRequest
+}
+
+function addRequiredStringField(
+  fields: RequestValidationField[],
+  value: Record<string, unknown>,
+  field: string,
+  displayField = field,
+): void {
+  addRequiredField(fields, value, field, displayField, "string", (entry) => typeof entry === "string")
+}
+
+function addRequiredArrayField(fields: RequestValidationField[], value: Record<string, unknown>, field: string): void {
+  addRequiredField(fields, value, field, field, "array", Array.isArray)
+}
+
+function addRequiredObjectField(fields: RequestValidationField[], value: Record<string, unknown>, field: string): void {
+  addRequiredField(fields, value, field, field, "object", isRecord)
+}
+
+function addRequiredField(
+  fields: RequestValidationField[],
+  value: Record<string, unknown>,
+  field: string,
+  displayField: string,
+  expected: string,
+  isValid: (entry: unknown) => boolean,
+): void {
+  const entry = value[field]
+  if (entry === undefined) {
+    fields.push({ field: displayField, reason: "missing", expected, received: "undefined" })
+    return
+  }
+  if (!isValid(entry)) {
+    fields.push({ field: displayField, reason: "invalid_type", expected, received: typeName(entry) })
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function typeName(value: unknown): string {
+  if (Array.isArray(value)) return "array"
+  if (value === null) return "null"
+  return typeof value
 }
 
 function writeJson(response: ServerResponse, statusCode: number, value: unknown): void {

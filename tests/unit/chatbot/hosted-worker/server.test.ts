@@ -9,6 +9,7 @@ import type {
   HostedWorkerGenerateResponse,
   HostedWorkerHealthResponse,
 } from "@/lib/chatbot/hosted-worker"
+import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 
 const token = "server-test-token"
 const servers: Server[] = []
@@ -77,13 +78,45 @@ describe("hosted worker HTTP server", () => {
         authorization: `Bearer ${token}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ latestUserMessage: "fake request" }),
+      body: JSON.stringify(generateRequest()),
     })
 
     await expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       rawText: "回答しました",
       tier: "tier-2-hosted-chrome-notion-ai",
+    })
+  })
+
+  it("rejects invalid /generate request bodies with field-level 400", async () => {
+    const generate = async (): Promise<HostedWorkerGenerateResponse> => {
+      throw new Error("generate should not be called")
+    }
+    const baseUrl = await listen({ generate })
+
+    const response = await fetch(`${baseUrl}/generate`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ latestUserMessage: "fake request" }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      tier: "tier-2-hosted-chrome-notion-ai",
+      error: {
+        code: "invalid-request",
+        retryable: false,
+        fields: expect.arrayContaining([
+          { field: "systemPrompt", reason: "missing", expected: "string", received: "undefined" },
+          { field: "messages", reason: "missing", expected: "array", received: "undefined" },
+          { field: "conversationState", reason: "missing", expected: "object", received: "undefined" },
+          { field: "jobContext", reason: "missing", expected: "object", received: "undefined" },
+        ]),
+      },
     })
   })
 })
@@ -104,6 +137,31 @@ async function listen(options: Parameters<typeof createHostedWorkerServer>[0] = 
       resolve(`http://127.0.0.1:${address.port}`)
     })
   })
+}
+
+function generateRequest(): ChatbotLlmRequest {
+  return {
+    systemPrompt: "Collect only new project intake details.",
+    messages: [{ role: "user", content: "Web CM 30秒の相談です" }],
+    latestUserMessage: "Web CM 30秒の相談です",
+    conversationState: {
+      hasFinalMedium: true,
+      hasJobKind: true,
+      hasAdditionalWork: true,
+      hasDocumentaryAttachments: true,
+      hasWorkSite: true,
+      hasReferenceUrls: false,
+      hasContactEmail: false,
+      hasDesiredSchedule: false,
+      turnCount: 1,
+    },
+    jobContext: {
+      jobKind: "cm-30s",
+      finalMedium: "web",
+      workSite: "remote-grading",
+      documentaryAttachment: { kind: "none" },
+    },
+  }
 }
 
 function closeServer(server: Server): Promise<void> {
