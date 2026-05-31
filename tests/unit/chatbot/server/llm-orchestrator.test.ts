@@ -116,6 +116,48 @@ describe("createChatbotLlmTierOrchestrator", () => {
     expect(tier3.generate).toHaveBeenCalledOnce()
   })
 
+  it("uses tier 2 Hosted Notion AI when tier 1 is unhealthy", async () => {
+    const tier1 = fakeClient("tier-1-chrome-notion-ai", { healthy: false })
+    const tier2 = fakeClient("tier-2-hosted-chrome-notion-ai")
+    const tier3 = fakeClient("tier-3-ollama-deepseek")
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, tier3] })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
+      llmResponse("tier-2-hosted-chrome-notion-ai"),
+    )
+    expect(tier1.generate).not.toHaveBeenCalled()
+    expect(tier2.generate).toHaveBeenCalledOnce()
+    expect(tier3.generate).not.toHaveBeenCalled()
+  })
+
+  it("tries tier 3 when tier 2 Hosted Notion AI is unhealthy", async () => {
+    const tier1 = fakeClient("tier-1-chrome-notion-ai", { healthy: false })
+    const tier2 = fakeClient("tier-2-hosted-chrome-notion-ai", { healthy: false })
+    const tier3 = fakeClient("tier-3-ollama-deepseek")
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, tier3] })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
+      llmResponse("tier-3-ollama-deepseek"),
+    )
+    expect(tier2.generate).not.toHaveBeenCalled()
+    expect(tier3.generate).toHaveBeenCalledOnce()
+  })
+
+  it("tries tier 3 when tier 2 Hosted Notion AI generate fails", async () => {
+    const tier1 = fakeClient("tier-1-chrome-notion-ai", { healthy: false })
+    const tier2 = fakeClient("tier-2-hosted-chrome-notion-ai", {
+      generateError: llmError("tier-2-hosted-chrome-notion-ai"),
+    })
+    const tier3 = fakeClient("tier-3-ollama-deepseek")
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, tier3] })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
+      llmResponse("tier-3-ollama-deepseek"),
+    )
+    expect(tier2.generate).toHaveBeenCalledOnce()
+    expect(tier3.generate).toHaveBeenCalledOnce()
+  })
+
   it("tries tier 3 when tier 1 generate throws a retryable ChatbotLlmError", async () => {
     const tier1 = fakeClient("tier-1-chrome-notion-ai", {
       generateError: llmError("tier-1-chrome-notion-ai", { isRetryable: true }),
@@ -159,6 +201,27 @@ describe("createChatbotLlmTierOrchestrator", () => {
     await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
       llmResponse("tier-4-form-fallback", "fallback form"),
     )
+    expect(tier4.generate).toHaveBeenCalledOnce()
+  })
+
+  it("uses tier 4 form fallback only after tier 2 Hosted and tier 3 both fail", async () => {
+    const tier1 = fakeClient("tier-1-chrome-notion-ai", { healthy: false })
+    const tier2 = fakeClient("tier-2-hosted-chrome-notion-ai", {
+      generateError: llmError("tier-2-hosted-chrome-notion-ai"),
+    })
+    const tier3 = fakeClient("tier-3-ollama-deepseek", {
+      generateError: llmError("tier-3-ollama-deepseek"),
+    })
+    const tier4 = fakeClient("tier-4-form-fallback", {
+      generateResult: llmResponse("tier-4-form-fallback", "fallback form"),
+    })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, tier3, tier4] })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
+      llmResponse("tier-4-form-fallback", "fallback form"),
+    )
+    expect(tier2.generate).toHaveBeenCalledOnce()
+    expect(tier3.generate).toHaveBeenCalledOnce()
     expect(tier4.generate).toHaveBeenCalledOnce()
   })
 

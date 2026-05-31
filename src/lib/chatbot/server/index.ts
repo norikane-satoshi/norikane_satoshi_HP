@@ -54,6 +54,10 @@ export {
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 export { runTier1HealthCheck } from "@/lib/chatbot/server/llm-clients/tier1-health-check"
 export {
+  createTier2HostedChromeNotionAiClient,
+  Tier2HostedChromeNotionAiClient,
+} from "@/lib/chatbot/server/llm-clients/tier2-hosted-chrome-notion-ai"
+export {
   createTier3OllamaDeepSeekClient,
   Tier3OllamaDeepSeekClient,
 } from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"

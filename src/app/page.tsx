@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
+import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
@@ -46,17 +47,6 @@ const timeline = [
     detail:
       "のりかね映像設計室（Norikane Film Design Office）として独立。カラーグレーディングの体系化と教育にも取り組む。",
   },
-]
-
-const featuredWorks = [
-  { title: "火星の女王", client: "NHK100周年記念ドラマ" },
-  { title: "十角館の殺人 / 時計館の殺人", client: "hulu" },
-  {
-    title: "福山雅治ライブフィルム「言霊の幸わう夏」「月光」",
-    client: "松竹配給",
-  },
-  { title: "ゲキ×シネシリーズ", client: "ヴィレッヂ" },
-  { title: "ライブ映像作品多数", client: "配信" },
 ]
 
 const tools = [
@@ -235,34 +225,7 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Featured Works — horizontal scroll inside profile card */}
-          <div className="mt-10 md:mt-12">
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-              Featured Works
-            </p>
-            <h3 className="mt-2 text-base font-semibold text-hp md:text-lg">
-              代表作品
-            </h3>
-
-            <div className="mt-6 -mx-8 md:-mx-10 xl:-mx-12 overflow-x-auto">
-              <div className="flex snap-x snap-mandatory gap-4 px-8 pb-4 md:gap-5 md:px-10 xl:px-12">
-                {featuredWorks.map((work) => (
-                  <div
-                    key={work.title}
-                    className="flex shrink-0 snap-start flex-col glass-card-sm p-4 md:p-5"
-                    style={{ width: "min(72vw, 220px)" }}
-                  >
-                    <p className="text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
-                      {work.title}
-                    </p>
-                    <p className="mt-auto pt-3 text-xs text-hp-muted md:text-sm">
-                      {work.client}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <FeaturedWorks />
         </div>
       </section>
 

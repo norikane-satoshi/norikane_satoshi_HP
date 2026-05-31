@@ -1,6 +1,9 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
-import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
+import {
+  getNotionAiChatbotThreadUrl,
+  getTier1ChromeNotionAiCdpBaseUrl,
+} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 
 type Tier1ChromeNotionAiClientConfig = {
   cdpBaseUrl: string
@@ -46,14 +49,22 @@ type NotionAiRuntimeContext = {
   availableModels?: string[]
   modelFromUser?: boolean
   workflowValue?: Partial<NotionAiWorkflowValue>
+  spaceCountInMap?: number
+  spaceIdResolutionSource?: string
+  userIdResolutionSource?: string
 }
 
 export type NotionAiRuntimeInspection = {
   targetUrl?: string
+  spaceId?: string
+  userId?: string
   selectedModel?: string
   finalModelName?: string
   availableModels?: string[]
   preferredModelAvailable: boolean
+  spaceCountInMap?: number
+  spaceIdResolutionSource?: string
+  userIdResolutionSource?: string
 }
 
 type NotionAiWorkflowValue = {
@@ -220,7 +231,7 @@ const defaultNotionClientVersion = "unknown"
 const emptyText = ""
 
 export const tier1ChromeNotionAiDefaults = {
-  cdpBaseUrl: "http://127.0.0.1:9223",
+  cdpBaseUrl: getTier1ChromeNotionAiCdpBaseUrl(),
   targetUrlIncludes: getNotionAiChatbotThreadUrl(),
   requestTimeoutMs: 180000,
   healthCheckTimeoutMs: 3000,
@@ -363,10 +374,15 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
 
       return {
         targetUrl: target.url,
+        spaceId: runtimeContext.spaceId,
+        userId: runtimeContext.userId,
         selectedModel: runtimeContext.selectedModel,
         finalModelName: runtimeContext.finalModelName,
         availableModels: runtimeContext.availableModels,
         preferredModelAvailable: modelIsAvailable(preferredModel, runtimeContext.availableModels),
+        spaceCountInMap: runtimeContext.spaceCountInMap,
+        spaceIdResolutionSource: runtimeContext.spaceIdResolutionSource,
+        userIdResolutionSource: runtimeContext.userIdResolutionSource,
       }
     } finally {
       await session.close()
@@ -916,6 +932,58 @@ const runtimeContextExpression = `(() => {
       return undefined;
     }
   };
+  const readStorageObject = (key) => {
+    try {
+      const value = localStorage.getItem(key);
+      if (typeof value !== "string" || value.length === 0) return undefined;
+      const parsed = JSON.parse(value);
+      const inner = parsed && typeof parsed === "object" && "value" in parsed ? parsed.value : parsed;
+      if (inner && typeof inner === "object" && !Array.isArray(inner)) return inner;
+      if (typeof inner !== "string" || inner.length === 0) return undefined;
+      try {
+        const reparsed = JSON.parse(inner);
+        return reparsed && typeof reparsed === "object" && !Array.isArray(reparsed) ? reparsed : undefined;
+      } catch {
+        return undefined;
+      }
+    } catch {
+      return undefined;
+    }
+  };
+  const readNonEmptyString = (value) => (typeof value === "string" && value.length > 0 ? value : undefined);
+  const readGlobalString = (key) => readNonEmptyString(root[key]);
+  const readSpaceIdMap = () => readStorageObject("LRU:KeyValueStore2:spaceIdToShortId");
+  const resolveSpaceId = () => {
+    const explicitSpaceId = readGlobalString("__notionAiSpaceId");
+    if (explicitSpaceId) return { value: explicitSpaceId, source: "global", spaceCountInMap: undefined };
+    const lastVisitedRouteSpaceId = readStorage("LRU:KeyValueStore2:lastVisitedRouteSpaceId");
+    if (lastVisitedRouteSpaceId) {
+      return { value: lastVisitedRouteSpaceId, source: "lastVisitedRouteSpaceId", spaceCountInMap: undefined };
+    }
+    const spaceIdMap = readSpaceIdMap();
+    const spaceIds = Object.keys(spaceIdMap || {}).filter((key) => key.length > 0).sort();
+    if (spaceIds.length === 0) {
+      return { value: undefined, source: "missing", spaceCountInMap: 0 };
+    }
+    if (spaceIds.length > 1) {
+      console.warn("[tier1-chrome-notion-ai] multiple space ids found in spaceIdToShortId; using sorted first key", {
+        spaceCountInMap: spaceIds.length,
+      });
+    }
+    return {
+      value: spaceIds[0],
+      source: spaceIds.length === 1 ? "spaceIdToShortId" : "spaceIdToShortId:first-sorted-key",
+      spaceCountInMap: spaceIds.length,
+    };
+  };
+  const resolveUserId = () => {
+    const explicitUserId = readGlobalString("__notionAiUserId");
+    if (explicitUserId) return { value: explicitUserId, source: "global" };
+    const lastVisitedRouteUserId = readStorage("LRU:KeyValueStore2:lastVisitedRouteUserId");
+    if (lastVisitedRouteUserId) return { value: lastVisitedRouteUserId, source: "lastVisitedRouteUserId" };
+    const currentUserId = readStorage("LRU:KeyValueStore2:current-user-id");
+    return { value: currentUserId, source: currentUserId ? "current-user-id" : "missing" };
+  };
   const readNotionAiContextPageId = () => {
     try {
       for (let index = 0; index < localStorage.length; index += 1) {
@@ -958,10 +1026,12 @@ const runtimeContextExpression = `(() => {
       return undefined;
     }
   })();
+  const spaceIdResolution = resolveSpaceId();
+  const userIdResolution = resolveUserId();
 
   return {
-    spaceId: root.__notionAiSpaceId || readStorage("LRU:KeyValueStore2:lastVisitedRouteSpaceId"),
-    userId: root.__notionAiUserId || readStorage("LRU:KeyValueStore2:lastVisitedRouteUserId"),
+    spaceId: spaceIdResolution.value,
+    userId: userIdResolution.value,
     notionClientVersion: root.__notionClientVersion || buildId || readMeta("notion-client-version"),
     contextPageId: root.__notionAiContextPageId || readNotionAiContextPageId(),
     threadId,
@@ -970,6 +1040,9 @@ const runtimeContextExpression = `(() => {
     availableModels: Array.isArray(root.__notionAiAvailableModels) ? root.__notionAiAvailableModels : undefined,
     modelFromUser: true,
     workflowValue: root.__notionAiWorkflowValue,
+    spaceCountInMap: spaceIdResolution.spaceCountInMap,
+    spaceIdResolutionSource: spaceIdResolution.source,
+    userIdResolutionSource: userIdResolution.source,
   };
 })()`
 

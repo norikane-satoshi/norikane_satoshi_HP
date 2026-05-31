@@ -71,6 +71,14 @@ async function loadPost({
   })
   const formatUserChatbotContextForPrompt = vi.fn(() => "本人文脈:\n- 既存の本人文脈はありません。")
   const generate = vi.fn().mockResolvedValue(llmResponse)
+  const createTier1ChromeNotionAiClient = vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" }))
+  const createTier2HostedChromeNotionAiClient = vi.fn(() => ({ tier: "tier-2-hosted-chrome-notion-ai" }))
+  const createTier3OllamaDeepSeekClient = vi.fn(() => ({ tier: "tier-3-ollama-deepseek" }))
+  const createTier4FormFallbackClient = vi.fn(() => ({ tier: "tier-4-form-fallback" }))
+  const createChatbotLlmTierOrchestrator = vi.fn(() => ({
+    generate,
+    isHealthy: vi.fn().mockResolvedValue(true),
+  }))
 
   vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/chatbot/server", () => ({
@@ -83,19 +91,17 @@ async function loadPost({
     formatUserChatbotContextForPrompt,
     tier1ObservedNotionAiModel: "apricot-sorbet-high",
     createLocalChatbotTierAttemptLogger: vi.fn(() => undefined),
-    createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),
-    createTier3OllamaDeepSeekClient: vi.fn(() => ({ tier: "tier-3-ollama-deepseek" })),
-    createTier4FormFallbackClient: vi.fn(() => ({ tier: "tier-4-form-fallback" })),
+    createTier1ChromeNotionAiClient,
+    createTier2HostedChromeNotionAiClient,
+    createTier3OllamaDeepSeekClient,
+    createTier4FormFallbackClient,
     normalizeChatbotLlmResponse: vi.fn((response: { rawText: string; tier: string }) => ({
       content: response.rawText.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, "").trim(),
       role: "assistant",
       model: response.tier,
       finish_reason: "stop",
     })),
-    createChatbotLlmTierOrchestrator: vi.fn(() => ({
-      generate,
-      isHealthy: vi.fn().mockResolvedValue(true),
-    })),
+    createChatbotLlmTierOrchestrator,
   }))
 
   const route = await import("./route")
@@ -110,12 +116,18 @@ async function loadPost({
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     generate,
+    createTier1ChromeNotionAiClient,
+    createTier2HostedChromeNotionAiClient,
+    createTier3OllamaDeepSeekClient,
+    createTier4FormFallbackClient,
+    createChatbotLlmTierOrchestrator,
   }
 }
 
 afterEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  vi.unstubAllEnvs()
 })
 
 describe("POST /api/chatbot/message", () => {
@@ -169,6 +181,27 @@ describe("POST /api/chatbot/message", () => {
       tier: "tier-3-ollama-deepseek",
       ui: { kind: "choice-panel", choiceSet: { id: "final-medium" } },
     })
+  })
+
+  it("wires the default LLM clients in tier 1, tier 2 Hosted, tier 3, tier 4 order", async () => {
+    vi.stubEnv("CHATBOT_LLM_HEALTH_CHECK_TIMEOUT_MS", "10000")
+    const route = await loadPost()
+
+    const response = await route.POST(request({ message: "媒体を選びます" }, "chatbot_session_id=session_1"))
+
+    expect(response.status).toBe(200)
+    expect(route.createChatbotLlmTierOrchestrator).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clients: [
+          { tier: "tier-1-chrome-notion-ai" },
+          { tier: "tier-2-hosted-chrome-notion-ai" },
+          { tier: "tier-3-ollama-deepseek" },
+          { tier: "tier-4-form-fallback" },
+        ],
+        healthCheckTimeoutMs: 10000,
+      }),
+    )
+    expect(route.createTier2HostedChromeNotionAiClient).toHaveBeenCalledOnce()
   })
 
   it("returns sanitized assistant message content", async () => {

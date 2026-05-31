@@ -154,12 +154,13 @@
     border-radius: var(--hp-radius-sm);
   }
   .glass-badge {
-    background: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.78);
+    border: 1px solid var(--accent-primary);
     border-radius: 9999px;
-    color: var(--accent-primary);
+    box-shadow: 0 1px 4px rgba(28, 15, 110, 0.12);
+    color: var(--text-primary);
     font-weight: 600;
   }
   .glass-btn {
