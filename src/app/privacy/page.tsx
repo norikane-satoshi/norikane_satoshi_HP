@@ -21,7 +21,7 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-lg font-semibold text-hp">取得する情報</h2>
             <p className="mt-3 text-hp-muted">
               チャット入力、予約情報、ログイン情報、メールアドレス、会社名・氏名、参考 URL、
-              Cookie / session id、アクセスログ、送信日時、問い合わせ内容、予約変更やキャンセルに関する情報を取得する場合があります。
+              Cookie・セッション識別子、アクセスログ、送信日時、問い合わせ内容、予約変更やキャンセルに関する情報を取得する場合があります。
             </p>
           </section>
 
@@ -63,8 +63,7 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-lg font-semibold text-hp">第三者提供と外部サービス</h2>
             <p className="mt-3 text-hp-muted">
               法令に基づく場合を除き、本人の同意なく第三者へ提供しません。メール送信、カレンダー連携、
-              認証、ホスティング、データ保管のため、Resend、Google、Auth providers、Vercel、Turso などの
-              業務委託先または外部サービスを利用する場合があります。
+              認証、ホスティング、データ保管のため、外部の業務委託先やクラウドサービスを利用する場合があります。
             </p>
           </section>
 

@@ -4,12 +4,14 @@ import { z } from "zod"
 import { auth } from "@/auth"
 import { enforceBodyLimit } from "@/lib/api/server/body-limit"
 import { respondInternalError } from "@/lib/api/server/error-response"
+import { conversationRetentionDays } from "@/lib/chatbot/knowledge"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const sessionCookieName = "chatbot_session_id"
+const sessionMaxAgeSeconds = conversationRetentionDays * 24 * 60 * 60
 
 const chatbotMessageRequestSchema = z.object({
   message: z.string().trim().min(1).max(4000),
@@ -55,14 +57,13 @@ export async function POST(request: NextRequest) {
     })
     const response = NextResponse.json(result)
 
-    if (!existingSessionId) {
-      response.cookies.set(sessionCookieName, sessionId, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-      })
-    }
+    response.cookies.set(sessionCookieName, sessionId, {
+      httpOnly: true,
+      maxAge: sessionMaxAgeSeconds,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    })
 
     return response
   } catch (error) {
