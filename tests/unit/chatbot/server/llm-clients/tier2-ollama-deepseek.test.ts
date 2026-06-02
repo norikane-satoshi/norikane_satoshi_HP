@@ -6,6 +6,7 @@ import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import {
   createTier2OllamaDeepSeekClient,
   Tier2OllamaDeepSeekClient,
+  tier2OllamaDeepSeekDefaults,
 } from "@/lib/chatbot/server/llm-clients/tier2-ollama-deepseek"
 
 const modelName = "hf.co/cyberagent/DeepSeek-R1-Distill-Qwen-Japanese-14B-gguf:Q4_K_M"
@@ -78,6 +79,10 @@ async function expectLlmError(
 }
 
 describe("Tier2OllamaDeepSeekClient", () => {
+  it("keeps the default request timeout short enough to reach Tier 4 fallback", () => {
+    expect(tier2OllamaDeepSeekDefaults.requestTimeoutMs).toBe(12000)
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })

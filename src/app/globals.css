@@ -212,6 +212,11 @@
     background: transparent;
     border-radius: var(--hp-radius-sm);
   }
+  .chatbot-thinking-dot {
+    animation: chatbot-thinking-dot 1.2s ease-in-out infinite;
+    opacity: 0.42;
+    transform: translateY(0);
+  }
   .glass-bar {
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(14px) saturate(140%);
@@ -289,4 +294,17 @@
 
 .tweet-embed-reset > .react-tweet-theme {
   margin-block: 0;
+}
+
+@keyframes chatbot-thinking-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.42;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
 }

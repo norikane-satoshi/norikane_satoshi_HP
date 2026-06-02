@@ -1,6 +1,6 @@
 "use client"
 
-import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useState } from "react"
+import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useState } from "react"
 import { GripHorizontal, Minus, PanelRightOpen, Sparkles } from "lucide-react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
@@ -21,6 +21,7 @@ import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
 import { formatChatbotTierDebugLabel, isLocalChatbotTierDebugHostname } from "./local-tier-debug"
 import { SecurityNote } from "./SecurityNote"
+import { ThinkingIndicator } from "./ThinkingIndicator"
 
 type WidgetShellProps = {
   onMinimize: () => void
@@ -49,6 +50,7 @@ const initialMessage = {
 const noUi = { kind: "none" } satisfies WidgetUi
 const networkErrorMessage = "通信に失敗しました。少し時間をおいてもう一度お試しください。"
 const inquirySentMessage = "送信しました。担当者からの返信をお待ちください。"
+const thinkingDelayNoticeMs = 6000
 
 function isInteractiveTarget(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest("a,button,input,select,textarea"))
@@ -69,6 +71,7 @@ export function WidgetShell({
   const [conversationId, setConversationId] = useState<string | undefined>()
   const [activeUi, setActiveUi] = useState<WidgetUi>(noUi)
   const [submitting, setSubmitting] = useState(false)
+  const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
   const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>()
   const showLocalTierDebug =
     typeof window !== "undefined" && isLocalChatbotTierDebugHostname(window.location.hostname)
@@ -77,6 +80,16 @@ export function WidgetShell({
     setMessages((currentMessages) => [...currentMessages, message])
   }
 
+  useEffect(() => {
+    if (!submitting) return
+
+    const timeoutId = window.setTimeout(() => {
+      setShowThinkingDelayNotice(true)
+    }, thinkingDelayNoticeMs)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [submitting])
+
   const handleSubmit = async (text: string) => {
     const createdAt = new Date()
     setMessages((currentMessages) => [
@@ -84,6 +97,7 @@ export function WidgetShell({
       { role: "user", content: text, createdAt },
     ])
     setActiveUi(noUi)
+    setShowThinkingDelayNotice(false)
     setSubmitting(true)
 
     try {
@@ -103,6 +117,7 @@ export function WidgetShell({
         createdAt: new Date(),
       })
     } finally {
+      setShowThinkingDelayNotice(false)
       setSubmitting(false)
     }
   }
@@ -233,6 +248,7 @@ export function WidgetShell({
               createdAt={message.createdAt}
             />
           ))}
+          {submitting ? <ThinkingIndicator showDelayNotice={showThinkingDelayNotice} /> : null}
         </div>
         <ActiveWidgetUi ui={activeUi} conversationId={conversationId} onSubmit={handleSubmit} onInquirySubmit={handleInquirySubmit} />
       </div>

@@ -45,7 +45,7 @@ class OllamaHttpStatusError extends Error {
 export const tier2OllamaDeepSeekDefaults = {
   baseUrl: "http://localhost:11434",
   modelName: "hf.co/mmnga/cyberagent-DeepSeek-R1-Distill-Qwen-14B-Japanese-gguf:Q4_K_M",
-  requestTimeoutMs: 90000,
+  requestTimeoutMs: 12000,
   healthCheckTimeoutMs: 3000,
 } as const
 
