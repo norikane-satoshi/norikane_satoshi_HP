@@ -93,6 +93,8 @@ describe("FeaturedWorks", () => {
     expect(viewport).toHaveClass("overflow-x-auto")
     expect(viewport).toHaveClass("overflow-y-hidden")
     expect(viewport).toHaveAttribute("tabindex", "0")
+    expect(viewport).toHaveAttribute("id", "featured-works-marquee")
+    expect(viewport).toHaveAttribute("data-featured-work-scrollbar-mode", "custom")
     expect(viewport).toHaveAttribute("data-featured-work-marquee-idle-ms", "1300")
     expect(track).toHaveClass("w-max")
     expect(track).toHaveClass("gap-4")
@@ -124,6 +126,26 @@ describe("FeaturedWorks", () => {
     expect(container.querySelector("style")?.textContent).toContain(
       "prefers-reduced-motion: reduce",
     )
+    expect(container.querySelector("style")?.textContent).toContain(
+      "scrollbar-width: none",
+    )
+    expect(container.querySelector("style")?.textContent).toContain(
+      "::-webkit-scrollbar",
+    )
+
+    const customScrollbar = screen.getByRole("scrollbar", {
+      name: "Featured Works scroll position",
+    })
+    const customScrollbarThumb = container.querySelector(
+      '[data-featured-work-scrollbar-thumb="true"]',
+    )
+    expect(customScrollbar).toHaveAttribute("aria-controls", "featured-works-marquee")
+    expect(customScrollbar).toHaveAttribute("aria-orientation", "horizontal")
+    expect(customScrollbar).toHaveAttribute("aria-valuemin", "0")
+    expect(customScrollbar).toHaveAttribute("aria-valuemax", "100")
+    expect(customScrollbar).toHaveAttribute("tabindex", "0")
+    expect(customScrollbar).toHaveClass("w-full")
+    expect(customScrollbarThumb).toBeInTheDocument()
   })
 
   it("pauses autoplay from input events without relying on scroll events", () => {
@@ -156,14 +178,19 @@ describe("FeaturedWorks", () => {
 
   it("does not render the clone track when reduced motion is requested", () => {
     const { container } = render(<FeaturedWorks />)
+    const viewport = container.querySelector(
+      '[data-featured-work-marquee-viewport="true"]',
+    )
 
     expect(screen.getByText("Featured Works")).toBeInTheDocument()
+    expect(viewport).toHaveAttribute("data-featured-work-scrollbar-mode", "native")
     expect(
       container.querySelector('[data-featured-work-marquee-segment="primary"]'),
     ).toBeInTheDocument()
     expect(
       container.querySelector('[data-featured-work-marquee-segment="clone"]'),
     ).not.toBeInTheDocument()
+    expect(container.querySelector('[data-featured-work-scrollbar="custom"]')).toBeNull()
   })
 
   it("renders the live reel card without badge links", () => {

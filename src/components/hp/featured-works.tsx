@@ -2,7 +2,16 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react"
 import {
   FEATURED_WORKS,
   LIVE_REEL_VIDEO_IDS,
@@ -68,6 +77,11 @@ const MARQUEE_INPUT_IDLE_MS = 1300
 type MarqueeMetrics = {
   start: number
   loopWidth: number
+}
+
+type MarqueeScrollbarState = {
+  progress: number
+  thumbRatio: number
 }
 
 function loadYouTubeIframeApi() {
@@ -179,13 +193,41 @@ function normalizeMarqueeScrollLeft(
   return normalizedScrollLeft
 }
 
+function getMarqueeScrollProgress(
+  scrollLeft: number,
+  metrics: MarqueeMetrics,
+) {
+  if (metrics.loopWidth <= 0) {
+    return 0
+  }
+
+  const normalizedScrollLeft = getNormalizedMarqueeScrollLeft(scrollLeft, metrics)
+  const progress = (normalizedScrollLeft - metrics.start) / metrics.loopWidth
+  return Math.min(Math.max(progress, 0), 1)
+}
+
+function getMarqueeScrollbarState(
+  viewport: HTMLElement,
+  metrics: MarqueeMetrics,
+): MarqueeScrollbarState {
+  return {
+    progress: getMarqueeScrollProgress(viewport.scrollLeft, metrics),
+    thumbRatio: Math.min(
+      Math.max(viewport.clientWidth / metrics.loopWidth, 0.14),
+      1,
+    ),
+  }
+}
+
 function useScrollableMarquee(
   viewportRef: RefObject<HTMLDivElement | null>,
   enabled: boolean,
+  setScrollbarState: (state: MarqueeScrollbarState | null) => void,
 ) {
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport || !enabled) {
+      setScrollbarState(null)
       return
     }
 
@@ -217,9 +259,28 @@ function useScrollableMarquee(
     let metrics = getMetrics()
     let hasInitializedScrollPosition = false
     let virtualScrollLeft = viewport.scrollLeft
+    let lastScrollbarState: MarqueeScrollbarState | null = null
 
     const setState = (state: "running" | "paused") => {
       viewport.dataset.featuredWorkMarqueeState = state
+    }
+
+    const syncScrollbarState = () => {
+      if (!metrics) {
+        setScrollbarState(null)
+        lastScrollbarState = null
+        return
+      }
+
+      const nextState = getMarqueeScrollbarState(viewport, metrics)
+      if (
+        !lastScrollbarState ||
+        Math.abs(nextState.progress - lastScrollbarState.progress) > 0.001 ||
+        Math.abs(nextState.thumbRatio - lastScrollbarState.thumbRatio) > 0.001
+      ) {
+        lastScrollbarState = nextState
+        setScrollbarState(nextState)
+      }
     }
 
     const syncMetrics = () => {
@@ -229,9 +290,11 @@ function useScrollableMarquee(
           viewport.scrollLeft = metrics.start
           virtualScrollLeft = metrics.start
           hasInitializedScrollPosition = true
+          syncScrollbarState()
           return
         }
         virtualScrollLeft = normalizeMarqueeScrollLeft(viewport, metrics)
+        syncScrollbarState()
       }
     }
 
@@ -259,9 +322,11 @@ function useScrollableMarquee(
           if (Math.abs(viewport.scrollLeft - virtualScrollLeft) > 0.5) {
             viewport.scrollLeft = virtualScrollLeft
           }
+          syncScrollbarState()
           lastFrameTime = timestamp
         } else {
           virtualScrollLeft = normalizeMarqueeScrollLeft(viewport, metrics)
+          syncScrollbarState()
           lastFrameTime = null
         }
       }
@@ -284,6 +349,7 @@ function useScrollableMarquee(
       if (metrics) {
         virtualScrollLeft = viewport.scrollLeft
         virtualScrollLeft = normalizeMarqueeScrollLeft(viewport, metrics)
+        syncScrollbarState()
       }
     }
 
@@ -294,6 +360,7 @@ function useScrollableMarquee(
     viewport.addEventListener("pointerdown", pauseForInput, { passive: true })
     viewport.addEventListener("keydown", handleKeyDown)
     viewport.addEventListener("scroll", handleScroll, { passive: true })
+    viewport.addEventListener("featured-work-marquee-input", pauseForInput)
     window.addEventListener("resize", syncMetrics)
     animationFrame = window.requestAnimationFrame(step)
 
@@ -304,11 +371,157 @@ function useScrollableMarquee(
       viewport.removeEventListener("pointerdown", pauseForInput)
       viewport.removeEventListener("keydown", handleKeyDown)
       viewport.removeEventListener("scroll", handleScroll)
+      viewport.removeEventListener("featured-work-marquee-input", pauseForInput)
       window.removeEventListener("resize", syncMetrics)
       delete viewport.dataset.featuredWorkMarqueeState
       delete viewport.dataset.featuredWorkMarqueeIdleMs
+      setScrollbarState(null)
     }
-  }, [enabled, viewportRef])
+  }, [enabled, setScrollbarState, viewportRef])
+}
+
+function getMarqueeMetricsFromViewport(
+  viewport: HTMLElement,
+): MarqueeMetrics | null {
+  const primaryStart = viewport.querySelector<HTMLElement>(
+    '[data-featured-work-marquee-segment-start="primary"]',
+  )
+  const cloneAfterStart = viewport.querySelector<HTMLElement>(
+    '[data-featured-work-marquee-segment-start="clone-after"]',
+  )
+  if (!primaryStart || !cloneAfterStart) {
+    return null
+  }
+
+  const loopWidth = cloneAfterStart.offsetLeft - primaryStart.offsetLeft
+  if (loopWidth <= 0) {
+    return null
+  }
+
+  return {
+    start: primaryStart.offsetLeft,
+    loopWidth,
+  }
+}
+
+function FeaturedWorksScrollbar({
+  viewportRef,
+  state,
+}: {
+  viewportRef: RefObject<HTMLDivElement | null>
+  state: MarqueeScrollbarState | null
+}) {
+  const trackRef = useRef<HTMLDivElement | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const setViewportProgress = useCallback(
+    (progress: number) => {
+      const viewport = viewportRef.current
+      const metrics = viewport ? getMarqueeMetricsFromViewport(viewport) : null
+      if (!viewport || !metrics) {
+        return
+      }
+
+      const clampedProgress = Math.min(Math.max(progress, 0), 1)
+      viewport.dispatchEvent(new Event("featured-work-marquee-input"))
+      viewport.scrollLeft =
+        metrics.start + clampedProgress * Math.max(metrics.loopWidth - 1, 0)
+    },
+    [viewportRef],
+  )
+
+  const setViewportProgressFromPointer = useCallback(
+    (clientX: number) => {
+      const track = trackRef.current
+      if (!track) {
+        return
+      }
+
+      const rect = track.getBoundingClientRect()
+      if (rect.width <= 0) {
+        return
+      }
+
+      setViewportProgress((clientX - rect.left) / rect.width)
+    },
+    [setViewportProgress],
+  )
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragging(true)
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setViewportProgressFromPointer(event.clientX)
+  }
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isDragging) {
+      return
+    }
+
+    setViewportProgressFromPointer(event.clientX)
+  }
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    setIsDragging(false)
+    event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const currentProgress = state?.progress ?? 0
+    const step = event.shiftKey ? 0.15 : 0.05
+    const keyProgress: Record<string, number> = {
+      ArrowLeft: currentProgress - step,
+      ArrowRight: currentProgress + step,
+      Home: 0,
+      End: 1,
+      PageUp: currentProgress - 0.2,
+      PageDown: currentProgress + 0.2,
+    }
+
+    if (!(event.key in keyProgress)) {
+      return
+    }
+
+    event.preventDefault()
+    setViewportProgress(keyProgress[event.key])
+  }
+
+  const thumbRatio = state?.thumbRatio ?? 1
+  const thumbWidthPercent = thumbRatio * 100
+  const thumbLeftPercent = (state?.progress ?? 0) * (100 - thumbWidthPercent)
+
+  return (
+    <div className="relative z-10 mt-1 -mx-8 md:-mx-10 xl:-mx-12">
+      <div
+        ref={trackRef}
+        className="relative h-4 w-full cursor-pointer rounded-full border border-white/65 bg-white/35"
+        role="scrollbar"
+        aria-controls="featured-works-marquee"
+        aria-label="Featured Works scroll position"
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round((state?.progress ?? 0) * 100)}
+        tabIndex={0}
+        data-featured-work-scrollbar="custom"
+        onKeyDown={handleKeyDown}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <div
+          className="absolute inset-y-[3px] rounded-full border border-white/80 bg-[var(--accent-primary)]/65"
+          style={{
+            left: `${thumbLeftPercent}%`,
+            width: `${thumbWidthPercent}%`,
+          }}
+          data-featured-work-scrollbar-thumb="true"
+        />
+      </div>
+    </div>
+  )
 }
 
 function PreviewFrame({
@@ -743,8 +956,20 @@ function LiveReelCard({
 export function FeaturedWorks() {
   const prefersReducedMotion = usePrefersReducedMotion()
   const [marqueeRef, hasEnteredViewport] = useHasEnteredViewport<HTMLDivElement>()
+  const [scrollbarState, setScrollbarState] =
+    useState<MarqueeScrollbarState | null>(null)
   const shouldRenderCloneTrack = !prefersReducedMotion
-  useScrollableMarquee(marqueeRef, shouldRenderCloneTrack)
+  useScrollableMarquee(
+    marqueeRef,
+    shouldRenderCloneTrack,
+    setScrollbarState,
+  )
+
+  useEffect(() => {
+    if (prefersReducedMotion && marqueeRef.current) {
+      marqueeRef.current.scrollLeft = 0
+    }
+  }, [marqueeRef, prefersReducedMotion])
 
   const renderCards = (
     clone = false,
@@ -781,6 +1006,15 @@ export function FeaturedWorks() {
             overflow-x: auto;
           }
         }
+
+        [data-featured-work-marquee-viewport="true"][data-featured-work-scrollbar-mode="custom"] {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+
+        [data-featured-work-marquee-viewport="true"][data-featured-work-scrollbar-mode="custom"]::-webkit-scrollbar {
+          display: none;
+        }
       `}</style>
       <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
         Featured Works
@@ -788,10 +1022,14 @@ export function FeaturedWorks() {
 
       <div
         ref={marqueeRef}
+        id="featured-works-marquee"
         className="mt-6 -mx-8 overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] md:-mx-10 xl:-mx-12"
         aria-label="Featured Works"
         tabIndex={0}
         data-featured-work-marquee-viewport="true"
+        data-featured-work-scrollbar-mode={
+          shouldRenderCloneTrack ? "custom" : "native"
+        }
       >
         <div
           className="flex w-max gap-4 px-8 pb-4 md:gap-5 md:px-10 xl:px-12"
@@ -825,6 +1063,12 @@ export function FeaturedWorks() {
           ) : null}
         </div>
       </div>
+      {shouldRenderCloneTrack ? (
+        <FeaturedWorksScrollbar
+          viewportRef={marqueeRef}
+          state={scrollbarState}
+        />
+      ) : null}
     </div>
   )
 }

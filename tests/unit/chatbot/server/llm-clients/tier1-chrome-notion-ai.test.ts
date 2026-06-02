@@ -116,6 +116,10 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(client.tier).toBe("tier-1-chrome-notion-ai")
   })
 
+  it("keeps the default request timeout short enough to reach fallback tiers", () => {
+    expect(tier1ChromeNotionAiDefaults.requestTimeoutMs).toBe(12000)
+  })
+
   it("keeps the default target scoped to the chatbot-only Notion AI thread", () => {
     expect(notionAiChatbotThreadId).toBe("36b13ee3-141a-8073-885d-00a99ebb676c")
     expect(tier1ChromeNotionAiDefaults.targetUrlIncludes).toBe(notionAiChatbotThreadUrl)
@@ -472,6 +476,11 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     await expect(healthyClient.isHealthy()).resolves.toBe(true)
     await expect(missingTargetClient.isHealthy()).resolves.toBe(false)
+
+    const evaluate = vi.mocked(healthySession.evaluate)
+    expect(evaluate.mock.calls[0][0]).toContain("LRU:KeyValueStore2:current-user-id")
+    expect(evaluate.mock.calls[0][0]).toContain("LRU:KeyValueStore2:spaceIdToShortId")
+    expect(evaluate.mock.calls[0][0]).toContain("notion-sidebar-sidebar-state")
   })
 
   it("does not require the chatbot Notion AI target URL to use the www host", async () => {

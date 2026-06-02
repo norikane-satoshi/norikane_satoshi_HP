@@ -222,7 +222,7 @@ const emptyText = ""
 export const tier1ChromeNotionAiDefaults = {
   cdpBaseUrl: "http://127.0.0.1:9223",
   targetUrlIncludes: getNotionAiChatbotThreadUrl(),
-  requestTimeoutMs: 180000,
+  requestTimeoutMs: 12000,
   healthCheckTimeoutMs: 3000,
 } as const
 
@@ -916,6 +916,41 @@ const runtimeContextExpression = `(() => {
       return undefined;
     }
   };
+  const uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+  const isUuid = (value) => {
+    return typeof value === "string" && new RegExp("^" + uuidPattern + "$", "i").test(value);
+  };
+  const readCurrentUserId = () => {
+    return readStorage("LRU:KeyValueStore2:current-user-id");
+  };
+  const readSpaceIdToShortId = () => {
+    try {
+      const raw = localStorage.getItem("LRU:KeyValueStore2:spaceIdToShortId");
+      if (!raw) return undefined;
+      const parsed = JSON.parse(raw);
+      const value = parsed && typeof parsed === "object" ? parsed.value : undefined;
+      if (!value || typeof value !== "object") return undefined;
+      const ids = Object.keys(value).filter(isUuid);
+      return ids.length === 1 ? ids[0] : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const readCurrentSpaceIdFromStorageKeys = (userId) => {
+    if (!isUuid(userId)) return undefined;
+    const currentSpacePattern = new RegExp("currentSpace:(" + uuidPattern + "):" + userId + "(?::|$)", "i");
+    const sidebarPattern = new RegExp("notion-sidebar-sidebar-state-(" + uuidPattern + ")-" + userId + "$", "i");
+    try {
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index) || "";
+        const currentSpaceMatch = key.match(currentSpacePattern);
+        if (currentSpaceMatch && isUuid(currentSpaceMatch[1])) return currentSpaceMatch[1];
+        const sidebarMatch = key.match(sidebarPattern);
+        if (sidebarMatch && isUuid(sidebarMatch[1])) return sidebarMatch[1];
+      }
+    } catch {}
+    return undefined;
+  };
   const readNotionAiContextPageId = () => {
     try {
       for (let index = 0; index < localStorage.length; index += 1) {
@@ -959,9 +994,19 @@ const runtimeContextExpression = `(() => {
     }
   })();
 
+  const userId =
+    root.__notionAiUserId ||
+    readStorage("LRU:KeyValueStore2:lastVisitedRouteUserId") ||
+    readCurrentUserId();
+  const spaceId =
+    root.__notionAiSpaceId ||
+    readStorage("LRU:KeyValueStore2:lastVisitedRouteSpaceId") ||
+    readCurrentSpaceIdFromStorageKeys(userId) ||
+    readSpaceIdToShortId();
+
   return {
-    spaceId: root.__notionAiSpaceId || readStorage("LRU:KeyValueStore2:lastVisitedRouteSpaceId"),
-    userId: root.__notionAiUserId || readStorage("LRU:KeyValueStore2:lastVisitedRouteUserId"),
+    spaceId,
+    userId,
     notionClientVersion: root.__notionClientVersion || buildId || readMeta("notion-client-version"),
     contextPageId: root.__notionAiContextPageId || readNotionAiContextPageId(),
     threadId,

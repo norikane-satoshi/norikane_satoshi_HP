@@ -145,6 +145,11 @@
     box-shadow: var(--glass-shadow);
     border-radius: var(--hp-radius);
   }
+  .glass-card.glass-card--chat-frost {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(32px) saturate(130%);
+    -webkit-backdrop-filter: blur(32px) saturate(130%);
+  }
   .glass-card-sm {
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
@@ -207,6 +212,11 @@
     background: transparent;
     border-radius: var(--hp-radius-sm);
   }
+  .chatbot-thinking-dot {
+    animation: chatbot-thinking-dot 1.2s ease-in-out infinite;
+    opacity: 0.42;
+    transform: translateY(0);
+  }
   .glass-bar {
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(14px) saturate(140%);
@@ -268,6 +278,33 @@
   }
 }
 
+.glass-card.glass-card--chat-frost {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(32px) saturate(130%);
+  -webkit-backdrop-filter: blur(32px) saturate(130%);
+}
+
+@media (min-width: 768px) {
+  body.chatbot-side-peek-active main,
+  body.chatbot-side-peek-active footer {
+    margin-right: calc(var(--chatbot-side-peek-width, 384px) + 16px);
+    transition: margin-right 0.2s ease;
+  }
+}
+
 .tweet-embed-reset > .react-tweet-theme {
   margin-block: 0;
+}
+
+@keyframes chatbot-thinking-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.42;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
 }

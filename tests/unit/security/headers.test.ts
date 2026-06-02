@@ -69,6 +69,7 @@ describe("security headers", () => {
     expect(csp).toContain("frame-src https://www.youtube.com")
     expect(csp).toContain("object-src 'none'")
     expect(csp).toContain("base-uri 'self'")
+    expect(csp).toContain("frame-src https://www.youtube.com https://www.youtube-nocookie.com")
     expect(csp).toContain("report-uri /api/csp-report")
   })
 
