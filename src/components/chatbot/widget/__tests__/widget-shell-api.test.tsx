@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { WidgetShell } from "@/components/chatbot/widget/WidgetShell"
+import { createDefaultWidgetLayout, type WidgetLayout } from "@/components/chatbot/widget/useWidgetState"
 import { finalMediumChoices } from "@/lib/chatbot/domain"
 
 vi.mock("next-auth/react", () => ({
@@ -28,6 +29,18 @@ const assistantMessage = {
 function submitMessage(text = "相談したいです") {
   fireEvent.change(screen.getByLabelText("相談内容"), { target: { value: text } })
   fireEvent.click(screen.getByRole("button", { name: "送信" }))
+}
+
+function renderWidgetShell(layout: WidgetLayout = createDefaultWidgetLayout()) {
+  return render(
+    <WidgetShell
+      layout={layout}
+      onMinimize={vi.fn()}
+      onModeChange={vi.fn()}
+      onFloatingGeometryChange={vi.fn()}
+      onSidePeekWidthChange={vi.fn()}
+    />,
+  )
 }
 
 function installLocalStorage() {
@@ -67,7 +80,7 @@ describe("WidgetShell API wiring", () => {
     )
     vi.stubGlobal("fetch", fetchMock)
 
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
     submitMessage()
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -98,7 +111,7 @@ describe("WidgetShell API wiring", () => {
       ),
     )
 
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
     submitMessage()
 
     expect(await screen.findByText("最終媒体を教えてください")).toBeInTheDocument()
@@ -136,7 +149,7 @@ describe("WidgetShell API wiring", () => {
       ),
     )
 
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
     submitMessage()
 
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
@@ -160,7 +173,7 @@ describe("WidgetShell API wiring", () => {
       .mockResolvedValueOnce(mockJsonResponse({ ok: true }))
     vi.stubGlobal("fetch", fetchMock)
 
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
     submitMessage("フォームで送ります")
 
     expect(await screen.findByLabelText("問い合わせフォーム")).toBeInTheDocument()
@@ -181,7 +194,7 @@ describe("WidgetShell API wiring", () => {
   it("shows a short system message on network error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")))
 
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
     submitMessage()
 
     expect(await screen.findByText("通信に失敗しました。少し時間をおいてもう一度お試しください。")).toBeInTheDocument()
@@ -196,7 +209,7 @@ describe("WidgetShell API wiring", () => {
       })),
     )
 
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
     submitMessage("待機表示を確認します")
 
     expect(await screen.findByRole("status", { name: "応答を作成中" })).toBeInTheDocument()
@@ -220,12 +233,12 @@ describe("WidgetShell API wiring", () => {
     )
     vi.stubGlobal("fetch", fetchMock)
 
-    const rendered = render(<WidgetShell onMinimize={vi.fn()} />)
+    const rendered = renderWidgetShell()
     submitMessage("Web CM の相談です")
     await screen.findByText("最終媒体を選んでください")
     rendered.unmount()
 
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
     expect(screen.getByText("Web CM の相談です")).toBeInTheDocument()
     submitMessage("続きです")
 
@@ -257,7 +270,7 @@ describe("WidgetShell API wiring", () => {
       .mockResolvedValueOnce(mockJsonResponse({ ok: true }))
     vi.stubGlobal("fetch", fetchMock)
 
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
     submitMessage("料金確認です")
 
     expect(await screen.findByLabelText("送信前の整理内容")).toBeInTheDocument()

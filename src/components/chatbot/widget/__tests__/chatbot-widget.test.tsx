@@ -17,10 +17,15 @@ import {
   useScrollTrigger,
 } from "@/components/chatbot/widget/useScrollTrigger"
 import {
+  CHATBOT_WIDGET_MIN_HEIGHT,
+  CHATBOT_WIDGET_MIN_WIDTH,
   CHATBOT_WIDGET_STORAGE_KEY,
   CHATBOT_WIDGET_TTL_DAYS,
+  createDefaultWidgetLayout,
   persistWidgetState,
   readStoredWidgetState,
+  sanitizeWidgetLayout,
+  type WidgetLayout,
 } from "@/components/chatbot/widget/useWidgetState"
 
 function setScrollGeometry({ innerHeight, scrollHeight, scrollY }: {
@@ -46,6 +51,30 @@ function installLocalStorage() {
     setItem: (key: string, value: string) => values.set(key, String(value)),
   }
   Object.defineProperty(window, "localStorage", { configurable: true, value: storage })
+}
+
+function renderWidgetShell({
+  layout = createDefaultWidgetLayout(),
+  onMinimize = vi.fn(),
+  onModeChange = vi.fn(),
+  onFloatingGeometryChange = vi.fn(),
+  onSidePeekWidthChange = vi.fn(),
+}: {
+  layout?: WidgetLayout
+  onMinimize?: () => void
+  onModeChange?: (mode: "floating" | "side-peek") => void
+  onFloatingGeometryChange?: (geometry: { position?: { x: number; y: number }; size?: { width: number; height: number } }) => void
+  onSidePeekWidthChange?: (width: number) => void
+} = {}) {
+  return render(
+    <WidgetShell
+      layout={layout}
+      onMinimize={onMinimize}
+      onModeChange={onModeChange}
+      onFloatingGeometryChange={onFloatingGeometryChange}
+      onSidePeekWidthChange={onSidePeekWidthChange}
+    />,
+  )
 }
 
 describe("chatbot widget shell", () => {
@@ -166,10 +195,11 @@ describe("chatbot widget shell", () => {
 
   it("renders shell a11y labels and minimize behavior", () => {
     const onMinimize = vi.fn()
-    render(<WidgetShell onMinimize={onMinimize} />)
+    renderWidgetShell({ onMinimize })
 
     expect(screen.getByLabelText("AI 相談窓口")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "最小化" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "サイドピーク表示に切り替え" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "送信" })).toBeInTheDocument()
     expect(screen.getByLabelText("相談内容")).toBeEnabled()
 
@@ -177,8 +207,17 @@ describe("chatbot widget shell", () => {
     expect(onMinimize).toHaveBeenCalledTimes(1)
   })
 
+  it("wires the side-peek toggle without adding move or resize glyph controls", () => {
+    const onModeChange = vi.fn()
+    renderWidgetShell({ onModeChange })
+
+    screen.getByRole("button", { name: "サイドピーク表示に切り替え" }).click()
+    expect(onModeChange).toHaveBeenCalledWith("side-peek")
+    expect(screen.queryByRole("button", { name: /移動|リサイズ|サイズ変更/ })).not.toBeInTheDocument()
+  })
+
   it("does not render the previous placeholder badges", () => {
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
 
     const removedLabels = ["カラー" + "グレーディング", "公開時期" + "から逆算", "予約まで" + "進めたい"]
     for (const label of removedLabels) {
@@ -187,13 +226,13 @@ describe("chatbot widget shell", () => {
   })
 
   it("renders the initial assistant message", () => {
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
 
     expect(screen.getByText("ご相談や案件依頼はこちらです。最終媒体、公開時期、作業時期などを会話で整理します。")).toBeInTheDocument()
   })
 
   it("renders the security note inside the shell", () => {
-    render(<WidgetShell onMinimize={vi.fn()} />)
+    renderWidgetShell()
 
     expect(screen.getByRole("button", { name: "安全に扱います" })).toBeInTheDocument()
   })
@@ -242,13 +281,41 @@ describe("chatbot widget hooks", () => {
   })
 
   it("persists localStorage state with a 30 day TTL", () => {
-    const storedState = persistWidgetState(window.localStorage, true, new Date("2026-05-26T00:00:00.000Z"))
+    const storedState = persistWidgetState(window.localStorage, true, new Date("2026-05-26T00:00:00.000Z"), undefined, {
+      mode: "side-peek",
+      floatingPosition: { x: 220, y: 120 },
+      floatingSize: { width: 640, height: 520 },
+      sidePeekWidth: 480,
+    })
 
     expect(storedState.expiresAt).toBe("2026-06-25T00:00:00.000Z")
     expect(CHATBOT_WIDGET_TTL_DAYS).toBe(30)
     expect(readStoredWidgetState(window.localStorage, new Date("2026-06-24T23:59:59.000Z"))).toMatchObject({
       minimized: true,
+      mode: "side-peek",
+      floatingPosition: { x: 220, y: 120 },
+      floatingSize: { width: 640, height: 520 },
+      sidePeekWidth: 480,
     })
+  })
+
+  it("clamps malformed widget layout values to the current viewport", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1000 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 700 })
+    const layout = sanitizeWidgetLayout({
+      mode: "side-peek",
+      floatingPosition: { x: -100, y: 9000 },
+      floatingSize: { width: 9999, height: 20 },
+      sidePeekWidth: 9999,
+    })
+
+    expect(layout.mode).toBe("side-peek")
+    expect(layout.floatingSize.width).toBe(900)
+    expect(layout.floatingSize.height).toBe(CHATBOT_WIDGET_MIN_HEIGHT)
+    expect(layout.floatingPosition.x).toBe(32)
+    expect(layout.floatingPosition.y).toBe(268)
+    expect(layout.sidePeekWidth).toBe(900)
+    expect(layout.floatingSize.width).toBeGreaterThanOrEqual(CHATBOT_WIDGET_MIN_WIDTH)
   })
 
   it("resets expired or malformed localStorage state", () => {
