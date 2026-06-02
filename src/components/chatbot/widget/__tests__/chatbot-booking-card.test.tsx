@@ -140,6 +140,8 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
     expect(await screen.findByText("予約を受け付けました")).toBeInTheDocument()
+    expect(screen.getByText("予約番号: group_1")).toBeInTheDocument()
+    expect(screen.queryByText(/bookingGroupId:/)).not.toBeInTheDocument()
     expect(onBooked).toHaveBeenCalledWith({
       bookingGroupId: "group_1",
       bookingIds: ["slot_1"],

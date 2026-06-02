@@ -151,7 +151,7 @@ export function ChatbotBookingCard({
       {booked ? (
         <div className="glass-inset space-y-2 p-4" role="status">
           <p className="text-sm font-semibold text-hp">予約を受け付けました</p>
-          <p className="break-all text-xs text-hp-muted">bookingGroupId: {booked.bookingGroupId}</p>
+          <p className="break-all text-xs text-hp-muted">予約番号: {booked.bookingGroupId}</p>
         </div>
       ) : null}
 

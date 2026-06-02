@@ -131,6 +131,7 @@ describe("POST /api/chatbot/message", () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get("set-cookie")).toContain("chatbot_session_id=")
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=604800")
     expect(response.headers.get("set-cookie")).toContain("HttpOnly")
     expect(route.createConversation).toHaveBeenCalledWith({
       sessionId: expect.any(String),
@@ -157,6 +158,8 @@ describe("POST /api/chatbot/message", () => {
       userId: "user_1",
       currentConversationId: "conv_1",
     })
+    expect(response.headers.get("set-cookie")).toContain("chatbot_session_id=session_1")
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=604800")
   })
 
   it("returns assistant message and choice-panel ui on orchestrator success", async () => {
