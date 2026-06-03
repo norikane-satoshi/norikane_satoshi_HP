@@ -20,9 +20,7 @@ export function HeroSection() {
                 フリーランスカラリスト
               </span>
             </h1>
-            <p className="hp-latin-display mt-7 max-w-4xl text-white/90 md:mt-8">
-              Satoshi Norikane / Freelance Colorist
-            </p>
+            {/* Keep the latin display utility available for a future English locale. */}
           </div>
           <div className="text-left font-[var(--font-sans)] md:text-right">
             <p className="text-xs tracking-[0.12em] text-white/70">東京・2026年〜</p>

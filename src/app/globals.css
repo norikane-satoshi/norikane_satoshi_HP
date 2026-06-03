@@ -84,7 +84,7 @@
   --sidebar-ring: oklch(0.52 0.18 280);
 
   /* Glass Design System */
-  --bg-base: #F8F6FF;
+  --bg-base: #F4F6F9;
   --accent-primary: #7568D6;
   --aurora-purple: rgba(93, 84, 171, 0.16);
   --aurora-pink: rgba(178, 112, 150, 0.11);
@@ -93,7 +93,7 @@
   --glass-border: rgba(117, 104, 214, 0.18);
   --glass-shadow: 0 10px 34px rgba(54, 44, 108, 0.11);
   --text-primary: #1C0F6E;
-  --text-muted: #6B5FA8;
+  --text-muted: #5A6473;
   --hp-radius-sm: 12px;
   --hp-radius: 16px;
   --hp-radius-lg: 20px;
@@ -174,13 +174,13 @@
   .hp-body {
     letter-spacing: 0;
     line-break: strict;
-    line-height: 1.85;
+    line-height: 1.7;
     overflow-wrap: break-word;
     word-break: normal;
   }
   .hp-compact-text {
     letter-spacing: 0;
-    line-height: 1.55;
+    line-height: 1.5;
   }
   .hp-form-text {
     letter-spacing: 0;

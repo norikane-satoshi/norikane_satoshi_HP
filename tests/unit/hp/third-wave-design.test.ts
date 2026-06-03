@@ -99,7 +99,7 @@ describe("HP third-wave design contract", () => {
     expect(layout).toContain('display: "swap"')
   })
 
-  it("applies --font-display only to large pure-latin display copy", () => {
+  it("keeps --font-display scoped to the latin display utility for future localized copy", () => {
     const hero = readProjectFile("src/components/hp/hero-section.tsx")
     const page = readProjectFile("src/app/page.tsx")
     const nav = readProjectFile("src/components/hp/nav-header.tsx")
@@ -107,8 +107,10 @@ describe("HP third-wave design contract", () => {
 
     expect(css).toMatch(/\.hp-latin-display[\s\S]*font-family:\s*var\(--font-display\)/)
     expect(css).toMatch(/\.hp-latin-display[\s\S]*font-size:\s*clamp\(1\.75rem/)
-    expect(hero).toContain("hp-latin-display")
-    expect(hero).toContain("Satoshi Norikane")
+    expect(hero).toContain("future English locale")
+    expect(hero).not.toContain("hp-latin-display")
+    expect(hero).not.toContain("Satoshi Norikane")
+    expect(hero).not.toContain("Freelance Colorist")
     expect(hero).not.toMatch(/hp-latin-display[^>]+則兼|hp-latin-display[^>]+フリーランス/u)
     expect(page).not.toMatch(/hp-body[^"]*hp-latin-display|text-hp-muted[^"]*hp-latin-display/)
     expect(nav).not.toContain("hp-latin-display")

@@ -24,11 +24,11 @@ The tone should be:
 
 - light, calm, professional, editorial
 - text-first and trust-building rather than flashy
-- glassmorphism over a soft lavender aurora background
+- glassmorphism over a cool near-white aurora background
 - controlled and spacious, not decorative for its own sake
 - visually rich enough to feel current, but never noisy
 
-Keywords: `light glassmorphism`, `aurora gradient`, `frosted white cards`, `lavender base`, `quiet professional`, `colorist portfolio`, `text-first`.
+Keywords: `light glassmorphism`, `aurora gradient`, `frosted white cards`, `cool near-white base`, `quiet professional`, `colorist portfolio`, `text-first`.
 
 Avoid: dark cinematic UI, neon, heavy gradients, heavy shadows, cyberpunk, Apple-like over-animation, loud SaaS landing pages.
 
@@ -41,10 +41,10 @@ Do not invent parallel tokens unless the user explicitly asks for a design-syste
 
 | Token | Value | Role |
 |---|---:|---|
-| `--bg-base` | `#F8F6FF` | Page background base |
+| `--bg-base` | `#F4F6F9` | Page background base |
 | `--accent-primary` | `#7568D6` | Primary accent, active dots, glyphs, subtle highlights |
 | `--text-primary` | `#1C0F6E` | Main text color |
-| `--text-muted` | `#6B5FA8` | Secondary text color |
+| `--text-muted` | `#5A6473` | Secondary text color |
 | `--glass-bg` | `rgba(255, 255, 255, 0.62)` | Standard glass card fill |
 | `--glass-border` | `rgba(117, 104, 214, 0.18)` | Standard glass card border |
 | `--glass-shadow` | `0 10px 34px rgba(54, 44, 108, 0.11)` | Standard glass card shadow |
@@ -91,7 +91,7 @@ Fonts are loaded in `src/app/layout.tsx`.
 
 This site is Japanese-first. Quality often breaks in text handling before it breaks in color.
 
-- Body Japanese text should use relaxed line-height: usually `leading-relaxed` or `md:leading-[1.75]`.
+- Body Japanese text should use relaxed line-height without drifting loose: usually around `1.7`.
 - Do not add letter-spacing to normal Japanese body copy.
 - Use wide tracking only for short labels / eyebrow text: `tracking-[0.22em]` or `tracking-[0.28em]`.
 - Keep headings tight but readable: `tracking-tight` is OK for large display headings.

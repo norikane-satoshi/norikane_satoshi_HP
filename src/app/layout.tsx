@@ -65,7 +65,10 @@ export default function RootLayout({
         </main>
         <footer
           className="px-6 py-8 text-center text-sm text-hp-muted"
-          style={{ background: "rgba(248, 246, 255, 0.85)", borderTop: "1px solid rgba(255,255,255,0.6)" }}
+          style={{
+            background: "color-mix(in srgb, var(--bg-base) 85%, white)",
+            borderTop: "1px solid rgba(255,255,255,0.6)",
+          }}
         >
           <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-center gap-3 md:flex-row md:gap-6">
             <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
