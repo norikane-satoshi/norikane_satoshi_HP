@@ -29,6 +29,10 @@ vi.mock("next/image", () => ({
   ),
 }))
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+}))
+
 import { NavHeader } from "@/components/hp/nav-header"
 
 describe("NavHeader chatbot contact action", () => {

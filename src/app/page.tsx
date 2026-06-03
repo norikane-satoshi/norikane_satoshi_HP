@@ -102,7 +102,7 @@ export default async function HomePage() {
 
       {/* Intro */}
       <section className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14">
-        <p className="text-base leading-relaxed text-hp md:text-lg">
+        <p className="hp-body text-base text-hp md:text-lg">
           フリーランスカラリストとして、劇場映画・配信作品・CM・ブランドフィルムのカラーグレーディングを承っています。立ち会い対応・リモート対応どちらも可能です。プロジェクトの規模・スケジュール・納品仕様に合わせた柔軟なワークフローでご提案いたします。DaVinci Resolve 認定トレーナーとして講義、講習会のご依頼も承ってます。
         </p>
       </section>
@@ -113,7 +113,7 @@ export default async function HomePage() {
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
         <p className="text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
-        <h2 className="mt-2 text-2xl md:text-3xl font-semibold text-hp">
+        <h2 className="hp-heading mt-2 text-2xl md:text-3xl font-semibold text-hp">
           ノート
         </h2>
 
@@ -131,7 +131,7 @@ export default async function HomePage() {
                     {`Note ${String(idx + 1).padStart(2, "0")}`}
                   </span>
                 </div>
-                <h3 className="mt-3 text-base md:text-lg font-semibold text-hp leading-snug">
+                <h3 className="hp-heading mt-3 text-base md:text-lg font-semibold text-hp">
                   {note.title}
                 </h3>
                 <div className="mt-auto pt-6 flex justify-end">
@@ -153,7 +153,7 @@ export default async function HomePage() {
       >
         <div className="glass-card p-8 md:p-10 xl:p-12">
           <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
-          <h2 className="mt-2 text-2xl font-semibold text-hp md:text-3xl">
+          <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
             プロフィール
           </h2>
 
@@ -163,7 +163,7 @@ export default async function HomePage() {
               <ProfilePhoto />
               <div className="text-center md:text-left">
                 <p className="text-sm text-hp-muted">則兼 智志</p>
-                <p className="mt-1 text-base font-semibold text-hp md:text-lg">
+                <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
                   フリーランスカラリスト
                 </p>
               </div>
@@ -212,10 +212,10 @@ export default async function HomePage() {
                       {item.year}
                     </span>
                     <div>
-                      <p className="text-sm font-semibold leading-tight text-hp md:text-base">
+                      <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
                         {item.event}
                       </p>
-                      <p className="mt-2 text-xs leading-relaxed text-hp-muted md:text-sm md:leading-[1.75]">
+                      <p className="hp-body mt-2 text-xs text-hp-muted md:text-sm">
                         {item.detail}
                       </p>
                     </div>

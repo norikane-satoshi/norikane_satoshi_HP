@@ -41,10 +41,10 @@ export function ChatInput({ onSubmit, disabled = false, placeholder = "案件内
 
   return (
     <form className="border-t border-[var(--glass-border)] p-4" onSubmit={handleSubmit}>
-      <div className="glass-card-sm flex items-end gap-2 px-3 py-2 focus-within:border-[var(--accent-primary)]">
+      <div className="glass-input flex items-end gap-2 px-3 py-2">
         <textarea
           ref={textareaRef}
-          className="max-h-40 min-h-9 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-2 text-sm leading-5 text-hp outline-none placeholder:text-hp-muted"
+          className="hp-form-text max-h-40 min-h-9 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-2 text-sm text-hp outline-none placeholder:text-hp-muted"
           placeholder={placeholder}
           aria-label="相談内容"
           value={text}
@@ -55,7 +55,7 @@ export function ChatInput({ onSubmit, disabled = false, placeholder = "案件内
         />
         <button
           type="submit"
-          className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] disabled:opacity-50"
+          className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center"
           aria-label="送信"
           disabled={disabled}
         >

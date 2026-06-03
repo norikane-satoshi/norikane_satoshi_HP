@@ -19,6 +19,7 @@ Before changing UI, layout, styling, copy placement, diagrams, or visual assets:
 3. Read the component you are about to modify.
 
 `DESIGN.md` is the design contract. It supersedes older neumorphism notes. If `AGENTS.md` and `DESIGN.md` conflict on visual design, follow `DESIGN.md` and the actual tokens in `src/app/globals.css`.
+When `DESIGN.md` uses L1 / L2 / L3 quality layers, those labels mean repository CSS and implementation quality rules, not the original function / experience / delight model.
 
 ## Design source of truth
 
@@ -26,7 +27,6 @@ The current site uses a light Glass Design System:
 
 - `--bg-base #F8F6FF`
 - `--accent-primary #8B7FFF`
-- `--accent-secondary #C4B5FD`
 - `--aurora-purple rgba(139, 127, 255, 0.28)`
 - `--aurora-pink rgba(255, 143, 171, 0.20)`
 - `--aurora-sky rgba(125, 211, 252, 0.20)`

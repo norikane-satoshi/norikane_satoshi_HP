@@ -43,11 +43,10 @@ Do not invent parallel tokens unless the user explicitly asks for a design-syste
 |---|---:|---|
 | `--bg-base` | `#F8F6FF` | Page background base |
 | `--accent-primary` | `#8B7FFF` | Primary accent, active dots, glyphs, subtle highlights |
-| `--accent-secondary` | `#C4B5FD` | Secondary soft accent |
 | `--text-primary` | `#1C0F6E` | Main text color |
 | `--text-muted` | `#6B5FA8` | Secondary text color |
-| `--glass-bg` | `rgba(255, 255, 255, 0.45)` | Standard glass card fill |
-| `--glass-border` | `rgba(255, 255, 255, 0.62)` | Standard glass card border |
+| `--glass-bg` | `rgba(255, 255, 255, 0.55)` | Standard glass card fill |
+| `--glass-border` | `rgba(139, 127, 255, 0.22)` | Standard glass card border |
 | `--glass-shadow` | `0 8px 32px rgba(139, 127, 255, 0.15)` | Standard glass card shadow |
 | `--hp-radius-sm` | `12px` | Small cards, inputs, tags, buttons |
 | `--hp-radius` | `16px` | Standard cards and figure shells |
@@ -329,6 +328,7 @@ Only add a new layout if the structure truly cannot be represented by the existi
 ## 8. Quality layers for AI agents
 
 Use a three-layer quality model, but adapt it to this repository.
+These L1 / L2 / L3 labels are CSS and implementation quality layers for this repository. They are not the original three-layer model of function, experience, and delight.
 
 ### L1 — Contract compliance (required everywhere)
 
