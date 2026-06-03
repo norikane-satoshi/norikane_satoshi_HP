@@ -264,14 +264,14 @@ describe("WidgetShell API wiring", () => {
     renderWidgetShell()
     submitMessage("待機表示を確認します")
 
-    expect(await screen.findByRole("status", { name: "応答を作成中" })).toBeInTheDocument()
+    expect(await screen.findByText("考え中")).toBeInTheDocument()
     resolveFetch(mockJsonResponse({
       conversationId: "conv_1",
       assistantMessage,
       tier: "tier-2-ollama-deepseek",
       ui: { kind: "none" },
     }))
-    await waitFor(() => expect(screen.queryByRole("status", { name: "応答を作成中" })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText("考え中")).not.toBeInTheDocument())
   })
 
   it("restores messages and conversation id after the shell remounts", async () => {
