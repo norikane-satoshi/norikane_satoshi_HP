@@ -18,11 +18,11 @@ export function HeroSection() {
         <div className="mt-auto grid grid-cols-1 gap-10 md:grid-cols-[1fr_auto] md:items-end md:gap-12">
           <div>
             <p className="text-sm text-white/70 md:text-base">則兼 智志</p>
-            <h1 className="mt-2 font-[var(--font-inter)] text-5xl font-bold leading-[0.95] tracking-tight text-white md:text-7xl xl:text-8xl">
+            <h1 className="mt-2 font-[var(--font-sans)] text-5xl font-bold leading-[0.95] tracking-tight text-white md:text-7xl xl:text-8xl">
               フリーランスカラリスト
             </h1>
           </div>
-          <div className="text-left font-[var(--font-geist-mono)] md:text-right">
+          <div className="text-left font-[var(--font-sans)] md:text-right">
             <p className="text-xs tracking-[0.12em] text-white/70">東京・2026年〜</p>
           </div>
         </div>

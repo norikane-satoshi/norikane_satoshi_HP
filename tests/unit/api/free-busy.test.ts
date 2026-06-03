@@ -60,7 +60,7 @@ function mockCalendar() {
   mocks.prisma.calendarToken.findUnique.mockResolvedValue({ refreshToken: "refresh_token" })
   mocks.refreshCalendarAccessToken.mockResolvedValue({
     accessToken: "access_token",
-    expiresAt: new Date("2026-06-01T00:00:00.000Z"),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     scope: "scope",
   })
   mocks.prisma.calendarToken.update.mockResolvedValue({})

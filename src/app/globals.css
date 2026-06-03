@@ -82,16 +82,6 @@
   --sidebar-border: oklch(0.90 0.03 280);
   --sidebar-ring: oklch(0.52 0.18 280);
 
-  --neu-bg: #e8f1f2;
-  --neu-shadow-dark: #c4d2d6;
-  --neu-shadow-light: #f8fdff;
-  --neu-accent: #79c7c7;
-  --neu-text: #213136;
-  --neu-text-muted: #60757a;
-  --neu-radius-sm: 12px;
-  --neu-radius: 16px;
-  --neu-radius-lg: 20px;
-
   /* Glass Design System */
   --bg-base: #F8F6FF;
   --accent-primary: #8B7FFF;
@@ -223,58 +213,6 @@
     -webkit-backdrop-filter: blur(14px) saturate(140%);
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
     box-shadow: 0 4px 20px rgba(28, 15, 110, 0.06);
-  }
-  .text-neu {
-    color: var(--neu-text);
-  }
-  .text-neu-muted {
-    color: var(--neu-text-muted);
-  }
-  .neu-flat {
-    background: var(--neu-bg);
-    border-radius: var(--neu-radius-sm);
-  }
-  .neu-raised {
-    background: var(--neu-bg);
-    border-radius: var(--neu-radius);
-    box-shadow:
-      8px 8px 16px var(--neu-shadow-dark),
-      -8px -8px 16px var(--neu-shadow-light);
-  }
-  .neu-raised-sm {
-    background: var(--neu-bg);
-    border-radius: var(--neu-radius-sm);
-    box-shadow:
-      4px 4px 8px var(--neu-shadow-dark),
-      -4px -4px 8px var(--neu-shadow-light);
-  }
-  .neu-inset {
-    background: var(--neu-bg);
-    border-radius: var(--neu-radius);
-    box-shadow:
-      inset 4px 4px 8px var(--neu-shadow-dark),
-      inset -4px -4px 8px var(--neu-shadow-light);
-  }
-  .neu-btn {
-    background: var(--neu-bg);
-    border-radius: var(--neu-radius-sm);
-    box-shadow:
-      4px 4px 8px var(--neu-shadow-dark),
-      -4px -4px 8px var(--neu-shadow-light);
-    transition: color 160ms ease, box-shadow 160ms ease;
-  }
-  .neu-btn:hover,
-  .neu-btn:active {
-    box-shadow:
-      inset 4px 4px 8px var(--neu-shadow-dark),
-      inset -4px -4px 8px var(--neu-shadow-light);
-  }
-  .neu-input {
-    background: var(--neu-bg);
-    border-radius: var(--neu-radius-sm);
-    box-shadow:
-      inset 4px 4px 8px var(--neu-shadow-dark),
-      inset -4px -4px 8px var(--neu-shadow-light);
   }
 }
 

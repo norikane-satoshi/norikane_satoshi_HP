@@ -43,8 +43,8 @@ export function NavHeader() {
             />
           </div>
           <div className="hidden sm:block">
-            <p className="font-[var(--font-inter)] text-base font-bold tracking-tight text-black md:text-lg">
-              {SITE_BRAND_NAME.toUpperCase()}
+            <p className="font-[var(--font-sans)] text-base font-bold tracking-tight text-black md:text-lg">
+              {SITE_BRAND_NAME}
             </p>
             <p className="mt-1 text-[11px] tracking-wide text-neutral-500 md:text-xs">
               Norikane Film Design Office
