@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
+import { ContactChatbotButton } from "@/components/hp/contact-chatbot-button"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
@@ -97,14 +98,22 @@ const socialLinks = [
 export default async function HomePage() {
   const notes = await listPublishedNotes()
   return (
-    <div className="space-y-10 md:space-y-14">
+    <div className="space-y-12 md:space-y-16">
       <HeroSection />
 
       {/* Intro */}
       <section className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14">
-        <p className="hp-body text-base text-hp md:text-lg">
-          フリーランスカラリストとして、劇場映画・配信作品・CM・ブランドフィルムのカラーグレーディングを承っています。立ち会い対応・リモート対応どちらも可能です。プロジェクトの規模・スケジュール・納品仕様に合わせた柔軟なワークフローでご提案いたします。DaVinci Resolve 認定トレーナーとして講義、講習会のご依頼も承ってます。
-        </p>
+        <div className="hp-section-rule grid grid-cols-1 gap-7 md:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] md:gap-12">
+          <p className="hp-compact-text text-sm font-semibold text-hp-muted">Colorist / Trainer</p>
+          <div className="max-w-4xl">
+            <p className="hp-editorial-lead font-semibold text-hp">
+              映像の質感を、作品の意図に合わせて設計します。
+            </p>
+            <p className="hp-body mt-5 text-base text-hp-muted md:text-lg">
+              フリーランスカラリストとして、劇場映画・配信作品・CM・ブランドフィルムのカラーグレーディングを承っています。立ち会い対応・リモート対応どちらも可能です。プロジェクトの規模・スケジュール・納品仕様に合わせた柔軟なワークフローでご提案いたします。DaVinci Resolve 認定トレーナーとして講義、講習会のご依頼も承ってます。
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* Philosophy — horizontal scroll notes */}
@@ -112,10 +121,14 @@ export default async function HomePage() {
         id="philosophy"
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
-        <p className="text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
-        <h2 className="hp-heading mt-2 text-2xl md:text-3xl font-semibold text-hp">
-          ノート
-        </h2>
+        <div className="hp-section-rule max-w-3xl">
+          <h2 className="hp-heading text-2xl md:text-3xl font-semibold text-hp">
+            ノート
+          </h2>
+          <p className="hp-body mt-3 text-sm text-hp-muted md:text-base">
+            ルック設計、補正、グレーディングの考え方を制作現場の言葉で整理します。
+          </p>
+        </div>
 
         <div className="mt-8 -mx-6 md:-mx-10 xl:-mx-14 overflow-x-auto">
           <div className="flex snap-x snap-mandatory gap-4 px-6 pb-4 md:gap-5 md:px-10 xl:px-14">
@@ -152,10 +165,14 @@ export default async function HomePage() {
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
         <div className="glass-card glass-card--showcase p-8 md:p-10 xl:p-12">
-          <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
-          <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
-            プロフィール
-          </h2>
+          <div className="max-w-3xl">
+            <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
+              プロフィール
+            </h2>
+            <p className="hp-body mt-3 text-sm text-hp-muted md:text-base">
+              ポストプロダクション、オンセット、教育の現場を横断して、色の判断を言語化できるカラリストとして活動しています。
+            </p>
+          </div>
 
           <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] md:gap-12 xl:gap-16">
             {/* Left: photo + identity + tools */}
@@ -196,9 +213,7 @@ export default async function HomePage() {
 
             {/* Right: career timeline */}
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-                Career
-              </p>
+              <p className="hp-compact-text text-sm font-semibold text-hp-muted">Career</p>
               <div className="mt-5 space-y-6 md:space-y-7">
                 {timeline.map((item) => (
                   <div
@@ -226,6 +241,24 @@ export default async function HomePage() {
           </div>
 
           <FeaturedWorks />
+        </div>
+      </section>
+
+      <section
+        id="contact"
+        className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
+      >
+        <div className="glass-card grid gap-8 p-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:p-10 xl:p-12">
+          <div className="max-w-3xl">
+            <p className="hp-compact-text text-sm font-semibold text-hp-muted">Contact</p>
+            <h2 className="hp-heading mt-3 text-2xl font-semibold text-hp md:text-3xl">
+              AI 相談窓口
+            </h2>
+            <p className="hp-body mt-4 text-sm text-hp-muted md:text-base">
+              作品の方向性、納期、素材状況を整理してから相談を始められます。必要な場合は、そのまま予約導線へ進めます。
+            </p>
+          </div>
+          <ContactChatbotButton />
         </div>
       </section>
 
