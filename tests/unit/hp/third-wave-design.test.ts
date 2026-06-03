@@ -16,6 +16,15 @@ function extractToken(css: string, token: string) {
   return match[1].trim()
 }
 
+function extractCssRule(css: string, selector: string) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const match = css.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\s*\\}`))
+  if (!match) {
+    throw new Error(`Missing CSS rule: ${selector}`)
+  }
+  return match[1]
+}
+
 function parseHexColor(color: string) {
   const match = color.match(/^#([0-9a-f]{6})$/i)
   if (!match) {
@@ -151,6 +160,19 @@ describe("HP third-wave design contract", () => {
     expect(featuredWorks).not.toContain("glass-card--showcase")
     expect(bookingCalendar).not.toContain("glass-card--showcase")
     expect(bookingCalendar).toContain('className="booking-calendar__surface glass-flat"')
+  })
+
+  it("keeps canonical standard glass blur while preserving showcase refraction layers", () => {
+    const css = readProjectFile("src/app/globals.css")
+    const glassCard = extractCssRule(css, ".glass-card")
+    const glassCardSm = extractCssRule(css, ".glass-card-sm")
+
+    expect(glassCard).toContain("backdrop-filter: blur(24px) saturate(1.2);")
+    expect(glassCard).toContain("-webkit-backdrop-filter: blur(24px) saturate(1.2);")
+    expect(glassCardSm).toContain("backdrop-filter: blur(12px);")
+    expect(glassCardSm).toContain("-webkit-backdrop-filter: blur(12px);")
+    expect(css).toMatch(/\.glass-card--showcase::before[\s\S]*linear-gradient/)
+    expect(css).toMatch(/\.glass-card--showcase::after[\s\S]*radial-gradient/)
   })
 
   it("keeps glass text colors at WCAG AA contrast on the standard glass surface", () => {
