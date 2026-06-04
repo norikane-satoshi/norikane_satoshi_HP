@@ -180,15 +180,64 @@ function normalizeMarqueeScrollLeft(
   return normalizedScrollLeft
 }
 
+function syncFeaturedWorkShadowScroll(
+  viewport: HTMLElement,
+  shadowTrack: HTMLElement | null,
+) {
+  if (!shadowTrack) {
+    return
+  }
+
+  const scrollLeft = viewport.scrollLeft
+  shadowTrack.style.setProperty(
+    "--hp-featured-shadow-scroll-x",
+    `${-scrollLeft}px`,
+  )
+  shadowTrack.dataset.featuredWorkShadowScrollLeft = String(Math.round(scrollLeft))
+}
+
+function useFeaturedWorkShadowScrollSync(
+  viewportRef: RefObject<HTMLDivElement | null>,
+  shadowTrackRef: RefObject<HTMLDivElement | null>,
+) {
+  useEffect(() => {
+    const viewport = viewportRef.current
+    const shadowTrack = shadowTrackRef.current
+    if (!viewport || !shadowTrack) {
+      return
+    }
+
+    let animationFrame = 0
+    const sync = () => syncFeaturedWorkShadowScroll(viewport, shadowTrack)
+    const scheduleSync = () => {
+      window.cancelAnimationFrame(animationFrame)
+      animationFrame = window.requestAnimationFrame(sync)
+    }
+
+    sync()
+    viewport.addEventListener("scroll", scheduleSync, { passive: true })
+    window.addEventListener("resize", scheduleSync)
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      viewport.removeEventListener("scroll", scheduleSync)
+      window.removeEventListener("resize", scheduleSync)
+    }
+  }, [shadowTrackRef, viewportRef])
+}
+
 function useScrollableMarquee(
   viewportRef: RefObject<HTMLDivElement | null>,
   enabled: boolean,
+  shadowTrackRef?: RefObject<HTMLDivElement | null>,
 ) {
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport || !enabled) {
       return
     }
+    const shadowTrack = shadowTrackRef?.current ?? null
+    const syncShadow = () => syncFeaturedWorkShadowScroll(viewport, shadowTrack)
 
     const getMetrics = (): MarqueeMetrics | null => {
       const primaryStart = viewport.querySelector<HTMLElement>(
@@ -230,9 +279,11 @@ function useScrollableMarquee(
           viewport.scrollLeft = metrics.start
           virtualScrollLeft = metrics.start
           hasInitializedScrollPosition = true
+          syncShadow()
           return
         }
         virtualScrollLeft = normalizeMarqueeScrollLeft(viewport, metrics)
+        syncShadow()
       }
     }
 
@@ -260,9 +311,11 @@ function useScrollableMarquee(
           if (Math.abs(viewport.scrollLeft - virtualScrollLeft) > 0.5) {
             viewport.scrollLeft = virtualScrollLeft
           }
+          syncShadow()
           lastFrameTime = timestamp
         } else {
           virtualScrollLeft = normalizeMarqueeScrollLeft(viewport, metrics)
+          syncShadow()
           lastFrameTime = null
         }
       }
@@ -285,10 +338,12 @@ function useScrollableMarquee(
       if (metrics) {
         virtualScrollLeft = viewport.scrollLeft
         virtualScrollLeft = normalizeMarqueeScrollLeft(viewport, metrics)
+        syncShadow()
       }
     }
 
     syncMetrics()
+    syncShadow()
     viewport.dataset.featuredWorkMarqueeIdleMs = String(MARQUEE_INPUT_IDLE_MS)
     viewport.addEventListener("wheel", pauseForInput, { passive: true })
     viewport.addEventListener("touchstart", pauseForInput, { passive: true })
@@ -309,7 +364,7 @@ function useScrollableMarquee(
       delete viewport.dataset.featuredWorkMarqueeState
       delete viewport.dataset.featuredWorkMarqueeIdleMs
     }
-  }, [enabled, viewportRef])
+  }, [enabled, shadowTrackRef, viewportRef])
 }
 
 function PreviewFrame({
@@ -381,6 +436,24 @@ function WorkLinkBadges({
         >
           {link.label}
         </a>
+      ))}
+    </div>
+  )
+}
+
+function WorkLinkBadgeShadows({ links }: { links: FeaturedWorkLink[] }) {
+  return (
+    <div
+      className="flex flex-wrap justify-end gap-1.5"
+      data-featured-work-shadow-badges="inline"
+    >
+      {links.map((link) => (
+        <span
+          key={`${link.label}:${link.url}`}
+          className="hp-featured-shadow-clone-badge px-2.5 py-1 text-[0.64rem] leading-none"
+          aria-hidden="true"
+          data-featured-work-shadow-badge={link.label}
+        />
       ))}
     </div>
   )
@@ -557,6 +630,42 @@ function FeaturedWorkCard({
           {work.youtubeId ? (
             <WorkLinkBadges links={work.links} workTitle={work.title} clone={clone} />
           ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FeaturedWorkShadowCard({
+  work,
+}: {
+  work: FeaturedWork
+}) {
+  return (
+    <div
+      className="featured-work-transparent-card flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
+      style={{ width: "min(72vw, 260px)" }}
+      data-featured-work-shadow-card={work.title}
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          className="hp-featured-shadow-clone-media relative -mx-4 -mt-4 aspect-video rounded-none md:-mx-5 md:-mt-5"
+          data-featured-work-shadow-media="true"
+        >
+          {!work.youtubeId ? (
+            <div className="absolute inset-0 flex flex-wrap content-end items-end justify-end gap-1.5 p-3 md:p-4">
+              <WorkLinkBadgeShadows links={work.links} />
+            </div>
+          ) : null}
+        </div>
+        <p
+          className="hp-featured-shadow-clone-text mt-4 text-sm font-semibold leading-snug md:text-[0.95rem]"
+          aria-hidden="true"
+          data-featured-work-shadow-title={work.title}
+        />
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
+          <span className="h-4 w-16 md:h-5" aria-hidden="true" />
+          {work.youtubeId ? <WorkLinkBadgeShadows links={work.links} /> : null}
         </div>
       </div>
     </div>
@@ -747,11 +856,36 @@ function LiveReelCard({
   )
 }
 
+function LiveReelShadowCard() {
+  return (
+    <div
+      className="featured-work-transparent-card flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
+      style={{ width: "min(72vw, 260px)" }}
+      data-featured-work-shadow-card="live-reel"
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          className="hp-featured-shadow-clone-media relative -mx-4 -mt-4 aspect-video rounded-none md:-mx-5 md:-mt-5"
+          data-featured-work-shadow-media="true"
+        />
+        <p
+          className="hp-featured-shadow-clone-text mt-4 text-sm font-semibold leading-snug md:text-[0.95rem]"
+          aria-hidden="true"
+          data-featured-work-shadow-title="ライブ映像作品多数"
+        />
+        <span className="mt-auto h-7 w-10" aria-hidden="true" />
+      </div>
+    </div>
+  )
+}
+
 export function FeaturedWorks() {
   const prefersReducedMotion = usePrefersReducedMotion()
   const [marqueeRef, hasEnteredViewport] = useHasEnteredViewport<HTMLDivElement>()
+  const shadowTrackRef = useRef<HTMLDivElement | null>(null)
   const shouldRenderCloneTrack = !prefersReducedMotion
-  useScrollableMarquee(marqueeRef, shouldRenderCloneTrack)
+  useFeaturedWorkShadowScrollSync(marqueeRef, shadowTrackRef)
+  useScrollableMarquee(marqueeRef, shouldRenderCloneTrack, shadowTrackRef)
 
   const renderCards = (
     clone = false,
@@ -776,6 +910,18 @@ export function FeaturedWorks() {
     </>
   )
 
+  const renderShadowCards = (segment: "clone-before" | "primary" | "clone-after") => (
+    <>
+      {FEATURED_WORKS.map((work) => (
+        <FeaturedWorkShadowCard
+          key={`shadow-${segment}-${work.youtubeId ?? work.officialUrl}`}
+          work={work}
+        />
+      ))}
+      <LiveReelShadowCard key={`shadow-${segment}-live-reel`} />
+    </>
+  )
+
   return (
     <div className="mt-10 md:mt-12">
       <style>{`
@@ -794,44 +940,64 @@ export function FeaturedWorks() {
       </p>
 
       <div
-        ref={marqueeRef}
-        className="relative mt-6 -mx-8 overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] md:-mx-10 xl:-mx-12"
-        aria-label="Featured Works"
-        tabIndex={0}
-        data-featured-work-marquee-viewport="true"
+        className="relative mt-6 -mx-8 md:-mx-10 xl:-mx-12"
+        data-featured-work-marquee-shell
       >
         <div
-          className="relative z-[1] flex w-max gap-0 px-8 pb-4 md:px-10 xl:px-12"
-          data-featured-work-marquee-track="continuous"
+          className="hp-featured-shadow-layer"
+          aria-hidden="true"
+          data-featured-work-shadow-layer
         >
-          {shouldRenderCloneTrack ? (
-            <div
-              className="contents"
-              aria-hidden="true"
-              data-featured-work-marquee-segment="clone"
-              data-featured-work-marquee-clone-position="before"
-            >
-              {renderCards(true, "clone-before")}
-            </div>
-          ) : null}
           <div
-            className="contents"
-            data-featured-work-marquee-segment="primary"
+            ref={shadowTrackRef}
+            className="hp-featured-shadow-track flex w-max gap-0 px-8 pb-4 md:px-10 xl:px-12"
+            data-featured-work-shadow-track
           >
-            {renderCards(false, "primary")}
+            {shouldRenderCloneTrack ? renderShadowCards("clone-before") : null}
+            {renderShadowCards("primary")}
+            {shouldRenderCloneTrack ? renderShadowCards("clone-after") : null}
           </div>
-          {shouldRenderCloneTrack ? (
-            <div
-              className="contents"
-              aria-hidden="true"
-              data-featured-work-marquee-segment="clone"
-              data-featured-work-marquee-clone-position="after"
-            >
-              {renderCards(true, "clone-after")}
-            </div>
-          ) : null}
         </div>
         <div className="featured-work-refraction-overlay" aria-hidden="true" />
+        <div
+          ref={marqueeRef}
+          className="featured-work-content-viewport relative z-[2] overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+          aria-label="Featured Works"
+          tabIndex={0}
+          data-featured-work-marquee-viewport="true"
+        >
+          <div
+            className="relative flex w-max gap-0 px-8 pb-4 md:px-10 xl:px-12"
+            data-featured-work-marquee-track="continuous"
+          >
+            {shouldRenderCloneTrack ? (
+              <div
+                className="contents"
+                aria-hidden="true"
+                data-featured-work-marquee-segment="clone"
+                data-featured-work-marquee-clone-position="before"
+              >
+                {renderCards(true, "clone-before")}
+              </div>
+            ) : null}
+            <div
+              className="contents"
+              data-featured-work-marquee-segment="primary"
+            >
+              {renderCards(false, "primary")}
+            </div>
+            {shouldRenderCloneTrack ? (
+              <div
+                className="contents"
+                aria-hidden="true"
+                data-featured-work-marquee-segment="clone"
+                data-featured-work-marquee-clone-position="after"
+              >
+                {renderCards(true, "clone-after")}
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
     </div>
   )

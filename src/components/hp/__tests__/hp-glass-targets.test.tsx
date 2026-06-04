@@ -130,10 +130,25 @@ describe("HP targeted glass contracts", () => {
 
     expect(featuredWorksSource).toContain("hp-featured-shadow-media")
     expect(featuredWorksSource).toContain("hp-featured-shadow-text")
-    expect(cssRule(".hp-featured-shadow-media")).toContain(
+    expect(featuredWorksSource).toContain("hp-featured-shadow-layer")
+    expect(featuredWorksSource).toContain("hp-featured-shadow-track")
+    expect(featuredWorksSource).toContain("hp-featured-shadow-clone-media")
+    expect(featuredWorksSource).toContain("hp-featured-shadow-clone-text")
+    expect(featuredWorksSource).toContain("hp-featured-shadow-clone-badge")
+    expect(featuredWorksSource).toContain("data-featured-work-shadow-layer")
+    expect(featuredWorksSource).toContain("useFeaturedWorkShadowScrollSync")
+
+    expect(cssRule(".hp-featured-shadow-media")).not.toContain("drop-shadow(")
+    expect(cssRule(".hp-featured-shadow-text")).not.toContain("text-shadow:")
+    expect(cssRule(".hp-featured-shadow-layer")).toContain("z-index: 0")
+    expect(cssRule(".hp-featured-shadow-track")).toContain("transform: translate3d(var(--hp-featured-shadow-scroll-x, 0px), 0, 0)")
+    expect(cssRule(".hp-featured-shadow-clone-media")).toContain(
       "drop-shadow(var(--hp-featured-shadow-x) var(--hp-featured-shadow-y) var(--hp-featured-shadow-blur) var(--hp-featured-shadow-color))",
     )
-    expect(cssRule(".hp-featured-shadow-text")).toContain("text-shadow:")
+    expect(cssRule(".hp-featured-shadow-clone-text::before")).toContain("text-shadow:")
+    expect(cssRule(".hp-featured-shadow-clone-badge")).toContain(
+      "drop-shadow(var(--hp-featured-shadow-x) var(--hp-featured-shadow-y) var(--hp-featured-shadow-blur) var(--hp-featured-shadow-color))",
+    )
     expect(cssRule(".featured-work-transparent-card")).toContain("backdrop-filter: none")
   })
 
@@ -153,10 +168,15 @@ describe("HP targeted glass contracts", () => {
     )
   })
 
-  it("adds one fixed transparent Featured Works refraction overlay on the viewport", () => {
+  it("adds one fixed transparent Featured Works refraction overlay on the non-scrolling shell", () => {
+    expect(featuredWorksSource).toContain("data-featured-work-marquee-shell")
+    expect(featuredWorksSource).toContain("featured-work-content-viewport")
     expect(featuredWorksSource).toContain('className="featured-work-refraction-overlay"')
     expect(featuredWorksSource).toContain('aria-hidden="true"')
     expect(occurrences(featuredWorksSource, "featured-work-refraction-overlay")).toBe(1)
+    expect(featuredWorksSource).toMatch(
+      /data-featured-work-shadow-layer[\s\S]+className="featured-work-refraction-overlay"[\s\S]+data-featured-work-marquee-viewport="true"/,
+    )
 
     const overlayRule = cssRule(".featured-work-refraction-overlay")
     expect(overlayRule).toContain("background: transparent")
@@ -165,6 +185,7 @@ describe("HP targeted glass contracts", () => {
     expect(overlayRule).toContain("pointer-events: none")
     expect(overlayRule).toContain("position: absolute")
     expect(overlayRule).toContain("inset: 0")
+    expect(overlayRule).toContain("z-index: 1")
 
     const enabledOverlayRule = cssRule(
       ".hp-liquid-glass-enabled .featured-work-refraction-overlay",
@@ -205,6 +226,8 @@ describe("HP targeted glass contracts", () => {
       ".glass-distortion-surface::before",
       ".hp-shadow-sync-surface",
       ".hp-shadow-clone-element",
+      ".hp-featured-shadow-clone-media",
+      ".hp-featured-shadow-clone-badge",
       ".glass-badge",
       ".glass-badge--profile-tool",
       ".glass-btn--profile-social",
@@ -229,6 +252,7 @@ describe("HP targeted glass contracts", () => {
 
     expect(reducedMotionBlock?.[1]).toContain(".hp-shadow-clone-element")
     expect(reducedMotionBlock?.[1]).toContain(".hp-featured-shadow-media")
+    expect(reducedMotionBlock?.[1]).toContain(".hp-featured-shadow-track")
     expect(reducedMotionBlock?.[1]).toContain(".featured-work-refraction-overlay")
     expect(reducedMotionBlock?.[1]).toContain("animation: none")
     expect(reducedMotionBlock?.[1]).toContain("transform: none")

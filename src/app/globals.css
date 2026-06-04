@@ -381,10 +381,46 @@
     --hp-element-shadow-color: rgba(30, 34, 42, 0.12);
   }
   .hp-featured-shadow-media {
-    filter: drop-shadow(var(--hp-featured-shadow-x) var(--hp-featured-shadow-y) var(--hp-featured-shadow-blur) var(--hp-featured-shadow-color));
+    filter: none;
   }
   .hp-featured-shadow-text {
+    position: relative;
+  }
+  .hp-featured-shadow-layer {
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    position: absolute;
+    user-select: none;
+    z-index: 0;
+  }
+  .hp-featured-shadow-track {
+    transform: translate3d(var(--hp-featured-shadow-scroll-x, 0px), 0, 0);
+    will-change: transform;
+  }
+  .hp-featured-shadow-clone-media {
+    background: rgba(30, 34, 42, 0.18);
+    color: transparent;
+    filter: drop-shadow(var(--hp-featured-shadow-x) var(--hp-featured-shadow-y) var(--hp-featured-shadow-blur) var(--hp-featured-shadow-color));
+    opacity: 0.72;
+  }
+  .hp-featured-shadow-clone-text {
+    color: transparent;
+  }
+  .hp-featured-shadow-clone-text::before {
+    content: attr(data-featured-work-shadow-title);
     text-shadow: var(--hp-featured-shadow-x) 2px 7px var(--hp-featured-shadow-color);
+  }
+  .hp-featured-shadow-clone-badge {
+    background: rgba(30, 34, 42, 0.16);
+    border-radius: 9999px;
+    color: transparent;
+    display: inline-flex;
+    filter: drop-shadow(var(--hp-featured-shadow-x) var(--hp-featured-shadow-y) var(--hp-featured-shadow-blur) var(--hp-featured-shadow-color));
+    opacity: 0.70;
+  }
+  .hp-featured-shadow-clone-badge::before {
+    content: attr(data-featured-work-shadow-badge);
   }
   .glass-badge {
     background: rgba(255, 255, 255, 0.92);
@@ -551,7 +587,7 @@
     opacity: 0;
     pointer-events: none;
     position: absolute;
-    z-index: 2;
+    z-index: 1;
   }
   @supports ((backdrop-filter: url("#hp-liquid-glass-distortion") blur(1px)) or (-webkit-backdrop-filter: url("#hp-liquid-glass-distortion") blur(1px))) {
     .hp-liquid-glass-enabled .glass-distortion-surface::before {
@@ -625,6 +661,9 @@
     .hp-liquid-glass-enabled .glass-distortion-surface::before,
     .hp-shadow-clone-element,
     .hp-featured-shadow-media,
+    .hp-featured-shadow-track,
+    .hp-featured-shadow-clone-media,
+    .hp-featured-shadow-clone-badge,
     .featured-work-refraction-overlay,
     .featured-work-transparent-card:hover {
       animation: none;
