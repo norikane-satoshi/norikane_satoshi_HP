@@ -110,7 +110,7 @@ export default async function HomePage() {
       {/* Philosophy — horizontal scroll notes */}
       <section
         id="philosophy"
-        className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
+        className="hp-refracted-shadow-section hp-refracted-shadow-section--notes mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
         <p className="text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
         <h2 className="hp-heading mt-2 text-2xl md:text-3xl font-semibold text-hp">
@@ -151,7 +151,7 @@ export default async function HomePage() {
       {/* Profile */}
       <section
         id="profile"
-        className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
+        className="hp-refracted-shadow-section hp-refracted-shadow-section--profile mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
         <div className="glass-card glass-card--showcase glass-card--hp-profile glass-distortion-surface p-8 md:p-10 xl:p-12">
           <div className="glass-distortion-foreground">

@@ -57,6 +57,45 @@ describe("HP targeted glass contracts", () => {
     )
   })
 
+  it("adds refracted back-shadow fields only behind the showcase glass surfaces", () => {
+    expect(pageSource).toContain(
+      "hp-refracted-shadow-section hp-refracted-shadow-section--notes",
+    )
+    expect(pageSource).toContain(
+      "hp-refracted-shadow-section hp-refracted-shadow-section--profile",
+    )
+    expect(homeScheduleSource).toContain(
+      "hp-refracted-shadow-section hp-refracted-shadow-section--schedule",
+    )
+
+    expect(homeScheduleSource).toContain(
+      "glass-card glass-card--hp-schedule glass-refraction-edge glass-distortion-surface",
+    )
+    expect(homeScheduleSource).toContain("glass-distortion-foreground")
+
+    expect(cssRule(":root")).toContain("--hp-refracted-shadow-opacity")
+    expect(cssRule(".hp-refracted-shadow-section")).toContain("isolation: isolate")
+    expect(cssRule(".hp-refracted-shadow-section::before")).toContain(
+      "var(--hp-refracted-shadow-opacity)",
+    )
+    expect(cssRule(".hp-refracted-shadow-section--notes::before")).toContain(
+      "var(--hp-refracted-shadow-notes-y)",
+    )
+    expect(cssRule(".hp-refracted-shadow-section--profile::before")).toContain(
+      "var(--hp-refracted-shadow-profile-y)",
+    )
+    expect(cssRule(".hp-refracted-shadow-section--profile::before")).toContain(
+      "height: min(44rem, 68%)",
+    )
+    expect(cssRule(".hp-refracted-shadow-section--schedule::before")).toContain(
+      "var(--hp-refracted-shadow-schedule-y)",
+    )
+
+    expect(pageSource).not.toContain("hp-refracted-shadow-section--hero")
+    expect(pageSource).not.toContain("hp-refracted-shadow-section--featured")
+    expect(pageSource).not.toContain("FeaturedWorks hp-refracted-shadow-section")
+  })
+
   it("makes profile tool and social badges strong transparent glass buttons", () => {
     expect(pageSource).toContain("glass-badge glass-badge--profile-tool")
     expect(pageSource).toContain("glass-btn glass-btn--profile-social")
@@ -100,5 +139,15 @@ describe("HP targeted glass contracts", () => {
     expect(cssRule(".glass-card--hp-profile")).toContain("inset")
     expect(cssRule(".glass-card--hp-schedule")).toContain("inset")
     expect(cssRule(".glass-badge--profile-tool")).toContain("inset")
+  })
+
+  it("turns off the refracted shadow-field motion in reduced-motion mode", () => {
+    const reducedMotionBlock = globalsCss.match(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]+?)\n\s*\}\n\}/,
+    )
+
+    expect(reducedMotionBlock?.[1]).toContain(".hp-refracted-shadow-section::before")
+    expect(reducedMotionBlock?.[1]).toContain("animation: none")
+    expect(reducedMotionBlock?.[1]).toContain("transform: none")
   })
 })
