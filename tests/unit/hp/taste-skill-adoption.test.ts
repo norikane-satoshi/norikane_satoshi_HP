@@ -5,13 +5,57 @@ import React from "react"
 import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
 import { join } from "node:path"
 import { HeroSection } from "@/components/hp/hero-section"
 
 const root = process.cwd()
+const masterCopyCommit = "840ead054d610be921340fff2bbe5d6b1d29468a"
+const visibleEnglishLiterals = new Set([
+  "Career",
+  "DaVinci Resolve",
+  "Featured Works",
+  "Instagram",
+  "NETFLIX",
+  "NHK100周年記念ドラマ",
+  "Norikane Film Design Office",
+  "Note",
+  "Notes",
+  "Photoshop",
+  "Premiere Pro",
+  "Profile",
+  "YouTube",
+  "X",
+])
 
 function readProjectFile(path: string) {
   return readFileSync(join(root, path), "utf8")
+}
+
+function readMasterFile(path: string) {
+  return execFileSync("git", ["show", `${masterCopyCommit}:${path}`], {
+    cwd: root,
+    encoding: "utf8",
+  })
+}
+
+function extractVisibleCopy(source: string) {
+  return [...source.matchAll(/(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g)]
+    .map((match) => match[2])
+    .filter((literal) => !literal.includes("${"))
+    .filter((literal) => {
+      return (
+        /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(literal) ||
+        visibleEnglishLiterals.has(literal)
+      )
+    })
+    .sort()
+}
+
+function expectVisibleCopyToMatchMaster(path: string) {
+  expect(extractVisibleCopy(readProjectFile(path))).toEqual(
+    extractVisibleCopy(readMasterFile(path)),
+  )
 }
 
 function extractToken(css: string, token: string) {
@@ -97,6 +141,32 @@ describe("HP taste-skill adoption contract", () => {
       "立ち会い・リモート両対応",
     ]) {
       expect(container).not.toHaveTextContent(text)
+    }
+  })
+
+  it("keeps public homepage visible copy locked to master while UI changes", () => {
+    for (const path of [
+      "src/app/page.tsx",
+      "src/components/hp/hero-section.tsx",
+      "src/components/hp/nav-header.tsx",
+      "src/components/hp/featured-works-data.ts",
+      "src/lib/site-brand.ts",
+    ]) {
+      expectVisibleCopyToMatchMaster(path)
+    }
+
+    const page = readProjectFile("src/app/page.tsx")
+    expect(page).toContain("hp-visual-redesign")
+  })
+
+  it("keeps public note page copy locked to master", () => {
+    for (const path of [
+      "src/app/notes/[slug]/page.tsx",
+      "article-correction.md",
+      "article-grading.md",
+      "article-filmlook.md",
+    ]) {
+      expectVisibleCopyToMatchMaster(path)
     }
   })
 })

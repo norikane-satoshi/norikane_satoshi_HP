@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getNotionClient: vi.fn(),
   query: vi.fn(),
   listChildren: vi.fn(),
+  readFile: vi.fn(),
 }))
 
 vi.mock("next/cache", () => ({
@@ -16,6 +17,10 @@ vi.mock("@/lib/notion/server/client", () => ({
   PUBLISHED_PROPERTY: "Published",
   SLUG_PROPERTY: "Slug",
   TITLE_PROPERTY: "Name",
+}))
+
+vi.mock("node:fs/promises", () => ({
+  readFile: mocks.readFile,
 }))
 
 import {
@@ -63,6 +68,8 @@ describe("notion note fetching", () => {
     mocks.getNotionClient.mockReset()
     mocks.query.mockReset()
     mocks.listChildren.mockReset()
+    mocks.readFile.mockReset()
+    mocks.readFile.mockRejectedValue(new Error("missing fixture"))
   })
 
   it("returns empty/null results when the Notion client is unavailable", async () => {
@@ -190,5 +197,50 @@ describe("notion note fetching", () => {
 
     await expect(getPublishedNoteBySlug("missing")).resolves.toBeNull()
     await expect(getPublishedNoteBySlug("bad")).resolves.toBeNull()
+  })
+
+  it("falls back to local public article markdown for canonical note slugs", async () => {
+    mocks.getNotionClient.mockReturnValue({
+      dataSources: { query: mocks.query },
+      blocks: { children: { list: mocks.listChildren } },
+    })
+    mocks.query.mockImplementation(async (request: { filter?: { and?: unknown[] } }) => {
+      const serializedFilter = JSON.stringify(request.filter)
+      if (serializedFilter.includes('"equals":"grading"')) {
+        return { results: [], has_more: false, next_cursor: null }
+      }
+      return {
+        results: [page({ id: "note-1", slug: "correction", title: "Notion correction" })],
+        has_more: false,
+        next_cursor: null,
+      }
+    })
+    mocks.readFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("article-correction.md")) {
+        return "# Local correction\n\nCorrection body"
+      }
+      if (path.endsWith("article-grading.md")) {
+        return "# Local grading\n\n## Heading\n\nBody with **bold** and [link](https://example.com)."
+      }
+      if (path.endsWith("article-filmlook.md")) {
+        return "# Local filmlook\n\nFilmlook body"
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+
+    await expect(listPublishedNotes()).resolves.toMatchObject([
+      { slug: "correction", title: "Notion correction" },
+      { slug: "grading", title: "Local grading" },
+      { slug: "filmlook", title: "Local filmlook" },
+    ])
+
+    await expect(getPublishedNoteBySlug("grading")).resolves.toMatchObject({
+      slug: "grading",
+      title: "Local grading",
+      blocks: [
+        { type: "heading_1" },
+        { type: "paragraph" },
+      ],
+    })
   })
 })

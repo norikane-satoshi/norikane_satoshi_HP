@@ -97,14 +97,17 @@ const socialLinks = [
 export default async function HomePage() {
   const notes = await listPublishedNotes()
   return (
-    <div className="space-y-12 md:space-y-16">
+    <div className="hp-visual-redesign space-y-14 md:space-y-20">
       <HeroSection />
 
       {/* Intro */}
       <section className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14">
-        <p className="hp-body text-base text-hp md:text-lg">
-          フリーランスカラリストとして、劇場映画・配信作品・CM・ブランドフィルムのカラーグレーディングを承っています。立ち会い対応・リモート対応どちらも可能です。プロジェクトの規模・スケジュール・納品仕様に合わせた柔軟なワークフローでご提案いたします。DaVinci Resolve 認定トレーナーとして講義、講習会のご依頼も承ってます。
-        </p>
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-[0.32fr_minmax(0,0.68fr)] md:items-start">
+          <div className="hp-section-rule--wide hidden md:block" aria-hidden="true" />
+          <p className="hp-body max-w-4xl text-[1.05rem] text-hp md:text-xl md:leading-[1.75]">
+            フリーランスカラリストとして、劇場映画・配信作品・CM・ブランドフィルムのカラーグレーディングを承っています。立ち会い対応・リモート対応どちらも可能です。プロジェクトの規模・スケジュール・納品仕様に合わせた柔軟なワークフローでご提案いたします。DaVinci Resolve 認定トレーナーとして講義、講習会のご依頼も承ってます。
+          </p>
+        </div>
       </section>
 
       {/* Philosophy — horizontal scroll notes */}
@@ -112,28 +115,31 @@ export default async function HomePage() {
         id="philosophy"
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
-        <div className="hp-section-rule max-w-3xl">
-          <p className="text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
-          <h2 className="hp-heading text-2xl md:text-3xl font-semibold text-hp">
-            ノート
-          </h2>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-[0.42fr_minmax(0,0.58fr)] md:items-end">
+          <div className="hp-section-rule--wide">
+            <p className="text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
+            <h2 className="hp-heading mt-3 text-3xl font-semibold text-hp md:text-5xl">
+              ノート
+            </h2>
+          </div>
+          <div className="hidden h-px bg-[color-mix(in_srgb,var(--accent-primary)_22%,transparent)] md:block" aria-hidden="true" />
         </div>
 
-        <div className="mt-8 -mx-6 md:-mx-10 xl:-mx-14 overflow-x-auto">
-          <div className="flex snap-x snap-mandatory gap-4 px-6 pb-4 md:gap-5 md:px-10 xl:px-14">
+        <div className="mt-9 -mx-6 overflow-x-auto md:-mx-10 md:mt-12 xl:-mx-14">
+          <div className="flex snap-x snap-mandatory gap-4 px-6 pb-6 md:gap-6 md:px-10 xl:px-14">
             {notes.map((note, idx) => (
               <Link
                 key={note.id}
                 href={`/notes/${note.slug}`}
-                className="group flex shrink-0 snap-start flex-col glass-card-sm p-6 md:p-7"
-                style={{ width: "min(84vw, 340px)", minHeight: 200 }}
+                className="group flex shrink-0 snap-start flex-col glass-card-sm hp-note-card p-6 transition-transform hover:-translate-y-0.5 md:p-8"
+                style={{ width: "min(84vw, 380px)", minHeight: 240 }}
               >
                 <div className="flex items-baseline gap-3">
                   <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
                     {`Note ${String(idx + 1).padStart(2, "0")}`}
                   </span>
                 </div>
-                <h3 className="hp-heading mt-3 text-base md:text-lg font-semibold text-hp">
+                <h3 className="hp-heading mt-8 text-lg font-semibold text-hp md:text-xl">
                   {note.title}
                 </h3>
                 <div className="mt-auto pt-6 flex justify-end">
@@ -153,15 +159,18 @@ export default async function HomePage() {
         id="profile"
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
-        <div className="glass-card glass-card--showcase p-8 md:p-10 xl:p-12">
-          <div className="max-w-3xl">
+        <div className="glass-card glass-card--showcase p-6 md:p-10 xl:p-14">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-[0.36fr_minmax(0,0.64fr)] md:items-end">
+            <div className="hp-section-rule--wide">
             <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
-            <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
+              <h2 className="hp-heading mt-3 text-3xl font-semibold text-hp md:text-5xl">
               プロフィール
-            </h2>
+              </h2>
+            </div>
+            <div className="hidden h-px bg-[color-mix(in_srgb,var(--accent-primary)_20%,transparent)] md:block" aria-hidden="true" />
           </div>
 
-          <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] md:gap-12 xl:gap-16">
+          <div className="hp-profile-grid mt-10 grid grid-cols-1 gap-10 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)] md:gap-12 xl:gap-16">
             {/* Left: photo + identity + tools */}
             <div className="flex flex-col items-center gap-5 md:items-start">
               <ProfilePhoto />
@@ -201,14 +210,14 @@ export default async function HomePage() {
             {/* Right: career timeline */}
             <div>
               <p className="hp-compact-text text-sm font-semibold text-hp-muted">Career</p>
-              <div className="mt-5 space-y-6 md:space-y-7">
+              <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
                 {timeline.map((item) => (
                   <div
                     key={item.year}
-                    className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
+                    className="hp-timeline-item grid grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
                   >
                     <span
-                      className="font-[var(--font-inter)] text-sm font-bold"
+                      className="font-[var(--font-inter)] text-sm font-bold md:text-base"
                       style={{ color: "var(--accent-primary)" }}
                     >
                       {item.year}
