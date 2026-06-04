@@ -123,22 +123,24 @@ export default async function HomePage() {
               <Link
                 key={note.id}
                 href={`/notes/${note.slug}`}
-                className="group flex shrink-0 snap-start flex-col glass-card-sm p-6 md:p-7"
+                className="group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note glass-refraction-edge glass-distortion-surface p-6 md:p-7"
                 style={{ width: "min(84vw, 340px)", minHeight: 200 }}
               >
-                <div className="flex items-baseline gap-3">
-                  <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
-                    {`Note ${String(idx + 1).padStart(2, "0")}`}
-                  </span>
-                </div>
-                <h3 className="hp-heading mt-3 text-base md:text-lg font-semibold text-hp">
-                  {note.title}
-                </h3>
-                <div className="mt-auto pt-6 flex justify-end">
-                  <ArrowRight
-                    className="h-5 w-5 transition-transform group-hover:translate-x-1"
-                    style={{ color: "var(--accent-primary)" }}
-                  />
+                <div className="glass-distortion-foreground flex min-h-0 flex-1 flex-col">
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
+                      {`Note ${String(idx + 1).padStart(2, "0")}`}
+                    </span>
+                  </div>
+                  <h3 className="hp-heading mt-3 text-base md:text-lg font-semibold text-hp">
+                    {note.title}
+                  </h3>
+                  <div className="mt-auto pt-6 flex justify-end">
+                    <ArrowRight
+                      className="h-5 w-5 transition-transform group-hover:translate-x-1"
+                      style={{ color: "var(--accent-primary)" }}
+                    />
+                  </div>
                 </div>
               </Link>
             ))}
@@ -151,7 +153,7 @@ export default async function HomePage() {
         id="profile"
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
-        <div className="glass-card glass-card--showcase glass-distortion-surface p-8 md:p-10 xl:p-12">
+        <div className="glass-card glass-card--showcase glass-card--hp-profile glass-distortion-surface p-8 md:p-10 xl:p-12">
           <div className="glass-distortion-foreground">
             <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
             <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
@@ -172,7 +174,7 @@ export default async function HomePage() {
                   {tools.map((tool) => (
                     <span
                       key={tool}
-                      className="glass-badge px-3 py-1 text-xs font-medium"
+                      className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
                     >
                       {tool}
                     </span>
@@ -186,7 +188,7 @@ export default async function HomePage() {
                       href={href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="glass-btn flex h-10 w-10 items-center justify-center text-hp"
+                      className="glass-btn glass-btn--profile-social flex h-10 w-10 items-center justify-center text-hp"
                       aria-label={label}
                     >
                       <Icon className="h-4 w-4" />

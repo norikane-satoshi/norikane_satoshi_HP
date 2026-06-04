@@ -323,7 +323,7 @@ function PreviewFrame({
 }) {
   return (
     <div
-      className="relative -mx-4 -mt-4 aspect-video overflow-hidden rounded-t-[12px] md:-mx-5 md:-mt-5"
+      className="relative -mx-4 -mt-4 aspect-video overflow-hidden rounded-none md:-mx-5 md:-mt-5"
       data-featured-work-abstract-cover={abstractCover ? "true" : undefined}
       data-hp-color-field={abstractCover ? "cinematic-neutral" : undefined}
       style={background ? { background } : undefined}
@@ -526,7 +526,7 @@ function FeaturedWorkCard({
 }) {
   return (
     <div
-      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden p-4 transition-transform hover:-translate-y-0.5 md:p-5"
+      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 transition-transform hover:-translate-y-0.5 md:p-5"
       style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : `${work.title} 作品カード`}
       data-featured-work-card={work.title}
@@ -717,7 +717,7 @@ function LiveReelCard({
 
   return (
     <div
-      className="featured-work-transparent-card flex shrink-0 flex-col overflow-hidden p-4 md:p-5"
+      className="featured-work-transparent-card flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
       style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : "ライブ映像作品多数のランダムループ再生カード"}
       data-featured-work-marquee-segment-start={segmentStart}
@@ -801,7 +801,7 @@ export function FeaturedWorks() {
         data-featured-work-marquee-viewport="true"
       >
         <div
-          className="flex w-max gap-4 px-8 pb-4 md:gap-5 md:px-10 xl:px-12"
+          className="flex w-max gap-0 px-8 pb-4 md:px-10 xl:px-12"
           data-featured-work-marquee-track="continuous"
         >
           {shouldRenderCloneTrack ? (

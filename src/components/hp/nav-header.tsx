@@ -11,12 +11,12 @@ type SectionId = "home" | "profile" | "philosophy"
 
 const navItems = [
   { type: "link" as const, href: "/", label: "ホーム", sectionId: "home" as const },
-  { type: "link" as const, href: "/#profile", label: "プロフィール", sectionId: "profile" as const },
   { type: "link" as const, href: "/#philosophy", label: "ノート", sectionId: "philosophy" as const },
+  { type: "link" as const, href: "/#profile", label: "プロフィール", sectionId: "profile" as const },
   { type: "chatbot" as const, label: "お問い合わせ" },
 ]
 
-const sectionIds: SectionId[] = ["home", "profile", "philosophy"]
+const sectionIds: SectionId[] = ["home", "philosophy", "profile"]
 
 export function NavHeader() {
   const pathname = usePathname()

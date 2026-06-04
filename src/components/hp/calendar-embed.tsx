@@ -12,7 +12,7 @@ export function CalendarEmbed() {
       <p className="text-sm text-hp-muted">
         下記の枠から空き状況を確認し、リクエストを送信できます。
       </p>
-      <div className="glass-inset p-6 min-h-[300px] flex items-center justify-center">
+      <div className="glass-inset glass-inset--hp-schedule p-6 min-h-[300px] flex items-center justify-center">
         <div className="text-center text-hp-muted">
           <CalendarDays className="h-12 w-12 mx-auto mb-3 opacity-40" />
           <p className="text-sm">カレンダー統合は次のフェーズで実装予定</p>
