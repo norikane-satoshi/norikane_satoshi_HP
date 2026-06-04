@@ -51,7 +51,7 @@ export async function sessionCookieFor(user: User) {
 export async function addSessionCookie(context: BrowserContext, user: User) {
   const cookie = await sessionCookieFor(user)
   const [, value] = cookie.split("=")
-  const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:41237"
+  const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:41241"
 
   await context.addCookies([
     {
