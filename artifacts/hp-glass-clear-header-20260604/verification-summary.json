@@ -1,0 +1,34 @@
+{
+  "url": "http://127.0.0.1:41238/",
+  "outDir": "/Users/norikene_satoshi/projects/norikane_satoshi_HP/.codex-worktrees/staging/artifacts/hp-glass-clear-header-20260604",
+  "checks": {
+    "nav": "desktop and mobile labels are ホーム, ノート, プロフィール; お問い合わせ absent from header menus",
+    "glass": "targeted note/profile/schedule/tool/social surfaces use white-neutral borders/shadows with blur and inset depth; forbidden tinted surface RGB values absent",
+    "colorFields": "body aurora retains purple/pink/sky tokens; hero color field unchanged"
+  },
+  "results": [
+    {
+      "kind": "chromium",
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "requestFailureCount": 0,
+      "screenshots": [
+        "chromium-desktop.png",
+        "chromium-mobile-menu.png"
+      ]
+    },
+    {
+      "kind": "webkit",
+      "consoleErrorCount": 1,
+      "consoleErrors": [
+        "The Content Security Policy directive 'frame-ancestors' is ignored when delivered in a report-only policy."
+      ],
+      "pageErrorCount": 0,
+      "requestFailureCount": 0,
+      "screenshots": [
+        "webkit-desktop.png",
+        "webkit-mobile-menu.png"
+      ]
+    }
+  ]
+}

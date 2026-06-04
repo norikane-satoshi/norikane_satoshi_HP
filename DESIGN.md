@@ -46,8 +46,8 @@ Do not invent parallel tokens unless the user explicitly asks for a design-syste
 | `--text-primary` | `#1C0F6E` | Main text color |
 | `--text-muted` | `#5A6473` | Secondary text color |
 | `--glass-bg` | `rgba(255, 255, 255, 0.62)` | Standard glass card fill |
-| `--glass-border` | `rgba(117, 104, 214, 0.18)` | Standard glass card border |
-| `--glass-shadow` | `0 10px 34px rgba(54, 44, 108, 0.11)` | Standard glass card shadow |
+| `--glass-border` | `rgba(255, 255, 255, 0.66)` | Standard glass card border |
+| `--glass-shadow` | `0 10px 34px rgba(30, 34, 42, 0.08)` | Standard glass card shadow |
 | `--hp-radius-sm` | `12px` | Small cards, inputs, tags, buttons |
 | `--hp-radius` | `16px` | Standard cards and figure shells |
 | `--hp-radius-lg` | `20px` | Larger cards |
@@ -142,7 +142,7 @@ Use for smaller secondary cards inside a main section.
 background: rgba(255, 255, 255, 0.52);
 backdrop-filter: blur(8px);
 border: 1px solid rgba(255, 255, 255, 0.58);
-box-shadow: 0 4px 14px rgba(54, 44, 108, 0.07);
+box-shadow: 0 4px 14px rgba(30, 34, 42, 0.06);
 border-radius: var(--hp-radius-sm);
 ```
 

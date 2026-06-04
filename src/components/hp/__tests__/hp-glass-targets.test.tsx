@@ -23,6 +23,20 @@ function cssRule(selector: string) {
   return match?.[1] ?? ""
 }
 
+function expectNeutralSurface(rule: string) {
+  const tintedSurfaceValues = [
+    "rgba(117, 104, 214",
+    "rgba(54, 111, 204",
+    "rgba(54, 44, 108",
+    "rgba(33, 53, 98",
+    "rgba(28, 15, 110",
+  ]
+
+  for (const value of tintedSurfaceValues) {
+    expect(rule).not.toContain(value)
+  }
+}
+
 describe("HP targeted glass contracts", () => {
   it("targets notes profile and schedule glass without broadening Featured Works", () => {
     expect(pageSource).toContain(
@@ -55,5 +69,36 @@ describe("HP targeted glass contracts", () => {
     expect(socialButton).toContain("rgba(255, 255, 255, 0.52)")
     expect(socialButton).toContain("inset")
     expect(socialButton).not.toContain("background: var(--accent-primary)")
+  })
+
+  it("keeps glass surface fill border and shadow neutral while preserving transparency blur edge and inset depth", () => {
+    expect(globalsCss).toContain("--glass-bg: rgba(255, 255, 255, 0.")
+    expect(globalsCss).toContain("--glass-border: rgba(255, 255, 255,")
+    expectNeutralSurface(cssRule(":root"))
+
+    const surfaceSelectors = [
+      ".glass-card",
+      ".glass-card--showcase",
+      ".glass-card--hp-profile",
+      ".glass-card--hp-schedule",
+      ".glass-card-sm",
+      ".glass-card-sm--hp-note",
+      ".glass-refraction-edge",
+      ".glass-distortion-surface::before",
+      ".glass-badge",
+      ".glass-badge--profile-tool",
+      ".glass-btn--profile-social",
+      ".glass-inset--hp-schedule",
+    ]
+
+    for (const selector of surfaceSelectors) {
+      expectNeutralSurface(cssRule(selector))
+    }
+
+    expect(cssRule(".glass-card")).toContain("backdrop-filter: blur(24px)")
+    expect(cssRule(".glass-refraction-edge")).toContain("rgba(255, 255, 255")
+    expect(cssRule(".glass-card--hp-profile")).toContain("inset")
+    expect(cssRule(".glass-card--hp-schedule")).toContain("inset")
+    expect(cssRule(".glass-badge--profile-tool")).toContain("inset")
   })
 })

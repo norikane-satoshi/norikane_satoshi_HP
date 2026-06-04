@@ -10,10 +10,9 @@ import { SITE_BRAND_NAME } from "@/lib/site-brand"
 type SectionId = "home" | "profile" | "philosophy"
 
 const navItems = [
-  { type: "link" as const, href: "/", label: "ホーム", sectionId: "home" as const },
-  { type: "link" as const, href: "/#philosophy", label: "ノート", sectionId: "philosophy" as const },
-  { type: "link" as const, href: "/#profile", label: "プロフィール", sectionId: "profile" as const },
-  { type: "chatbot" as const, label: "お問い合わせ" },
+  { href: "/", label: "ホーム", sectionId: "home" as const },
+  { href: "/#philosophy", label: "ノート", sectionId: "philosophy" as const },
+  { href: "/#profile", label: "プロフィール", sectionId: "profile" as const },
 ]
 
 const sectionIds: SectionId[] = ["home", "philosophy", "profile"]
@@ -81,11 +80,6 @@ export function NavHeader() {
     }
   }, [pathname])
 
-  const openChatbot = () => {
-    window.dispatchEvent(new Event("hp-chatbot:open"))
-    setMobileOpen(false)
-  }
-
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
       <nav className="glass-bar flex w-full items-center justify-between pl-4 pr-6 md:pl-4 md:pr-10 xl:pl-6 xl:pr-14 h-[69px]">
@@ -120,27 +114,17 @@ export function NavHeader() {
         {/* Desktop nav */}
         <ul className="hidden md:flex items-center gap-1">
           {navItems.map((item) => {
-            const isActive = item.type === "link" && activeSection === item.sectionId
+            const isActive = activeSection === item.sectionId
             return (
               <li key={item.label}>
-                {item.type === "chatbot" ? (
-                  <button
-                    type="button"
-                    onClick={openChatbot}
-                    className="hp-nav-link relative inline-flex items-center rounded-[12px] px-4 py-2 text-sm font-medium"
-                  >
-                    {item.label}
-                  </button>
-                ) : (
-                  <Link
-                    href={item.href}
-                    className="hp-nav-link relative inline-flex items-center gap-2 rounded-[12px] px-4 py-2 text-sm font-medium"
-                    aria-current={isActive ? "location" : undefined}
-                  >
-                    <span className="hp-nav-dot" aria-hidden="true" />
-                    {item.label}
-                  </Link>
-                )}
+                <Link
+                  href={item.href}
+                  className="hp-nav-link relative inline-flex items-center gap-2 rounded-[12px] px-4 py-2 text-sm font-medium"
+                  aria-current={isActive ? "location" : undefined}
+                >
+                  <span className="hp-nav-dot" aria-hidden="true" />
+                  {item.label}
+                </Link>
               </li>
             )
           })}
@@ -164,28 +148,18 @@ export function NavHeader() {
             style={{ borderTop: "1px solid rgba(0, 0, 0, 0.06)" }}
           >
             {navItems.map((item) => {
-              const isActive = item.type === "link" && activeSection === item.sectionId
+              const isActive = activeSection === item.sectionId
               return (
                 <li key={item.label}>
-                  {item.type === "chatbot" ? (
-                    <button
-                      type="button"
-                      onClick={openChatbot}
-                      className="hp-nav-link flex w-full items-center gap-2 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-black/5"
-                    >
-                      {item.label}
-                    </button>
-                  ) : (
-                    <Link
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className="hp-nav-link flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium hover:bg-black/5"
-                      aria-current={isActive ? "location" : undefined}
-                    >
-                      <span className="hp-nav-dot" aria-hidden="true" />
-                      {item.label}
-                    </Link>
-                  )}
+                  <Link
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className="hp-nav-link flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium hover:bg-black/5"
+                    aria-current={isActive ? "location" : undefined}
+                  >
+                    <span className="hp-nav-dot" aria-hidden="true" />
+                    {item.label}
+                  </Link>
                 </li>
               )
             })}
