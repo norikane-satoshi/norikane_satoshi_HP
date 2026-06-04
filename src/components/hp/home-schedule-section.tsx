@@ -10,9 +10,10 @@ export async function HomeScheduleSection() {
   return (
     <section
       id="schedule"
-      className="hp-refracted-shadow-section hp-refracted-shadow-section--schedule mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
+      className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
     >
-      <div className="glass-card glass-card--hp-schedule glass-refraction-edge glass-distortion-surface p-8 md:p-10 xl:p-14">
+      <div className="glass-card glass-card--hp-schedule hp-refracted-shadow-card hp-refracted-shadow-card--schedule glass-refraction-edge glass-distortion-surface p-8 md:p-10 xl:p-14">
+        <span aria-hidden="true" className="hp-refracted-shadow-card__shadow" />
         <div className="glass-distortion-foreground">
           <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
             Schedule

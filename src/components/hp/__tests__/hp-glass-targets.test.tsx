@@ -40,12 +40,14 @@ function expectNeutralSurface(rule: string) {
 describe("HP targeted glass contracts", () => {
   it("targets notes profile and schedule glass without broadening Featured Works", () => {
     expect(pageSource).toContain(
-      "glass-card-sm glass-card-sm--hp-note glass-refraction-edge glass-distortion-surface",
+      "glass-card-sm glass-card-sm--hp-note hp-refracted-shadow-card hp-refracted-shadow-card--note glass-refraction-edge glass-distortion-surface",
     )
     expect(pageSource).toContain(
-      "glass-card glass-card--showcase glass-card--hp-profile glass-distortion-surface",
+      "glass-card glass-card--showcase glass-card--hp-profile hp-refracted-shadow-card hp-refracted-shadow-card--profile glass-distortion-surface",
     )
-    expect(homeScheduleSource).toContain("glass-card glass-card--hp-schedule")
+    expect(homeScheduleSource).toContain(
+      "glass-card glass-card--hp-schedule hp-refracted-shadow-card hp-refracted-shadow-card--schedule",
+    )
     expect(calendarEmbedSource).toContain("glass-inset glass-inset--hp-schedule")
 
     expect(cssRule(".glass-card-sm--hp-note")).toContain("saturate(1.42)")
@@ -57,54 +59,64 @@ describe("HP targeted glass contracts", () => {
     )
   })
 
-  it("adds refracted back-shadow fields only behind the showcase glass surfaces", () => {
+  it("binds the refracted shadow to only the notes profile and schedule cards", () => {
     expect(pageSource).toContain(
-      "hp-refracted-shadow-section hp-refracted-shadow-section--notes",
+      "glass-card-sm glass-card-sm--hp-note hp-refracted-shadow-card hp-refracted-shadow-card--note",
     )
     expect(pageSource).toContain(
-      "hp-refracted-shadow-section hp-refracted-shadow-section--profile",
+      "glass-card glass-card--showcase glass-card--hp-profile hp-refracted-shadow-card hp-refracted-shadow-card--profile",
     )
     expect(homeScheduleSource).toContain(
-      "hp-refracted-shadow-section hp-refracted-shadow-section--schedule",
+      "glass-card glass-card--hp-schedule hp-refracted-shadow-card hp-refracted-shadow-card--schedule",
     )
 
-    expect(homeScheduleSource).toContain(
-      "glass-card glass-card--hp-schedule glass-refraction-edge glass-distortion-surface",
-    )
+    expect(pageSource).toContain("hp-refracted-shadow-card__shadow")
+    expect(homeScheduleSource).toContain("hp-refracted-shadow-card__shadow")
     expect(homeScheduleSource).toContain("glass-distortion-foreground")
 
-    expect(cssRule(":root")).toContain("--hp-refracted-shadow-opacity")
-    expect(cssRule(":root")).toContain("--hp-refracted-shadow-opacity: 0.85")
-    expect(cssRule(":root")).toContain("--hp-refracted-shadow-blur: 24px")
-    expect(cssRule(".hp-refracted-shadow-section")).toContain("isolation: isolate")
-    expect(cssRule(".hp-refracted-shadow-section::before")).toContain(
-      "radial-gradient(ellipse 58% 30% at 22% 8%, rgba(30, 34, 42, 0.30)",
+    expect(pageSource).not.toContain("hp-refracted-shadow-section")
+    expect(homeScheduleSource).not.toContain("hp-refracted-shadow-section")
+    expect(pageSource).not.toContain("hp-refracted-shadow-card--hero")
+    expect(pageSource).not.toContain("hp-refracted-shadow-card--featured")
+    expect(pageSource).not.toContain("FeaturedWorks hp-refracted-shadow-card")
+  })
+
+  it("uses a card-shaped positive-y shadow without the old corner ellipse field", () => {
+    const rootRule = cssRule(":root")
+    expect(rootRule).toContain("--hp-refracted-shadow-opacity")
+    expect(rootRule).toContain("--hp-refracted-shadow-blur")
+    expect(rootRule).toContain("--hp-refracted-shadow-y")
+    expect(rootRule).toContain("--hp-refracted-shadow-spread")
+    expect(rootRule).not.toMatch(/--hp-refracted-shadow-[a-z-]*y:\s*-/)
+
+    expect(cssRule(".hp-refracted-shadow-card")).toContain("isolation: isolate")
+    expect(cssRule(".hp-refracted-shadow-card")).toContain("position: relative")
+
+    const shadowRule = cssRule(".hp-refracted-shadow-card__shadow")
+    expect(shadowRule).toContain("border-radius: inherit")
+    expect(shadowRule).toContain("background: rgba(30, 34, 42, 0.24)")
+    expect(shadowRule).toContain("filter: blur(var(--hp-refracted-shadow-blur))")
+    expect(shadowRule).toContain(
+      "transform: translate3d(var(--hp-refracted-shadow-x), var(--hp-refracted-shadow-y), 0)",
     )
-    expect(cssRule(".hp-refracted-shadow-section::before")).toContain(
-      "radial-gradient(ellipse 62% 34% at 78% 92%, rgba(30, 34, 42, 0.26)",
+    expect(shadowRule).toContain("z-index: -1")
+    expect(shadowRule).not.toContain("radial-gradient(ellipse 58% 30% at 22% 8%")
+    expect(shadowRule).not.toContain("radial-gradient(ellipse 62% 34% at 78% 92%")
+
+    expect(cssRule(".hp-refracted-shadow-card--note")).toContain(
+      "--hp-refracted-shadow-y: 12px",
     )
-    expect(cssRule(".hp-refracted-shadow-section::before")).toContain(
-      "inset: -3.5rem clamp(1rem, 4vw, 3.5rem)",
+    expect(cssRule(".hp-refracted-shadow-card--profile")).toContain(
+      "--hp-refracted-shadow-y: 20px",
     )
-    expect(cssRule(".hp-refracted-shadow-section::before")).toContain(
-      "var(--hp-refracted-shadow-opacity)",
-    )
-    expect(cssRule(".hp-refracted-shadow-section--notes::before")).toContain(
-      "var(--hp-refracted-shadow-notes-y)",
-    )
-    expect(cssRule(".hp-refracted-shadow-section--profile::before")).toContain(
-      "var(--hp-refracted-shadow-profile-y)",
-    )
-    expect(cssRule(".hp-refracted-shadow-section--profile::before")).toContain(
-      "height: min(44rem, 68%)",
-    )
-    expect(cssRule(".hp-refracted-shadow-section--schedule::before")).toContain(
-      "var(--hp-refracted-shadow-schedule-y)",
+    expect(cssRule(".hp-refracted-shadow-card--schedule")).toContain(
+      "--hp-refracted-shadow-y: 18px",
     )
 
-    expect(pageSource).not.toContain("hp-refracted-shadow-section--hero")
-    expect(pageSource).not.toContain("hp-refracted-shadow-section--featured")
-    expect(pageSource).not.toContain("FeaturedWorks hp-refracted-shadow-section")
+    expect(globalsCss).not.toContain(".hp-refracted-shadow-section::before")
+    expect(globalsCss).not.toContain("--hp-refracted-shadow-notes-y")
+    expect(globalsCss).not.toContain("--hp-refracted-shadow-profile-y")
+    expect(globalsCss).not.toContain("--hp-refracted-shadow-schedule-y")
   })
 
   it("keeps the liquid distortion stronger without adding another blur layer", () => {
@@ -171,7 +183,7 @@ describe("HP targeted glass contracts", () => {
       /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]+?)\n\s*\}\n\}/,
     )
 
-    expect(reducedMotionBlock?.[1]).toContain(".hp-refracted-shadow-section::before")
+    expect(reducedMotionBlock?.[1]).toContain(".hp-refracted-shadow-card__shadow")
     expect(reducedMotionBlock?.[1]).toContain("animation: none")
     expect(reducedMotionBlock?.[1]).toContain("transform: none")
   })

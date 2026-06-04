@@ -110,7 +110,7 @@ export default async function HomePage() {
       {/* Philosophy — horizontal scroll notes */}
       <section
         id="philosophy"
-        className="hp-refracted-shadow-section hp-refracted-shadow-section--notes mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
+        className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
         <p className="text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
         <h2 className="hp-heading mt-2 text-2xl md:text-3xl font-semibold text-hp">
@@ -123,9 +123,10 @@ export default async function HomePage() {
               <Link
                 key={note.id}
                 href={`/notes/${note.slug}`}
-                className="group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note glass-refraction-edge glass-distortion-surface p-6 md:p-7"
+                className="group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note hp-refracted-shadow-card hp-refracted-shadow-card--note glass-refraction-edge glass-distortion-surface p-6 md:p-7"
                 style={{ width: "min(84vw, 340px)", minHeight: 200 }}
               >
+                <span aria-hidden="true" className="hp-refracted-shadow-card__shadow" />
                 <div className="glass-distortion-foreground flex min-h-0 flex-1 flex-col">
                   <div className="flex items-baseline gap-3">
                     <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
@@ -151,9 +152,10 @@ export default async function HomePage() {
       {/* Profile */}
       <section
         id="profile"
-        className="hp-refracted-shadow-section hp-refracted-shadow-section--profile mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
+        className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
-        <div className="glass-card glass-card--showcase glass-card--hp-profile glass-distortion-surface p-8 md:p-10 xl:p-12">
+        <div className="glass-card glass-card--showcase glass-card--hp-profile hp-refracted-shadow-card hp-refracted-shadow-card--profile glass-distortion-surface p-8 md:p-10 xl:p-12">
+          <span aria-hidden="true" className="hp-refracted-shadow-card__shadow" />
           <div className="glass-distortion-foreground">
             <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
             <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
