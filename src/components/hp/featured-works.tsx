@@ -320,7 +320,7 @@ function PreviewFrame({
 }) {
   return (
     <div
-      className="relative -mx-4 -mt-4 aspect-video overflow-hidden rounded-t-[12px] md:-mx-6 md:-mt-6"
+      className="relative -mx-4 -mt-4 aspect-video overflow-hidden rounded-t-[12px] md:-mx-5 md:-mt-5"
       data-featured-work-abstract-cover={abstractCover ? "true" : undefined}
     >
       {children}
@@ -521,8 +521,8 @@ function FeaturedWorkCard({
 }) {
   return (
     <div
-      className="hp-featured-card group flex shrink-0 flex-col overflow-hidden glass-card-sm p-4 transition-transform hover:-translate-y-0.5 md:p-6"
-      style={{ width: "min(76vw, 300px)" }}
+      className="group flex shrink-0 flex-col overflow-hidden glass-card-sm p-4 transition-transform hover:-translate-y-0.5 md:p-5"
+      style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : `${work.title} 作品カード`}
       data-featured-work-card={work.title}
       data-featured-work-marquee-segment-start={segmentStart}
@@ -545,10 +545,10 @@ function FeaturedWorkCard({
           </div>
         </PreviewFrame>
       )}
-      <p className="mt-6 text-sm font-semibold leading-snug text-hp md:text-base">
+      <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         {work.title}
       </p>
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-4">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
         <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
         {work.youtubeId ? (
           <WorkLinkBadges links={work.links} workTitle={work.title} clone={clone} />
@@ -712,8 +712,8 @@ function LiveReelCard({
 
   return (
     <div
-      className="hp-featured-card flex shrink-0 flex-col overflow-hidden glass-card-sm p-4 md:p-6"
-      style={{ width: "min(76vw, 300px)" }}
+      className="flex shrink-0 flex-col overflow-hidden glass-card-sm p-4 md:p-5"
+      style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : "ライブ映像作品多数のランダムループ再生カード"}
       data-featured-work-marquee-segment-start={segmentStart}
     >
@@ -732,10 +732,10 @@ function LiveReelCard({
         ) : null}
         <PreviewThumbnail videoId={previewVideoId} isVisible={isCoverVisible} />
       </PreviewFrame>
-      <p className="mt-6 text-sm font-semibold leading-snug text-hp md:text-base">
+      <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
         ライブ映像作品多数
       </p>
-      <p className="mt-auto pt-4 text-xs text-hp-muted md:text-sm">配信</p>
+      <p className="mt-auto pt-3 text-xs text-hp-muted md:text-sm">配信</p>
     </div>
   )
 }
@@ -770,7 +770,7 @@ export function FeaturedWorks() {
   )
 
   return (
-    <div className="mt-12 md:mt-16">
+    <div className="mt-10 md:mt-12">
       <style>{`
         [data-featured-work-marquee-segment] {
           display: contents;
@@ -788,13 +788,13 @@ export function FeaturedWorks() {
 
       <div
         ref={marqueeRef}
-        className="mt-7 -mx-6 overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] md:-mx-10 xl:-mx-14"
+        className="mt-6 -mx-8 overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] md:-mx-10 xl:-mx-12"
         aria-label="Featured Works"
         tabIndex={0}
         data-featured-work-marquee-viewport="true"
       >
         <div
-          className="flex w-max gap-4 px-8 pb-5 md:gap-6 md:px-10 xl:px-14"
+          className="flex w-max gap-4 px-8 pb-4 md:gap-5 md:px-10 xl:px-12"
           data-featured-work-marquee-track="continuous"
         >
           {shouldRenderCloneTrack ? (

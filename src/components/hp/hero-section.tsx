@@ -2,25 +2,28 @@ export function HeroSection() {
   return (
     <section
       id="home"
-      className="hp-hero-stage relative w-full -mt-24 overflow-hidden md:-mt-28"
+      className="relative w-full -mt-24 md:-mt-28"
+      style={{
+        background: [
+          "radial-gradient(ellipse at 18% 18%, rgba(82, 90, 108, 0.18) 0%, transparent 48%)",
+          "radial-gradient(ellipse at 82% 76%, rgba(122, 102, 92, 0.14) 0%, transparent 54%)",
+          "linear-gradient(135deg, #0E0E10 0%, #151519 45%, #17171B 100%)",
+        ].join(", "),
+      }}
     >
-      <div className="relative mx-auto flex min-h-[clamp(560px,82dvh,820px)] w-full max-w-[1440px] flex-col px-6 pb-10 pt-28 md:px-10 md:pb-14 md:pt-32 xl:px-14">
-        <div className="grid flex-1 grid-cols-1 gap-10 md:grid-cols-[minmax(0,1fr)_minmax(160px,0.28fr)] md:items-end xl:gap-14">
-          <div className="hp-hero-composition mt-auto">
-            <p className="hp-hero-kicker text-white/66">デモリール準備中</p>
-
-            <div className="mt-16 md:mt-24">
-              <p className="text-sm text-white/70 md:text-base">則兼 智志</p>
-              <h1 className="hp-display-heading mt-3 max-w-[12ch] font-[var(--font-sans)] text-[clamp(3.25rem,7.2vw,6.2rem)] font-bold text-white">
-              フリーランスカラリスト
-              </h1>
-            </div>
+      <div className="mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-6 pb-10 pt-28 md:px-10 md:pb-14 md:pt-32 xl:px-14">
+        <div className="mt-auto grid grid-cols-1 gap-10 md:grid-cols-[1fr_auto] md:items-end md:gap-12">
+          <div>
+            <h1 className="hp-display-heading font-[var(--font-sans)] text-5xl font-bold text-white md:text-7xl xl:text-8xl">
+              則兼 智志
+              <span className="hp-heading mt-4 block text-2xl font-semibold text-white/86 md:text-4xl xl:text-5xl">
+                フリーランスカラリスト
+              </span>
+            </h1>
+            {/* Keep the latin display utility available for a future English locale. */}
           </div>
-          <div className="grid gap-5 md:justify-items-end">
-            <div className="hp-hero-frame w-full md:w-[min(28vw,20rem)]" aria-hidden="true" />
-            <div className="hp-hero-rail w-full font-[var(--font-sans)] md:w-[min(28vw,20rem)] md:text-right">
-              <p className="text-xs text-white/58">東京・2026年〜</p>
-            </div>
+          <div className="text-left font-[var(--font-sans)] md:text-right">
+            <p className="text-xs tracking-[0.12em] text-white/70">東京・2026年〜</p>
           </div>
         </div>
       </div>

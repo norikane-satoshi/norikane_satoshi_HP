@@ -107,6 +107,7 @@ describe("HP third-wave design contract", () => {
 
     expect(css).toMatch(/\.hp-latin-display[\s\S]*font-family:\s*var\(--font-display\)/)
     expect(css).toMatch(/\.hp-latin-display[\s\S]*font-size:\s*clamp\(1\.75rem/)
+    expect(hero).toContain("future English locale")
     expect(hero).not.toContain("hp-latin-display")
     expect(hero).not.toContain("Satoshi Norikane")
     expect(hero).not.toContain("Freelance Colorist")
