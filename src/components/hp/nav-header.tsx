@@ -1,26 +1,41 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, X } from "lucide-react"
+import { isBookingEnabled } from "@/lib/feature-flags"
 import { SITE_BRAND_NAME } from "@/lib/site-brand"
 
-type SectionId = "home" | "profile" | "philosophy"
+type SectionId = "home" | "profile" | "philosophy" | "schedule"
+type NavItem = { href: string; label: string; sectionId: SectionId }
 
-const navItems = [
+const baseNavItems: NavItem[] = [
   { href: "/", label: "ホーム", sectionId: "home" as const },
   { href: "/#philosophy", label: "ノート", sectionId: "philosophy" as const },
   { href: "/#profile", label: "プロフィール", sectionId: "profile" as const },
 ]
 
-const sectionIds: SectionId[] = ["home", "philosophy", "profile"]
+const bookingNavItem: NavItem = {
+  href: "/#schedule",
+  label: "予約カレンダー",
+  sectionId: "schedule",
+}
 
 export function NavHeader() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<SectionId>("home")
+  const bookingEnabled = isBookingEnabled()
+  const navItems = useMemo(
+    () => (bookingEnabled ? [...baseNavItems, bookingNavItem] : baseNavItems),
+    [bookingEnabled],
+  )
+  const sectionIds = useMemo(
+    () => navItems.map((item) => item.sectionId),
+    [navItems],
+  )
 
   useEffect(() => {
     const updateActiveSection = () => {
@@ -78,7 +93,7 @@ export function NavHeader() {
       observer.disconnect()
       window.removeEventListener("hashchange", updateActiveSection)
     }
-  }, [pathname])
+  }, [pathname, sectionIds])
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
