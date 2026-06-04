@@ -71,9 +71,9 @@ function toSummary(page: PageObjectResponse): NoteSummary | null {
 type QueryFilter = QueryDataSourceParameters["filter"]
 
 const FALLBACK_NOTES = [
-  { slug: "correction", file: "article-correction.md" },
-  { slug: "grading", file: "article-grading.md" },
-  { slug: "filmlook", file: "article-filmlook.md" },
+  { slug: "correction", file: "article-correction.md", published: true },
+  { slug: "grading", file: "article-grading.md", published: false },
+  { slug: "filmlook", file: "article-filmlook.md", published: false },
 ] as const
 
 type FallbackNoteSlug = (typeof FALLBACK_NOTES)[number]["slug"]
@@ -260,7 +260,7 @@ async function getFallbackNoteBySlug(
   slug: string
 ): Promise<NoteFull | null> {
   const meta = fallbackMeta(slug as FallbackNoteSlug)
-  if (!meta) return null
+  if (!meta || !meta.published) return null
   const markdown = await readFallbackMarkdown(meta.slug)
   if (!markdown) return null
   const title = fallbackTitle(markdown)
@@ -274,6 +274,7 @@ async function getFallbackNoteBySlug(
 async function listFallbackNotes(): Promise<NoteSummary[]> {
   const summaries: NoteSummary[] = []
   for (const meta of FALLBACK_NOTES) {
+    if (!meta.published) continue
     const markdown = await readFallbackMarkdown(meta.slug)
     if (!markdown) continue
     const title = fallbackTitle(markdown)
@@ -330,17 +331,14 @@ const queryPublished = unstable_cache(
 )
 
 export async function listPublishedNotes(): Promise<NoteSummary[]> {
+  if (!getNotionClient()) {
+    return listFallbackNotes()
+  }
   const pages = await queryPublished()
   const out: NoteSummary[] = []
   for (const p of pages) {
     const s = toSummary(p)
     if (s) out.push(s)
-  }
-  const existingSlugs = new Set(out.map((note) => note.slug))
-  for (const fallback of await listFallbackNotes()) {
-    if (!existingSlugs.has(fallback.slug)) {
-      out.push(fallback)
-    }
   }
   return out
 }
@@ -399,11 +397,14 @@ const listAllBlocks = unstable_cache(
 export async function getPublishedNoteBySlug(
   slug: string
 ): Promise<NoteFull | null> {
+  if (!getNotionClient()) {
+    return getFallbackNoteBySlug(slug)
+  }
   const pages = await queryPublished(slug)
   const page = pages[0]
-  if (!page) return getFallbackNoteBySlug(slug)
+  if (!page) return null
   const summary = toSummary(page)
-  if (!summary) return getFallbackNoteBySlug(slug)
+  if (!summary) return null
   const blocks = await listAllBlocks(page.id)
   return { ...summary, blocks }
 }
