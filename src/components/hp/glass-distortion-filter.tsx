@@ -52,7 +52,7 @@ export function GlassDistortionFilter() {
         <feDisplacementMap
           in="SourceGraphic"
           in2="noise"
-          scale="18"
+          scale="28"
           xChannelSelector="R"
           yChannelSelector="G"
         />

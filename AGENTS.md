@@ -25,16 +25,16 @@ When `DESIGN.md` uses L1 / L2 / L3 quality layers, those labels mean repository 
 
 The current site uses a light Glass Design System:
 
-- `--bg-base #F8F6FF`
-- `--accent-primary #8B7FFF`
-- `--aurora-purple rgba(139, 127, 255, 0.28)`
-- `--aurora-pink rgba(255, 143, 171, 0.20)`
-- `--aurora-sky rgba(125, 211, 252, 0.20)`
-- `--glass-bg rgba(255, 255, 255, 0.55)`
-- `--glass-border rgba(139, 127, 255, 0.22)`
-- `--glass-shadow 0 8px 32px rgba(139, 127, 255, 0.15)`
+- `--bg-base #F4F6F9`
+- `--accent-primary #7568D6`
+- `--aurora-purple rgba(93, 84, 171, 0.16)`
+- `--aurora-pink rgba(178, 112, 150, 0.15)`
+- `--aurora-sky rgba(106, 138, 172, 0.15)`
+- `--glass-bg rgba(255, 255, 255, 0.62)`
+- `--glass-border rgba(117, 104, 214, 0.18)`
+- `--glass-shadow 0 10px 34px rgba(54, 44, 108, 0.11)`
 - `--text-primary #1C0F6E`
-- `--text-muted #6B5FA8`
+- `--text-muted #5A6473`
 - `.glass-card`, `.glass-card-sm`, `.glass-bar`, `.glass-btn`, `.glass-input`, `.glass-badge`, `.glass-inset`, `.glass-flat`
 
 Retired `neu-*` / `--neu-*` classes and tokens may remain for compatibility only. Do not use them in new implementation.

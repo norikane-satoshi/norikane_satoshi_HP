@@ -17,7 +17,33 @@ function extractCssRule(css: string, selector: string) {
   return match[1]
 }
 
+function extractRgbaAlpha(source: string, customPropertyName: string) {
+  const match = source.match(
+    new RegExp(`${customPropertyName}:\\s*rgba\\([^)]*,\\s*([0-9.]+)\\)`),
+  )
+  if (!match) {
+    throw new Error(`Missing rgba token: ${customPropertyName}`)
+  }
+  return Number(match[1])
+}
+
 describe("HP glass distortion contract", () => {
+  it("keeps the three aurora sources equally subtle", () => {
+    const css = readProjectFile("src/app/globals.css")
+
+    const alphas = [
+      extractRgbaAlpha(css, "--aurora-purple"),
+      extractRgbaAlpha(css, "--aurora-pink"),
+      extractRgbaAlpha(css, "--aurora-sky"),
+    ]
+
+    for (const alpha of alphas) {
+      expect(alpha).toBeGreaterThanOrEqual(0.14)
+      expect(alpha).toBeLessThanOrEqual(0.17)
+    }
+    expect(Math.max(...alphas) - Math.min(...alphas)).toBeLessThanOrEqual(0.02)
+  })
+
   it("keeps the standard glass base while defining a refraction edge utility", () => {
     const css = readProjectFile("src/app/globals.css")
     const glassCard = extractCssRule(css, ".glass-card")
@@ -46,6 +72,11 @@ describe("HP glass distortion contract", () => {
     expect(css).toContain("@supports")
     expect(css).toContain("backdrop-filter: url(\"#hp-liquid-glass-distortion\")")
     expect(css).toContain(".hp-liquid-glass-enabled")
+
+    const scale = filter.match(/<feDisplacementMap[\s\S]*?scale="([0-9.]+)"/)?.[1]
+    expect(Number(scale)).toBeGreaterThan(18)
+    expect(Number(scale)).toBeGreaterThanOrEqual(26)
+    expect(Number(scale)).toBeLessThanOrEqual(30)
   })
 
   it("keeps distortion on background layers and not on foreground text", () => {
@@ -62,6 +93,17 @@ describe("HP glass distortion contract", () => {
     expect(hero).toContain("glass-distortion-surface")
     expect(featuredWorks).toContain("glass-distortion-foreground")
     expect(page).toContain("glass-distortion-foreground")
+  })
+
+  it("removes the hero top-left glass shard while keeping at most one decorative shard", () => {
+    const hero = readProjectFile("src/components/hp/hero-section.tsx")
+
+    expect(hero).not.toContain("rotate-[-10deg]")
+    expect(hero).not.toContain("left-6 top-32")
+
+    const decorativeAriaHiddenDivs = hero.match(/<div\s+aria-hidden="true"/g) ?? []
+    expect(decorativeAriaHiddenDivs).toHaveLength(1)
+    expect(hero).toContain("rotate-[12deg]")
   })
 
   it("stops the distortion animation for reduced motion users", () => {

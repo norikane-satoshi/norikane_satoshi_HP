@@ -87,8 +87,8 @@
   --bg-base: #F4F6F9;
   --accent-primary: #7568D6;
   --aurora-purple: rgba(93, 84, 171, 0.16);
-  --aurora-pink: rgba(178, 112, 150, 0.11);
-  --aurora-sky: rgba(106, 138, 172, 0.10);
+  --aurora-pink: rgba(178, 112, 150, 0.15);
+  --aurora-sky: rgba(106, 138, 172, 0.15);
   --glass-bg: rgba(255, 255, 255, 0.62);
   --glass-border: rgba(117, 104, 214, 0.18);
   --glass-shadow: 0 10px 34px rgba(54, 44, 108, 0.11);
@@ -244,10 +244,10 @@
   }
   .glass-refraction-edge {
     background-image:
-      linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.08) 38%, rgba(117, 104, 214, 0.08)),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
-    box-shadow: inset 0 -1px 0 rgba(45, 37, 98, 0.12);
-    outline: 1px solid rgba(255, 255, 255, 0.58);
+      linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.10) 38%, rgba(117, 104, 214, 0.12)),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0));
+    box-shadow: inset 0 -1px 0 rgba(45, 37, 98, 0.16);
+    outline: 1px solid rgba(255, 255, 255, 0.66);
     outline-offset: -1px;
   }
   .glass-distortion-surface {
@@ -275,12 +275,12 @@
   @supports ((backdrop-filter: url("#hp-liquid-glass-distortion") blur(1px)) or (-webkit-backdrop-filter: url("#hp-liquid-glass-distortion") blur(1px))) {
     .hp-liquid-glass-enabled .glass-distortion-surface::before {
       animation: hp-liquid-glass-shift 8s ease-in-out infinite alternate;
-      backdrop-filter: url("#hp-liquid-glass-distortion") blur(18px) saturate(1.22);
-      -webkit-backdrop-filter: url("#hp-liquid-glass-distortion") blur(18px) saturate(1.22);
-      opacity: 0.72;
+      backdrop-filter: url("#hp-liquid-glass-distortion") blur(20px) saturate(1.22);
+      -webkit-backdrop-filter: url("#hp-liquid-glass-distortion") blur(20px) saturate(1.22);
+      opacity: 0.85;
     }
     .hp-liquid-glass-enabled .glass-distortion-surface--subtle::before {
-      opacity: 0.46;
+      opacity: 0.60;
     }
   }
   .glass-badge {

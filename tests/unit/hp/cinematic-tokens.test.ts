@@ -113,7 +113,7 @@ describe("HP cinematic color and spacing tokens", () => {
     expect(contrastRatio(textMutedColor, glassSurface)).toBeGreaterThanOrEqual(4.5)
   })
 
-  it("keeps aurora and primary accent tokens unchanged while tightening body leading", () => {
+  it("keeps aurora and primary accent tokens controlled while tightening body leading", () => {
     const css = readProjectFile("src/app/globals.css")
     const hpBody = extractCssRule(css, ".hp-body")
     const compactText = extractCssRule(css, ".hp-compact-text")
@@ -121,8 +121,8 @@ describe("HP cinematic color and spacing tokens", () => {
 
     expect(extractToken(css, "--accent-primary")).toBe("#7568D6")
     expect(extractToken(css, "--aurora-purple")).toBe("rgba(93, 84, 171, 0.16)")
-    expect(extractToken(css, "--aurora-pink")).toBe("rgba(178, 112, 150, 0.11)")
-    expect(extractToken(css, "--aurora-sky")).toBe("rgba(106, 138, 172, 0.10)")
+    expect(extractToken(css, "--aurora-pink")).toBe("rgba(178, 112, 150, 0.15)")
+    expect(extractToken(css, "--aurora-sky")).toBe("rgba(106, 138, 172, 0.15)")
     expect(hpBody).toContain("line-height: 1.7;")
     expect(hpBody).not.toContain("line-height: 1.85;")
     expect(compactText).toContain("line-height: 1.5;")

@@ -57,8 +57,8 @@ Do not invent parallel tokens unless the user explicitly asks for a design-syste
 | Token | Value | Role |
 |---|---:|---|
 | `--aurora-purple` | `rgba(93, 84, 171, 0.16)` | Main lavender glow |
-| `--aurora-pink` | `rgba(178, 112, 150, 0.11)` | Warm soft glow |
-| `--aurora-sky` | `rgba(106, 138, 172, 0.10)` | Cool soft glow |
+| `--aurora-pink` | `rgba(178, 112, 150, 0.15)` | Warm soft glow |
+| `--aurora-sky` | `rgba(106, 138, 172, 0.15)` | Cool soft glow |
 
 The body background is:
 

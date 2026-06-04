@@ -1,0 +1,16 @@
+{
+  "normalResult": {
+    "liquidClassEnabled": true,
+    "heroShardCount": 1,
+    "hasTopLeftShard": false,
+    "hasRightShard": true,
+    "foregroundFilter": "none",
+    "foregroundBackdropFilter": "none",
+    "heroTextVisible": true
+  },
+  "fallbackResult": {
+    "liquidClassEnabled": false,
+    "heroTextVisible": true,
+    "glassSurfaceCount": 20
+  }
+}
