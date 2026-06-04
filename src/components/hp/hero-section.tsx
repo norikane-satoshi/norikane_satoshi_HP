@@ -12,7 +12,7 @@ export function HeroSection() {
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-20 h-[58vh] opacity-70 md:top-24 md:h-[62vh]"
+        className="pointer-events-none absolute inset-x-[-10%] top-16 h-[74vh] opacity-55 blur-3xl md:top-20 md:h-[78vh]"
         data-hp-abstract-art="hero"
         style={{ background: HERO_ABSTRACT_ART_BACKGROUND }}
       />

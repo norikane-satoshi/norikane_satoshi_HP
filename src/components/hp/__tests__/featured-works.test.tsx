@@ -240,13 +240,19 @@ describe("FeaturedWorks", () => {
     }
 
     for (const work of FEATURED_WORKS) {
-      expect(screen.getByLabelText(`${work.title} 作品カード`)).toHaveClass(
-        "overflow-hidden",
-      )
+      const card = screen.getByLabelText(`${work.title} 作品カード`)
+      expect(card).toHaveClass("overflow-hidden")
+      expect(card).toHaveClass("featured-work-transparent-card")
+      expect(card).not.toHaveClass("glass-card-sm")
+      expect(card).not.toHaveClass("glass-refraction-edge")
+      expect(card).not.toHaveClass("glass-distortion-surface")
     }
-    expect(screen.getByLabelText("ライブ映像作品多数のランダムループ再生カード")).toHaveClass(
-      "overflow-hidden",
-    )
+    const liveReelCard = screen.getByLabelText("ライブ映像作品多数のランダムループ再生カード")
+    expect(liveReelCard).toHaveClass("overflow-hidden")
+    expect(liveReelCard).toHaveClass("featured-work-transparent-card")
+    expect(liveReelCard).not.toHaveClass("glass-card-sm")
+    expect(liveReelCard).not.toHaveClass("glass-refraction-edge")
+    expect(liveReelCard).not.toHaveClass("glass-distortion-surface")
   })
 
   it("places video work badge groups inline with clients", () => {
@@ -317,6 +323,8 @@ describe("FeaturedWorks", () => {
     expect(abstractCover?.querySelector("img")).toBeNull()
     expect(abstractCover?.querySelector('[data-featured-work-preview-media]')).toBeNull()
     expect(abstractCover?.querySelector("iframe")).toBeNull()
+    expect(abstractCover).toHaveAttribute("data-hp-color-field", "cinematic-neutral")
+    expect(abstractCover?.querySelector('[data-hp-abstract-art="mars"]')).toBeNull()
     expect(badges).toBeInTheDocument()
     expect(title).toBeInTheDocument()
     expect(abstractCover?.nextElementSibling).toBe(title)

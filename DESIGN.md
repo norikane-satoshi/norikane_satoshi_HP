@@ -57,17 +57,17 @@ Do not invent parallel tokens unless the user explicitly asks for a design-syste
 | Token | Value | Role |
 |---|---:|---|
 | `--aurora-purple` | `rgba(93, 84, 171, 0.16)` | Main lavender glow |
-| `--aurora-pink` | `rgba(178, 112, 150, 0.15)` | Warm soft glow |
-| `--aurora-sky` | `rgba(106, 138, 172, 0.15)` | Cool soft glow |
+| `--aurora-pink` | `rgba(178, 112, 150, 0.11)` | Warm soft glow |
+| `--aurora-sky` | `rgba(106, 138, 172, 0.10)` | Cool soft glow |
 
 The body background is:
 
 ```css
 background-color: var(--bg-base);
 background-image:
-  radial-gradient(ellipse 78% 58% at 12% 38%, var(--aurora-purple) 0%, transparent 68%),
-  radial-gradient(ellipse 66% 52% at 86% 16%, var(--aurora-pink) 0%, transparent 62%),
-  radial-gradient(ellipse 72% 54% at 58% 88%, var(--aurora-sky) 0%, transparent 64%);
+  radial-gradient(ellipse 78% 58% at 15% 40%, var(--aurora-purple) 0%, transparent 68%),
+  radial-gradient(ellipse 66% 52% at 85% 15%, var(--aurora-pink) 0%, transparent 62%),
+  radial-gradient(ellipse 72% 54% at 55% 85%, var(--aurora-sky) 0%, transparent 64%);
 background-attachment: fixed;
 ```
 

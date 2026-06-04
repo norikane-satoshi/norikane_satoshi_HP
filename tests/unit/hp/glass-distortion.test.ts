@@ -28,22 +28,22 @@ function extractRgbaAlpha(source: string, customPropertyName: string) {
 }
 
 describe("HP glass distortion contract", () => {
-  it("keeps the three aurora sources controlled without the retired purple/sky slots", () => {
+  it("keeps page aurora sources cinematic while limiting three-hue fields to the hero", () => {
     const css = readProjectFile("src/app/globals.css")
+    const heroSurface = readProjectFile("src/components/hp/hero-deep-surface.ts")
 
     const alphas = [
+      extractRgbaAlpha(css, "--aurora-purple"),
       extractRgbaAlpha(css, "--aurora-pink"),
-      extractRgbaAlpha(css, "--aurora-red"),
-      extractRgbaAlpha(css, "--aurora-blue"),
+      extractRgbaAlpha(css, "--aurora-sky"),
     ]
 
-    expect(css).not.toContain("--aurora-purple")
-    expect(css).not.toContain("--aurora-sky")
-    for (const alpha of alphas) {
-      expect(alpha).toBeGreaterThanOrEqual(0.14)
-      expect(alpha).toBeLessThanOrEqual(0.24)
-    }
-    expect(Math.max(...alphas) - Math.min(...alphas)).toBeLessThanOrEqual(0.04)
+    expect(css).not.toContain("--aurora-red")
+    expect(css).not.toContain("--aurora-blue")
+    expect(alphas).toEqual([0.16, 0.11, 0.10])
+    expect(heroSurface).toContain("rgba(245, 185, 214, 0.045)")
+    expect(heroSurface).toContain("rgba(232, 160, 166, 0.035)")
+    expect(heroSurface).toContain("rgba(174, 205, 236, 0.045)")
   })
 
   it("keeps the standard glass base while defining a refraction edge utility", () => {
@@ -94,6 +94,7 @@ describe("HP glass distortion contract", () => {
     expect(foreground).not.toMatch(/(?:filter|backdrop-filter):/)
     expect(hero).toContain("glass-distortion-surface")
     expect(featuredWorks).toContain("glass-distortion-foreground")
+    expect(featuredWorks).toContain("featured-work-transparent-card")
     expect(page).toContain("glass-distortion-foreground")
   })
 

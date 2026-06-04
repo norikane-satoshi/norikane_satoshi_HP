@@ -86,9 +86,9 @@
   /* Glass Design System */
   --bg-base: #F4F6F9;
   --accent-primary: #366FCC;
-  --aurora-pink: rgba(224, 76, 140, 0.18);
-  --aurora-red: rgba(198, 42, 58, 0.15);
-  --aurora-blue: rgba(54, 139, 214, 0.18);
+  --aurora-purple: rgba(93, 84, 171, 0.16);
+  --aurora-pink: rgba(178, 112, 150, 0.11);
+  --aurora-sky: rgba(106, 138, 172, 0.10);
   --glass-bg: rgba(255, 255, 255, 0.62);
   --glass-border: rgba(54, 111, 204, 0.18);
   --glass-shadow: 0 10px 34px rgba(33, 53, 98, 0.11);
@@ -106,9 +106,9 @@
   body {
     background-color: var(--bg-base);
     background-image:
-      radial-gradient(ellipse 70% 54% at 18% 38%, var(--aurora-pink) 0%, transparent 66%),
-      radial-gradient(ellipse 58% 48% at 84% 24%, var(--aurora-blue) 0%, transparent 64%),
-      radial-gradient(ellipse 64% 48% at 56% 86%, var(--aurora-red) 0%, transparent 66%);
+      radial-gradient(ellipse 78% 58% at 15% 40%, var(--aurora-purple) 0%, transparent 68%),
+      radial-gradient(ellipse 66% 52% at 85% 15%, var(--aurora-pink) 0%, transparent 62%),
+      radial-gradient(ellipse 72% 54% at 55% 85%, var(--aurora-sky) 0%, transparent 64%);
     background-attachment: fixed;
     color: var(--text-primary);
   }
@@ -387,6 +387,14 @@
   .glass-flat {
     background: transparent;
     border-radius: var(--hp-radius-sm);
+  }
+  .featured-work-transparent-card {
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 0;
+    border-radius: var(--hp-radius-sm);
+    box-shadow: none;
   }
   .chatbot-thinking-dot {
     animation: chatbot-thinking-dot 1.2s ease-in-out infinite;

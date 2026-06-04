@@ -6,7 +6,11 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { FeaturedWorks } from "@/components/hp/featured-works"
-import { HERO_DEEP_SURFACE_BACKGROUND } from "@/components/hp/hero-deep-surface"
+import {
+  HERO_ABSTRACT_ART_BACKGROUND,
+  HERO_DEEP_SURFACE_BACKGROUND,
+  MARS_ABSTRACT_COVER_BACKGROUND,
+} from "@/components/hp/hero-deep-surface"
 import { HeroSection } from "@/components/hp/hero-section"
 
 const globalsCss = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8")
@@ -37,38 +41,52 @@ describe("HP three-hue color fields", () => {
     vi.restoreAllMocks()
   })
 
-  it("defines distinct aurora slots for pink, red, and blue", () => {
+  it("restores the page aurora to subdued purple pink sky slots", () => {
+    const purple = readRgbaVariable("--aurora-purple")
     const pink = readRgbaVariable("--aurora-pink")
-    const red = readRgbaVariable("--aurora-red")
-    const blue = readRgbaVariable("--aurora-blue")
+    const sky = readRgbaVariable("--aurora-sky")
 
-    expect(globalsCss).not.toContain("--aurora-purple")
-    expect(globalsCss).not.toContain("--aurora-sky")
+    expect(globalsCss).not.toContain("--aurora-red")
+    expect(globalsCss).not.toContain("--aurora-blue")
+    expect(globalsCss).toContain("var(--aurora-purple)")
     expect(globalsCss).toContain("var(--aurora-pink)")
-    expect(globalsCss).toContain("var(--aurora-red)")
-    expect(globalsCss).toContain("var(--aurora-blue)")
+    expect(globalsCss).toContain("var(--aurora-sky)")
+    expect(globalsCss).toContain("at 15% 40%")
+    expect(globalsCss).toContain("at 85% 15%")
+    expect(globalsCss).toContain("at 55% 85%")
 
-    expect(pink.r).toBeGreaterThan(pink.g + 45)
-    expect(pink.b).toBeGreaterThan(pink.g + 20)
-    expect(red.r).toBeGreaterThan(red.g + 70)
-    expect(red.r).toBeGreaterThan(red.b + 45)
-    expect(blue.b).toBeGreaterThan(blue.r + 45)
-    expect(blue.b).toBeGreaterThan(blue.g + 10)
+    expect(purple.alpha).toBe(0.16)
+    expect(pink.alpha).toBe(0.11)
+    expect(sky.alpha).toBe(0.10)
+    expect(purple.alpha).toBeGreaterThan(pink.alpha)
+    expect(pink.alpha).toBeGreaterThan(sky.alpha)
 
-    expect(rgbDistance(pink, red)).toBeGreaterThan(80)
-    expect(rgbDistance(pink, blue)).toBeGreaterThan(80)
-    expect(rgbDistance(red, blue)).toBeGreaterThan(120)
-    expect(Math.max(pink.alpha, red.alpha, blue.alpha)).toBeLessThanOrEqual(0.24)
+    expect(rgbDistance(purple, pink)).toBeGreaterThan(60)
+    expect(rgbDistance(purple, sky)).toBeGreaterThan(45)
+    expect(rgbDistance(pink, sky)).toBeGreaterThan(70)
   })
 
-  it("keeps the hero deep surface dark while adding faint pink red blue fields", () => {
-    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("rgba(224, 76, 140, 0.08)")
-    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("rgba(188, 60, 74, 0.07)")
-    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("rgba(54, 139, 214, 0.08)")
+  it("keeps hero color fields pale, low-opacity, broad, and soft over the dark surface", () => {
+    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("ellipse 72% 56%")
+    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("rgba(245, 185, 214, 0.045)")
+    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("rgba(232, 160, 166, 0.035)")
+    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("rgba(174, 205, 236, 0.045)")
     expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("#0E0E10")
+    expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("ellipse 70% 48%")
+    expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("rgba(248, 206, 226, 0.11)")
+    expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("rgba(238, 190, 194, 0.08)")
+    expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("rgba(196, 221, 244, 0.10)")
   })
 
-  it("renders CSS-only abstract art in the hero and Mars card without external images", () => {
+  it("keeps the Mars cover cinematic and removes the section H color art", () => {
+    expect(MARS_ABSTRACT_COVER_BACKGROUND).toContain("#101114")
+    expect(MARS_ABSTRACT_COVER_BACKGROUND).toContain("#15161B")
+    expect(MARS_ABSTRACT_COVER_BACKGROUND).not.toContain("224, 76, 140")
+    expect(MARS_ABSTRACT_COVER_BACKGROUND).not.toContain("188, 60, 74")
+    expect(MARS_ABSTRACT_COVER_BACKGROUND).not.toContain("54, 139, 214")
+  })
+
+  it("renders hero abstract art while keeping Mars and Featured Works card shells transparent", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -84,18 +102,24 @@ describe("HP three-hue color fields", () => {
     expect(heroArt).toBeInTheDocument()
     expect(heroArt?.querySelector("img")).toBeNull()
     expect(heroArt).toHaveAttribute("aria-hidden", "true")
+    expect(heroArt).toHaveClass("blur-3xl")
+    expect(heroArt).toHaveClass("opacity-55")
     hero.unmount()
 
     const works = render(<FeaturedWorks />)
     const marsCard = screen.getByLabelText("火星の女王 作品カード")
     const marsArt = marsCard.querySelector('[data-hp-abstract-art="mars"]')
-    expect(marsArt).toBeInTheDocument()
-    expect(marsArt?.querySelector("img")).toBeNull()
-    expect(marsArt).toHaveAttribute("aria-hidden", "true")
+    expect(marsArt).not.toBeInTheDocument()
     expect(marsCard.querySelector('[data-featured-work-abstract-cover="true"]')).toHaveAttribute(
       "data-hp-color-field",
-      "pink-red-blue",
+      "cinematic-neutral",
     )
+    expect(marsCard).toHaveClass("featured-work-transparent-card")
+    expect(marsCard).not.toHaveClass("glass-card-sm")
+    expect(marsCard).not.toHaveClass("glass-refraction-edge")
+    expect(marsCard).not.toHaveClass("glass-distortion-surface")
+    expect(screen.getByText("火星の女王")).toBeInTheDocument()
+    expect(screen.getByText("NHK100周年記念ドラマ")).toBeInTheDocument()
     works.unmount()
   })
 })

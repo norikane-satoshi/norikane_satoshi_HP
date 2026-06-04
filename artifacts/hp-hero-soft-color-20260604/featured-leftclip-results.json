@@ -1,0 +1,32 @@
+[
+  {
+    "browserName": "chromium",
+    "file": "chromium-desktop-featured-works-leftclip.png",
+    "clip": {
+      "x": 0,
+      "y": 358.15625,
+      "width": 960,
+      "height": 280.265625
+    }
+  },
+  {
+    "browserName": "webkit",
+    "file": "webkit-desktop-featured-works-leftclip.png",
+    "clip": {
+      "x": 0,
+      "y": 369.09375,
+      "width": 960,
+      "height": 257.734375
+    }
+  },
+  {
+    "browserName": "firefox",
+    "file": "firefox-desktop-featured-works-leftclip.png",
+    "clip": {
+      "x": 0,
+      "y": 358.20001220703125,
+      "width": 960,
+      "height": 280.2833251953125
+    }
+  }
+]

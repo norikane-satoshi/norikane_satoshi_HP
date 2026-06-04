@@ -116,20 +116,20 @@ describe("HP third-wave design contract", () => {
     expect(nav).not.toContain("hp-latin-display")
   })
 
-  it("replaces the old high-saturation aurora tokens with subdued cinematic values", () => {
+  it("uses subdued cinematic page aurora tokens and keeps the bolder color field out of global chrome", () => {
     const css = readProjectFile("src/app/globals.css")
 
     expect(css).not.toContain("--accent-primary: #8B7FFF")
-    expect(css).not.toContain("--aurora-purple")
-    expect(css).not.toContain("--aurora-sky")
+    expect(css).not.toContain("--aurora-red")
+    expect(css).not.toContain("--aurora-blue")
     expect(css).not.toContain("--aurora-pink: rgba(255, 143, 171, 0.20)")
     expect(css).not.toContain("rgba(125, 211, 252")
     expect(extractToken(css, "--accent-primary")).toBe("#366FCC")
-    expect(extractToken(css, "--aurora-pink")).toBe("rgba(224, 76, 140, 0.18)")
-    expect(extractToken(css, "--aurora-red")).toBe("rgba(198, 42, 58, 0.15)")
-    expect(extractToken(css, "--aurora-blue")).toBe("rgba(54, 139, 214, 0.18)")
+    expect(extractToken(css, "--aurora-purple")).toBe("rgba(93, 84, 171, 0.16)")
+    expect(extractToken(css, "--aurora-pink")).toBe("rgba(178, 112, 150, 0.11)")
+    expect(extractToken(css, "--aurora-sky")).toBe("rgba(106, 138, 172, 0.10)")
 
-    for (const token of ["--aurora-pink", "--aurora-red", "--aurora-blue"]) {
+    for (const token of ["--aurora-purple", "--aurora-pink", "--aurora-sky"]) {
       expect(parseRgbaColor(extractToken(css, token)).a).toBeLessThanOrEqual(0.24)
     }
   })
@@ -163,6 +163,8 @@ describe("HP third-wave design contract", () => {
 
     expect(page).toContain('className="glass-card glass-card--showcase')
     expect(page).toContain("className=\"group flex shrink-0 snap-start flex-col glass-card-sm")
+    expect(featuredWorks).toContain("featured-work-transparent-card")
+    expect(featuredWorks).not.toContain("className=\"group flex shrink-0 flex-col overflow-hidden glass-card-sm")
     expect(featuredWorks).not.toContain("glass-card--showcase")
     expect(bookingCalendar).not.toContain("glass-card--showcase")
     expect(bookingCalendar).toContain('className="booking-calendar__surface glass-flat"')
