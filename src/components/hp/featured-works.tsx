@@ -13,6 +13,7 @@ import {
   type FeaturedWork,
   type FeaturedWorkLink,
 } from "@/components/hp/featured-works-data"
+import { HERO_DEEP_SURFACE_BACKGROUND } from "@/components/hp/hero-deep-surface"
 
 type YouTubePlayerStateChangeEvent = {
   data: number
@@ -539,8 +540,10 @@ function FeaturedWorkCard({
           </PreviewFrame>
         ) : (
           <PreviewFrame abstractCover>
-            <div className="absolute inset-0 bg-[radial-gradient(130%_130%_at_18%_12%,#D4D0E8_0%,#7568D6_54%,#302B55_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(90%_90%_at_86%_84%,rgba(213,196,224,0.24)_0%,rgba(255,255,255,0)_66%)]" />
+            <div
+              className="absolute inset-0"
+              style={{ background: HERO_DEEP_SURFACE_BACKGROUND }}
+            />
             <div className="absolute inset-0 z-10 flex flex-wrap content-end items-end justify-end gap-1.5 p-3 md:p-4">
               <WorkLinkBadges links={work.links} workTitle={work.title} clone={clone} />
             </div>

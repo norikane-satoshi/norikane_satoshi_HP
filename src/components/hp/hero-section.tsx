@@ -1,15 +1,11 @@
+import { HERO_DEEP_SURFACE_BACKGROUND } from "@/components/hp/hero-deep-surface"
+
 export function HeroSection() {
   return (
     <section
       id="home"
       className="relative w-full -mt-24 md:-mt-28"
-      style={{
-        background: [
-          "radial-gradient(ellipse at 18% 18%, rgba(82, 90, 108, 0.18) 0%, transparent 48%)",
-          "radial-gradient(ellipse at 82% 76%, rgba(122, 102, 92, 0.14) 0%, transparent 54%)",
-          "linear-gradient(135deg, #0E0E10 0%, #151519 45%, #17171B 100%)",
-        ].join(", "),
-      }}
+      style={{ background: HERO_DEEP_SURFACE_BACKGROUND }}
     >
       <div
         aria-hidden="true"
