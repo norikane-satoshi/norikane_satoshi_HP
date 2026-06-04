@@ -28,7 +28,7 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-hp">AI 相談窓口の位置づけ</h2>
             <p className="mt-3 text-hp-muted">
               AI 相談窓口は、案件整理と予約補助を目的とした相談補助機能です。チャット内の回答や候補提示は、
-              正式見積、契約成立、納期保証、業務受託の確約ではありません。正式な条件は担当者確認後に確定します。
+              正式見積、契約成立、納期保証、業務受託の確約ではありません。正式な条件はのりかね本人の確認後に確定します。
             </p>
           </section>
 
@@ -69,7 +69,16 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-hp">免責</h2>
             <p className="mt-3 text-hp-muted">
               AI 応答、候補提示、空き状況表示の正確性、完全性、可用性を保証しません。外部サービス障害、
-              通信環境、認証・カレンダー連携の不具合により利用できない場合があります。最終判断は担当者確認に基づきます。
+              通信環境、認証・カレンダー連携の不具合により利用できない場合があります。事業者の故意または重過失による責任、
+              法令上制限できない責任を免除するものではありません。最終判断はのりかね本人の確認に基づきます。
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-hp">契約条件の確認</h2>
+            <p className="mt-3 text-hp-muted">
+              料金、納期、キャンセル、権利処理、秘密保持などの条件は、個別の見積書、発注書、契約書、
+              またはメール等で確認した内容を優先します。チャットだけで法的な有効性や契約条件を断定しません。
             </p>
           </section>
 

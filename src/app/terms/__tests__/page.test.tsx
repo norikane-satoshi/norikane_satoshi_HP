@@ -21,5 +21,7 @@ describe("TermsPage", () => {
     expect(container).toHaveTextContent("正式見積")
     expect(container).toHaveTextContent("予約")
     expect(container).toHaveTextContent("免責")
+    expect(container).toHaveTextContent("のりかね本人")
+    expect(container).toHaveTextContent("法令上制限できない責任")
   })
 })
