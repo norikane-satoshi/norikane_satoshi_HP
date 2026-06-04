@@ -1,0 +1,87 @@
+{
+  "baseUrl": "http://127.0.0.1:41238/",
+  "generatedAt": "2026-06-04T05:09:41.440Z",
+  "results": [
+    {
+      "name": "chromium-default",
+      "screenshot": "artifacts/glass-distortion-20260604/chromium-default.png",
+      "metrics": {
+        "reducedMotion": false,
+        "classEnabled": true,
+        "supportsBackdropSvg": true,
+        "supportsWebkitBackdropSvg": false,
+        "surfaceCount": 21,
+        "featuredCardCount": 15,
+        "profileHasSurface": true,
+        "firstCardHasForeground": true,
+        "beforeOpacity": "0.46",
+        "beforeAnimationName": "hp-liquid-glass-shift",
+        "beforeBackdropFilter": "url(\"#hp-liquid-glass-distortion\") blur(18px) saturate(1.22)",
+        "beforeWebkitBackdropFilter": null,
+        "foregroundFilter": "none",
+        "foregroundBackdropFilter": "none",
+        "heroTitleVisible": true,
+        "heroCopyPresent": true,
+        "bodyTextVisible": true
+      },
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "requestFailureCount": 0,
+      "warningCount": 1
+    },
+    {
+      "name": "chromium-forced-fallback",
+      "screenshot": "artifacts/glass-distortion-20260604/chromium-forced-fallback.png",
+      "metrics": {
+        "reducedMotion": false,
+        "classEnabled": false,
+        "supportsBackdropSvg": false,
+        "supportsWebkitBackdropSvg": false,
+        "surfaceCount": 21,
+        "featuredCardCount": 15,
+        "profileHasSurface": true,
+        "firstCardHasForeground": true,
+        "beforeOpacity": "0",
+        "beforeAnimationName": "none",
+        "beforeBackdropFilter": "none",
+        "beforeWebkitBackdropFilter": null,
+        "foregroundFilter": "none",
+        "foregroundBackdropFilter": "none",
+        "heroTitleVisible": true,
+        "heroCopyPresent": true,
+        "bodyTextVisible": true
+      },
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "requestFailureCount": 0,
+      "warningCount": 1
+    },
+    {
+      "name": "chromium-reduced-motion",
+      "screenshot": "artifacts/glass-distortion-20260604/chromium-reduced-motion.png",
+      "metrics": {
+        "reducedMotion": true,
+        "classEnabled": true,
+        "supportsBackdropSvg": true,
+        "supportsWebkitBackdropSvg": false,
+        "surfaceCount": 9,
+        "featuredCardCount": 5,
+        "profileHasSurface": true,
+        "firstCardHasForeground": true,
+        "beforeOpacity": "0.46",
+        "beforeAnimationName": "none",
+        "beforeBackdropFilter": "url(\"#hp-liquid-glass-distortion\") blur(18px) saturate(1.22)",
+        "beforeWebkitBackdropFilter": null,
+        "foregroundFilter": "none",
+        "foregroundBackdropFilter": "none",
+        "heroTitleVisible": true,
+        "heroCopyPresent": true,
+        "bodyTextVisible": true
+      },
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "requestFailureCount": 0,
+      "warningCount": 1
+    }
+  ]
+}

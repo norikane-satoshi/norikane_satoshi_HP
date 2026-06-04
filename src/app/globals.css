@@ -242,6 +242,47 @@
     box-shadow: 0 4px 14px rgba(54, 44, 108, 0.07);
     border-radius: var(--hp-radius-sm);
   }
+  .glass-refraction-edge {
+    background-image:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.08) 38%, rgba(117, 104, 214, 0.08)),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
+    box-shadow: inset 0 -1px 0 rgba(45, 37, 98, 0.12);
+    outline: 1px solid rgba(255, 255, 255, 0.58);
+    outline-offset: -1px;
+  }
+  .glass-distortion-surface {
+    isolation: isolate;
+    overflow: hidden;
+    position: relative;
+  }
+  .glass-distortion-surface::before {
+    background:
+      linear-gradient(110deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.06) 46%, rgba(117, 104, 214, 0.10)),
+      radial-gradient(ellipse at 12% 0%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 58%);
+    border-radius: inherit;
+    content: "";
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    transform: translate3d(-2%, -1%, 0);
+    z-index: 0;
+  }
+  .glass-distortion-foreground {
+    position: relative;
+    z-index: 1;
+  }
+  @supports ((backdrop-filter: url("#hp-liquid-glass-distortion") blur(1px)) or (-webkit-backdrop-filter: url("#hp-liquid-glass-distortion") blur(1px))) {
+    .hp-liquid-glass-enabled .glass-distortion-surface::before {
+      animation: hp-liquid-glass-shift 8s ease-in-out infinite alternate;
+      backdrop-filter: url("#hp-liquid-glass-distortion") blur(18px) saturate(1.22);
+      -webkit-backdrop-filter: url("#hp-liquid-glass-distortion") blur(18px) saturate(1.22);
+      opacity: 0.72;
+    }
+    .hp-liquid-glass-enabled .glass-distortion-surface--subtle::before {
+      opacity: 0.46;
+    }
+  }
   .glass-badge {
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(8px);
@@ -400,6 +441,11 @@
     .glass-btn:active {
       transform: none;
     }
+    .glass-distortion-surface::before,
+    .hp-liquid-glass-enabled .glass-distortion-surface::before {
+      animation: none;
+      transform: none;
+    }
   }
 }
 
@@ -424,5 +470,14 @@
   40% {
     opacity: 1;
     transform: translateY(-3px);
+  }
+}
+
+@keyframes hp-liquid-glass-shift {
+  0% {
+    transform: translate3d(-2%, -1%, 0) scale(1.01);
+  }
+  100% {
+    transform: translate3d(2%, 1%, 0) scale(1.03);
   }
 }

@@ -5,6 +5,7 @@ import "./globals.css";
 import "@/components/booking/booking-calendar.css";
 import "@/components/booking/booking-section.css";
 import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
+import { GlassDistortionFilter } from "@/components/hp/glass-distortion-filter";
 import { NavHeader } from "@/components/hp/nav-header";
 import { SITE_BRAND_NAME, SITE_OWNER_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand";
 
@@ -59,6 +60,7 @@ export default function RootLayout({
       className={`${notoSansJP.variable} ${inter.variable} ${geistMono.variable} ${playfairDisplay.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <GlassDistortionFilter />
         <NavHeader />
         <main className="flex-1 pt-24 md:pt-28 pb-16">
           {children}

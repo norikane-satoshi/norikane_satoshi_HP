@@ -521,38 +521,40 @@ function FeaturedWorkCard({
 }) {
   return (
     <div
-      className="group flex shrink-0 flex-col overflow-hidden glass-card-sm p-4 transition-transform hover:-translate-y-0.5 md:p-5"
+      className="group flex shrink-0 flex-col overflow-hidden glass-card-sm glass-refraction-edge glass-distortion-surface glass-distortion-surface--subtle p-4 transition-transform hover:-translate-y-0.5 md:p-5"
       style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : `${work.title} 作品カード`}
       data-featured-work-card={work.title}
       data-featured-work-marquee-segment-start={segmentStart}
     >
-      {work.youtubeId ? (
-        <PreviewFrame>
-          <VideoSurface
-            videoId={work.youtubeId}
-            title={work.title}
-            isActive={shouldStartVideo}
-            prefersReducedMotion={prefersReducedMotion}
-          />
-        </PreviewFrame>
-      ) : (
-        <PreviewFrame abstractCover>
-          <div className="absolute inset-0 bg-[radial-gradient(130%_130%_at_18%_12%,#D4D0E8_0%,#7568D6_54%,#302B55_100%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(90%_90%_at_86%_84%,rgba(213,196,224,0.24)_0%,rgba(255,255,255,0)_66%)]" />
-          <div className="absolute inset-0 z-10 flex flex-wrap content-end items-end justify-end gap-1.5 p-3 md:p-4">
-            <WorkLinkBadges links={work.links} workTitle={work.title} clone={clone} />
-          </div>
-        </PreviewFrame>
-      )}
-      <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
-        {work.title}
-      </p>
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
-        <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
+      <div className="glass-distortion-foreground flex min-h-0 flex-1 flex-col">
         {work.youtubeId ? (
-          <WorkLinkBadges links={work.links} workTitle={work.title} clone={clone} />
-        ) : null}
+          <PreviewFrame>
+            <VideoSurface
+              videoId={work.youtubeId}
+              title={work.title}
+              isActive={shouldStartVideo}
+              prefersReducedMotion={prefersReducedMotion}
+            />
+          </PreviewFrame>
+        ) : (
+          <PreviewFrame abstractCover>
+            <div className="absolute inset-0 bg-[radial-gradient(130%_130%_at_18%_12%,#D4D0E8_0%,#7568D6_54%,#302B55_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(90%_90%_at_86%_84%,rgba(213,196,224,0.24)_0%,rgba(255,255,255,0)_66%)]" />
+            <div className="absolute inset-0 z-10 flex flex-wrap content-end items-end justify-end gap-1.5 p-3 md:p-4">
+              <WorkLinkBadges links={work.links} workTitle={work.title} clone={clone} />
+            </div>
+          </PreviewFrame>
+        )}
+        <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
+          {work.title}
+        </p>
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
+          <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
+          {work.youtubeId ? (
+            <WorkLinkBadges links={work.links} workTitle={work.title} clone={clone} />
+          ) : null}
+        </div>
       </div>
     </div>
   )
@@ -712,30 +714,32 @@ function LiveReelCard({
 
   return (
     <div
-      className="flex shrink-0 flex-col overflow-hidden glass-card-sm p-4 md:p-5"
+      className="flex shrink-0 flex-col overflow-hidden glass-card-sm glass-refraction-edge glass-distortion-surface glass-distortion-surface--subtle p-4 md:p-5"
       style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : "ライブ映像作品多数のランダムループ再生カード"}
       data-featured-work-marquee-segment-start={segmentStart}
     >
-      <PreviewFrame>
-        {shouldStartVideo && !prefersReducedMotion ? (
-          <div
-            className={`pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-300 ${
-              isCoverVisible ? "opacity-0" : "opacity-100"
-            }`}
-            aria-hidden="true"
-            data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
-            data-featured-work-live-current-video-id={previewVideoId}
-          >
-            <div ref={playerHostRef} className="h-full w-full" />
-          </div>
-        ) : null}
-        <PreviewThumbnail videoId={previewVideoId} isVisible={isCoverVisible} />
-      </PreviewFrame>
-      <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
-        ライブ映像作品多数
-      </p>
-      <p className="mt-auto pt-3 text-xs text-hp-muted md:text-sm">配信</p>
+      <div className="glass-distortion-foreground flex min-h-0 flex-1 flex-col">
+        <PreviewFrame>
+          {shouldStartVideo && !prefersReducedMotion ? (
+            <div
+              className={`pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-300 ${
+                isCoverVisible ? "opacity-0" : "opacity-100"
+              }`}
+              aria-hidden="true"
+              data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
+              data-featured-work-live-current-video-id={previewVideoId}
+            >
+              <div ref={playerHostRef} className="h-full w-full" />
+            </div>
+          ) : null}
+          <PreviewThumbnail videoId={previewVideoId} isVisible={isCoverVisible} />
+        </PreviewFrame>
+        <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
+          ライブ映像作品多数
+        </p>
+        <p className="mt-auto pt-3 text-xs text-hp-muted md:text-sm">配信</p>
+      </div>
     </div>
   )
 }

@@ -11,6 +11,14 @@ export function HeroSection() {
         ].join(", "),
       }}
     >
+      <div
+        aria-hidden="true"
+        className="glass-card-sm glass-refraction-edge glass-distortion-surface glass-distortion-surface--subtle absolute left-6 top-32 h-24 w-40 rotate-[-10deg] opacity-55 md:left-10 md:top-36 md:h-32 md:w-56"
+      />
+      <div
+        aria-hidden="true"
+        className="glass-card-sm glass-refraction-edge glass-distortion-surface glass-distortion-surface--subtle absolute bottom-20 right-8 h-20 w-28 rotate-[12deg] opacity-45 md:bottom-24 md:right-12 md:h-28 md:w-44"
+      />
       <div className="mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-6 pb-10 pt-28 md:px-10 md:pb-14 md:pt-32 xl:px-14">
         <div className="mt-auto grid grid-cols-1 gap-10 md:grid-cols-[1fr_auto] md:items-end md:gap-12">
           <div>

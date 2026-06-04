@@ -151,81 +151,83 @@ export default async function HomePage() {
         id="profile"
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
-        <div className="glass-card glass-card--showcase p-8 md:p-10 xl:p-12">
-          <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
-          <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
-            プロフィール
-          </h2>
+        <div className="glass-card glass-card--showcase glass-distortion-surface p-8 md:p-10 xl:p-12">
+          <div className="glass-distortion-foreground">
+            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
+            <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
+              プロフィール
+            </h2>
 
-          <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] md:gap-12 xl:gap-16">
-            {/* Left: photo + identity + tools */}
-            <div className="flex flex-col items-center gap-5 md:items-start">
-              <ProfilePhoto />
-              <div className="text-center md:text-left">
-                <p className="text-sm text-hp-muted">則兼 智志</p>
-                <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
-                  フリーランスカラリスト
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2 md:justify-start">
-                {tools.map((tool) => (
-                  <span
-                    key={tool}
-                    className="glass-badge px-3 py-1 text-xs font-medium"
-                  >
-                    {tool}
-                  </span>
-                ))}
-              </div>
-
-              <div className="mt-1 flex items-center justify-center gap-3 md:justify-start">
-                {socialLinks.map(({ label, href, Icon }) => (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="glass-btn flex h-10 w-10 items-center justify-center text-hp"
-                    aria-label={label}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            {/* Right: career timeline */}
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-                Career
-              </p>
-              <div className="mt-5 space-y-6 md:space-y-7">
-                {timeline.map((item) => (
-                  <div
-                    key={item.year}
-                    className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
-                  >
+            <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] md:gap-12 xl:gap-16">
+              {/* Left: photo + identity + tools */}
+              <div className="flex flex-col items-center gap-5 md:items-start">
+                <ProfilePhoto />
+                <div className="text-center md:text-left">
+                  <p className="text-sm text-hp-muted">則兼 智志</p>
+                  <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
+                    フリーランスカラリスト
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-center gap-2 md:justify-start">
+                  {tools.map((tool) => (
                     <span
-                      className="font-[var(--font-inter)] text-sm font-bold"
-                      style={{ color: "var(--accent-primary)" }}
+                      key={tool}
+                      className="glass-badge px-3 py-1 text-xs font-medium"
                     >
-                      {item.year}
+                      {tool}
                     </span>
-                    <div>
-                      <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
-                        {item.event}
-                      </p>
-                      <p className="hp-body mt-2 text-xs text-hp-muted md:text-sm">
-                        {item.detail}
-                      </p>
+                  ))}
+                </div>
+
+                <div className="mt-1 flex items-center justify-center gap-3 md:justify-start">
+                  {socialLinks.map(({ label, href, Icon }) => (
+                    <a
+                      key={label}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="glass-btn flex h-10 w-10 items-center justify-center text-hp"
+                      aria-label={label}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: career timeline */}
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
+                  Career
+                </p>
+                <div className="mt-5 space-y-6 md:space-y-7">
+                  {timeline.map((item) => (
+                    <div
+                      key={item.year}
+                      className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
+                    >
+                      <span
+                        className="font-[var(--font-inter)] text-sm font-bold"
+                        style={{ color: "var(--accent-primary)" }}
+                      >
+                        {item.year}
+                      </span>
+                      <div>
+                        <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
+                          {item.event}
+                        </p>
+                        <p className="hp-body mt-2 text-xs text-hp-muted md:text-sm">
+                          {item.detail}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          <FeaturedWorks />
+            <FeaturedWorks />
+          </div>
         </div>
       </section>
 
