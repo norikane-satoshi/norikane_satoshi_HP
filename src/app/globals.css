@@ -246,16 +246,16 @@
     -webkit-backdrop-filter: blur(32px) saturate(1.3);
   }
   .glass-card--hp-profile {
-    --hp-profile-lens-blur: 20px;
-    --hp-profile-lens-saturate: 1.24;
-    --hp-profile-lens-opacity: 0.96;
-    --hp-profile-lens-thickness: 26px;
-    --hp-profile-lens-bevel: 18%;
-    --hp-profile-dispersion: 0.16;
+    --hp-profile-lens-blur: 16px;
+    --hp-profile-lens-saturate: 1.14;
+    --hp-profile-lens-opacity: 0.78;
+    --hp-profile-lens-thickness: 18px;
+    --hp-profile-lens-bevel: 12%;
+    --hp-profile-dispersion: 0.07;
     --hp-profile-light-angle: 132deg;
-    --hp-profile-specular-opacity: 0.42;
-    --hp-profile-front-specular-opacity: 0.46;
-    --hp-profile-back-specular-opacity: 0.20;
+    --hp-profile-specular-opacity: 0.24;
+    --hp-profile-front-specular-opacity: 0.28;
+    --hp-profile-back-specular-opacity: 0.10;
     background: rgba(255, 255, 255, 0.50);
     backdrop-filter: blur(34px) saturate(1.38);
     -webkit-backdrop-filter: blur(34px) saturate(1.38);
@@ -263,10 +263,10 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.90),
       inset 0 -1px 0 rgba(255, 255, 255, 0.36),
-      inset 0 0 var(--hp-profile-lens-thickness) rgba(255, 255, 255, 0.12),
-      inset 18px 0 42px rgba(255, 255, 255, 0.16),
-      inset -18px 0 44px rgba(30, 34, 42, 0.045),
-      0 22px 48px rgba(30, 34, 42, 0.11);
+      inset 0 0 var(--hp-profile-lens-thickness) rgba(255, 255, 255, 0.09),
+      inset 12px 0 30px rgba(255, 255, 255, 0.11),
+      inset -12px 0 30px rgba(30, 34, 42, 0.032),
+      0 14px 34px rgba(30, 34, 42, 0.085);
   }
   .glass-card--hp-schedule {
     background: rgba(255, 255, 255, 0.56);
@@ -323,12 +323,12 @@
   }
   .glass-card--hp-profile.glass-distortion-surface::before {
     background:
-      radial-gradient(ellipse 84% 72% at 50% 46%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.09) calc(100% - var(--hp-profile-lens-bevel) - 18%), rgba(255, 255, 255, 0.18) calc(100% - var(--hp-profile-lens-bevel)), rgba(255, 255, 255, 0.24) 100%),
-      linear-gradient(var(--hp-profile-light-angle), rgba(255, 255, 255, var(--hp-profile-front-specular-opacity)) 0%, rgba(255, 255, 255, 0.12) 16%, rgba(255, 255, 255, 0) 44%, rgba(30, 34, 42, 0.045) 72%, rgba(255, 255, 255, 0.14) 100%),
-      linear-gradient(calc(var(--hp-profile-light-angle) + 180deg), rgba(255, 255, 255, var(--hp-profile-back-specular-opacity)) 0%, rgba(255, 255, 255, 0.08) 14%, rgba(255, 255, 255, 0) 42%),
-      linear-gradient(96deg, rgba(255, 70, 96, var(--hp-profile-dispersion)) 0%, rgba(255, 255, 255, 0) 22%, rgba(255, 255, 255, 0) 72%, rgba(78, 158, 255, var(--hp-profile-dispersion)) 100%),
-      linear-gradient(128deg, rgba(255, 255, 255, var(--hp-profile-specular-opacity)) 0%, rgba(255, 255, 255, 0.08) 18%, rgba(255, 255, 255, 0) 48%, rgba(30, 34, 42, 0.045) 76%, rgba(255, 255, 255, 0.24) 100%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.04) 52%, rgba(255, 255, 255, 0.16));
+      radial-gradient(ellipse 88% 78% at 50% 50%, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.035) calc(100% - var(--hp-profile-lens-bevel) - 10%), rgba(255, 255, 255, 0.15) calc(100% - var(--hp-profile-lens-bevel)), rgba(255, 255, 255, 0.23) 100%),
+      linear-gradient(var(--hp-profile-light-angle), rgba(255, 255, 255, var(--hp-profile-front-specular-opacity)) 0%, rgba(255, 255, 255, 0.10) 10%, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0) 82%, rgba(255, 255, 255, 0.12) 100%),
+      linear-gradient(calc(var(--hp-profile-light-angle) + 180deg), rgba(255, 255, 255, var(--hp-profile-back-specular-opacity)) 0%, rgba(255, 255, 255, 0.05) 9%, rgba(255, 255, 255, 0) 17%),
+      linear-gradient(96deg, rgba(255, 70, 96, var(--hp-profile-dispersion)) 0%, rgba(255, 255, 255, 0) 12%, rgba(255, 255, 255, 0) 88%, rgba(78, 158, 255, var(--hp-profile-dispersion)) 100%),
+      linear-gradient(128deg, rgba(255, 255, 255, var(--hp-profile-specular-opacity)) 0%, rgba(255, 255, 255, 0.06) 10%, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0) 84%, rgba(255, 255, 255, 0.14) 100%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.035) 46%, rgba(255, 255, 255, 0.10));
   }
   .glass-distortion-foreground {
     position: relative;
@@ -374,11 +374,11 @@
     --hp-element-text-shadow-blur: 7px;
   }
   .hp-shadow-sync-surface--profile {
-    --hp-element-shadow-y: 10px;
-    --hp-element-shadow-blur: 16px;
-    --hp-element-shadow-color: rgba(30, 34, 42, 0.15);
-    --hp-element-text-shadow-y: 3px;
-    --hp-element-text-shadow-blur: 9px;
+    --hp-element-shadow-y: 6px;
+    --hp-element-shadow-blur: 12px;
+    --hp-element-shadow-color: rgba(30, 34, 42, 0.10);
+    --hp-element-text-shadow-y: 2px;
+    --hp-element-text-shadow-blur: 6px;
   }
   .hp-shadow-sync-surface--schedule {
     --hp-element-shadow-y: 10px;
@@ -388,9 +388,9 @@
     --hp-element-text-shadow-blur: 9px;
   }
   .hp-profile-photo-shadow {
-    --hp-element-shadow-y: 12px;
-    --hp-element-shadow-blur: 22px;
-    --hp-element-shadow-color: rgba(30, 34, 42, 0.20);
+    --hp-element-shadow-y: 7px;
+    --hp-element-shadow-blur: 16px;
+    --hp-element-shadow-color: rgba(30, 34, 42, 0.14);
   }
   .hp-note-icon-shadow {
     --hp-element-shadow-y: 5px;

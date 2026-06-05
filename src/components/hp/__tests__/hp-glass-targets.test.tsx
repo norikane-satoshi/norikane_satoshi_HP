@@ -115,7 +115,9 @@ describe("HP targeted glass contracts", () => {
     expect(cssRule(".hp-shadow-sync-element")).not.toContain("drop-shadow(")
     expect(cssRule(".hp-shadow-sync-text")).not.toContain("text-shadow:")
     expect(cssRule(".hp-shadow-sync-surface--note")).toContain("--hp-element-shadow-y: 8px")
-    expect(cssRule(".hp-shadow-sync-surface--profile")).toContain("--hp-element-shadow-y: 10px")
+    expect(cssRule(".hp-shadow-sync-surface--profile")).toContain("--hp-element-shadow-y: 6px")
+    expect(cssRule(".hp-shadow-sync-surface--profile")).toContain("--hp-element-shadow-blur: 12px")
+    expect(cssRule(".hp-shadow-sync-surface--profile")).toContain("--hp-element-shadow-color: rgba(30, 34, 42, 0.10)")
     expect(cssRule(".hp-shadow-sync-surface--schedule")).toContain("--hp-element-shadow-y: 10px")
   })
 
@@ -172,7 +174,7 @@ describe("HP targeted glass contracts", () => {
     )
   })
 
-  it("keeps the profile lens as one curved RGB-dispersed surface with directed double specular", () => {
+  it("keeps the profile lens as one edge-biased RGB-dispersed surface with directed rim specular", () => {
     const filterSource = readFileSync(
       join(process.cwd(), "src/components/hp/glass-distortion-filter.tsx"),
       "utf8",
@@ -195,16 +197,19 @@ describe("HP targeted glass contracts", () => {
     expect(filterSource).toMatch(/scale=\{PROFILE_LENS_THICKNESS_SCALE \+ PROFILE_LENS_DISPERSION_SCALE\}/)
     expect(filterSource).toMatch(/scale=\{PROFILE_LENS_THICKNESS_SCALE - PROFILE_LENS_DISPERSION_SCALE\}/)
 
-    expect(profileBase).toContain("--hp-profile-lens-thickness: 26px")
-    expect(profileBase).toContain("--hp-profile-lens-bevel: 18%")
-    expect(profileBase).toContain("--hp-profile-dispersion: 0.16")
+    expect(profileBase).toContain("--hp-profile-lens-thickness: 18px")
+    expect(profileBase).toContain("--hp-profile-lens-bevel: 12%")
+    expect(profileBase).toContain("--hp-profile-dispersion: 0.07")
+    expect(profileBase).toContain("--hp-profile-lens-opacity: 0.78")
     expect(profileBase).toContain("--hp-profile-light-angle: 132deg")
     expect(profileBase).toContain("--hp-profile-front-specular-opacity")
     expect(profileBase).toContain("--hp-profile-back-specular-opacity")
     expect(profileSurface).toContain("var(--hp-profile-lens-bevel)")
+    expect(profileSurface).toContain("calc(100% - var(--hp-profile-lens-bevel) - 10%)")
     expect(profileSurface).toContain("var(--hp-profile-light-angle)")
     expect(profileSurface).toContain("calc(var(--hp-profile-light-angle) + 180deg)")
     expect(profileSurface).toContain("var(--hp-profile-dispersion)")
+    expect(profileSurface).toContain("rgba(255, 255, 255, 0) 88%")
     expect(enabledProfileSurface).toContain('url("#hp-profile-lens-distortion")')
     expect(enabledProfileSurface).not.toContain('url("#hp-liquid-glass-distortion")')
   })
