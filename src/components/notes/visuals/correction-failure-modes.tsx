@@ -421,12 +421,15 @@ function FlipCell({
   layout,
   t,
   reducedMotion,
+  isMobile,
 }: {
   layout: FlipLayout
   t: number
   reducedMotion: boolean
+  isMobile: boolean
 }) {
   const u = reducedMotion ? 0.65 : umphase(t)
+  const descriptionLineGap = layout.descriptionFont * 1.28
   return (
     <g>
       <rect
@@ -459,15 +462,32 @@ function FlipCell({
       >
         色のひっくり返り
       </text>
-      <text
-        x={layout.descriptionX}
-        y={layout.headerY}
-        fontSize={layout.descriptionFont}
-        fontWeight={500}
-        fill={TEXT_MUTED}
-      >
-        加算が偏ると、ある閾値で RGB 順位が反転して hue が跳ぶ
-      </text>
+      {isMobile ? (
+        <text
+          x={layout.descriptionX}
+          y={layout.headerY}
+          fontSize={layout.descriptionFont}
+          fontWeight={500}
+          fill={TEXT_MUTED}
+        >
+          <tspan x={layout.descriptionX} y={layout.headerY}>
+            加算が偏ると、ある閾値で
+          </tspan>
+          <tspan x={layout.descriptionX} dy={descriptionLineGap}>
+            RGB 順位が反転して hue が跳ぶ
+          </tspan>
+        </text>
+      ) : (
+        <text
+          x={layout.descriptionX}
+          y={layout.headerY}
+          fontSize={layout.descriptionFont}
+          fontWeight={500}
+          fill={TEXT_MUTED}
+        >
+          加算が偏ると、ある閾値で RGB 順位が反転して hue が跳ぶ
+        </text>
+      )}
       <text
         x={layout.w - layout.headerX}
         y={layout.headerY}
@@ -531,7 +551,12 @@ export default function CorrectionFailureModes({
       className="absolute inset-0 h-full w-full"
       preserveAspectRatio="xMidYMid meet"
     >
-      <FlipCell layout={layout} t={t} reducedMotion={reducedMotion} />
+      <FlipCell
+        layout={layout}
+        t={t}
+        reducedMotion={reducedMotion}
+        isMobile={Boolean(isMobile)}
+      />
     </svg>
   )
 }
