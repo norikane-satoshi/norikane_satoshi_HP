@@ -97,17 +97,6 @@
   --hp-radius-sm: 12px;
   --hp-radius: 16px;
   --hp-radius-lg: 20px;
-  --hp-element-shadow-x: 0px;
-  --hp-element-shadow-y: 9px;
-  --hp-element-shadow-blur: 15px;
-  --hp-element-shadow-color: rgba(30, 34, 42, 0.16);
-  --hp-element-text-shadow-y: 3px;
-  --hp-element-text-shadow-blur: 9px;
-  --hp-featured-shadow-x: 0px;
-  --hp-featured-shadow-y: 7px;
-  --hp-featured-shadow-blur: 14px;
-  --hp-featured-shadow-color: rgba(30, 34, 42, 0.18);
-  --hp-featured-refraction-opacity: 0.78;
 }
 
 @layer base {
@@ -221,45 +210,7 @@
     backdrop-filter: blur(34px) saturate(1.38);
     -webkit-backdrop-filter: blur(34px) saturate(1.38);
     border-color: rgba(255, 255, 255, 0.72);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.90),
-      0 14px 34px rgba(30, 34, 42, 0.085);
-  }
-  .hp-liquid-dom-profile-shell {
-    border-radius: var(--hp-radius);
-    min-height: 1px;
-    overflow: hidden;
-    position: relative;
-  }
-  .hp-liquid-dom-profile-canvas {
-    inset: 0;
-    pointer-events: none;
-    position: absolute;
-    z-index: 0;
-  }
-  .hp-liquid-dom-profile-backdrop {
-    background-color: var(--bg-base);
-    background-image:
-      radial-gradient(ellipse 78% 58% at 15% 40%, var(--aurora-purple) 0%, transparent 68%),
-      radial-gradient(ellipse 66% 52% at 85% 15%, var(--aurora-pink) 0%, transparent 62%),
-      radial-gradient(ellipse 72% 54% at 55% 85%, var(--aurora-sky) 0%, transparent 64%);
-    height: 100%;
-    transform: scale(1.08);
-    width: 100%;
-  }
-  .hp-liquid-dom-profile-glass-fill {
-    height: 100%;
-    width: 100%;
-  }
-  .hp-liquid-dom-profile-foreground.glass-card--hp-profile {
-    background: rgba(255, 255, 255, 0.18);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.76),
-      0 14px 34px rgba(30, 34, 42, 0.06);
-    position: relative;
-    z-index: 2;
+    box-shadow: 0 16px 38px rgba(30, 34, 42, 0.10);
   }
   .glass-card--hp-schedule {
     background: rgba(255, 255, 255, 0.56);
@@ -288,145 +239,6 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.86),
       inset 0 -1px 0 rgba(255, 255, 255, 0.32),
       0 12px 30px rgba(30, 34, 42, 0.09);
-  }
-  .glass-refraction-edge {
-    background-image:
-      linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.10) 38%, rgba(255, 255, 255, 0.18)),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0));
-    box-shadow: inset 0 -1px 0 rgba(30, 34, 42, 0.08);
-    outline: 1px solid rgba(255, 255, 255, 0.66);
-    outline-offset: -1px;
-  }
-  .glass-distortion-surface {
-    isolation: isolate;
-    overflow: hidden;
-    position: relative;
-  }
-  .glass-distortion-surface::before {
-    background:
-      linear-gradient(110deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.06) 46%, rgba(255, 255, 255, 0.12)),
-      radial-gradient(ellipse at 12% 0%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 58%);
-    border-radius: inherit;
-    content: "";
-    inset: 0;
-    opacity: 0;
-    pointer-events: none;
-    position: absolute;
-    z-index: 1;
-  }
-  .glass-distortion-foreground {
-    position: relative;
-    z-index: 2;
-  }
-  .hp-shadow-sync-surface {
-    isolation: isolate;
-    overflow: hidden;
-    position: relative;
-  }
-  .hp-shadow-sync-foreground {
-    position: relative;
-    z-index: 2;
-  }
-  .hp-shadow-sync-element {
-    position: relative;
-  }
-  .hp-shadow-sync-text {
-    position: relative;
-  }
-  .hp-shadow-sync-layer {
-    color: transparent;
-    inset: 0;
-    pointer-events: none;
-    position: absolute;
-    user-select: none;
-    z-index: 0;
-  }
-  .hp-shadow-clone-element {
-    background: rgba(30, 34, 42, 0.18);
-    color: transparent;
-    filter: drop-shadow(var(--hp-element-shadow-x) var(--hp-element-shadow-y) var(--hp-element-shadow-blur) var(--hp-element-shadow-color));
-  }
-  .hp-shadow-clone-text {
-    color: transparent;
-    text-shadow: var(--hp-element-shadow-x) var(--hp-element-text-shadow-y) var(--hp-element-text-shadow-blur) var(--hp-element-shadow-color);
-  }
-  .hp-shadow-sync-surface--note {
-    --hp-element-shadow-y: 8px;
-    --hp-element-shadow-blur: 13px;
-    --hp-element-shadow-color: rgba(30, 34, 42, 0.13);
-    --hp-element-text-shadow-y: 2px;
-    --hp-element-text-shadow-blur: 7px;
-  }
-  .hp-shadow-sync-surface--profile {
-    --hp-element-shadow-y: 6px;
-    --hp-element-shadow-blur: 12px;
-    --hp-element-shadow-color: rgba(30, 34, 42, 0.10);
-    --hp-element-text-shadow-y: 2px;
-    --hp-element-text-shadow-blur: 6px;
-  }
-  .hp-shadow-sync-surface--schedule {
-    --hp-element-shadow-y: 10px;
-    --hp-element-shadow-blur: 16px;
-    --hp-element-shadow-color: rgba(30, 34, 42, 0.14);
-    --hp-element-text-shadow-y: 3px;
-    --hp-element-text-shadow-blur: 9px;
-  }
-  .hp-profile-photo-shadow {
-    --hp-element-shadow-y: 7px;
-    --hp-element-shadow-blur: 16px;
-    --hp-element-shadow-color: rgba(30, 34, 42, 0.14);
-  }
-  .hp-note-icon-shadow {
-    --hp-element-shadow-y: 5px;
-    --hp-element-shadow-blur: 10px;
-    --hp-element-shadow-color: rgba(30, 34, 42, 0.18);
-  }
-  .hp-schedule-widget-shadow {
-    --hp-element-shadow-y: 8px;
-    --hp-element-shadow-blur: 14px;
-    --hp-element-shadow-color: rgba(30, 34, 42, 0.12);
-  }
-  .hp-featured-shadow-media {
-    filter: none;
-  }
-  .hp-featured-shadow-text {
-    position: relative;
-  }
-  .hp-featured-shadow-layer {
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-    position: absolute;
-    user-select: none;
-    z-index: 0;
-  }
-  .hp-featured-shadow-track {
-    transform: translate3d(var(--hp-featured-shadow-scroll-x, 0px), 0, 0);
-    will-change: transform;
-  }
-  .hp-featured-shadow-clone-media {
-    background: rgba(30, 34, 42, 0.18);
-    color: transparent;
-    filter: drop-shadow(var(--hp-featured-shadow-x) var(--hp-featured-shadow-y) var(--hp-featured-shadow-blur) var(--hp-featured-shadow-color));
-    opacity: 0.72;
-  }
-  .hp-featured-shadow-clone-text {
-    color: transparent;
-  }
-  .hp-featured-shadow-clone-text::before {
-    content: attr(data-featured-work-shadow-title);
-    text-shadow: var(--hp-featured-shadow-x) 2px 7px var(--hp-featured-shadow-color);
-  }
-  .hp-featured-shadow-clone-badge {
-    background: rgba(30, 34, 42, 0.16);
-    border-radius: 9999px;
-    color: transparent;
-    display: inline-flex;
-    filter: drop-shadow(var(--hp-featured-shadow-x) var(--hp-featured-shadow-y) var(--hp-featured-shadow-blur) var(--hp-featured-shadow-color));
-    opacity: 0.70;
-  }
-  .hp-featured-shadow-clone-badge::before {
-    content: attr(data-featured-work-shadow-badge);
   }
   .glass-badge {
     background: rgba(255, 255, 255, 0.92);
@@ -585,31 +397,6 @@
     border-radius: 0;
     box-shadow: none;
   }
-  .featured-work-refraction-overlay {
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-    inset: 0;
-    opacity: 0;
-    pointer-events: none;
-    position: absolute;
-    z-index: 1;
-  }
-  @supports ((backdrop-filter: url("#hp-liquid-glass-distortion") blur(1px)) or (-webkit-backdrop-filter: url("#hp-liquid-glass-distortion") blur(1px))) {
-    .hp-liquid-glass-enabled .glass-distortion-surface::before {
-      backdrop-filter: url("#hp-liquid-glass-distortion") blur(20px) saturate(1.22);
-      -webkit-backdrop-filter: url("#hp-liquid-glass-distortion") blur(20px) saturate(1.22);
-      opacity: 0.95;
-    }
-    .hp-liquid-glass-enabled .glass-distortion-surface--subtle::before {
-      opacity: 0.60;
-    }
-    .hp-liquid-glass-enabled .featured-work-refraction-overlay {
-      backdrop-filter: url("#hp-liquid-glass-distortion");
-      -webkit-backdrop-filter: url("#hp-liquid-glass-distortion");
-      opacity: var(--hp-featured-refraction-opacity);
-    }
-  }
   .chatbot-thinking-dot {
     animation: chatbot-thinking-dot 1.2s ease-in-out infinite;
     opacity: 0.42;
@@ -663,16 +450,6 @@
     .glass-btn:active {
       transform: none;
     }
-    .glass-distortion-surface::before,
-    .hp-liquid-glass-enabled .glass-distortion-surface::before,
-    .hp-shadow-clone-element,
-    .hp-featured-shadow-media,
-    .hp-featured-shadow-track,
-    .hp-featured-shadow-clone-media,
-    .hp-featured-shadow-clone-badge,
-    .hp-liquid-dom-profile-backdrop,
-    .hp-liquid-dom-profile-canvas,
-    .featured-work-refraction-overlay,
     .featured-work-transparent-card:hover {
       animation: none;
       transform: none;

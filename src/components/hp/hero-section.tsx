@@ -16,10 +16,6 @@ export function HeroSection() {
         data-hp-abstract-art="hero"
         style={{ background: HERO_ABSTRACT_ART_BACKGROUND }}
       />
-      <div
-        aria-hidden="true"
-        className="glass-card-sm glass-refraction-edge glass-distortion-surface glass-distortion-surface--subtle absolute bottom-20 right-8 h-20 w-28 rotate-[12deg] opacity-45 md:bottom-24 md:right-12 md:h-28 md:w-44"
-      />
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-6 pb-10 pt-28 md:px-10 md:pb-14 md:pt-32 xl:px-14">
         <div className="mt-auto grid grid-cols-1 gap-10 md:grid-cols-[1fr_auto] md:items-end md:gap-12">
           <div>

@@ -4,7 +4,6 @@ import { ArrowRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
-import { ProfileLiquidDomCard } from "@/components/hp/liquid-glass/profile-liquid-dom-card"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { isBookingEnabled } from "@/lib/feature-flags"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
@@ -94,80 +93,6 @@ const socialLinks = [
     Icon: InstagramIcon,
   },
 ]
-
-function ProfileShadowLayer() {
-  return (
-    <div
-      aria-hidden="true"
-      className="hp-shadow-sync-layer hp-profile-shadow-layer p-8 md:p-10 xl:p-12"
-    >
-      <p className="hp-shadow-clone-text hp-profile-text-shadow text-xs uppercase tracking-[0.22em]">Profile</p>
-      <h2 className="hp-shadow-clone-text hp-profile-text-shadow hp-heading mt-2 text-2xl font-semibold md:text-3xl">
-        プロフィール
-      </h2>
-
-      <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] md:gap-12 xl:gap-16">
-        <div className="flex flex-col items-center gap-5 md:items-start">
-          <div
-            className="hp-shadow-clone-element hp-profile-photo-shadow rounded-2xl"
-            style={{ width: 220, height: 220 }}
-          />
-          <div className="text-center md:text-left">
-            <p className="hp-shadow-clone-text hp-profile-text-shadow text-sm">則兼 智志</p>
-            <p className="hp-shadow-clone-text hp-profile-text-shadow hp-compact-text mt-1 text-base font-semibold md:text-lg">
-              フリーランスカラリスト
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-2 md:justify-start">
-            {tools.map((tool) => (
-              <span
-                key={tool}
-                className="hp-shadow-clone-element hp-profile-tool-shadow rounded-full px-3 py-1 text-xs font-medium"
-              >
-                {tool}
-              </span>
-            ))}
-          </div>
-
-          <div className="mt-1 flex items-center justify-center gap-3 md:justify-start">
-            {socialLinks.map(({ label }) => (
-              <span
-                key={label}
-                className="hp-shadow-clone-element hp-profile-social-shadow h-10 w-10 rounded-[var(--hp-radius-sm)]"
-              />
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <p className="hp-shadow-clone-text hp-profile-text-shadow text-xs uppercase tracking-[0.22em]">
-            Career
-          </p>
-          <div className="mt-5 space-y-6 md:space-y-7">
-            {timeline.map((item) => (
-              <div
-                key={item.year}
-                className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
-              >
-                <span className="hp-shadow-clone-text hp-profile-text-shadow font-[var(--font-inter)] text-sm font-bold">
-                  {item.year}
-                </span>
-                <div>
-                  <p className="hp-shadow-clone-text hp-profile-text-shadow hp-compact-text text-sm font-semibold md:text-base">
-                    {item.event}
-                  </p>
-                  <p className="hp-shadow-clone-text hp-profile-text-shadow hp-body mt-2 text-xs md:text-sm">
-                    {item.detail}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function ProfileForeground() {
   return (
@@ -277,40 +202,22 @@ export default async function HomePage() {
               <Link
                 key={note.id}
                 href={`/notes/${note.slug}`}
-                className="group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note hp-shadow-sync-surface hp-shadow-sync-surface--note glass-refraction-edge glass-distortion-surface p-6 md:p-7"
+                className="group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note p-6 md:p-7"
                 style={{ width: "min(84vw, 340px)", minHeight: 200 }}
               >
-                <div
-                  aria-hidden="true"
-                  className="hp-shadow-sync-layer hp-note-shadow-layer flex min-h-0 flex-col p-6 md:p-7"
-                >
-                  <div className="flex items-baseline gap-3">
-                    <span className="hp-shadow-clone-text hp-note-text-shadow font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em]">
-                      {`Note ${String(idx + 1).padStart(2, "0")}`}
-                    </span>
-                  </div>
-                  <h3 className="hp-shadow-clone-text hp-note-text-shadow hp-heading mt-3 text-base md:text-lg font-semibold">
-                    {note.title}
-                  </h3>
-                  <div className="mt-auto pt-6 flex justify-end">
-                    <span className="hp-shadow-clone-element hp-note-icon-shadow h-5 w-5 rounded-full" />
-                  </div>
+                <div className="flex items-baseline gap-3">
+                  <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
+                    {`Note ${String(idx + 1).padStart(2, "0")}`}
+                  </span>
                 </div>
-                <div className="glass-distortion-foreground hp-shadow-sync-foreground flex min-h-0 flex-1 flex-col">
-                  <div className="flex items-baseline gap-3">
-                    <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
-                      {`Note ${String(idx + 1).padStart(2, "0")}`}
-                    </span>
-                  </div>
-                  <h3 className="hp-heading mt-3 text-base md:text-lg font-semibold text-hp">
-                    {note.title}
-                  </h3>
-                  <div className="mt-auto pt-6 flex justify-end">
-                    <ArrowRight
-                      className="h-5 w-5 transition-transform group-hover:translate-x-1"
-                      style={{ color: "var(--accent-primary)" }}
-                    />
-                  </div>
+                <h3 className="hp-heading mt-3 text-base md:text-lg font-semibold text-hp">
+                  {note.title}
+                </h3>
+                <div className="mt-auto pt-6 flex justify-end">
+                  <ArrowRight
+                    className="h-5 w-5 transition-transform group-hover:translate-x-1"
+                    style={{ color: "var(--accent-primary)" }}
+                  />
                 </div>
               </Link>
             ))}
@@ -323,13 +230,10 @@ export default async function HomePage() {
         id="profile"
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
-        <ProfileLiquidDomCard
-          className="glass-card glass-card--hp-profile hp-shadow-sync-surface hp-shadow-sync-surface--profile p-8 md:p-10 xl:p-12"
-          shadowLayer={<ProfileShadowLayer />}
-        >
+        <div className="glass-card glass-card--hp-profile p-8 md:p-10 xl:p-12">
           <ProfileForeground />
           <FeaturedWorks />
-        </ProfileLiquidDomCard>
+        </div>
       </section>
 
       {isBookingEnabled() ? <HomeScheduleSection /> : null}

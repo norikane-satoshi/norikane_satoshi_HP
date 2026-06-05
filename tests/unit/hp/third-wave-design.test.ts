@@ -159,10 +159,10 @@ describe("HP third-wave design contract", () => {
 
     expect(css).not.toContain(".glass-card--showcase")
     expect(profileRule).toContain("backdrop-filter: blur(34px) saturate(1.38)")
-    expect(profileRule).toContain("inset 0 1px 0 rgba(255, 255, 255, 0.90)")
-    expect(profileRule).toContain("0 14px 34px rgba(30, 34, 42, 0.085)")
+    expect(profileRule).toContain("box-shadow: 0 16px 38px rgba(30, 34, 42, 0.10)")
     expect(profileRule).not.toContain("inset 12px")
     expect(profileRule).not.toContain("inset -12px")
+    expect(profileRule).not.toContain("inset 0 1px")
 
     expect(page).toContain('className="glass-card glass-card--hp-profile')
     expect(page).not.toContain("glass-card--showcase")

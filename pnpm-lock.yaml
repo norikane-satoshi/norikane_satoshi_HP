@@ -35,12 +35,6 @@ importers:
       '@libsql/client':
         specifier: ^0.17.3
         version: 0.17.3
-      '@liquid-dom/r3f':
-        specifier: ^0.1.1
-        version: 0.1.1(@react-three/fiber@9.6.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.184.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.184.0)
-      '@liquid-dom/react':
-        specifier: ^0.1.1
-        version: 0.1.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@notionhq/client':
         specifier: ^5.20.0
         version: 5.20.0
@@ -1007,30 +1001,6 @@ packages:
     resolution: {integrity: sha512-4/0CvEdhi6+KjMxMaVbFM2n2Z44escBRoEYpR+gZg64DdetzGnYm8mcNLcoySaDJZNaBd6wz5DNdgRmcI4hXcg==}
     cpu: [x64]
     os: [win32]
-
-  '@liquid-dom/core@0.1.1':
-    resolution: {integrity: sha512-Q+Agxas90pMz+Az3vd/wlNAbxOXBz7dQDDZl2lRCARm6TrqeKYVUoWM+Q/JmlBNoTM8z0tYMkguhmFz75ZiogQ==}
-
-  '@liquid-dom/layout@0.2.0':
-    resolution: {integrity: sha512-bdKWF2MVF7qv4+Db0e9JPE4aKXAmIEubFF4bivluFAGNJBZklLr45qggg5D2THy/gqwuuCNP5uxnOJZfi+UaHA==}
-
-  '@liquid-dom/r3f@0.1.1':
-    resolution: {integrity: sha512-MZgPWcGgm2bpez6QcP4WNzrgdL8OJAfGQbUvwbC9qJslnJQ66QFsMXE7B0lrnCTclw1U5b2QikTLdJCOxfl08w==}
-    peerDependencies:
-      '@react-three/fiber': '>=9.0.0'
-      react: '>=19.0.0'
-      three: '>=0.184'
-
-  '@liquid-dom/react@0.1.1':
-    resolution: {integrity: sha512-5ZYEkxj/QqHk8U7gsGMbhrcfbzQ+03UGeasElGjREo30qEcBGJ+tPyoxEr1XR+JwrfXpEFhHuxAuBzrbvHeVbw==}
-    peerDependencies:
-      react: '>=19'
-      react-dom: '>=19'
-
-  '@liquid-dom/three@0.1.1':
-    resolution: {integrity: sha512-0aZCy2UIA8NU8y11IgAoIfbhAGg/nRDB0D0am8bKgmHDrAbtcEi+Bo3bAD+Y4j9S/56vy+zjV5XAR1v7M1L/nw==}
-    peerDependencies:
-      three: '>=0.184'
 
   '@mediapipe/tasks-vision@0.10.17':
     resolution: {integrity: sha512-CZWV/q6TTe8ta61cZXjfnnHsfWIdFhms03M9T7Cnd5y2mdpylJM0rF1qRq+wsQVRMLz1OYPVEBU9ph2Bx8cxrg==}
@@ -5515,35 +5485,6 @@ snapshots:
 
   '@libsql/win32-x64-msvc@0.5.29':
     optional: true
-
-  '@liquid-dom/core@0.1.1':
-    dependencies:
-      '@liquid-dom/layout': 0.2.0
-
-  '@liquid-dom/layout@0.2.0': {}
-
-  '@liquid-dom/r3f@0.1.1(@react-three/fiber@9.6.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.184.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.184.0)':
-    dependencies:
-      '@liquid-dom/core': 0.1.1
-      '@liquid-dom/react': 0.1.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@liquid-dom/three': 0.1.1(three@0.184.0)
-      '@react-three/fiber': 9.6.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.184.0)
-      react: 19.2.4
-      three: 0.184.0
-    transitivePeerDependencies:
-      - react-dom
-
-  '@liquid-dom/react@0.1.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      '@liquid-dom/core': 0.1.1
-      '@liquid-dom/layout': 0.2.0
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-
-  '@liquid-dom/three@0.1.1(three@0.184.0)':
-    dependencies:
-      '@liquid-dom/core': 0.1.1
-      three: 0.184.0
 
   '@mediapipe/tasks-vision@0.10.17': {}
 
