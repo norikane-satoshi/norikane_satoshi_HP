@@ -25,8 +25,10 @@ export function ChatMessage({ role, content, createdAt }: ChatMessageProps) {
       className={[
         "max-w-[88%] px-4 py-3 text-sm leading-relaxed",
         isUser
-          ? "glass-flat ml-auto border border-[var(--accent-primary)]/40 text-hp"
-          : "glass-inset mr-auto text-hp",
+          ? "glass-bubble--user ml-auto border border-[var(--accent-primary)]/40 text-hp"
+          : isSystem
+            ? "glass-inset mr-auto text-hp"
+            : "glass-bubble--assistant mr-auto text-hp",
         isSystem ? "mx-auto max-w-full text-xs text-hp-muted" : "",
       ].join(" ")}
     >
