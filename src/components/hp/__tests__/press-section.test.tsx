@@ -1,19 +1,25 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
-import { PRESS_CATEGORIES, PressSection } from "@/components/hp/press-section"
+import { PRESS_CATEGORIES, PressDialog } from "@/components/hp/press-section"
 
 describe("PressSection", () => {
   afterEach(() => {
     cleanup()
   })
 
-  it("renders the three SSOT categories and nine press items", () => {
-    render(<PressSection />)
+  it("opens the three SSOT categories and nine press items in a modal dialog", () => {
+    render(<PressDialog />)
 
-    expect(screen.getByRole("heading", { name: "登壇・メディア掲載 / 実績" })).toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "実績" }))
+
+    const dialog = screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
+
+    expect(within(dialog).getByRole("heading", { name: "登壇・メディア掲載 / 実績" })).toBeInTheDocument()
     expect(PRESS_CATEGORIES.map((category) => category.title)).toEqual([
       "登壇・セミナー",
       "メディア掲載・事例紹介",
@@ -22,11 +28,11 @@ describe("PressSection", () => {
     expect(PRESS_CATEGORIES.flatMap((category) => category.items)).toHaveLength(9)
 
     for (const category of PRESS_CATEGORIES) {
-      expect(screen.getByRole("heading", { name: category.title })).toBeInTheDocument()
+      expect(within(dialog).getByRole("heading", { name: category.title })).toBeInTheDocument()
       for (const item of category.items) {
-        expect(screen.getAllByText(item.period).length).toBeGreaterThan(0)
-        expect(screen.getByRole("heading", { name: item.title })).toBeInTheDocument()
-        expect(screen.getByText(item.description)).toBeInTheDocument()
+        expect(within(dialog).getAllByText(item.period).length).toBeGreaterThan(0)
+        expect(within(dialog).getByRole("heading", { name: item.title })).toBeInTheDocument()
+        expect(within(dialog).getByText(item.description)).toBeInTheDocument()
       }
     }
   })
@@ -53,8 +59,24 @@ describe("PressSection", () => {
     )
   })
 
+  it("keeps the updated SSOT copy for trainer and Jukkakukan items", () => {
+    const seminarItems =
+      PRESS_CATEGORIES.find((category) => category.title === "登壇・セミナー")?.items ?? []
+    const trainer = seminarItems.find((item) => item.title.includes("トレーニング講師"))
+    const mediaItems =
+      PRESS_CATEGORIES.find((category) => category.title === "メディア掲載・事例紹介")?.items ?? []
+    const jukkakukan = mediaItems.find((item) => item.title.includes("十角館の殺人"))
+
+    expect(trainer?.description).not.toContain("満席")
+    expect(jukkakukan?.description).toContain("カラリストとして撮影現場")
+    expect(jukkakukan?.description).not.toContain("DIカラリスト")
+  })
+
   it("opens every external link in a new isolated tab", () => {
-    render(<PressSection />)
+    render(<PressDialog />)
+    fireEvent.click(screen.getByRole("button", { name: "実績" }))
+
+    const dialog = screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
 
     const expectedLinks = PRESS_CATEGORIES.flatMap((category) =>
       category.items.flatMap((item) =>
@@ -66,7 +88,7 @@ describe("PressSection", () => {
     )
 
     for (const link of expectedLinks) {
-      const anchor = screen.getByRole("link", {
+      const anchor = within(dialog).getByRole("link", {
         name: `${link.itemTitle} ${link.label}を新しいタブで開く`,
       })
 
@@ -74,5 +96,20 @@ describe("PressSection", () => {
       expect(anchor).toHaveAttribute("target", "_blank")
       expect(anchor).toHaveAttribute("rel", "noopener noreferrer")
     }
+  })
+
+  it("closes with Escape and backdrop click", () => {
+    render(<PressDialog />)
+
+    fireEvent.click(screen.getByRole("button", { name: "実績" }))
+    expect(screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "実績" }))
+    const dialog = screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
+    fireEvent.mouseDown(dialog.parentElement!)
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 })

@@ -1,4 +1,7 @@
-import { ExternalLink } from "lucide-react"
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import { ExternalLink, X } from "lucide-react"
 
 type PressLink = {
   label: string
@@ -62,7 +65,7 @@ export const PRESS_CATEGORIES: PressCategory[] = [
         period: "2025年5月",
         title: "DaVinci Resolve カラーグレーディング トレーニング講師（ブラックマジックデザイン）",
         description:
-          "DaVinci Resolve 認定トレーナーとして、他ソフトからのコンフォーム・ショットマッチング・クリエイティブグレーディングなど実務テクニックを少人数セミナーで指導した（満席）。",
+          "DaVinci Resolve 認定トレーナーとして、他ソフトからのコンフォーム・ショットマッチング・クリエイティブグレーディングなど実務テクニックを少人数セミナーで指導した。",
         links: [
           {
             label: "https://bmduser.jp/eve_detail.php?id=127",
@@ -79,7 +82,7 @@ export const PRESS_CATEGORIES: PressCategory[] = [
         period: "2024年",
         title: "Huluドラマ『十角館の殺人』— インカメラVFXによるルック作り",
         description:
-          "実写化不可能と言われた綾辻行人原作のドラマ化作品で、DIカラリストとして撮影現場に立ち会い、照明部と連携した現場カラコレ／オンセットグレーディング（黒浮き対策・LED 調整など）を担当した。",
+          "実写化不可能と言われた綾辻行人原作のドラマ化作品で、カラリストとして撮影現場に立ち会い、照明部と連携した現場カラコレ／オンセットグレーディング（黒浮き対策・LED 調整など）を担当した。",
         links: [
           {
             label: "VIDEO SALON 記事",
@@ -148,66 +151,204 @@ export const PRESS_CATEGORIES: PressCategory[] = [
   },
 ]
 
-export function PressSection() {
-  return (
-    <section
-      id="press"
-      className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
-    >
-      <div className="glass-card p-8 md:p-10 xl:p-12">
-        <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
-          登壇・メディア掲載 / 実績
-        </h2>
+const focusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",")
 
-        <div className="mt-8 space-y-9 md:space-y-10">
-          {PRESS_CATEGORIES.map((category) => (
-            <section key={category.title} aria-labelledby={`press-${category.title}`}>
-              <h3
-                id={`press-${category.title}`}
-                className="hp-compact-text text-base font-semibold text-hp md:text-lg"
+function PressDialogContent() {
+  return (
+    <div className="space-y-8 md:space-y-9">
+      {PRESS_CATEGORIES.map((category) => (
+        <section key={category.title} aria-labelledby={`press-${category.title}`}>
+          <h3
+            id={`press-${category.title}`}
+            className="hp-compact-text text-base font-semibold text-hp md:text-lg"
+          >
+            {category.title}
+          </h3>
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {category.items.map((item) => (
+              <article
+                key={`${item.period}-${item.title}`}
+                className="flex min-h-full flex-col rounded-[12px] border border-white/55 bg-white/35 p-5 md:p-6"
               >
-                {category.title}
-              </h3>
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {category.items.map((item) => (
-                  <article
-                    key={`${item.period}-${item.title}`}
-                    className="flex min-h-full flex-col rounded-[12px] border border-white/55 bg-white/35 p-5 md:p-6"
-                  >
-                    <p
-                      className="font-[var(--font-inter)] text-xs font-semibold"
-                      style={{ color: "var(--accent-primary)" }}
+                <p
+                  className="font-[var(--font-inter)] text-xs font-semibold"
+                  style={{ color: "var(--accent-primary)" }}
+                >
+                  {item.period}
+                </p>
+                <h4 className="hp-heading mt-2 text-base font-semibold text-hp">
+                  {item.title}
+                </h4>
+                <p className="hp-body mt-3 text-sm text-hp-muted">
+                  {item.description}
+                </p>
+                <div className="mt-auto flex flex-wrap gap-2 pt-5">
+                  {item.links.map((link) => (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="glass-badge hp-technical-break inline-flex max-w-full items-center gap-2 px-3 py-1.5 text-xs"
+                      aria-label={`${item.title} ${link.label}を新しいタブで開く`}
                     >
-                      {item.period}
-                    </p>
-                    <h4 className="hp-heading mt-2 text-base font-semibold text-hp">
-                      {item.title}
-                    </h4>
-                    <p className="hp-body mt-3 text-sm text-hp-muted">
-                      {item.description}
-                    </p>
-                    <div className="mt-auto flex flex-wrap gap-2 pt-5">
-                      {item.links.map((link) => (
-                        <a
-                          key={link.href}
-                          href={link.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="glass-badge hp-technical-break inline-flex max-w-full items-center gap-2 px-3 py-1.5 text-xs"
-                          aria-label={`${item.title} ${link.label}を新しいタブで開く`}
-                        >
-                          <span className="truncate">{link.label}</span>
-                          <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                        </a>
-                      ))}
-                    </div>
-                  </article>
-                ))}
+                      <span className="truncate">{link.label}</span>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    </a>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+export function PressDialog() {
+  const [open, setOpen] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  const close = useCallback(() => {
+    setOpen(false)
+  }, [])
+
+  useEffect(() => {
+    const openFromHash = () => {
+      if (window.location.hash === "#press") {
+        setOpen(true)
+      }
+    }
+
+    openFromHash()
+    window.addEventListener("hashchange", openFromHash)
+    return () => window.removeEventListener("hashchange", openFromHash)
+  }, [])
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    const previousActiveElement =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const triggerElement = triggerRef.current
+
+    document.body.style.overflow = "hidden"
+    closeButtonRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        close()
+        return
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return
+      }
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector),
+      ).filter((element) => !element.hasAttribute("disabled") && element.tabIndex !== -1)
+
+      if (focusable.length === 0) {
+        event.preventDefault()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+        return
+      }
+
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener("keydown", handleKeyDown)
+      if (previousActiveElement?.isConnected) {
+        previousActiveElement.focus()
+      } else {
+        triggerElement?.focus()
+      }
+    }
+  }, [close, open])
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="glass-badge glass-badge--profile-tool inline-flex h-10 items-center justify-center px-4 text-xs font-semibold"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        実績
+      </button>
+
+      {open ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              close()
+            }
+          }}
+        >
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="登壇・メディア掲載 / 実績"
+            className="glass-card flex max-h-[min(82vh,760px)] w-full max-w-5xl flex-col overflow-hidden p-6 md:p-8 xl:p-10"
+          >
+            <div className="flex items-start justify-between gap-5">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Press</p>
+                <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
+                  登壇・メディア掲載 / 実績
+                </h2>
               </div>
-            </section>
-          ))}
+              <button
+                ref={closeButtonRef}
+                type="button"
+                className="glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-hp"
+                aria-label="実績ダイアログを閉じる"
+                onClick={close}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-7 overflow-y-auto pr-1 md:pr-2">
+              <PressDialogContent />
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
+      ) : null}
+    </>
   )
 }
