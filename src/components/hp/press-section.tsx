@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ExternalLink, X } from "lucide-react"
+import { ExternalLink, Presentation, X } from "lucide-react"
 
 type PressLink = {
   label: string
@@ -175,7 +175,7 @@ function PressDialogContent() {
             {category.items.map((item) => (
               <article
                 key={`${item.period}-${item.title}`}
-                className="flex min-h-full flex-col rounded-[12px] border border-white/55 bg-white/35 p-5 md:p-6"
+                className="flex min-h-full flex-col rounded-[12px] border border-white/75 bg-white/70 p-5 md:p-6"
               >
                 <p
                   className="font-[var(--font-inter)] text-xs font-semibold"
@@ -301,11 +301,16 @@ export function PressDialog() {
       <button
         ref={triggerRef}
         type="button"
-        className="glass-badge glass-badge--profile-tool inline-flex h-10 items-center justify-center px-4 text-xs font-semibold"
+        className="glass-badge glass-badge--profile-tool inline-flex h-10 items-center justify-center gap-2 px-4 text-xs font-semibold"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
+        <Presentation
+          className="h-4 w-4 shrink-0"
+          style={{ color: "var(--accent-primary)" }}
+          aria-hidden="true"
+        />
         実績
       </button>
 
