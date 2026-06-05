@@ -249,7 +249,13 @@
     --hp-profile-lens-blur: 20px;
     --hp-profile-lens-saturate: 1.24;
     --hp-profile-lens-opacity: 0.96;
+    --hp-profile-lens-thickness: 26px;
+    --hp-profile-lens-bevel: 18%;
+    --hp-profile-dispersion: 0.16;
+    --hp-profile-light-angle: 132deg;
     --hp-profile-specular-opacity: 0.42;
+    --hp-profile-front-specular-opacity: 0.46;
+    --hp-profile-back-specular-opacity: 0.20;
     background: rgba(255, 255, 255, 0.50);
     backdrop-filter: blur(34px) saturate(1.38);
     -webkit-backdrop-filter: blur(34px) saturate(1.38);
@@ -257,6 +263,7 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.90),
       inset 0 -1px 0 rgba(255, 255, 255, 0.36),
+      inset 0 0 var(--hp-profile-lens-thickness) rgba(255, 255, 255, 0.12),
       inset 18px 0 42px rgba(255, 255, 255, 0.16),
       inset -18px 0 44px rgba(30, 34, 42, 0.045),
       0 22px 48px rgba(30, 34, 42, 0.11);
@@ -316,7 +323,10 @@
   }
   .glass-card--hp-profile.glass-distortion-surface::before {
     background:
-      radial-gradient(ellipse 84% 72% at 50% 46%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.09) 44%, rgba(255, 255, 255, 0.18) 72%, rgba(255, 255, 255, 0.22) 100%),
+      radial-gradient(ellipse 84% 72% at 50% 46%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.09) calc(100% - var(--hp-profile-lens-bevel) - 18%), rgba(255, 255, 255, 0.18) calc(100% - var(--hp-profile-lens-bevel)), rgba(255, 255, 255, 0.24) 100%),
+      linear-gradient(var(--hp-profile-light-angle), rgba(255, 255, 255, var(--hp-profile-front-specular-opacity)) 0%, rgba(255, 255, 255, 0.12) 16%, rgba(255, 255, 255, 0) 44%, rgba(30, 34, 42, 0.045) 72%, rgba(255, 255, 255, 0.14) 100%),
+      linear-gradient(calc(var(--hp-profile-light-angle) + 180deg), rgba(255, 255, 255, var(--hp-profile-back-specular-opacity)) 0%, rgba(255, 255, 255, 0.08) 14%, rgba(255, 255, 255, 0) 42%),
+      linear-gradient(96deg, rgba(255, 70, 96, var(--hp-profile-dispersion)) 0%, rgba(255, 255, 255, 0) 22%, rgba(255, 255, 255, 0) 72%, rgba(78, 158, 255, var(--hp-profile-dispersion)) 100%),
       linear-gradient(128deg, rgba(255, 255, 255, var(--hp-profile-specular-opacity)) 0%, rgba(255, 255, 255, 0.08) 18%, rgba(255, 255, 255, 0) 48%, rgba(30, 34, 42, 0.045) 76%, rgba(255, 255, 255, 0.24) 100%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.04) 52%, rgba(255, 255, 255, 0.16));
   }

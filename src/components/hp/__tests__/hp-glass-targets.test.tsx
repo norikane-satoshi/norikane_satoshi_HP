@@ -64,6 +64,10 @@ describe("HP targeted glass contracts", () => {
 
     expect(cssRule(".glass-card-sm--hp-note")).toContain("saturate(1.42)")
     expect(cssRule(".glass-card--hp-profile")).toContain("blur(34px)")
+    expect(cssRule(".glass-card--hp-profile")).toContain("--hp-profile-lens-thickness")
+    expect(cssRule(".glass-card--hp-profile")).toContain("--hp-profile-lens-bevel")
+    expect(cssRule(".glass-card--hp-profile")).toContain("--hp-profile-dispersion")
+    expect(cssRule(".glass-card--hp-profile")).toContain("--hp-profile-light-angle")
     expect(cssRule(".glass-card--hp-schedule")).toContain("blur(30px)")
     expect(cssRule(".glass-inset--hp-schedule")).toContain("inset")
     expect(cssRule(".featured-work-transparent-card")).toContain(
@@ -168,6 +172,43 @@ describe("HP targeted glass contracts", () => {
     )
   })
 
+  it("keeps the profile lens as one curved RGB-dispersed surface with directed double specular", () => {
+    const filterSource = readFileSync(
+      join(process.cwd(), "src/components/hp/glass-distortion-filter.tsx"),
+      "utf8",
+    )
+    const profileBase = cssRule(".glass-card--hp-profile")
+    const profileSurface = cssRule(".glass-card--hp-profile.glass-distortion-surface::before")
+    const enabledProfileSurface = cssRule(
+      ".hp-liquid-glass-enabled .glass-card--hp-profile.glass-distortion-surface::before",
+    )
+
+    expect(filterSource).toContain("PROFILE_LENS_THICKNESS_SCALE")
+    expect(filterSource).toContain("PROFILE_LENS_DISPERSION_SCALE")
+    expect(filterSource).toContain('result="profileRedChannel"')
+    expect(filterSource).toContain('result="profileGreenChannel"')
+    expect(filterSource).toContain('result="profileBlueChannel"')
+    expect(filterSource).toContain('result="profileRedDispersion"')
+    expect(filterSource).toContain('result="profileGreenDispersion"')
+    expect(filterSource).toContain('result="profileBlueDispersion"')
+    expect(filterSource).toContain('result="profileRgbCaustics"')
+    expect(filterSource).toMatch(/scale=\{PROFILE_LENS_THICKNESS_SCALE \+ PROFILE_LENS_DISPERSION_SCALE\}/)
+    expect(filterSource).toMatch(/scale=\{PROFILE_LENS_THICKNESS_SCALE - PROFILE_LENS_DISPERSION_SCALE\}/)
+
+    expect(profileBase).toContain("--hp-profile-lens-thickness: 26px")
+    expect(profileBase).toContain("--hp-profile-lens-bevel: 18%")
+    expect(profileBase).toContain("--hp-profile-dispersion: 0.16")
+    expect(profileBase).toContain("--hp-profile-light-angle: 132deg")
+    expect(profileBase).toContain("--hp-profile-front-specular-opacity")
+    expect(profileBase).toContain("--hp-profile-back-specular-opacity")
+    expect(profileSurface).toContain("var(--hp-profile-lens-bevel)")
+    expect(profileSurface).toContain("var(--hp-profile-light-angle)")
+    expect(profileSurface).toContain("calc(var(--hp-profile-light-angle) + 180deg)")
+    expect(profileSurface).toContain("var(--hp-profile-dispersion)")
+    expect(enabledProfileSurface).toContain('url("#hp-profile-lens-distortion")')
+    expect(enabledProfileSurface).not.toContain('url("#hp-liquid-glass-distortion")')
+  })
+
   it("adds one fixed transparent Featured Works refraction overlay on the non-scrolling shell", () => {
     expect(featuredWorksSource).toContain("data-featured-work-marquee-shell")
     expect(featuredWorksSource).toContain("featured-work-content-viewport")
@@ -254,6 +295,9 @@ describe("HP targeted glass contracts", () => {
     expect(reducedMotionBlock?.[1]).toContain(".hp-featured-shadow-media")
     expect(reducedMotionBlock?.[1]).toContain(".hp-featured-shadow-track")
     expect(reducedMotionBlock?.[1]).toContain(".featured-work-refraction-overlay")
+    expect(reducedMotionBlock?.[1]).toContain(
+      ".hp-liquid-glass-enabled .glass-card--hp-profile.glass-distortion-surface::before",
+    )
     expect(reducedMotionBlock?.[1]).toContain("animation: none")
     expect(reducedMotionBlock?.[1]).toContain("transform: none")
     expect(reducedMotionBlock?.[1]).not.toContain("filter: none")
