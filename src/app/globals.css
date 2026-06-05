@@ -209,6 +209,10 @@
       border-right: 0;
       border-radius: 0;
     }
+    article.glass-card--hp-note-page .hp-heading {
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
   }
   .glass-card--chat-frost {
     background: rgba(255, 255, 255, 0.72);
