@@ -150,18 +150,22 @@ describe("HP third-wave design contract", () => {
     }
   })
 
-  it("defines strong showcase glass separately from lightweight dense surfaces", () => {
+  it("keeps profile glass clean while lightweight dense surfaces stay separate", () => {
     const css = readProjectFile("src/app/globals.css")
     const page = readProjectFile("src/app/page.tsx")
     const featuredWorks = readProjectFile("src/components/hp/featured-works.tsx")
     const bookingCalendar = readProjectFile("src/components/booking/booking-calendar.tsx")
+    const profileRule = extractCssRule(css, ".glass-card--hp-profile")
 
-    expect(css).toMatch(/\.glass-card--showcase[\s\S]*position:\s*relative/)
-    expect(css).toMatch(/\.glass-card--showcase::before[\s\S]*linear-gradient/)
-    expect(css).toMatch(/\.glass-card--showcase::after[\s\S]*radial-gradient/)
-    expect(css).toMatch(/\.glass-card--showcase[\s\S]*inset/)
+    expect(css).not.toContain(".glass-card--showcase")
+    expect(profileRule).toContain("backdrop-filter: blur(34px) saturate(1.38)")
+    expect(profileRule).toContain("inset 0 1px 0 rgba(255, 255, 255, 0.90)")
+    expect(profileRule).toContain("0 14px 34px rgba(30, 34, 42, 0.085)")
+    expect(profileRule).not.toContain("inset 12px")
+    expect(profileRule).not.toContain("inset -12px")
 
-    expect(page).toContain('className="glass-card glass-card--showcase')
+    expect(page).toContain('className="glass-card glass-card--hp-profile')
+    expect(page).not.toContain("glass-card--showcase")
     expect(page).toContain("className=\"group flex shrink-0 snap-start flex-col glass-card-sm")
     expect(featuredWorks).toContain("featured-work-transparent-card")
     expect(featuredWorks).not.toContain("className=\"group flex shrink-0 flex-col overflow-hidden glass-card-sm")
@@ -170,17 +174,19 @@ describe("HP third-wave design contract", () => {
     expect(bookingCalendar).toContain('className="booking-calendar__surface glass-flat"')
   })
 
-  it("keeps canonical standard glass blur while preserving showcase refraction layers", () => {
+  it("keeps canonical standard glass blur without preserving profile showcase layers", () => {
     const css = readProjectFile("src/app/globals.css")
     const glassCard = extractCssRule(css, ".glass-card")
     const glassCardSm = extractCssRule(css, ".glass-card-sm")
+    const profileRule = extractCssRule(css, ".glass-card--hp-profile")
 
     expect(glassCard).toContain("backdrop-filter: blur(24px) saturate(1.2);")
     expect(glassCard).toContain("-webkit-backdrop-filter: blur(24px) saturate(1.2);")
     expect(glassCardSm).toContain("backdrop-filter: blur(12px);")
     expect(glassCardSm).toContain("-webkit-backdrop-filter: blur(12px);")
-    expect(css).toMatch(/\.glass-card--showcase::before[\s\S]*linear-gradient/)
-    expect(css).toMatch(/\.glass-card--showcase::after[\s\S]*radial-gradient/)
+    expect(profileRule).toContain("backdrop-filter: blur(34px) saturate(1.38)")
+    expect(css).not.toContain(".glass-card--showcase::before")
+    expect(css).not.toContain(".glass-card--showcase::after")
   })
 
   it("keeps glass text colors at WCAG AA contrast on the standard glass surface", () => {

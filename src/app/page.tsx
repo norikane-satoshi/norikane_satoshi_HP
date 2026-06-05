@@ -169,7 +169,7 @@ export default async function HomePage() {
         id="profile"
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
-        <div className="glass-card glass-card--showcase glass-card--hp-profile hp-shadow-sync-surface hp-shadow-sync-surface--profile glass-distortion-surface p-8 md:p-10 xl:p-12">
+        <div className="glass-card glass-card--hp-profile hp-shadow-sync-surface hp-shadow-sync-surface--profile p-8 md:p-10 xl:p-12">
           <div
             aria-hidden="true"
             className="hp-shadow-sync-layer hp-profile-shadow-layer p-8 md:p-10 xl:p-12"

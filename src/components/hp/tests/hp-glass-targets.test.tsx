@@ -20,14 +20,17 @@ function cssRule(css: string, selector: string) {
 }
 
 describe("HP profile glass lens target", () => {
-  it("keeps the profile foreground outside the distortion plane", () => {
+  it("keeps the profile foreground outside any distortion plane", () => {
     const css = readProjectFile("src/app/globals.css")
     const page = readProjectFile("src/app/page.tsx")
     const foregroundRule = cssRule(css, ".glass-distortion-foreground")
+    const profileClass = page.match(
+      /className="([^"]*glass-card--hp-profile[^"]*)"/,
+    )?.[1]
 
-    expect(page).toContain(
-      "glass-card glass-card--showcase glass-card--hp-profile hp-shadow-sync-surface hp-shadow-sync-surface--profile glass-distortion-surface",
-    )
+    expect(profileClass).toBeDefined()
+    expect(profileClass).not.toContain("glass-card--showcase")
+    expect(profileClass).not.toContain("glass-distortion-surface")
     expect(page).toContain("glass-distortion-foreground hp-shadow-sync-foreground")
     expect(foregroundRule).toContain("z-index: 2")
     expect(foregroundRule).not.toMatch(/(?:filter|backdrop-filter):/)
@@ -35,45 +38,32 @@ describe("HP profile glass lens target", () => {
     expect(cssRule(css, ".hp-shadow-sync-layer")).toContain("z-index: 0")
   })
 
-  it("uses one profile-only lens backdrop layer with structured center-to-edge displacement", () => {
+  it("removes the profile-only structured SVG lens", () => {
     const css = readProjectFile("src/app/globals.css")
     const filter = readProjectFile("src/components/hp/glass-distortion-filter.tsx")
-    const profileRule = cssRule(
-      css,
-      ".hp-liquid-glass-enabled .glass-card--hp-profile.glass-distortion-surface::before",
-    )
 
-    expect(filter).toContain("hp-profile-lens-distortion")
-    expect(filter).toContain("PROFILE_LENS_MAP_DATA_URI")
-    expect(filter).toMatch(/PROFILE_LENS_MAP_SVG[\s\S]*radialGradient/)
-    expect(filter).toMatch(/PROFILE_LENS_MAP_SVG[\s\S]*linearGradient/)
-    expect(filter).toMatch(/<feImage[\s\S]*result="profileLensMap"/)
-    expect(filter).toMatch(/<feBlend[\s\S]*result="profileStructuredLens"/)
-    expect(filter).toMatch(/<feDisplacementMap[\s\S]*in2="profileStructuredLens"/)
-    expect(profileRule).toContain('backdrop-filter: url("#hp-profile-lens-distortion")')
-    expect(profileRule).toContain("blur(var(--hp-profile-lens-blur))")
-    expect(profileRule).toContain("saturate(var(--hp-profile-lens-saturate))")
-    expect(profileRule).not.toContain("animation:")
+    expect(filter).not.toContain("hp-profile-lens-distortion")
+    expect(filter).not.toContain("PROFILE_LENS")
+    expect(filter).not.toContain("profileLensMap")
+    expect(filter).not.toContain("profileStructuredLens")
+    expect(filter).not.toContain("profileRedDispersion")
+    expect(css).not.toContain("hp-profile-lens-distortion")
+    expect(css).not.toContain(".glass-card--hp-profile.glass-distortion-surface::before")
+    expect(filter).toContain("hp-liquid-glass-distortion")
   })
 
-  it("defines profile specular edge tokens without adding another backdrop-filter layer", () => {
+  it("keeps the profile card as clean frosted glass with one drop shadow", () => {
     const css = readProjectFile("src/app/globals.css")
     const profileBase = cssRule(css, ".glass-card--hp-profile")
-    const profileSurface = cssRule(css, ".glass-card--hp-profile.glass-distortion-surface::before")
-    const enabledProfile = cssRule(
-      css,
-      ".hp-liquid-glass-enabled .glass-card--hp-profile.glass-distortion-surface::before",
-    )
 
-    expect(profileBase).toContain("--hp-profile-lens-blur")
-    expect(profileBase).toContain("--hp-profile-lens-saturate")
-    expect(profileBase).toContain("--hp-profile-lens-opacity")
-    expect(profileBase).toContain("--hp-profile-specular-opacity")
-    expect(profileSurface).toContain("radial-gradient")
-    expect(profileSurface).toContain("linear-gradient")
-    expect(profileSurface).toContain("var(--hp-profile-specular-opacity)")
-    expect(enabledProfile.match(/^      backdrop-filter:/gm)).toHaveLength(1)
-    expect(enabledProfile.match(/-webkit-backdrop-filter:/g)).toHaveLength(1)
+    expect(profileBase).toContain("background: rgba(255, 255, 255, 0.50)")
+    expect(profileBase).toContain("backdrop-filter: blur(34px) saturate(1.38)")
+    expect(profileBase).toContain("inset 0 1px 0 rgba(255, 255, 255, 0.90)")
+    expect(profileBase).toContain("0 14px 34px rgba(30, 34, 42, 0.085)")
+    expect(profileBase).not.toContain("inset 12px")
+    expect(profileBase).not.toContain("inset -12px")
+    expect(profileBase).not.toContain("--hp-profile-lens")
+    expect(profileBase).not.toContain("--hp-profile-dispersion")
   })
 
   it("keeps the shared note and Featured Works distortion paths unchanged", () => {
@@ -93,11 +83,16 @@ describe("HP profile glass lens target", () => {
 
   it("keeps independent liquid motion removed and reduced-motion guarded", () => {
     const css = readProjectFile("src/app/globals.css")
+    const reducedMotionBlock = css.match(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]+?)\n\s*\}\n\}/,
+    )?.[1]
 
     expect(css).not.toContain("@keyframes hp-liquid-glass-shift")
     expect(css).not.toContain("hp-liquid-glass-shift")
-    expect(css).toMatch(
-      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.hp-liquid-glass-enabled \.glass-card--hp-profile\.glass-distortion-surface::before[\s\S]*animation:\s*none/,
+    expect(reducedMotionBlock).toContain(".glass-distortion-surface::before")
+    expect(reducedMotionBlock).toContain(".featured-work-refraction-overlay")
+    expect(reducedMotionBlock).not.toContain(
+      ".hp-liquid-glass-enabled .glass-card--hp-profile.glass-distortion-surface::before",
     )
   })
 })

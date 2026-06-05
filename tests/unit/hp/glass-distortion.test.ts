@@ -27,6 +27,21 @@ function extractRgbaAlpha(source: string, customPropertyName: string) {
   return Number(match[1])
 }
 
+function expectNoProfileLens(source: string) {
+  expect(source).not.toContain("hp-profile-lens-distortion")
+  expect(source).not.toContain("PROFILE_LENS")
+  expect(source).not.toContain("profileLensMap")
+  expect(source).not.toContain("profileStructuredLens")
+  expect(source).not.toContain("profileRedDispersion")
+  expect(source).not.toContain("profileGreenDispersion")
+  expect(source).not.toContain("profileBlueDispersion")
+  expect(source).not.toContain("profileRgbCaustics")
+  expect(source).not.toContain("--hp-profile-lens")
+  expect(source).not.toContain("--hp-profile-dispersion")
+  expect(source).not.toContain("--hp-profile-light-angle")
+  expect(source).not.toContain("--hp-profile-specular-opacity")
+}
+
 describe("HP glass distortion contract", () => {
   it("keeps page aurora sources cinematic while limiting three-hue fields to the hero", () => {
     const css = readProjectFile("src/app/globals.css")
@@ -62,115 +77,62 @@ describe("HP glass distortion contract", () => {
     expect(refractionSurface).not.toContain("neu-")
   })
 
-  it("defines SVG displacement as a guarded enhancement", () => {
+  it("keeps only the shared SVG displacement enhancement", () => {
     const css = readProjectFile("src/app/globals.css")
     const filter = readProjectFile("src/components/hp/glass-distortion-filter.tsx")
 
-    expect(filter).toContain("PROFILE_LENS_FILTER_ID")
-    expect(filter).toContain("hp-profile-lens-distortion")
-    expect(filter).toContain("PROFILE_LENS_MAP_DATA_URI")
-    expect(filter).toContain("<feImage")
-    expect(filter).toContain('result="profileLensMap"')
-    expect(filter).toContain('result="profileStructuredLens"')
-    expect(filter).toContain('result="profileRedDispersion"')
-    expect(filter).toContain('result="profileGreenDispersion"')
-    expect(filter).toContain('result="profileBlueDispersion"')
-    expect(filter).toContain('result="profileRgbCaustics"')
-    expect(filter).toContain("<feTurbulence")
-    expect(filter).toContain("<feDisplacementMap")
+    expectNoProfileLens(filter)
+    expectNoProfileLens(css)
     expect(filter).toContain("hp-liquid-glass-distortion")
     expect(filter).toContain("CSS.supports")
     expect(filter).toContain("hp-liquid-glass-enabled")
+    expect(filter).toContain("<feTurbulence")
+    expect(filter).toContain("<feDisplacementMap")
     expect(css).toContain("@supports")
     expect(css).toContain("backdrop-filter: url(\"#hp-liquid-glass-distortion\")")
-    expect(css).toContain("backdrop-filter: url(\"#hp-profile-lens-distortion\")")
     expect(css).toContain(".hp-liquid-glass-enabled")
-    expect(css).toContain("--hp-profile-lens-blur")
-    expect(css).toContain("--hp-profile-lens-saturate")
-    expect(css).toContain("--hp-profile-lens-opacity")
-    expect(css).toContain("--hp-profile-lens-thickness")
-    expect(css).toContain("--hp-profile-lens-bevel")
-    expect(css).toContain("--hp-profile-dispersion")
-    expect(css).toContain("--hp-profile-light-angle")
-    expect(css).toContain("--hp-profile-front-specular-opacity")
-    expect(css).toContain("--hp-profile-back-specular-opacity")
 
     const sharedScale = filter.match(
       /<feDisplacementMap[\s\S]*?scale="([0-9.]+)"[\s\S]*?xChannelSelector="R"[\s\S]*?yChannelSelector="G"/,
     )?.[1]
-    const profileScale = filter.match(/scale=\{PROFILE_LENS_THICKNESS_SCALE\}/)?.[0]
-    const profileDispersionScale = filter.match(
-      /scale=\{PROFILE_LENS_THICKNESS_SCALE \+ PROFILE_LENS_DISPERSION_SCALE\}/,
-    )?.[0]
     expect(Number(sharedScale)).toBeGreaterThanOrEqual(26)
     expect(Number(sharedScale)).toBeLessThanOrEqual(30)
-    expect(profileScale).toBeDefined()
-    expect(profileDispersionScale).toBeDefined()
   })
 
-  it("uses a profile-only structured lens map instead of broadening the shared noise filter", () => {
+  it("removes the profile card from the distortion surface while keeping foreground above shadows", () => {
     const css = readProjectFile("src/app/globals.css")
-    const filter = readProjectFile("src/components/hp/glass-distortion-filter.tsx")
     const page = readProjectFile("src/app/page.tsx")
-
-    expect(page).toContain("glass-card--hp-profile")
-    expect(page).toContain("glass-distortion-surface")
-    expect(filter).toMatch(/PROFILE_LENS_MAP_SVG[\s\S]*radialGradient/)
-    expect(filter).toMatch(/PROFILE_LENS_MAP_SVG[\s\S]*linearGradient/)
-    expect(filter).toContain('<stop offset="62%" stop-color="rgb(128,128,128)"')
-    expect(filter).toContain('<stop offset="84%" stop-color="rgba(128,128,128,0)"')
-    expect(filter).toMatch(/<feBlend[\s\S]*in="profileLensMap"[\s\S]*in2="profileMicroRipple"[\s\S]*result="profileStructuredLens"/)
-    expect(filter).toMatch(/<feColorMatrix[\s\S]*result="profileRedChannel"/)
-    expect(filter).toMatch(/<feColorMatrix[\s\S]*result="profileGreenChannel"/)
-    expect(filter).toMatch(/<feColorMatrix[\s\S]*result="profileBlueChannel"/)
-    expect(filter).toMatch(/<feDisplacementMap[\s\S]*in2="profileStructuredLens"[\s\S]*result="profileRedDispersion"/)
-    expect(filter).toMatch(/<feDisplacementMap[\s\S]*in2="profileStructuredLens"[\s\S]*result="profileGreenDispersion"/)
-    expect(filter).toMatch(/<feDisplacementMap[\s\S]*in2="profileStructuredLens"[\s\S]*result="profileBlueDispersion"/)
-    expect(css).toContain(
-      ".hp-liquid-glass-enabled .glass-card--hp-profile.glass-distortion-surface::before",
-    )
-    expect(css).toContain('url("#hp-profile-lens-distortion")')
-    expect(css).toContain(
-      ".hp-liquid-glass-enabled .glass-distortion-surface--subtle::before",
-    )
-  })
-
-  it("models profile edge bevel thickness dispersion and directed rim highlights only on the profile surface", () => {
-    const css = readProjectFile("src/app/globals.css")
-    const filter = readProjectFile("src/components/hp/glass-distortion-filter.tsx")
-    const profileBase = extractCssRule(css, ".glass-card--hp-profile")
-    const profileSurface = extractCssRule(
-      css,
-      ".glass-card--hp-profile.glass-distortion-surface::before",
-    )
-    const enabledProfileSurface = extractCssRule(
-      css,
-      ".hp-liquid-glass-enabled .glass-card--hp-profile.glass-distortion-surface::before",
-    )
+    const profileClass = page.match(
+      /className="([^"]*glass-card--hp-profile[^"]*)"/,
+    )?.[1]
     const foreground = extractCssRule(css, ".glass-distortion-foreground")
 
-    expect(filter).toContain("PROFILE_LENS_THICKNESS_SCALE")
-    expect(filter).toContain("PROFILE_LENS_DISPERSION_SCALE")
-    expect(filter).toContain('result="profileRgbCaustics"')
-    expect(profileBase).toContain("--hp-profile-lens-thickness: 18px")
-    expect(profileBase).toContain("--hp-profile-lens-bevel: 12%")
-    expect(profileBase).toContain("--hp-profile-dispersion: 0.07")
-    expect(profileBase).toContain("--hp-profile-lens-opacity: 0.78")
-    expect(profileBase).toContain("--hp-profile-light-angle: 132deg")
-    expect(profileBase).toContain("--hp-profile-front-specular-opacity")
-    expect(profileBase).toContain("--hp-profile-back-specular-opacity")
-    expect(profileSurface).toContain("var(--hp-profile-lens-bevel)")
-    expect(profileSurface).toContain("calc(100% - var(--hp-profile-lens-bevel) - 10%)")
-    expect(profileSurface).toContain("linear-gradient(var(--hp-profile-light-angle)")
-    expect(profileSurface).toContain("calc(var(--hp-profile-light-angle) + 180deg)")
-    expect(profileSurface).toContain("var(--hp-profile-dispersion)")
-    expect(profileSurface).toContain("rgba(255, 255, 255, 0) 88%")
-    expect(enabledProfileSurface).toContain('url("#hp-profile-lens-distortion")')
-    expect(enabledProfileSurface).not.toContain('url("#hp-liquid-glass-distortion")')
+    expect(profileClass).toBeDefined()
+    expect(profileClass).not.toContain("glass-card--showcase")
+    expect(profileClass).not.toContain("glass-distortion-surface")
+    expect(page).toContain("glass-distortion-foreground hp-shadow-sync-foreground")
+    expect(foreground).toContain("z-index: 2")
     expect(foreground).not.toMatch(/(?:filter|backdrop-filter):/)
+    expect(extractCssRule(css, ".hp-shadow-sync-layer")).toContain("z-index: 0")
+    expect(css).not.toContain(".glass-card--hp-profile.glass-distortion-surface::before")
   })
 
-  it("keeps distortion on background layers and not on foreground text", () => {
+  it("uses a clean shadow-only profile card baseline", () => {
+    const css = readProjectFile("src/app/globals.css")
+    const profileBase = extractCssRule(css, ".glass-card--hp-profile")
+
+    expect(profileBase).toContain("background: rgba(255, 255, 255, 0.50)")
+    expect(profileBase).toContain("backdrop-filter: blur(34px) saturate(1.38)")
+    expect(profileBase).toContain("border-color: rgba(255, 255, 255, 0.72)")
+    expect(profileBase).toContain("inset 0 1px 0 rgba(255, 255, 255, 0.90)")
+    expect(profileBase).toContain("0 14px 34px rgba(30, 34, 42, 0.085)")
+    expect(profileBase).not.toContain("inset 12px")
+    expect(profileBase).not.toContain("inset -12px")
+    expect(profileBase).not.toContain("var(--hp-profile-lens")
+    expect(profileBase).not.toContain("var(--hp-profile-dispersion")
+  })
+
+  it("keeps distortion on shared background layers and not on foreground text", () => {
     const css = readProjectFile("src/app/globals.css")
     const hero = readProjectFile("src/components/hp/hero-section.tsx")
     const featuredWorks = readProjectFile("src/components/hp/featured-works.tsx")
@@ -186,6 +148,21 @@ describe("HP glass distortion contract", () => {
     expect(featuredWorks).toContain("featured-work-transparent-card")
     expect(featuredWorks).toContain("featured-work-refraction-overlay")
     expect(page).toContain("glass-distortion-foreground")
+  })
+
+  it("keeps the shared note and Featured Works distortion paths unchanged", () => {
+    const css = readProjectFile("src/app/globals.css")
+    const page = readProjectFile("src/app/page.tsx")
+    const featuredWorks = readProjectFile("src/components/hp/featured-works.tsx")
+
+    expect(page).toContain("glass-card-sm--hp-note")
+    expect(featuredWorks).toContain("featured-work-refraction-overlay")
+    expect(extractCssRule(css, ".hp-liquid-glass-enabled .glass-distortion-surface::before")).toContain(
+      'backdrop-filter: url("#hp-liquid-glass-distortion") blur(20px) saturate(1.22)',
+    )
+    expect(extractCssRule(css, ".hp-liquid-glass-enabled .featured-work-refraction-overlay")).toContain(
+      'backdrop-filter: url("#hp-liquid-glass-distortion")',
+    )
   })
 
   it("removes the hero top-left glass shard while keeping at most one decorative shard", () => {
@@ -206,19 +183,18 @@ describe("HP glass distortion contract", () => {
       css,
       ".hp-liquid-glass-enabled .glass-distortion-surface::before",
     )
+    const reducedMotionBlock = css.match(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]+?)\n\s*\}\n\}/,
+    )?.[1]
 
     expect(css).not.toContain("@keyframes hp-liquid-glass-shift")
     expect(css).not.toContain("hp-liquid-glass-shift")
     expect(css).toContain(".hp-liquid-glass-enabled .glass-distortion-surface::before")
     expect(liquidSurface).not.toContain("animation:")
-    expect(css).toMatch(
-      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.hp-liquid-glass-enabled \.glass-card--hp-profile\.glass-distortion-surface::before[\s\S]*animation:\s*none/,
-    )
-    expect(css).toMatch(
-      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.glass-distortion-surface::before[\s\S]*animation:\s*none/,
-    )
-    expect(css).toMatch(
-      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.featured-work-refraction-overlay[\s\S]*transform:\s*none/,
-    )
+    expect(reducedMotionBlock).toContain(".glass-distortion-surface::before")
+    expect(reducedMotionBlock).toContain(".featured-work-refraction-overlay")
+    expect(reducedMotionBlock).toContain("animation: none")
+    expect(reducedMotionBlock).toContain("transform: none")
+    expect(reducedMotionBlock).not.toContain(".glass-card--hp-profile.glass-distortion-surface::before")
   })
 })
