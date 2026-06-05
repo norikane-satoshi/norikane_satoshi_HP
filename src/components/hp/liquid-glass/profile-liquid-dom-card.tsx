@@ -189,7 +189,7 @@ export function ProfileLiquidDomCard({
     )
   }
 
-  const { Frame, Glass, GlassContainer, Html, LiquidCanvas } = liquidDom
+  const { Frame, Glass, GlassContainer, Html, LiquidCanvas, ZStack } = liquidDom
 
   return (
     <div
@@ -211,25 +211,27 @@ export function ProfileLiquidDomCard({
         proposal={size}
         onError={disableLiquidDom}
       >
-        <Frame width={size.width} height={size.height}>
-          <Html sizing="fill" zIndex={0}>
-            <div className="hp-liquid-dom-profile-backdrop" />
-          </Html>
-        </Frame>
-        <GlassContainer {...PROFILE_GLASS_OPTICS}>
+        <ZStack>
           <Frame width={size.width} height={size.height}>
-            <Glass {...PROFILE_GLASS_SHAPE}>
-              <Html sizing="fill" zIndex={1}>
-                <div className={`${className} hp-liquid-dom-profile-html`}>
-                  {shadowLayer}
-                  <div className="glass-distortion-foreground hp-shadow-sync-foreground">
-                    {children}
-                  </div>
-                </div>
-              </Html>
-            </Glass>
+            <Html sizing="fill" zIndex={0}>
+              <div className="hp-liquid-dom-profile-backdrop" />
+            </Html>
           </Frame>
-        </GlassContainer>
+          <GlassContainer {...PROFILE_GLASS_OPTICS}>
+            <Frame width={size.width} height={size.height}>
+              <Glass {...PROFILE_GLASS_SHAPE}>
+                <Html sizing="fill" zIndex={1}>
+                  <div className={`${className} hp-liquid-dom-profile-html`}>
+                    {shadowLayer}
+                    <div className="glass-distortion-foreground hp-shadow-sync-foreground">
+                      {children}
+                    </div>
+                  </div>
+                </Html>
+              </Glass>
+            </Frame>
+          </GlassContainer>
+        </ZStack>
       </LiquidCanvas>
     </div>
   )
