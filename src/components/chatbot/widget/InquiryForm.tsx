@@ -42,7 +42,7 @@ export function InquiryForm({ onSubmit }: InquiryFormProps) {
       desiredDeadline: input.desiredDeadline.trim(),
       freeText: input.freeText.trim(),
     }
-    if (!normalizedInput.name || !normalizedInput.email) return
+    if (!normalizedInput.email) return
     onSubmit(normalizedInput)
   }
 
@@ -56,17 +56,22 @@ export function InquiryForm({ onSubmit }: InquiryFormProps) {
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <label className="block space-y-1 text-xs font-semibold text-hp">
-          氏名
+          <span className="flex items-center gap-2">
+            氏名
+            <span className="glass-badge px-2 py-0.5 text-[10px]">任意</span>
+          </span>
           <input
             className="glass-input w-full px-3 py-2 text-sm"
             value={input.name}
             onChange={(event) => updateInput("name", event.target.value)}
-            required
             aria-label="氏名"
           />
         </label>
         <label className="block space-y-1 text-xs font-semibold text-hp">
-          メール
+          <span className="flex items-center gap-2">
+            メール
+            <span className="glass-badge px-2 py-0.5 text-[10px]">必須</span>
+          </span>
           <input
             className="glass-input w-full px-3 py-2 text-sm"
             type="email"
@@ -77,16 +82,25 @@ export function InquiryForm({ onSubmit }: InquiryFormProps) {
           />
         </label>
         <label className="block space-y-1 text-xs font-semibold text-hp">
-          案件種別
+          <span className="flex items-center gap-2">
+            案件種別
+            <span className="glass-badge px-2 py-0.5 text-[10px]">任意</span>
+          </span>
           <input
             className="glass-input w-full px-3 py-2 text-sm"
             value={input.jobType}
             onChange={(event) => updateInput("jobType", event.target.value)}
             aria-label="案件種別"
           />
+          <span className="block text-[11px] font-normal leading-relaxed text-hp-muted">
+            T・Y案件 等イニシャルでも可
+          </span>
         </label>
         <label className="block space-y-1 text-xs font-semibold text-hp">
-          尺
+          <span className="flex items-center gap-2">
+            尺
+            <span className="glass-badge px-2 py-0.5 text-[10px]">任意</span>
+          </span>
           <input
             className="glass-input w-full px-3 py-2 text-sm"
             value={input.duration}
@@ -95,7 +109,10 @@ export function InquiryForm({ onSubmit }: InquiryFormProps) {
           />
         </label>
         <label className="block space-y-1 text-xs font-semibold text-hp md:col-span-2">
-          希望納期
+          <span className="flex items-center gap-2">
+            希望納期
+            <span className="glass-badge px-2 py-0.5 text-[10px]">任意</span>
+          </span>
           <input
             className="glass-input w-full px-3 py-2 text-sm"
             value={input.desiredDeadline}
@@ -105,7 +122,10 @@ export function InquiryForm({ onSubmit }: InquiryFormProps) {
         </label>
       </div>
       <label className="block space-y-1 text-xs font-semibold text-hp">
-        自由記述
+        <span className="flex items-center gap-2">
+          自由記述
+          <span className="glass-badge px-2 py-0.5 text-[10px]">任意</span>
+        </span>
         <textarea
           className="glass-input min-h-24 w-full px-3 py-2 text-sm"
           value={input.freeText}

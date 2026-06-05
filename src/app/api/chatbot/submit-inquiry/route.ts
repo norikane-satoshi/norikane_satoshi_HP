@@ -9,7 +9,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const inquiryRequestSchema = z.object({
-  name: z.string().trim().min(1).max(80),
+  name: z.string().trim().max(80).optional().default(""),
   email: z.string().trim().email().max(254),
   jobType: z.string().trim().max(120).optional().default(""),
   duration: z.string().trim().max(120).optional().default(""),
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
   }
 
   const input = parsed.data
+  const customerName = input.name || undefined
   const conversation = await loadInquiryConversation(input.conversationId)
   await appendInquiryMessage(input)
 
@@ -51,12 +52,12 @@ export async function POST(request: NextRequest) {
       conversationState: {
         ...conversation?.context.conversationState,
         hasContactEmail: true,
-        hasCustomerIdentity: true,
+        hasCustomerIdentity: Boolean(customerName),
         contactEmail: input.email,
-        customerName: input.name,
+        customerName,
       },
       fallback: {
-        customerName: input.name,
+        customerName,
         contactEmail: input.email,
         jobKind: input.jobType,
         projectLength: input.duration,

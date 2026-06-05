@@ -20,6 +20,8 @@ describe("DirectContactCard", () => {
 
     expect(screen.getByText("技術相談")).toBeInTheDocument()
     expect(screen.getByText("のりかね本人に直接確認します。")).toBeInTheDocument()
+    expect(screen.getByText("必須")).toBeInTheDocument()
+    expect(screen.getAllByText("任意")).toHaveLength(2)
   })
 
   it("submits contact values when email is present", () => {

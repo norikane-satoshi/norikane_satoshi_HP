@@ -54,7 +54,10 @@ export function DirectContactCard({ reason, suggestedMessage, onSubmitEmail }: D
       </div>
       <form className="space-y-3" onSubmit={handleSubmit}>
         <label className="block space-y-1 text-xs font-semibold text-hp">
-          メールアドレス
+          <span className="flex items-center gap-2">
+            メールアドレス
+            <span className="glass-badge px-2 py-0.5 text-[10px]">必須</span>
+          </span>
           <input
             className="glass-input w-full px-3 py-2 text-sm"
             type="email"
@@ -66,7 +69,10 @@ export function DirectContactCard({ reason, suggestedMessage, onSubmitEmail }: D
         </label>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="block space-y-1 text-xs font-semibold text-hp">
-            会社名
+            <span className="flex items-center gap-2">
+              会社名
+              <span className="glass-badge px-2 py-0.5 text-[10px]">任意</span>
+            </span>
             <input
               className="glass-input w-full px-3 py-2 text-sm"
               value={companyName}
@@ -75,7 +81,10 @@ export function DirectContactCard({ reason, suggestedMessage, onSubmitEmail }: D
             />
           </label>
           <label className="block space-y-1 text-xs font-semibold text-hp">
-            お名前
+            <span className="flex items-center gap-2">
+              お名前
+              <span className="glass-badge px-2 py-0.5 text-[10px]">任意</span>
+            </span>
             <input
               className="glass-input w-full px-3 py-2 text-sm"
               value={personName}

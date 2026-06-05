@@ -241,6 +241,8 @@ describe("WidgetShell API wiring", () => {
       conversationId: "conv_1",
     })
     expect(await screen.findByText("送信しました。のりかね本人が確認して返信します。")).toBeInTheDocument()
+    expect(await screen.findByText(/送信内容/)).toHaveTextContent("メール: client@example.com")
+    expect(screen.getByText(/送信内容/)).toHaveTextContent("氏名: 田中")
   })
 
   it("shows a short system message on network error", async () => {
@@ -331,5 +333,12 @@ describe("WidgetShell API wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "この内容で送信" }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      name: "",
+      email: "client@example.test",
+      conversationId: "conv_1",
+    })
+    expect(await screen.findByText(/送信内容/)).toHaveTextContent("メール: client@example.test")
+    expect(screen.getByText(/送信内容/)).not.toHaveTextContent("氏名:")
   })
 })

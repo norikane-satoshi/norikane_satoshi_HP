@@ -123,6 +123,19 @@ function isInteractiveTarget(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest("button, a, input, textarea, select, label"))
 }
 
+function buildInquirySummaryMessage(input: Omit<SubmitInquiryInput, "conversationId">): string {
+  const fields = [
+    ["メール", input.email],
+    ["氏名", input.name],
+    ["案件種別", input.jobType],
+    ["尺", input.duration],
+    ["希望納期", input.desiredDeadline],
+    ["自由記述", input.freeText],
+  ].filter(([, value]) => value.trim())
+
+  return ["送信内容", ...fields.map(([label, value]) => `- ${label}: ${value.trim()}`)].join("\n")
+}
+
 export function WidgetShell({
   onMinimize,
   layout,
@@ -303,6 +316,11 @@ export function WidgetShell({
         content: inquirySentMessage,
         createdAt: new Date(),
       })
+      appendMessage({
+        role: "system",
+        content: buildInquirySummaryMessage(input),
+        createdAt: new Date(),
+      })
       setActiveUi(noUi)
     } catch {
       appendMessage({
@@ -451,7 +469,7 @@ function ActiveWidgetUi({
         suggestedMessage={ui.suggestedMessage}
         onSubmitEmail={(email, companyName, personName) =>
           onInquirySubmit({
-            name: personName || "未入力",
+            name: personName,
             email,
             jobType: ui.reason,
             duration: "",

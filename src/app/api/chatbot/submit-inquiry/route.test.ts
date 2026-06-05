@@ -131,6 +131,24 @@ describe("POST /api/chatbot/submit-inquiry", () => {
     expect(mocks.sendOperatorConsultationNotification).not.toHaveBeenCalled()
   })
 
+  it("accepts an inquiry with only email as the required contact field", async () => {
+    const response = await POST(request(validBody({ name: undefined })))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ ok: true })
+    expect(mocks.sendOperatorConsultationNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationState: expect.objectContaining({
+          contactEmail: "client@example.com",
+          hasCustomerIdentity: false,
+        }),
+        fallback: expect.objectContaining({
+          contactEmail: "client@example.com",
+        }),
+      }),
+    )
+  })
+
   it("keeps the UX successful when the operator notification sender fails", async () => {
     mocks.sendOperatorConsultationNotification.mockResolvedValueOnce({ status: "failed", reason: "send-failed" })
 
