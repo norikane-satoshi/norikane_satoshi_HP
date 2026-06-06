@@ -2,7 +2,16 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react"
+import { createPortal } from "react-dom"
+import { X } from "lucide-react"
 import {
   FEATURED_WORKS,
   LIVE_REEL_VIDEO_IDS,
@@ -33,6 +42,11 @@ type YouTubePlayer = {
   getDuration: () => number
   seekTo: (seconds: number, allowSeekAhead: boolean) => void
   loadVideoById: (videoId: string | { videoId: string; startSeconds?: number }) => void
+}
+
+type ActiveVideoModal = {
+  videoId: string
+  label: string
 }
 
 type YouTubePlayerConstructor = new (
@@ -66,6 +80,16 @@ const STARTUP_COVER_HOLD_MS = 900
 const MARQUEE_LOOP_SECONDS = 72
 const MARQUEE_INPUT_IDLE_MS = 1300
 const MARQUEE_PROGRESS_MIN_THUMB_WIDTH = 44
+const VIDEO_OPEN_DRAG_THRESHOLD_PX = 8
+
+const focusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",")
 
 type MarqueeMetrics = {
   start: number
@@ -429,17 +453,23 @@ function WorkLinkBadges({
   links,
   workTitle,
   clone = false,
+  hideYouTube = false,
 }: {
   links: FeaturedWorkLink[]
   workTitle: string
   clone?: boolean
+  hideYouTube?: boolean
 }) {
+  const visibleLinks = hideYouTube
+    ? links.filter((link) => link.label !== "YouTube")
+    : links
+
   return (
     <div
       className="flex flex-wrap justify-end gap-1.5"
       data-featured-work-link-badges="inline"
     >
-      {links.map((link) => (
+      {visibleLinks.map((link) => (
         <a
           key={`${link.label}:${link.url}`}
           href={link.url}
@@ -454,6 +484,196 @@ function WorkLinkBadges({
         </a>
       ))}
     </div>
+  )
+}
+
+function VideoOpenButton({
+  label,
+  clone,
+  onOpen,
+}: {
+  label: string
+  clone: boolean
+  onOpen: (triggerElement: HTMLButtonElement) => void
+}) {
+  const pointerStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+
+  return (
+    <button
+      type="button"
+      className="absolute inset-0 z-30 cursor-pointer rounded-none bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent-primary)]"
+      aria-label={clone ? undefined : label}
+      tabIndex={clone ? -1 : undefined}
+      data-featured-work-video-trigger="true"
+      onPointerDown={(event) => {
+        pointerStartRef.current = {
+          x: event.clientX,
+          y: event.clientY,
+          moved: false,
+        }
+      }}
+      onPointerMove={(event) => {
+        const start = pointerStartRef.current
+        if (!start) {
+          return
+        }
+
+        const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y)
+        if (distance > VIDEO_OPEN_DRAG_THRESHOLD_PX) {
+          start.moved = true
+        }
+      }}
+      onPointerCancel={() => {
+        pointerStartRef.current = null
+      }}
+      onClick={(event) => {
+        if (pointerStartRef.current?.moved) {
+          event.preventDefault()
+          pointerStartRef.current = null
+          return
+        }
+
+        pointerStartRef.current = null
+        onOpen(event.currentTarget)
+      }}
+    />
+  )
+}
+
+function getModalYouTubeSrc(videoId: string) {
+  const params = new URLSearchParams({
+    autoplay: "1",
+    controls: "1",
+    fs: "1",
+    iv_load_policy: "3",
+    modestbranding: "1",
+    playsinline: "1",
+    rel: "0",
+  })
+
+  return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`
+}
+
+function FeaturedWorkVideoDialog({
+  activeVideo,
+  triggerElementRef,
+  onClose,
+}: {
+  activeVideo: ActiveVideoModal | null
+  triggerElementRef: RefObject<HTMLElement | null>
+  onClose: () => void
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!activeVideo) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    const previousActiveElement =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const triggerElement = triggerElementRef.current
+
+    document.body.style.overflow = "hidden"
+    closeButtonRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        onClose()
+        return
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return
+      }
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector),
+      ).filter((element) => !element.hasAttribute("disabled") && element.tabIndex !== -1)
+
+      if (focusable.length === 0) {
+        event.preventDefault()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+        return
+      }
+
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener("keydown", handleKeyDown)
+      if (triggerElement?.isConnected) {
+        triggerElement.focus()
+      } else if (previousActiveElement?.isConnected) {
+        previousActiveElement.focus()
+      }
+    }
+  }, [activeVideo, onClose, triggerElementRef])
+
+  const canUseDocument = typeof document !== "undefined"
+  if (!activeVideo || !canUseDocument) {
+    return null
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
+      style={{
+        right: "var(--chatbot-side-peek-occupied-width, 0px)",
+      }}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose()
+        }
+      }}
+      data-featured-work-video-modal-overlay="true"
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={activeVideo.label}
+        className="glass-card relative w-full max-w-5xl overflow-hidden p-3 md:p-4"
+        data-featured-work-video-modal="true"
+      >
+        <button
+          ref={closeButtonRef}
+          type="button"
+          className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-black/35 text-white transition-colors hover:bg-black/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          aria-label="動画モーダルを閉じる"
+          onClick={onClose}
+        >
+          <X className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <div className="aspect-video w-full overflow-hidden rounded-none bg-black">
+          <iframe
+            src={getModalYouTubeSrc(activeVideo.videoId)}
+            title={activeVideo.label}
+            className="h-full w-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -478,11 +698,18 @@ function VideoSurface({
   title,
   isActive,
   prefersReducedMotion,
+  clone,
+  onOpenVideo,
 }: {
   videoId: string
   title: string
   isActive: boolean
   prefersReducedMotion: boolean
+  clone: boolean
+  onOpenVideo: (
+    video: ActiveVideoModal,
+    triggerElement: HTMLButtonElement,
+  ) => void
 }) {
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
@@ -578,6 +805,19 @@ function VideoSurface({
         </div>
       ) : null}
       <PreviewThumbnail videoId={videoId} isVisible={isCoverVisible} />
+      <VideoOpenButton
+        label={`${title} の動画をモーダルで再生`}
+        clone={clone}
+        onOpen={(triggerElement) => {
+          onOpenVideo(
+            {
+              videoId,
+              label: `${title} の動画をモーダルで再生`,
+            },
+            triggerElement,
+          )
+        }}
+      />
     </>
   )
 }
@@ -588,12 +828,17 @@ function FeaturedWorkCard({
   prefersReducedMotion,
   clone = false,
   segmentStart,
+  onOpenVideo,
 }: {
   work: FeaturedWork
   shouldStartVideo: boolean
   prefersReducedMotion: boolean
   clone?: boolean
   segmentStart?: "primary" | "clone-before" | "clone-after"
+  onOpenVideo: (
+    video: ActiveVideoModal,
+    triggerElement: HTMLButtonElement,
+  ) => void
 }) {
   return (
     <div
@@ -611,6 +856,8 @@ function FeaturedWorkCard({
               title={work.title}
               isActive={shouldStartVideo}
               prefersReducedMotion={prefersReducedMotion}
+              clone={clone}
+              onOpenVideo={onOpenVideo}
             />
           </PreviewFrame>
         ) : (
@@ -626,7 +873,12 @@ function FeaturedWorkCard({
         <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
           <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
           {work.youtubeId ? (
-            <WorkLinkBadges links={work.links} workTitle={work.title} clone={clone} />
+            <WorkLinkBadges
+              links={work.links}
+              workTitle={work.title}
+              clone={clone}
+              hideYouTube
+            />
           ) : null}
         </div>
       </div>
@@ -639,11 +891,16 @@ function LiveReelCard({
   prefersReducedMotion,
   clone = false,
   segmentStart,
+  onOpenVideo,
 }: {
   shouldStartVideo: boolean
   prefersReducedMotion: boolean
   clone?: boolean
   segmentStart?: "primary" | "clone-before" | "clone-after"
+  onOpenVideo: (
+    video: ActiveVideoModal,
+    triggerElement: HTMLButtonElement,
+  ) => void
 }) {
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
@@ -808,6 +1065,19 @@ function LiveReelCard({
             </div>
           ) : null}
           <PreviewThumbnail videoId={previewVideoId} isVisible={isCoverVisible} />
+          <VideoOpenButton
+            label="ライブ映像作品をモーダルで再生"
+            clone={clone}
+            onOpen={(triggerElement) => {
+              onOpenVideo(
+                {
+                  videoId: previewVideoId,
+                  label: "ライブ映像作品をモーダルで再生",
+                },
+                triggerElement,
+              )
+            }}
+          />
         </PreviewFrame>
         <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
           ライブ映像作品多数
@@ -821,8 +1091,10 @@ function LiveReelCard({
 export function FeaturedWorks() {
   const prefersReducedMotion = usePrefersReducedMotion()
   const [marqueeRef, hasEnteredViewport] = useHasEnteredViewport<HTMLDivElement>()
+  const [activeVideo, setActiveVideo] = useState<ActiveVideoModal | null>(null)
   const progressTrackRef = useRef<HTMLDivElement | null>(null)
   const progressThumbRef = useRef<HTMLDivElement | null>(null)
+  const videoTriggerRef = useRef<HTMLElement | null>(null)
   const shouldRenderCloneTrack = !prefersReducedMotion
   useScrollableMarquee(
     marqueeRef,
@@ -830,6 +1102,18 @@ export function FeaturedWorks() {
     progressThumbRef,
     shouldRenderCloneTrack,
   )
+
+  const openVideo = useCallback(
+    (video: ActiveVideoModal, triggerElement: HTMLButtonElement) => {
+      videoTriggerRef.current = triggerElement
+      setActiveVideo(video)
+    },
+    [],
+  )
+
+  const closeVideo = useCallback(() => {
+    setActiveVideo(null)
+  }, [])
 
   const renderCards = (
     clone = false,
@@ -844,12 +1128,14 @@ export function FeaturedWorks() {
           prefersReducedMotion={prefersReducedMotion}
           clone={clone}
           segmentStart={index === 0 ? segmentStart : undefined}
+          onOpenVideo={openVideo}
         />
       ))}
       <LiveReelCard
         shouldStartVideo={hasEnteredViewport}
         prefersReducedMotion={prefersReducedMotion}
         clone={clone}
+        onOpenVideo={openVideo}
       />
     </>
   )
@@ -945,6 +1231,11 @@ export function FeaturedWorks() {
           </div>
         ) : null}
       </div>
+      <FeaturedWorkVideoDialog
+        activeVideo={activeVideo}
+        triggerElementRef={videoTriggerRef}
+        onClose={closeVideo}
+      />
     </div>
   )
 }

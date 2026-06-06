@@ -19,6 +19,14 @@ export const FEATURED_WORKS: FeaturedWork[] = [
       "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pYElk2QVvW/",
     links: [
       {
+        label: "作品HP",
+        url: "https://www.nhk.jp/g/ts/54KJPL1QGM/",
+      },
+      {
+        label: "YouTube",
+        url: "https://www.youtube.com/watch?v=IQb3beIbE1I",
+      },
+      {
         label: "ショット集1",
         url: "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pYElk2QVvW/",
       },
@@ -29,14 +37,6 @@ export const FEATURED_WORKS: FeaturedWork[] = [
       {
         label: "ショット集3",
         url: "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pZKwLbXAbZ/",
-      },
-      {
-        label: "作品HP",
-        url: "https://www.nhk.jp/g/ts/54KJPL1QGM/",
-      },
-      {
-        label: "YouTube",
-        url: "https://www.youtube.com/watch?v=IQb3beIbE1I",
       },
     ],
   },

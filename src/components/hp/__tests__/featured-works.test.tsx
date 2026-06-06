@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { FEATURED_WORKS } from "@/components/hp/featured-works-data"
+import { FEATURED_WORKS, LIVE_REEL_VIDEO_IDS } from "@/components/hp/featured-works-data"
 import {
   FeaturedWorks,
   getFeaturedWorkMarqueeProgressBarGeometry,
@@ -45,13 +45,25 @@ describe("FeaturedWorks", () => {
       expect(card.tagName).toBe("DIV")
       expect(card).not.toHaveAttribute("href")
 
-      for (const link of work.links) {
+      const visibleLinks = work.youtubeId
+        ? work.links.filter((link) => link.label !== "YouTube")
+        : work.links
+
+      for (const link of visibleLinks) {
         const badge = screen.getByRole("link", {
           name: `${work.title} ${link.label}を新しいタブで開く`,
         })
         expect(badge).toHaveAttribute("href", link.url)
         expect(badge).toHaveAttribute("target", "_blank")
         expect(badge).toHaveAttribute("rel", "noopener noreferrer")
+      }
+
+      if (work.youtubeId) {
+        expect(
+          screen.queryByRole("link", {
+            name: `${work.title} YouTubeを新しいタブで開く`,
+          }),
+        ).not.toBeInTheDocument()
       }
     }
   })
@@ -194,6 +206,115 @@ describe("FeaturedWorks", () => {
     expect(screen.queryByRole("link", { name: /ライブ映像作品多数/ })).not.toBeInTheDocument()
   })
 
+  it("opens video previews in a body portal modal and restores focus", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+
+    render(<FeaturedWorks />)
+
+    const work = FEATURED_WORKS.find((item) => item.youtubeId)
+    expect(work?.youtubeId).toBeDefined()
+
+    const trigger = screen.getByRole("button", {
+      name: `${work?.title} の動画をモーダルで再生`,
+    })
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole("dialog", {
+      name: `${work?.title} の動画をモーダルで再生`,
+    })
+    expect(dialog).toHaveAttribute("aria-modal", "true")
+    expect(dialog.parentElement).toBe(document.body.lastElementChild)
+    expect(dialog.parentElement).toHaveClass(
+      "fixed",
+      "inset-0",
+      "z-[100]",
+      "bg-[rgba(8,4,24,0.42)]",
+      "p-4",
+      "md:p-8",
+    )
+    expect(dialog.parentElement).toHaveStyle({
+      right: "var(--chatbot-side-peek-occupied-width, 0px)",
+    })
+
+    const iframe = dialog.querySelector("iframe")
+    expect(iframe).toHaveAttribute(
+      "src",
+      expect.stringContaining(`youtube-nocookie.com/embed/${work?.youtubeId}`),
+    )
+    expect(iframe).toHaveAttribute("allow", expect.stringContaining("autoplay"))
+    expect(iframe?.parentElement).toHaveClass("aspect-video")
+    expect(document.body.style.overflow).toBe("hidden")
+
+    const close = screen.getByRole("button", { name: "動画モーダルを閉じる" })
+    expect(close).toHaveFocus()
+    fireEvent.click(close)
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(document.body.style.overflow).toBe("")
+  })
+
+  it("opens the live reel modal with the currently previewed video id", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+
+    render(<FeaturedWorks />)
+
+    const trigger = screen.getByRole("button", {
+      name: "ライブ映像作品をモーダルで再生",
+    })
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole("dialog", {
+      name: "ライブ映像作品をモーダルで再生",
+    })
+    const iframe = dialog.querySelector("iframe")
+    expect(iframe).toHaveAttribute(
+      "src",
+      expect.stringContaining(`youtube-nocookie.com/embed/${LIVE_REEL_VIDEO_IDS[0]}`),
+    )
+  })
+
+  it("ignores video trigger clicks after pointer dragging", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+
+    render(<FeaturedWorks />)
+
+    const work = FEATURED_WORKS.find((item) => item.youtubeId)
+    const trigger = screen.getByRole("button", {
+      name: `${work?.title} の動画をモーダルで再生`,
+    })
+
+    fireEvent.pointerDown(trigger, { clientX: 0, clientY: 0 })
+    fireEvent.pointerMove(trigger, { clientX: 24, clientY: 0 })
+    fireEvent.click(trigger)
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
   it("keeps each preview in a native 16:9 frame with safe covers", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
@@ -288,6 +409,7 @@ describe("FeaturedWorks", () => {
       expect(badges).toBeInTheDocument()
       expect(badges).toHaveClass("flex")
       expect(badges).toHaveClass("justify-end")
+      expect(badges?.querySelector('[data-featured-work-link-badge="YouTube"]')).toBeNull()
       expect(badges).not.toHaveClass("absolute")
       expect(badges).not.toHaveClass("mt-3")
       expect(badges).not.toHaveClass("bottom-2")
@@ -370,6 +492,14 @@ describe("FeaturedWorks", () => {
       )
     }
 
+    expect((mars?.links ?? []).map((link) => link.label)).toEqual([
+      "作品HP",
+      "YouTube",
+      "ショット集1",
+      "ショット集2",
+      "ショット集3",
+    ])
+
     expect(
       getPrimarySegment(container).querySelectorAll(
         '[data-featured-work-abstract-cover="true"]',
@@ -430,10 +560,15 @@ describe("FeaturedWorks", () => {
       "https://www.san-x.co.jp/rilakkuma/theme_park_adventure/",
     )
     expect(
-      screen.getByRole("link", {
+      screen.queryByRole("link", {
         name: "リラックマと遊園地 YouTubeを新しいタブで開く",
       }),
-    ).toHaveAttribute("href", "https://www.youtube.com/watch?v=-X5BMqt0m2c")
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", {
+        name: "リラックマと遊園地 の動画をモーダルで再生",
+      }),
+    ).toBeInTheDocument()
   })
 
   it("prepares YouTube API players behind thumbnail covers", () => {
