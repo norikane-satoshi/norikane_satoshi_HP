@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { ExternalLink, X } from "lucide-react"
 
 type PressLink = {
@@ -166,9 +167,7 @@ function SpeakerAtLecternIcon({ className }: { className?: string }) {
       <path d="M10.2 6.15a2.65 2.65 0 1 1 5.3 0 2.65 2.65 0 0 1-5.3 0Z" />
       <path d="M8.35 18.6h8.7l.75-7.15H7.6l.75 7.15Zm-1.45 2.15h11.6a.9.9 0 0 0 0-1.8H6.9a.9.9 0 0 0 0 1.8Z" />
       <path d="M8.75 11.1c.24-2.03 1.97-3.6 4.1-3.6s3.86 1.57 4.1 3.6H8.75Z" />
-      <path d="M4.05 5.2a.85.85 0 0 1 .85-.85h2.1a.85.85 0 1 1 0 1.7H5.75v11.2a.85.85 0 1 1-1.7 0V5.2Z" />
-      <path d="M7.4 4.2a1.45 1.45 0 1 1 0 2.9 1.45 1.45 0 0 1 0-2.9Z" />
-      <path d="M7.65 6.15c2.08.34 3.78 1.44 4.8 3.1l-1.52.92C10.16 8.9 8.84 8.06 7.36 7.82l.29-1.67Z" />
+      <path d="M16.65 9.15a.78.78 0 0 1 1.08-.24l1.82 1.16a.78.78 0 1 1-.84 1.32l-.42-.27-.69 1.08a.78.78 0 0 1-1.32-.84l.69-1.08-.08-.05a.78.78 0 0 1-.24-1.08Z" />
     </svg>
   )
 }
@@ -322,23 +321,9 @@ export function PressDialog() {
     }
   }, [close, open])
 
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="glass-btn glass-btn--profile-social flex h-10 w-[4.5rem] items-center justify-center gap-2 px-3 text-hp"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label="実績"
-        title="実績"
-        onClick={() => setOpen(true)}
-      >
-        <SpeakerAtLecternIcon className="h-5 w-5 shrink-0" />
-        <OpenBookIcon className="h-[18px] w-[18px] shrink-0" />
-      </button>
-
-      {open ? (
+  const canUseDocument = typeof document !== "undefined"
+  const dialog = open && canUseDocument
+    ? createPortal(
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
           onMouseDown={(event) => {
@@ -376,8 +361,28 @@ export function PressDialog() {
               <PressDialogContent />
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+    : null
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="glass-btn glass-btn--profile-social flex h-10 w-[4.5rem] items-center justify-center gap-1 px-3 text-hp"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label="実績"
+        title="実績"
+        onClick={() => setOpen(true)}
+      >
+        <SpeakerAtLecternIcon className="h-[22px] w-[22px] shrink-0" />
+        <OpenBookIcon className="h-5 w-5 shrink-0" />
+      </button>
+
+      {dialog}
     </>
   )
 }
