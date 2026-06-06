@@ -45,8 +45,9 @@ class OllamaHttpStatusError extends Error {
 export const tier2OllamaDeepSeekDefaults = {
   baseUrl: "http://localhost:11434",
   modelName: "hf.co/mmnga/cyberagent-DeepSeek-R1-Distill-Qwen-14B-Japanese-gguf:Q4_K_M",
-  requestTimeoutMs: 12000,
+  requestTimeoutMs: 45000,
   healthCheckTimeoutMs: 3000,
+  maxOutputTokens: 120,
 } as const
 
 const tier = "tier-2-ollama-deepseek" as const
@@ -91,6 +92,7 @@ export class Tier2OllamaDeepSeekClient implements ChatbotLlmClient {
             model: this.config.modelName,
             messages: buildMessages(request),
             stream: streamDisabled,
+            options: buildOptions(request),
           }),
         },
         this.config.requestTimeoutMs,
@@ -230,6 +232,16 @@ function buildMessages(request: ChatbotLlmRequest) {
     ...request.messages,
     request.latestUserMessage ? { role: roleUser, content: request.latestUserMessage } : undefined,
   ].filter((message): message is Exclude<typeof message, undefined> => Boolean(message))
+}
+
+function buildOptions(request: ChatbotLlmRequest): Record<string, number> {
+  return {
+    temperature: request.temperature ?? 0.2,
+    num_predict: Math.min(
+      request.maxOutputTokens ?? tier2OllamaDeepSeekDefaults.maxOutputTokens,
+      tier2OllamaDeepSeekDefaults.maxOutputTokens,
+    ),
+  }
 }
 
 function getOllamaMessageContent(response: OllamaChatResponse): string {

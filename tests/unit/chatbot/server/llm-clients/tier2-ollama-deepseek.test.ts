@@ -79,8 +79,9 @@ async function expectLlmError(
 }
 
 describe("Tier2OllamaDeepSeekClient", () => {
-  it("keeps the default request timeout short enough to reach Tier 4 fallback", () => {
-    expect(tier2OllamaDeepSeekDefaults.requestTimeoutMs).toBe(12000)
+  it("keeps the default request bounded for local Ollama generation", () => {
+    expect(tier2OllamaDeepSeekDefaults.requestTimeoutMs).toBe(45000)
+    expect(tier2OllamaDeepSeekDefaults.maxOutputTokens).toBe(120)
   })
 
   afterEach(() => {
@@ -169,7 +170,26 @@ describe("Tier2OllamaDeepSeekClient", () => {
             { role: "user", content: "立ち会い候補を相談したいです" },
           ],
           stream: false,
+          options: {
+            temperature: 0.2,
+            num_predict: 120,
+          },
         }),
+      }),
+    )
+  })
+
+  it("caps requested output tokens so local Ollama returns before fallback timeout", async () => {
+    const httpClient = vi.fn(async () => jsonResponse({ message: { content: "OK" } }))
+    const client = ollamaClient(httpClient)
+
+    await expect(client.generate({ ...llmRequest(), temperature: 0.4, maxOutputTokens: 900 })).resolves.toMatchObject({
+      rawText: "OK",
+    })
+    expect(httpClient).toHaveBeenCalledWith(
+      "http://localhost:11434/api/chat",
+      expect.objectContaining({
+        body: expect.stringContaining('"options":{"temperature":0.4,"num_predict":120}'),
       }),
     )
   })
