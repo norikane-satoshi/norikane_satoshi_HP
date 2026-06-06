@@ -398,6 +398,10 @@ describe("WidgetShell API wiring", () => {
     fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "編集後の相談です" } })
     fireEvent.click(screen.getByRole("button", { name: /保存/ }))
 
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByText("保存すると、これより後のやり取りは削除されます。")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "OK" }))
+
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
       message: "編集後の相談です",

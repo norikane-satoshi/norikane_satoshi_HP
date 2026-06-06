@@ -26,21 +26,32 @@ export function ChatMessage({ id, role, content, createdAt, editingDisabled = fa
   const isSystem = role === "system"
   const canEdit = isUser && Boolean(id) && Boolean(onEdit) && !editingDisabled
   const [isEditing, setIsEditing] = useState(false)
+  const [editConfirmPending, setEditConfirmPending] = useState(false)
   const [draft, setDraft] = useState(content)
   const visibleContent = stripInternalAssistantMarkup(content)
   const trimmedDraft = draft.trim()
 
   const cancelEdit = () => {
     setDraft(content)
+    setEditConfirmPending(false)
     setIsEditing(false)
   }
 
-  const saveEdit = () => {
+  const requestSaveEdit = () => {
+    if (!id || !trimmedDraft || trimmedDraft === content.trim()) {
+      cancelEdit()
+      return
+    }
+    setEditConfirmPending(true)
+  }
+
+  const confirmSaveEdit = () => {
     if (!id || !trimmedDraft || trimmedDraft === content.trim()) {
       cancelEdit()
       return
     }
     onEdit?.(id, trimmedDraft)
+    setEditConfirmPending(false)
     setIsEditing(false)
   }
 
@@ -63,7 +74,10 @@ export function ChatMessage({ id, role, content, createdAt, editingDisabled = fa
             <button
               type="button"
               className="glass-btn inline-flex h-7 items-center gap-1 px-2 text-[11px]"
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                setEditConfirmPending(false)
+                setIsEditing(true)
+              }}
               aria-label="メッセージを編集"
             >
               <Pencil className="h-3 w-3" aria-hidden="true" />
@@ -86,30 +100,59 @@ export function ChatMessage({ id, role, content, createdAt, editingDisabled = fa
           <textarea
             className="glass-input min-h-24 w-full resize-y px-3 py-2 text-sm text-hp"
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => {
+              setDraft(event.target.value)
+              setEditConfirmPending(false)
+            }}
             aria-label="編集内容"
             disabled={editingDisabled}
           />
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              className="glass-btn inline-flex h-8 items-center gap-1 px-3 text-xs"
-              onClick={cancelEdit}
-              disabled={editingDisabled}
-            >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-              キャンセル
-            </button>
-            <button
-              type="button"
-              className="glass-btn inline-flex h-8 items-center gap-1 px-3 text-xs"
-              onClick={saveEdit}
-              disabled={editingDisabled || !trimmedDraft || trimmedDraft === content.trim()}
-            >
-              <Check className="h-3.5 w-3.5" aria-hidden="true" />
-              保存
-            </button>
-          </div>
+          {editConfirmPending ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <p className="mr-auto text-xs font-medium text-hp-muted">
+                保存すると、これより後のやり取りは削除されます。
+              </p>
+              <button
+                type="button"
+                className="glass-btn inline-flex h-8 items-center gap-1 px-3 text-xs"
+                onClick={() => setEditConfirmPending(false)}
+                disabled={editingDisabled}
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                キャンセル
+              </button>
+              <button
+                type="button"
+                className="glass-btn inline-flex h-8 items-center gap-1 px-3 text-xs"
+                onClick={confirmSaveEdit}
+                disabled={editingDisabled || !trimmedDraft || trimmedDraft === content.trim()}
+              >
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                OK
+              </button>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="glass-btn inline-flex h-8 items-center gap-1 px-3 text-xs"
+                onClick={cancelEdit}
+                disabled={editingDisabled}
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                キャンセル
+              </button>
+              <button
+                type="button"
+                className="glass-btn inline-flex h-8 items-center gap-1 px-3 text-xs"
+                onClick={requestSaveEdit}
+                disabled={editingDisabled || !trimmedDraft || trimmedDraft === content.trim()}
+              >
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                保存
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <p className="whitespace-pre-wrap">{visibleContent}</p>
