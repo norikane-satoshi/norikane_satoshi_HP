@@ -127,7 +127,6 @@ export const FEATURED_PLAYLIST_WORKS: FeaturedPlaylistWork[] = [
     title: "CM",
     videos: [
       { videoId: "Eo2IIH-w3h8" },
-      { videoId: "OtEpoEKVBMA" },
       { videoId: "fStjAoAOlbQ" },
       { videoId: "vchw9jvBntI" },
       { videoId: "cQwaCzcZNIk" },

@@ -118,7 +118,6 @@ describe("featured works data", () => {
     expect(FEATURED_PLAYLIST_WORKS[0]?.videos).toHaveLength(10)
     expect(FEATURED_PLAYLIST_WORKS[1]?.videos.map((video) => video.videoId)).toEqual([
       "Eo2IIH-w3h8",
-      "OtEpoEKVBMA",
       "fStjAoAOlbQ",
       "vchw9jvBntI",
       "cQwaCzcZNIk",
