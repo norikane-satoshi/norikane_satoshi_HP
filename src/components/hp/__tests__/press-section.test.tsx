@@ -18,7 +18,12 @@ describe("PressSection", () => {
     expect(trigger).toHaveClass("glass-btn--profile-social")
     expect(trigger).toHaveAttribute("title", "実績")
     expect(trigger).not.toHaveTextContent("実績")
-    expect(trigger.querySelector("svg")).toBeInTheDocument()
+    expect(trigger).toHaveClass("w-[4.5rem]")
+
+    const icons = Array.from(trigger.querySelectorAll("svg"))
+    expect(icons).toHaveLength(2)
+    expect(icons[0]).toHaveAttribute("fill", "currentColor")
+    expect(icons[1]).toHaveAttribute("fill", "currentColor")
   })
 
   it("opens the three SSOT categories and nine press items in a modal dialog", () => {

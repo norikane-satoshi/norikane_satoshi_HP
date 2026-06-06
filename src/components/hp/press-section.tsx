@@ -173,6 +173,19 @@ function SpeakerAtLecternIcon({ className }: { className?: string }) {
   )
 }
 
+function OpenBookIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M4.2 4.35c2.58.05 4.9.63 6.9 1.72v13.12c-1.86-1.02-4.16-1.56-6.9-1.61V4.35Zm1.75 2.03v9.56c1.22.1 2.35.3 3.38.62V7.15a10.9 10.9 0 0 0-3.38-.77ZM12.9 19.19V6.07c2-1.09 4.32-1.67 6.9-1.72v13.23c-2.74.05-5.04.59-6.9 1.61Zm1.77-12.04v9.41c1.03-.32 2.16-.52 3.38-.62V6.38a10.9 10.9 0 0 0-3.38.77Z"
+      />
+      <path d="M3.55 19.6c2.85 0 5.24.42 7.18 1.27.83.36 1.71.36 2.54 0 1.94-.85 4.33-1.27 7.18-1.27a.85.85 0 0 0 0-1.7c-3.05 0-5.67.48-7.86 1.44a1.44 1.44 0 0 1-1.18 0C9.22 18.38 6.6 17.9 3.55 17.9a.85.85 0 1 0 0 1.7Z" />
+    </svg>
+  )
+}
+
 function PressDialogContent() {
   return (
     <div className="space-y-8 md:space-y-9">
@@ -314,14 +327,15 @@ export function PressDialog() {
       <button
         ref={triggerRef}
         type="button"
-        className="glass-btn glass-btn--profile-social flex h-10 w-10 items-center justify-center text-hp"
+        className="glass-btn glass-btn--profile-social flex h-10 w-[4.5rem] items-center justify-center gap-2 px-3 text-hp"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="実績"
         title="実績"
         onClick={() => setOpen(true)}
       >
-        <SpeakerAtLecternIcon className="h-4 w-4" />
+        <SpeakerAtLecternIcon className="h-5 w-5 shrink-0" />
+        <OpenBookIcon className="h-[18px] w-[18px] shrink-0" />
       </button>
 
       {open ? (
