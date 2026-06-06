@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   FEATURED_PLAYLIST_WORKS,
@@ -11,6 +11,7 @@ import {
 import {
   FeaturedWorks,
   getFeaturedWorkMarqueeProgressBarGeometry,
+  getPreviewClipWindow,
   getYouTubePlayerVars,
 } from "@/components/hp/featured-works"
 
@@ -41,6 +42,8 @@ describe("FeaturedWorks", () => {
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    vi.useRealTimers()
+    delete window.YT
   })
 
   it("renders non-navigating work cards with only badge links", () => {
@@ -458,6 +461,109 @@ describe("FeaturedWorks", () => {
       end: 40,
     })
     expect(getYouTubePlayerVars("heb1yJtreJg")).not.toHaveProperty("start")
+  })
+
+  it("selects preview clips with fixed loops before random windows", () => {
+    expect(
+      getPreviewClipWindow(
+        { videoId: "fixed", loopStart: 12, loopEnd: 42 },
+        90,
+        () => 0.9,
+      ),
+    ).toEqual({
+      startSeconds: 12,
+      playSeconds: 30,
+    })
+    expect(getPreviewClipWindow({ videoId: "short" }, 24.5, () => 0.9)).toEqual({
+      startSeconds: 0,
+      playSeconds: 24.5,
+    })
+    expect(getPreviewClipWindow({ videoId: "random" }, 90, () => 0.5)).toEqual({
+      startSeconds: 30,
+      playSeconds: 30,
+    })
+  })
+
+  it("drives single video cards with random 30 second clips instead of full video loops", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+    vi.spyOn(Math, "random").mockReturnValue(0.5)
+
+    type MockPlayerOptions = {
+      videoId?: string
+      playerVars?: Record<string, string | number>
+      events?: {
+        onReady?: (event: { target: MockPlayer }) => void
+        onStateChange?: (event: { data: number; target: MockPlayer }) => void
+        onError?: (event: { data: number; target: MockPlayer }) => void
+      }
+    }
+
+    const players: MockPlayer[] = []
+
+    class MockPlayer {
+      readonly options: MockPlayerOptions
+      readonly mute = vi.fn()
+      readonly stopVideo = vi.fn()
+      readonly destroy = vi.fn()
+      readonly getDuration = vi.fn(() => 90)
+      readonly seekTo = vi.fn()
+      readonly loadVideoById = vi.fn()
+      readonly playVideo = vi.fn(() => {
+        this.options.events?.onStateChange?.({ data: 1, target: this })
+      })
+
+      constructor(_element: HTMLElement, options: MockPlayerOptions) {
+        this.options = options
+        players.push(this)
+        queueMicrotask(() => {
+          options.events?.onReady?.({ target: this })
+        })
+      }
+    }
+
+    window.YT = {
+      Player: MockPlayer,
+      PlayerState: {
+        ENDED: 0,
+        PLAYING: 1,
+      },
+    }
+
+    render(<FeaturedWorks />)
+
+    await waitFor(() => {
+      const player = players.find(
+        (item) => item.options.videoId === "-2kSMEiw0wA",
+      )
+      expect(player).toBeDefined()
+      expect(player?.options.playerVars).not.toHaveProperty("loop")
+      expect(player?.options.playerVars).not.toHaveProperty("playlist")
+      expect(player?.seekTo).toHaveBeenCalledWith(30, true)
+    })
+
+    const player = players.find(
+      (item) => item.options.videoId === "-2kSMEiw0wA",
+    )
+
+    const card = screen.getByLabelText("十角館の殺人 / 時計館の殺人 作品カード")
+    const media = card.querySelector(
+      '[data-featured-work-current-video-id="-2kSMEiw0wA"]',
+    )
+    expect(media).toHaveAttribute("data-featured-work-clip-start", "30")
+    expect(media).toHaveAttribute("data-featured-work-clip-seconds", "30")
+
+    player?.options.events?.onStateChange?.({ data: 0, target: player })
+
+    expect(player?.seekTo).toHaveBeenCalledTimes(2)
+    expect(player?.seekTo).toHaveBeenLastCalledWith(30, true)
   })
 
   it("ignores video trigger clicks after pointer dragging", () => {

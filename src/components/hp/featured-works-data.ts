@@ -2,6 +2,8 @@ export type FeaturedWork = {
   title: string
   client: string
   youtubeId?: string
+  loopStart?: number
+  loopEnd?: number
   officialUrl: string
   links: FeaturedWorkLink[]
 }

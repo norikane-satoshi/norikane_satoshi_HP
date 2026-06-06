@@ -82,6 +82,10 @@ declare global {
   }
 }
 
+type YouTubePlayerVarsOptions = {
+  loop?: boolean
+}
+
 let youtubeApiPromise: Promise<void> | null = null
 const STARTUP_COVER_HOLD_MS = 900
 const MARQUEE_LOOP_SECONDS = 72
@@ -895,10 +899,36 @@ function getYouTubeLoadVideoArg(video: FeaturedWorkPreviewVideo) {
   }
 }
 
-export function getYouTubePlayerVars(video?: string | FeaturedWorkPreviewVideo) {
+function getPlayableDuration(durationSeconds: number) {
+  return Number.isFinite(durationSeconds) && durationSeconds > 0
+    ? durationSeconds
+    : 30
+}
+
+export function getPreviewClipWindow(
+  video: FeaturedWorkPreviewVideo,
+  durationSeconds: number,
+  random: () => number = Math.random,
+  maxPlaySeconds = 30,
+) {
+  return (
+    getFixedClipWindow(video) ??
+    calculateClipWindow(
+      getPlayableDuration(durationSeconds),
+      random,
+      maxPlaySeconds,
+    )
+  )
+}
+
+export function getYouTubePlayerVars(
+  video?: string | FeaturedWorkPreviewVideo,
+  options: YouTubePlayerVarsOptions = {},
+) {
   const videoId = typeof video === "string" ? video : video?.videoId
   const fixedClip =
     typeof video === "object" && video ? getFixedClipWindow(video) : null
+  const shouldLoop = options.loop ?? Boolean(videoId)
 
   return {
     autoplay: 1,
@@ -911,7 +941,7 @@ export function getYouTubePlayerVars(video?: string | FeaturedWorkPreviewVideo) 
     origin: window.location.origin,
     playsinline: 1,
     rel: 0,
-    ...(videoId ? { loop: 1, playlist: videoId } : {}),
+    ...(shouldLoop && videoId ? { loop: 1, playlist: videoId } : {}),
     ...(fixedClip
       ? {
           start: fixedClip.startSeconds,
@@ -923,6 +953,8 @@ export function getYouTubePlayerVars(video?: string | FeaturedWorkPreviewVideo) 
 
 function VideoSurface({
   videoId,
+  loopStart,
+  loopEnd,
   title,
   isActive,
   prefersReducedMotion,
@@ -930,6 +962,8 @@ function VideoSurface({
   onOpenVideo,
 }: {
   videoId: string
+  loopStart?: number
+  loopEnd?: number
   title: string
   isActive: boolean
   prefersReducedMotion: boolean
@@ -941,11 +975,34 @@ function VideoSurface({
 }) {
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
+  const previewVideoRef = useRef<FeaturedWorkPreviewVideo>({
+    videoId,
+    loopStart,
+    loopEnd,
+  })
+  const clipRef = useRef<ClipWindow | null>(null)
+  const timerRef = useRef<number | null>(null)
   const coverTimerRef = useRef<number | null>(null)
+  const [activeClip, setActiveClip] = useState<ClipWindow | null>(null)
   const [isCoverVisible, setIsCoverVisible] = useState(true)
   const shouldPlay = isActive && !prefersReducedMotion
 
   useEffect(() => {
+    previewVideoRef.current = {
+      videoId,
+      loopStart,
+      loopEnd,
+    }
+  }, [loopEnd, loopStart, videoId])
+
+  useEffect(() => {
+    const clearNextTimer = () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+    }
+
     const clearCoverTimer = () => {
       if (coverTimerRef.current) {
         window.clearTimeout(coverTimerRef.current)
@@ -954,18 +1011,58 @@ function VideoSurface({
     }
 
     if (!shouldPlay) {
+      clearNextTimer()
       clearCoverTimer()
-      window.setTimeout(() => setIsCoverVisible(true), 0)
+      clipRef.current = null
+      window.setTimeout(() => {
+        setActiveClip(null)
+        setIsCoverVisible(true)
+      }, 0)
       playerRef.current?.stopVideo()
       return
     }
 
     let cancelled = false
 
+    const playNextClip = (player: YouTubePlayer) => {
+      clearNextTimer()
+      const clip = getPreviewClipWindow(
+        previewVideoRef.current,
+        player.getDuration(),
+        Math.random,
+        30,
+      )
+      clipRef.current = clip
+      setActiveClip(clip)
+      player.seekTo(clip.startSeconds, true)
+      player.playVideo()
+      timerRef.current = window.setTimeout(() => {
+        if (!cancelled && playerRef.current) {
+          clipRef.current = null
+          playNextClip(playerRef.current)
+        }
+      }, Math.max(1, clip.playSeconds) * 1000)
+    }
+
     const handleStateChange = (event: YouTubePlayerStateChangeEvent) => {
-      if (!window.YT || event.data !== window.YT.PlayerState.PLAYING) {
+      if (!window.YT) {
         return
       }
+
+      if (event.data === window.YT.PlayerState.ENDED) {
+        clipRef.current = null
+        playNextClip(event.target)
+        return
+      }
+
+      if (event.data !== window.YT.PlayerState.PLAYING) {
+        return
+      }
+
+      if (!clipRef.current) {
+        playNextClip(event.target)
+      }
+
       clearCoverTimer()
       coverTimerRef.current = window.setTimeout(() => {
         setIsCoverVisible(false)
@@ -985,7 +1082,9 @@ function VideoSurface({
 
       playerRef.current = new window.YT.Player(playerHostRef.current, {
         videoId,
-        playerVars: getYouTubePlayerVars(videoId),
+        playerVars: getYouTubePlayerVars(previewVideoRef.current, {
+          loop: false,
+        }),
         events: {
           onReady: (event) => {
             event.target.mute()
@@ -1002,12 +1101,16 @@ function VideoSurface({
 
     return () => {
       cancelled = true
+      clearNextTimer()
       clearCoverTimer()
     }
   }, [shouldPlay, videoId])
 
   useEffect(() => {
     return () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current)
+      }
       if (coverTimerRef.current) {
         window.clearTimeout(coverTimerRef.current)
       }
@@ -1024,6 +1127,11 @@ function VideoSurface({
           }`}
           aria-hidden="true"
           data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
+          data-featured-work-current-video-id={videoId}
+          data-featured-work-clip-start={activeClip?.startSeconds}
+          data-featured-work-clip-seconds={activeClip?.playSeconds}
+          data-featured-work-loop-start={loopStart}
+          data-featured-work-loop-end={loopEnd}
         >
           <div
             ref={playerHostRef}
@@ -1081,6 +1189,8 @@ function FeaturedWorkCard({
           <PreviewFrame>
             <VideoSurface
               videoId={work.youtubeId}
+              loopStart={work.loopStart}
+              loopEnd={work.loopEnd}
               title={work.title}
               isActive={shouldStartVideo}
               prefersReducedMotion={prefersReducedMotion}
@@ -1224,12 +1334,10 @@ function PlaylistWorkCard({
       const player = event.target
       const existingClip = clipRef.current
       const fixedClip = getFixedClipWindow(previewVideoRef.current)
-      const duration = player.getDuration()
-      const playableDuration = Number.isFinite(duration) ? Math.max(duration, 30) : 30
       const clip =
         existingClip ??
         fixedClip ??
-        calculateClipWindow(playableDuration, Math.random, 30)
+        getPreviewClipWindow(previewVideoRef.current, player.getDuration(), Math.random, 30)
       clipRef.current = clip
 
       if (!existingClip && !fixedClip && clip.startSeconds > 0) {
