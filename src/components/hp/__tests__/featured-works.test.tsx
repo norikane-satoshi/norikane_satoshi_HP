@@ -119,6 +119,17 @@ describe("FeaturedWorks", () => {
     expect(progressTrack).toBeInTheDocument()
     expect(progressTrack).toHaveClass("w-full")
     expect(progressThumb).toBeInTheDocument()
+    expect(progressTrack).not.toHaveAttribute("aria-hidden")
+    expect(progressThumb).toHaveAttribute("role", "scrollbar")
+    expect(progressThumb).toHaveAttribute("tabindex", "0")
+    expect(progressThumb).toHaveAttribute(
+      "aria-controls",
+      viewport?.getAttribute("id"),
+    )
+    expect(progressThumb).toHaveAttribute("aria-orientation", "horizontal")
+    expect(progressThumb).toHaveAttribute("aria-valuemin", "0")
+    expect(progressThumb).toHaveAttribute("aria-valuemax", "1000")
+    expect(progressThumb).not.toHaveAttribute("aria-hidden")
     expect(track).toHaveClass("w-max")
     expect(track).toHaveClass("gap-0")
     expect(track).not.toHaveClass("gap-4")
@@ -179,6 +190,104 @@ describe("FeaturedWorks", () => {
     viewport.dataset.featuredWorkMarqueeState = "running"
     fireEvent.keyDown(viewport, { key: "ArrowRight" })
     expect(viewport).toHaveAttribute("data-featured-work-marquee-state", "paused")
+  })
+
+  it("lets the custom progress bar drag, jump, and drive keyboard scrolling", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+
+    const { container } = render(<FeaturedWorks />)
+    const viewport = container.querySelector(
+      '[data-featured-work-marquee-viewport="true"]',
+    ) as HTMLElement
+    const progressTrack = container.querySelector(
+      '[data-featured-work-marquee-progress-track="true"]',
+    ) as HTMLElement
+    const progressThumb = container.querySelector(
+      '[data-featured-work-marquee-progress-thumb="true"]',
+    ) as HTMLElement
+    const primaryStart = container.querySelector(
+      '[data-featured-work-marquee-segment-start="primary"]',
+    ) as HTMLElement
+    const cloneAfterStart = container.querySelector(
+      '[data-featured-work-marquee-segment-start="clone-after"]',
+    ) as HTMLElement
+
+    Object.defineProperty(viewport, "clientWidth", {
+      configurable: true,
+      value: 600,
+    })
+    Object.defineProperty(progressTrack, "clientWidth", {
+      configurable: true,
+      value: 1000,
+    })
+    Object.defineProperty(primaryStart, "offsetLeft", {
+      configurable: true,
+      value: 1000,
+    })
+    Object.defineProperty(cloneAfterStart, "offsetLeft", {
+      configurable: true,
+      value: 3400,
+    })
+    progressTrack.getBoundingClientRect = vi.fn(() => ({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      bottom: 4,
+      right: 1000,
+      width: 1000,
+      height: 4,
+      toJSON: () => ({}),
+    }))
+    progressThumb.setPointerCapture = vi.fn()
+    progressThumb.releasePointerCapture = vi.fn()
+
+    fireEvent.pointerDown(progressThumb, {
+      pointerId: 1,
+      clientX: 100,
+    })
+    fireEvent.pointerMove(progressThumb, {
+      pointerId: 1,
+      clientX: 250,
+    })
+    expect(viewport.scrollLeft).toBe(1480)
+    expect(progressThumb).toHaveAttribute(
+      "data-featured-work-marquee-progress",
+      "0.2000",
+    )
+    expect(progressThumb).toHaveAttribute("aria-valuenow", "200")
+    expect(viewport).toHaveAttribute("data-featured-work-marquee-state", "paused")
+    fireEvent.pointerUp(progressThumb, {
+      pointerId: 1,
+      clientX: 250,
+    })
+
+    fireEvent.pointerDown(progressTrack, {
+      pointerId: 2,
+      clientX: 500,
+    })
+    expect(viewport.scrollLeft).toBe(2200)
+    expect(progressThumb).toHaveAttribute(
+      "data-featured-work-marquee-progress",
+      "0.5000",
+    )
+
+    fireEvent.keyDown(progressThumb, { key: "ArrowRight" })
+    expect(viewport.scrollLeft).toBe(2440)
+
+    fireEvent.keyDown(progressThumb, { key: "Home" })
+    expect(viewport.scrollLeft).toBe(1000)
+
+    fireEvent.keyDown(progressThumb, { key: "End" })
+    expect(viewport.scrollLeft).toBe(3399)
   })
 
   it("does not render the clone track when reduced motion is requested", () => {

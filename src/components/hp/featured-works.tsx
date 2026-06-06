@@ -5,6 +5,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type ReactNode,
@@ -251,6 +252,17 @@ function normalizeMarqueeScrollLeft(
   return normalizedScrollLeft
 }
 
+function getMarqueeScrollLeftFromProgress(
+  progress: number,
+  metrics: MarqueeMetrics,
+) {
+  if (progress >= 1) {
+    return metrics.start + Math.max(0, metrics.loopWidth - 1)
+  }
+
+  return metrics.start + Math.max(0, progress) * metrics.loopWidth
+}
+
 function useScrollableMarquee(
   viewportRef: RefObject<HTMLDivElement | null>,
   progressTrackRef: RefObject<HTMLDivElement | null>,
@@ -291,26 +303,43 @@ function useScrollableMarquee(
     let metrics = getMetrics()
     let hasInitializedScrollPosition = false
     let virtualScrollLeft = viewport.scrollLeft
+    let dragState: {
+      pointerId: number
+      startClientX: number
+      startThumbTranslateX: number
+      thumbWidth: number
+      trackWidth: number
+    } | null = null
 
     const setState = (state: "running" | "paused") => {
       viewport.dataset.featuredWorkMarqueeState = state
     }
 
-    const syncProgressBar = () => {
+    const getProgressBarGeometry = () => {
       const progressTrack = progressTrackRef.current
-      const progressThumb = progressThumbRef.current
-      if (!progressTrack || !progressThumb) {
-        return
+      if (!progressTrack) {
+        return null
       }
 
-      const geometry = getFeaturedWorkMarqueeProgressBarGeometry({
+      return getFeaturedWorkMarqueeProgressBarGeometry({
         virtualScrollLeft,
         metrics,
         viewportWidth: viewport.clientWidth,
         trackWidth: progressTrack.clientWidth,
       })
+    }
+
+    const syncProgressBar = () => {
+      const progressThumb = progressThumbRef.current
+      const geometry = getProgressBarGeometry()
+      if (!geometry || !progressThumb) {
+        return
+      }
+
       progressThumb.style.width = `${geometry.thumbWidth}px`
       progressThumb.style.transform = `translate3d(${geometry.thumbTranslateX}px, 0, 0)`
+      progressThumb.setAttribute("aria-valuenow", String(Math.round(geometry.progress * 1000)))
+      progressThumb.dataset.featuredWorkMarqueeProgress = geometry.progress.toFixed(4)
     }
 
     const syncMetrics = () => {
@@ -332,6 +361,19 @@ function useScrollableMarquee(
       resumeAt = performance.now() + MARQUEE_INPUT_IDLE_MS
       lastFrameTime = null
       setState("paused")
+    }
+
+    const setScrollProgress = (progress: number) => {
+      if (!metrics) {
+        syncMetrics()
+      }
+      if (!metrics) {
+        return
+      }
+
+      virtualScrollLeft = getMarqueeScrollLeftFromProgress(progress, metrics)
+      viewport.scrollLeft = virtualScrollLeft
+      syncProgressBar()
     }
 
     const step = (timestamp: number) => {
@@ -364,15 +406,42 @@ function useScrollableMarquee(
       animationFrame = window.requestAnimationFrame(step)
     }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key === "ArrowLeft" ||
-        event.key === "ArrowRight" ||
-        event.key === "Home" ||
-        event.key === "End"
-      ) {
+    const handleViewportKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         pauseForInput()
       }
+    }
+
+    const handleThumbKeyDown = (event: KeyboardEvent) => {
+      if (!metrics) {
+        syncMetrics()
+      }
+      const geometry = getProgressBarGeometry()
+      if (!metrics || !geometry) {
+        return
+      }
+
+      const progressStep = Math.max(
+        0.01,
+        Math.min(0.1, viewport.clientWidth / metrics.loopWidth / 2),
+      )
+      let nextProgress = geometry.progress
+
+      if (event.key === "ArrowLeft") {
+        nextProgress -= progressStep
+      } else if (event.key === "ArrowRight") {
+        nextProgress += progressStep
+      } else if (event.key === "Home") {
+        nextProgress = 0
+      } else if (event.key === "End") {
+        nextProgress = 1
+      } else {
+        return
+      }
+
+      event.preventDefault()
+      pauseForInput()
+      setScrollProgress(nextProgress)
     }
 
     const handleScroll = () => {
@@ -383,13 +452,101 @@ function useScrollableMarquee(
       }
     }
 
+    const handleThumbPointerDown = (event: PointerEvent) => {
+      if (!metrics) {
+        syncMetrics()
+      }
+      const progressThumb = progressThumbRef.current
+      const progressTrack = progressTrackRef.current
+      const geometry = getProgressBarGeometry()
+      if (!progressThumb || !progressTrack || !geometry || !metrics) {
+        return
+      }
+
+      event.preventDefault()
+      pauseForInput()
+      progressThumb.setPointerCapture?.(event.pointerId)
+      dragState = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startThumbTranslateX: geometry.thumbTranslateX,
+        thumbWidth: geometry.thumbWidth,
+        trackWidth: progressTrack.clientWidth,
+      }
+    }
+
+    const handleThumbPointerMove = (event: PointerEvent) => {
+      if (!dragState || dragState.pointerId !== event.pointerId) {
+        return
+      }
+
+      event.preventDefault()
+      pauseForInput()
+      const travelWidth = Math.max(0, dragState.trackWidth - dragState.thumbWidth)
+      if (travelWidth <= 0) {
+        setScrollProgress(0)
+        return
+      }
+
+      const translateX = Math.min(
+        travelWidth,
+        Math.max(0, dragState.startThumbTranslateX + event.clientX - dragState.startClientX),
+      )
+      setScrollProgress(translateX / travelWidth)
+    }
+
+    const handleThumbPointerEnd = (event: PointerEvent) => {
+      if (!dragState || dragState.pointerId !== event.pointerId) {
+        return
+      }
+
+      pauseForInput()
+      progressThumbRef.current?.releasePointerCapture?.(event.pointerId)
+      dragState = null
+    }
+
+    const handleTrackPointerDown = (event: PointerEvent) => {
+      if (!metrics) {
+        syncMetrics()
+      }
+      const progressTrack = progressTrackRef.current
+      const progressThumb = progressThumbRef.current
+      const geometry = getProgressBarGeometry()
+      if (
+        !progressTrack ||
+        !progressThumb ||
+        !geometry ||
+        !metrics ||
+        event.target === progressThumb
+      ) {
+        return
+      }
+
+      event.preventDefault()
+      pauseForInput()
+      progressThumb.focus()
+      const trackRect = progressTrack.getBoundingClientRect()
+      const travelWidth = Math.max(0, progressTrack.clientWidth - geometry.thumbWidth)
+      const centeredThumbX = event.clientX - trackRect.left - geometry.thumbWidth / 2
+      const translateX = Math.min(travelWidth, Math.max(0, centeredThumbX))
+      setScrollProgress(travelWidth <= 0 ? 0 : translateX / travelWidth)
+    }
+
     syncMetrics()
+    const progressTrack = progressTrackRef.current
+    const progressThumb = progressThumbRef.current
     viewport.dataset.featuredWorkMarqueeIdleMs = String(MARQUEE_INPUT_IDLE_MS)
     viewport.addEventListener("wheel", pauseForInput, { passive: true })
     viewport.addEventListener("touchstart", pauseForInput, { passive: true })
     viewport.addEventListener("pointerdown", pauseForInput, { passive: true })
-    viewport.addEventListener("keydown", handleKeyDown)
+    viewport.addEventListener("keydown", handleViewportKeyDown)
     viewport.addEventListener("scroll", handleScroll, { passive: true })
+    progressTrack?.addEventListener("pointerdown", handleTrackPointerDown)
+    progressThumb?.addEventListener("pointerdown", handleThumbPointerDown)
+    progressThumb?.addEventListener("pointermove", handleThumbPointerMove)
+    progressThumb?.addEventListener("pointerup", handleThumbPointerEnd)
+    progressThumb?.addEventListener("pointercancel", handleThumbPointerEnd)
+    progressThumb?.addEventListener("keydown", handleThumbKeyDown)
     window.addEventListener("resize", syncMetrics)
     animationFrame = window.requestAnimationFrame(step)
 
@@ -398,8 +555,14 @@ function useScrollableMarquee(
       viewport.removeEventListener("wheel", pauseForInput)
       viewport.removeEventListener("touchstart", pauseForInput)
       viewport.removeEventListener("pointerdown", pauseForInput)
-      viewport.removeEventListener("keydown", handleKeyDown)
+      viewport.removeEventListener("keydown", handleViewportKeyDown)
       viewport.removeEventListener("scroll", handleScroll)
+      progressTrack?.removeEventListener("pointerdown", handleTrackPointerDown)
+      progressThumb?.removeEventListener("pointerdown", handleThumbPointerDown)
+      progressThumb?.removeEventListener("pointermove", handleThumbPointerMove)
+      progressThumb?.removeEventListener("pointerup", handleThumbPointerEnd)
+      progressThumb?.removeEventListener("pointercancel", handleThumbPointerEnd)
+      progressThumb?.removeEventListener("keydown", handleThumbKeyDown)
       window.removeEventListener("resize", syncMetrics)
       delete viewport.dataset.featuredWorkMarqueeState
       delete viewport.dataset.featuredWorkMarqueeIdleMs
@@ -1116,6 +1279,7 @@ function LiveReelCard({
 
 export function FeaturedWorks() {
   const prefersReducedMotion = usePrefersReducedMotion()
+  const marqueeViewportId = useId()
   const [marqueeRef, hasEnteredViewport] = useHasEnteredViewport<HTMLDivElement>()
   const [activeVideo, setActiveVideo] = useState<ActiveVideoModal | null>(null)
   const progressTrackRef = useRef<HTMLDivElement | null>(null)
@@ -1201,6 +1365,7 @@ export function FeaturedWorks() {
         data-featured-work-marquee-shell
       >
         <div
+          id={marqueeViewportId}
           ref={marqueeRef}
           className="featured-work-content-viewport relative overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
           aria-label="Featured Works"
@@ -1245,13 +1410,20 @@ export function FeaturedWorks() {
         {shouldRenderCloneTrack ? (
           <div
             ref={progressTrackRef}
-            className="h-1 w-full overflow-hidden rounded-full bg-white/60"
-            aria-hidden="true"
+            className="h-1 w-full cursor-pointer overflow-hidden rounded-full bg-white/60"
             data-featured-work-marquee-progress-track="true"
           >
             <div
               ref={progressThumbRef}
-              className="h-full rounded-full bg-[var(--accent-primary)]"
+              className="h-full touch-none rounded-full bg-[var(--accent-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+              role="scrollbar"
+              tabIndex={0}
+              aria-label="Featured Works scrollbar"
+              aria-controls={marqueeViewportId}
+              aria-orientation="horizontal"
+              aria-valuemin={0}
+              aria-valuemax={1000}
+              aria-valuenow={0}
               data-featured-work-marquee-progress-thumb="true"
             />
           </div>
