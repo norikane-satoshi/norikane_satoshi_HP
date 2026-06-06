@@ -397,12 +397,7 @@ function chooseRoutingDecision(input: {
   proposedRoutingDecision?: RoutingDecision
   conversationState: ConversationState
 }): RoutingDecision {
-  if (
-    input.deterministicRoutingDecision.kind === "to-direct-contact" ||
-    input.deterministicRoutingDecision.kind === "to-booking-inline"
-  ) {
-    return input.deterministicRoutingDecision
-  }
+  if (input.deterministicRoutingDecision.kind !== "continue") return input.deterministicRoutingDecision
 
   if (
     input.deterministicRoutingDecision.kind === "continue" &&
@@ -411,14 +406,15 @@ function chooseRoutingDecision(input: {
     return input.deterministicRoutingDecision
   }
 
+  if (input.proposedRoutingDecision?.kind !== "continue") return input.deterministicRoutingDecision
+
   if (
-    input.proposedRoutingDecision?.kind === "continue" &&
     isSatisfiedChoicePanel(input.proposedRoutingDecision.presentChoices, input.conversationState)
   ) {
     return input.deterministicRoutingDecision
   }
 
-  return input.proposedRoutingDecision ?? input.deterministicRoutingDecision
+  return input.proposedRoutingDecision
 }
 
 function isSlotSatisfied(...values: Array<boolean | undefined>): boolean {

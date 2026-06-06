@@ -53,18 +53,20 @@ function setup(overrides: {
   existingConversation?: ChatbotConversation | null
   isolatedConversation?: ChatbotConversation | null
 } = {}) {
-  const existingConversation = overrides.existingConversation ?? conversation()
+  const existingConversation =
+    "existingConversation" in overrides ? overrides.existingConversation : conversation()
   const isolatedConversation =
-    overrides.isolatedConversation ??
-    conversation({
-      id: "conv_isolated",
-      context: { sessionId: "session_1:user_b", userId: "user_b" },
-      messages: [],
-    })
+    "isolatedConversation" in overrides
+      ? overrides.isolatedConversation
+      : conversation({
+          id: "conv_isolated",
+          context: { sessionId: "session_1:user_b", userId: "user_b" },
+          messages: [],
+        })
   const repository = {
     loadConversationBySessionId: vi.fn(async (sessionId: string) => {
-      if (sessionId === "session_1") return existingConversation
-      if (sessionId === "session_1:user_b") return isolatedConversation
+      if (sessionId === "session_1") return existingConversation ?? null
+      if (sessionId === "session_1:user_b") return isolatedConversation ?? null
       if (sessionId === "session_1:anonymous") {
         return conversation({
           id: "conv_anonymous",
@@ -253,6 +255,38 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).not.toMatch(/\d+万円|¥|￥/u)
   })
 
+  it("keeps first-turn inquiry intake when the LLM proposes early direct contact", async () => {
+    const harness = setup({ existingConversation: null })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "連絡先を教えてください。",
+      tier: "tier-1-chrome-notion-ai",
+      proposedRoutingDecision: {
+        kind: "to-direct-contact",
+        reason: "pricing",
+        requireEmail: true,
+        suggestedMessage: "メールアドレス、会社名、お名前を教えてください。",
+      },
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", message: "はじめまして。案件の依頼です。" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("案件種類"),
+    })
+    expect(result.ui).not.toMatchObject({ kind: "direct-contact-card" })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "created_session_1",
+        routingDecision: "continue",
+        currentQuestion: expect.stringContaining("案件種類"),
+      }),
+    )
+  })
+
   it("infers acquired Web CM context and routes approximate schedules to one-hour candidates first", async () => {
     const harness = setup()
 
@@ -287,6 +321,42 @@ describe("handleChatbotMessage user context", () => {
       ]),
     })
     expect(result.assistantMessage.content).toContain("先に空き状況")
+  })
+
+  it("keeps deterministic email handoff when the LLM proposes direct contact", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "個別確認に進めます。",
+      tier: "tier-1-chrome-notion-ai",
+      proposedRoutingDecision: {
+        kind: "to-direct-contact",
+        reason: "pricing",
+        requireEmail: true,
+        suggestedMessage: "メールアドレス、会社名、お名前を教えてください。",
+      },
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "メールで進めたいです。client@example.com です。",
+        conversationState: {
+          hasContactEmail: true,
+          contactEmail: "client@example.com",
+          turnCount: 8,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "to-email",
+      summary: expect.objectContaining({
+        customerEmail: "client@example.com",
+      }),
+    })
+    expect(result.ui).not.toMatchObject({ kind: "direct-contact-card" })
   })
 
   it("isolates a previous user's conversation when the authenticated user changes", async () => {
