@@ -82,6 +82,7 @@ export function ProfilePhoto() {
           }}
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10"
           style={{
+            right: "var(--chatbot-side-peek-occupied-width, 0px)",
             background: "rgba(8, 4, 24, 0.42)",
             backdropFilter: "blur(10px)",
             WebkitBackdropFilter: "blur(10px)",

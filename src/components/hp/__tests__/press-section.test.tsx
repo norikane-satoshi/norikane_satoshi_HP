@@ -36,6 +36,9 @@ describe("PressSection", () => {
     const dialog = screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
 
     expect(within(dialog).getByRole("heading", { name: "登壇・メディア掲載 / 実績" })).toBeInTheDocument()
+    expect(dialog.parentElement).toHaveStyle({
+      right: "var(--chatbot-side-peek-occupied-width, 0px)",
+    })
     expect(PRESS_CATEGORIES.map((category) => category.title)).toEqual([
       "登壇・セミナー",
       "メディア掲載・事例紹介",

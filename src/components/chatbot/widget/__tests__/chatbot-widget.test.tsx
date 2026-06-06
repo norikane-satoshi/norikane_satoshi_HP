@@ -95,6 +95,8 @@ describe("chatbot widget shell", () => {
     delete process.env.NEXT_PUBLIC_ENABLE_CHATBOT
     window.localStorage.clear()
     window.location.hash = ""
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
+    document.documentElement.style.removeProperty("--chatbot-side-peek-occupied-width")
   })
 
   it("keeps SSR output hidden before hydration", () => {
@@ -214,6 +216,44 @@ describe("chatbot widget shell", () => {
     screen.getByRole("button", { name: "サイドピーク表示に切り替え" }).click()
     expect(onModeChange).toHaveBeenCalledWith("side-peek")
     expect(screen.queryByRole("button", { name: /移動|リサイズ|サイズ変更/ })).not.toBeInTheDocument()
+  })
+
+  it("publishes side-peek occupied width only for desktop side-peek mode", () => {
+    const originalInnerWidth = window.innerWidth
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1280 })
+    const sidePeekLayout = {
+      ...createDefaultWidgetLayout(),
+      mode: "side-peek" as const,
+      sidePeekWidth: 480,
+    }
+    const { rerender } = renderWidgetShell({ layout: sidePeekLayout })
+
+    expect(document.documentElement.style.getPropertyValue("--chatbot-side-peek-occupied-width")).toBe("480px")
+
+    rerender(
+      <WidgetShell
+        layout={{ ...sidePeekLayout, mode: "floating" }}
+        onMinimize={vi.fn()}
+        onModeChange={vi.fn()}
+        onFloatingGeometryChange={vi.fn()}
+        onSidePeekWidthChange={vi.fn()}
+      />,
+    )
+    expect(document.documentElement.style.getPropertyValue("--chatbot-side-peek-occupied-width")).toBe("0px")
+
+    rerender(
+      <WidgetShell
+        layout={sidePeekLayout}
+        onMinimize={vi.fn()}
+        onModeChange={vi.fn()}
+        onFloatingGeometryChange={vi.fn()}
+        onSidePeekWidthChange={vi.fn()}
+      />,
+    )
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 767 })
+    window.dispatchEvent(new Event("resize"))
+    expect(document.documentElement.style.getPropertyValue("--chatbot-side-peek-occupied-width")).toBe("0px")
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth })
   })
 
   it("does not render the previous placeholder badges", () => {

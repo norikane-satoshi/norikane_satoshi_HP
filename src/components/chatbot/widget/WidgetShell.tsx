@@ -59,6 +59,7 @@ const inquirySentMessage = "送信しました。のりかね本人が確認し�
 const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v1"
 const CHATBOT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const thinkingDelayNoticeMs = 6000
+const CHATBOT_SIDE_PEEK_OCCUPIED_WIDTH_VAR = "--chatbot-side-peek-occupied-width"
 const FOCUS_RING_CLASS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
 const FLOATING_RESIZE_CORNERS = [
@@ -164,6 +165,29 @@ export function WidgetShell({
     "--chatbot-widget-height": `${sanitizedLayout.floatingSize.height}px`,
     "--chatbot-side-peek-width": `${sanitizedLayout.sidePeekWidth}px`,
   } as CSSProperties
+
+  useEffect(() => {
+    const root = document.documentElement
+    const mediaQuery =
+      typeof window.matchMedia === "function" ? window.matchMedia("(min-width: 768px)") : null
+    const getIsDesktop = () => (mediaQuery ? mediaQuery.matches : window.innerWidth >= 768)
+    const syncOccupiedWidth = () => {
+      root.style.setProperty(
+        CHATBOT_SIDE_PEEK_OCCUPIED_WIDTH_VAR,
+        isSidePeek && getIsDesktop() ? `${sanitizedLayout.sidePeekWidth}px` : "0px",
+      )
+    }
+
+    syncOccupiedWidth()
+    mediaQuery?.addEventListener("change", syncOccupiedWidth)
+    window.addEventListener("resize", syncOccupiedWidth)
+
+    return () => {
+      mediaQuery?.removeEventListener("change", syncOccupiedWidth)
+      window.removeEventListener("resize", syncOccupiedWidth)
+      root.style.setProperty(CHATBOT_SIDE_PEEK_OCCUPIED_WIDTH_VAR, "0px")
+    }
+  }, [isSidePeek, sanitizedLayout.sidePeekWidth])
 
   useEffect(() => {
     try {

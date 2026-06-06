@@ -327,6 +327,9 @@ export function PressDialog() {
     ? createPortal(
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
+          style={{
+            right: "var(--chatbot-side-peek-occupied-width, 0px)",
+          }}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
               close()
