@@ -219,6 +219,10 @@ const defaultCreatedSource = "assistant"
 const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
 const emptyText = ""
+const historyCompressionThreshold = 16
+const recentVerbatimMessageCount = 6
+const compressedHistoryMaxItems = 5
+const compressedHistoryExcerptMaxChars = 48
 
 export const tier1ChromeNotionAiDefaults = {
   cdpBaseUrl: "http://127.0.0.1:9223",
@@ -773,13 +777,70 @@ function modelIsAvailable(model: string, availableModels?: string[]): boolean {
 }
 
 function buildUserPrompt(request: ChatbotLlmRequest): string {
+  const promptMessages = buildPromptMessages(request)
+
   return [
     request.systemPrompt,
-    ...request.messages.map((message) => `${message.role}: ${message.content}`),
-    request.latestUserMessage ? `user: ${request.latestUserMessage}` : undefined,
+    ...promptMessages.map((message) => `${message.role}: ${message.content}`),
   ]
     .filter((line): line is string => Boolean(line))
     .join("\n")
+}
+
+function buildPromptMessages(
+  request: ChatbotLlmRequest,
+): ReadonlyArray<{ role: ChatbotLlmRequest["messages"][number]["role"]; content: string }> {
+  const messages = withLatestUserMessage(request.messages, request.latestUserMessage)
+  if (messages.length <= historyCompressionThreshold) return messages
+
+  const recentMessages = messages.slice(-recentVerbatimMessageCount)
+  const olderMessages = messages.slice(0, -recentVerbatimMessageCount)
+
+  return [
+    {
+      role: "system",
+      content: buildCompressedHistorySummary(olderMessages),
+    },
+    ...recentMessages,
+  ]
+}
+
+function withLatestUserMessage(
+  messages: ChatbotLlmRequest["messages"],
+  latestUserMessage: string | undefined,
+): ReadonlyArray<{ role: ChatbotLlmRequest["messages"][number]["role"]; content: string }> {
+  if (!latestUserMessage) return messages
+
+  const lastMessage = messages.at(-1)
+  if (lastMessage?.role === "user" && lastMessage.content === latestUserMessage) return messages
+
+  return [...messages, { role: "user", content: latestUserMessage }]
+}
+
+function buildCompressedHistorySummary(
+  messages: ReadonlyArray<{ role: ChatbotLlmRequest["messages"][number]["role"]; content: string }>,
+): string {
+  const roleCounts = messages.reduce<Record<string, number>>((counts, message) => {
+    counts[message.role] = (counts[message.role] ?? 0) + 1
+    return counts
+  }, {})
+  const countSummary = Object.entries(roleCounts)
+    .map(([role, count]) => `${role} ${count}件`)
+    .join(" / ")
+  const excerpts = messages
+    .slice(0, compressedHistoryMaxItems)
+    .map((message) => `${message.role}: ${truncatePromptExcerpt(message.content)}`)
+    .join(" | ")
+  const omittedCount = Math.max(messages.length - compressedHistoryMaxItems, 0)
+  const omittedSummary = omittedCount > 0 ? ` | ほか ${omittedCount}件` : ""
+
+  return `過去の会話要約: 古い履歴 ${messages.length}件を決定的に圧縮（${countSummary}）。要点: ${excerpts}${omittedSummary}`
+}
+
+function truncatePromptExcerpt(content: string): string {
+  const compact = content.replace(/\s+/g, " ").trim()
+  if (compact.length <= compressedHistoryExcerptMaxChars) return compact
+  return `${compact.slice(0, compressedHistoryExcerptMaxChars)}...`
 }
 
 function findNotionAiTarget(

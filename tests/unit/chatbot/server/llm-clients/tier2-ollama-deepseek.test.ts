@@ -179,6 +179,33 @@ describe("Tier2OllamaDeepSeekClient", () => {
     )
   })
 
+  it("does not duplicate the latest user message when messages already include it", async () => {
+    const httpClient = vi.fn(async () =>
+      jsonResponse({ message: { content: "候補日を 2 つ確認しました。" } }),
+    )
+    const client = ollamaClient(httpClient)
+    const latestUserMessage = "立ち会い候補を相談したいです"
+
+    await expect(
+      client.generate({
+        ...llmRequest(),
+        messages: [
+          { role: "user", content: "来月のWeb CM案件です" },
+          { role: "user", content: latestUserMessage },
+        ],
+        latestUserMessage,
+      }),
+    ).resolves.toMatchObject({
+      rawText: "候補日を 2 つ確認しました。",
+    })
+
+    const calls = httpClient.mock.calls as unknown as Array<[string, RequestInit | undefined]>
+    const body = JSON.parse(String(calls[0]?.[1]?.body)) as {
+      messages: Array<{ content: string }>
+    }
+    expect(body.messages.filter((message) => message.content === latestUserMessage)).toHaveLength(1)
+  })
+
   it("caps requested output tokens so local Ollama returns before fallback timeout", async () => {
     const httpClient = vi.fn(async () => jsonResponse({ message: { content: "OK" } }))
     const client = ollamaClient(httpClient)

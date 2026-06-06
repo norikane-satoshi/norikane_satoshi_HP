@@ -227,10 +227,17 @@ function globalFetch(input: string, init?: RequestInit): Promise<Response> {
 }
 
 function buildMessages(request: ChatbotLlmRequest) {
+  const latestAlreadyIncluded =
+    request.latestUserMessage &&
+    request.messages.at(-1)?.role === roleUser &&
+    request.messages.at(-1)?.content === request.latestUserMessage
+
   return [
     { role: roleSystem, content: request.systemPrompt },
     ...request.messages,
-    request.latestUserMessage ? { role: roleUser, content: request.latestUserMessage } : undefined,
+    request.latestUserMessage && !latestAlreadyIncluded
+      ? { role: roleUser, content: request.latestUserMessage }
+      : undefined,
   ].filter((message): message is Exclude<typeof message, undefined> => Boolean(message))
 }
 

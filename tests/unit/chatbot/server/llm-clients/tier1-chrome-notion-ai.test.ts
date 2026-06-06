@@ -66,6 +66,28 @@ function llmRequest(): ChatbotLlmRequest {
   }
 }
 
+function payloadPrompt(payload: ReturnType<typeof buildRunInferencePayload>): string {
+  return String((payload.transcript[2].value as string[][])[0][0])
+}
+
+function buildPayloadForRequest(request: ChatbotLlmRequest) {
+  const ids = ["trace-id", "config-id", "context-id", "user-id", "thread-id"]
+  return buildRunInferencePayload({
+    request,
+    runtimeContext: {
+      spaceId: "space-id",
+      userId: "user-id",
+      notionClientVersion: "23.13.20260523.0626",
+      contextPageId: "context-page-id",
+      threadId: "thread-id",
+      selectedModel: "ignored-page-model",
+      availableModels: ["apricot-sorbet-high"],
+      modelFromUser: true,
+    },
+    idFactory: () => ids.shift() ?? "extra-id",
+  })
+}
+
 function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {}): Response {
   return {
     ok: init.ok ?? true,
@@ -355,6 +377,71 @@ describe("Tier1ChromeNotionAiClient", () => {
       "x-notion-active-user-header": "user-id",
       "x-notion-space-id": "space-id",
     })
+  })
+
+  it("does not duplicate the latest user message when messages already include it", () => {
+    const request = llmRequest()
+    const latestUserMessage = "立ち会い候補を相談したいです"
+    const payload = buildPayloadForRequest({
+      ...request,
+      messages: [
+        ...request.messages,
+        { role: "user", content: latestUserMessage },
+      ],
+      latestUserMessage,
+    })
+
+    expect(payloadPrompt(payload).match(new RegExp(latestUserMessage, "g"))).toHaveLength(1)
+  })
+
+  it("keeps short conversation prompts unchanged when latest user message is not in messages yet", () => {
+    const request = llmRequest()
+    const payload = buildPayloadForRequest(request)
+
+    expect(payloadPrompt(payload)).toBe([
+      "Collect only new project intake details.",
+      "user: 来月のWeb CM案件です",
+      "user: 立ち会い候補を相談したいです",
+    ].join("\n"))
+  })
+
+  it("compresses only older long history while keeping recent messages and fixed slots intact", () => {
+    const messages = Array.from({ length: 20 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" as const : "assistant" as const,
+      content: `履歴${index + 1}: Web CM の相談詳細 ${index + 1}`,
+    }))
+    const latestUserMessage = "履歴20: Web CM の相談詳細 20"
+    messages[messages.length - 1] = { role: "user", content: latestUserMessage }
+    const request: ChatbotLlmRequest = {
+      ...llmRequest(),
+      messages,
+      latestUserMessage,
+      conversationState: {
+        ...conversationState(),
+        contactEmail: "client@example.com",
+      },
+      jobContext: {
+        ...jobContext(),
+        preferredStartDate: "2026-06-15",
+      },
+    }
+    const payload = buildPayloadForRequest(request)
+    const prompt = payloadPrompt(payload)
+
+    expect(prompt.split("\n")).toEqual([
+      "Collect only new project intake details.",
+      expect.stringContaining("過去の会話要約: 古い履歴 14件を決定的に圧縮"),
+      "user: 履歴15: Web CM の相談詳細 15",
+      "assistant: 履歴16: Web CM の相談詳細 16",
+      "user: 履歴17: Web CM の相談詳細 17",
+      "assistant: 履歴18: Web CM の相談詳細 18",
+      "user: 履歴19: Web CM の相談詳細 19",
+      "user: 履歴20: Web CM の相談詳細 20",
+    ])
+    expect(prompt).not.toContain("assistant: 履歴14: Web CM の相談詳細 14")
+    expect(prompt.match(new RegExp(latestUserMessage, "g"))).toHaveLength(1)
+    expect(request.conversationState.contactEmail).toBe("client@example.com")
+    expect(request.jobContext.preferredStartDate).toBe("2026-06-15")
   })
 
   it("keeps every observed workflow.value field in the config item", () => {
