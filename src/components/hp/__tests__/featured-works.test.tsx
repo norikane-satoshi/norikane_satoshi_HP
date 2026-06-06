@@ -473,6 +473,7 @@ describe("FeaturedWorks", () => {
     expect(abstractCover).toHaveAttribute("data-hp-color-field", "cinematic-neutral")
     expect(abstractCover?.querySelector('[data-hp-abstract-art="mars"]')).toBeNull()
     expect(badges).toBeInTheDocument()
+    expect(badges).toHaveAttribute("data-featured-work-link-badges-layout", "two-row")
     expect(title).toBeInTheDocument()
     expect(abstractCover?.nextElementSibling).toBe(title)
     expect(client).toBeInTheDocument()
@@ -496,9 +497,22 @@ describe("FeaturedWorks", () => {
       "作品HP",
       "YouTube",
       "ショット集1",
-      "ショット集2",
-      "ショット集3",
+      "2",
+      "3",
     ])
+
+    const rows = badges?.querySelectorAll("[data-featured-work-link-badge-row]")
+    expect(rows).toHaveLength(2)
+    expect(rows?.[0]).toHaveAttribute("data-featured-work-link-badge-row", "top")
+    expect(rows?.[1]).toHaveAttribute("data-featured-work-link-badge-row", "bottom")
+    expect(
+      Array.from(rows?.[0]?.querySelectorAll("[data-featured-work-link-badge]") ?? [])
+        .map((badge) => badge.textContent),
+    ).toEqual(["作品HP", "YouTube"])
+    expect(
+      Array.from(rows?.[1]?.querySelectorAll("[data-featured-work-link-badge]") ?? [])
+        .map((badge) => badge.textContent),
+    ).toEqual(["ショット集1", "2", "3"])
 
     expect(
       getPrimarySegment(container).querySelectorAll(

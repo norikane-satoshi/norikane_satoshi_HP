@@ -454,35 +454,56 @@ function WorkLinkBadges({
   workTitle,
   clone = false,
   hideYouTube = false,
+  layout = "inline",
 }: {
   links: FeaturedWorkLink[]
   workTitle: string
   clone?: boolean
   hideYouTube?: boolean
+  layout?: "inline" | "two-row"
 }) {
   const visibleLinks = hideYouTube
     ? links.filter((link) => link.label !== "YouTube")
     : links
+
+  const renderBadge = (link: FeaturedWorkLink) => (
+    <a
+      key={`${link.label}:${link.url}`}
+      href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      tabIndex={clone ? -1 : undefined}
+      className="glass-badge px-2.5 py-1 text-[0.64rem] leading-none transition-colors hover:bg-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+      aria-label={clone ? undefined : `${workTitle} ${link.label}を新しいタブで開く`}
+      data-featured-work-link-badge={link.label}
+    >
+      {link.label}
+    </a>
+  )
+
+  if (layout === "two-row") {
+    return (
+      <div
+        className="flex flex-col items-end justify-end gap-1.5"
+        data-featured-work-link-badges="inline"
+        data-featured-work-link-badges-layout="two-row"
+      >
+        <div className="flex justify-end gap-1.5" data-featured-work-link-badge-row="top">
+          {visibleLinks.slice(0, 2).map(renderBadge)}
+        </div>
+        <div className="flex justify-end gap-1.5" data-featured-work-link-badge-row="bottom">
+          {visibleLinks.slice(2).map(renderBadge)}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
       className="flex flex-wrap justify-end gap-1.5"
       data-featured-work-link-badges="inline"
     >
-      {visibleLinks.map((link) => (
-        <a
-          key={`${link.label}:${link.url}`}
-          href={link.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          tabIndex={clone ? -1 : undefined}
-          className="glass-badge px-2.5 py-1 text-[0.64rem] leading-none transition-colors hover:bg-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
-          aria-label={clone ? undefined : `${workTitle} ${link.label}を新しいタブで開く`}
-          data-featured-work-link-badge={link.label}
-        >
-          {link.label}
-        </a>
-      ))}
+      {visibleLinks.map(renderBadge)}
     </div>
   )
 }
@@ -863,7 +884,12 @@ function FeaturedWorkCard({
         ) : (
           <PreviewFrame abstractCover background={MARS_ABSTRACT_COVER_BACKGROUND}>
             <div className="absolute inset-0 z-10 flex flex-wrap content-end items-end justify-end gap-1.5 p-3 md:p-4">
-              <WorkLinkBadges links={work.links} workTitle={work.title} clone={clone} />
+              <WorkLinkBadges
+                links={work.links}
+                workTitle={work.title}
+                clone={clone}
+                layout="two-row"
+              />
             </div>
           </PreviewFrame>
         )}

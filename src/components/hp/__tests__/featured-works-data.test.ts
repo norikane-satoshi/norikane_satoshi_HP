@@ -27,11 +27,11 @@ describe("featured works data", () => {
             url: "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pYElk2QVvW/",
           },
           {
-            label: "ショット集2",
+            label: "2",
             url: "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pXy8Aa9ab2/",
           },
           {
-            label: "ショット集3",
+            label: "3",
             url: "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pZKwLbXAbZ/",
           },
         ],
