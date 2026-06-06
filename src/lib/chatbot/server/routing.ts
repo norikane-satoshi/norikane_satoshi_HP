@@ -1,4 +1,9 @@
-import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
+import {
+  hasRequiredEmailConsultationSlots,
+  type ConversationState,
+  type JobContext,
+  type RoutingDecision,
+} from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
   documentaryAttachmentChoices,
@@ -88,7 +93,7 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
   }
 
   if (
-    conversationState.hasContactEmail &&
+    hasRequiredEmailConsultationSlots({ conversationState }) &&
     !conversationState.hasDesiredSchedule &&
     conversationState.turnCount >= settledConversationTurnThreshold
   ) {

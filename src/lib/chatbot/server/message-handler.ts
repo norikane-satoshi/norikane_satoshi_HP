@@ -34,7 +34,10 @@ import {
 } from "@/lib/chatbot/server/choice-panel-state"
 import { classifyChatbotTopic } from "@/lib/chatbot/server/topic-gate"
 import type { ConversationSummary } from "@/lib/chatbot/domain/workflow-estimate"
-import { hasRequiredConsultationNotificationSlots } from "@/lib/chatbot/domain"
+import {
+  hasRequiredConsultationNotificationSlots,
+  hasRequiredEmailConsultationSlots,
+} from "@/lib/chatbot/domain"
 import {
   OPERATOR_NOTIFICATION_SENT_MARKER,
   hasSentOperatorNotification,
@@ -274,13 +277,7 @@ function hasRequiredOperatorNotificationSlots(
   conversationState: ConversationState,
 ): boolean {
   if (routingDecision.kind === "to-email") {
-    return Boolean(
-      conversationState.hasFinalMedium &&
-        conversationState.hasJobKind &&
-        conversationState.hasWorkSite &&
-        conversationState.hasContactEmail &&
-        conversationState.contactEmail,
-    )
+    return hasRequiredEmailConsultationSlots({ conversationState })
   }
 
   return hasRequiredConsultationNotificationSlots({ conversationState })
@@ -462,6 +459,7 @@ function toMessageUi(
 
   if (routingDecision.kind === "to-booking-inline") {
     if (routingDecision.suggestedSlots.length === 0) {
+      if (!hasRequiredConsultationNotificationSlots({ conversationState })) return { kind: "none" }
       return {
         kind: "consultation-summary-form",
         summary: buildConversationSummary(routingDecision.jobContext, conversationState),
@@ -483,6 +481,7 @@ function toMessageUi(
   }
 
   if (routingDecision.kind === "to-email") {
+    if (!hasRequiredEmailConsultationSlots({ conversationState })) return { kind: "none" }
     return {
       kind: "consultation-summary-form",
       summary: routingDecision.summary,

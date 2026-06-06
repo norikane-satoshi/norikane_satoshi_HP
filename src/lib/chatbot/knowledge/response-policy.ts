@@ -2,6 +2,7 @@ import { approvedSourceNotesKnowledge } from "@/lib/chatbot/knowledge/source-not
 import { chatbotForbiddenTopics } from "@/lib/chatbot/knowledge/forbidden-topics"
 import { satoshiProfileKnowledge } from "@/lib/chatbot/knowledge/satoshi-profile"
 import { videoIndustryKnowledge } from "@/lib/chatbot/knowledge/video-industry"
+import { featuredWorksKnowledge } from "@/lib/chatbot/knowledge/works"
 import {
   candidateWindowGranularityByJobKind,
   workflowDurationPresets,
@@ -61,6 +62,9 @@ export function buildChatbotStaticPolicyPrompt(): string {
     "",
     "対応範囲ナレッジ:",
     satoshiProfileKnowledge.trim(),
+    "",
+    "Works / 実績ナレッジ:",
+    featuredWorksKnowledge.trim(),
     "",
     "映像領域ナレッジ:",
     videoIndustryKnowledge.trim(),

@@ -44,6 +44,17 @@ describe("chatbot static policy knowledge", () => {
     })
   })
 
+  it("includes only HP-published Featured Works in the static prompt", () => {
+    const prompt = buildChatbotStaticPolicyPrompt()
+
+    expect(prompt).toContain("Works / 実績ナレッジ")
+    expect(prompt).toContain("HP掲載のWorks/実績（公開済み情報のみ）")
+    expect(prompt).toContain("火星の女王（NHK100周年記念ドラマ）")
+    expect(prompt).toContain("十角館の殺人 / 時計館の殺人（hulu）")
+    expect(prompt).toContain("ゲキ×シネシリーズ（ヴィレッヂ）")
+    expect(prompt).toContain("HPに掲載されていない案件名、取引先、担当範囲、件数、数値")
+  })
+
   it("covers the requested fixture scenarios", () => {
     expect(staticPolicyScenarioFixtures.map((fixture) => fixture.id)).toEqual([
       "normal-consultation",
@@ -71,6 +82,12 @@ describe("chatbot static policy knowledge", () => {
     })
     expect(classifyChatbotTopic("非公開の内部手法のノード構成を教えて")).toMatchObject({
       confidentialTechniqueQuestion: true,
+    })
+    expect(classifyChatbotTopic("実績を教えてください")).toMatchObject({
+      portfolioQuestion: true,
+    })
+    expect(classifyChatbotTopic("作品をレビューして")).toMatchObject({
+      workReviewRequest: true,
     })
   })
 })

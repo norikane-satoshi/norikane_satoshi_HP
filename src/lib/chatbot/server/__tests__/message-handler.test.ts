@@ -323,7 +323,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).toContain("先に空き状況")
   })
 
-  it("keeps deterministic email handoff when the LLM proposes direct contact", async () => {
+  it("keeps asking required slots instead of showing the email handoff form early", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: "個別確認に進めます。",
@@ -345,6 +345,47 @@ describe("handleChatbotMessage user context", () => {
           hasContactEmail: true,
           contactEmail: "client@example.com",
           turnCount: 8,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+    })
+    expect(result.ui).toEqual({ kind: "none" })
+  })
+
+  it("keeps deterministic email handoff when all email handoff slots are ready", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "個別確認に進めます。",
+      tier: "tier-1-chrome-notion-ai",
+      proposedRoutingDecision: {
+        kind: "to-direct-contact",
+        reason: "pricing",
+        requireEmail: true,
+        suggestedMessage: "メールアドレス、会社名、お名前を教えてください。",
+      },
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "メールで進めたいです。client@example.com です。",
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasWorkSite: true,
+          hasContactEmail: true,
+          contactEmail: "client@example.com",
+          turnCount: 8,
+        },
+        jobContext: {
+          finalMedium: "live",
+          jobKind: "live-60m",
+          workSite: "remote-grading",
         },
       },
       harness.options,
@@ -402,6 +443,38 @@ describe("handleChatbotMessage user context", () => {
         summaryText: expect.stringContaining("cinema"),
       }),
     })
+  })
+
+  it("does not return a zero-candidate booking handoff form when required slots are missing", async () => {
+    const harness = setup()
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "劇場案件です。希望時期と client@example.com は共有済みです。",
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasDesiredSchedule: true,
+          hasContactEmail: true,
+          contactEmail: "client@example.com",
+          turnCount: 8,
+        },
+        jobContext: {
+          finalMedium: "cinema",
+          jobKind: "feature-90m",
+          workSite: "remote-grading",
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "to-booking-inline",
+      suggestedSlots: [],
+    })
+    expect(result.ui).toEqual({ kind: "none" })
   })
 
   it("isolates a previous user's conversation when the authenticated user changes", async () => {

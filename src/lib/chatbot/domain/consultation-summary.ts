@@ -90,6 +90,19 @@ export function hasRequiredConsultationNotificationSlots(input: {
   )
 }
 
+export function hasRequiredEmailConsultationSlots(input: {
+  conversationState?: Partial<ConversationState>
+}): boolean {
+  const state = input.conversationState ?? {}
+  return Boolean(
+    state.hasFinalMedium &&
+      state.hasJobKind &&
+      state.hasWorkSite &&
+      state.hasContactEmail &&
+      state.contactEmail,
+  )
+}
+
 function labelFinalMedium(value: JobContext["finalMedium"] | undefined): string {
   return value ? finalMediumLabels[value] : missing
 }

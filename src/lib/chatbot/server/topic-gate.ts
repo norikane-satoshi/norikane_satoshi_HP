@@ -10,6 +10,7 @@ export type TopicGateResult = Pick<
   | "privateMethodNameExposure"
   | "technicalQuestion"
   | "workReviewRequest"
+  | "portfolioQuestion"
   | "outOfScope"
 >
 
@@ -27,6 +28,7 @@ export function classifyChatbotTopic(message: string): TopicGateResult {
     ...(matchesAny(normalized, privateMethodNamePatterns) ? { privateMethodNameExposure: true } : {}),
     ...(matchesAny(normalized, technicalQuestionPatterns) ? { technicalQuestion: true } : {}),
     ...(matchesAny(normalized, reviewPatterns) ? { workReviewRequest: true } : {}),
+    ...(matchesAny(normalized, portfolioPatterns) ? { portfolioQuestion: true } : {}),
   }
 }
 
@@ -99,4 +101,12 @@ const technicalQuestionPatterns = [
 const reviewPatterns = [
   /(?:作品|映像|動画|カット).*(?:レビュー|講評|添削|評価)して/u,
   /見て(?:評価|レビュー|添削)して/u,
+] as const
+
+const portfolioPatterns = [
+  /実績/u,
+  /works/u,
+  /work\s*samples?/u,
+  /ポートフォリオ/u,
+  /(?:掲載|公開)(?:作品|案件)/u,
 ] as const

@@ -147,6 +147,24 @@ describe("chatbot fallback router", () => {
     })
   })
 
+  it("does not route to email when required consultation slots are missing", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ finalMedium: "other", jobKind: undefined }),
+      conversationState: conversationState({
+        hasFinalMedium: false,
+        hasJobKind: false,
+        hasWorkSite: false,
+        hasDesiredSchedule: false,
+        turnCount: settledConversationTurnThreshold + 2,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      presentChoices: finalMediumChoices,
+    })
+  })
+
   it("routes heavy retouch to direct contact before other flags", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext({ heavyRetouch: true }),

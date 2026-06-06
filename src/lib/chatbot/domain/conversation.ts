@@ -45,6 +45,7 @@ export type ConversationState = {
   outOfScope?: boolean
   technicalQuestion?: boolean
   workReviewRequest?: boolean
+  portfolioQuestion?: boolean
   vfxCgHeavy?: boolean
   editingIncomplete?: boolean
   asksPricing?: boolean
