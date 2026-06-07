@@ -17,6 +17,7 @@ import {
   FEATURED_PLAYLIST_WORKS,
   FEATURED_WORKS,
   calculateClipWindow,
+  getNextYouTubeThumbnailVariant,
   getYouTubeThumbnailUrl,
   shuffleVideoIds,
   type ClipWindow,
@@ -24,6 +25,7 @@ import {
   type FeaturedWorkPreviewVideo,
   type FeaturedWork,
   type FeaturedWorkLink,
+  type YouTubeThumbnailVariantSelection,
 } from "@/components/hp/featured-works-data"
 import { MARS_ABSTRACT_COVER_BACKGROUND } from "@/components/hp/hero-deep-surface"
 
@@ -92,6 +94,11 @@ const MARQUEE_LOOP_SECONDS = 72
 const MARQUEE_INPUT_IDLE_MS = 1300
 const MARQUEE_PROGRESS_MIN_THUMB_WIDTH = 44
 const VIDEO_OPEN_DRAG_THRESHOLD_PX = 8
+const INITIAL_THUMBNAIL_SELECTION: YouTubeThumbnailVariantSelection = {
+  variant: 1,
+  queue: [],
+  lastOrder: [],
+}
 
 const focusableSelector = [
   "a[href]",
@@ -608,16 +615,61 @@ function PreviewThumbnail({
   videoId: string
   isVisible: boolean
 }) {
+  const previousVisibleRef = useRef(isVisible)
+  const previousVideoIdRef = useRef(videoId)
+  const hasInitializedThumbnailRef = useRef(false)
+  const [thumbnailSelection, setThumbnailSelection] =
+    useState<YouTubeThumbnailVariantSelection>(INITIAL_THUMBNAIL_SELECTION)
+  const thumbnailKey = `${videoId}:${thumbnailSelection.variant}`
+  const [fallbackThumbnailKey, setFallbackThumbnailKey] = useState<string | null>(
+    null,
+  )
+  const useDefaultThumbnail = fallbackThumbnailKey === thumbnailKey
+
+  useEffect(() => {
+    const shouldSelectInitialVisible =
+      isVisible && !hasInitializedThumbnailRef.current
+    const becameVisible = isVisible && !previousVisibleRef.current
+    const videoChangedWhileVisible =
+      isVisible && previousVideoIdRef.current !== videoId
+
+    hasInitializedThumbnailRef.current = true
+    previousVisibleRef.current = isVisible
+    previousVideoIdRef.current = videoId
+
+    if (shouldSelectInitialVisible || becameVisible || videoChangedWhileVisible) {
+      let cancelled = false
+      queueMicrotask(() => {
+        if (cancelled) {
+          return
+        }
+        setThumbnailSelection((selection) =>
+          getNextYouTubeThumbnailVariant(selection),
+        )
+      })
+      return () => {
+        cancelled = true
+      }
+    }
+  }, [isVisible, videoId])
+
   return (
     <img
-      src={getYouTubeThumbnailUrl(videoId)}
+      src={getYouTubeThumbnailUrl(
+        videoId,
+        useDefaultThumbnail ? "default" : thumbnailSelection.variant,
+      )}
       alt=""
       className={`pointer-events-none absolute inset-0 z-20 h-full w-full rounded-none object-cover transition-opacity duration-300 ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
       loading="lazy"
       decoding="async"
+      onError={() => setFallbackThumbnailKey(thumbnailKey)}
       data-featured-work-preview-thumbnail={isVisible ? "visible" : "hidden"}
+      data-featured-work-preview-thumbnail-variant={
+        useDefaultThumbnail ? "default" : thumbnailSelection.variant
+      }
     />
   )
 }

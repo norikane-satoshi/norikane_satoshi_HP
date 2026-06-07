@@ -5,7 +5,10 @@ import {
   LIVE_REEL_VIDEO_IDS,
   LIVE_REEL_VIDEOS,
   calculateClipWindow,
+  getNextYouTubeThumbnailVariant,
+  getYouTubeThumbnailUrl,
   shuffleVideoIds,
+  shuffleYouTubeThumbnailVariants,
 } from "@/components/hp/featured-works-data"
 
 describe("featured works data", () => {
@@ -141,6 +144,41 @@ describe("featured works data", () => {
     expect(shuffled).toHaveLength(LIVE_REEL_VIDEO_IDS.length)
     expect(new Set(shuffled)).toEqual(new Set(LIVE_REEL_VIDEO_IDS))
     expect(shuffled).not.toEqual(LIVE_REEL_VIDEO_IDS)
+  })
+
+  it("builds YouTube thumbnail URLs for generated hq frames and default fallback", () => {
+    expect(getYouTubeThumbnailUrl("-2kSMEiw0wA", 1)).toBe(
+      "https://i.ytimg.com/vi/-2kSMEiw0wA/hq1.jpg",
+    )
+    expect(getYouTubeThumbnailUrl("-2kSMEiw0wA", 2)).toBe(
+      "https://i.ytimg.com/vi/-2kSMEiw0wA/hq2.jpg",
+    )
+    expect(getYouTubeThumbnailUrl("-2kSMEiw0wA", 3)).toBe(
+      "https://i.ytimg.com/vi/-2kSMEiw0wA/hq3.jpg",
+    )
+    expect(getYouTubeThumbnailUrl("-2kSMEiw0wA")).toBe(
+      "https://i.ytimg.com/vi/-2kSMEiw0wA/hqdefault.jpg",
+    )
+  })
+
+  it("cycles thumbnail variants in shuffled rounds without immediate order repeats", () => {
+    const firstOrder = shuffleYouTubeThumbnailVariants([], () => 0.99)
+    const secondOrder = shuffleYouTubeThumbnailVariants(firstOrder, () => 0.99)
+
+    expect(firstOrder).toEqual([1, 2, 3])
+    expect(secondOrder).toEqual([2, 3, 1])
+  })
+
+  it("deals one thumbnail variant per cover display and reshuffles after three", () => {
+    let state = getNextYouTubeThumbnailVariant(undefined, () => 0.99)
+
+    expect(state.variant).toBe(1)
+    state = getNextYouTubeThumbnailVariant(state, () => 0.99)
+    expect(state.variant).toBe(2)
+    state = getNextYouTubeThumbnailVariant(state, () => 0.99)
+    expect(state.variant).toBe(3)
+    state = getNextYouTubeThumbnailVariant(state, () => 0.99)
+    expect(state.variant).toBe(2)
   })
 
   it("uses the full duration for videos up to 30 seconds", () => {

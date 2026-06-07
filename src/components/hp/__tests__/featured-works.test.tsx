@@ -736,6 +736,13 @@ describe("FeaturedWorks", () => {
     expect(player).toBeDefined()
 
     const card = screen.getByLabelText("十角館の殺人 / 時計館の殺人 作品カード")
+    const getSingleThumbnail = () => {
+      const thumbnail = card.querySelector<HTMLImageElement>(
+        "[data-featured-work-preview-thumbnail]",
+      )
+      expect(thumbnail).toBeInTheDocument()
+      return thumbnail as HTMLImageElement
+    }
     const expectSingleCover = (state: "preparing" | "playing") => {
       expect(
         card.querySelector('[data-featured-work-current-video-id="-2kSMEiw0wA"]'),
@@ -750,6 +757,11 @@ describe("FeaturedWorks", () => {
     }
 
     expectSingleCover("preparing")
+    const firstThumbnail = getSingleThumbnail()
+    const firstThumbnailSrc = firstThumbnail.getAttribute("src")
+    expect(firstThumbnailSrc).toMatch(
+      /^https:\/\/i\.ytimg\.com\/vi\/-2kSMEiw0wA\/hq[123]\.jpg$/,
+    )
 
     await act(async () => {
       vi.advanceTimersByTime(5000)
@@ -761,6 +773,11 @@ describe("FeaturedWorks", () => {
     })
     expectSingleCover("preparing")
     expect(player?.seekTo).toHaveBeenCalledTimes(2)
+    const secondThumbnailSrc = getSingleThumbnail().getAttribute("src")
+    expect(secondThumbnailSrc).toMatch(
+      /^https:\/\/i\.ytimg\.com\/vi\/-2kSMEiw0wA\/hq[123]\.jpg$/,
+    )
+    expect(secondThumbnailSrc).not.toBe(firstThumbnailSrc)
 
     await act(async () => {
       vi.advanceTimersByTime(4999)
@@ -771,6 +788,25 @@ describe("FeaturedWorks", () => {
       vi.advanceTimersByTime(1)
     })
     expectSingleCover("playing")
+  })
+
+  it("falls back to hqdefault when a generated thumbnail frame is missing", () => {
+    const { container } = render(<FeaturedWorks />)
+    const primary = getPrimarySegment(container)
+    const thumbnail = primary.querySelector<HTMLImageElement>(
+      '[data-featured-work-preview-thumbnail="visible"][src*="/hq"]',
+    )
+
+    expect(thumbnail).toBeInTheDocument()
+    expect(thumbnail?.getAttribute("src")).toMatch(/\/hq[123]\.jpg$/)
+
+    fireEvent.error(thumbnail as HTMLImageElement)
+
+    expect(thumbnail?.getAttribute("src")).toMatch(/\/hqdefault\.jpg$/)
+    expect(thumbnail).toHaveAttribute(
+      "data-featured-work-preview-thumbnail-variant",
+      "default",
+    )
   })
 
   it("ignores video trigger clicks after pointer dragging", () => {

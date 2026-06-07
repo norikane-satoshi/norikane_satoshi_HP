@@ -154,8 +154,23 @@ export type ClipWindow = {
   playSeconds: number
 }
 
-export function getYouTubeThumbnailUrl(videoId: string) {
-  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+export const YOUTUBE_THUMBNAIL_VARIANTS = [1, 2, 3] as const
+
+export type YouTubeThumbnailVariant =
+  (typeof YOUTUBE_THUMBNAIL_VARIANTS)[number]
+
+export type YouTubeThumbnailVariantSelection = {
+  variant: YouTubeThumbnailVariant
+  queue: YouTubeThumbnailVariant[]
+  lastOrder: YouTubeThumbnailVariant[]
+}
+
+export function getYouTubeThumbnailUrl(
+  videoId: string,
+  variant: YouTubeThumbnailVariant | "default" = "default",
+) {
+  const fileName = variant === "default" ? "hqdefault" : `hq${variant}`
+  return `https://i.ytimg.com/vi/${videoId}/${fileName}.jpg`
 }
 
 export function shuffleVideoIds<T>(
@@ -170,6 +185,45 @@ export function shuffleVideoIds<T>(
     shuffled[swapIndex] = current
   }
   return shuffled
+}
+
+function hasSameOrder<T>(left: readonly T[], right: readonly T[]) {
+  return left.length === right.length && left.every((item, index) => item === right[index])
+}
+
+export function shuffleYouTubeThumbnailVariants(
+  previousOrder: readonly YouTubeThumbnailVariant[] = [],
+  random: () => number = Math.random,
+) {
+  const shuffled = shuffleVideoIds(YOUTUBE_THUMBNAIL_VARIANTS, random)
+  if (hasSameOrder(shuffled, previousOrder)) {
+    return [...shuffled.slice(1), shuffled[0]]
+  }
+  return shuffled
+}
+
+export function getNextYouTubeThumbnailVariant(
+  state?: Pick<YouTubeThumbnailVariantSelection, "queue" | "lastOrder">,
+  random: () => number = Math.random,
+): YouTubeThumbnailVariantSelection {
+  const queue = state?.queue ?? []
+  const lastOrder = state?.lastOrder ?? []
+  if (queue.length === 0) {
+    const nextOrder = shuffleYouTubeThumbnailVariants(lastOrder, random)
+    const [variant, ...remainingQueue] = nextOrder
+    return {
+      variant,
+      queue: remainingQueue,
+      lastOrder: nextOrder,
+    }
+  }
+
+  const [variant, ...remainingQueue] = queue
+  return {
+    variant,
+    queue: remainingQueue,
+    lastOrder,
+  }
 }
 
 export function calculateClipWindow(
