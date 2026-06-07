@@ -1034,6 +1034,8 @@ function VideoSurface({
       )
       clipRef.current = clip
       setActiveClip(clip)
+      clearCoverTimer()
+      setIsCoverVisible(true)
       player.seekTo(clip.startSeconds, true)
       player.playVideo()
       timerRef.current = window.setTimeout(() => {

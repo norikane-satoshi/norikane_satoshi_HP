@@ -669,6 +669,110 @@ describe("FeaturedWorks", () => {
     expectCovers("playing")
   })
 
+  it("re-shows single video thumbnail covers before each random clip restart", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+    vi.useFakeTimers()
+    vi.spyOn(Math, "random").mockReturnValue(0.5)
+
+    type MockPlayerOptions = {
+      videoId?: string
+      playerVars?: Record<string, string | number>
+      events?: {
+        onReady?: (event: { target: MockPlayer }) => void
+        onStateChange?: (event: { data: number; target: MockPlayer }) => void
+        onError?: (event: { data: number; target: MockPlayer }) => void
+      }
+    }
+
+    const players: MockPlayer[] = []
+
+    class MockPlayer {
+      readonly options: MockPlayerOptions
+      readonly mute = vi.fn()
+      readonly stopVideo = vi.fn()
+      readonly destroy = vi.fn()
+      readonly getDuration = vi.fn(() => 90)
+      readonly seekTo = vi.fn()
+      readonly loadVideoById = vi.fn()
+      readonly playVideo = vi.fn(() => {
+        this.options.events?.onStateChange?.({ data: 1, target: this })
+      })
+
+      constructor(_element: HTMLElement, options: MockPlayerOptions) {
+        this.options = options
+        players.push(this)
+        queueMicrotask(() => {
+          options.events?.onReady?.({ target: this })
+        })
+      }
+    }
+
+    window.YT = {
+      Player: MockPlayer,
+      PlayerState: {
+        ENDED: 0,
+        PLAYING: 1,
+      },
+    }
+
+    render(<FeaturedWorks />)
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const player = players.find(
+      (item) => item.options.videoId === "-2kSMEiw0wA",
+    )
+    expect(player).toBeDefined()
+
+    const card = screen.getByLabelText("十角館の殺人 / 時計館の殺人 作品カード")
+    const expectSingleCover = (state: "preparing" | "playing") => {
+      expect(
+        card.querySelector('[data-featured-work-current-video-id="-2kSMEiw0wA"]'),
+      ).toHaveAttribute("data-featured-work-preview-media", state)
+      expect(
+        card.querySelector(
+          `[data-featured-work-preview-thumbnail="${
+            state === "preparing" ? "visible" : "hidden"
+          }"]`,
+        ),
+      ).toBeInTheDocument()
+    }
+
+    expectSingleCover("preparing")
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+    expectSingleCover("playing")
+
+    await act(async () => {
+      vi.advanceTimersByTime(25000)
+    })
+    expectSingleCover("preparing")
+    expect(player?.seekTo).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      vi.advanceTimersByTime(4999)
+    })
+    expectSingleCover("preparing")
+
+    await act(async () => {
+      vi.advanceTimersByTime(1)
+    })
+    expectSingleCover("playing")
+  })
+
   it("ignores video trigger clicks after pointer dragging", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
