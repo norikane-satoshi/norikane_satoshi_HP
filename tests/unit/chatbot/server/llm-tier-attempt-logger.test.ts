@@ -37,7 +37,7 @@ describe("formatChatbotTierAttemptLogEvent", () => {
   it("includes generate attempt numbers when retries are emitted", () => {
     expect(
       formatChatbotTierAttemptLogEvent({
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
         phase: "generate",
         outcome: "error",
         latencyMs: 90000,
@@ -45,7 +45,7 @@ describe("formatChatbotTierAttemptLogEvent", () => {
       }),
     ).toEqual({
       event: "chatbot_llm_tier_attempt",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
       phase: "generate",
       outcome: "error",
       latencyMs: 90000,

@@ -28,7 +28,7 @@ describe("chatbot widget API client", () => {
           content: "整理します",
           createdAt: "2026-05-26T00:00:01.000Z",
         },
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
         ui: { kind: "none" },
       }),
     })

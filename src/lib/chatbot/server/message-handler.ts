@@ -11,7 +11,8 @@ import {
   createLocalChatbotTierAttemptLogger,
   createConversation,
   createTier1ChromeNotionAiClient,
-  createTier2OllamaDeepSeekClient,
+  createTier2HostedChromeNotionAiClient,
+  createTier3OllamaDeepSeekClient,
   createTier4FormFallbackClient,
   formatUserChatbotContextForPrompt,
   linkConversationToUser,
@@ -397,7 +398,8 @@ function createDefaultChatbotLlmOrchestrator(
 ): ChatbotLlmTierOrchestrator {
   const clients: ChatbotLlmClient[] = [
     createTier1ChromeNotionAiClient({ preferredModel: tier1ObservedNotionAiModel }),
-    createTier2OllamaDeepSeekClient(),
+    createTier2HostedChromeNotionAiClient(),
+    createTier3OllamaDeepSeekClient(),
     createTier4FormFallbackClient(),
   ]
   const localLogger = createLocalChatbotTierAttemptLogger()

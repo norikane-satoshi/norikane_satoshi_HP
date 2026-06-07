@@ -106,7 +106,7 @@ function setup(overrides: {
   }
   const generate = vi.fn().mockResolvedValue({
     rawText: "返信です",
-    tier: "tier-2-ollama-deepseek",
+    tier: "tier-3-ollama-deepseek",
     proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
   })
   const userContextLoader = vi.fn().mockResolvedValue(userContext())
@@ -312,7 +312,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: "<think>内部推論です。</think>\n\n最終媒体と尺を教えてください。",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
       proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
     })
 
@@ -325,7 +325,7 @@ describe("handleChatbotMessage user context", () => {
       conversationId: "conv_1",
       role: "assistant",
       content: "最終媒体と尺を教えてください。",
-      llmModel: "tier-2-ollama-deepseek",
+      llmModel: "tier-3-ollama-deepseek",
     })
     expect(result.assistantMessage.content).toBe("最終媒体と尺を教えてください。")
   })
@@ -510,7 +510,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: "概算で10万円です。",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
       proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
     })
 
@@ -831,7 +831,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: "打ち合わせや作業場所のご希望、連絡先を教えてください。",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
       proposedRoutingDecision: { kind: "continue", nextQuestion: "作業場所のご希望はありますか？" },
     })
 
@@ -866,7 +866,7 @@ describe("handleChatbotMessage user context", () => {
       conversationId: "conv_1",
       role: "assistant",
       content: "カラグレ以外の追加作業はありますか？",
-      llmModel: "tier-2-ollama-deepseek",
+      llmModel: "tier-3-ollama-deepseek",
     })
   })
 
@@ -885,7 +885,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: "最終媒体は何になりますか？",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
       proposedRoutingDecision: {
         kind: "continue",
         nextQuestion: "最終媒体は何になりますか？",
@@ -930,7 +930,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: "最終媒体は何になりますか？",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
       proposedRoutingDecision: {
         kind: "continue",
         nextQuestion: "最終媒体は何になりますか？",

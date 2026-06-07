@@ -88,7 +88,7 @@ test.describe("root chatbot entry", () => {
             content: '<lang primary="ja-JP"/>空き状況の候補を確認します。',
             createdAt: new Date("2026-05-28T00:00:00.000Z").toISOString(),
           },
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: { kind: "none" },
         }),
       })
@@ -132,7 +132,7 @@ test.describe("root chatbot entry", () => {
             content: "受け取りました。",
             createdAt: new Date("2026-05-28T00:00:00.000Z").toISOString(),
           },
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: { kind: "none" },
         }),
       })

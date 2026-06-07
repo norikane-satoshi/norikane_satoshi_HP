@@ -84,7 +84,7 @@ describe("WidgetShell API wiring", () => {
         conversationId: "conv_1",
         userMessage,
         assistantMessage,
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
         tierAttempts: [
           {
             tier: "tier-1-chrome-notion-ai",
@@ -108,6 +108,20 @@ describe("WidgetShell API wiring", () => {
             attempt: 2,
             errorCode: "invalid-output",
           },
+          {
+            tier: "tier-2-hosted-chrome-notion-ai",
+            phase: "health-check",
+            outcome: "unhealthy",
+            latencyMs: 8,
+            errorCode: "auth",
+          },
+          {
+            tier: "tier-3-ollama-deepseek",
+            phase: "generate",
+            outcome: "success",
+            latencyMs: 310,
+            attempt: 1,
+          },
         ],
         ui: { kind: "none" },
       }),
@@ -120,7 +134,7 @@ describe("WidgetShell API wiring", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(
       await screen.findByText(
-        "Local debug: Actual: staging Tier 2 local Ollama DeepSeek; planned Tier 3; VPS Tier 2 not installed (tier-2-ollama-deepseek) | Tier1 health healthy; Tier1 generate invalid-output x2; retry 1",
+        "Local debug: Actual: Tier 3 local Ollama DeepSeek (tier-3-ollama-deepseek) | Tier1 health healthy; Tier1 generate invalid-output x2; Tier1 retry 1; Tier2 VPS health unhealthy; Tier3 Ollama generate success",
       ),
     ).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
@@ -160,7 +174,7 @@ describe("WidgetShell API wiring", () => {
         conversationId: "conv_1",
         userMessage,
         assistantMessage,
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
         ui: { kind: "none" },
       }),
     )
@@ -235,7 +249,7 @@ describe("WidgetShell API wiring", () => {
           id: "edited_assistant_msg_1",
           content: "編集後の条件で整理します",
         },
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
         ui: { kind: "none" },
       }),
     )
@@ -291,7 +305,7 @@ describe("WidgetShell API wiring", () => {
           conversationId: "conv_1",
           userMessage,
           assistantMessage,
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
         }),
       ),
@@ -315,7 +329,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "候補日時から予約できます",
           },
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: {
             kind: "booking-card",
             suggestedSlots: [
@@ -392,7 +406,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "相談内容を整理しました。",
           },
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: {
             kind: "consultation-summary-form",
             summary: {
@@ -450,7 +464,7 @@ describe("WidgetShell API wiring", () => {
       conversationId: "conv_1",
       userMessage: { ...userMessage, content: "待機表示を確認します" },
       assistantMessage,
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
       ui: { kind: "none" },
     }))
     await waitFor(() => expect(screen.queryByText("考え中")).not.toBeInTheDocument())
@@ -462,7 +476,7 @@ describe("WidgetShell API wiring", () => {
         conversationId: "conv_restore",
         userMessage: { ...userMessage, content: "Web CM の相談です" },
         assistantMessage,
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
         ui: { kind: "none" },
       }),
     )
@@ -495,7 +509,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "のりかね本人が確認します。",
           },
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: {
             kind: "direct-contact-card",
             reason: "pricing",
@@ -532,7 +546,7 @@ describe("WidgetShell API wiring", () => {
           conversationId: "conv_1",
           userMessage,
           assistantMessage,
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
         }),
       )
@@ -551,7 +565,7 @@ describe("WidgetShell API wiring", () => {
             content: "編集後の条件で整理します",
             createdAt: "2026-05-26T00:03:00.000Z",
           },
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: { kind: "none" },
         }),
       )

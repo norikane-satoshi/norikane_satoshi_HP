@@ -59,9 +59,13 @@ export {
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 export { runTier1HealthCheck } from "@/lib/chatbot/server/llm-clients/tier1-health-check"
 export {
-  createTier2OllamaDeepSeekClient,
-  Tier2OllamaDeepSeekClient,
-} from "@/lib/chatbot/server/llm-clients/tier2-ollama-deepseek"
+  createTier2HostedChromeNotionAiClient,
+  Tier2HostedChromeNotionAiClient,
+} from "@/lib/chatbot/server/llm-clients/tier2-hosted-chrome-notion-ai"
+export {
+  createTier3OllamaDeepSeekClient,
+  Tier3OllamaDeepSeekClient,
+} from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
 export {
   createTier4FormFallbackClient,
   Tier4FormFallbackClient,
@@ -72,3 +76,25 @@ export {
   loadUserChatbotContext,
 } from "@/lib/chatbot/server/user-context-loader"
 export type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"
+export {
+  createHostedWorkerQueue,
+  createHostedWorkerRequestHandler,
+  createHostedWorkerRuntimeState,
+  createHostedWorkerServer,
+  ensureHostedWorkerChrome,
+  generateHostedWorkerResponse,
+  getHostedWorkerHealth,
+  hostedWorkerTier,
+  inspectHostedWorkerChrome,
+  resolveHostedWorkerChromeConfig,
+  startHostedWorkerServer,
+} from "@/lib/chatbot/hosted-worker"
+export type {
+  HostedWorkerChromeConfig,
+  HostedWorkerEnsureResult,
+  HostedWorkerGenerateRequest,
+  HostedWorkerGenerateResponse,
+  HostedWorkerHealthResponse,
+  HostedWorkerQueueState,
+  HostedWorkerRuntimeState,
+} from "@/lib/chatbot/hosted-worker"

@@ -38,7 +38,7 @@ async function loadPost({
   existingConversation = null,
   llmResponse = {
     rawText: "最終媒体を教えてください",
-    tier: "tier-2-ollama-deepseek" as const,
+    tier: "tier-3-ollama-deepseek" as const,
     proposedRoutingDecision: {
       kind: "continue" as const,
       nextQuestion: "最終媒体を教えてください",
@@ -77,6 +77,14 @@ async function loadPost({
     kind: "continue" as const,
     nextQuestion: "最終媒体を教えてください",
   })
+  const createTier1ChromeNotionAiClient = vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" }))
+  const createTier2HostedChromeNotionAiClient = vi.fn(() => ({ tier: "tier-2-hosted-chrome-notion-ai" }))
+  const createTier3OllamaDeepSeekClient = vi.fn(() => ({ tier: "tier-3-ollama-deepseek" }))
+  const createTier4FormFallbackClient = vi.fn(() => ({ tier: "tier-4-form-fallback" }))
+  const createChatbotLlmTierOrchestrator = vi.fn(() => ({
+    generate,
+    isHealthy: vi.fn().mockResolvedValue(true),
+  }))
 
   vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/chatbot/server", () => ({
@@ -92,19 +100,17 @@ async function loadPost({
     decideRoutingFallback,
     tier1ObservedNotionAiModel: "apricot-sorbet-high",
     createLocalChatbotTierAttemptLogger: vi.fn(() => undefined),
-    createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),
-    createTier2OllamaDeepSeekClient: vi.fn(() => ({ tier: "tier-2-ollama-deepseek" })),
-    createTier4FormFallbackClient: vi.fn(() => ({ tier: "tier-4-form-fallback" })),
+    createTier1ChromeNotionAiClient,
+    createTier2HostedChromeNotionAiClient,
+    createTier3OllamaDeepSeekClient,
+    createTier4FormFallbackClient,
     normalizeChatbotLlmResponse: vi.fn((response: { rawText: string; tier: string }) => ({
       content: response.rawText.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, "").trim(),
       role: "assistant",
       model: response.tier,
       finish_reason: "stop",
     })),
-    createChatbotLlmTierOrchestrator: vi.fn(() => ({
-      generate,
-      isHealthy: vi.fn().mockResolvedValue(true),
-    })),
+    createChatbotLlmTierOrchestrator,
   }))
 
   const route = await import("./route")
@@ -121,6 +127,11 @@ async function loadPost({
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     generate,
+    createTier1ChromeNotionAiClient,
+    createTier2HostedChromeNotionAiClient,
+    createTier3OllamaDeepSeekClient,
+    createTier4FormFallbackClient,
+    createChatbotLlmTierOrchestrator,
   }
 }
 
@@ -210,7 +221,7 @@ describe("POST /api/chatbot/message", () => {
       content: "媒体を選びます",
     })
     await expect(response.json()).resolves.toMatchObject({
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
       ui: { kind: "choice-panel", choiceSet: { id: "final-medium" } },
     })
   })
@@ -243,11 +254,30 @@ describe("POST /api/chatbot/message", () => {
     })
   })
 
+  it("wires the default LLM clients in tier 1, tier 2 Hosted, tier 3, tier 4 order", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request({ message: "媒体を選びます" }, "chatbot_session_id=session_1"))
+
+    expect(response.status).toBe(200)
+    expect(route.createChatbotLlmTierOrchestrator).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clients: [
+          { tier: "tier-1-chrome-notion-ai" },
+          { tier: "tier-2-hosted-chrome-notion-ai" },
+          { tier: "tier-3-ollama-deepseek" },
+          { tier: "tier-4-form-fallback" },
+        ],
+      }),
+    )
+    expect(route.createTier2HostedChromeNotionAiClient).toHaveBeenCalledOnce()
+  })
+
   it("returns sanitized assistant message content", async () => {
     const route = await loadPost({
       llmResponse: {
         rawText: "<think>内部推論です。</think>\n\n最終媒体を教えてください",
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
         proposedRoutingDecision: { kind: "continue", nextQuestion: "最終媒体を教えてください" },
       },
     })
@@ -262,7 +292,7 @@ describe("POST /api/chatbot/message", () => {
       conversationId: "conv_1",
       role: "assistant",
       content: "最終媒体を教えてください",
-      llmModel: "tier-2-ollama-deepseek",
+      llmModel: "tier-3-ollama-deepseek",
     })
   })
 

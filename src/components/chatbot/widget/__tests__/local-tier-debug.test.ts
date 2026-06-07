@@ -11,8 +11,11 @@ describe("local chatbot tier debug helpers", () => {
     expect(formatChatbotTierDebugLabel("tier-1-chrome-notion-ai")).toBe(
       "Actual: Tier 1 local Notion AI / Chrome CDP (tier-1-chrome-notion-ai)",
     )
-    expect(formatChatbotTierDebugLabel("tier-2-ollama-deepseek")).toBe(
-      "Actual: staging Tier 2 local Ollama DeepSeek; planned Tier 3; VPS Tier 2 not installed (tier-2-ollama-deepseek)",
+    expect(formatChatbotTierDebugLabel("tier-2-hosted-chrome-notion-ai")).toBe(
+      "Actual: Tier 2 VPS Notion AI hosted worker (tier-2-hosted-chrome-notion-ai)",
+    )
+    expect(formatChatbotTierDebugLabel("tier-3-ollama-deepseek")).toBe(
+      "Actual: Tier 3 local Ollama DeepSeek (tier-3-ollama-deepseek)",
     )
     expect(formatChatbotTierDebugLabel("tier-4-form-fallback")).toBe(
       "Actual: Tier 4 form fallback (tier-4-form-fallback)",
@@ -44,8 +47,24 @@ describe("local chatbot tier debug helpers", () => {
           attempt: 2,
           errorCode: "invalid-output",
         },
+        {
+          tier: "tier-2-hosted-chrome-notion-ai",
+          phase: "health-check",
+          outcome: "unhealthy",
+          latencyMs: 8,
+          errorCode: "auth",
+        },
+        {
+          tier: "tier-3-ollama-deepseek",
+          phase: "generate",
+          outcome: "success",
+          latencyMs: 310,
+          attempt: 1,
+        },
       ]),
-    ).toBe("Tier1 health healthy; Tier1 generate invalid-output x2; retry 1")
+    ).toBe(
+      "Tier1 health healthy; Tier1 generate invalid-output x2; Tier1 retry 1; Tier2 VPS health unhealthy; Tier3 Ollama generate success",
+    )
   })
 
   it("only enables the debug display on local hostnames", () => {
