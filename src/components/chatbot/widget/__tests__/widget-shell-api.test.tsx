@@ -143,32 +143,22 @@ describe("WidgetShell API wiring", () => {
 
   it("keeps the canceled user message editable and regenerates from the edit", async () => {
     const abortError = new DOMException("Aborted", "AbortError")
+    let resolveEditFetch: (response: ReturnType<typeof mockJsonResponse>) => void = () => undefined
     const fetchMock = vi.fn()
     fetchMock.mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) =>
       new Promise<ReturnType<typeof mockJsonResponse>>((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => reject(abortError), { once: true })
       }),
     )
-    fetchMock.mockResolvedValueOnce(
-      mockJsonResponse({
-        conversationId: "conv_1",
-        userMessage: {
-          ...userMessage,
-          id: "edited_user_msg_1",
-          content: "編集後です",
-        },
-        assistantMessage: {
-          ...assistantMessage,
-          id: "edited_assistant_msg_1",
-          content: "編集後の条件で整理します",
-        },
-        tier: "tier-2-ollama-deepseek",
-        ui: { kind: "none" },
-      }),
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<ReturnType<typeof mockJsonResponse>>((resolve) => {
+          resolveEditFetch = resolve
+        }),
     )
     vi.stubGlobal("fetch", fetchMock)
 
-    renderWidgetShell()
+    const { unmount } = renderWidgetShell()
     submitMessage("キャンセルします")
 
     expect(await screen.findByText("考え中")).toBeInTheDocument()
@@ -190,12 +180,53 @@ describe("WidgetShell API wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "OK" }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(screen.getByText("編集後です")).toBeInTheDocument()
+    expect(screen.queryByText("キャンセルします")).not.toBeInTheDocument()
+    expect(screen.getByText("考え中")).toBeInTheDocument()
+
     const editRequest = fetchMock.mock.calls[1]?.[1] as RequestInit
     expect(JSON.parse(String(editRequest.body))).toMatchObject({
       message: "編集後です",
       editTargetMessageId: firstBody.clientUserMessageId,
     })
+    resolveEditFetch(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        userMessage: {
+          ...userMessage,
+          id: "edited_user_msg_1",
+          content: "編集後です",
+        },
+        assistantMessage: {
+          ...assistantMessage,
+          id: "edited_assistant_msg_1",
+          content: "編集後の条件で整理します",
+        },
+        tier: "tier-2-ollama-deepseek",
+        ui: { kind: "none" },
+      }),
+    )
     expect(await screen.findByText("編集後の条件で整理します")).toBeInTheDocument()
+    expect(screen.getByText("編集後です")).toBeInTheDocument()
+    expect(screen.queryAllByText("編集後です")).toHaveLength(1)
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem("hp-chatbot-session-v1") ?? "{}")
+      expect(stored.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: "edited_user_msg_1", role: "user", content: "編集後です" }),
+          expect.objectContaining({
+            id: "edited_assistant_msg_1",
+            role: "assistant",
+            content: "編集後の条件で整理します",
+          }),
+        ]),
+      )
+    })
+
+    unmount()
+    renderWidgetShell()
+    expect(screen.getByText("編集後です")).toBeInTheDocument()
+    expect(screen.getByText("編集後の条件で整理します")).toBeInTheDocument()
     expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }))
   })
 

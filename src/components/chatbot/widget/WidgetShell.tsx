@@ -404,8 +404,18 @@ export function WidgetShell({
     if (targetIndex === -1 || !trimmedText || submitting) return
     const controller = new AbortController()
     activeRequestControllerRef.current = controller
+    const optimisticCreatedAt = new Date()
 
-    setMessages((currentMessages) => currentMessages.slice(0, targetIndex))
+    setMessages((currentMessages) => {
+      const currentTargetIndex = currentMessages.findIndex(
+        (message) => message.id === messageId && message.role === "user",
+      )
+      const truncateIndex = currentTargetIndex === -1 ? Math.min(targetIndex, currentMessages.length) : currentTargetIndex
+      return [
+        ...currentMessages.slice(0, truncateIndex),
+        { id: messageId, role: "user", content: trimmedText, createdAt: optimisticCreatedAt },
+      ]
+    })
     setActiveUi(noUi)
     setShowThinkingDelayNotice(false)
     setSubmitting(true)
@@ -419,21 +429,29 @@ export function WidgetShell({
       if (controller.signal.aborted) return
       setConversationId(payload.conversationId)
       setLastResponseTier(payload.tier)
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        {
-          id: payload.userMessage.id,
-          role: payload.userMessage.role,
-          content: payload.userMessage.content,
-          createdAt: new Date(payload.userMessage.createdAt),
-        },
-        {
-          id: payload.assistantMessage.id,
-          role: payload.assistantMessage.role,
-          content: payload.assistantMessage.content,
-          createdAt: new Date(payload.assistantMessage.createdAt),
-        },
-      ])
+      setMessages((currentMessages) => {
+        const currentTargetIndex = currentMessages.findIndex(
+          (message) =>
+            message.role === "user" &&
+            (message.id === messageId || message.id === payload.userMessage.id),
+        )
+        const truncateIndex = currentTargetIndex === -1 ? Math.min(targetIndex, currentMessages.length) : currentTargetIndex
+        return [
+          ...currentMessages.slice(0, truncateIndex),
+          {
+            id: payload.userMessage.id,
+            role: payload.userMessage.role,
+            content: payload.userMessage.content,
+            createdAt: new Date(payload.userMessage.createdAt),
+          },
+          {
+            id: payload.assistantMessage.id,
+            role: payload.assistantMessage.role,
+            content: payload.assistantMessage.content,
+            createdAt: new Date(payload.assistantMessage.createdAt),
+          },
+        ]
+      })
       setActiveUi(payload.ui)
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) return
