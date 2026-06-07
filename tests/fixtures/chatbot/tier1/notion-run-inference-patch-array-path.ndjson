@@ -1,0 +1,3 @@
+{"type":"patch-start","s":[{"id":"turn-id","type":"agent-inference","value":[{"type":"text","content":"承知"}]}]}
+{"type":"patch","ops":[{"type":"stringInsert","path":["s",0,"value",0,"content"],"value":"しました。"}]}
+{"type":"patch","operations":[{"o":"li","p":["s",0,"value","-"],"v":{"type":"text","content":"追加です。"}}]}

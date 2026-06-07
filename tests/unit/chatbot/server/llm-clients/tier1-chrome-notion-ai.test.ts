@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+
 import { describe, expect, it, vi } from "vitest"
 
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
@@ -141,6 +143,8 @@ describe("Tier1ChromeNotionAiClient", () => {
   it("keeps discovery fail-fast while allowing long Notion AI inference", () => {
     expect(tier1ChromeNotionAiDefaults.connectTimeoutMs).toBe(10000)
     expect(tier1ChromeNotionAiDefaults.requestTimeoutMs).toBe(180000)
+    expect(tier1ChromeNotionAiDefaults.chromeProfileDir).toContain(".chrome-cdp-profile-chatbot")
+    expect(tier1ChromeNotionAiDefaults.chromeWaitMs).toBe(30000)
   })
 
   it("keeps the default target scoped to the chatbot-only Notion AI thread", () => {
@@ -426,10 +430,48 @@ describe("Tier1ChromeNotionAiClient", () => {
       threadId: "dedicated-thread-id",
       createThread: true,
       isPartialTranscript: false,
-      asPatchResponse: false,
+      asPatchResponse: true,
       createdSource: "assistant",
     })
     expect(payloadPrompt(payload)).toContain("Collect only new project intake details.")
+  })
+
+  it("falls back to the attached Notion thread when fresh thread creation returns a lone array opener", async () => {
+    const session = sessionReturning([
+      {
+        spaceId: "space-id",
+        userId: "user-id",
+        contextPageId: "context-page-id",
+        threadId: "fixed-page-thread-id",
+        selectedModel: "notion-current-model",
+        availableModels: ["apricot-sorbet-high"],
+      },
+      {
+        ok: false,
+        code: "invalid-output",
+        message: "Notion AI response text could not be extracted. bytes=1 preview=[",
+      },
+      { ok: true, rawText: "1〜2日です。", chunkCount: 3 },
+    ])
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () => session,
+    })
+
+    await expect(
+      client.generate({
+        ...llmRequest(),
+        notionAiThread: {},
+      }),
+    ).resolves.toMatchObject({
+      rawText: "1〜2日です。",
+      diagnostics: {
+        notionAiThreadId: "fixed-page-thread-id",
+        notionAiThreadCreated: false,
+        notionAiThreadPartialTranscript: true,
+      },
+    })
+    expect(vi.mocked(session.evaluate)).toHaveBeenCalledTimes(3)
   })
 
   it("patches only the new user message into an existing dedicated conversation thread", () => {
@@ -668,6 +710,68 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(evaluate.mock.calls[0][0]).toContain("notion-sidebar-sidebar-state")
   })
 
+  it("launches the dedicated Tier 1 Chrome only when CDP is unreachable", async () => {
+    let reachable = false
+    const launchedConfigs: unknown[] = []
+    const chromeLauncher = vi.fn(async (config: unknown) => {
+      launchedConfigs.push(config)
+      reachable = true
+    })
+    const fetchClient = vi.fn(async (input: string) => {
+      if (!reachable) throw new Error("ECONNREFUSED")
+      if (input.endsWith("/json/version")) return jsonResponse({ Browser: "Chrome" })
+      if (input.endsWith("/json/list")) return jsonResponse([target])
+      return jsonResponse({}, { ok: false, status: 404 })
+    })
+    const session = sessionReturning([
+      {
+        spaceId: "space-id",
+        userId: "user-id",
+        selectedModel: "notion-current-model",
+        availableModels: ["apricot-sorbet-high"],
+      },
+      { ok: true, rawText: "候補日を確認しました。", chunkCount: 1 },
+    ])
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient,
+      sessionFactory: async () => session,
+      chromeLauncher,
+      chromeWaitMs: 100,
+    })
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      rawText: "候補日を確認しました。",
+    })
+    expect(chromeLauncher).toHaveBeenCalledOnce()
+    expect(launchedConfigs[0]).toMatchObject({
+      cdpBaseUrl: "http://127.0.0.1:9223",
+      chromeProfileDir: expect.stringContaining(".chrome-cdp-profile-chatbot"),
+    })
+  })
+
+  it("reuses an already reachable Tier 1 Chrome without spawning another process", async () => {
+    const chromeLauncher = vi.fn(async () => undefined)
+    const session = sessionReturning([
+      {
+        spaceId: "space-id",
+        userId: "user-id",
+        selectedModel: "notion-current-model",
+        availableModels: ["apricot-sorbet-high"],
+      },
+      { ok: true, rawText: "候補日を確認しました。", chunkCount: 1 },
+    ])
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () => session,
+      chromeLauncher,
+    })
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      rawText: "候補日を確認しました。",
+    })
+    expect(chromeLauncher).not.toHaveBeenCalled()
+  })
+
   it("does not require the chatbot Notion AI target URL to use the www host", async () => {
     const session = sessionReturning([
       {
@@ -869,6 +973,20 @@ describe("Tier1ChromeNotionAiClient", () => {
       finalText: "",
       assistantText: "承知しました。",
       chunkCount: 2,
+    })
+  })
+
+  it("reconstructs patch streams with top-level seeds, array paths, and renamed operation lists", () => {
+    const ndjson = readFileSync(
+      new URL("../../../../fixtures/chatbot/tier1/notion-run-inference-patch-array-path.ndjson", import.meta.url),
+      "utf8",
+    )
+
+    expect(parseInferenceNdjsonStream(ndjson)).toMatchObject({
+      partialText: "承知しました。追加です。",
+      finalText: "",
+      assistantText: "承知しました。追加です。",
+      chunkCount: 3,
     })
   })
 })

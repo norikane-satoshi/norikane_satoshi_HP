@@ -1,3 +1,7 @@
+import { spawn } from "node:child_process"
+import { homedir, platform } from "node:os"
+import path from "node:path"
+
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
@@ -9,12 +13,17 @@ type Tier1ChromeNotionAiClientConfig = {
   requestTimeoutMs: number
   healthCheckTimeoutMs: number
   preferredModel?: string
+  chromeProfileDir: string
+  chromeCommand?: string
+  chromeApp: string
+  chromeWaitMs: number
 }
 
 type Tier1ChromeNotionAiClientOptions = Partial<Tier1ChromeNotionAiClientConfig> & {
   fetchClient?: CdpFetchClient
   sessionFactory?: NotionAiCdpSessionFactory
   idFactory?: IdFactory
+  chromeLauncher?: Tier1ChromeLauncher
 }
 
 type CdpFetchClient = (input: string, init?: RequestInit) => Promise<Response>
@@ -33,6 +42,7 @@ export type NotionAiCdpSession = {
 }
 
 type NotionAiCdpSessionFactory = (target: NotionAiCdpTarget) => Promise<NotionAiCdpSession>
+type Tier1ChromeLauncher = (config: Tier1ChromeNotionAiClientConfig) => Promise<void>
 
 type TimeoutTag = "timeout"
 
@@ -220,6 +230,8 @@ const defaultCreatedSource = "assistant"
 const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
 const emptyText = ""
+const defaultChromeApp = "Google Chrome"
+const defaultChromeWaitMs = 30000
 const historyCompressionThreshold = 16
 const recentVerbatimMessageCount = 6
 const compressedHistoryMaxItems = 5
@@ -231,6 +243,9 @@ export const tier1ChromeNotionAiDefaults = {
   connectTimeoutMs: 10000,
   requestTimeoutMs: 180000,
   healthCheckTimeoutMs: 3000,
+  chromeProfileDir: path.join(homedir(), ".chrome-cdp-profile-chatbot"),
+  chromeApp: defaultChromeApp,
+  chromeWaitMs: defaultChromeWaitMs,
 } as const
 
 export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
@@ -239,6 +254,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
   private readonly fetchClient: CdpFetchClient
   private readonly sessionFactory: NotionAiCdpSessionFactory
   private readonly idFactory: IdFactory
+  private readonly chromeLauncher: Tier1ChromeLauncher
   private lastHealthError?: ChatbotLlmError | Error
 
   constructor(options: Tier1ChromeNotionAiClientOptions = {}) {
@@ -250,10 +266,15 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       healthCheckTimeoutMs:
         options.healthCheckTimeoutMs ?? tier1ChromeNotionAiDefaults.healthCheckTimeoutMs,
       preferredModel: options.preferredModel,
+      chromeProfileDir: options.chromeProfileDir ?? tier1ChromeNotionAiDefaults.chromeProfileDir,
+      chromeCommand: options.chromeCommand,
+      chromeApp: options.chromeApp ?? tier1ChromeNotionAiDefaults.chromeApp,
+      chromeWaitMs: options.chromeWaitMs ?? tier1ChromeNotionAiDefaults.chromeWaitMs,
     }
     this.fetchClient = options.fetchClient ?? globalFetch
     this.sessionFactory = options.sessionFactory ?? createDefaultCdpSession
     this.idFactory = options.idFactory ?? randomId
+    this.chromeLauncher = options.chromeLauncher ?? launchTier1Chrome
   }
 
   async generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse> {
@@ -266,18 +287,31 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.connectTimeoutMs,
       )
-      const payload = buildRunInferencePayload({
+      let payload = buildRunInferencePayload({
         request,
         runtimeContext,
         preferredModel: this.config.preferredModel,
         idFactory: this.idFactory,
       })
       const headers = buildRunInferenceHeaders(runtimeContext)
-      const result = await this.evaluate<NotionAiInferenceResult>(
+      let result = await this.evaluate<NotionAiInferenceResult>(
         session,
         buildRunInferenceExpression(payload, headers),
         this.config.requestTimeoutMs,
       )
+      if (!result.ok && shouldRetryWithoutDedicatedThread(result, request)) {
+        payload = buildRunInferencePayload({
+          request: { ...request, notionAiThread: undefined },
+          runtimeContext,
+          preferredModel: this.config.preferredModel,
+          idFactory: this.idFactory,
+        })
+        result = await this.evaluate<NotionAiInferenceResult>(
+          session,
+          buildRunInferenceExpression(payload, headers),
+          this.config.requestTimeoutMs,
+        )
+      }
 
       if (!result.ok) throw this.mapInferenceResult(result)
 
@@ -388,7 +422,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     timeoutMs: number,
   ): Promise<{ session: NotionAiCdpSession; target: NotionAiCdpTarget }> {
     try {
-      await this.requestJson<unknown>(jsonVersionPath, timeoutMs)
+      await this.ensureCdpAvailable(timeoutMs)
       const targets = await this.requestJson<CdpTargetsResponse>(jsonListPath, timeoutMs)
       const loginTarget = findNotionLoginTarget(targets, this.config.targetUrlIncludes)
       const target = findNotionAiTarget(targets, this.config.targetUrlIncludes)
@@ -458,6 +492,36 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     }
 
     return (await response.json()) as T
+  }
+
+  private async ensureCdpAvailable(timeoutMs: number): Promise<void> {
+    try {
+      await this.requestJson<unknown>(jsonVersionPath, timeoutMs)
+      return
+    } catch (error) {
+      if (error instanceof ChatbotLlmError && error.code !== "connection") throw error
+    }
+
+    await this.chromeLauncher(this.config)
+    const deadline = Date.now() + this.config.chromeWaitMs
+    let latestError: unknown
+
+    while (Date.now() < deadline) {
+      try {
+        await this.requestJson<unknown>(jsonVersionPath, timeoutMs)
+        return
+      } catch (error) {
+        latestError = error
+        await sleep(500)
+      }
+    }
+
+    throw this.toLlmError({
+      message: "Tier 1 Chrome CDP did not become ready after launch.",
+      code: "connection",
+      isRetryable: true,
+      cause: latestError,
+    })
   }
 
   private async evaluate<T>(
@@ -592,7 +656,7 @@ export function buildRunInferencePayload(input: {
     createdSource: hasExistingThread ? "workflows" : defaultCreatedSource,
     threadType: defaultThreadType,
     isPartialTranscript: hasExistingThread,
-    asPatchResponse: hasExistingThread,
+    asPatchResponse: true,
     hasHeartbeat: false,
     isUserInAnySalesAssistedSpace: false,
     isSpaceSalesAssisted: false,
@@ -882,6 +946,18 @@ function truncatePromptExcerpt(content: string): string {
   return `${compact.slice(0, compressedHistoryExcerptMaxChars)}...`
 }
 
+function shouldRetryWithoutDedicatedThread(
+  result: Extract<NotionAiInferenceResult, { ok: false }>,
+  request: ChatbotLlmRequest,
+): boolean {
+  return (
+    result.code === "invalid-output" &&
+    request.notionAiThread !== undefined &&
+    !request.notionAiThread.threadId &&
+    result.message.includes("preview=[")
+  )
+}
+
 function findNotionAiTarget(
   targets: CdpTargetsResponse,
   targetUrlIncludes: string,
@@ -986,8 +1062,12 @@ function extractPatchSeed(value: unknown): unknown[] | undefined {
   const record = value as Record<string, unknown>
   if (record.type !== "patch-start") return undefined
   const data = record.data
-  if (!data || typeof data !== "object") return undefined
-  const seed = (data as Record<string, unknown>).s
+  const seed =
+    Array.isArray(record.s)
+      ? record.s
+      : data && typeof data === "object"
+        ? (data as Record<string, unknown>).s
+        : undefined
   if (!Array.isArray(seed)) return undefined
   return cloneJson(seed)
 }
@@ -995,14 +1075,16 @@ function extractPatchSeed(value: unknown): unknown[] | undefined {
 function applyPatchOperations(root: unknown[], value: unknown): boolean {
   if (!value || typeof value !== "object") return false
   const record = value as Record<string, unknown>
-  if (record.type !== "patch" || !Array.isArray(record.v)) return false
+  if (record.type !== "patch") return false
+  const operations = extractPatchOperations(record)
+  if (!operations.length) return false
 
-  for (const operation of record.v) {
+  for (const operation of operations) {
     if (!operation || typeof operation !== "object") continue
     const patch = operation as Record<string, unknown>
-    const path = typeof patch.p === "string" ? patch.p : undefined
+    const path = normalizePatchPath(patch.p ?? patch.path)
     if (!path) continue
-    applyPatchOperation(root, path, patch.v, typeof patch.o === "string" ? patch.o : "r")
+    applyPatchOperation(root, path, patch.v ?? patch.value, typeof patch.o === "string" ? patch.o : String(patch.type ?? "r"))
   }
 
   return true
@@ -1039,17 +1121,50 @@ function applyPatchOperation(root: JsonContainer, path: string, value: unknown, 
   if (Array.isArray(cursor)) {
     const arrayIndex = key === "-" ? cursor.length : Number(key)
     if (!Number.isInteger(arrayIndex) || arrayIndex < 0) return
-    if (operation === "a") cursor.splice(arrayIndex, 0, nextValue)
+    if (isAddOperation(operation)) cursor.splice(arrayIndex, 0, nextValue)
     else cursor[arrayIndex] = nextValue
     return
   }
 
   const currentValue = cursor[key]
-  if (operation === "a" && typeof currentValue === "string" && typeof nextValue === "string") {
+  if (isStringAppendOperation(operation) && typeof currentValue === "string" && typeof nextValue === "string") {
     cursor[key] = currentValue + nextValue
     return
   }
   cursor[key] = nextValue
+}
+
+function extractPatchOperations(record: Record<string, unknown>): unknown[] {
+  const candidates = [record.v, record.ops, record.operations, record.patches]
+  const data = record.data
+  if (data && typeof data === "object") {
+    const dataRecord = data as Record<string, unknown>
+    candidates.push(dataRecord.v, dataRecord.ops, dataRecord.operations, dataRecord.patches)
+  }
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate
+  }
+
+  return []
+}
+
+function normalizePatchPath(value: unknown): string | undefined {
+  if (typeof value === "string") return value
+  if (!Array.isArray(value)) return undefined
+  return `/${value.map((part) => String(part).replace(/~/g, "~0").replace(/\//g, "~1")).join("/")}`
+}
+
+function isAddOperation(operation: string): boolean {
+  return ["a", "add", "insert", "li", "listinsert", "list-after", "listafter"].includes(
+    operation.toLowerCase(),
+  )
+}
+
+function isStringAppendOperation(operation: string): boolean {
+  return ["a", "add", "append", "si", "stringinsert", "text-insert", "textinsert"].includes(
+    operation.toLowerCase(),
+  )
 }
 
 function decodeJsonPointer(path: string): string[] {
@@ -1379,10 +1494,43 @@ async function runInferenceInPage(input: {
     const record = value as Record<string, unknown>
     if (record.type !== "patch-start") return undefined
     const data = record.data
-    if (!data || typeof data !== "object") return undefined
-    const seed = (data as Record<string, unknown>).s
+    const seed =
+      Array.isArray(record.s)
+        ? record.s
+        : data && typeof data === "object"
+          ? (data as Record<string, unknown>).s
+          : undefined
     if (!Array.isArray(seed)) return undefined
     return cloneJsonInPage(seed)
+  }
+  const extractPatchOperationsInPage = (record: Record<string, unknown>): unknown[] => {
+    const candidates = [record.v, record.ops, record.operations, record.patches]
+    const data = record.data
+    if (data && typeof data === "object") {
+      const dataRecord = data as Record<string, unknown>
+      candidates.push(dataRecord.v, dataRecord.ops, dataRecord.operations, dataRecord.patches)
+    }
+
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate
+    }
+
+    return []
+  }
+  const normalizePatchPathInPage = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value
+    if (!Array.isArray(value)) return undefined
+    return `/${value.map((part) => String(part).replace(/~/g, "~0").replace(/\//g, "~1")).join("/")}`
+  }
+  const isAddOperationInPage = (operation: string): boolean => {
+    return ["a", "add", "insert", "li", "listinsert", "list-after", "listafter"].includes(
+      operation.toLowerCase(),
+    )
+  }
+  const isStringAppendOperationInPage = (operation: string): boolean => {
+    return ["a", "add", "append", "si", "stringinsert", "text-insert", "textinsert"].includes(
+      operation.toLowerCase(),
+    )
   }
   const applyPatchOperationInPage = (
     root: Record<string, unknown> | unknown[],
@@ -1422,13 +1570,13 @@ async function runInferenceInPage(input: {
     if (Array.isArray(cursor)) {
       const arrayIndex = key === "-" ? cursor.length : Number(key)
       if (!Number.isInteger(arrayIndex) || arrayIndex < 0) return
-      if (operation === "a") cursor.splice(arrayIndex, 0, nextValue)
+      if (isAddOperationInPage(operation)) cursor.splice(arrayIndex, 0, nextValue)
       else cursor[arrayIndex] = nextValue
       return
     }
 
     const currentValue = cursor[key]
-    if (operation === "a" && typeof currentValue === "string" && typeof nextValue === "string") {
+    if (isStringAppendOperationInPage(operation) && typeof currentValue === "string" && typeof nextValue === "string") {
       cursor[key] = currentValue + nextValue
       return
     }
@@ -1437,14 +1585,21 @@ async function runInferenceInPage(input: {
   const applyPatchOperationsInPage = (root: unknown[], value: unknown): boolean => {
     if (!value || typeof value !== "object") return false
     const record = value as Record<string, unknown>
-    if (record.type !== "patch" || !Array.isArray(record.v)) return false
+    if (record.type !== "patch") return false
+    const operations = extractPatchOperationsInPage(record)
+    if (!operations.length) return false
 
-    for (const operation of record.v) {
+    for (const operation of operations) {
       if (!operation || typeof operation !== "object") continue
       const patch = operation as Record<string, unknown>
-      const path = typeof patch.p === "string" ? patch.p : undefined
+      const path = normalizePatchPathInPage(patch.p ?? patch.path)
       if (!path) continue
-      applyPatchOperationInPage(root, path, patch.v, typeof patch.o === "string" ? patch.o : "r")
+      applyPatchOperationInPage(
+        root,
+        path,
+        patch.v ?? patch.value,
+        typeof patch.o === "string" ? patch.o : String(patch.type ?? "r"),
+      )
     }
 
     return true
@@ -1550,6 +1705,42 @@ async function runInferenceInPage(input: {
 
 function globalFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init)
+}
+
+async function launchTier1Chrome(config: Tier1ChromeNotionAiClientConfig): Promise<void> {
+  const currentPlatform = platform()
+  const executable = config.chromeCommand ?? (currentPlatform === "darwin" ? "/usr/bin/open" : "google-chrome")
+  const args =
+    currentPlatform === "darwin" && !config.chromeCommand
+      ? [
+          "-na",
+          config.chromeApp,
+          "--args",
+          ...chromeArgs(config),
+          config.targetUrlIncludes,
+        ]
+      : [...chromeArgs(config), config.targetUrlIncludes]
+  const child = spawn(executable, args, { detached: true, stdio: "ignore" })
+  child.unref()
+}
+
+function chromeArgs(config: Tier1ChromeNotionAiClientConfig): string[] {
+  const cdpUrl = new URL(config.cdpBaseUrl)
+  const port = cdpUrl.port || "9223"
+  const host = cdpUrl.hostname || "127.0.0.1"
+
+  return [
+    `--user-data-dir=${config.chromeProfileDir}`,
+    `--remote-debugging-address=${host}`,
+    `--remote-debugging-port=${port}`,
+    `--remote-allow-origins=${config.cdpBaseUrl}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+  ]
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function randomId(): string {
