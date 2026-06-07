@@ -14,6 +14,7 @@ function baseState(overrides: Partial<ConversationState> = {}): ConversationStat
   return {
     hasFinalMedium: false,
     hasJobKind: false,
+    hasProjectLength: false,
     hasAdditionalWork: false,
     hasDocumentaryAttachments: false,
     hasWorkSite: false,
@@ -82,6 +83,8 @@ describe("choice panel state", () => {
   it.each([
     [finalMediumChoices, "live", { hasFinalMedium: true }, { finalMedium: "live" }],
     [additionalWorkChoices, "retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch"] }],
+    [additionalWorkChoices, "選択: retouch, skin-retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch", "skin-retouch"] }],
+    [additionalWorkChoices, "選択: none, retouch", { hasAdditionalWork: true }, { additionalWork: undefined }],
     [additionalWorkChoices, "なし", { hasAdditionalWork: true }, { additionalWork: undefined }],
     [
       documentaryAttachmentChoices,

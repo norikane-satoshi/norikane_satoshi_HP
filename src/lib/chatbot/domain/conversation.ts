@@ -36,6 +36,7 @@ export type ChatbotConversation = {
 export type ConversationState = {
   hasFinalMedium: boolean
   hasJobKind: boolean
+  hasProjectLength: boolean
   hasAdditionalWork: boolean
   hasDocumentaryAttachments: boolean
   hasWorkSite: boolean

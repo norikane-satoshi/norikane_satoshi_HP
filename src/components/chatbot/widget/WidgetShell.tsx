@@ -633,6 +633,7 @@ function ActiveWidgetUi({
     return (
       <ChoicePanel
         choiceSet={ui.choiceSet}
+        allowMultiple={ui.choiceSet.selectionMode === "multiple"}
         onSelect={(selectedIds) => onSubmit(`選択: ${selectedIds.join(", ")}`)}
       />
     )
@@ -644,6 +645,8 @@ function ActiveWidgetUi({
         conversationId={conversationId}
         candidates={ui.suggestedSlots}
         estimate={ui.jobContext.workflowEstimate}
+        defaultContactName={ui.conversationState.customerName}
+        defaultCompanyName={ui.conversationState.companyName}
         defaultDueDate={ui.jobContext.publicReleaseDate}
         defaultMemo={ui.jobContext.referenceUrls?.join("\n")}
       />

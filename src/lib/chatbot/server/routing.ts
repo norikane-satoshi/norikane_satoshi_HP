@@ -13,6 +13,7 @@ import {
 import { directContactPolicyMessage } from "@/lib/chatbot/knowledge/forbidden-topics"
 import {
   complexConversationTurnThreshold,
+  candidateWindowGranularityByJobKind,
   settledConversationTurnThreshold,
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
@@ -66,15 +67,10 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
   if (shouldPrioritizeSchedule(jobContext, conversationState)) {
     return {
       kind: "to-booking-inline",
-      suggestedSlots: buildOneHourCandidateWindows(jobContext),
+      suggestedSlots: buildCandidateWindows(jobContext),
       jobContext: {
         ...jobContext,
-        workflowEstimate: jobContext.workflowEstimate ?? {
-          stages: [{ stage: "attended", minDays: 0.125, maxDays: 0.125, note: "1時間候補" }],
-          totalMinDays: 0.125,
-          totalMaxDays: 0.125,
-          riskFlags: [],
-        },
+        workflowEstimate: jobContext.workflowEstimate ?? buildWorkflowEstimate(jobContext),
       },
     }
   }
@@ -83,12 +79,17 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     conversationState.hasDesiredSchedule &&
     conversationState.hasFinalMedium &&
     conversationState.hasJobKind &&
+    conversationState.hasProjectLength &&
     conversationState.hasContactEmail
   ) {
     return {
       kind: "to-booking-inline",
       suggestedSlots: [],
-      jobContext,
+      jobContext: {
+        ...jobContext,
+        workflowEstimate:
+          jobContext.workflowEstimate ?? (jobContext.jobKind ? estimateWorkflow(jobContext) : undefined),
+      },
     }
   }
 
@@ -151,7 +152,7 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
     }
   }
 
-  if (!conversationState.hasJobKind) {
+  if (!conversationState.hasJobKind || !conversationState.hasProjectLength) {
     return {
       kind: "continue",
       nextQuestion: "案件種別と尺を教えてください",
@@ -212,7 +213,7 @@ function buildSummaryText(jobContext: JobContext, conversationState: Conversatio
 function buildOpenQuestions(conversationState: ConversationState): string[] {
   return [
     conversationState.hasFinalMedium ? undefined : "最終媒体未確認",
-    conversationState.hasJobKind ? undefined : "案件種別・尺未確認",
+    conversationState.hasJobKind && conversationState.hasProjectLength ? undefined : "案件種別・尺未確認",
     conversationState.hasAdditionalWork ? undefined : "追加作業未確認",
     conversationState.hasDocumentaryAttachments ? undefined : "付随映像未確認",
     conversationState.hasWorkSite ? undefined : "作業場所未確認",
@@ -228,19 +229,39 @@ function shouldPrioritizeSchedule(
   return (
     conversationState.hasDesiredSchedule &&
     conversationState.hasJobKind &&
+    conversationState.hasProjectLength &&
     (conversationState.hasFinalMedium || jobContext.finalMedium === "web") &&
-    isOneHourCandidateJob(jobContext)
+    isCandidateWindowJob(jobContext)
   )
 }
 
+function isCandidateWindowJob(jobContext: JobContext): boolean {
+  return isOneHourCandidateJob(jobContext) || isDateCandidateJob(jobContext)
+}
+
 function isOneHourCandidateJob(jobContext: JobContext): boolean {
+  if (jobContext.jobKind && candidateWindowGranularityByJobKind[jobContext.jobKind] !== "1時間単位") {
+    return false
+  }
+
   return (
     jobContext.finalMedium === "web" ||
     jobContext.finalMedium === "vertical-sns" ||
     jobContext.jobKind === "cm-30s" ||
-    jobContext.jobKind === "mv-5m" ||
-    jobContext.projectLengthMinutes !== undefined
+    jobContext.jobKind === "mv-5m"
   )
+}
+
+function isDateCandidateJob(jobContext: JobContext): boolean {
+  return Boolean(
+    jobContext.jobKind && candidateWindowGranularityByJobKind[jobContext.jobKind] === "日付単位",
+  )
+}
+
+function buildCandidateWindows(jobContext: JobContext) {
+  return isDateCandidateJob(jobContext)
+    ? buildDateCandidateWindows(jobContext)
+    : buildOneHourCandidateWindows(jobContext)
 }
 
 function buildOneHourCandidateWindows(jobContext: JobContext) {
@@ -260,6 +281,34 @@ function buildOneHourCandidateWindows(jobContext: JobContext) {
   })
 }
 
+function buildDateCandidateWindows(jobContext: JobContext) {
+  const startDate = jobContext.preferredStartDate ?? "2026-06-15"
+  const base = new Date(`${startDate}T10:00:00+09:00`)
+  const offsets = [0, 1, 2]
+
+  return offsets.map((offset) => {
+    const start = new Date(base.getTime() + offset * 24 * 60 * 60 * 1000)
+    const end = new Date(start.getTime() + 8 * 60 * 60 * 1000)
+    return {
+      start: start.toISOString(),
+      end: end.toISOString(),
+      label: formatJstDateCandidateLabel(start),
+      note: "日付候補",
+    }
+  })
+}
+
+function buildWorkflowEstimate(jobContext: JobContext) {
+  if (jobContext.jobKind) return estimateWorkflow(jobContext)
+
+  return {
+    stages: [{ stage: "attended" as const, minDays: 0.125, maxDays: 0.125, note: "1時間候補" }],
+    totalMinDays: 0.125,
+    totalMaxDays: 0.125,
+    riskFlags: [],
+  }
+}
+
 function formatJstOneHourCandidateLabel(date: Date): string {
   const parts = new Intl.DateTimeFormat("ja-JP", {
     month: "numeric",
@@ -272,4 +321,16 @@ function formatJstOneHourCandidateLabel(date: Date): string {
     parts.find((part) => part.type === type)?.value ?? ""
 
   return `${value("month")}月${value("day")}日 ${value("hour")}:00`
+}
+
+function formatJstDateCandidateLabel(date: Date): string {
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    timeZone: "Asia/Tokyo",
+  }).formatToParts(date)
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ""
+
+  return `${value("month")}月${value("day")}日`
 }

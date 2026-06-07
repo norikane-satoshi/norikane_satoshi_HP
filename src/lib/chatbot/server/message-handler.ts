@@ -55,6 +55,7 @@ type ChatbotMessageUi =
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
       jobContext: JobContext
+      conversationState: ConversationState
     }
   | {
       kind: "direct-contact-card"
@@ -515,6 +516,7 @@ function buildConversationState(
   const merged = {
     hasFinalMedium: false,
     hasJobKind: false,
+    hasProjectLength: false,
     hasAdditionalWork: false,
     hasDocumentaryAttachments: false,
     hasWorkSite: false,
@@ -541,6 +543,12 @@ function buildConversationState(
       inferred.hasJobKind,
       input?.hasJobKind,
       activeChoiceConversationState?.hasJobKind,
+    ),
+    hasProjectLength: isSlotSatisfied(
+      stored.hasProjectLength,
+      inferred.hasProjectLength,
+      input?.hasProjectLength,
+      activeChoiceConversationState?.hasProjectLength,
     ),
     hasAdditionalWork: isSlotSatisfied(
       stored.hasAdditionalWork,
@@ -626,6 +634,7 @@ function toMessageUi(
       kind: "booking-card",
       suggestedSlots: routingDecision.suggestedSlots,
       jobContext: routingDecision.jobContext,
+      conversationState,
     }
   }
 
@@ -670,7 +679,7 @@ function buildUiSummaryText(jobContext: JobContext, conversationState: Conversat
 function buildUiOpenQuestions(conversationState: ConversationState): string[] {
   return [
     conversationState.hasFinalMedium ? undefined : "最終媒体未確認",
-    conversationState.hasJobKind ? undefined : "案件種別・尺未確認",
+    conversationState.hasJobKind && conversationState.hasProjectLength ? undefined : "案件種別・尺未確認",
     conversationState.hasAdditionalWork ? undefined : "追加作業未確認",
     conversationState.hasDocumentaryAttachments ? undefined : "付随映像未確認",
     conversationState.hasWorkSite ? undefined : "作業場所未確認",
@@ -684,7 +693,7 @@ function conversationText(conversation: ChatbotConversation, userMessage: Chatbo
 }
 
 function inferConversationStateFromText(text: string): Partial<ConversationState> {
-  const hasProjectLength = /(?:尺|長さ|length|duration|4\s*分|４\s*分|\d+\s*min)/iu.test(text)
+  const hasProjectLength = /(?:尺|長さ|length|duration|\d+\s*(?:時間|h|hours?|分|m|min|minutes?))/iu.test(text)
   const hasSchedule = /(?:6月中旬|６月中旬|中旬|納品|公開|希望時期|作業したい|まで|deadline)/iu.test(text)
   const hasContactEmail = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu.test(text)
   const hasCustomerIdentity = /(?:会社|株式会社|合同会社|担当|名前|氏名|お名前)/u.test(text)
@@ -695,7 +704,8 @@ function inferConversationStateFromText(text: string): Partial<ConversationState
 
   return {
     hasFinalMedium: /(?:web\s*cm|web|cm|mv|ミュージックビデオ|sns|ott|tv|テレビ|劇場|live|ライブ)/iu.test(text),
-    hasJobKind: hasProjectLength || /(?:ab\s*タイプ|a\/b|2\s*本|２\s*本|cm|mv|web\s*cm)/iu.test(text),
+    hasJobKind: /(?:ab\s*タイプ|a\/b|2\s*本|２\s*本|cm|mv|web\s*cm|live|ライブ)/iu.test(text),
+    hasProjectLength,
     hasAdditionalWork: /(?:カラグレ|カラーグレーディング|追加作業|修正|レタッチ|なし)/u.test(text),
     hasDocumentaryAttachments: /(?:付随|資料|参考|なし|素材)/u.test(text),
     hasWorkSite,
@@ -713,17 +723,28 @@ function inferConversationStateFromText(text: string): Partial<ConversationState
 
 function inferJobContextFromText(text: string): Partial<JobContext> {
   const finalMedium = inferFinalMediumFromText(text)
-  const projectLengthMinutes = /(?:4|４)\s*分/u.test(text) ? 4 : undefined
+  const projectLengthMinutes = inferProjectLengthMinutes(text)
   const preferredStartDate = /(?:6月中旬|６月中旬|中旬)/u.test(text) ? "2026-06-15" : undefined
   const publicReleaseDate = /(?:6月20日|６月２０日|6\/20|06-20)/u.test(text) ? "2026-06-20" : undefined
 
   return {
     ...(finalMedium ? { finalMedium } : {}),
     ...(/(?:web\s*cm|cm)/iu.test(text) ? { jobKind: "cm-30s" as const } : {}),
+    ...(finalMedium === "live" && projectLengthMinutes !== undefined ? { jobKind: "live-60m" as const } : {}),
     ...(projectLengthMinutes ? { projectLengthMinutes } : {}),
     ...(preferredStartDate ? { preferredStartDate } : {}),
     ...(publicReleaseDate ? { publicReleaseDate } : {}),
   }
+}
+
+function inferProjectLengthMinutes(text: string): number | undefined {
+  const minuteMatch = text.match(/(\d+)\s*(?:分|m|min|minutes?)/iu)
+  if (minuteMatch?.[1]) return Number.parseInt(minuteMatch[1], 10)
+
+  const hourMatch = text.match(/(\d+)\s*(?:時間|h|hours?)/iu)
+  if (hourMatch?.[1]) return Number.parseInt(hourMatch[1], 10) * 60
+
+  return undefined
 }
 
 function inferFinalMediumFromText(text: string): JobContext["finalMedium"] | undefined {

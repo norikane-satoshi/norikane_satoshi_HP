@@ -63,6 +63,7 @@ describe("POST /api/chatbot/submit-inquiry", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasAdditionalWork: true,
           hasDocumentaryAttachments: true,
           hasWorkSite: true,

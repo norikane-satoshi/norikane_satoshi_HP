@@ -49,6 +49,7 @@ describe("operator consultation notification", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasAdditionalWork: false,
           hasDocumentaryAttachments: true,
           hasWorkSite: true,

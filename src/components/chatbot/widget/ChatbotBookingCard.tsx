@@ -184,17 +184,17 @@ export function ChatbotBookingCard({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium text-hp">
-            案件名
+            案件名（必須）
             <input
               value={projectTitle}
               onChange={(event) => setProjectTitle(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
-              placeholder="作品名または案件名"
+              placeholder="作品名または案件名（イニシャル表記も可）"
               required
             />
           </label>
           <label className="block text-sm font-medium text-hp">
-            納期
+            納期（任意）
             <input
               value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
@@ -203,7 +203,7 @@ export function ChatbotBookingCard({
             />
           </label>
           <label className="block text-sm font-medium text-hp">
-            会社名
+            会社名（任意）
             <input
               value={companyName}
               onChange={(event) => setCompanyName(event.target.value)}
@@ -212,7 +212,7 @@ export function ChatbotBookingCard({
             />
           </label>
           <label className="block text-sm font-medium text-hp">
-            担当者氏名
+            担当者氏名（必須）
             <input
               value={contactName}
               onChange={(event) => setContactName(event.target.value)}
@@ -231,7 +231,7 @@ export function ChatbotBookingCard({
             />
           </label>
           <label className="block text-sm font-medium text-hp sm:col-span-2">
-            補足メモ
+            補足メモ（任意）
             <textarea
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
@@ -248,7 +248,7 @@ export function ChatbotBookingCard({
             onChange={(event) => setAgreed(event.target.checked)}
             className="mt-1"
           />
-          <span>利用規約と予約内容に同意します。</span>
+          <span>利用規約と予約内容に同意します（必須）。</span>
         </label>
 
         {errorMessage ? (

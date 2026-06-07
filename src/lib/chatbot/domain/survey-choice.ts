@@ -7,6 +7,7 @@ export type SurveyChoiceSet = {
   id: string
   question: string
   choices: SurveyChoice[]
+  selectionMode?: "single" | "multiple"
 }
 
 export const finalMediumChoices = {
@@ -26,6 +27,7 @@ export const finalMediumChoices = {
 export const additionalWorkChoices = {
   id: "additional-work",
   question: "カラグレ以外の追加作業はありますか",
+  selectionMode: "multiple",
   choices: [
     { id: "retouch", label: "消し物" },
     { id: "skin-retouch", label: "肌修正" },

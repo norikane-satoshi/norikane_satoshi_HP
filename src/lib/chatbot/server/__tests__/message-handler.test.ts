@@ -649,6 +649,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasWorkSite: true,
           hasContactEmail: true,
           contactEmail: "client@example.com",
@@ -686,6 +687,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasAdditionalWork: true,
           hasDocumentaryAttachments: true,
           hasWorkSite: true,
@@ -728,6 +730,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasDesiredSchedule: true,
           hasContactEmail: true,
           contactEmail: "client@example.com",
@@ -735,7 +738,6 @@ describe("handleChatbotMessage user context", () => {
         },
         jobContext: {
           finalMedium: "cinema",
-          jobKind: "feature-90m",
           workSite: "remote-grading",
         },
       },
@@ -961,6 +963,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasWorkSite: true,
           hasDesiredSchedule: true,
           hasContactEmail: true,
@@ -1006,6 +1009,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasWorkSite: true,
           hasDesiredSchedule: true,
           hasContactEmail: true,
@@ -1030,6 +1034,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasWorkSite: true,
           hasContactEmail: true,
           contactEmail: "client@example.com",
@@ -1070,6 +1075,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasWorkSite: true,
           hasContactEmail: true,
           contactEmail: "client@example.com",

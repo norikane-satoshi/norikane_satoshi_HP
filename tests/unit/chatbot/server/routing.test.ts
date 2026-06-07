@@ -28,6 +28,7 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
   return {
     hasFinalMedium: true,
     hasJobKind: true,
+    hasProjectLength: true,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
@@ -127,6 +128,47 @@ describe("chatbot fallback router", () => {
         expect.objectContaining({ note: "1時間候補" }),
       ]),
       jobContext: expect.objectContaining(context),
+    })
+  })
+
+  it("keeps asking for project length before inline booking", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ projectLengthMinutes: undefined }),
+      conversationState: conversationState({ hasProjectLength: false }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      nextQuestion: "案件種別と尺を教えてください",
+    })
+  })
+
+  it("uses date candidates and live workflow days for live 60 minute work", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({
+        jobKind: "live-60m",
+        finalMedium: "live",
+        projectLengthMinutes: 60,
+      }),
+      conversationState: conversationState(),
+    })
+
+    expect(result).toMatchObject({
+      kind: "to-booking-inline",
+      suggestedSlots: expect.arrayContaining([
+        expect.objectContaining({ note: "日付候補" }),
+      ]),
+      jobContext: expect.objectContaining({
+        workflowEstimate: expect.objectContaining({
+          totalMinDays: 7,
+          totalMaxDays: 8,
+        }),
+      }),
+    })
+    expect(result).not.toMatchObject({
+      suggestedSlots: expect.arrayContaining([
+        expect.objectContaining({ note: "1時間候補" }),
+      ]),
     })
   })
 

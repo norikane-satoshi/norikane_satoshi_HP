@@ -284,6 +284,7 @@ function buildRequest(latestUserMessage: string): ChatbotLlmRequest {
     conversationState: {
       hasFinalMedium: true,
       hasJobKind: true,
+      hasProjectLength: true,
       hasAdditionalWork: true,
       hasDocumentaryAttachments: true,
       hasWorkSite: true,

@@ -57,7 +57,11 @@ export function formatConsultationSummary(input: ConsultationSummaryInput): stri
     `最終媒体: ${conversationState.hasFinalMedium ? labelFinalMedium(jobContext.finalMedium) : missing}`,
     "作業内容:",
     `- 案件種別: ${conversationState.hasJobKind ? labelJobKind(jobContext.jobKind, fallback.jobKind) : missing}`,
-    `- 尺: ${formatValue(formatProjectLength(jobContext.projectLengthMinutes, fallback.projectLength))}`,
+    `- 尺: ${
+      conversationState.hasProjectLength
+        ? formatValue(formatProjectLength(jobContext.projectLengthMinutes, fallback.projectLength))
+        : missing
+    }`,
     `- 追加作業: ${conversationState.hasAdditionalWork ? labelAdditionalWork(jobContext.additionalWork) : missing}`,
     `- 付随素材: ${
       conversationState.hasDocumentaryAttachments ? labelDocumentaryAttachment(jobContext.documentaryAttachment) : missing
@@ -81,8 +85,9 @@ export function hasRequiredConsultationNotificationSlots(input: {
 }): boolean {
   const state = input.conversationState ?? {}
   return Boolean(
-    state.hasFinalMedium &&
+      state.hasFinalMedium &&
       state.hasJobKind &&
+      state.hasProjectLength &&
       state.hasWorkSite &&
       state.hasDesiredSchedule &&
       state.hasContactEmail &&
@@ -95,8 +100,9 @@ export function hasRequiredEmailConsultationSlots(input: {
 }): boolean {
   const state = input.conversationState ?? {}
   return Boolean(
-    state.hasFinalMedium &&
+      state.hasFinalMedium &&
       state.hasJobKind &&
+      state.hasProjectLength &&
       state.hasWorkSite &&
       state.hasContactEmail &&
       state.contactEmail,

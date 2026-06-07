@@ -50,6 +50,7 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
       estimate={estimate}
       defaultProjectTitle="CM grading"
       defaultContactName="田中"
+      defaultCompanyName="株式会社サンプル"
       conversationId="conv_1"
       {...props}
     />,
@@ -72,6 +73,10 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByText("候補日時から予約する")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /6月10日 午前/ })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "6月11日 午後" })).toBeInTheDocument()
+    expect(screen.getByLabelText("会社名（任意）")).toHaveValue("株式会社サンプル")
+    expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("田中")
+    expect(screen.getByPlaceholderText("作品名または案件名（イニシャル表記も可）")).toBeInTheDocument()
+    expect(screen.getByText("利用規約と予約内容に同意します（必須）。")).toBeInTheDocument()
   })
 
   it("posts the selected candidate and required fields to the chatbot booking API", async () => {
@@ -79,7 +84,7 @@ describe("ChatbotBookingCard", () => {
     renderCard()
 
     fireEvent.click(screen.getByRole("button", { name: /6月10日 午前/ }))
-    fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します。"))
+    fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します（必須）。"))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -111,7 +116,7 @@ describe("ChatbotBookingCard", () => {
 
     cleanup()
     renderCard({ candidates: [] })
-    fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します。"))
+    fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します（必須）。"))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -122,7 +127,7 @@ describe("ChatbotBookingCard", () => {
     renderCard({ onRequireLogin })
 
     fireEvent.click(screen.getByRole("button", { name: /6月10日 午前/ }))
-    fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します。"))
+    fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します（必須）。"))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
     expect(await screen.findByText("ログインして予約に進んでください")).toBeInTheDocument()
@@ -136,7 +141,7 @@ describe("ChatbotBookingCard", () => {
     renderCard({ onBooked })
 
     fireEvent.click(screen.getByRole("button", { name: /6月10日 午前/ }))
-    fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します。"))
+    fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します（必須）。"))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
     expect(await screen.findByText("予約を受け付けました")).toBeInTheDocument()

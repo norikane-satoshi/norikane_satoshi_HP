@@ -23,6 +23,7 @@ function conversationState(): ConversationState {
   return {
     hasFinalMedium: true,
     hasJobKind: true,
+    hasProjectLength: true,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
