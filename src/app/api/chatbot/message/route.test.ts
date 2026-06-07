@@ -57,8 +57,8 @@ async function loadPost({
   const createConversation = vi.fn().mockResolvedValue(conversation())
   const appendMessage = vi
     .fn()
-    .mockImplementation((input: { role: ChatbotMessage["role"]; content: string }) =>
-      Promise.resolve(message(input.role, input.content)),
+    .mockImplementation((input: { id?: string; role: ChatbotMessage["role"]; content: string }) =>
+      Promise.resolve({ ...message(input.role, input.content), ...(input.id ? { id: input.id } : {}) }),
     )
   const updateConversationRouting = vi.fn().mockResolvedValue(undefined)
   const truncateConversationFromMessage = vi.fn().mockResolvedValue({ deletedCount: 0 })
@@ -172,10 +172,19 @@ describe("POST /api/chatbot/message", () => {
   it("returns assistant message and choice-panel ui on orchestrator success", async () => {
     const route = await loadPost()
 
-    const response = await route.POST(request({ message: "媒体を選びます" }, "chatbot_session_id=session_1"))
+    const response = await route.POST(
+      request(
+        {
+          message: "媒体を選びます",
+          clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001",
+        },
+        "chatbot_session_id=session_1",
+      ),
+    )
 
     expect(response.status).toBe(200)
     expect(route.appendMessage).toHaveBeenCalledWith({
+      id: "client_msg_00000000-0000-4000-8000-000000000001",
       conversationId: "conv_1",
       role: "user",
       content: "媒体を選びます",

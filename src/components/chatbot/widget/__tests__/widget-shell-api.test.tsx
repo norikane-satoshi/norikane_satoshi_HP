@@ -141,11 +141,29 @@ describe("WidgetShell API wiring", () => {
     expect(screen.getByLabelText("相談内容")).toBeEnabled()
   })
 
-  it("cancels a pending chatbot response without showing a network error", async () => {
+  it("keeps the canceled user message editable and regenerates from the edit", async () => {
     const abortError = new DOMException("Aborted", "AbortError")
-    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+    const fetchMock = vi.fn()
+    fetchMock.mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) =>
       new Promise<ReturnType<typeof mockJsonResponse>>((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => reject(abortError), { once: true })
+      }),
+    )
+    fetchMock.mockResolvedValueOnce(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        userMessage: {
+          ...userMessage,
+          id: "edited_user_msg_1",
+          content: "編集後です",
+        },
+        assistantMessage: {
+          ...assistantMessage,
+          id: "edited_assistant_msg_1",
+          content: "編集後の条件で整理します",
+        },
+        tier: "tier-2-ollama-deepseek",
+        ui: { kind: "none" },
       }),
     )
     vi.stubGlobal("fetch", fetchMock)
@@ -154,12 +172,30 @@ describe("WidgetShell API wiring", () => {
     submitMessage("キャンセルします")
 
     expect(await screen.findByText("考え中")).toBeInTheDocument()
+    const firstRequest = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const firstBody = JSON.parse(String(firstRequest.body))
+    expect(firstBody.clientUserMessageId).toMatch(/^client_msg_/)
+
     fireEvent.click(screen.getByRole("button", { name: "停止" }))
 
     await waitFor(() => expect(screen.queryByText("考え中")).not.toBeInTheDocument())
     expect(screen.getByLabelText("相談内容")).toBeEnabled()
     expect(screen.getByRole("button", { name: "送信" })).toBeInTheDocument()
     expect(screen.queryByText("通信に失敗しました。少し時間をおいてもう一度お試しください。")).not.toBeInTheDocument()
+    expect(screen.getByText("キャンセルします")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
+    fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "編集後です" } })
+    fireEvent.click(screen.getByRole("button", { name: /保存/ }))
+    fireEvent.click(screen.getByRole("button", { name: "OK" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const editRequest = fetchMock.mock.calls[1]?.[1] as RequestInit
+    expect(JSON.parse(String(editRequest.body))).toMatchObject({
+      message: "編集後です",
+      editTargetMessageId: firstBody.clientUserMessageId,
+    })
+    expect(await screen.findByText("編集後の条件で整理します")).toBeInTheDocument()
     expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }))
   })
 

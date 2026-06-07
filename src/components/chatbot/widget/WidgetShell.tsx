@@ -123,6 +123,14 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
 
+function createClientUserMessageId() {
+  const randomId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `00000000-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`
+  return `client_msg_${randomId}`
+}
+
 function isInteractiveTarget(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest("button, a, input, textarea, select, label"))
 }
@@ -353,9 +361,10 @@ export function WidgetShell({
     const controller = new AbortController()
     activeRequestControllerRef.current = controller
     const createdAt = new Date()
+    const clientUserMessageId = createClientUserMessageId()
     setMessages((currentMessages) => [
       ...currentMessages,
-      { role: "user", content: text, createdAt },
+      { id: clientUserMessageId, role: "user", content: text, createdAt },
     ])
     setActiveUi(noUi)
     setShowThinkingDelayNotice(false)
@@ -363,7 +372,7 @@ export function WidgetShell({
 
     try {
       const payload = await submitChatbotMessage(
-        { message: text, conversationId },
+        { message: text, conversationId, clientUserMessageId },
         { signal: controller.signal },
       )
       if (controller.signal.aborted) return

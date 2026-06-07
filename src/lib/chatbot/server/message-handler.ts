@@ -80,6 +80,7 @@ export type HandleChatbotMessageInput = {
   message: string
   conversationId?: string
   editTargetMessageId?: string
+  clientUserMessageId?: string
   jobContext?: Partial<JobContext>
   conversationState?: Partial<ConversationState>
 }
@@ -159,6 +160,7 @@ export async function handleChatbotMessage(
   }
 
   const userMessage = await repository.appendMessage({
+    id: input.clientUserMessageId,
     conversationId: conversation.id,
     role: "user",
     content: input.message,

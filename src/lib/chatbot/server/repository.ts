@@ -101,6 +101,7 @@ export async function loadConversationById(conversationId: string): Promise<Chat
 }
 
 export async function appendMessage(input: {
+  id?: string
   conversationId: string
   role: ChatbotMessageRole
   content: string
@@ -108,6 +109,7 @@ export async function appendMessage(input: {
   const row = await prisma.$transaction(async (tx) => {
     const message = await tx.chatbotMessage.create({
       data: {
+        ...(input.id ? { id: input.id } : {}),
         conversationId: input.conversationId,
         role: input.role,
         content: input.content,

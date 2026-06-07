@@ -41,6 +41,7 @@ export type SubmitChatbotMessageInput = {
   message: string
   conversationId?: string
   editTargetMessageId?: string
+  clientUserMessageId?: string
   jobContext?: Partial<JobContext>
   conversationState?: Partial<ConversationState>
 }

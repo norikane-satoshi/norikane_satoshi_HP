@@ -34,12 +34,18 @@ describe("chatbot widget API client", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    await submitChatbotMessage({ message: "相談です" }, { signal: controller.signal })
+    await submitChatbotMessage(
+      { message: "相談です", clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001" },
+      { signal: controller.signal },
+    )
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/chatbot/message",
       expect.objectContaining({ signal: controller.signal }),
     )
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toMatchObject({
+      clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001",
+    })
   })
 
   it("turns AbortError into a quiet cancellation error", async () => {

@@ -85,8 +85,8 @@ function setup(overrides: {
     ),
     appendMessage: vi
       .fn()
-      .mockImplementation((input: { role: ChatbotMessage["role"]; content: string }) =>
-        Promise.resolve(message(input.role, input.content)),
+      .mockImplementation((input: { id?: string; role: ChatbotMessage["role"]; content: string }) =>
+        Promise.resolve({ ...message(input.role, input.content), ...(input.id ? { id: input.id } : {}) }),
       ),
     truncateConversationFromMessage: vi.fn().mockResolvedValue({ deletedCount: 0 }),
     updateConversationRouting: vi.fn(),
@@ -316,6 +316,28 @@ describe("handleChatbotMessage user context", () => {
       content: "最終媒体と尺を教えてください。",
     })
     expect(result.assistantMessage.content).toBe("最終媒体と尺を教えてください。")
+  })
+
+  it("uses the supplied client user message id for the persisted user message", async () => {
+    const harness = setup()
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "キャンセルしても編集したいです",
+        clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001",
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.appendMessage).toHaveBeenCalledWith({
+      id: "client_msg_00000000-0000-4000-8000-000000000001",
+      conversationId: "conv_1",
+      role: "user",
+      content: "キャンセルしても編集したいです",
+    })
+    expect(result.userMessage.id).toBe("client_msg_00000000-0000-4000-8000-000000000001")
   })
 
   it("truncates from the edited user message before regenerating from the edited text", async () => {
