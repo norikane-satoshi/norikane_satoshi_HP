@@ -463,10 +463,16 @@ describe("FeaturedWorks", () => {
     expect(getYouTubePlayerVars("heb1yJtreJg")).not.toHaveProperty("start")
   })
 
-  it("selects preview clips with fixed loops before random windows", () => {
+  it("selects preview clips with fixed loops before constrained or random windows", () => {
     expect(
       getPreviewClipWindow(
-        { videoId: "fixed", loopStart: 12, loopEnd: 42 },
+        {
+          videoId: "fixed",
+          loopStart: 12,
+          loopEnd: 42,
+          clipRangeStart: 40,
+          clipRangeEnd: 90,
+        },
         90,
         () => 0.9,
       ),
@@ -478,10 +484,54 @@ describe("FeaturedWorks", () => {
       startSeconds: 0,
       playSeconds: 24.5,
     })
+    expect(
+      getPreviewClipWindow(
+        { videoId: "range", clipRangeStart: 33, clipRangeEnd: 93 },
+        120,
+        () => 0.5,
+      ),
+    ).toEqual({
+      startSeconds: 48,
+      playSeconds: 30,
+    })
+    expect(
+      getPreviewClipWindow(
+        { videoId: "exclude", clipExcludeStart: 20, clipExcludeEnd: 60 },
+        120,
+        () => 0.9,
+      ),
+    ).toEqual({
+      startSeconds: 87,
+      playSeconds: 30,
+    })
     expect(getPreviewClipWindow({ videoId: "random" }, 90, () => 0.5)).toEqual({
       startSeconds: 30,
       playSeconds: 30,
     })
+  })
+
+  it("passes SSOT fixed preview clips to single video cards", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+
+    render(<FeaturedWorks />)
+
+    const gekiCard = screen.getByLabelText("ゲキ×シネシリーズ 作品カード")
+    expect(gekiCard.querySelector("[data-featured-work-loop-start]")).toHaveAttribute(
+      "data-featured-work-loop-start",
+      "1",
+    )
+    expect(gekiCard.querySelector("[data-featured-work-loop-end]")).toHaveAttribute(
+      "data-featured-work-loop-end",
+      "31",
+    )
   })
 
   it("drives single video cards with random 30 second clips instead of full video loops", async () => {

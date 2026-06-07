@@ -74,6 +74,8 @@ describe("featured works data", () => {
       expect.objectContaining({
         title: "ゲキ×シネシリーズ",
         youtubeId: "GiqkQel2CeU",
+        loopStart: 1,
+        loopEnd: 31,
         officialUrl: "https://www.geki-cine.jp/",
         links: [
           {
@@ -90,7 +92,7 @@ describe("featured works data", () => {
     expect(FEATURED_WORKS[0]).not.toHaveProperty("youtubeId")
   })
 
-  it("defines the live reel YouTube ids and fixed preview loops", () => {
+  it("defines the live reel YouTube ids and preview clip constraints", () => {
     expect(LIVE_REEL_VIDEO_IDS).toEqual([
       "fEYJazIPxUg",
       "G_3xr5desOo",
@@ -105,6 +107,9 @@ describe("featured works data", () => {
     ])
     expect(LIVE_REEL_VIDEOS).toEqual(
       expect.arrayContaining([
+        { videoId: "ZorB-2mqe-U", clipExcludeStart: 367, clipExcludeEnd: 446 },
+        { videoId: "Nhv9GDVem5U", clipRangeStart: 0, clipRangeEnd: 291 },
+        { videoId: "heb1yJtreJg", clipRangeStart: 33, clipRangeEnd: 265 },
         { videoId: "peWya9bxVXc", loopStart: 10, loopEnd: 40 },
         { videoId: "R92a65tojVg", loopStart: 0, loopEnd: 30 },
         { videoId: "y0g6UCE0Pzg", loopStart: 50, loopEnd: 80 },
@@ -125,6 +130,12 @@ describe("featured works data", () => {
       "vchw9jvBntI",
       "cQwaCzcZNIk",
     ])
+    expect(FEATURED_PLAYLIST_WORKS[1]?.videos).toEqual(
+      expect.arrayContaining([
+        { videoId: "Eo2IIH-w3h8", clipRangeStart: 0, clipRangeEnd: 60 },
+        { videoId: "vchw9jvBntI", loopStart: 295, loopEnd: 325 },
+      ]),
+    )
     expect(FEATURED_PLAYLIST_WORKS[2]?.videos.map((video) => video.videoId)).toEqual([
       "Pgvb6t2oLqg",
       "N7c7ZaVXjvk",
@@ -135,6 +146,13 @@ describe("featured works data", () => {
       "6qZwQdw88Aw",
       "O8EynS4boVU",
     ])
+    expect(FEATURED_PLAYLIST_WORKS[2]?.videos).toEqual(
+      expect.arrayContaining([
+        { videoId: "Pgvb6t2oLqg", clipRangeStart: 0, clipRangeEnd: 244 },
+        { videoId: "N7c7ZaVXjvk", clipRangeStart: 0, clipRangeEnd: 205 },
+        { videoId: "O8EynS4boVU", clipRangeStart: 0, clipRangeEnd: 165 },
+      ]),
+    )
   })
 
   it("shuffles ids without losing or adding entries", () => {
@@ -206,6 +224,70 @@ describe("featured works data", () => {
   it("selects a random 30 second window for longer videos", () => {
     expect(calculateClipWindow(90, () => 0.5)).toEqual({
       startSeconds: 30,
+      playSeconds: 30,
+    })
+  })
+
+  it("selects a random 30 second window inside a declared range", () => {
+    expect(
+      calculateClipWindow(120, () => 0.5, 30, {
+        clipRangeStart: 10,
+        clipRangeEnd: 70,
+      }),
+    ).toEqual({
+      startSeconds: 25,
+      playSeconds: 30,
+    })
+  })
+
+  it("uses the whole declared range when it is shorter than the preview window", () => {
+    expect(
+      calculateClipWindow(120, () => 0.9, 30, {
+        clipRangeStart: 10.5,
+        clipRangeEnd: 24.75,
+      }),
+    ).toEqual({
+      startSeconds: 10.5,
+      playSeconds: 14.25,
+    })
+  })
+
+  it("clamps range constraints to the actual duration", () => {
+    expect(
+      calculateClipWindow(45.5, () => 1, 30, {
+        clipRangeStart: 0,
+        clipRangeEnd: 120,
+      }),
+    ).toEqual({
+      startSeconds: 15.5,
+      playSeconds: 30,
+    })
+  })
+
+  it("selects preview windows outside an excluded segment", () => {
+    expect(
+      calculateClipWindow(120, () => 0.9, 30, {
+        clipExcludeStart: 20,
+        clipExcludeEnd: 60,
+      }),
+    ).toEqual({
+      startSeconds: 87,
+      playSeconds: 30,
+    })
+    expect(
+      calculateClipWindow(120, () => 0.1, 30, {
+        clipExcludeStart: 60,
+        clipExcludeEnd: 100,
+      }),
+    ).toEqual({
+      startSeconds: 3,
+      playSeconds: 30,
+    })
+  })
+
+  it("keeps 30 second windows within decimal durations", () => {
+    expect(calculateClipWindow(30.5, () => 0.9)).toEqual({
+      startSeconds: 0.5,
       playSeconds: 30,
     })
   })

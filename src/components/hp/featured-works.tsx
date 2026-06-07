@@ -969,6 +969,7 @@ export function getPreviewClipWindow(
       getPlayableDuration(durationSeconds),
       random,
       maxPlaySeconds,
+      video,
     )
   )
 }
@@ -1007,6 +1008,10 @@ function VideoSurface({
   videoId,
   loopStart,
   loopEnd,
+  clipRangeStart,
+  clipRangeEnd,
+  clipExcludeStart,
+  clipExcludeEnd,
   title,
   isActive,
   prefersReducedMotion,
@@ -1016,6 +1021,10 @@ function VideoSurface({
   videoId: string
   loopStart?: number
   loopEnd?: number
+  clipRangeStart?: number
+  clipRangeEnd?: number
+  clipExcludeStart?: number
+  clipExcludeEnd?: number
   title: string
   isActive: boolean
   prefersReducedMotion: boolean
@@ -1031,6 +1040,10 @@ function VideoSurface({
     videoId,
     loopStart,
     loopEnd,
+    clipRangeStart,
+    clipRangeEnd,
+    clipExcludeStart,
+    clipExcludeEnd,
   })
   const clipRef = useRef<ClipWindow | null>(null)
   const timerRef = useRef<number | null>(null)
@@ -1044,8 +1057,20 @@ function VideoSurface({
       videoId,
       loopStart,
       loopEnd,
+      clipRangeStart,
+      clipRangeEnd,
+      clipExcludeStart,
+      clipExcludeEnd,
     }
-  }, [loopEnd, loopStart, videoId])
+  }, [
+    clipExcludeEnd,
+    clipExcludeStart,
+    clipRangeEnd,
+    clipRangeStart,
+    loopEnd,
+    loopStart,
+    videoId,
+  ])
 
   useEffect(() => {
     const clearNextTimer = () => {
@@ -1186,6 +1211,10 @@ function VideoSurface({
           data-featured-work-clip-seconds={activeClip?.playSeconds}
           data-featured-work-loop-start={loopStart}
           data-featured-work-loop-end={loopEnd}
+          data-featured-work-clip-range-start={clipRangeStart}
+          data-featured-work-clip-range-end={clipRangeEnd}
+          data-featured-work-clip-exclude-start={clipExcludeStart}
+          data-featured-work-clip-exclude-end={clipExcludeEnd}
         >
           <div
             ref={playerHostRef}
@@ -1245,6 +1274,10 @@ function FeaturedWorkCard({
               videoId={work.youtubeId}
               loopStart={work.loopStart}
               loopEnd={work.loopEnd}
+              clipRangeStart={work.clipRangeStart}
+              clipRangeEnd={work.clipRangeEnd}
+              clipExcludeStart={work.clipExcludeStart}
+              clipExcludeEnd={work.clipExcludeEnd}
               title={work.title}
               isActive={shouldStartVideo}
               prefersReducedMotion={prefersReducedMotion}
@@ -1311,6 +1344,7 @@ function PlaylistWorkCard({
   const [previewVideo, setPreviewVideo] = useState<FeaturedWorkPreviewVideo>(
     work.videos[0],
   )
+  const [activeClip, setActiveClip] = useState<ClipWindow | null>(null)
   const [isCoverVisible, setIsCoverVisible] = useState(true)
   const playlistVideoIds = work.videos.map((video) => video.videoId).join(",")
 
@@ -1361,6 +1395,7 @@ function PlaylistWorkCard({
       }
       clearNextTimer()
       clipRef.current = null
+      setActiveClip(null)
       const video = nextVideo()
       previewVideoRef.current = video
       setPreviewVideo(video)
@@ -1397,6 +1432,7 @@ function PlaylistWorkCard({
         fixedClip ??
         getPreviewClipWindow(previewVideoRef.current, player.getDuration(), Math.random, 30)
       clipRef.current = clip
+      setActiveClip(clip)
 
       if (!existingClip && !fixedClip && clip.startSeconds > 0) {
         player.seekTo(clip.startSeconds, true)
@@ -1484,8 +1520,14 @@ function PlaylistWorkCard({
               aria-hidden="true"
               data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
               data-featured-work-current-video-id={previewVideo.videoId}
+              data-featured-work-clip-start={activeClip?.startSeconds}
+              data-featured-work-clip-seconds={activeClip?.playSeconds}
               data-featured-work-loop-start={previewVideo.loopStart}
               data-featured-work-loop-end={previewVideo.loopEnd}
+              data-featured-work-clip-range-start={previewVideo.clipRangeStart}
+              data-featured-work-clip-range-end={previewVideo.clipRangeEnd}
+              data-featured-work-clip-exclude-start={previewVideo.clipExcludeStart}
+              data-featured-work-clip-exclude-end={previewVideo.clipExcludeEnd}
             >
               <div ref={playerHostRef} className="h-full w-full" />
             </div>
