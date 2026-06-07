@@ -137,6 +137,27 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.repository.setConversationNotionAiThreadId).not.toHaveBeenCalled()
   })
 
+  it("uses dedicated Notion AI threads by default", async () => {
+    const previous = process.env.CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS
+    delete process.env.CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS
+    const harness = setup({ existingConversation: null })
+
+    try {
+      await handleChatbotMessage(
+        { sessionId: "session_1", userId: "user_a", message: "初回相談です" },
+        harness.options,
+      )
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS
+      } else {
+        process.env.CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS = previous
+      }
+    }
+
+    expect(harness.generate.mock.calls[0]?.[0].notionAiThread).toEqual({})
+  })
+
   it("stores the created Notion AI thread id after the first dedicated-thread Tier 1 turn", async () => {
     const harness = setup({ existingConversation: null })
     harness.generate.mockResolvedValueOnce({

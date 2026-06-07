@@ -325,7 +325,7 @@ function isDedicatedNotionAiThreadsEnabled(
     CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS?: string
   },
 ): boolean {
-  return env.CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS === "1"
+  return (env.CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS ?? "1") === "1"
 }
 
 function toConversationNotionAiThread(
