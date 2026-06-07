@@ -146,6 +146,21 @@ describe("featured works data", () => {
     expect(shuffled).not.toEqual(LIVE_REEL_VIDEO_IDS)
   })
 
+  it("prevents playlist cycle boundary repeats when the next shuffle starts with the previous last item", () => {
+    const videos = FEATURED_PLAYLIST_WORKS[1]?.videos ?? []
+    const randomValues = [0.99, 0.99, 0.99, 0.5]
+    const shuffled = shuffleVideoIds(
+      videos,
+      () => randomValues.shift() ?? 0,
+      videos[0],
+    )
+
+    expect(shuffled).toHaveLength(videos.length)
+    expect(new Set(shuffled)).toEqual(new Set(videos))
+    expect(shuffled[0]).not.toBe(videos[0])
+    expect(shuffled).toEqual([videos[2], videos[1], videos[0], videos[3]])
+  })
+
   it("builds YouTube thumbnail URLs for generated hq frames and default fallback", () => {
     expect(getYouTubeThumbnailUrl("-2kSMEiw0wA", 1)).toBe(
       "https://i.ytimg.com/vi/-2kSMEiw0wA/hq1.jpg",

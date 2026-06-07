@@ -1345,7 +1345,11 @@ function PlaylistWorkCard({
 
     const nextVideo = () => {
       if (queueRef.current.length === 0) {
-        queueRef.current = shuffleVideoIds(work.videos)
+        queueRef.current = shuffleVideoIds(
+          work.videos,
+          Math.random,
+          previewVideoRef.current,
+        )
       }
       return queueRef.current.shift() ?? work.videos[0]
     }

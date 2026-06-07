@@ -176,12 +176,23 @@ export function getYouTubeThumbnailUrl(
 export function shuffleVideoIds<T>(
   videoIds: readonly T[],
   random: () => number = Math.random,
+  prevLastItem?: T,
 ) {
   const shuffled = [...videoIds]
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(random() * (index + 1))
     const current = shuffled[index]
     shuffled[index] = shuffled[swapIndex]
+    shuffled[swapIndex] = current
+  }
+  if (
+    prevLastItem !== undefined &&
+    shuffled.length > 1 &&
+    shuffled[0] === prevLastItem
+  ) {
+    const swapIndex = Math.floor(random() * (shuffled.length - 1)) + 1
+    const current = shuffled[0]
+    shuffled[0] = shuffled[swapIndex]
     shuffled[swapIndex] = current
   }
   return shuffled
