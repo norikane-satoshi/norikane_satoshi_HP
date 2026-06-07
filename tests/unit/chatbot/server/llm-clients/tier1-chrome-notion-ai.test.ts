@@ -501,6 +501,60 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(prompt).not.toContain("会話Bの直前発言")
   })
 
+  it("measures fixed-thread full resend versus dedicated-thread patch payload size", () => {
+    const messages = [
+      { role: "user" as const, content: "A社のWeb CM、尺は30秒です" },
+      { role: "assistant" as const, content: "媒体と納期を確認します" },
+      { role: "user" as const, content: "納期は7月末、リモート希望です" },
+      { role: "assistant" as const, content: "素材状態と立ち会い有無を確認します" },
+      { role: "user" as const, content: "オンライン立ち会いでお願いします" },
+    ]
+    const latestUserMessage = "見積もりに必要な情報を教えてください"
+    const beforePayload = buildPayloadForRequest({
+      ...llmRequest(),
+      systemPrompt: "固定プロンプト全文",
+      messages,
+      latestUserMessage,
+    })
+    const afterPayload = buildPayloadForRequest({
+      ...llmRequest(),
+      systemPrompt: "固定プロンプト全文",
+      messages,
+      latestUserMessage,
+      notionAiThread: { threadId: "thread-a" },
+    })
+    const beforePrompt = payloadPrompt(beforePayload)
+    const afterPrompt = payloadPrompt(afterPayload)
+    const beforeMetrics = {
+      transcriptMessages: beforePayload.transcript.length,
+      promptLines: beforePrompt.split("\n").length,
+      promptChars: beforePrompt.length,
+      postDataBytes: JSON.stringify(beforePayload).length,
+    }
+    const afterMetrics = {
+      transcriptMessages: afterPayload.transcript.length,
+      promptLines: afterPrompt.split("\n").length,
+      promptChars: afterPrompt.length,
+      postDataBytes: JSON.stringify(afterPayload).length,
+    }
+
+    expect(beforeMetrics).toEqual({
+      transcriptMessages: 3,
+      promptLines: 7,
+      promptChars: 155,
+      postDataBytes: 2966,
+    })
+    expect(afterMetrics).toEqual({
+      transcriptMessages: 3,
+      promptLines: 1,
+      promptChars: 24,
+      postDataBytes: 2828,
+    })
+    expect(afterPrompt).toBe("user: 見積もりに必要な情報を教えてください")
+    expect(afterPrompt).not.toContain("固定プロンプト全文")
+    expect(afterPrompt).not.toContain("A社のWeb CM")
+  })
+
   it("compresses only older long history while keeping recent messages and fixed slots intact", () => {
     const messages = Array.from({ length: 20 }, (_, index) => ({
       role: index % 2 === 0 ? "user" as const : "assistant" as const,
