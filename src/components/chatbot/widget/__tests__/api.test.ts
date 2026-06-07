@@ -35,7 +35,11 @@ describe("chatbot widget API client", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     await submitChatbotMessage(
-      { message: "相談です", clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001" },
+      {
+        message: "相談です",
+        clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001",
+        clientSessionId: "00000000-0000-4000-8000-000000000002",
+      },
       { signal: controller.signal },
     )
 
@@ -45,6 +49,7 @@ describe("chatbot widget API client", () => {
     )
     expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toMatchObject({
       clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001",
+      clientSessionId: "00000000-0000-4000-8000-000000000002",
     })
   })
 

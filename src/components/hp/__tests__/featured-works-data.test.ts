@@ -74,8 +74,6 @@ describe("featured works data", () => {
       expect.objectContaining({
         title: "ゲキ×シネシリーズ",
         youtubeId: "GiqkQel2CeU",
-        loopStart: 1,
-        loopEnd: 31,
         officialUrl: "https://www.geki-cine.jp/",
         links: [
           {

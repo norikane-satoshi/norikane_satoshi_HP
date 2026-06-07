@@ -85,6 +85,30 @@ describe("WidgetShell API wiring", () => {
         userMessage,
         assistantMessage,
         tier: "tier-2-ollama-deepseek",
+        tierAttempts: [
+          {
+            tier: "tier-1-chrome-notion-ai",
+            phase: "health-check",
+            outcome: "healthy",
+            latencyMs: 17,
+          },
+          {
+            tier: "tier-1-chrome-notion-ai",
+            phase: "generate",
+            outcome: "error",
+            latencyMs: 231,
+            attempt: 1,
+            errorCode: "invalid-output",
+          },
+          {
+            tier: "tier-1-chrome-notion-ai",
+            phase: "generate",
+            outcome: "error",
+            latencyMs: 184,
+            attempt: 2,
+            errorCode: "invalid-output",
+          },
+        ],
         ui: { kind: "none" },
       }),
     )
@@ -94,7 +118,11 @@ describe("WidgetShell API wiring", () => {
     submitMessage()
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-    expect(await screen.findByText("Local debug: Tier 2 Ollama DeepSeek (tier-2-ollama-deepseek)")).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        "Local debug: Actual: staging Tier 2 local Ollama DeepSeek; planned Tier 3; VPS Tier 2 not installed (tier-2-ollama-deepseek) | Tier1 health healthy; Tier1 generate invalid-output x2; retry 1",
+      ),
+    ).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/chatbot/message",
       expect.objectContaining({
@@ -105,6 +133,7 @@ describe("WidgetShell API wiring", () => {
     )
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
       message: "相談したいです",
+      clientSessionId: expect.any(String),
     })
   })
 
@@ -165,6 +194,9 @@ describe("WidgetShell API wiring", () => {
     const firstRequest = fetchMock.mock.calls[0]?.[1] as RequestInit
     const firstBody = JSON.parse(String(firstRequest.body))
     expect(firstBody.clientUserMessageId).toMatch(/^client_msg_/)
+    expect(firstBody.clientSessionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "停止" }))
 
@@ -188,6 +220,7 @@ describe("WidgetShell API wiring", () => {
     expect(JSON.parse(String(editRequest.body))).toMatchObject({
       message: "編集後です",
       editTargetMessageId: firstBody.clientUserMessageId,
+      clientSessionId: firstBody.clientSessionId,
     })
     resolveEditFetch(
       mockJsonResponse({

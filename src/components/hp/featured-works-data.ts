@@ -98,8 +98,6 @@ export const FEATURED_WORKS: FeaturedWork[] = [
     title: "ゲキ×シネシリーズ",
     client: "ヴィレッヂ",
     youtubeId: "GiqkQel2CeU",
-    loopStart: 1,
-    loopEnd: 31,
     officialUrl: "https://www.geki-cine.jp/",
     links: [
       {

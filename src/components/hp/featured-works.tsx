@@ -1016,6 +1016,17 @@ function getFixedClipWindow(video: FeaturedWorkPreviewVideo): ClipWindow | null 
   }
 }
 
+function hasPreviewClipConstraint(video: FeaturedWorkPreviewVideo) {
+  return (
+    typeof video.loopStart === "number" ||
+    typeof video.loopEnd === "number" ||
+    typeof video.clipRangeStart === "number" ||
+    typeof video.clipRangeEnd === "number" ||
+    typeof video.clipExcludeStart === "number" ||
+    typeof video.clipExcludeEnd === "number"
+  )
+}
+
 function getYouTubeLoadVideoArg(video: FeaturedWorkPreviewVideo) {
   const fixedClip = getFixedClipWindow(video)
   if (!fixedClip) {
@@ -1196,6 +1207,22 @@ function VideoSurface({
 
     let cancelled = false
 
+    const playFullVideo = (player: YouTubePlayer) => {
+      clearNextTimer()
+      const duration = getPlayableDuration(player.getDuration())
+      const clip = {
+        startSeconds: 0,
+        playSeconds: duration,
+      }
+      clipRef.current = clip
+      setActiveClip(clip)
+      clearCoverTimer()
+      setIsCoverVisible(true)
+      hasHiddenInitialCoverRef.current = true
+      player.seekTo(0, true)
+      player.playVideo()
+    }
+
     const playNextClip = (player: YouTubePlayer) => {
       clearNextTimer()
       const clip = getPreviewClipWindow(
@@ -1225,6 +1252,10 @@ function VideoSurface({
 
       if (event.data === window.YT.PlayerState.ENDED) {
         clipRef.current = null
+        if (!hasPreviewClipConstraint(previewVideoRef.current)) {
+          playFullVideo(event.target)
+          return
+        }
         playNextClip(event.target)
         return
       }
@@ -1234,7 +1265,17 @@ function VideoSurface({
       }
 
       if (!clipRef.current) {
-        playNextClip(event.target)
+        if (hasPreviewClipConstraint(previewVideoRef.current)) {
+          playNextClip(event.target)
+        } else {
+          const duration = getPlayableDuration(event.target.getDuration())
+          const clip = {
+            startSeconds: 0,
+            playSeconds: duration,
+          }
+          clipRef.current = clip
+          setActiveClip(clip)
+        }
       }
 
       scheduleCoverHide()
@@ -1253,7 +1294,7 @@ function VideoSurface({
       playerRef.current = new window.YT.Player(playerHostRef.current, {
         videoId,
         playerVars: getYouTubePlayerVars(previewVideoRef.current, {
-          loop: false,
+          loop: !hasPreviewClipConstraint(previewVideoRef.current),
         }),
         events: {
           onReady: (event) => {

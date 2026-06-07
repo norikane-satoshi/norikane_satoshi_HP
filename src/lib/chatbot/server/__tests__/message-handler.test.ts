@@ -49,6 +49,13 @@ function userContext(overrides: Partial<UserChatbotContext> = {}): UserChatbotCo
   }
 }
 
+async function waitForMockCalls(mock: { mock: { calls: unknown[] } }, count: number): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (mock.mock.calls.length >= count) return
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+}
+
 function setup(overrides: {
   existingConversation?: ChatbotConversation | null
   isolatedConversation?: ChatbotConversation | null
@@ -396,11 +403,25 @@ describe("handleChatbotMessage user context", () => {
   it("recovers an edit from a canceled client user message that was not persisted", async () => {
     const harness = setup({
       existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          notionAiThreadId: "thread-before-cancel",
+        },
         messages: [
           { id: "keep_user", role: "user", content: "最初の相談です", createdAt: "2026-05-26T00:00:00.000Z" },
           { id: "keep_assistant", role: "assistant", content: "最初の応答です", createdAt: "2026-05-26T00:01:00.000Z" },
         ],
       }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "返信です",
+      tier: "tier-1-chrome-notion-ai",
+      diagnostics: {
+        notionAiThreadId: "thread-after-edit",
+        notionAiThreadCreated: true,
+      },
+      proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
     })
 
     const result = await handleChatbotMessage(
@@ -413,7 +434,10 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(harness.repository.truncateConversationFromMessage).not.toHaveBeenCalled()
+    expect(harness.repository.truncateConversationFromMessage).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      messageId: "keep_user",
+    })
     expect(harness.repository.appendMessage).toHaveBeenCalledWith({
       id: undefined,
       conversationId: "conv_1",
@@ -421,14 +445,65 @@ describe("handleChatbotMessage user context", () => {
       content: "停止後に編集した条件です",
     })
     expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
-      { role: "user", content: "最初の相談です" },
-      { role: "assistant", content: "最初の応答です" },
       { role: "user", content: "停止後に編集した条件です" },
     ])
+    expect(harness.generate.mock.calls[0]?.[0].notionAiThread).toEqual({})
+    expect(harness.repository.setConversationNotionAiThreadId).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      threadId: "thread-after-edit",
+    })
     expect(result.userMessage).toMatchObject({
       role: "user",
       content: "停止後に編集した条件です",
     })
+  })
+
+  it("serializes same-session generation so cancel/edit retries do not overlap a Notion AI thread", async () => {
+    const harness = setup()
+    let releaseFirstGenerate: (() => void) | undefined
+    harness.generate
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseFirstGenerate = () =>
+              resolve({
+                rawText: "最初の返信です",
+                tier: "tier-1-chrome-notion-ai",
+                proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
+              })
+          }),
+      )
+      .mockResolvedValueOnce({
+        rawText: "編集後の返信です",
+        tier: "tier-1-chrome-notion-ai",
+        proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
+      })
+
+    const first = handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "キャンセル前の条件です" },
+      harness.options,
+    )
+    await waitForMockCalls(harness.generate, 1)
+    expect(harness.generate).toHaveBeenCalledTimes(1)
+
+    const second = handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "編集後の条件です",
+        editTargetMessageId: "client_msg_00000000-0000-4000-8000-000000000001",
+      },
+      harness.options,
+    )
+    await Promise.resolve()
+    expect(harness.generate).toHaveBeenCalledTimes(1)
+
+    releaseFirstGenerate?.()
+    await first
+    await second
+
+    expect(harness.generate).toHaveBeenCalledTimes(2)
+    expect(harness.generate.mock.calls[1]?.[0].latestUserMessage).toBe("編集後の条件です")
   })
 
   it("overrides pricing output with direct contact policy", async () => {

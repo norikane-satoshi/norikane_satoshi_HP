@@ -285,7 +285,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         throw this.toLlmError({
           message: "Notion AI tier returned an empty NDJSON stream.",
           code: "invalid-output",
-          isRetryable: false,
+          isRetryable: true,
         })
       }
 

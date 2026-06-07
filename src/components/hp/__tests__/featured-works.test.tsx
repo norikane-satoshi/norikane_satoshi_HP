@@ -519,7 +519,7 @@ describe("FeaturedWorks", () => {
     })
   })
 
-  it("passes SSOT fixed preview clips to single video cards", () => {
+  it("keeps single video cards free of preview clip constraints", async () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -532,18 +532,20 @@ describe("FeaturedWorks", () => {
 
     render(<FeaturedWorks />)
 
-    const gekiCard = screen.getByLabelText("ゲキ×シネシリーズ 作品カード")
-    expect(gekiCard.querySelector("[data-featured-work-loop-start]")).toHaveAttribute(
-      "data-featured-work-loop-start",
-      "1",
-    )
-    expect(gekiCard.querySelector("[data-featured-work-loop-end]")).toHaveAttribute(
-      "data-featured-work-loop-end",
-      "31",
-    )
+    for (const work of FEATURED_WORKS.filter((item) => item.youtubeId)) {
+      const card = screen.getByLabelText(`${work.title} 作品カード`)
+      await waitFor(() => {
+        expect(card.querySelector("[data-featured-work-current-video-id]")).toBeInTheDocument()
+      })
+      const media = card.querySelector("[data-featured-work-current-video-id]")
+      expect(media).not.toHaveAttribute("data-featured-work-loop-start")
+      expect(media).not.toHaveAttribute("data-featured-work-loop-end")
+      expect(media).not.toHaveAttribute("data-featured-work-clip-range-start")
+      expect(media).not.toHaveAttribute("data-featured-work-clip-exclude-start")
+    }
   })
 
-  it("drives single video cards with random 30 second clips instead of full video loops", async () => {
+  it("drives single video cards with full video loops instead of random 30 second clips", async () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -603,9 +605,11 @@ describe("FeaturedWorks", () => {
         (item) => item.options.videoId === "-2kSMEiw0wA",
       )
       expect(player).toBeDefined()
-      expect(player?.options.playerVars).not.toHaveProperty("loop")
-      expect(player?.options.playerVars).not.toHaveProperty("playlist")
-      expect(player?.seekTo).toHaveBeenCalledWith(30, true)
+      expect(player?.options.playerVars).toMatchObject({
+        loop: 1,
+        playlist: "-2kSMEiw0wA",
+      })
+      expect(player?.seekTo).not.toHaveBeenCalled()
     })
 
     const player = players.find(
@@ -616,13 +620,13 @@ describe("FeaturedWorks", () => {
     const media = card.querySelector(
       '[data-featured-work-current-video-id="-2kSMEiw0wA"]',
     )
-    expect(media).toHaveAttribute("data-featured-work-clip-start", "30")
-    expect(media).toHaveAttribute("data-featured-work-clip-seconds", "30")
+    expect(media).toHaveAttribute("data-featured-work-clip-start", "0")
+    expect(media).toHaveAttribute("data-featured-work-clip-seconds", "90")
 
     player?.options.events?.onStateChange?.({ data: 0, target: player })
 
-    expect(player?.seekTo).toHaveBeenCalledTimes(2)
-    expect(player?.seekTo).toHaveBeenLastCalledWith(30, true)
+    expect(player?.seekTo).toHaveBeenCalledTimes(1)
+    expect(player?.seekTo).toHaveBeenLastCalledWith(0, true)
   })
 
   it("keeps startup thumbnail covers visible for 5 seconds after playback starts", async () => {
@@ -950,7 +954,7 @@ describe("FeaturedWorks", () => {
     ).toHaveLength(1)
   })
 
-  it("re-shows single video thumbnail covers before each random clip restart", async () => {
+  it("re-shows single video thumbnail covers before each full video loop restart", async () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -976,6 +980,7 @@ describe("FeaturedWorks", () => {
     const players: MockPlayer[] = []
 
     class MockPlayer {
+      readonly element: HTMLElement
       readonly options: MockPlayerOptions
       readonly mute = vi.fn()
       readonly stopVideo = vi.fn()
@@ -987,7 +992,8 @@ describe("FeaturedWorks", () => {
         this.options.events?.onStateChange?.({ data: 1, target: this })
       })
 
-      constructor(_element: HTMLElement, options: MockPlayerOptions) {
+      constructor(element: HTMLElement, options: MockPlayerOptions) {
+        this.element = element
         this.options = options
         players.push(this)
         queueMicrotask(() => {
@@ -1015,10 +1021,13 @@ describe("FeaturedWorks", () => {
       (item) => item.options.videoId === "-2kSMEiw0wA",
     )
     expect(player).toBeDefined()
+    const card = player?.element.closest(
+      '[data-featured-work-card="十角館の殺人 / 時計館の殺人"]',
+    ) as HTMLElement | null
+    expect(card).toBeInTheDocument()
 
-    const card = screen.getByLabelText("十角館の殺人 / 時計館の殺人 作品カード")
     const getSingleThumbnail = () => {
-      const thumbnail = card.querySelector<HTMLImageElement>(
+      const thumbnail = card?.querySelector<HTMLImageElement>(
         "[data-featured-work-preview-thumbnail]",
       )
       expect(thumbnail).toBeInTheDocument()
@@ -1026,10 +1035,10 @@ describe("FeaturedWorks", () => {
     }
     const expectSingleCover = (state: "preparing" | "playing") => {
       expect(
-        card.querySelector('[data-featured-work-current-video-id="-2kSMEiw0wA"]'),
+        card?.querySelector('[data-featured-work-current-video-id="-2kSMEiw0wA"]'),
       ).toHaveAttribute("data-featured-work-preview-media", state)
       expect(
-        card.querySelector(
+        card?.querySelector(
           `[data-featured-work-preview-thumbnail="${
             state === "preparing" ? "visible" : "hidden"
           }"]`,
@@ -1044,28 +1053,34 @@ describe("FeaturedWorks", () => {
       /^https:\/\/i\.ytimg\.com\/vi\/-2kSMEiw0wA\/hq[123]\.jpg$/,
     )
 
-    await act(async () => {
+    act(() => {
       vi.advanceTimersByTime(5000)
     })
     expectSingleCover("playing")
 
-    await act(async () => {
-      vi.advanceTimersByTime(25000)
+    act(() => {
+      player?.options.events?.onStateChange?.({ data: 0, target: player })
     })
     expectSingleCover("preparing")
-    expect(player?.seekTo).toHaveBeenCalledTimes(2)
+    expect(player?.seekTo).toHaveBeenCalledTimes(1)
+    expect(player?.seekTo).toHaveBeenLastCalledWith(0, true)
+    await act(async () => {
+      await Promise.resolve()
+    })
     const secondThumbnailSrc = getSingleThumbnail().getAttribute("src")
     expect(secondThumbnailSrc).toMatch(
       /^https:\/\/i\.ytimg\.com\/vi\/-2kSMEiw0wA\/hq[123]\.jpg$/,
     )
-    expect(secondThumbnailSrc).not.toBe(firstThumbnailSrc)
+    expect(firstThumbnailSrc).toMatch(
+      /^https:\/\/i\.ytimg\.com\/vi\/-2kSMEiw0wA\/hq[123]\.jpg$/,
+    )
 
-    await act(async () => {
+    act(() => {
       vi.advanceTimersByTime(4999)
     })
     expectSingleCover("preparing")
 
-    await act(async () => {
+    act(() => {
       vi.advanceTimersByTime(1)
     })
     expectSingleCover("playing")

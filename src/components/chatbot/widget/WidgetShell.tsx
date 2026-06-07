@@ -10,6 +10,7 @@ import {
   submitChatbotInquiry,
   submitChatbotMessage,
   type ChatbotResponseTier,
+  type ChatbotTierAttemptDebug,
   type SubmitInquiryInput,
   type WidgetUi,
 } from "./api"
@@ -19,7 +20,11 @@ import { ChatbotBookingCard } from "./ChatbotBookingCard"
 import { ChoicePanel } from "./ChoicePanel"
 import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
-import { formatChatbotTierDebugLabel, isLocalChatbotTierDebugHostname } from "./local-tier-debug"
+import {
+  formatChatbotTierDebugDetails,
+  formatChatbotTierDebugLabel,
+  isLocalChatbotTierDebugHostname,
+} from "./local-tier-debug"
 import { SecurityNote } from "./SecurityNote"
 import { ThinkingIndicator } from "./ThinkingIndicator"
 import {
@@ -72,17 +77,21 @@ const FLOATING_RESIZE_CORNERS = [
 
 type StoredWidgetSession = {
   messages: Array<Omit<WidgetMessage, "createdAt"> & { createdAt: string }>
+  clientSessionId?: string
   conversationId?: string
   activeUi: WidgetUi
   lastResponseTier?: ChatbotResponseTier
+  lastTierAttempts?: ChatbotTierAttemptDebug[]
   expiresAt: string
 }
 
 function loadStoredWidgetSession(): {
   messages: WidgetMessage[]
+  clientSessionId?: string
   conversationId?: string
   activeUi: WidgetUi
   lastResponseTier?: ChatbotResponseTier
+  lastTierAttempts?: ChatbotTierAttemptDebug[]
 } {
   if (typeof window === "undefined") {
     return { messages: [initialMessage], activeUi: noUi }
@@ -109,9 +118,11 @@ function loadStoredWidgetSession(): {
 
     return {
       messages: messages.length > 0 ? messages : [initialMessage],
+      clientSessionId: parsed.clientSessionId,
       conversationId: parsed.conversationId,
       activeUi: parsed.activeUi ?? noUi,
       lastResponseTier: parsed.lastResponseTier,
+      lastTierAttempts: parsed.lastTierAttempts,
     }
   } catch {
     window.localStorage.removeItem(CHATBOT_SESSION_STORAGE_KEY)
@@ -129,6 +140,14 @@ function createClientUserMessageId() {
       ? crypto.randomUUID()
       : `00000000-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`
   return `client_msg_${randomId}`
+}
+
+function createClientSessionId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+
+  return `00000000-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`
 }
 
 function isInteractiveTarget(target: EventTarget | null) {
@@ -156,16 +175,19 @@ export function WidgetShell({
   onSidePeekWidthChange,
 }: WidgetShellProps) {
   const [storedSession] = useState(loadStoredWidgetSession)
+  const [clientSessionId] = useState(() => storedSession.clientSessionId ?? createClientSessionId())
   const [messages, setMessages] = useState<WidgetMessage[]>(storedSession.messages)
   const [conversationId, setConversationId] = useState<string | undefined>(storedSession.conversationId)
   const [activeUi, setActiveUi] = useState<WidgetUi>(storedSession.activeUi)
   const [submitting, setSubmitting] = useState(false)
   const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>(storedSession.lastResponseTier)
+  const [lastTierAttempts, setLastTierAttempts] = useState<ChatbotTierAttemptDebug[] | undefined>(storedSession.lastTierAttempts)
   const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
   const shellRef = useRef<HTMLElement | null>(null)
   const activeRequestControllerRef = useRef<AbortController | null>(null)
   const showLocalTierDebug =
     typeof window !== "undefined" && isLocalChatbotTierDebugHostname(window.location.hostname)
+  const localTierDebugDetails = formatChatbotTierDebugDetails(lastTierAttempts)
   const sanitizedLayout = useMemo(() => sanitizeWidgetLayout(layout), [layout])
   const isSidePeek = sanitizedLayout.mode === "side-peek"
   const shellStyle = {
@@ -208,16 +230,18 @@ export function WidgetShell({
           content: message.content,
           createdAt: message.createdAt.toISOString(),
         })),
+        clientSessionId,
         conversationId,
         activeUi,
         lastResponseTier,
+        lastTierAttempts,
         expiresAt: new Date(Date.now() + CHATBOT_SESSION_TTL_MS).toISOString(),
       }
       window.localStorage.setItem(CHATBOT_SESSION_STORAGE_KEY, JSON.stringify(stored))
     } catch {
       // localStorage may be unavailable in private or restricted contexts.
     }
-  }, [activeUi, conversationId, lastResponseTier, messages])
+  }, [activeUi, clientSessionId, conversationId, lastResponseTier, lastTierAttempts, messages])
 
   const startFloatingMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (isSidePeek || isInteractiveTarget(event.target)) return
@@ -372,12 +396,13 @@ export function WidgetShell({
 
     try {
       const payload = await submitChatbotMessage(
-        { message: text, conversationId, clientUserMessageId },
+        { message: text, conversationId, clientUserMessageId, clientSessionId },
         { signal: controller.signal },
       )
       if (controller.signal.aborted) return
       setConversationId(payload.conversationId)
       setLastResponseTier(payload.tier)
+      setLastTierAttempts(payload.tierAttempts)
       markSubmittedUserMessage(createdAt, text, payload.userMessage)
       appendMessage({
         id: payload.assistantMessage.id,
@@ -425,10 +450,12 @@ export function WidgetShell({
         message: trimmedText,
         conversationId,
         editTargetMessageId: messageId,
+        clientSessionId,
       }, { signal: controller.signal })
       if (controller.signal.aborted) return
       setConversationId(payload.conversationId)
       setLastResponseTier(payload.tier)
+      setLastTierAttempts(payload.tierAttempts)
       setMessages((currentMessages) => {
         const currentTargetIndex = currentMessages.findIndex(
           (message) =>
@@ -562,6 +589,7 @@ export function WidgetShell({
         <div className="border-b border-[var(--glass-border)] px-5 py-2">
           <p className="glass-badge inline-flex max-w-full px-3 py-1 text-[11px] font-medium">
             Local debug: {formatChatbotTierDebugLabel(lastResponseTier)}
+            {localTierDebugDetails ? ` | ${localTierDebugDetails}` : ""}
           </p>
         </div>
       ) : null}

@@ -24,6 +24,7 @@ import {
   type ChatbotLlmRequest,
   type ChatbotLlmResponse,
   type ChatbotLlmTierOrchestrator,
+  type TierAttemptEvent,
   decideRoutingFallback,
   type UserChatbotContext,
   normalizeChatbotLlmResponse,
@@ -71,6 +72,7 @@ export type ChatbotMessageApiResult = {
   assistantMessage: Pick<ChatbotMessage, "id" | "role" | "content" | "createdAt">
   routingDecision?: RoutingDecision
   tier: ChatbotLlmResponse["tier"]
+  tierAttempts: ChatbotTierAttemptDebug[]
   ui: ChatbotMessageUi
 }
 
@@ -83,6 +85,15 @@ export type HandleChatbotMessageInput = {
   clientUserMessageId?: string
   jobContext?: Partial<JobContext>
   conversationState?: Partial<ConversationState>
+}
+
+export type ChatbotTierAttemptDebug = {
+  tier: ChatbotLlmResponse["tier"]
+  phase: TierAttemptEvent["phase"]
+  outcome: TierAttemptEvent["outcome"]
+  latencyMs: number
+  attempt?: number
+  errorCode?: string
 }
 
 type ChatbotMessageRepository = {
@@ -116,18 +127,30 @@ const defaultRepository: ChatbotMessageRepository = {
 
 const clientUserMessageIdPattern =
   /^client_msg_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const chatbotMessageQueues = new Map<string, Promise<void>>()
 
 export async function handleChatbotMessage(
   input: HandleChatbotMessageInput,
   options: HandleChatbotMessageOptions = {},
 ): Promise<ChatbotMessageApiResult> {
+  return enqueueChatbotMessage(input, () => handleChatbotMessageCore(input, options))
+}
+
+async function handleChatbotMessageCore(
+  input: HandleChatbotMessageInput,
+  options: HandleChatbotMessageOptions = {},
+): Promise<ChatbotMessageApiResult> {
   const repository = options.repository ?? defaultRepository
-  const orchestrator = options.orchestratorFactory?.() ?? createDefaultChatbotLlmOrchestrator()
+  const tierAttemptEvents: TierAttemptEvent[] = []
+  const orchestrator =
+    options.orchestratorFactory?.() ??
+    createDefaultChatbotLlmOrchestrator((event) => tierAttemptEvents.push(event))
   const userContextLoader = options.userContextLoader ?? loadUserChatbotContext
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
   const operatorNotificationSender = options.operatorNotificationSender ?? sendOperatorConsultationNotification
   const dedicatedNotionAiThreadsEnabled =
     options.dedicatedNotionAiThreadsEnabled ?? isDedicatedNotionAiThreadsEnabled()
+  let replaceDedicatedNotionAiThread = false
   let conversation =
     (await repository.loadConversationBySessionId(input.sessionId)) ??
     (await repository.createConversation({ sessionId: input.sessionId, userId: input.userId ?? null }))
@@ -146,6 +169,19 @@ export async function handleChatbotMessage(
     if (targetIndex === -1) {
       if (!clientUserMessageIdPattern.test(input.editTargetMessageId)) {
         throw new Error("chatbot_edit_target_not_found")
+      }
+      const fallbackTargetIndex = findLastUserMessageIndex(conversation.messages)
+      if (fallbackTargetIndex >= 0) {
+        await repository.truncateConversationFromMessage({
+          conversationId: conversation.id,
+          messageId: conversation.messages[fallbackTargetIndex].id,
+        })
+        conversation = {
+          ...conversation,
+          status: "open",
+          messages: conversation.messages.slice(0, fallbackTargetIndex),
+        }
+        replaceDedicatedNotionAiThread = true
       }
     } else {
       await repository.truncateConversationFromMessage({
@@ -201,7 +237,9 @@ export async function handleChatbotMessage(
     maxOutputTokens: 900,
   }
   if (dedicatedNotionAiThreadsEnabled) {
-    llmRequest.notionAiThread = toConversationNotionAiThread(conversation)
+    llmRequest.notionAiThread = replaceDedicatedNotionAiThread
+      ? {}
+      : toConversationNotionAiThread(conversation)
   }
   const llmResponse = await orchestrator.generate(llmRequest)
   await maybePersistDedicatedNotionAiThread({
@@ -209,6 +247,7 @@ export async function handleChatbotMessage(
     conversation,
     llmResponse,
     repository,
+    replaceExistingThread: replaceDedicatedNotionAiThread,
   })
   const deterministicRoutingDecision = decideRoutingFallback({
     jobContext,
@@ -263,8 +302,44 @@ export async function handleChatbotMessage(
     },
     routingDecision,
     tier: llmResponse.tier,
+    tierAttempts: summarizeTierAttempts(tierAttemptEvents),
     ui: toMessageUi(routingDecision, llmResponse.tier, conversationState),
   }
+}
+
+async function enqueueChatbotMessage<T>(
+  input: HandleChatbotMessageInput,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const queueKey = buildChatbotMessageQueueKey(input)
+  const previous = chatbotMessageQueues.get(queueKey) ?? Promise.resolve()
+  const run = previous.catch(() => undefined).then(operation)
+  const settled = run.then(
+    () => undefined,
+    () => undefined,
+  )
+
+  chatbotMessageQueues.set(queueKey, settled)
+
+  try {
+    return await run
+  } finally {
+    if (chatbotMessageQueues.get(queueKey) === settled) {
+      chatbotMessageQueues.delete(queueKey)
+    }
+  }
+}
+
+function buildChatbotMessageQueueKey(input: HandleChatbotMessageInput): string {
+  return `${input.sessionId}:${input.userId ?? "anonymous"}`
+}
+
+function findLastUserMessageIndex(messages: ReadonlyArray<ChatbotMessage>): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === "user") return index
+  }
+
+  return -1
 }
 
 async function maybeSendOperatorNotification(input: {
@@ -317,16 +392,33 @@ function shouldIsolateExistingConversation(
   return conversation.context.userId !== userId
 }
 
-function createDefaultChatbotLlmOrchestrator(): ChatbotLlmTierOrchestrator {
+function createDefaultChatbotLlmOrchestrator(
+  onTierAttempt?: (event: TierAttemptEvent) => void,
+): ChatbotLlmTierOrchestrator {
   const clients: ChatbotLlmClient[] = [
     createTier1ChromeNotionAiClient({ preferredModel: tier1ObservedNotionAiModel }),
     createTier2OllamaDeepSeekClient(),
     createTier4FormFallbackClient(),
   ]
+  const localLogger = createLocalChatbotTierAttemptLogger()
   return createChatbotLlmTierOrchestrator({
     clients,
-    onTierAttempt: createLocalChatbotTierAttemptLogger(),
+    onTierAttempt: (event) => {
+      localLogger?.(event)
+      onTierAttempt?.(event)
+    },
   })
+}
+
+function summarizeTierAttempts(events: ReadonlyArray<TierAttemptEvent>): ChatbotTierAttemptDebug[] {
+  return events.map((event) => ({
+    tier: event.tier,
+    phase: event.phase,
+    outcome: event.outcome,
+    latencyMs: event.latencyMs,
+    ...(event.attempt ? { attempt: event.attempt } : {}),
+    ...(event.error && "code" in event.error ? { errorCode: String(event.error.code) } : {}),
+  }))
 }
 
 function isDedicatedNotionAiThreadsEnabled(
@@ -350,9 +442,10 @@ async function maybePersistDedicatedNotionAiThread(input: {
   conversation: ChatbotConversation
   llmResponse: ChatbotLlmResponse
   repository: ChatbotMessageRepository
+  replaceExistingThread?: boolean
 }): Promise<void> {
   if (!input.enabled) return
-  if (input.conversation.context.notionAiThreadId) return
+  if (input.conversation.context.notionAiThreadId && !input.replaceExistingThread) return
   if (input.llmResponse.tier !== "tier-1-chrome-notion-ai") return
   if (input.llmResponse.diagnostics?.notionAiThreadCreated !== true) return
 

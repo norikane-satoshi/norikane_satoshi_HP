@@ -132,8 +132,37 @@ describe("createChatbotLlmTierOrchestrator", () => {
     await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
       llmResponse("tier-2-ollama-deepseek"),
     )
-    expect(tier1.generate).toHaveBeenCalledTimes(2)
+    expect(tier1.generate).toHaveBeenCalledTimes(4)
     expect(tier2.generate).toHaveBeenCalledOnce()
+  })
+
+  it("waits out transient tier 1 stream extraction failures before falling back", async () => {
+    const tier1 = fakeClient("tier-1-chrome-notion-ai", {
+      generateErrors: [
+        llmError("tier-1-chrome-notion-ai", {
+          code: "invalid-output",
+          message: "Notion AI response text could not be extracted. bytes=1 preview=[",
+          isRetryable: true,
+        }),
+        llmError("tier-1-chrome-notion-ai", {
+          code: "invalid-output",
+          message: "Notion AI response text could not be extracted. bytes=1 preview=[",
+          isRetryable: true,
+        }),
+      ],
+      generateResults: [llmResponse("tier-1-chrome-notion-ai", "stream recovered")],
+    })
+    const tier2 = fakeClient("tier-2-ollama-deepseek")
+    const orchestrator = createChatbotLlmTierOrchestrator({
+      clients: [tier1, tier2],
+      retryBackoffMs: 0,
+    })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
+      llmResponse("tier-1-chrome-notion-ai", "stream recovered"),
+    )
+    expect(tier1.generate).toHaveBeenCalledTimes(3)
+    expect(tier2.generate).not.toHaveBeenCalled()
   })
 
   it("tries tier 2 when tier 1 generate throws a non-retryable ChatbotLlmError", async () => {

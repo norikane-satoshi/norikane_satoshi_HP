@@ -757,7 +757,7 @@ describe("Tier1ChromeNotionAiClient", () => {
     })
   })
 
-  it("throws invalid-output when the NDJSON stream has no assistant text", async () => {
+  it("throws retryable invalid-output when the NDJSON stream has no assistant text", async () => {
     const client = new Tier1ChromeNotionAiClient({
       fetchClient: cdpFetch(),
       sessionFactory: async () =>
@@ -774,7 +774,7 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     await expectLlmError(client.generate(llmRequest()), {
       code: "invalid-output",
-      isRetryable: false,
+      isRetryable: true,
     })
   })
 

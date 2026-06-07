@@ -13,7 +13,7 @@ const llmOrchestratorDefaults = {
 } as const
 
 const aiGenerateAttemptLimits: Readonly<Record<ChatbotLlmTier, number>> = {
-  "tier-1-chrome-notion-ai": 2,
+  "tier-1-chrome-notion-ai": 4,
   "tier-2-ollama-deepseek": 2,
   "tier-4-form-fallback": 1,
 } as const

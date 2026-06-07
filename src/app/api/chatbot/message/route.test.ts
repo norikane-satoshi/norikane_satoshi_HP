@@ -169,6 +169,26 @@ describe("POST /api/chatbot/message", () => {
     expect(response.headers.get("set-cookie")).toContain("Max-Age=604800")
   })
 
+  it("uses clientSessionId when the cookie is missing after a cancelled request", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(
+      request({
+        message: "編集後です",
+        clientSessionId: "00000000-0000-4000-8000-000000000002",
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(route.createConversation).toHaveBeenCalledWith({
+      sessionId: "00000000-0000-4000-8000-000000000002",
+      userId: null,
+    })
+    expect(response.headers.get("set-cookie")).toContain(
+      "chatbot_session_id=00000000-0000-4000-8000-000000000002",
+    )
+  })
+
   it("returns assistant message and choice-panel ui on orchestrator success", async () => {
     const route = await loadPost()
 

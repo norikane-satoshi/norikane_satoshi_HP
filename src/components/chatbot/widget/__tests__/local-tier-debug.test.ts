@@ -1,18 +1,51 @@
 import { describe, expect, it } from "vitest"
 
-import { formatChatbotTierDebugLabel, isLocalChatbotTierDebugHostname } from "@/components/chatbot/widget/local-tier-debug"
+import {
+  formatChatbotTierDebugDetails,
+  formatChatbotTierDebugLabel,
+  isLocalChatbotTierDebugHostname,
+} from "@/components/chatbot/widget/local-tier-debug"
 
 describe("local chatbot tier debug helpers", () => {
   it("formats human labels with raw tier ids", () => {
     expect(formatChatbotTierDebugLabel("tier-1-chrome-notion-ai")).toBe(
-      "Tier 1 Notion AI (tier-1-chrome-notion-ai)",
+      "Actual: Tier 1 local Notion AI / Chrome CDP (tier-1-chrome-notion-ai)",
     )
     expect(formatChatbotTierDebugLabel("tier-2-ollama-deepseek")).toBe(
-      "Tier 2 Ollama DeepSeek (tier-2-ollama-deepseek)",
+      "Actual: staging Tier 2 local Ollama DeepSeek; planned Tier 3; VPS Tier 2 not installed (tier-2-ollama-deepseek)",
     )
     expect(formatChatbotTierDebugLabel("tier-4-form-fallback")).toBe(
-      "Tier 4 form fallback (tier-4-form-fallback)",
+      "Actual: Tier 4 form fallback (tier-4-form-fallback)",
     )
+  })
+
+  it("formats tier 1 health and generate retry diagnostics", () => {
+    expect(
+      formatChatbotTierDebugDetails([
+        {
+          tier: "tier-1-chrome-notion-ai",
+          phase: "health-check",
+          outcome: "healthy",
+          latencyMs: 20,
+        },
+        {
+          tier: "tier-1-chrome-notion-ai",
+          phase: "generate",
+          outcome: "error",
+          latencyMs: 231,
+          attempt: 1,
+          errorCode: "invalid-output",
+        },
+        {
+          tier: "tier-1-chrome-notion-ai",
+          phase: "generate",
+          outcome: "error",
+          latencyMs: 184,
+          attempt: 2,
+          errorCode: "invalid-output",
+        },
+      ]),
+    ).toBe("Tier1 health healthy; Tier1 generate invalid-output x2; retry 1")
   })
 
   it("only enables the debug display on local hostnames", () => {

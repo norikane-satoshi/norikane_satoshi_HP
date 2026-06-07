@@ -34,7 +34,17 @@ export type ChatbotMessageResponse = {
   assistantMessage: WidgetAssistantMessage
   routingDecision?: RoutingDecision
   tier: ChatbotResponseTier
+  tierAttempts?: ChatbotTierAttemptDebug[]
   ui: WidgetUi
+}
+
+export type ChatbotTierAttemptDebug = {
+  tier: ChatbotResponseTier
+  phase: "health-check" | "generate"
+  outcome: "healthy" | "unhealthy" | "success" | "error"
+  latencyMs: number
+  attempt?: number
+  errorCode?: string
 }
 
 export type SubmitChatbotMessageInput = {
@@ -42,6 +52,7 @@ export type SubmitChatbotMessageInput = {
   conversationId?: string
   editTargetMessageId?: string
   clientUserMessageId?: string
+  clientSessionId?: string
   jobContext?: Partial<JobContext>
   conversationState?: Partial<ConversationState>
 }
