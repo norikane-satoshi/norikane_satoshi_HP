@@ -193,6 +193,7 @@ model ChatbotConversation {
   id              String                  @id @default(cuid())
   sessionId       String                  @unique
   userId          String?
+  notionAiThreadId String?                @unique
   startedAt       DateTime                @default(now())
   lastMessageAt   DateTime                @updatedAt
   routingDecision String?

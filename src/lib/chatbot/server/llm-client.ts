@@ -13,6 +13,9 @@ export type ChatbotLlmTier =
 export type ChatbotLlmRequest = {
   systemPrompt: string
   messages: ReadonlyArray<{ role: ChatbotMessageRole; content: string }>
+  notionAiThread?: {
+    threadId?: string
+  }
   conversationState: ConversationState
   jobContext: JobContext
   latestUserMessage?: string

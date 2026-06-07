@@ -405,6 +405,60 @@ describe("Tier1ChromeNotionAiClient", () => {
     ].join("\n"))
   })
 
+  it("creates a dedicated conversation thread with a generated id instead of the fixed page thread", () => {
+    const ids = ["dedicated-thread-id", "trace-id", "config-id", "context-id", "user-id"]
+    const payload = buildRunInferencePayload({
+      request: {
+        ...llmRequest(),
+        notionAiThread: {},
+      },
+      runtimeContext: {
+        spaceId: "space-id",
+        userId: "user-id",
+        contextPageId: "context-page-id",
+        threadId: "fixed-page-thread-id",
+        availableModels: ["apricot-sorbet-high"],
+      },
+      idFactory: () => ids.shift() ?? "extra-id",
+    })
+
+    expect(payload).toMatchObject({
+      threadId: "dedicated-thread-id",
+      createThread: true,
+      isPartialTranscript: false,
+      asPatchResponse: false,
+      createdSource: "assistant",
+    })
+    expect(payloadPrompt(payload)).toContain("Collect only new project intake details.")
+  })
+
+  it("patches only the new user message into an existing dedicated conversation thread", () => {
+    const payload = buildPayloadForRequest({
+      ...llmRequest(),
+      systemPrompt: "固定プロンプトは再送しない",
+      messages: [
+        { role: "user", content: "会話Aの発言が混じったら失敗" },
+        { role: "assistant", content: "過去の応答も再送しない" },
+        { role: "user", content: "会話Bの直前発言" },
+      ],
+      latestUserMessage: "会話Bの今回の新規発言",
+      notionAiThread: { threadId: "thread-b" },
+    })
+    const prompt = payloadPrompt(payload)
+
+    expect(payload).toMatchObject({
+      threadId: "thread-b",
+      createThread: false,
+      isPartialTranscript: true,
+      asPatchResponse: true,
+      createdSource: "workflows",
+    })
+    expect(prompt).toBe("user: 会話Bの今回の新規発言")
+    expect(prompt).not.toContain("固定プロンプト")
+    expect(prompt).not.toContain("会話Aの発言")
+    expect(prompt).not.toContain("会話Bの直前発言")
+  })
+
   it("compresses only older long history while keeping recent messages and fixed slots intact", () => {
     const messages = Array.from({ length: 20 }, (_, index) => ({
       role: index % 2 === 0 ? "user" as const : "assistant" as const,

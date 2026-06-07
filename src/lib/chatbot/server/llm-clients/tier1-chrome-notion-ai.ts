@@ -302,6 +302,9 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           ndjsonPartialParsed: result.parsedPartial,
           ndjsonFinalParsed: result.parsedFinal,
           chunkCount: result.chunkCount,
+          notionAiThreadId: payload.threadId,
+          notionAiThreadCreated: payload.createThread,
+          notionAiThreadPartialTranscript: payload.isPartialTranscript,
           attachTargetUrl: target.url,
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
         },
@@ -528,7 +531,12 @@ export function buildRunInferencePayload(input: {
   const spaceId = input.runtimeContext.spaceId
   const contextPageId = input.contextPageId ?? input.runtimeContext.contextPageId
   const currentDatetime = new Date().toISOString()
-  const threadId = input.runtimeContext.threadId ?? input.idFactory()
+  const dedicatedThread = input.request.notionAiThread
+  const dedicatedThreadId = dedicatedThread?.threadId?.trim()
+  const threadId = dedicatedThread
+    ? dedicatedThreadId || input.idFactory()
+    : input.runtimeContext.threadId ?? input.idFactory()
+  const hasExistingThread = dedicatedThread ? Boolean(dedicatedThreadId) : Boolean(input.runtimeContext.threadId)
 
   if (!spaceId) {
     throw new ChatbotLlmError({
@@ -570,7 +578,7 @@ export function buildRunInferencePayload(input: {
       },
     ],
     threadId,
-    createThread: !input.runtimeContext.threadId,
+    createThread: !hasExistingThread,
     debugOverrides: {
       emitAgentSearchExtractedResults: true,
       cachedInferences: {},
@@ -580,10 +588,10 @@ export function buildRunInferencePayload(input: {
     generateTitle: false,
     saveAllThreadOperations: true,
     setUnreadState: true,
-    createdSource: input.runtimeContext.threadId ? "workflows" : defaultCreatedSource,
+    createdSource: hasExistingThread ? "workflows" : defaultCreatedSource,
     threadType: defaultThreadType,
-    isPartialTranscript: Boolean(input.runtimeContext.threadId),
-    asPatchResponse: Boolean(input.runtimeContext.threadId),
+    isPartialTranscript: hasExistingThread,
+    asPatchResponse: hasExistingThread,
     hasHeartbeat: false,
     isUserInAnySalesAssistedSpace: false,
     isSpaceSalesAssisted: false,
@@ -777,6 +785,8 @@ function modelIsAvailable(model: string, availableModels?: string[]): boolean {
 }
 
 function buildUserPrompt(request: ChatbotLlmRequest): string {
+  if (request.notionAiThread?.threadId) return buildDedicatedThreadPatchPrompt(request)
+
   const promptMessages = buildPromptMessages(request)
 
   return [
@@ -785,6 +795,15 @@ function buildUserPrompt(request: ChatbotLlmRequest): string {
   ]
     .filter((line): line is string => Boolean(line))
     .join("\n")
+}
+
+function buildDedicatedThreadPatchPrompt(request: ChatbotLlmRequest): string {
+  const latestUserMessage = request.latestUserMessage?.trim()
+  if (latestUserMessage) return `user: ${latestUserMessage}`
+
+  const lastMessage = request.messages.at(-1)
+  if (!lastMessage) return emptyText
+  return `${lastMessage.role}: ${lastMessage.content}`
 }
 
 function buildPromptMessages(

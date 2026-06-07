@@ -91,6 +91,7 @@ function setup(overrides: {
     truncateConversationFromMessage: vi.fn().mockResolvedValue({ deletedCount: 0 }),
     updateConversationRouting: vi.fn(),
     linkConversationToUser: vi.fn(),
+    setConversationNotionAiThreadId: vi.fn(),
   }
   const generate = vi.fn().mockResolvedValue({
     rawText: "返信です",
@@ -116,6 +117,113 @@ function setup(overrides: {
 }
 
 describe("handleChatbotMessage user context", () => {
+  it("keeps the fixed-thread request shape when dedicated Notion AI threads are disabled", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", notionAiThreadId: "thread-existing" },
+      }),
+    })
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "相談です" },
+      { ...harness.options, dedicatedNotionAiThreadsEnabled: false },
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0]).not.toHaveProperty("notionAiThread")
+    expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
+      { role: "user", content: "current session text" },
+      { role: "user", content: "相談です" },
+    ])
+    expect(harness.repository.setConversationNotionAiThreadId).not.toHaveBeenCalled()
+  })
+
+  it("stores the created Notion AI thread id after the first dedicated-thread Tier 1 turn", async () => {
+    const harness = setup({ existingConversation: null })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "返信です",
+      tier: "tier-1-chrome-notion-ai",
+      diagnostics: {
+        notionAiThreadId: "thread-created-a",
+        notionAiThreadCreated: true,
+      },
+      proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
+    })
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "初回相談です" },
+      { ...harness.options, dedicatedNotionAiThreadsEnabled: true },
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].notionAiThread).toEqual({})
+    expect(harness.repository.setConversationNotionAiThreadId).toHaveBeenCalledWith({
+      conversationId: "created_session_1",
+      threadId: "thread-created-a",
+    })
+  })
+
+  it("keeps separate conversation ids bound to their own Notion AI thread ids", async () => {
+    const harnessA = setup({
+      existingConversation: conversation({
+        id: "conv_a",
+        context: { sessionId: "session_a", userId: "user_a", notionAiThreadId: "thread-a" },
+        messages: [{ id: "a_old", role: "user", content: "Aだけの過去発言", createdAt: "2026-05-26T00:00:00.000Z" }],
+      }),
+    })
+    harnessA.repository.loadConversationBySessionId.mockImplementation(async (sessionId: string) => {
+      if (sessionId === "session_a") {
+        return conversation({
+          id: "conv_a",
+          context: { sessionId: "session_a", userId: "user_a", notionAiThreadId: "thread-a" },
+          messages: [{ id: "a_old", role: "user", content: "Aだけの過去発言", createdAt: "2026-05-26T00:00:00.000Z" }],
+        })
+      }
+      return null
+    })
+    const harnessB = setup({
+      existingConversation: conversation({
+        id: "conv_b",
+        context: { sessionId: "session_b", userId: "user_b", notionAiThreadId: "thread-b" },
+        messages: [{ id: "b_old", role: "user", content: "Bだけの過去発言", createdAt: "2026-05-26T00:00:00.000Z" }],
+      }),
+    })
+    harnessB.repository.loadConversationBySessionId.mockImplementation(async (sessionId: string) => {
+      if (sessionId === "session_b") {
+        return conversation({
+          id: "conv_b",
+          context: { sessionId: "session_b", userId: "user_b", notionAiThreadId: "thread-b" },
+          messages: [{ id: "b_old", role: "user", content: "Bだけの過去発言", createdAt: "2026-05-26T00:00:00.000Z" }],
+        })
+      }
+      return null
+    })
+
+    await handleChatbotMessage(
+      { sessionId: "session_a", userId: "user_a", message: "Aの新規発言" },
+      { ...harnessA.options, dedicatedNotionAiThreadsEnabled: true },
+    )
+    await handleChatbotMessage(
+      { sessionId: "session_b", userId: "user_b", message: "Bの新規発言" },
+      { ...harnessB.options, dedicatedNotionAiThreadsEnabled: true },
+    )
+
+    expect(harnessA.generate.mock.calls[0]?.[0]).toMatchObject({
+      notionAiThread: { threadId: "thread-a" },
+      messages: [
+        { role: "user", content: "Aだけの過去発言" },
+        { role: "user", content: "Aの新規発言" },
+      ],
+    })
+    expect(JSON.stringify(harnessA.generate.mock.calls[0]?.[0])).not.toContain("Bだけの過去発言")
+    expect(harnessB.generate.mock.calls[0]?.[0]).toMatchObject({
+      notionAiThread: { threadId: "thread-b" },
+      messages: [
+        { role: "user", content: "Bだけの過去発言" },
+        { role: "user", content: "Bの新規発言" },
+      ],
+    })
+    expect(JSON.stringify(harnessB.generate.mock.calls[0]?.[0])).not.toContain("Aだけの過去発言")
+  })
+
   it("loads authenticated user context and injects it into the system prompt", async () => {
     const harness = setup()
 

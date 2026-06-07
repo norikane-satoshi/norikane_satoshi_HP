@@ -17,9 +17,11 @@ import {
   linkConversationToUser,
   loadUserChatbotContext,
   loadConversationBySessionId,
+  setConversationNotionAiThreadId,
   truncateConversationFromMessage,
   updateConversationRouting,
   type ChatbotLlmClient,
+  type ChatbotLlmRequest,
   type ChatbotLlmResponse,
   type ChatbotLlmTierOrchestrator,
   decideRoutingFallback,
@@ -89,6 +91,7 @@ type ChatbotMessageRepository = {
   truncateConversationFromMessage: typeof truncateConversationFromMessage
   updateConversationRouting: typeof updateConversationRouting
   linkConversationToUser: typeof linkConversationToUser
+  setConversationNotionAiThreadId: typeof setConversationNotionAiThreadId
 }
 
 type HandleChatbotMessageOptions = {
@@ -97,6 +100,7 @@ type HandleChatbotMessageOptions = {
   userContextLoader?: typeof loadUserChatbotContext
   userContextFormatter?: typeof formatUserChatbotContextForPrompt
   operatorNotificationSender?: typeof sendOperatorConsultationNotification
+  dedicatedNotionAiThreadsEnabled?: boolean
 }
 
 const defaultRepository: ChatbotMessageRepository = {
@@ -106,6 +110,7 @@ const defaultRepository: ChatbotMessageRepository = {
   truncateConversationFromMessage,
   updateConversationRouting,
   linkConversationToUser,
+  setConversationNotionAiThreadId,
 }
 
 export async function handleChatbotMessage(
@@ -117,6 +122,8 @@ export async function handleChatbotMessage(
   const userContextLoader = options.userContextLoader ?? loadUserChatbotContext
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
   const operatorNotificationSender = options.operatorNotificationSender ?? sendOperatorConsultationNotification
+  const dedicatedNotionAiThreadsEnabled =
+    options.dedicatedNotionAiThreadsEnabled ?? isDedicatedNotionAiThreadsEnabled()
   let conversation =
     (await repository.loadConversationBySessionId(input.sessionId)) ??
     (await repository.createConversation({ sessionId: input.sessionId, userId: input.userId ?? null }))
@@ -173,7 +180,7 @@ export async function handleChatbotMessage(
     userMessage,
     activeChoiceAnswer?.conversationState,
   )
-  const llmResponse = await orchestrator.generate({
+  const llmRequest: ChatbotLlmRequest = {
     systemPrompt: buildChatbotSystemPrompt(userContext, userContextFormatter),
     messages: [
       ...conversation.messages.map(({ role, content }) => ({ role, content })),
@@ -184,6 +191,16 @@ export async function handleChatbotMessage(
     latestUserMessage: input.message,
     temperature: 0.2,
     maxOutputTokens: 900,
+  }
+  if (dedicatedNotionAiThreadsEnabled) {
+    llmRequest.notionAiThread = toConversationNotionAiThread(conversation)
+  }
+  const llmResponse = await orchestrator.generate(llmRequest)
+  await maybePersistDedicatedNotionAiThread({
+    enabled: dedicatedNotionAiThreadsEnabled,
+    conversation,
+    llmResponse,
+    repository,
   })
   const deterministicRoutingDecision = decideRoutingFallback({
     jobContext,
@@ -300,6 +317,42 @@ function createDefaultChatbotLlmOrchestrator(): ChatbotLlmTierOrchestrator {
   return createChatbotLlmTierOrchestrator({
     clients,
     onTierAttempt: createLocalChatbotTierAttemptLogger(),
+  })
+}
+
+function isDedicatedNotionAiThreadsEnabled(
+  env: { CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS?: string } = process.env as {
+    CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS?: string
+  },
+): boolean {
+  return env.CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS === "1"
+}
+
+function toConversationNotionAiThread(
+  conversation: ChatbotConversation,
+): NonNullable<ChatbotLlmRequest["notionAiThread"]> {
+  return conversation.context.notionAiThreadId
+    ? { threadId: conversation.context.notionAiThreadId }
+    : {}
+}
+
+async function maybePersistDedicatedNotionAiThread(input: {
+  enabled: boolean
+  conversation: ChatbotConversation
+  llmResponse: ChatbotLlmResponse
+  repository: ChatbotMessageRepository
+}): Promise<void> {
+  if (!input.enabled) return
+  if (input.conversation.context.notionAiThreadId) return
+  if (input.llmResponse.tier !== "tier-1-chrome-notion-ai") return
+  if (input.llmResponse.diagnostics?.notionAiThreadCreated !== true) return
+
+  const threadId = input.llmResponse.diagnostics.notionAiThreadId
+  if (typeof threadId !== "string" || threadId.length === 0) return
+
+  await input.repository.setConversationNotionAiThreadId({
+    conversationId: input.conversation.id,
+    threadId,
   })
 }
 

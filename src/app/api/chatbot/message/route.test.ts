@@ -63,6 +63,7 @@ async function loadPost({
   const updateConversationRouting = vi.fn().mockResolvedValue(undefined)
   const truncateConversationFromMessage = vi.fn().mockResolvedValue({ deletedCount: 0 })
   const linkConversationToUser = vi.fn().mockResolvedValue(undefined)
+  const setConversationNotionAiThreadId = vi.fn().mockResolvedValue(undefined)
   const loadUserChatbotContext = vi.fn().mockResolvedValue({
     userId: "user_1",
     recentConversations: [],
@@ -85,6 +86,7 @@ async function loadPost({
     truncateConversationFromMessage,
     updateConversationRouting,
     linkConversationToUser,
+    setConversationNotionAiThreadId,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     decideRoutingFallback,
@@ -115,6 +117,7 @@ async function loadPost({
     updateConversationRouting,
     truncateConversationFromMessage,
     linkConversationToUser,
+    setConversationNotionAiThreadId,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     generate,

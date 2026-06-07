@@ -28,6 +28,15 @@ type ChatbotConversationRow = Prisma.ChatbotConversationGetPayload<{
   include: { messages: true }
 }>
 
+type ChatbotConversationContextFields = {
+  currentQuestion?: string | null
+  activeChoices?: string | null
+  conversationState?: string | null
+  notionAiThreadId?: string | null
+}
+
+type ChatbotConversationRowWithContext = ChatbotConversationRow & ChatbotConversationContextFields
+
 type ChatbotMessageRow = Prisma.ChatbotMessageGetPayload<Record<string, never>>
 
 type InquiryCreateData = Prisma.ChatbotInquiryCreateInput
@@ -56,7 +65,7 @@ export async function createConversation(input: {
     },
   })
 
-  return toDomainConversation({ ...row, messages: [] })
+  return toDomainConversation({ ...row, ...emptyConversationContextFields(), messages: [] })
 }
 
 export async function loadConversationBySessionId(
@@ -235,6 +244,19 @@ export async function linkConversationToUser(input: {
   })
 }
 
+export async function setConversationNotionAiThreadId(input: {
+  conversationId: string
+  threadId: string
+}): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `UPDATE ChatbotConversation
+     SET notionAiThreadId = ?
+     WHERE id = ?`,
+    input.threadId,
+    input.conversationId,
+  )
+}
+
 export async function linkChatToBookingGroup(input: {
   conversationId: string
   bookingGroupId: string
@@ -258,7 +280,7 @@ export async function linkChatToBookingGroup(input: {
   })
 }
 
-function toDomainConversation(row: ChatbotConversationRow): ChatbotConversation {
+function toDomainConversation(row: ChatbotConversationRowWithContext): ChatbotConversation {
   const routingDecisionKind = toRoutingDecisionKind(row.routingDecision)
   const jobContext = toJobContext(row)
   const activeChoices = toSurveyChoiceSet(row.activeChoices)
@@ -266,6 +288,7 @@ function toDomainConversation(row: ChatbotConversationRow): ChatbotConversation 
   const context: ChatbotConversationContext = {
     sessionId: row.sessionId,
     ...(row.userId ? { userId: row.userId } : {}),
+    ...(row.notionAiThreadId ? { notionAiThreadId: row.notionAiThreadId } : {}),
     ...(row.customerEmail ? { customerEmail: row.customerEmail } : {}),
     ...(row.currentQuestion ? { currentQuestion: row.currentQuestion } : {}),
     ...(activeChoices ? { activeChoices } : {}),
@@ -385,21 +408,37 @@ async function loadConversationContextFields(conversationId: string): Promise<{
   currentQuestion: string | null
   activeChoices: string | null
   conversationState: string | null
+  notionAiThreadId: string | null
 }> {
   const rows = await prisma.$queryRawUnsafe<
     Array<{
       currentQuestion: string | null
       activeChoices: string | null
       conversationState: string | null
+      notionAiThreadId: string | null
     }>
   >(
-    `SELECT currentQuestion, activeChoices, conversationState
+    `SELECT currentQuestion, activeChoices, conversationState, notionAiThreadId
      FROM ChatbotConversation
      WHERE id = ?`,
     conversationId,
   )
 
-  return rows[0] ?? { currentQuestion: null, activeChoices: null, conversationState: null }
+  return rows[0] ?? emptyConversationContextFields()
+}
+
+function emptyConversationContextFields(): {
+  currentQuestion: null
+  activeChoices: null
+  conversationState: null
+  notionAiThreadId: null
+} {
+  return {
+    currentQuestion: null,
+    activeChoices: null,
+    conversationState: null,
+    notionAiThreadId: null,
+  }
 }
 
 async function updateConversationContextFields(input: {

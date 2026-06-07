@@ -14,6 +14,7 @@ export type ChatbotMessage = {
 export type ChatbotConversationContext = {
   sessionId: string
   userId?: string
+  notionAiThreadId?: string
   customerEmail?: string
   currentQuestion?: string
   activeChoices?: SurveyChoiceSet

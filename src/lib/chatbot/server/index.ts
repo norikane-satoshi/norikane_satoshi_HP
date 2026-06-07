@@ -12,6 +12,7 @@ export {
   loadConversationBySessionId,
   recordInquiry,
   recordSurveyResponse,
+  setConversationNotionAiThreadId,
   truncateConversationFromMessage,
   updateConversationRouting,
 } from "@/lib/chatbot/server/repository"
