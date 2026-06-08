@@ -5,6 +5,7 @@ import {
   additionalWorkChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
+  productionOptionChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import { applyActiveChoiceAnswer } from "@/lib/chatbot/server/choice-panel-state"
@@ -15,6 +16,7 @@ function baseState(overrides: Partial<ConversationState> = {}): ConversationStat
     hasFinalMedium: false,
     hasJobKind: false,
     hasProjectLength: false,
+    hasMaterialHandoff: true,
     hasAdditionalWork: false,
     hasDocumentaryAttachments: false,
     hasWorkSite: false,
@@ -86,6 +88,13 @@ describe("choice panel state", () => {
     [additionalWorkChoices, "選択: retouch, skin-retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch", "skin-retouch"] }],
     [additionalWorkChoices, "選択: none, retouch", { hasAdditionalWork: true }, { additionalWork: undefined }],
     [additionalWorkChoices, "なし", { hasAdditionalWork: true }, { additionalWork: undefined }],
+    [
+      productionOptionChoices,
+      "選択: captions, narration",
+      { hasProductionOptions: true, productionOptions: ["captions", "narration"] },
+      {},
+    ],
+    [productionOptionChoices, "選択: none, music", { hasProductionOptions: true, productionOptions: [] }, {}],
     [
       documentaryAttachmentChoices,
       "interview",

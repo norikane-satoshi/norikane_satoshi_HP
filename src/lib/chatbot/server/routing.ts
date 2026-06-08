@@ -8,6 +8,7 @@ import {
   additionalWorkChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
+  productionOptionChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import { directContactPolicyMessage } from "@/lib/chatbot/knowledge/forbidden-topics"
@@ -80,6 +81,7 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     conversationState.hasFinalMedium &&
     conversationState.hasJobKind &&
     conversationState.hasProjectLength &&
+    Boolean(conversationState.hasMaterialHandoff) &&
     conversationState.hasContactEmail
   ) {
     return {
@@ -159,6 +161,13 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
     }
   }
 
+  if (!conversationState.hasMaterialHandoff) {
+    return {
+      kind: "continue",
+      nextQuestion: "撮影素材をどう受け渡す予定か教えてください",
+    }
+  }
+
   if (!conversationState.hasAdditionalWork) {
     return {
       kind: "continue",
@@ -187,6 +196,35 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
     return {
       kind: "continue",
       nextQuestion: "事前に把握しておきたい参考URLがあれば教えてください",
+    }
+  }
+
+  if (!conversationState.hasMaterialDetails) {
+    return {
+      kind: "continue",
+      nextQuestion: "差し支えなければ、素材内容（カメラ台数・収録形式・解像度・フレームレートなど）も教えてください",
+    }
+  }
+
+  if (!conversationState.hasDeliveryFormat) {
+    return {
+      kind: "continue",
+      nextQuestion: "納品形式と解像度の希望があれば教えてください",
+    }
+  }
+
+  if (!conversationState.hasProductionOptions) {
+    return {
+      kind: "continue",
+      nextQuestion: "字幕・テロップ、ナレーション、音楽の有無を教えてください",
+      presentChoices: productionOptionChoices,
+    }
+  }
+
+  if (!conversationState.hasBudgetRange) {
+    return {
+      kind: "continue",
+      nextQuestion: "差し支えなければで構いませんので、ご予算の目安（レンジ）があれば教えてください",
     }
   }
 
@@ -230,6 +268,7 @@ function shouldPrioritizeSchedule(
     conversationState.hasDesiredSchedule &&
     conversationState.hasJobKind &&
     conversationState.hasProjectLength &&
+    Boolean(conversationState.hasMaterialHandoff) &&
     (conversationState.hasFinalMedium || jobContext.finalMedium === "web") &&
     isCandidateWindowJob(jobContext)
   )

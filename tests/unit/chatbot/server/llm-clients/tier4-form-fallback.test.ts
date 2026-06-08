@@ -13,6 +13,7 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
     hasFinalMedium: true,
     hasJobKind: true,
     hasProjectLength: true,
+    hasMaterialHandoff: true,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,

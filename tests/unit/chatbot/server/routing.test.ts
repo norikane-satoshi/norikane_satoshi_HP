@@ -4,6 +4,7 @@ import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
   finalMediumChoices,
+  productionOptionChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
@@ -29,6 +30,7 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
     hasFinalMedium: true,
     hasJobKind: true,
     hasProjectLength: true,
+    hasMaterialHandoff: true,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
@@ -140,6 +142,52 @@ describe("chatbot fallback router", () => {
     expect(result).toMatchObject({
       kind: "continue",
       nextQuestion: "案件種別と尺を教えてください",
+    })
+  })
+
+  it("keeps asking for material handoff before inline booking", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({ hasMaterialHandoff: false }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("撮影素材"),
+    })
+  })
+
+  it("does not require optional pre-booking details for inline booking", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({
+        hasMaterialDetails: false,
+        hasDeliveryFormat: false,
+        hasProductionOptions: false,
+        hasBudgetRange: false,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "to-booking-inline",
+    })
+  })
+
+  it("continues with production option choices while optional intake is still in progress", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({
+        hasDesiredSchedule: false,
+        hasContactEmail: false,
+        hasMaterialDetails: true,
+        hasDeliveryFormat: true,
+        hasProductionOptions: false,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      presentChoices: productionOptionChoices,
     })
   })
 

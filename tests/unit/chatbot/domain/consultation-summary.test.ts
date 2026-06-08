@@ -70,6 +70,7 @@ describe("consultation summary", () => {
           hasFinalMedium: true,
           hasJobKind: true,
           hasProjectLength: true,
+          hasMaterialHandoff: true,
           hasWorkSite: true,
           hasDesiredSchedule: true,
           hasContactEmail: true,
@@ -87,6 +88,20 @@ describe("consultation summary", () => {
           hasWorkSite: true,
           hasDesiredSchedule: true,
           hasContactEmail: true,
+        },
+      }),
+    ).toBe(false)
+
+    expect(
+      hasRequiredConsultationNotificationSlots({
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasWorkSite: true,
+          hasDesiredSchedule: true,
+          hasContactEmail: true,
+          contactEmail: "client@example.com",
         },
       }),
     ).toBe(false)

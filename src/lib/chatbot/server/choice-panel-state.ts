@@ -68,6 +68,27 @@ export function applyActiveChoiceAnswer(input: {
         conversationState: { hasWorkSite: true },
         jobContext: { workSite: toWorkSite(choice.id) },
       }
+    case "production-options":
+      if (choices.some((item) => item.id === "none")) {
+        return {
+          choiceSetId: input.activeChoices.id,
+          choiceId: "none",
+          choiceIds: ["none"],
+          conversationState: { hasProductionOptions: true, productionOptions: [] },
+          jobContext: {},
+        }
+      }
+
+      return {
+        choiceSetId: input.activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: choices.map((item) => item.id),
+        conversationState: {
+          hasProductionOptions: true,
+          productionOptions: choices.map((item) => item.id as ProductionOption),
+        },
+        jobContext: {},
+      }
     default:
       return null
   }
@@ -86,6 +107,8 @@ export function isSatisfiedChoicePanel(
       return conversationState.hasDocumentaryAttachments
     case "work-site":
       return conversationState.hasWorkSite
+    case "production-options":
+      return Boolean(conversationState.hasProductionOptions)
     default:
       return false
   }
@@ -110,6 +133,7 @@ function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: str
 }
 
 type AdditionalWork = NonNullable<JobContext["additionalWork"]>[number]
+type ProductionOption = NonNullable<ConversationState["productionOptions"]>[number]
 
 function toDocumentaryAttachment(choiceId: string): DocumentaryAttachment {
   if (choiceId === "none") return { kind: "none" }

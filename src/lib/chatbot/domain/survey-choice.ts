@@ -60,9 +60,23 @@ export const workSiteChoices = {
   ],
 } as const satisfies SurveyChoiceSet
 
+export const productionOptionChoices = {
+  id: "production-options",
+  question: "字幕・テロップ、ナレーション、音楽はありますか",
+  selectionMode: "multiple",
+  choices: [
+    { id: "captions", label: "字幕" },
+    { id: "telops", label: "テロップ" },
+    { id: "narration", label: "ナレーション" },
+    { id: "music", label: "音楽" },
+    { id: "none", label: "なし" },
+  ],
+} as const satisfies SurveyChoiceSet
+
 export const surveyChoiceSets = [
   finalMediumChoices,
   additionalWorkChoices,
   documentaryAttachmentChoices,
   workSiteChoices,
+  productionOptionChoices,
 ] as const satisfies readonly SurveyChoiceSet[]

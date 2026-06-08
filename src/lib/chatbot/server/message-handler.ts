@@ -517,10 +517,15 @@ function buildConversationState(
     hasFinalMedium: false,
     hasJobKind: false,
     hasProjectLength: false,
+    hasMaterialHandoff: false,
+    hasMaterialDetails: false,
     hasAdditionalWork: false,
     hasDocumentaryAttachments: false,
     hasWorkSite: false,
     hasReferenceUrls: false,
+    hasDeliveryFormat: false,
+    hasProductionOptions: false,
+    hasBudgetRange: false,
     hasContactEmail: false,
     hasDesiredSchedule: false,
     ...stored,
@@ -550,6 +555,18 @@ function buildConversationState(
       input?.hasProjectLength,
       activeChoiceConversationState?.hasProjectLength,
     ),
+    hasMaterialHandoff: isSlotSatisfied(
+      stored.hasMaterialHandoff,
+      inferred.hasMaterialHandoff,
+      input?.hasMaterialHandoff,
+      activeChoiceConversationState?.hasMaterialHandoff,
+    ),
+    hasMaterialDetails: isSlotSatisfied(
+      stored.hasMaterialDetails,
+      inferred.hasMaterialDetails,
+      input?.hasMaterialDetails,
+      activeChoiceConversationState?.hasMaterialDetails,
+    ),
     hasAdditionalWork: isSlotSatisfied(
       stored.hasAdditionalWork,
       inferred.hasAdditionalWork,
@@ -569,6 +586,14 @@ function buildConversationState(
       activeChoiceConversationState?.hasWorkSite,
     ),
     hasReferenceUrls: isSlotSatisfied(stored.hasReferenceUrls, inferred.hasReferenceUrls, input?.hasReferenceUrls),
+    hasDeliveryFormat: isSlotSatisfied(stored.hasDeliveryFormat, inferred.hasDeliveryFormat, input?.hasDeliveryFormat),
+    hasProductionOptions: isSlotSatisfied(
+      stored.hasProductionOptions,
+      inferred.hasProductionOptions,
+      input?.hasProductionOptions,
+      activeChoiceConversationState?.hasProductionOptions,
+    ),
+    hasBudgetRange: isSlotSatisfied(stored.hasBudgetRange, inferred.hasBudgetRange, input?.hasBudgetRange),
     hasContactEmail: isSlotSatisfied(stored.hasContactEmail, inferred.hasContactEmail, input?.hasContactEmail),
     hasDesiredSchedule: isSlotSatisfied(stored.hasDesiredSchedule, inferred.hasDesiredSchedule, input?.hasDesiredSchedule),
     hasCustomerIdentity: isSlotSatisfied(
@@ -680,6 +705,7 @@ function buildUiOpenQuestions(conversationState: ConversationState): string[] {
   return [
     conversationState.hasFinalMedium ? undefined : "最終媒体未確認",
     conversationState.hasJobKind && conversationState.hasProjectLength ? undefined : "案件種別・尺未確認",
+    conversationState.hasMaterialHandoff ? undefined : "素材受け渡し未確認",
     conversationState.hasAdditionalWork ? undefined : "追加作業未確認",
     conversationState.hasDocumentaryAttachments ? undefined : "付随映像未確認",
     conversationState.hasWorkSite ? undefined : "作業場所未確認",
@@ -699,6 +725,12 @@ function inferConversationStateFromText(text: string): Partial<ConversationState
   const identity = inferCustomerIdentityFromText(text)
   const hasCustomerIdentity = identity.hasCustomerIdentity
   const hasDeliveryFormat = /(?:納品形式|納品フォーマット|prores|mp4|mov|h\.?264|h\.?265)/iu.test(text)
+  const hasMaterialHandoff =
+    /(?:受け渡し|オンライン共有|共有リンク|ギガファイル|gigafile|google\s*drive|dropbox|クラウド|アップロード|sd|hdd|ssd|郵送|持ち込み|搬入|転送)/iu.test(text)
+  const hasMaterialDetails =
+    /(?:素材内容|カメラ\s*\d+\s*台|カメラ台数|収録形式|解像度|フレームレート|fps|4k|full\s*hd|fullhd|1080|prores|raw|log|s-log)/iu.test(text)
+  const hasProductionOptions = /(?:字幕|テロップ|ナレーション|音楽|bgm)/iu.test(text)
+  const hasBudgetRange = /(?:予算|ご予算|概算|レンジ|\d+\s*(?:万|万円|円)|budget)/iu.test(text)
   const hasMeetingPreference = /(?:打ち合わせ|ミーティング|オンライン|zoom|meet)/iu.test(text)
   const hasWorkSite = /(?:作業場所|立ち会い|リモート|オンライン|スタジオ|現地)/u.test(text)
   const hasTransfer = /(?:素材|搬入|受け渡し|アップロード|drive|dropbox|gigafile|ギガファイル)/iu.test(text)
@@ -707,6 +739,8 @@ function inferConversationStateFromText(text: string): Partial<ConversationState
     hasFinalMedium: /(?:web\s*cm|web|cm|mv|ミュージックビデオ|sns|ott|tv|テレビ|劇場|live|ライブ)/iu.test(text),
     hasJobKind: /(?:ab\s*タイプ|a\/b|2\s*本|２\s*本|cm|mv|web\s*cm|live|ライブ)/iu.test(text),
     hasProjectLength,
+    hasMaterialHandoff,
+    hasMaterialDetails,
     hasAdditionalWork: /(?:カラグレ|カラーグレーディング|追加作業|修正|レタッチ|なし)/u.test(text),
     hasDocumentaryAttachments: /(?:付随|資料|参考|なし|素材)/u.test(text),
     hasWorkSite,
@@ -718,6 +752,8 @@ function inferConversationStateFromText(text: string): Partial<ConversationState
     customerName: identity.customerName,
     companyName: identity.companyName,
     hasDeliveryFormat,
+    hasProductionOptions,
+    hasBudgetRange,
     hasMeetingPreference,
   } as Partial<ConversationState>
 }

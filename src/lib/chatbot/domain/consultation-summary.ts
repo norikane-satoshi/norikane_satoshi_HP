@@ -85,9 +85,10 @@ export function hasRequiredConsultationNotificationSlots(input: {
 }): boolean {
   const state = input.conversationState ?? {}
   return Boolean(
-      state.hasFinalMedium &&
+    state.hasFinalMedium &&
       state.hasJobKind &&
       state.hasProjectLength &&
+      state.hasMaterialHandoff &&
       state.hasWorkSite &&
       state.hasDesiredSchedule &&
       state.hasContactEmail &&
@@ -100,9 +101,10 @@ export function hasRequiredEmailConsultationSlots(input: {
 }): boolean {
   const state = input.conversationState ?? {}
   return Boolean(
-      state.hasFinalMedium &&
+    state.hasFinalMedium &&
       state.hasJobKind &&
       state.hasProjectLength &&
+      state.hasMaterialHandoff &&
       state.hasWorkSite &&
       state.hasContactEmail &&
       state.contactEmail,
