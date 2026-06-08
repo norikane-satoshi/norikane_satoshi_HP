@@ -238,7 +238,12 @@ function buildMessages(request: ChatbotLlmRequest) {
     request.messages.at(-1)?.content === request.latestUserMessage
 
   return [
-    { role: roleSystem, content: request.systemPrompt },
+    {
+      role: roleSystem,
+      content: [request.systemPrompt, request.knowledgeContext?.localMirrorPrompt]
+        .filter((line): line is string => Boolean(line))
+        .join("\n"),
+    },
     ...request.messages,
     request.latestUserMessage && !latestAlreadyIncluded
       ? { role: roleUser, content: request.latestUserMessage }

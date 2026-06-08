@@ -31,7 +31,7 @@ const pressLines = PRESS_CATEGORIES.flatMap((category) => [
 
 const noteLines = publishedNotesSnapshot.map(
   (note) =>
-    `- ${note.title} (${note.sourceUrl}, lastEdited=${note.lastEditedTime})\n本文:\n${note.body}`,
+    `- ${note.title} (${note.sourceUrl}, lastEdited=${note.lastEditedTime})`,
 )
 
 const workLines = FEATURED_WORKS.map((work) => {
@@ -50,7 +50,7 @@ export const hpPublicKnowledge = [
   "プロフィール / 経歴:",
   ...profileLines,
   "",
-  "ノート（HP公開済み静的スナップショット。タイトルと本文）:",
+  "ノート（HP公開済み情報。詳細本文はオンデマンド知識参照で扱う）:",
   ...noteLines,
   "",
   "プレス / 掲載:",

@@ -209,6 +209,37 @@ describe("Tier3OllamaDeepSeekClient", () => {
     expect(body.messages.filter((message) => message.content === latestUserMessage)).toHaveLength(1)
   })
 
+  it("adds selected local mirror detail only to the system message", async () => {
+    const httpClient = vi.fn(async () =>
+      jsonResponse({ message: { content: "候補日を 2 つ確認しました。" } }),
+    )
+    const client = ollamaClient(httpClient)
+
+    await expect(
+      client.generate({
+        ...llmRequest(),
+        knowledgeContext: {
+          selectedSourceIds: ["notion:chatbot-consultation-design"],
+          notionReferencePrompt: "Notion page reference only",
+          localMirrorPrompt: "オンデマンド知識詳細（TIA3 local mirror）:\n- ライブ 60分: 7〜8日",
+        },
+      }),
+    ).resolves.toMatchObject({
+      rawText: "候補日を 2 つ確認しました。",
+    })
+
+    const calls = httpClient.mock.calls as unknown as Array<[string, RequestInit | undefined]>
+    const body = JSON.parse(String(calls[0]?.[1]?.body)) as {
+      messages: Array<{ role: string; content: string }>
+    }
+    expect(body.messages[0]).toMatchObject({
+      role: "system",
+      content: expect.stringContaining("オンデマンド知識詳細"),
+    })
+    expect(body.messages[0]?.content).toContain("ライブ 60分: 7〜8日")
+    expect(body.messages[0]?.content).not.toContain("Notion page reference only")
+  })
+
   it("caps requested output tokens so local Ollama returns before fallback timeout", async () => {
     const httpClient = vi.fn(async () => jsonResponse({ message: { content: "OK" } }))
     const client = ollamaClient(httpClient)

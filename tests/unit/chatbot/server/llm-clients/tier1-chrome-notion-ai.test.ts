@@ -555,6 +555,29 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(afterPrompt).not.toContain("A社のWeb CM")
   })
 
+  it("patches selected Notion knowledge references without resending the fixed prompt", () => {
+    const payload = buildPayloadForRequest({
+      ...llmRequest(),
+      systemPrompt: "固定プロンプトは再送しない",
+      messages: [{ role: "user", content: "過去の応答も再送しない" }],
+      latestUserMessage: "ライブの工程日数を知りたいです",
+      notionAiThread: { threadId: "thread-b" },
+      knowledgeContext: {
+        selectedSourceIds: ["notion:chatbot-consultation-design"],
+        notionReferencePrompt:
+          "オンデマンド知識参照（TIA1/TIA2 Notion AI）:\n- AIチャットボット 相談窓口の設計: 工程別日数テーブル",
+        localMirrorPrompt: "オンデマンド知識詳細（TIA3 local mirror）:\n- ライブ 60分: 7〜8日",
+      },
+    })
+    const prompt = payloadPrompt(payload)
+
+    expect(prompt).toContain("オンデマンド知識参照")
+    expect(prompt).toContain("AIチャットボット 相談窓口の設計")
+    expect(prompt).toContain("user: ライブの工程日数を知りたいです")
+    expect(prompt).not.toContain("固定プロンプト")
+    expect(prompt).not.toContain("7〜8日")
+  })
+
   it("compresses only older long history while keeping recent messages and fixed slots intact", () => {
     const messages = Array.from({ length: 20 }, (_, index) => ({
       role: index % 2 === 0 ? "user" as const : "assistant" as const,

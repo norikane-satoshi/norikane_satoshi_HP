@@ -875,6 +875,7 @@ function buildUserPrompt(request: ChatbotLlmRequest): string {
 
   return [
     request.systemPrompt,
+    request.knowledgeContext?.notionReferencePrompt,
     ...promptMessages.map((message) => `${message.role}: ${message.content}`),
   ]
     .filter((line): line is string => Boolean(line))
@@ -883,11 +884,23 @@ function buildUserPrompt(request: ChatbotLlmRequest): string {
 
 function buildDedicatedThreadPatchPrompt(request: ChatbotLlmRequest): string {
   const latestUserMessage = request.latestUserMessage?.trim()
-  if (latestUserMessage) return `user: ${latestUserMessage}`
+  if (latestUserMessage) {
+    return [
+      request.knowledgeContext?.notionReferencePrompt,
+      `user: ${latestUserMessage}`,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join("\n")
+  }
 
   const lastMessage = request.messages.at(-1)
   if (!lastMessage) return emptyText
-  return `${lastMessage.role}: ${lastMessage.content}`
+  return [
+    request.knowledgeContext?.notionReferencePrompt,
+    `${lastMessage.role}: ${lastMessage.content}`,
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n")
 }
 
 function buildPromptMessages(

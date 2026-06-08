@@ -11,6 +11,7 @@ function conversationRow(overrides = {}) {
     id: "conv_1",
     sessionId: "session_1",
     userId: "user_1",
+    notionAiThreadId: null,
     startedAt: now,
     lastMessageAt: new Date("2026-05-23T10:03:00.000Z"),
     routingDecision: "to-email",

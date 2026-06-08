@@ -37,6 +37,7 @@ import {
   isSatisfiedChoicePanel,
 } from "@/lib/chatbot/server/choice-panel-state"
 import { classifyChatbotTopic } from "@/lib/chatbot/server/topic-gate"
+import { buildChatbotKnowledgeContext } from "@/lib/chatbot/server/knowledge-context"
 import type { ConversationSummary } from "@/lib/chatbot/domain/workflow-estimate"
 import {
   hasRequiredConsultationNotificationSlots,
@@ -234,6 +235,11 @@ async function handleChatbotMessageCore(
     conversationState,
     jobContext,
     latestUserMessage: input.message,
+    knowledgeContext: buildChatbotKnowledgeContext({
+      latestUserMessage: input.message,
+      conversationState,
+      jobContext,
+    }),
     temperature: 0.2,
     maxOutputTokens: 900,
   }

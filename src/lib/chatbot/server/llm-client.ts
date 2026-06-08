@@ -4,6 +4,7 @@ import type {
   JobContext,
   RoutingDecision,
 } from "@/lib/chatbot/domain"
+import type { ChatbotKnowledgeContext } from "@/lib/chatbot/server/knowledge-context"
 
 export type ChatbotLlmTier =
   | "tier-1-chrome-notion-ai"
@@ -17,6 +18,7 @@ export type ChatbotLlmRequest = {
   notionAiThread?: {
     threadId?: string
   }
+  knowledgeContext?: ChatbotKnowledgeContext
   conversationState: ConversationState
   jobContext: JobContext
   latestUserMessage?: string
