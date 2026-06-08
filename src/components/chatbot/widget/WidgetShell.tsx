@@ -95,6 +95,50 @@ function cleanDefaultContactValue(value: unknown, kind: "company" | "person"): s
   return trimmed
 }
 
+type BookingCardJobContext = Extract<WidgetUi, { kind: "booking-card" }>["jobContext"]
+
+const additionalWorkMemoLabels: Record<NonNullable<BookingCardJobContext["additionalWork"]>[number], string> = {
+  retouch: "消し物/レタッチ",
+  "skin-retouch": "肌修正",
+  other: "その他追加作業",
+}
+
+const workSiteMemoLabels: Record<BookingCardJobContext["workSite"], string> = {
+  "satoshi-studio": "のりかね映像設計室",
+  "remote-grading": "リモート",
+  "on-site": "現地/ポスプロ常駐",
+}
+
+function buildBookingSupplementalNote(jobContext: BookingCardJobContext): string {
+  return [
+    formatProjectLengthMemo(jobContext.projectLengthMinutes),
+    formatAdditionalWorkMemo(jobContext.additionalWork),
+    formatWorkSiteMemo(jobContext.workSite),
+    jobContext.preferredStartDate ? `素材搬入/受け取り時期: ${jobContext.preferredStartDate}` : undefined,
+    jobContext.publicReleaseDate ? `納品希望日: ${jobContext.publicReleaseDate}` : undefined,
+    ...(jobContext.referenceUrls ?? []),
+  ].filter((item): item is string => Boolean(item)).join("\n")
+}
+
+function formatProjectLengthMemo(minutes: number | undefined): string | undefined {
+  if (minutes === undefined) return undefined
+  if (minutes >= 60) {
+    const hours = minutes / 60
+    return `尺: ${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`
+  }
+  return `尺: ${minutes}分`
+}
+
+function formatAdditionalWorkMemo(additionalWork: BookingCardJobContext["additionalWork"]): string | undefined {
+  if (!additionalWork?.length) return undefined
+  return `追加作業: ${additionalWork.map((item) => additionalWorkMemoLabels[item]).join(" / ")}`
+}
+
+function formatWorkSiteMemo(workSite: BookingCardJobContext["workSite"]): string | undefined {
+  if (!workSite) return undefined
+  return `作業場所: ${workSiteMemoLabels[workSite]}`
+}
+
 function sanitizeBookingCardActiveUi(value: Record<string, unknown>): WidgetUi {
   if (!isRecord(value.conversationState)) return noUi
 
@@ -736,7 +780,7 @@ function ActiveWidgetUi({
         defaultContactName={cleanDefaultContactValue(ui.conversationState?.customerName, "person")}
         defaultCompanyName={cleanDefaultContactValue(ui.conversationState?.companyName, "company")}
         defaultDueDate={ui.jobContext.publicReleaseDate}
-        defaultMemo={ui.jobContext.referenceUrls?.join("\n")}
+        defaultMemo={buildBookingSupplementalNote(ui.jobContext)}
       />
     )
   }

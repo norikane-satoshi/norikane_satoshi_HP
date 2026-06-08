@@ -65,8 +65,8 @@ describe("InquiryForm", () => {
       <InquiryForm
         mode="consultation-summary"
         initialEmail="client@example.com"
-        summaryText="live-60m / live / remote-grading / 日程未定"
-        openQuestions={["作業・立ち会い日程未確認"]}
+        summaryText="live-60m / live / remote-grading / 搬入〜納品未定"
+        openQuestions={["素材搬入〜納品時期未確認"]}
         onSubmit={vi.fn()}
       />,
     )

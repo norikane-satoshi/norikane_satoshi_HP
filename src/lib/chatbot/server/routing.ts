@@ -41,16 +41,6 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     return directContact("tight-deadline")
   }
 
-  if (
-    conversationState.daysUntilStart !== undefined &&
-    conversationState.daysUntilStart <= tightishDeadlineMaxDays
-  ) {
-    return {
-      kind: "continue",
-      nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
-    }
-  }
-
   if (conversationState.vfxCgHeavy) return directContact("vfx-cg-heavy")
   if (conversationState.editingIncomplete) return directContact("raw-edit-included")
   if (conversationState.asksPricing) return directContact("pricing")
@@ -73,6 +63,16 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
         ...jobContext,
         workflowEstimate: jobContext.workflowEstimate ?? buildWorkflowEstimate(jobContext),
       },
+    }
+  }
+
+  if (
+    conversationState.daysUntilStart !== undefined &&
+    conversationState.daysUntilStart <= tightishDeadlineMaxDays
+  ) {
+    return {
+      kind: "continue",
+      nextQuestion: "素材搬入時期と納品希望日を確認するため 1 点伸ばさせて下さい",
     }
   }
 
@@ -231,7 +231,7 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
   if (!conversationState.hasDesiredSchedule) {
     return {
       kind: "continue",
-      nextQuestion: "作業や立ち会いはいつごろできそうですか",
+      nextQuestion: "素材の搬入（受け取り）時期と納品希望日を教えてください",
     }
   }
 
@@ -243,7 +243,7 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
 
 function buildSummaryText(jobContext: JobContext, conversationState: ConversationState): string {
   const jobKind = jobContext.jobKind ?? "案件種別未確認"
-  const schedule = conversationState.hasDesiredSchedule ? "日程あり" : "日程未定"
+  const schedule = conversationState.hasDesiredSchedule ? "搬入〜納品あり" : "搬入〜納品未定"
 
   return `${jobKind} / ${jobContext.finalMedium} / ${jobContext.workSite} / ${schedule}`
 }
@@ -256,7 +256,7 @@ function buildOpenQuestions(conversationState: ConversationState): string[] {
     conversationState.hasDocumentaryAttachments ? undefined : "付随映像未確認",
     conversationState.hasWorkSite ? undefined : "作業場所未確認",
     conversationState.hasReferenceUrls ? undefined : "参考URL未確認",
-    conversationState.hasDesiredSchedule ? undefined : "作業・立ち会い日程未確認",
+    conversationState.hasDesiredSchedule ? undefined : "素材搬入〜納品時期未確認",
   ].filter((item): item is string => Boolean(item))
 }
 
@@ -324,17 +324,49 @@ function buildDateCandidateWindows(jobContext: JobContext) {
   const startDate = jobContext.preferredStartDate ?? "2026-06-15"
   const base = new Date(`${startDate}T10:00:00+09:00`)
   const offsets = [0, 1, 2]
+  const estimate = jobContext.workflowEstimate ?? buildWorkflowEstimate(jobContext)
+  const neededBusinessDays = Math.max(1, Math.ceil(estimate.totalMinDays))
 
   return offsets.map((offset) => {
-    const start = new Date(base.getTime() + offset * 24 * 60 * 60 * 1000)
-    const end = new Date(start.getTime() + 8 * 60 * 60 * 1000)
+    const start = nextBusinessDay(new Date(base.getTime() + offset * 24 * 60 * 60 * 1000))
+    const end = endOfBusinessWindow(start, neededBusinessDays)
     return {
       start: start.toISOString(),
       end: end.toISOString(),
-      label: formatJstDateCandidateLabel(start),
-      note: "日付候補",
+      label: `${formatJstDateCandidateLabel(start)} - ${formatJstDateCandidateLabel(end)}`,
+      note: `日付候補 / 仮キープ ${neededBusinessDays}営業日`,
     }
   })
+}
+
+function endOfBusinessWindow(start: Date, neededBusinessDays: number): Date {
+  let cursor = start
+  let counted = 0
+
+  while (counted < neededBusinessDays) {
+    if (isBusinessDay(cursor)) counted += 1
+    if (counted < neededBusinessDays) cursor = addJstDays(cursor, 1)
+  }
+
+  return new Date(cursor.getTime() + 8 * 60 * 60 * 1000)
+}
+
+function nextBusinessDay(date: Date): Date {
+  let cursor = date
+  while (!isBusinessDay(cursor)) {
+    cursor = addJstDays(cursor, 1)
+  }
+  return cursor
+}
+
+function isBusinessDay(date: Date): boolean {
+  const jstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000)
+  const day = jstDate.getUTCDay()
+  return day !== 0 && day !== 6
+}
+
+function addJstDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000)
 }
 
 function buildWorkflowEstimate(jobContext: JobContext) {

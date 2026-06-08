@@ -696,7 +696,7 @@ function buildConversationSummary(jobContext: JobContext, conversationState: Con
 
 function buildUiSummaryText(jobContext: JobContext, conversationState: ConversationState): string {
   const jobKind = jobContext.jobKind ?? "案件種別未確認"
-  const schedule = conversationState.hasDesiredSchedule ? "日程あり" : "日程未定"
+  const schedule = conversationState.hasDesiredSchedule ? "搬入〜納品あり" : "搬入〜納品未定"
 
   return `${jobKind} / ${jobContext.finalMedium} / ${jobContext.workSite} / ${schedule}`
 }
@@ -710,7 +710,7 @@ function buildUiOpenQuestions(conversationState: ConversationState): string[] {
     conversationState.hasDocumentaryAttachments ? undefined : "付随映像未確認",
     conversationState.hasWorkSite ? undefined : "作業場所未確認",
     conversationState.hasReferenceUrls ? undefined : "参考URL未確認",
-    conversationState.hasDesiredSchedule ? undefined : "作業・立ち会い日程未確認",
+    conversationState.hasDesiredSchedule ? undefined : "素材搬入〜納品時期未確認",
   ].filter((item): item is string => Boolean(item))
 }
 
@@ -720,7 +720,7 @@ function conversationText(conversation: ChatbotConversation, userMessage: Chatbo
 
 function inferConversationStateFromText(text: string): Partial<ConversationState> {
   const hasProjectLength = /(?:尺|長さ|length|duration|\d+\s*(?:時間|h|hours?|分|m|min|minutes?))/iu.test(text)
-  const hasSchedule = /(?:6月中旬|６月中旬|中旬|納品|公開|希望時期|作業したい|まで|deadline)/iu.test(text)
+  const hasSchedule = /(?:6月中旬|６月中旬|中旬|素材.*(?:搬入|受け取り|受取)|搬入|受け取り|受取|カラコレ開始|納品|公開|希望時期|月末|まで|deadline)/iu.test(text)
   const hasContactEmail = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu.test(text)
   const identity = inferCustomerIdentityFromText(text)
   const hasCustomerIdentity = identity.hasCustomerIdentity
@@ -815,8 +815,12 @@ function cleanInferredIdentityValue(value: string | undefined, kind: "company" |
 function inferJobContextFromText(text: string): Partial<JobContext> {
   const finalMedium = inferFinalMediumFromText(text)
   const projectLengthMinutes = inferProjectLengthMinutes(text)
-  const preferredStartDate = /(?:6月中旬|６月中旬|中旬)/u.test(text) ? "2026-06-15" : undefined
-  const publicReleaseDate = /(?:6月20日|６月２０日|6\/20|06-20)/u.test(text) ? "2026-06-20" : undefined
+  const preferredStartDate = /(?:6月中旬|６月中旬|中旬|6月中頃|６月中頃)/u.test(text) ? "2026-06-15" : undefined
+  const publicReleaseDate = /(?:6月20日|６月２０日|6\/20|06-20)/u.test(text)
+    ? "2026-06-20"
+    : /(?:月末|6月末|６月末)/u.test(text)
+      ? "2026-06-30"
+      : undefined
 
   return {
     ...(finalMedium ? { finalMedium } : {}),
@@ -829,6 +833,12 @@ function inferJobContextFromText(text: string): Partial<JobContext> {
 }
 
 function inferProjectLengthMinutes(text: string): number | undefined {
+  const mixedHourMatch = text.match(/(\d+)\s*(?:時間|h|hours?)\s*(?:半|30\s*(?:分|m|min|minutes?))/iu)
+  if (mixedHourMatch?.[1]) return Number.parseInt(mixedHourMatch[1], 10) * 60 + 30
+
+  const decimalHourMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:時間|h|hours?)/iu)
+  if (decimalHourMatch?.[1]) return Number.parseFloat(decimalHourMatch[1]) * 60
+
   const minuteMatch = text.match(/(\d+)\s*(?:分|m|min|minutes?)/iu)
   if (minuteMatch?.[1]) return Number.parseInt(minuteMatch[1], 10)
 

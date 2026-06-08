@@ -38,6 +38,8 @@ describe("chatbot static policy knowledge", () => {
       "drama-follow-up": "日付単位",
       "live-60m": "日付単位",
     })
+    expect(buildChatbotStaticPolicyPrompt()).toContain("素材搬入時期・納品希望日")
+    expect(buildChatbotStaticPolicyPrompt()).not.toContain("収録日")
   })
 
   it("keeps fixed prompt safeguards and representative knowledge after compaction", () => {

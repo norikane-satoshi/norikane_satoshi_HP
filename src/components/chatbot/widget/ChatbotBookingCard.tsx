@@ -61,6 +61,7 @@ function formatCandidateTimeRange(candidate: CandidateWindow): string {
   const start = new Date(candidate.start)
   const end = new Date(candidate.end)
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return candidate.label
+  if (isMultiDayCandidate(start, end)) return "連続日程"
 
   const formatter = new Intl.DateTimeFormat("ja-JP", {
     hour: "2-digit",
@@ -69,6 +70,10 @@ function formatCandidateTimeRange(candidate: CandidateWindow): string {
     timeZone: "Asia/Tokyo",
   })
   return `${formatter.format(start)}-${formatter.format(end)}`
+}
+
+function isMultiDayCandidate(start: Date, end: Date): boolean {
+  return formatCandidateDate(start.toISOString()) !== formatCandidateDate(end.toISOString())
 }
 
 function buildCandidateSeatMap(candidates: CandidateWindow[]) {
@@ -191,7 +196,7 @@ export function ChatbotBookingCard({
         <p className="text-xs uppercase tracking-[0.18em] text-hp-muted">Booking</p>
         <h2 className="mt-1 text-base font-semibold text-hp">候補日時から予約する</h2>
         <p className="mt-2 text-sm leading-relaxed text-hp-muted">
-          日程が決まっている場合は、候補を選んで予約内容を送信できます。
+          素材搬入時期と納品希望日が決まっている場合は、候補を仮キープして予約内容を送信できます。
         </p>
         {estimateText(estimate) ? (
           <p className="mt-2 text-xs font-medium text-hp-muted">{estimateText(estimate)}</p>
@@ -207,13 +212,13 @@ export function ChatbotBookingCard({
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <fieldset className="space-y-2">
-          <legend className="text-sm font-semibold text-hp">候補日時</legend>
-          <div className="overflow-x-auto rounded-[16px]" aria-label="候補日時の座席選択">
+          <legend className="text-sm font-semibold text-hp">仮キープ候補</legend>
+          <div className="overflow-x-auto rounded-[16px]" aria-label="仮キープ候補の座席選択">
             <div
               className="grid min-w-[520px] gap-2"
               style={{ gridTemplateColumns: `minmax(5.5rem,0.8fr) repeat(${Math.max(candidateSeatMap.dates.length, 1)}, minmax(8rem,1fr))` }}
             >
-              <div className="text-xs font-medium text-hp-muted">時間帯</div>
+              <div className="text-xs font-medium text-hp-muted">枠</div>
               {candidateSeatMap.dates.map((date) => (
                 <div key={date} className="text-center text-xs font-semibold text-hp">
                   {date}
@@ -313,12 +318,12 @@ export function ChatbotBookingCard({
             />
           </label>
           <label className="block text-sm font-medium text-hp sm:col-span-2">
-            補足メモ（任意）
+            補足ノート（任意）
             <textarea
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
               className="glass-input mt-2 min-h-24 w-full px-4 py-3 text-sm"
-              placeholder="事前に共有したい内容"
+              placeholder="入力欄に入りきらない共有事項"
             />
           </label>
         </div>

@@ -78,7 +78,7 @@ describe("chatbot fallback router", () => {
       nextQuestion: expect.stringContaining("案件種類"),
     })
     expect(result).toMatchObject({
-      nextQuestion: expect.stringContaining("スケジュールがだいたい決まっているか"),
+      nextQuestion: expect.stringContaining("素材搬入時期・納品希望日"),
     })
     expect(result).toMatchObject({
       nextQuestion: expect.stringContaining("お名前・会社名"),
@@ -204,7 +204,7 @@ describe("chatbot fallback router", () => {
     expect(result).toMatchObject({
       kind: "to-booking-inline",
       suggestedSlots: expect.arrayContaining([
-        expect.objectContaining({ note: "日付候補" }),
+        expect.objectContaining({ note: "日付候補 / 仮キープ 7営業日" }),
       ]),
       jobContext: expect.objectContaining({
         workflowEstimate: expect.objectContaining({
@@ -217,6 +217,40 @@ describe("chatbot fallback router", () => {
       suggestedSlots: expect.arrayContaining([
         expect.objectContaining({ note: "1時間候補" }),
       ]),
+    })
+  })
+
+  it("routes tightish live work with completed gates to inline booking", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({
+        jobKind: "live-60m",
+        finalMedium: "live",
+        workSite: "on-site",
+        projectLengthMinutes: 150,
+        preferredStartDate: "2026-06-15",
+        publicReleaseDate: "2026-06-30",
+        additionalWork: ["retouch", "skin-retouch"],
+        retouchCutCount: 70,
+      }),
+      conversationState: conversationState({
+        daysUntilStart: tightDeadlineThresholdDays + 2,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "to-booking-inline",
+      suggestedSlots: expect.arrayContaining([
+        expect.objectContaining({
+          label: expect.stringContaining(" - "),
+          note: "日付候補 / 仮キープ 9営業日",
+        }),
+      ]),
+      jobContext: expect.objectContaining({
+        workflowEstimate: expect.objectContaining({
+          totalMinDays: 8.5,
+          totalMaxDays: 10,
+        }),
+      }),
     })
   })
 
@@ -300,8 +334,7 @@ describe("chatbot fallback router", () => {
       reason: "tight-deadline",
     })
     expect(nextDay).toMatchObject({
-      kind: "continue",
-      nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
+      kind: "to-booking-inline",
     })
   })
 
@@ -318,8 +351,7 @@ describe("chatbot fallback router", () => {
     })
 
     expect(boundary).toMatchObject({
-      kind: "continue",
-      nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
+      kind: "to-booking-inline",
     })
     expect(nextDay).toMatchObject({
       kind: "to-booking-inline",

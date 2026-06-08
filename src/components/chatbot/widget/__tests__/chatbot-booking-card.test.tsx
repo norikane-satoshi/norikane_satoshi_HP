@@ -71,7 +71,7 @@ describe("ChatbotBookingCard", () => {
     renderCard()
 
     expect(screen.getByText("候補日時から予約する")).toBeInTheDocument()
-    expect(screen.getByLabelText("候補日時の座席選択")).toBeInTheDocument()
+    expect(screen.getByLabelText("仮キープ候補の座席選択")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /6月10日 午前/ })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "6月11日 午後" })).toBeInTheDocument()
     expect(screen.getByLabelText("会社名（任意）")).toHaveValue("株式会社サンプル")
@@ -86,6 +86,38 @@ describe("ChatbotBookingCard", () => {
     const unavailableCells = screen.getAllByRole("button", { name: "空きなし" })
     expect(unavailableCells.length).toBeGreaterThan(0)
     expect(unavailableCells[0]).toBeDisabled()
+  })
+
+  it("renders multi-day date candidates as keepable continuous seats", () => {
+    renderCard({
+      candidates: [
+        {
+          start: "2026-06-14T01:00:00.000Z",
+          end: "2026-06-23T09:00:00.000Z",
+          label: "6月14日 - 6月23日",
+          note: "日付候補 / 仮キープ 8営業日",
+        },
+      ],
+    })
+
+    const candidate = screen.getByRole("button", { name: /6月14日 - 6月23日/ })
+    expect(screen.getByText("連続日程")).toBeInTheDocument()
+    expect(candidate).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByText("日付候補 / 仮キープ 8営業日")).toBeInTheDocument()
+  })
+
+  it("prefills supplemental notes without mixing them into identity fields", () => {
+    renderCard({
+      defaultProjectTitle: "",
+      defaultContactName: "田中",
+      defaultCompanyName: "株式会社サンプル",
+      defaultMemo: "ライブ2.5h\nプロンプター消し物・顔アップ肌修正",
+    })
+
+    expect(screen.getByLabelText("補足ノート（任意）")).toHaveValue("ライブ2.5h\nプロンプター消し物・顔アップ肌修正")
+    expect(screen.getByLabelText("会社名（任意）")).toHaveValue("株式会社サンプル")
+    expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("田中")
+    expect(screen.getByLabelText("案件名（必須）")).toHaveValue("")
   })
 
   it("uses a wrapping auto-growing textarea for the project title", () => {

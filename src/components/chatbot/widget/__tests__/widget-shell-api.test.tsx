@@ -388,6 +388,10 @@ describe("WidgetShell API wiring", () => {
               finalMedium: "web",
               workSite: "remote-grading",
               documentaryAttachment: { kind: "none" },
+              projectLengthMinutes: 150,
+              additionalWork: ["retouch", "skin-retouch"],
+              preferredStartDate: "2026-06-15",
+              publicReleaseDate: "2026-06-30",
               workflowEstimate: { stages: [], totalMinDays: 2, totalMaxDays: 3, riskFlags: [] },
             },
             conversationState: {
@@ -415,6 +419,11 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "6月10日 午前" })).toBeInTheDocument()
+    expect(screen.getByLabelText("補足ノート（任意）")).toHaveValue(
+      "尺: 2.5h\n追加作業: 消し物/レタッチ / 肌修正\n作業場所: リモート\n素材搬入/受け取り時期: 2026-06-15\n納品希望日: 2026-06-30",
+    )
+    expect(screen.getByLabelText("会社名（任意）")).toHaveValue("株式会社サンプル")
+    expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("田中")
   })
 
   it("renders booking-card responses without conversationState", async () => {
@@ -650,8 +659,8 @@ describe("WidgetShell API wiring", () => {
               subject: "チャットボット相談",
               customerEmail: "client@example.com",
               jobContext: { finalMedium: "live", workSite: "remote-grading" },
-              summaryText: "live-60m / live / remote-grading / 日程未定",
-              openQuestions: ["作業・立ち会い日程未確認"],
+              summaryText: "live-60m / live / remote-grading / 搬入〜納品未定",
+              openQuestions: ["素材搬入〜納品時期未確認"],
             },
           },
         }),

@@ -68,9 +68,9 @@ export function formatConsultationSummary(input: ConsultationSummaryInput): stri
     }`,
     "作業場所・立ち会い:",
     `- 作業場所/立ち会い: ${conversationState.hasWorkSite ? labelWorkSite(jobContext.workSite) : missing}`,
-    "希望日時:",
-    `- 開始希望: ${conversationState.hasDesiredSchedule ? formatValue(jobContext.preferredStartDate) : missing}`,
-    `- 公開/納品時期: ${
+    "素材搬入〜納品:",
+    `- 素材搬入/受け取り時期: ${conversationState.hasDesiredSchedule ? formatValue(jobContext.preferredStartDate) : missing}`,
+    `- 納品希望日: ${
       conversationState.hasDesiredSchedule ? formatValue(jobContext.publicReleaseDate ?? fallback.publicReleaseDate) : missing
     }`,
     "連絡先:",
