@@ -40,13 +40,13 @@ type YouTubePlayerErrorEvent = {
 }
 
 type YouTubePlayer = {
-  mute: () => void
-  playVideo: () => void
-  stopVideo: () => void
-  destroy: () => void
-  getDuration: () => number
-  seekTo: (seconds: number, allowSeekAhead: boolean) => void
-  loadVideoById: (
+  mute?: () => void
+  playVideo?: () => void
+  stopVideo?: () => void
+  destroy?: () => void
+  getDuration?: () => number
+  seekTo?: (seconds: number, allowSeekAhead: boolean) => void
+  loadVideoById?: (
     videoId:
       | string
       | { videoId: string; startSeconds?: number; endSeconds?: number },
@@ -1021,6 +1021,46 @@ function getPlayableDuration(durationSeconds: number) {
     : 30
 }
 
+function callReadyPlayerMethod(
+  player: YouTubePlayer | null,
+  isReady: boolean,
+  method: Exclude<keyof YouTubePlayer, "getDuration">,
+  ...args: unknown[]
+) {
+  if (!isReady || !player) {
+    return false
+  }
+
+  const playerMethod = player[method]
+  if (typeof playerMethod !== "function") {
+    return false
+  }
+
+  try {
+    ;(playerMethod as (...methodArgs: unknown[]) => unknown).apply(player, args)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function getReadyPlayerDuration(player: YouTubePlayer, isReady: boolean) {
+  if (!isReady || typeof player.getDuration !== "function") {
+    return 0
+  }
+
+  try {
+    return player.getDuration()
+  } catch {
+    return 0
+  }
+}
+
+function stopAndDestroyPlayer(player: YouTubePlayer | null, isReady: boolean) {
+  callReadyPlayerMethod(player, isReady, "stopVideo")
+  callReadyPlayerMethod(player, isReady, "destroy")
+}
+
 export function getPreviewClipWindow(
   video: FeaturedWorkPreviewVideo,
   durationSeconds: number,
@@ -1100,6 +1140,7 @@ function VideoSurface({
 }) {
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
+  const playerReadyRef = useRef(false)
   const previewVideoRef = useRef<FeaturedWorkPreviewVideo>({
     videoId,
     loopStart,
@@ -1167,9 +1208,9 @@ function VideoSurface({
         setActiveClip(null)
         setIsCoverVisible(true)
       }, 0)
-      playerRef.current?.stopVideo()
-      playerRef.current?.destroy()
+      stopAndDestroyPlayer(playerRef.current, playerReadyRef.current)
       playerRef.current = null
+      playerReadyRef.current = false
       return
     }
 
@@ -1177,7 +1218,9 @@ function VideoSurface({
 
     const playFullVideo = (player: YouTubePlayer) => {
       clearNextTimer()
-      const duration = getPlayableDuration(player.getDuration())
+      const duration = getPlayableDuration(
+        getReadyPlayerDuration(player, playerReadyRef.current),
+      )
       const clip = {
         startSeconds: 0,
         playSeconds: duration,
@@ -1186,15 +1229,15 @@ function VideoSurface({
       setActiveClip(clip)
       clearCoverTimer()
       setIsCoverVisible(true)
-      player.seekTo(0, true)
-      player.playVideo()
+      callReadyPlayerMethod(player, playerReadyRef.current, "seekTo", 0, true)
+      callReadyPlayerMethod(player, playerReadyRef.current, "playVideo")
     }
 
     const playNextClip = (player: YouTubePlayer) => {
       clearNextTimer()
       const clip = getPreviewClipWindow(
         previewVideoRef.current,
-        player.getDuration(),
+        getReadyPlayerDuration(player, playerReadyRef.current),
         Math.random,
         30,
       )
@@ -1202,8 +1245,14 @@ function VideoSurface({
       setActiveClip(clip)
       clearCoverTimer()
       setIsCoverVisible(true)
-      player.seekTo(clip.startSeconds, true)
-      player.playVideo()
+      callReadyPlayerMethod(
+        player,
+        playerReadyRef.current,
+        "seekTo",
+        clip.startSeconds,
+        true,
+      )
+      callReadyPlayerMethod(player, playerReadyRef.current, "playVideo")
       timerRef.current = window.setTimeout(() => {
         if (!cancelled && playerRef.current) {
           clipRef.current = null
@@ -1235,7 +1284,9 @@ function VideoSurface({
         if (hasPreviewClipConstraint(previewVideoRef.current)) {
           playNextClip(event.target)
         } else {
-          const duration = getPlayableDuration(event.target.getDuration())
+          const duration = getPlayableDuration(
+            getReadyPlayerDuration(event.target, playerReadyRef.current),
+          )
           const clip = {
             startSeconds: 0,
             playSeconds: duration,
@@ -1254,10 +1305,15 @@ function VideoSurface({
       }
 
       if (playerRef.current) {
-        playerRef.current.playVideo()
+        callReadyPlayerMethod(
+          playerRef.current,
+          playerReadyRef.current,
+          "playVideo",
+        )
         return
       }
 
+      playerReadyRef.current = false
       playerRef.current = new window.YT.Player(playerHostRef.current, {
         videoId,
         playerVars: getYouTubePlayerVars(previewVideoRef.current, {
@@ -1265,8 +1321,18 @@ function VideoSurface({
         }),
         events: {
           onReady: (event) => {
-            event.target.mute()
-            event.target.playVideo()
+            if (cancelled) {
+              callReadyPlayerMethod(event.target, true, "destroy")
+              if (playerRef.current === event.target) {
+                playerRef.current = null
+                playerReadyRef.current = false
+              }
+              return
+            }
+
+            playerReadyRef.current = true
+            callReadyPlayerMethod(event.target, true, "mute")
+            callReadyPlayerMethod(event.target, true, "playVideo")
           },
           onStateChange: handleStateChange,
           onError: () => {
@@ -1292,7 +1358,9 @@ function VideoSurface({
       if (coverTimerRef.current) {
         window.clearTimeout(coverTimerRef.current)
       }
-      playerRef.current?.destroy()
+      callReadyPlayerMethod(playerRef.current, playerReadyRef.current, "destroy")
+      playerRef.current = null
+      playerReadyRef.current = false
     }
   }, [])
 
@@ -1445,6 +1513,7 @@ function PlaylistWorkCard({
   )
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
+  const playerReadyRef = useRef(false)
   const queueRef = useRef<FeaturedWorkPreviewVideo[]>([])
   const clipRef = useRef<ClipWindow | null>(null)
   const timerRef = useRef<number | null>(null)
@@ -1492,9 +1561,9 @@ function PlaylistWorkCard({
         setActiveClip(null)
         setIsCoverVisible(true)
       }, 0)
-      playerRef.current?.stopVideo()
-      playerRef.current?.destroy()
+      stopAndDestroyPlayer(playerRef.current, playerReadyRef.current)
       playerRef.current = null
+      playerReadyRef.current = false
       return
     }
 
@@ -1513,7 +1582,7 @@ function PlaylistWorkCard({
 
     const playNext = () => {
       const player = playerRef.current
-      if (!player) {
+      if (!player || !playerReadyRef.current) {
         return
       }
       clearNextTimer()
@@ -1524,7 +1593,12 @@ function PlaylistWorkCard({
       setPreviewVideo(video)
       clearCoverTimer()
       setIsCoverVisible(true)
-      player.loadVideoById(getYouTubeLoadVideoArg(video))
+      callReadyPlayerMethod(
+        player,
+        playerReadyRef.current,
+        "loadVideoById",
+        getYouTubeLoadVideoArg(video),
+      )
     }
 
     const handleStateChange = (event: YouTubePlayerStateChangeEvent) => {
@@ -1535,8 +1609,18 @@ function PlaylistWorkCard({
       if (event.data === window.YT.PlayerState.ENDED) {
         const fixedClip = getFixedClipWindow(previewVideoRef.current)
         if (fixedClip) {
-          event.target.seekTo(fixedClip.startSeconds, true)
-          event.target.playVideo()
+          callReadyPlayerMethod(
+            event.target,
+            playerReadyRef.current,
+            "seekTo",
+            fixedClip.startSeconds,
+            true,
+          )
+          callReadyPlayerMethod(
+            event.target,
+            playerReadyRef.current,
+            "playVideo",
+          )
           return
         }
         playNext()
@@ -1553,12 +1637,23 @@ function PlaylistWorkCard({
       const clip =
         existingClip ??
         fixedClip ??
-        getPreviewClipWindow(previewVideoRef.current, player.getDuration(), Math.random, 30)
+        getPreviewClipWindow(
+          previewVideoRef.current,
+          getReadyPlayerDuration(player, playerReadyRef.current),
+          Math.random,
+          30,
+        )
       clipRef.current = clip
       setActiveClip(clip)
 
       if (!existingClip && !fixedClip && clip.startSeconds > 0) {
-        player.seekTo(clip.startSeconds, true)
+        callReadyPlayerMethod(
+          player,
+          playerReadyRef.current,
+          "seekTo",
+          clip.startSeconds,
+          true,
+        )
       }
 
       scheduleCoverHide()
@@ -1575,10 +1670,15 @@ function PlaylistWorkCard({
       }
 
       if (playerRef.current) {
-        playerRef.current.playVideo()
+        callReadyPlayerMethod(
+          playerRef.current,
+          playerReadyRef.current,
+          "playVideo",
+        )
         return
       }
 
+      playerReadyRef.current = false
       queueRef.current = shuffleVideoIds(work.videos)
       const firstVideo = nextVideo()
       previewVideoRef.current = firstVideo
@@ -1590,8 +1690,18 @@ function PlaylistWorkCard({
         playerVars: getYouTubePlayerVars(firstVideo),
         events: {
           onReady: (event) => {
-            event.target.mute()
-            event.target.playVideo()
+            if (cancelled) {
+              callReadyPlayerMethod(event.target, true, "destroy")
+              if (playerRef.current === event.target) {
+                playerRef.current = null
+                playerReadyRef.current = false
+              }
+              return
+            }
+
+            playerReadyRef.current = true
+            callReadyPlayerMethod(event.target, true, "mute")
+            callReadyPlayerMethod(event.target, true, "playVideo")
           },
           onStateChange: handleStateChange,
           onError: () => playNext(),
@@ -1614,7 +1724,9 @@ function PlaylistWorkCard({
       if (coverTimerRef.current) {
         window.clearTimeout(coverTimerRef.current)
       }
-      playerRef.current?.destroy()
+      callReadyPlayerMethod(playerRef.current, playerReadyRef.current, "destroy")
+      playerRef.current = null
+      playerReadyRef.current = false
     }
   }, [])
 
