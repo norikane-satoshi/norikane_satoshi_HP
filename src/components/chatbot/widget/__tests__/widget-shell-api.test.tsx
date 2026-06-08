@@ -151,6 +151,51 @@ describe("WidgetShell API wiring", () => {
     })
   })
 
+  it("scrolls the message pane to the bottom on send and response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        mockJsonResponse({
+          conversationId: "conv_1",
+          userMessage,
+          assistantMessage,
+          tier: "tier-3-ollama-deepseek",
+          ui: { kind: "none" },
+        }),
+      ),
+    )
+
+    renderWidgetShell()
+    const pane = screen.getByTestId("chatbot-message-scroll")
+    const scrollTo = vi.fn()
+    Object.defineProperty(pane, "scrollHeight", { configurable: true, value: 480 })
+    Object.defineProperty(pane, "clientHeight", { configurable: true, value: 180 })
+    Object.defineProperty(pane, "scrollTo", { configurable: true, value: scrollTo })
+
+    submitMessage()
+
+    await waitFor(() => expect(scrollTo).toHaveBeenCalled())
+    expect(scrollTo).toHaveBeenCalledWith({ top: 480, behavior: "auto" })
+    expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
+  })
+
+  it("shows a floating scroll-down button only when the message pane is not at the bottom", () => {
+    renderWidgetShell()
+    const pane = screen.getByTestId("chatbot-message-scroll")
+    const scrollTo = vi.fn()
+    Object.defineProperty(pane, "scrollHeight", { configurable: true, value: 640 })
+    Object.defineProperty(pane, "clientHeight", { configurable: true, value: 240 })
+    Object.defineProperty(pane, "scrollTop", { configurable: true, writable: true, value: 40 })
+    Object.defineProperty(pane, "scrollTo", { configurable: true, value: scrollTo })
+
+    fireEvent.scroll(pane)
+
+    const button = screen.getByRole("button", { name: "最新メッセージへ移動" })
+    fireEvent.click(button)
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 640, behavior: "smooth" })
+  })
+
   it("shows the thinking indicator while waiting for a chatbot response", async () => {
     let resolveFetch: (response: ReturnType<typeof mockJsonResponse>) => void = () => undefined
     const fetchMock = vi.fn(
@@ -480,6 +525,60 @@ describe("WidgetShell API wiring", () => {
               hasCustomerIdentity: true,
               customerName: "provided",
               companyName: "provided",
+              turnCount: 3,
+            },
+          },
+        }),
+      ),
+    )
+
+    renderWidgetShell()
+    submitMessage()
+
+    expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
+    expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("")
+    expect(screen.getByLabelText("会社名（任意）")).toHaveValue("")
+  })
+
+  it("does not pass job-kind or company-like values into booking-card contact defaults", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        mockJsonResponse({
+          conversationId: "conv_1",
+          userMessage,
+          assistantMessage: {
+            ...assistantMessage,
+            content: "候補日時から予約できます",
+          },
+          tier: "tier-3-ollama-deepseek",
+          ui: {
+            kind: "booking-card",
+            suggestedSlots: [
+              {
+                start: "2026-06-10T01:00:00.000Z",
+                end: "2026-06-10T02:00:00.000Z",
+                label: "6月10日 午前",
+              },
+            ],
+            jobContext: {
+              finalMedium: "web",
+              workSite: "remote-grading",
+              documentaryAttachment: { kind: "none" },
+            },
+            conversationState: {
+              hasFinalMedium: true,
+              hasJobKind: true,
+              hasProjectLength: true,
+              hasAdditionalWork: true,
+              hasDocumentaryAttachments: true,
+              hasWorkSite: true,
+              hasReferenceUrls: true,
+              hasContactEmail: true,
+              hasDesiredSchedule: true,
+              hasCustomerIdentity: true,
+              customerName: "株式会社サンプル",
+              companyName: "ライブ",
               turnCount: 3,
             },
           },

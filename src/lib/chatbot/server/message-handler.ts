@@ -796,6 +796,16 @@ function cleanInferredIdentityValue(value: string | undefined, kind: "company" |
   if (/(?:共有済み|提供済み|取得済み|未定|不明|連絡先|メール|納品形式|打ち合わせ|作業場所|希望|済み)/u.test(cleaned)) {
     return undefined
   }
+  if (/(?:案件種別|最終媒体|尺|素材|受け渡し|納品|解像度|字幕|テロップ|ナレーション|音楽|予算)/u.test(cleaned)) {
+    return undefined
+  }
+  if (/^(?:ライブ|live|web|cm|mv|ott|sns|tv|テレビ|劇場|映画|その他|リモート|オンライン共有|ギガファイル|クラウド)$/iu.test(cleaned)) {
+    return undefined
+  }
+  if (kind === "person" && /(?:株式会社|合同会社|有限会社|会社|法人|スタジオ|プロダクション)/u.test(cleaned)) {
+    return undefined
+  }
+  if (kind === "company" && /(?:さん|様)$/u.test(cleaned)) return undefined
   if (kind === "company" && cleaned.length > 40) return undefined
   if (kind === "person" && cleaned.length > 24) return undefined
 

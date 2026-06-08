@@ -71,12 +71,32 @@ describe("ChatbotBookingCard", () => {
     renderCard()
 
     expect(screen.getByText("候補日時から予約する")).toBeInTheDocument()
+    expect(screen.getByLabelText("候補日時の座席選択")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /6月10日 午前/ })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "6月11日 午後" })).toBeInTheDocument()
     expect(screen.getByLabelText("会社名（任意）")).toHaveValue("株式会社サンプル")
     expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("田中")
     expect(screen.getByPlaceholderText("作品名または案件名（イニシャル表記も可）")).toBeInTheDocument()
     expect(screen.getByText("利用規約と予約内容に同意します（必須）。")).toBeInTheDocument()
+  })
+
+  it("renders unavailable candidate cells as disabled seat cells", () => {
+    renderCard()
+
+    const unavailableCells = screen.getAllByRole("button", { name: "空きなし" })
+    expect(unavailableCells.length).toBeGreaterThan(0)
+    expect(unavailableCells[0]).toBeDisabled()
+  })
+
+  it("uses a wrapping auto-growing textarea for the project title", () => {
+    const longTitle = "ライブ収録素材のカラーグレーディングと納品確認を含む長い案件名"
+    renderCard({ defaultProjectTitle: longTitle })
+
+    const field = screen.getByLabelText("案件名（必須）")
+    expect(field.tagName).toBe("TEXTAREA")
+    expect(field).toHaveValue(longTitle)
+    expect(field).toHaveClass("resize-none")
+    expect(field).toHaveClass("overflow-hidden")
   })
 
   it("posts the selected candidate and required fields to the chatbot booking API", async () => {

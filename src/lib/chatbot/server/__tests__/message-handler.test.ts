@@ -864,6 +864,61 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.generate.mock.calls[0]?.[0].conversationState.companyName).toBeUndefined()
   })
 
+  it("does not infer job kind or final medium words as company names", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: { turnCount: 2 },
+        },
+        messages: [],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "会社名はライブです。担当者氏名は未定です。尺は60分で、素材はオンライン共有です。",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toEqual(
+      expect.objectContaining({
+        hasCustomerIdentity: true,
+      }),
+    )
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.companyName).toBeUndefined()
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.customerName).toBeUndefined()
+  })
+
+  it("does not infer company-like values as contact person names", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: { turnCount: 2 },
+        },
+        messages: [],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "会社名は株式会社サンプルです。担当者氏名は株式会社サンプルです。Web CMで尺4分です。",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.companyName).toBe("株式会社サンプル")
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.customerName).toBeUndefined()
+  })
+
   it("aligns assistant text with deterministic choice panel question", async () => {
     const harness = setup({
       existingConversation: conversation({

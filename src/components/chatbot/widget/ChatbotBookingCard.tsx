@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useMemo, useState } from "react"
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
 
 import { DemoStage } from "@/components/chatbot/demo"
 import { ChatbotLoginCard } from "@/components/chatbot/widget/ChatbotLoginCard"
@@ -34,6 +34,7 @@ type ApiResponse = {
 }
 
 const API_PATH = "/api/chatbot/create-booking-from-chat"
+const MAX_VISIBLE_CANDIDATES = 12
 
 function parseApiResponse(value: unknown): ApiResponse {
   if (!value || typeof value !== "object") return {}
@@ -43,6 +44,46 @@ function parseApiResponse(value: unknown): ApiResponse {
 function estimateText(estimate?: WorkflowEstimate): string | null {
   if (!estimate) return null
   return `工程目安 ${estimate.totalMinDays}〜${estimate.totalMaxDays} 日`
+}
+
+function formatCandidateDate(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+    timeZone: "Asia/Tokyo",
+  }).format(date)
+}
+
+function formatCandidateTimeRange(candidate: CandidateWindow): string {
+  const start = new Date(candidate.start)
+  const end = new Date(candidate.end)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return candidate.label
+
+  const formatter = new Intl.DateTimeFormat("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Tokyo",
+  })
+  return `${formatter.format(start)}-${formatter.format(end)}`
+}
+
+function buildCandidateSeatMap(candidates: CandidateWindow[]) {
+  const dates = Array.from(new Set(candidates.map((candidate) => formatCandidateDate(candidate.start))))
+  const timeRanges = Array.from(new Set(candidates.map(formatCandidateTimeRange)))
+  const slotByCell = new Map<string, { candidate: CandidateWindow; index: number }>()
+
+  candidates.forEach((candidate, index) => {
+    slotByCell.set(`${formatCandidateDate(candidate.start)}|${formatCandidateTimeRange(candidate)}`, {
+      candidate,
+      index,
+    })
+  })
+
+  return { dates, timeRanges, slotByCell }
 }
 
 export function ChatbotBookingCard({
@@ -58,8 +99,9 @@ export function ChatbotBookingCard({
   onBooked,
   onRequireLogin,
 }: ChatbotBookingCardProps) {
-  const topCandidates = useMemo(() => candidates.slice(0, 3), [candidates])
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(topCandidates.length === 1 ? 0 : null)
+  const visibleCandidates = useMemo(() => candidates.slice(0, MAX_VISIBLE_CANDIDATES), [candidates])
+  const candidateSeatMap = useMemo(() => buildCandidateSeatMap(visibleCandidates), [visibleCandidates])
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(visibleCandidates.length === 1 ? 0 : null)
   const [projectTitle, setProjectTitle] = useState(defaultProjectTitle)
   const [dueDate, setDueDate] = useState(defaultDueDate)
   const [companyName, setCompanyName] = useState(defaultCompanyName)
@@ -71,9 +113,17 @@ export function ChatbotBookingCard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [loginRequired, setLoginRequired] = useState(false)
   const [booked, setBooked] = useState<BookingResult | null>(null)
+  const projectTitleRef = useRef<HTMLTextAreaElement | null>(null)
 
-  const selectedSlot = selectedIndex === null ? null : topCandidates[selectedIndex] ?? null
+  const selectedSlot = selectedIndex === null ? null : visibleCandidates[selectedIndex] ?? null
   const canSubmit = Boolean(selectedSlot && projectTitle.trim() && contactName.trim() && agreed && !submitting)
+
+  useEffect(() => {
+    const textarea = projectTitleRef.current
+    if (!textarea) return
+    textarea.style.height = "auto"
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`
+  }, [projectTitle])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -158,37 +208,69 @@ export function ChatbotBookingCard({
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <fieldset className="space-y-2">
           <legend className="text-sm font-semibold text-hp">候補日時</legend>
-          <div className="grid gap-2">
-            {topCandidates.map((candidate, index) => {
-              const selected = selectedIndex === index
-              return (
-                <button
-                  key={`${candidate.start}-${candidate.end}`}
-                  type="button"
-                  className={[
-                    "glass-btn px-3 py-2 text-left text-sm",
-                    selected ? "border-[var(--accent-primary)]" : "",
-                  ].join(" ")}
-                  aria-pressed={selected}
-                  onClick={() => setSelectedIndex(index)}
-                >
-                  <span className="block font-semibold text-hp">{candidate.label}</span>
-                  {candidate.note ? (
-                    <span className="block text-xs font-normal text-hp-muted">{candidate.note}</span>
-                  ) : null}
-                </button>
-              )
-            })}
+          <div className="overflow-x-auto rounded-[16px]" aria-label="候補日時の座席選択">
+            <div
+              className="grid min-w-[520px] gap-2"
+              style={{ gridTemplateColumns: `minmax(5.5rem,0.8fr) repeat(${Math.max(candidateSeatMap.dates.length, 1)}, minmax(8rem,1fr))` }}
+            >
+              <div className="text-xs font-medium text-hp-muted">時間帯</div>
+              {candidateSeatMap.dates.map((date) => (
+                <div key={date} className="text-center text-xs font-semibold text-hp">
+                  {date}
+                </div>
+              ))}
+              {candidateSeatMap.timeRanges.map((timeRange) => (
+                <div key={timeRange} className="contents">
+                  <div className="flex items-center text-xs font-medium text-hp-muted">{timeRange}</div>
+                  {candidateSeatMap.dates.map((date) => {
+                    const slot = candidateSeatMap.slotByCell.get(`${date}|${timeRange}`)
+                    if (!slot) {
+                      return (
+                        <button
+                          key={`${date}-${timeRange}-empty`}
+                          type="button"
+                          disabled
+                          className="glass-btn min-h-16 px-3 py-2 text-center text-xs opacity-35"
+                          aria-disabled="true"
+                        >
+                          空きなし
+                        </button>
+                      )
+                    }
+
+                    const selected = selectedIndex === slot.index
+                    return (
+                      <button
+                        key={`${slot.candidate.start}-${slot.candidate.end}`}
+                        type="button"
+                        className={[
+                          "glass-btn min-h-16 px-3 py-2 text-center text-sm",
+                          selected ? "border-[var(--accent-primary)] bg-white/75 shadow-[0_0_24px_rgba(139,127,255,0.25)]" : "",
+                        ].join(" ")}
+                        aria-pressed={selected}
+                        onClick={() => setSelectedIndex(slot.index)}
+                      >
+                        <span className="block font-semibold text-hp">{slot.candidate.label}</span>
+                        {slot.candidate.note ? (
+                          <span className="block text-xs font-normal text-hp-muted">{slot.candidate.note}</span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </fieldset>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium text-hp">
             案件名（必須）
-            <input
+            <textarea
+              ref={projectTitleRef}
               value={projectTitle}
               onChange={(event) => setProjectTitle(event.target.value)}
-              className="glass-input mt-2 w-full px-4 py-3 text-sm"
+              className="glass-input mt-2 min-h-12 w-full resize-none overflow-hidden px-4 py-3 text-sm leading-relaxed"
               placeholder="作品名または案件名（イニシャル表記も可）"
               required
             />
