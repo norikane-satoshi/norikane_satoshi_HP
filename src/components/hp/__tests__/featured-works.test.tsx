@@ -943,6 +943,188 @@ describe("FeaturedWorks", () => {
     ).toHaveLength(1)
   })
 
+  it("tears down pre-ready YouTube players safely when marquee cards leave the near viewport", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+
+    const observers: MockIntersectionObserver[] = []
+
+    class MockIntersectionObserver implements IntersectionObserver {
+      readonly root: Element | Document | null
+      readonly rootMargin: string
+      readonly thresholds: ReadonlyArray<number>
+      readonly elements: Element[] = []
+
+      constructor(
+        private readonly callback: IntersectionObserverCallback,
+        options: IntersectionObserverInit = {},
+      ) {
+        this.root = options.root ?? null
+        this.rootMargin = options.rootMargin ?? "0px"
+        this.thresholds = Array.isArray(options.threshold)
+          ? options.threshold
+          : [options.threshold ?? 0]
+        observers.push(this)
+      }
+
+      observe = (element: Element) => {
+        this.elements.push(element)
+      }
+
+      unobserve = (element: Element) => {
+        const index = this.elements.indexOf(element)
+        if (index >= 0) {
+          this.elements.splice(index, 1)
+        }
+      }
+
+      disconnect = () => {
+        this.elements.length = 0
+      }
+
+      takeRecords = () => []
+
+      emit(element: Element, isIntersecting: boolean) {
+        this.callback(
+          [
+            {
+              isIntersecting,
+              target: element,
+            } as IntersectionObserverEntry,
+          ],
+          this,
+        )
+      }
+    }
+
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver)
+
+    type MockPlayerOptions = {
+      videoId?: string
+      playerVars?: Record<string, string | number>
+      events?: {
+        onReady?: (event: { target: MockPendingPlayer }) => void
+        onStateChange?: (event: { data: number; target: MockPendingPlayer }) => void
+        onError?: (event: { data: number; target: MockPendingPlayer }) => void
+      }
+    }
+
+    const players: MockPendingPlayer[] = []
+
+    class MockPendingPlayer {
+      readonly element: HTMLElement
+      readonly options: MockPlayerOptions
+      mute?: () => void
+      stopVideo?: () => void
+      destroy?: () => void
+      getDuration?: () => number
+      seekTo?: (seconds: number, allowSeekAhead: boolean) => void
+      loadVideoById?: (videoId: string | { videoId: string; startSeconds?: number; endSeconds?: number }) => void
+      playVideo?: () => void
+
+      constructor(element: HTMLElement, options: MockPlayerOptions) {
+        this.element = element
+        this.options = options
+        element.appendChild(document.createElement("iframe"))
+        players.push(this)
+      }
+
+      makeReady() {
+        this.mute = vi.fn()
+        this.stopVideo = vi.fn()
+        this.destroy = vi.fn(() => {
+          this.element.replaceChildren()
+        })
+        this.getDuration = vi.fn(() => 90)
+        this.seekTo = vi.fn()
+        this.loadVideoById = vi.fn()
+        this.playVideo = vi.fn()
+        this.options.events?.onReady?.({ target: this })
+      }
+    }
+
+    window.YT = {
+      Player: MockPendingPlayer as unknown as NonNullable<Window["YT"]>["Player"],
+      PlayerState: {
+        ENDED: 0,
+        PLAYING: 1,
+      },
+    }
+
+    const { container } = render(<FeaturedWorks />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const viewport = container.querySelector(
+      '[data-featured-work-marquee-viewport="true"]',
+    ) as HTMLElement
+    const sectionObserver = observers.find((observer) => observer.root === null)
+    expect(sectionObserver).toBeDefined()
+
+    await act(async () => {
+      sectionObserver?.emit(viewport, true)
+      await Promise.resolve()
+    })
+
+    const singleCard = screen.getByLabelText(
+      "十角館の殺人 / 時計館の殺人 作品カード",
+    )
+    const playlistCard = screen.getByLabelText(
+      "ライブ映像作品のランダムループ再生カード",
+    )
+    const singleObserver = observers.find(
+      (observer) =>
+        observer.root === viewport && observer.elements.includes(singleCard),
+    )
+    const playlistObserver = observers.find(
+      (observer) =>
+        observer.root === viewport && observer.elements.includes(playlistCard),
+    )
+    expect(singleObserver).toBeDefined()
+    expect(playlistObserver).toBeDefined()
+
+    await act(async () => {
+      singleObserver?.emit(singleCard, true)
+      playlistObserver?.emit(playlistCard, true)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(players).toHaveLength(2)
+    })
+    expect(players.every((player) => typeof player.stopVideo === "undefined")).toBe(true)
+    expect(players.every((player) => typeof player.destroy === "undefined")).toBe(true)
+
+    await act(async () => {
+      singleObserver?.emit(singleCard, false)
+      playlistObserver?.emit(playlistCard, false)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      for (const player of players) {
+        player.makeReady()
+      }
+      await Promise.resolve()
+    })
+
+    for (const player of players) {
+      expect(player.destroy).toHaveBeenCalledTimes(1)
+      expect(player.element.querySelector("iframe")).not.toBeInTheDocument()
+      expect(player.playVideo).not.toHaveBeenCalled()
+    }
+  })
+
   it("re-shows single video thumbnail covers before each full video loop restart", async () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
