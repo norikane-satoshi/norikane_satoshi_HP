@@ -7,6 +7,7 @@ export type ChatbotTierAttemptLogEvent = {
   outcome: TierAttemptEvent["outcome"]
   latencyMs: number
   attempt?: number
+  diagnostics?: Record<string, unknown>
   error?: {
     name: string
     code?: string
@@ -22,6 +23,7 @@ export function formatChatbotTierAttemptLogEvent(event: TierAttemptEvent): Chatb
     outcome: event.outcome,
     latencyMs: event.latencyMs,
     ...(event.attempt ? { attempt: event.attempt } : {}),
+    ...(event.diagnostics ? { diagnostics: pickLogSafeDiagnostics(event.diagnostics) } : {}),
     error: event.error
       ? {
           name: event.error.name,
@@ -30,6 +32,27 @@ export function formatChatbotTierAttemptLogEvent(event: TierAttemptEvent): Chatb
         }
       : undefined,
   }
+}
+
+function pickLogSafeDiagnostics(diagnostics: Record<string, unknown>): Record<string, unknown> {
+  const keys = [
+    "postDataBytes",
+    "responseBytes",
+    "chunkCount",
+    "notionAiThreadId",
+    "notionAiThreadCreated",
+    "notionAiThreadPartialTranscript",
+    "notionAiThreadMode",
+    "notionAiThreadFallbackReason",
+    "attachTargetUrlMatches",
+  ] as const
+  const picked: Record<string, unknown> = {}
+
+  for (const key of keys) {
+    if (key in diagnostics) picked[key] = diagnostics[key]
+  }
+
+  return picked
 }
 
 export function createLocalChatbotTierAttemptLogger(): ((event: TierAttemptEvent) => void) | undefined {

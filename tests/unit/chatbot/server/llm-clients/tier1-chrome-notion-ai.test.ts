@@ -470,6 +470,9 @@ describe("Tier1ChromeNotionAiClient", () => {
         notionAiThreadId: "fixed-page-thread-id",
         notionAiThreadCreated: false,
         notionAiThreadPartialTranscript: true,
+        notionAiThreadMode: "fixed-full-resend",
+        notionAiThreadFallbackReason:
+          "Notion AI response text could not be extracted. bytes=1 preview=[",
       },
     })
     expect(vi.mocked(session.evaluate)).toHaveBeenCalledTimes(3)
@@ -496,7 +499,10 @@ describe("Tier1ChromeNotionAiClient", () => {
       asPatchResponse: true,
       createdSource: "workflows",
     })
-    expect(prompt).toBe("user: 会話Bの今回の新規発言")
+    expect(prompt.split("\n")).toEqual([
+      "confirmed_facts: 媒体=web / 案件種別=cm-30s / 作業場所=remote-grading",
+      "user: 会話Bの今回の新規発言",
+    ])
     expect(prompt).not.toContain("固定プロンプト")
     expect(prompt).not.toContain("会話Aの発言")
     expect(prompt).not.toContain("会話Bの直前発言")
@@ -547,11 +553,14 @@ describe("Tier1ChromeNotionAiClient", () => {
     })
     expect(afterMetrics).toEqual({
       transcriptMessages: 3,
-      promptLines: 1,
-      promptChars: 24,
-      postDataBytes: 2828,
+      promptLines: 2,
+      promptChars: 84,
+      postDataBytes: 2889,
     })
-    expect(afterPrompt).toBe("user: 見積もりに必要な情報を教えてください")
+    expect(afterPrompt.split("\n")).toEqual([
+      "confirmed_facts: 媒体=web / 案件種別=cm-30s / 作業場所=remote-grading",
+      "user: 見積もりに必要な情報を教えてください",
+    ])
     expect(afterPrompt).not.toContain("固定プロンプト全文")
     expect(afterPrompt).not.toContain("A社のWeb CM")
   })
@@ -574,6 +583,7 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     expect(prompt).toContain("オンデマンド知識参照")
     expect(prompt).toContain("AIチャットボット 相談窓口の設計")
+    expect(prompt).toContain("confirmed_facts: 媒体=web / 案件種別=cm-30s / 作業場所=remote-grading")
     expect(prompt).toContain("user: ライブの工程日数を知りたいです")
     expect(prompt).not.toContain("固定プロンプト")
     expect(prompt).not.toContain("7〜8日")

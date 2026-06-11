@@ -10,7 +10,6 @@ function conversationRow(overrides = {}) {
   return {
     id: "conv_1",
     sessionId: "session_1",
-    notionAiThreadId: null,
     userId: "user_1",
     notionAiThreadId: null,
     startedAt: now,

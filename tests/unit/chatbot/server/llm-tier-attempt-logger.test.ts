@@ -52,4 +52,36 @@ describe("formatChatbotTierAttemptLogEvent", () => {
       attempt: 2,
     })
   })
+
+  it("logs the actual Notion AI thread mode without response headers", () => {
+    expect(
+      formatChatbotTierAttemptLogEvent({
+        tier: "tier-1-chrome-notion-ai",
+        phase: "generate",
+        outcome: "success",
+        latencyMs: 1200,
+        attempt: 1,
+        diagnostics: {
+          notionAiThreadId: "thread-a",
+          notionAiThreadMode: "dedicated-patch",
+          notionAiThreadCreated: false,
+          postDataBytes: 2889,
+          responseHeaders: { cookie: "must-not-log" },
+        },
+      }),
+    ).toEqual({
+      event: "chatbot_llm_tier_attempt",
+      tier: "tier-1-chrome-notion-ai",
+      phase: "generate",
+      outcome: "success",
+      latencyMs: 1200,
+      attempt: 1,
+      diagnostics: {
+        notionAiThreadId: "thread-a",
+        notionAiThreadMode: "dedicated-patch",
+        notionAiThreadCreated: false,
+        postDataBytes: 2889,
+      },
+    })
+  })
 })

@@ -529,6 +529,66 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.generate.mock.calls[1]?.[0].latestUserMessage).toBe("編集後の条件です")
   })
 
+  it("serializes different conversations through the single Tier 1 Chrome path", async () => {
+    const harness = setup()
+    harness.repository.loadConversationBySessionId.mockImplementation(async (sessionId: string) => {
+      if (sessionId === "session_a") {
+        return conversation({
+          id: "conv_a",
+          context: { sessionId: "session_a", userId: "user_a", notionAiThreadId: "thread-a" },
+          messages: [],
+        })
+      }
+      if (sessionId === "session_b") {
+        return conversation({
+          id: "conv_b",
+          context: { sessionId: "session_b", userId: "user_b", notionAiThreadId: "thread-b" },
+          messages: [],
+        })
+      }
+      return null
+    })
+    let releaseFirstGenerate: (() => void) | undefined
+    harness.generate
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseFirstGenerate = () =>
+              resolve({
+                rawText: "Aの返信です",
+                tier: "tier-1-chrome-notion-ai",
+                proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
+              })
+          }),
+      )
+      .mockResolvedValueOnce({
+        rawText: "Bの返信です",
+        tier: "tier-1-chrome-notion-ai",
+        proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
+      })
+
+    const first = handleChatbotMessage(
+      { sessionId: "session_a", userId: "user_a", message: "Aの新規発言" },
+      { ...harness.options, dedicatedNotionAiThreadsEnabled: true },
+    )
+    await waitForMockCalls(harness.generate, 1)
+
+    const second = handleChatbotMessage(
+      { sessionId: "session_b", userId: "user_b", message: "Bの新規発言" },
+      { ...harness.options, dedicatedNotionAiThreadsEnabled: true },
+    )
+    await Promise.resolve()
+    expect(harness.generate).toHaveBeenCalledTimes(1)
+
+    releaseFirstGenerate?.()
+    await first
+    await second
+
+    expect(harness.generate).toHaveBeenCalledTimes(2)
+    expect(harness.generate.mock.calls[0]?.[0].notionAiThread).toEqual({ threadId: "thread-a" })
+    expect(harness.generate.mock.calls[1]?.[0].notionAiThread).toEqual({ threadId: "thread-b" })
+  })
+
   it("overrides pricing output with direct contact policy", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
