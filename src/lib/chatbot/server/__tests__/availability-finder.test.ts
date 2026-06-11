@@ -1,4 +1,12 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const mocks = vi.hoisted(() => ({
+  getNotionWorkScheduleBusyIntervals: vi.fn(),
+}))
+
+vi.mock("@/lib/chatbot/server/notion-work-schedule-busy", () => ({
+  getNotionWorkScheduleBusyIntervals: mocks.getNotionWorkScheduleBusyIntervals,
+}))
 
 import type { JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import {
@@ -41,6 +49,10 @@ const NOW_BEFORE_STUDIO = new Date("2026-05-25T10:00:00+09:00")
 const NOW_AFTER_STUDIO = new Date("2026-10-01T10:00:00+09:00")
 
 describe("findCandidateWindows", () => {
+  beforeEach(() => {
+    mocks.getNotionWorkScheduleBusyIntervals.mockReset()
+  })
+
   it("rejects satoshi-studio before 2026-10-01 JST", async () => {
     await expect(
       findCandidateWindows({
@@ -212,6 +224,28 @@ describe("findCandidateWindows", () => {
       from: "2026-09-30T15:00:00.000Z",
       to: "2026-11-26T01:00:00.000Z",
     })
+  })
+
+  it("uses IB_仕事 timed rows as the default busy source without booking-record conflicts", async () => {
+    mocks.getNotionWorkScheduleBusyIntervals.mockResolvedValueOnce([
+      {
+        start: "2026-09-30T15:00:00.000Z",
+        end: "2026-10-01T15:00:00.000Z",
+      },
+    ])
+
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      now: NOW_AFTER_STUDIO,
+      busyMode: "block",
+    })
+
+    expect(mocks.getNotionWorkScheduleBusyIntervals).toHaveBeenCalledWith({
+      from: "2026-09-30T15:00:00.000Z",
+      to: "2026-11-26T01:00:00.000Z",
+    })
+    expect(windows[0]?.label).toBe("2026-10-02 - 2026-10-02")
   })
 
   it("keeps scoring reasoning in CandidateWindow.note", async () => {

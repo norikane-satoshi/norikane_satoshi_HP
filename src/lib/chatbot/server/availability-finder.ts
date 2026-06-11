@@ -7,8 +7,6 @@ const CANDIDATE_LIMIT = 3
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const VALID_WORK_SITES = new Set<WorkSite>(["satoshi-studio", "remote-grading", "on-site"])
-const CALENDAR_TOKEN_USER_ID = "satoshi-calendar-owner"
-
 export type FreeBusyFetcher = (args: {
   from: string
   to: string
@@ -94,60 +92,16 @@ async function defaultFreeBusyFetcher(args: {
   from: string
   to: string
 }): Promise<Array<{ start: string; end: string }>> {
-  const { getCalendarFreeBusyForUser } = await import("@/lib/booking/server/calendar-free-busy/free-busy")
-  const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
-  const result = await getCalendarFreeBusyForUser({
-    userId: CALENDAR_TOKEN_USER_ID,
-    teamId: null,
-    timeMin: args.from,
-    timeMax: args.to,
-    calendarId,
-    isCalendarAdmin: false,
-    useCache: false,
-  })
-
-  if (result.status >= 400 || result.code) {
-    throw new Error(result.code ?? `calendar_free_busy_status_${result.status}`)
-  }
-
-  return result.busy.map((slot) => ({
-    start: slot.start,
-    end: slot.end,
-  }))
+  const { getNotionWorkScheduleBusyIntervals } = await import("@/lib/chatbot/server/notion-work-schedule-busy")
+  return getNotionWorkScheduleBusyIntervals(args)
 }
 
 async function defaultAttendanceConflictResolver(args: {
   from: string
   to: string
 }): Promise<Array<{ start: string; end: string; bookingId: string }>> {
-  const { prisma } = await import("@/lib/prisma")
-  const activeStatuses = ["PENDING_GCAL", "CONFIRMED"]
-  const now = new Date()
-  const slots = await prisma.bookingTimeSlot.findMany({
-    where: {
-      startTime: { lt: new Date(args.to) },
-      endTime: { gt: new Date(args.from) },
-      status: { in: activeStatuses },
-      bookingGroup: {
-        status: { in: activeStatuses },
-        OR: [
-          { pendingExpiresAt: null },
-          { pendingExpiresAt: { gt: now } },
-        ],
-      },
-    },
-    select: {
-      id: true,
-      startTime: true,
-      endTime: true,
-    },
-  })
-
-  return slots.map((slot) => ({
-    bookingId: slot.id,
-    start: slot.startTime.toISOString(),
-    end: slot.endTime.toISOString(),
-  }))
+  void args
+  return []
 }
 
 async function runFreeBusyFetcher(
@@ -161,7 +115,7 @@ async function runFreeBusyFetcher(
     if (error instanceof ChatbotAvailabilityError) throw error
     throw new ChatbotAvailabilityError(
       "free-busy-fetch-failed",
-      "Failed to fetch Google Calendar busy intervals.",
+      "Failed to fetch chatbot busy intervals.",
       { cause: error },
     )
   }
