@@ -287,6 +287,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.connectTimeoutMs,
       )
+      let effectiveRequest = request
       let payload = buildRunInferencePayload({
         request,
         runtimeContext,
@@ -294,14 +295,17 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         idFactory: this.idFactory,
       })
       const headers = buildRunInferenceHeaders(runtimeContext)
+      let notionAiThreadFallbackReason: string | undefined
       let result = await this.evaluate<NotionAiInferenceResult>(
         session,
         buildRunInferenceExpression(payload, headers),
         this.config.requestTimeoutMs,
       )
       if (!result.ok && shouldRetryWithoutDedicatedThread(result, request)) {
+        notionAiThreadFallbackReason = result.message
+        effectiveRequest = { ...request, notionAiThread: undefined }
         payload = buildRunInferencePayload({
-          request: { ...request, notionAiThread: undefined },
+          request: effectiveRequest,
           runtimeContext,
           preferredModel: this.config.preferredModel,
           idFactory: this.idFactory,
@@ -340,6 +344,10 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           notionAiThreadId: payload.threadId,
           notionAiThreadCreated: payload.createThread,
           notionAiThreadPartialTranscript: payload.isPartialTranscript,
+          notionAiThreadMode: resolveNotionAiThreadMode(effectiveRequest),
+          ...(notionAiThreadFallbackReason
+            ? { notionAiThreadFallbackReason }
+            : {}),
           attachTargetUrl: target.url,
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
         },
@@ -883,11 +891,45 @@ function buildUserPrompt(request: ChatbotLlmRequest): string {
 
 function buildDedicatedThreadPatchPrompt(request: ChatbotLlmRequest): string {
   const latestUserMessage = request.latestUserMessage?.trim()
-  if (latestUserMessage) return `user: ${latestUserMessage}`
+  if (latestUserMessage) {
+    return [
+      buildConfirmedFactsPrompt(request),
+      `user: ${latestUserMessage}`,
+    ].filter(Boolean).join("\n")
+  }
 
   const lastMessage = request.messages.at(-1)
   if (!lastMessage) return emptyText
-  return `${lastMessage.role}: ${lastMessage.content}`
+  return [
+    buildConfirmedFactsPrompt(request),
+    `${lastMessage.role}: ${lastMessage.content}`,
+  ].filter(Boolean).join("\n")
+}
+
+function buildConfirmedFactsPrompt(request: ChatbotLlmRequest): string {
+  const facts = [
+    request.conversationState.hasFinalMedium ? `媒体=${request.jobContext.finalMedium}` : undefined,
+    request.conversationState.hasJobKind && request.jobContext.jobKind ? `案件種別=${request.jobContext.jobKind}` : undefined,
+    request.conversationState.hasDesiredSchedule && request.jobContext.preferredStartDate
+      ? `開始希望=${request.jobContext.preferredStartDate}`
+      : undefined,
+    request.conversationState.hasDesiredSchedule && request.jobContext.publicReleaseDate
+      ? `公開/納品=${request.jobContext.publicReleaseDate}`
+      : undefined,
+    request.conversationState.hasWorkSite ? `作業場所=${request.jobContext.workSite}` : undefined,
+    request.conversationState.hasContactEmail && request.conversationState.contactEmail
+      ? `メール=${request.conversationState.contactEmail}`
+      : undefined,
+    request.conversationState.hasCustomerIdentity && request.conversationState.customerName
+      ? `氏名=${request.conversationState.customerName}`
+      : undefined,
+    request.conversationState.hasCustomerIdentity && request.conversationState.companyName
+      ? `会社=${request.conversationState.companyName}`
+      : undefined,
+  ].filter((fact): fact is string => Boolean(fact))
+
+  if (facts.length === 0) return emptyText
+  return `confirmed_facts: ${facts.join(" / ")}`
 }
 
 function buildPromptMessages(
@@ -956,6 +998,12 @@ function shouldRetryWithoutDedicatedThread(
     !request.notionAiThread.threadId &&
     result.message.includes("preview=[")
   )
+}
+
+function resolveNotionAiThreadMode(request: ChatbotLlmRequest): string {
+  if (!request.notionAiThread) return "fixed-full-resend"
+  if (request.notionAiThread.threadId) return "dedicated-patch"
+  return "dedicated-created"
 }
 
 function findNotionAiTarget(

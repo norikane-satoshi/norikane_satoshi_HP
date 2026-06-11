@@ -129,6 +129,7 @@ const defaultRepository: ChatbotMessageRepository = {
 const clientUserMessageIdPattern =
   /^client_msg_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const chatbotMessageQueues = new Map<string, Promise<void>>()
+let chatbotLlmGenerationQueue: Promise<void> = Promise.resolve()
 
 export async function handleChatbotMessage(
   input: HandleChatbotMessageInput,
@@ -242,7 +243,7 @@ async function handleChatbotMessageCore(
       ? {}
       : toConversationNotionAiThread(conversation)
   }
-  const llmResponse = await orchestrator.generate(llmRequest)
+  const llmResponse = await enqueueChatbotLlmGeneration(() => orchestrator.generate(llmRequest))
   await maybePersistDedicatedNotionAiThread({
     enabled: dedicatedNotionAiThreadsEnabled,
     conversation,
@@ -329,6 +330,17 @@ async function enqueueChatbotMessage<T>(
       chatbotMessageQueues.delete(queueKey)
     }
   }
+}
+
+async function enqueueChatbotLlmGeneration<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = chatbotLlmGenerationQueue
+  const run = previous.catch(() => undefined).then(operation)
+  chatbotLlmGenerationQueue = run.then(
+    () => undefined,
+    () => undefined,
+  )
+
+  return run
 }
 
 function buildChatbotMessageQueueKey(input: HandleChatbotMessageInput): string {

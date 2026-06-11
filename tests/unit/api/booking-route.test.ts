@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
@@ -406,8 +406,14 @@ describe("POST /api/booking/conflicts", () => {
 
 describe("/api/booking/[id]", () => {
   beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"))
     vi.clearAllMocks()
     mocks.findConflictingBookings.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   function context(id = "slot_1") {

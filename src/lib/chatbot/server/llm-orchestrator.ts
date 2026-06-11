@@ -24,6 +24,7 @@ export type TierAttemptEvent = {
   phase: "health-check" | "generate"
   outcome: "healthy" | "unhealthy" | "success" | "error"
   error?: ChatbotLlmError | Error
+  diagnostics?: Record<string, unknown>
   latencyMs: number
   attempt?: number
 }
@@ -96,6 +97,7 @@ export function createChatbotLlmTierOrchestrator(
               tier,
               phase: "generate",
               outcome: "success",
+              diagnostics: response.diagnostics,
               latencyMs: Date.now() - startedAt,
               attempt,
             })
