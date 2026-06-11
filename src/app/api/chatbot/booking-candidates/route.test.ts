@@ -36,7 +36,7 @@ async function loadPost() {
       {
         start: "2026-07-01T00:00:00.000Z",
         end: "2026-07-03T00:00:00.000Z",
-        label: "2026-07-01 - 2026-07-02",
+        label: "2026-07-01 単日",
         available: true,
         note: "businessDays=2; busyRatio=0.00",
       },
@@ -80,7 +80,7 @@ describe("POST /api/chatbot/booking-candidates", () => {
         {
           start: "2026-07-01T00:00:00.000Z",
           end: "2026-07-03T00:00:00.000Z",
-          label: "2026-07-01 - 2026-07-02",
+          label: "2026-07-01 単日",
           available: true,
           note: "businessDays=2; busyRatio=0.00",
         },

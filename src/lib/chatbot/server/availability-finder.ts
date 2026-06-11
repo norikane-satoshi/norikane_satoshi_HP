@@ -91,7 +91,7 @@ export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<
       .map((candidate) => ({
         start: candidate.start.toISOString(),
         end: candidate.end.toISOString(),
-        label: `${formatJstDate(candidate.start)} - ${formatJstDate(addJstDays(candidate.end, -1))}`,
+        label: `${formatJstDate(candidate.start)} 単日`,
         available: true,
         note: [
           `businessDays=${neededBusinessDays}`,
@@ -228,7 +228,7 @@ function buildCandidateWindows(args: {
   ) {
     if (!isBusinessDay(cursor)) continue
 
-    const window = createBusinessWindow(cursor, args.neededBusinessDays)
+    const window = createDayWindow(cursor)
     if (window.end.getTime() > args.searchTo.getTime()) continue
     if (args.deadline && window.end.getTime() > args.deadline.getTime()) continue
     if (args.attendanceIntervals.some((interval) => overlaps(window, interval))) continue
@@ -259,22 +259,10 @@ function buildCandidateWindows(args: {
   return candidates
 }
 
-function createBusinessWindow(start: Date, businessDays: number): Interval {
-  let countedDays = 0
-  let cursor = start
-  let lastBusinessDay = start
-
-  while (countedDays < businessDays) {
-    if (isBusinessDay(cursor)) {
-      countedDays += 1
-      lastBusinessDay = cursor
-    }
-    cursor = addJstDays(cursor, 1)
-  }
-
+function createDayWindow(start: Date): Interval {
   return {
     start,
-    end: addJstDays(lastBusinessDay, 1),
+    end: addJstDays(start, 1),
   }
 }
 

@@ -97,7 +97,7 @@ describe("ChatbotBookingCard", () => {
     expect(unavailableCells[0]).toHaveAttribute("data-calendar-state", "free-unstartable")
 
     fireEvent.click(unavailableCells[0])
-    expect(screen.getByText("この日からだと必要日数が確保できません")).toBeInTheDocument()
+    expect(screen.getByText("この日は搬入前・リードタイム内・営業外のため選択できません")).toBeInTheDocument()
   })
 
   it("renders timed work busy days as non-startable busy cells without exposing private details", () => {
@@ -192,41 +192,73 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByRole("button", { name: "2026-07-08 埋まり" })).toHaveAttribute("data-calendar-state", "busy")
   })
 
-  it("renders multi-day date candidates as keepable continuous seats", () => {
+  it("allows disjoint selected days around a busy day", () => {
     renderCard({
       candidates: [
         {
-          start: "2026-06-14T01:00:00.000Z",
-          end: "2026-06-23T09:00:00.000Z",
-          label: "6月14日 - 6月23日",
-          note: "日付候補 / 仮キープ 8営業日",
+          start: "2026-06-10T01:00:00.000Z",
+          end: "2026-06-11T01:00:00.000Z",
+          label: "6月10日 単日",
+        },
+        {
+          start: "2026-06-12T01:00:00.000Z",
+          end: "2026-06-13T01:00:00.000Z",
+          label: "6月12日 単日",
         },
       ],
+      busyDateKeys: ["2026-06-11"],
     })
 
-    const candidate = screen.getByRole("button", { name: "2026-06-14 選択可" })
-    expect(candidate).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getByText("選択中: 6月14日 - 6月23日")).toBeInTheDocument()
-    expect(document.querySelectorAll('[data-selected-range="true"]').length).toBeGreaterThan(1)
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-12 選択可" }))
+
+    expect(screen.getByRole("button", { name: "2026-06-10 選択可" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByText(/2／2日選択中/)).toBeInTheDocument()
   })
 
-  it("keeps a selected range visible when navigating across months", () => {
+  it("keeps disjoint selected days visible when navigating across months", () => {
     renderCard({
       candidates: [
         {
           start: "2026-06-30T01:00:00.000Z",
-          end: "2026-07-04T09:00:00.000Z",
-          label: "6月30日 - 7月4日",
-          note: "日付候補 / 仮キープ",
+          end: "2026-07-01T01:00:00.000Z",
+          label: "6月30日 単日",
+        },
+        {
+          start: "2026-07-01T01:00:00.000Z",
+          end: "2026-07-02T01:00:00.000Z",
+          label: "7月1日 単日",
         },
       ],
     })
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-30 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "翌月を表示" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-07-01 選択可" }))
 
-    expect(screen.getByText("選択中: 6月30日 - 7月4日")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "2026-07-01 空き・開始不可" })).toHaveAttribute("data-selected-range", "true")
+    expect(screen.getByText(/2／2日選択中/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "2026-07-01 選択可" })).toHaveAttribute("data-selected", "true")
+  })
+
+  it("rejects selecting more than the required day count", () => {
+    renderCard({
+      candidates: [
+        ...candidates,
+        {
+          start: "2026-06-12T01:00:00.000Z",
+          end: "2026-06-13T01:00:00.000Z",
+          label: "6月12日 単日",
+        },
+      ],
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-12 選択可" }))
+
+    expect(screen.getByText("必要日数 2日はすでに選択済みです")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "false")
   })
 
   it("does not render internal candidate notes or booking names in the calendar UI", () => {
@@ -234,8 +266,8 @@ describe("ChatbotBookingCard", () => {
       candidates: [
         {
           start: "2026-06-14T01:00:00.000Z",
-          end: "2026-06-15T09:00:00.000Z",
-          label: "6月14日 - 6月15日",
+          end: "2026-06-15T01:00:00.000Z",
+          label: "6月14日 単日",
           note: "Existing booking: Secret Client Project",
         },
       ],
@@ -275,6 +307,7 @@ describe("ChatbotBookingCard", () => {
     renderCard()
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
     fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します（必須）。"))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -291,10 +324,16 @@ describe("ChatbotBookingCard", () => {
       conversationId: "conv_1",
       projectTitle: "CM grading",
       contactName: "田中",
-      selectedSlot: {
-        start: "2026-06-10T01:00:00.000Z",
-        end: "2026-06-10T02:00:00.000Z",
-      },
+      selectedSlots: [
+        {
+          start: "2026-06-10T01:00:00.000Z",
+          end: "2026-06-10T02:00:00.000Z",
+        },
+        {
+          start: "2026-06-11T05:00:00.000Z",
+          end: "2026-06-11T06:00:00.000Z",
+        },
+      ],
     })
   })
 
@@ -318,6 +357,7 @@ describe("ChatbotBookingCard", () => {
     renderCard({ onRequireLogin })
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
     fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します（必須）。"))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -332,6 +372,7 @@ describe("ChatbotBookingCard", () => {
     renderCard({ onBooked })
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
     fireEvent.click(screen.getByLabelText("利用規約と予約内容に同意します（必須）。"))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 

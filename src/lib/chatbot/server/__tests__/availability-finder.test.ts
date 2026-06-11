@@ -93,7 +93,7 @@ describe("findCandidateWindows", () => {
       ]),
     })
 
-    expect(windows[0]?.label).toBe("2026-10-06 - 2026-10-06")
+    expect(windows[0]?.label).toBe("2026-10-06 単日")
   })
 
   it("uses existing calendar blocks as soft scoring instead of a hard exclusion", async () => {
@@ -112,7 +112,7 @@ describe("findCandidateWindows", () => {
     })
 
     expect(windows).toHaveLength(1)
-    expect(windows[0]?.label).toBe("2026-10-05 - 2026-10-05")
+    expect(windows[0]?.label).toBe("2026-10-05 単日")
   })
 
   it("returns the top 3 candidate windows", async () => {
@@ -142,7 +142,7 @@ describe("findCandidateWindows", () => {
     expect(windows.map((window) => window.label)).not.toContain("2026-06-15 - 2026-06-15")
   })
 
-  it("blocks starts whose continuous keep range overlaps calendar busy slots", async () => {
+  it("allows disjoint selectable days around busy slots without requiring a continuous keep range", async () => {
     const windows = await findCandidateWindows({
       jobContext: jobContext(),
       workflowEstimate: workflowEstimate(2),
@@ -157,7 +157,11 @@ describe("findCandidateWindows", () => {
       attendanceConflictResolver: attendance(),
     })
 
-    expect(windows[0]?.label).toBe("2026-10-05 - 2026-10-06")
+    expect(windows.map((window) => window.label)).toEqual([
+      "2026-10-01 単日",
+      "2026-10-05 単日",
+      "2026-10-06 単日",
+    ])
   })
 
   it("filters out windows that end after desiredDeadline", async () => {
@@ -170,7 +174,7 @@ describe("findCandidateWindows", () => {
       attendanceConflictResolver: attendance(),
     })
 
-    expect(windows.map((window) => window.label)).toEqual(["2026-10-01 - 2026-10-01"])
+    expect(windows.map((window) => window.label)).toEqual(["2026-10-01 単日"])
   })
 
   it("returns an empty array instead of throwing when no window remains", async () => {
@@ -195,10 +199,10 @@ describe("findCandidateWindows", () => {
       attendanceConflictResolver: attendance(),
     })
 
-    expect(windows[0]?.label).toBe("2026-10-01 - 2026-10-02")
+    expect(windows[0]?.label).toBe("2026-10-01 単日")
   })
 
-  it("skips Saturday and Sunday while counting business days", async () => {
+  it("skips Saturday and Sunday as selectable days", async () => {
     const windows = await findCandidateWindows({
       jobContext: jobContext(),
       workflowEstimate: workflowEstimate(2),
@@ -207,7 +211,7 @@ describe("findCandidateWindows", () => {
       attendanceConflictResolver: attendance(),
     })
 
-    expect(windows[0]?.label).toBe("2026-10-02 - 2026-10-05")
+    expect(windows.slice(0, 2).map((window) => window.label)).toEqual(["2026-10-02 単日", "2026-10-05 単日"])
   })
 
   it("uses an 8 week default lookahead", async () => {
@@ -246,7 +250,7 @@ describe("findCandidateWindows", () => {
       from: "2026-09-30T15:00:00.000Z",
       to: "2026-11-26T01:00:00.000Z",
     })
-    expect(windows[0]?.label).toBe("2026-10-02 - 2026-10-02")
+    expect(windows[0]?.label).toBe("2026-10-02 単日")
   })
 
   it("returns only public busy date keys for timed work rows", async () => {

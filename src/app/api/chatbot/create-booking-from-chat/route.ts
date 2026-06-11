@@ -37,10 +37,22 @@ const chatbotBookingRequestSchema = z.object({
   dueDate: z.string().optional(),
   memo: z.string().trim().max(2000).optional(),
   agreed: z.literal(true),
-  selectedSlot: selectedSlotSchema,
+  selectedSlot: selectedSlotSchema.optional(),
+  selectedSlots: z.array(selectedSlotSchema).min(1).optional(),
   jobContext: z.unknown().optional(),
   workflowEstimate: z.unknown().optional(),
+}).superRefine((value, context) => {
+  if (value.selectedSlots?.length || value.selectedSlot) return
+  context.addIssue({
+    code: "custom",
+    message: "予約日時を選択してください",
+    path: ["selectedSlots"],
+  })
 })
+
+function normalizeSelectedSlots(input: z.infer<typeof chatbotBookingRequestSchema>) {
+  return input.selectedSlots?.length ? input.selectedSlots : input.selectedSlot ? [input.selectedSlot] : []
+}
 
 function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>, sessionEmail: string): BookingApiInput {
   return bookingApiSchema.parse({
@@ -52,7 +64,7 @@ function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>, s
     phone: input.phone ?? "",
     memo: input.memo ?? "",
     agreed: input.agreed,
-    selectedSlots: [input.selectedSlot],
+    selectedSlots: normalizeSelectedSlots(input),
   })
 }
 

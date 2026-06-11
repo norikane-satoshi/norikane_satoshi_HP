@@ -56,6 +56,10 @@ function estimateText(estimate?: WorkflowEstimate): string | null {
   return `工程目安 ${estimate.totalMinDays}〜${estimate.totalMaxDays} 日`
 }
 
+function requiredDayCount(estimate?: WorkflowEstimate): number {
+  return Math.max(1, Math.ceil(estimate?.totalMinDays ?? 1))
+}
+
 function formatCandidateDate(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -65,10 +69,6 @@ function formatCandidateDate(value: string): string {
     weekday: "short",
     timeZone: "Asia/Tokyo",
   }).format(date)
-}
-
-function isMultiDayCandidate(start: Date, end: Date): boolean {
-  return formatCandidateDate(start.toISOString()) !== formatCandidateDate(end.toISOString())
 }
 
 function jstDateKey(value: string | Date): string {
@@ -165,19 +165,12 @@ function buildCandidateCalendar(monthKey: string, candidates: CandidateWindow[],
   }
 }
 
-function selectedDateKeys(candidate: CandidateWindow | null) {
-  if (!candidate) return new Set<string>()
-  const start = new Date(candidate.start)
-  const end = new Date(candidate.end)
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return new Set<string>()
-  const keys = new Set<string>()
-  const last = isMultiDayCandidate(start, end) ? addJstDays(end, -1) : start
+function selectedDateKeys(slots: CandidateWindow[]) {
+  return new Set(slots.map((slot) => jstDateKey(slot.start)))
+}
 
-  for (let cursor = start; cursor.getTime() <= last.getTime(); cursor = addJstDays(cursor, 1)) {
-    keys.add(jstDateKey(cursor))
-  }
-
-  return keys
+function formatSelectedSlots(slots: CandidateWindow[]): string {
+  return slots.map((slot) => formatCandidateDate(slot.start)).join("、")
 }
 
 export function ChatbotBookingCard({
@@ -201,6 +194,7 @@ export function ChatbotBookingCard({
     [visibleCandidates],
   )
   const [displayedMonthOffset, setDisplayedMonthOffset] = useState(0)
+  const requiredDays = requiredDayCount(estimate)
   const displayedMonthKey = useMemo(
     () => addJstMonths(initialMonthKey, displayedMonthOffset),
     [displayedMonthOffset, initialMonthKey],
@@ -219,7 +213,9 @@ export function ChatbotBookingCard({
     () => buildCandidateCalendar(displayedMonthKey, displayedCandidates, displayedBusyDateKeys),
     [displayedBusyDateKeys, displayedCandidates, displayedMonthKey],
   )
-  const [selectedSlot, setSelectedSlot] = useState<CandidateWindow | null>(visibleCandidates.length === 1 ? visibleCandidates[0] : null)
+  const [selectedSlots, setSelectedSlots] = useState<CandidateWindow[]>(() => (
+    visibleCandidates.length === 1 && requiredDays === 1 ? [visibleCandidates[0]] : []
+  ))
   const [monthLoadError, setMonthLoadError] = useState<string | null>(null)
   const [calendarHint, setCalendarHint] = useState<string | null>(null)
   const [projectTitle, setProjectTitle] = useState(defaultProjectTitle)
@@ -235,8 +231,8 @@ export function ChatbotBookingCard({
   const [booked, setBooked] = useState<BookingResult | null>(null)
   const projectTitleRef = useRef<HTMLTextAreaElement | null>(null)
 
-  const selectedKeys = useMemo(() => selectedDateKeys(selectedSlot), [selectedSlot])
-  const canSubmit = Boolean(selectedSlot && projectTitle.trim() && contactName.trim() && agreed && !submitting)
+  const selectedKeys = useMemo(() => selectedDateKeys(selectedSlots), [selectedSlots])
+  const canSubmit = Boolean(selectedSlots.length === requiredDays && projectTitle.trim() && contactName.trim() && agreed && !submitting)
 
   useEffect(() => {
     if (displayedMonthOffset === 0) return
@@ -288,7 +284,7 @@ export function ChatbotBookingCard({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!canSubmit || !selectedSlot) return
+    if (!canSubmit) return
 
     setSubmitting(true)
     setErrorMessage(null)
@@ -307,10 +303,10 @@ export function ChatbotBookingCard({
           dueDate,
           memo: memo.trim(),
           agreed,
-          selectedSlot: {
-            start: selectedSlot.start,
-            end: selectedSlot.end,
-          },
+          selectedSlots: selectedSlots.map((slot) => ({
+            start: slot.start,
+            end: slot.end,
+          })),
           jobContext,
           workflowEstimate: estimate,
         }),
@@ -411,8 +407,7 @@ export function ChatbotBookingCard({
 
                 const slot = candidateCalendar.candidateByStartDate.get(dateKey)
                 const busy = candidateCalendar.busyDateKeySet.has(dateKey)
-                const selected = Boolean(slot && selectedSlot?.start === slot.candidate.start)
-                const inSelectedRange = selectedKeys.has(dateKey)
+                const selected = selectedKeys.has(dateKey)
 
                 if (busy) {
                   return (
@@ -422,10 +417,10 @@ export function ChatbotBookingCard({
                       disabled
                       className={[
                         "min-h-11 rounded-[12px] border border-[var(--text-muted)] bg-[var(--text-muted)] px-1.5 py-2 text-xs text-white/95 opacity-85",
-                        inSelectedRange ? "ring-2 ring-[var(--accent-primary)] ring-offset-1 ring-offset-white/60" : "",
+                        selected ? "ring-2 ring-[var(--accent-primary)] ring-offset-1 ring-offset-white/60" : "",
                       ].join(" ")}
                       data-calendar-state="busy"
-                      data-selected-range={inSelectedRange ? "true" : undefined}
+                      data-selected={selected ? "true" : undefined}
                       aria-label={`${dateKey} 埋まり`}
                       aria-disabled="true"
                     >
@@ -442,15 +437,15 @@ export function ChatbotBookingCard({
                       type="button"
                       className={[
                         "min-h-11 rounded-[12px] border px-1.5 py-2 text-xs transition",
-                        inSelectedRange
+                        selected
                           ? "border-[var(--accent-primary)] bg-white/65 text-hp"
                           : "border-white/55 bg-white/40 text-hp-muted hover:bg-white/55",
                       ].join(" ")}
                       data-calendar-state="free-unstartable"
-                      data-selected-range={inSelectedRange ? "true" : undefined}
+                      data-selected={selected ? "true" : undefined}
                       aria-label={`${dateKey} 空き・開始不可`}
                       aria-disabled="true"
-                      onClick={() => setCalendarHint("この日からだと必要日数が確保できません")}
+                      onClick={() => setCalendarHint("この日は搬入前・リードタイム内・営業外のため選択できません")}
                     >
                       <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
                       <span className="block text-[10px] text-hp-muted">開始不可</span>
@@ -464,17 +459,28 @@ export function ChatbotBookingCard({
                     type="button"
                     className={[
                       "min-h-11 rounded-[12px] border px-1.5 py-2 text-xs transition",
-                      selected || inSelectedRange
+                      selected
                         ? "border-[var(--accent-primary)] bg-white/80 text-hp shadow-[0_0_24px_rgba(117,104,214,0.22)]"
                         : "border-white/65 bg-white/55 text-hp hover:bg-white/75",
                     ].join(" ")}
-                    data-selected-range={inSelectedRange ? "true" : undefined}
+                    data-selected={selected ? "true" : undefined}
                     data-calendar-state="startable"
                     aria-label={`${dateKey} 選択可`}
                     aria-pressed={selected}
                     onClick={() => {
-                      setSelectedSlot(slot.candidate)
-                      setCalendarHint(null)
+                      setSelectedSlots((current) => {
+                        const exists = current.some((selectedSlot) => jstDateKey(selectedSlot.start) === dateKey)
+                        if (exists) {
+                          setCalendarHint(null)
+                          return current.filter((selectedSlot) => jstDateKey(selectedSlot.start) !== dateKey)
+                        }
+                        if (current.length >= requiredDays) {
+                          setCalendarHint(`必要日数 ${requiredDays}日はすでに選択済みです`)
+                          return current
+                        }
+                        setCalendarHint(null)
+                        return [...current, slot.candidate].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+                      })
                     }}
                   >
                     <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
@@ -502,11 +508,9 @@ export function ChatbotBookingCard({
                 {calendarHint}
               </p>
             ) : null}
-            {selectedSlot ? (
-              <p className="mt-3 text-xs leading-relaxed text-hp-muted" aria-live="polite">
-                選択中: {selectedSlot.label}
-              </p>
-            ) : null}
+            <p className="mt-3 text-xs leading-relaxed text-hp-muted" aria-live="polite">
+              {selectedSlots.length}／{requiredDays}日選択中{selectedSlots.length > 0 ? `: ${formatSelectedSlots(selectedSlots)}` : ""}
+            </p>
           </div>
         </fieldset>
 

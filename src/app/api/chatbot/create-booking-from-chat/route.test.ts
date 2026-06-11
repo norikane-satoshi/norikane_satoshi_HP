@@ -108,6 +108,42 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     })
   })
 
+  it("accepts multiple disjoint selected slots from the chatbot calendar", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request(validChatBooking({
+      selectedSlot: undefined,
+      selectedSlots: [
+        {
+          start: "2026-06-10T15:00:00.000Z",
+          end: "2026-06-11T15:00:00.000Z",
+        },
+        {
+          start: "2026-06-12T15:00:00.000Z",
+          end: "2026-06-13T15:00:00.000Z",
+        },
+      ],
+    })))
+
+    expect(response.status).toBe(200)
+    expect(route.createBookingFromApiInput).toHaveBeenCalledWith({
+      input: expect.objectContaining({
+        selectedSlots: [
+          {
+            start: "2026-06-10T15:00:00.000Z",
+            end: "2026-06-11T15:00:00.000Z",
+          },
+          {
+            start: "2026-06-12T15:00:00.000Z",
+            end: "2026-06-13T15:00:00.000Z",
+          },
+        ],
+      }),
+      userId: "user_1",
+      userEmail: "satoshi@example.com",
+    })
+  })
+
   it("links the conversation when conversationId is present", async () => {
     const route = await loadPost()
 
