@@ -13,6 +13,7 @@ export type WidgetUi =
   | {
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
+      busyDateKeys?: string[]
       jobContext: JobContext
       conversationState: ConversationState
     }

@@ -83,6 +83,26 @@ describe("getNotionWorkScheduleBusyIntervals", () => {
     ).resolves.toEqual([])
   })
 
+  it("keeps date-only multi-day ranges available", async () => {
+    mocks.query.mockResolvedValueOnce({
+      results: [
+        page("date-only-range", {
+          start: "2026-08-17",
+          end: "2026-09-05",
+        }),
+      ],
+      has_more: false,
+      next_cursor: null,
+    })
+
+    await expect(
+      getNotionWorkScheduleBusyIntervals({
+        from: "2026-08-16T15:00:00.000Z",
+        to: "2026-09-06T15:00:00.000Z",
+      }),
+    ).resolves.toEqual([])
+  })
+
   it("keeps a timed range busy across every overlapping day", async () => {
     mocks.query.mockResolvedValueOnce({
       results: [

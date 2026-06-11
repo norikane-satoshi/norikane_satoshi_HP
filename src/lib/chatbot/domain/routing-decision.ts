@@ -3,7 +3,7 @@ import type { CandidateWindow, ConversationSummary, JobContext } from "@/lib/cha
 
 export type RoutingDecision =
   | { kind: "continue"; nextQuestion: string; presentChoices?: SurveyChoiceSet }
-  | { kind: "to-booking-inline"; suggestedSlots: CandidateWindow[]; jobContext: JobContext }
+  | { kind: "to-booking-inline"; suggestedSlots: CandidateWindow[]; busyDateKeys?: string[]; jobContext: JobContext }
   | { kind: "to-email"; summary: ConversationSummary }
   | {
       kind: "to-direct-contact"

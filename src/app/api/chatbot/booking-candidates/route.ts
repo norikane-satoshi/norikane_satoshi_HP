@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { respondInternalError } from "@/lib/api/server/error-response"
 import type { JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
-import { findCandidateWindows } from "@/lib/chatbot/server/availability-finder"
+import { findCandidateCalendar } from "@/lib/chatbot/server/availability-finder"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -78,16 +78,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const candidates = await findCandidateWindows({
+    const calendar = await findCandidateCalendar({
       jobContext: parsed.data.jobContext,
       workflowEstimate: parsed.data.workflowEstimate,
       desiredDeadline: parsed.data.jobContext.publicReleaseDate,
       notBefore: `${parsed.data.month}-01`,
+      now: new Date(`${parsed.data.month}-01T00:00:00.000+09:00`),
+      lookaheadWeeks: 9,
       candidateLimit: 31,
       busyMode: "block",
     })
 
-    return NextResponse.json({ candidates })
+    return NextResponse.json(calendar)
   } catch (error) {
     return respondInternalError(error, "chatbot.booking-candidates.POST")
   }

@@ -38,7 +38,7 @@ import {
 } from "@/lib/chatbot/server/choice-panel-state"
 import { classifyChatbotTopic } from "@/lib/chatbot/server/topic-gate"
 import { buildChatbotKnowledgeContext } from "@/lib/chatbot/server/knowledge-context"
-import type { ConversationSummary } from "@/lib/chatbot/domain/workflow-estimate"
+import type { CandidateWindow, ConversationSummary } from "@/lib/chatbot/domain/workflow-estimate"
 import {
   hasRequiredConsultationNotificationSlots,
   hasRequiredEmailConsultationSlots,
@@ -48,7 +48,14 @@ import {
   hasSentOperatorNotification,
   sendOperatorConsultationNotification,
 } from "@/lib/chatbot/server/operator-notification"
-import { findCandidateWindows } from "@/lib/chatbot/server/availability-finder"
+import {
+  findCandidateCalendar,
+  type CandidateCalendarResult,
+} from "@/lib/chatbot/server/availability-finder"
+
+type CandidateWindowFinder =
+  | typeof findCandidateCalendar
+  | ((args: Parameters<typeof findCandidateCalendar>[0]) => Promise<CandidateWindow[]>)
 
 type ChatbotMessageUi =
   | { kind: "none" }
@@ -56,6 +63,7 @@ type ChatbotMessageUi =
   | {
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
+      busyDateKeys?: string[]
       jobContext: JobContext
       conversationState: ConversationState
     }
@@ -116,7 +124,7 @@ type HandleChatbotMessageOptions = {
   userContextLoader?: typeof loadUserChatbotContext
   userContextFormatter?: typeof formatUserChatbotContextForPrompt
   operatorNotificationSender?: typeof sendOperatorConsultationNotification
-  candidateWindowFinder?: typeof findCandidateWindows
+  candidateWindowFinder?: CandidateWindowFinder
   dedicatedNotionAiThreadsEnabled?: boolean
 }
 
@@ -271,7 +279,7 @@ async function handleChatbotMessageCore(
       proposedRoutingDecision: llmResponse.proposedRoutingDecision,
       conversationState,
     }),
-    candidateWindowFinder: options.candidateWindowFinder ?? findCandidateWindows,
+    candidateWindowFinder: options.candidateWindowFinder ?? findCandidateCalendar,
   })
   const normalizedLlmResponse = normalizeChatbotLlmResponse(llmResponse, { routingDecision })
   const assistantMessage = await repository.appendMessage({
@@ -323,7 +331,7 @@ async function handleChatbotMessageCore(
 
 async function resolveBookingCandidates(input: {
   routingDecision: RoutingDecision
-  candidateWindowFinder: typeof findCandidateWindows
+  candidateWindowFinder: CandidateWindowFinder
 }): Promise<RoutingDecision> {
   if (input.routingDecision.kind !== "to-booking-inline") return input.routingDecision
   if (input.routingDecision.suggestedSlots.length === 0) return input.routingDecision
@@ -331,21 +339,26 @@ async function resolveBookingCandidates(input: {
   if (!workflowEstimate) return input.routingDecision
 
   try {
-    const suggestedSlots = await input.candidateWindowFinder({
+    const calendar = normalizeCandidateCalendarResult(await input.candidateWindowFinder({
       jobContext: input.routingDecision.jobContext,
       workflowEstimate,
       desiredDeadline: input.routingDecision.jobContext.publicReleaseDate,
       notBefore: input.routingDecision.jobContext.preferredStartDate,
       candidateLimit: 31,
       busyMode: "block",
-    })
+    }))
     return {
       ...input.routingDecision,
-      suggestedSlots,
+      suggestedSlots: calendar.candidates,
+      busyDateKeys: calendar.busyDateKeys,
     }
   } catch {
     return input.routingDecision
   }
+}
+
+function normalizeCandidateCalendarResult(result: CandidateCalendarResult | CandidateWindow[]): CandidateCalendarResult {
+  return Array.isArray(result) ? { candidates: result, busyDateKeys: [] } : result
 }
 
 async function enqueueChatbotMessage<T>(
@@ -708,6 +721,7 @@ function toMessageUi(
     return {
       kind: "booking-card",
       suggestedSlots: routingDecision.suggestedSlots,
+      busyDateKeys: routingDecision.busyDateKeys,
       jobContext: routingDecision.jobContext,
       conversationState,
     }

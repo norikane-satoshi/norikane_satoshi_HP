@@ -33,7 +33,7 @@ export class ChatbotAvailabilityError extends Error {
   }
 }
 
-export async function findCandidateWindows(args: {
+type CandidateSearchArgs = {
   jobContext: JobContext
   workflowEstimate: WorkflowEstimate
   desiredDeadline?: string
@@ -44,7 +44,19 @@ export async function findCandidateWindows(args: {
   now?: Date
   freeBusyFetcher?: FreeBusyFetcher
   attendanceConflictResolver?: AttendanceConflictResolver
-}): Promise<CandidateWindow[]> {
+}
+
+export type CandidateCalendarResult = {
+  candidates: CandidateWindow[]
+  busyDateKeys: string[]
+}
+
+export async function findCandidateWindows(args: CandidateSearchArgs): Promise<CandidateWindow[]> {
+  const result = await findCandidateCalendar(args)
+  return result.candidates
+}
+
+export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<CandidateCalendarResult> {
   const now = args.now ?? new Date()
   assertWorkSite(args.jobContext.workSite, now)
 
@@ -61,31 +73,35 @@ export async function findCandidateWindows(args: {
     runAttendanceResolver(resolver, searchFrom, searchTo),
   ])
 
+  const normalizedBusyIntervals = busyIntervals.map(normalizeInterval).filter(isValidInterval)
   const candidates = buildCandidateWindows({
     searchFrom,
     searchTo,
     neededBusinessDays,
     deadline,
     busyMode: args.busyMode ?? "score",
-    busyIntervals: busyIntervals.map(normalizeInterval).filter(isValidInterval),
+    busyIntervals: normalizedBusyIntervals,
     attendanceIntervals: attendanceIntervals.map(normalizeInterval).filter(isValidInterval),
   })
 
-  return candidates
-    .sort((a, b) => b.score - a.score || a.start.getTime() - b.start.getTime())
-    .slice(0, args.candidateLimit ?? CANDIDATE_LIMIT)
-    .map((candidate) => ({
-      start: candidate.start.toISOString(),
-      end: candidate.end.toISOString(),
-      label: `${formatJstDate(candidate.start)} - ${formatJstDate(addJstDays(candidate.end, -1))}`,
-      available: true,
-      note: [
-        `businessDays=${neededBusinessDays}`,
-        `busyRatio=${candidate.busyRatio.toFixed(2)}`,
-        deadline ? `deadlineSlackDays=${candidate.deadlineSlackDays.toFixed(1)}` : null,
-        "attendanceConflicts=0",
-      ].filter(Boolean).join("; "),
-    }))
+  return {
+    candidates: candidates
+      .sort((a, b) => b.score - a.score || a.start.getTime() - b.start.getTime())
+      .slice(0, args.candidateLimit ?? CANDIDATE_LIMIT)
+      .map((candidate) => ({
+        start: candidate.start.toISOString(),
+        end: candidate.end.toISOString(),
+        label: `${formatJstDate(candidate.start)} - ${formatJstDate(addJstDays(candidate.end, -1))}`,
+        available: true,
+        note: [
+          `businessDays=${neededBusinessDays}`,
+          `busyRatio=${candidate.busyRatio.toFixed(2)}`,
+          deadline ? `deadlineSlackDays=${candidate.deadlineSlackDays.toFixed(1)}` : null,
+          "attendanceConflicts=0",
+        ].filter(Boolean).join("; "),
+      })),
+    busyDateKeys: busyDateKeysFromIntervals(normalizedBusyIntervals, searchFrom, searchTo),
+  }
 }
 
 async function defaultFreeBusyFetcher(args: {
@@ -297,6 +313,26 @@ function isValidInterval(interval: Interval): boolean {
 
 function overlaps(a: Interval, b: Interval): boolean {
   return a.start.getTime() < b.end.getTime() && a.end.getTime() > b.start.getTime()
+}
+
+function busyDateKeysFromIntervals(intervals: Interval[], from: Date, to: Date): string[] {
+  const keys = new Set<string>()
+
+  for (const interval of intervals) {
+    const firstDay = startOfJstDay(maxDate(interval.start, from))
+    for (
+      let cursor = firstDay;
+      cursor.getTime() < interval.end.getTime() && cursor.getTime() < to.getTime();
+      cursor = addJstDays(cursor, 1)
+    ) {
+      const day = { start: cursor, end: addJstDays(cursor, 1) }
+      if (overlaps(day, interval) && overlaps(day, { start: from, end: to })) {
+        keys.add(formatJstDate(cursor))
+      }
+    }
+  }
+
+  return [...keys].sort()
 }
 
 function overlapMs(a: Interval, b: Interval): number {

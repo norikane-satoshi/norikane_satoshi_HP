@@ -418,7 +418,7 @@ describe("WidgetShell API wiring", () => {
     submitMessage()
 
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "2026-06-10 空き" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "2026-06-10 選択可" })).toBeInTheDocument()
     expect(screen.getByLabelText("補足ノート（任意）")).toHaveValue(
       "尺: 2.5h\n追加作業: 消し物/レタッチ / 肌修正\n作業場所: リモート\n素材搬入/受け取り時期: 2026-06-15\n納品希望日: 2026-06-30",
     )

@@ -11,6 +11,7 @@ vi.mock("@/lib/chatbot/server/notion-work-schedule-busy", () => ({
 import type { JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import {
   ChatbotAvailabilityError,
+  findCandidateCalendar,
   findCandidateWindows,
   type AttendanceConflictResolver,
   type FreeBusyFetcher,
@@ -246,6 +247,30 @@ describe("findCandidateWindows", () => {
       to: "2026-11-26T01:00:00.000Z",
     })
     expect(windows[0]?.label).toBe("2026-10-02 - 2026-10-02")
+  })
+
+  it("returns only public busy date keys for timed work rows", async () => {
+    mocks.getNotionWorkScheduleBusyIntervals.mockResolvedValueOnce([
+      {
+        start: "2026-10-04T15:00:00.000Z",
+        end: "2026-10-05T15:00:00.000Z",
+      },
+      {
+        start: "2026-10-06T01:00:00.000Z",
+        end: "2026-10-06T03:00:00.000Z",
+      },
+    ])
+
+    const calendar = await findCandidateCalendar({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      now: NOW_AFTER_STUDIO,
+      busyMode: "block",
+    })
+
+    expect(calendar.busyDateKeys).toEqual(["2026-10-05", "2026-10-06"])
+    expect(JSON.stringify(calendar)).not.toContain("bookingId")
+    expect(JSON.stringify(calendar)).not.toContain("Secret")
   })
 
   it("keeps scoring reasoning in CandidateWindow.note", async () => {

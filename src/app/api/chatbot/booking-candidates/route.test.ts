@@ -31,22 +31,25 @@ function validBody(overrides: Record<string, unknown> = {}) {
 async function loadPost() {
   vi.resetModules()
 
-  const findCandidateWindows = vi.fn().mockResolvedValue([
-    {
-      start: "2026-07-01T00:00:00.000Z",
-      end: "2026-07-03T00:00:00.000Z",
-      label: "2026-07-01 - 2026-07-02",
-      available: true,
-      note: "businessDays=2; busyRatio=0.00",
-    },
-  ])
+  const findCandidateCalendar = vi.fn().mockResolvedValue({
+    candidates: [
+      {
+        start: "2026-07-01T00:00:00.000Z",
+        end: "2026-07-03T00:00:00.000Z",
+        label: "2026-07-01 - 2026-07-02",
+        available: true,
+        note: "businessDays=2; busyRatio=0.00",
+      },
+    ],
+    busyDateKeys: ["2026-07-03"],
+  })
 
-  vi.doMock("@/lib/chatbot/server/availability-finder", () => ({ findCandidateWindows }))
+  vi.doMock("@/lib/chatbot/server/availability-finder", () => ({ findCandidateCalendar }))
 
   const route = await import("./route")
   return {
     POST: route.POST,
-    findCandidateWindows,
+    findCandidateCalendar,
   }
 }
 
@@ -62,11 +65,13 @@ describe("POST /api/chatbot/booking-candidates", () => {
     const response = await route.POST(request(validBody()))
 
     expect(response.status).toBe(200)
-    expect(route.findCandidateWindows).toHaveBeenCalledWith({
+    expect(route.findCandidateCalendar).toHaveBeenCalledWith({
       jobContext: expect.objectContaining({ workSite: "remote-grading" }),
       workflowEstimate: expect.objectContaining({ totalMinDays: 2 }),
       desiredDeadline: "2026-08-01",
       notBefore: "2026-07-01",
+      now: new Date("2026-07-01T00:00:00.000+09:00"),
+      lookaheadWeeks: 9,
       candidateLimit: 31,
       busyMode: "block",
     })
@@ -80,6 +85,7 @@ describe("POST /api/chatbot/booking-candidates", () => {
           note: "businessDays=2; busyRatio=0.00",
         },
       ],
+      busyDateKeys: ["2026-07-03"],
     })
   })
 
@@ -89,7 +95,7 @@ describe("POST /api/chatbot/booking-candidates", () => {
     const response = await route.POST(request(validBody({ month: "2026-7" })))
 
     expect(response.status).toBe(400)
-    expect(route.findCandidateWindows).not.toHaveBeenCalled()
+    expect(route.findCandidateCalendar).not.toHaveBeenCalled()
     await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" })
   })
 })

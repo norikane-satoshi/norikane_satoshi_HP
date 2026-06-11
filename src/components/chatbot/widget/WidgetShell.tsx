@@ -777,6 +777,7 @@ function ActiveWidgetUi({
         key={ui.suggestedSlots.map((slot) => slot.start).join("|")}
         conversationId={conversationId}
         candidates={ui.suggestedSlots}
+        busyDateKeys={ui.busyDateKeys}
         estimate={ui.jobContext.workflowEstimate}
         jobContext={ui.jobContext}
         defaultContactName={cleanDefaultContactValue(ui.conversationState?.customerName, "person")}
