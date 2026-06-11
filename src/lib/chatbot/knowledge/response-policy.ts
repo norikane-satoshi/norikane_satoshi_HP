@@ -1,5 +1,5 @@
-import { approvedSourceNotesKnowledge } from "@/lib/chatbot/knowledge/source-notes"
 import { chatbotForbiddenTopics } from "@/lib/chatbot/knowledge/forbidden-topics"
+import { buildChatbotKnowledgeIndexPrompt } from "@/lib/chatbot/knowledge/on-demand-sources"
 import { hpPublicKnowledge } from "@/lib/chatbot/knowledge/public-hp"
 import { satoshiProfileKnowledge } from "@/lib/chatbot/knowledge/satoshi-profile"
 import { videoIndustryKnowledge } from "@/lib/chatbot/knowledge/video-industry"
@@ -27,7 +27,7 @@ export const initialIntakeQuestions = [
 export function buildChatbotStaticPolicyPrompt(): string {
   return compactStaticPolicyPrompt([
     "あなたは、のりかね映像設計室の新規映像案件の相談受付アシスタントです。",
-    "Notionページを実行時に追加参照せず、下記の承認済み静的ルールだけで応答します。",
+    "固定ルールは下記で完結させ、工程・スケジュール・カラグレ知識の詳細本文は必要時だけ参照します。",
     "",
     "人格:",
     ...chatbotPersonaPolicy.map((item) => `- ${item}`),
@@ -61,8 +61,7 @@ export function buildChatbotStaticPolicyPrompt(): string {
         }`,
     ),
     "",
-    "Approved source notes（HP公開ノート静的スナップショット）:",
-    approvedSourceNotesKnowledge,
+    buildChatbotKnowledgeIndexPrompt(),
     "",
     "対応範囲ナレッジ:",
     satoshiProfileKnowledge.trim(),

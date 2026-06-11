@@ -2,6 +2,14 @@ export { satoshiProfileKnowledge } from "@/lib/chatbot/knowledge/satoshi-profile
 export { videoIndustryKnowledge } from "@/lib/chatbot/knowledge/video-industry"
 export { featuredWorksKnowledge } from "@/lib/chatbot/knowledge/works"
 export { hpPublicKnowledge } from "@/lib/chatbot/knowledge/public-hp"
+export {
+  buildChatbotKnowledgeIndexPrompt,
+  chatbotKnowledgeSources,
+} from "@/lib/chatbot/knowledge/on-demand-sources"
+export type {
+  ChatbotKnowledgeSource,
+  ChatbotKnowledgeTopic,
+} from "@/lib/chatbot/knowledge/on-demand-sources"
 export { publishedNotesSnapshot } from "@/lib/chatbot/knowledge/published-notes-snapshot"
 export {
   approvedSourceNotes,

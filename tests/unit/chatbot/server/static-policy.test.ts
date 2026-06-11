@@ -4,6 +4,7 @@ import {
   approvedSourceNotes,
   buildChatbotStaticPolicyPrompt,
   candidateWindowGranularityByJobKind,
+  chatbotKnowledgeSources,
   conversationRetentionDays,
   hpPublicKnowledge,
   maxQuestionsPerAssistantResponse,
@@ -23,7 +24,14 @@ describe("chatbot static policy knowledge", () => {
     ])
     expect(approvedSourceNotes[0]?.body).toContain("5000カットの迷宮")
     expect(approvedSourceNotes[0]?.body).toContain("その先にあるもの")
-    expect(buildChatbotStaticPolicyPrompt()).toContain("Notionページを実行時に追加参照せず")
+    expect(chatbotKnowledgeSources.map((source) => source.title)).toEqual([
+      "AIチャットボット 相談窓口の設計",
+      "カラーグレーディングの因数分解",
+      "フィルムルックについてわかっていること",
+      "カラーコレクションの因数分解 ── 5000カットの迷宮から、設計にたどり着くまで",
+    ])
+    expect(buildChatbotStaticPolicyPrompt()).toContain("本文は常時同梱しない")
+    expect(buildChatbotStaticPolicyPrompt()).not.toContain("その先にあるもの")
   })
 
   it("keeps response, schedule granularity, and retention constraints explicit", () => {
@@ -57,6 +65,7 @@ describe("chatbot static policy knowledge", () => {
     expect(prompt).toContain("劇場映画・配信作品・CM・ブランドフィルム")
     expect(prompt).toContain("カラーコレクションの因数分解")
     expect(prompt).toContain("火星の女王（NHK100周年記念ドラマ）")
+    expect(prompt).not.toContain("部屋に入った時点でカラコレ")
   })
 
   it("includes only HP-published Featured Works in the static prompt", () => {
@@ -83,7 +92,8 @@ describe("chatbot static policy knowledge", () => {
     expect(prompt).toContain("Inter BEE 2024 / Imagica EMS スペシャルデイ")
     expect(prompt).toContain("Huluドラマ『十角館の殺人』")
     expect(prompt).toContain("カラーコレクションの因数分解")
-    expect(prompt).toContain("その先にあるもの")
+    expect(prompt).toContain("詳細本文はオンデマンド知識参照")
+    expect(prompt).not.toContain("その先にあるもの")
     expect(publishedNotesSnapshot).toHaveLength(1)
     expect(hpPublicKnowledge).toContain("HP公開情報ナレッジ")
   })

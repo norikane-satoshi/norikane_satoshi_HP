@@ -273,13 +273,36 @@ describe("handleChatbotMessage user context", () => {
         systemPrompt: expect.stringContaining("本人だけの過去要約"),
       }),
     )
-    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("Notionページを実行時に追加参照せず")
-    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("15103996-61d6-4891-aee9-12320df39b91")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("必要時だけ参照")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("知識索引")
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("/notes/correction")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).not.toContain("その先にあるもの")
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("案件種類")
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("1返答で質問は最大3問")
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("呼称は中立に保ち")
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("メールアドレス（必須）")
+  })
+
+  it("attaches only selected on-demand knowledge references for schedule and color topics", async () => {
+    const harness = setup()
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "ライブの工程日数とカラコレの考え方を知りたいです",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].knowledgeContext).toMatchObject({
+      selectedSourceIds: expect.arrayContaining([
+        "notion:chatbot-consultation-design",
+        "15103996-61d6-4891-aee9-12320df39b91",
+      ]),
+      notionReferencePrompt: expect.stringContaining("AIチャットボット 相談窓口の設計"),
+      localMirrorPrompt: expect.stringContaining("ライブ 60分: 7〜8日"),
+    })
   })
 
   it("does not load user context for unauthenticated requests", async () => {
