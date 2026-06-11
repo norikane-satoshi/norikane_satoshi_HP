@@ -37,7 +37,12 @@ export function sanitizeChatbotLlmText(
     return directContactPolicyMessage
   }
   if (options.routingDecision?.kind === "to-booking-inline") {
-    return "スケジュール感は把握しました。先に空き状況の候補を出します。細かい収録情報は分かる範囲で後からで大丈夫です。"
+    const estimate = options.routingDecision.jobContext.workflowEstimate
+    const estimatePrefix = estimate
+      ? `作業目安は${formatDays(estimate.totalMinDays)}〜${formatDays(estimate.totalMaxDays)}日です。`
+      : ""
+
+    return `${estimatePrefix}素材搬入時期と納品希望日は把握しました。先に空き状況の候補を出します。細かい素材情報は分かる範囲で後からで大丈夫です。`
   }
   if (options.routingDecision?.kind === "continue" && options.routingDecision.presentChoices) {
     const nextQuestion = options.routingDecision.nextQuestion.trim()
@@ -54,6 +59,10 @@ export function sanitizeChatbotLlmText(
   if (containsPriceQuote(normalizedWhitespace)) return directContactPolicyMessage
 
   return normalizedWhitespace.length > 0 ? normalizedWhitespace : fallbackChatbotAssistantContent
+}
+
+function formatDays(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
 }
 
 function stripThinkBlocksOutsideCodeFences(rawText: string): string {

@@ -151,6 +151,51 @@ describe("WidgetShell API wiring", () => {
     })
   })
 
+  it("scrolls the message pane to the bottom on send and response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        mockJsonResponse({
+          conversationId: "conv_1",
+          userMessage,
+          assistantMessage,
+          tier: "tier-3-ollama-deepseek",
+          ui: { kind: "none" },
+        }),
+      ),
+    )
+
+    renderWidgetShell()
+    const pane = screen.getByTestId("chatbot-message-scroll")
+    const scrollTo = vi.fn()
+    Object.defineProperty(pane, "scrollHeight", { configurable: true, value: 480 })
+    Object.defineProperty(pane, "clientHeight", { configurable: true, value: 180 })
+    Object.defineProperty(pane, "scrollTo", { configurable: true, value: scrollTo })
+
+    submitMessage()
+
+    await waitFor(() => expect(scrollTo).toHaveBeenCalled())
+    expect(scrollTo).toHaveBeenCalledWith({ top: 480, behavior: "auto" })
+    expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
+  })
+
+  it("shows a floating scroll-down button only when the message pane is not at the bottom", () => {
+    renderWidgetShell()
+    const pane = screen.getByTestId("chatbot-message-scroll")
+    const scrollTo = vi.fn()
+    Object.defineProperty(pane, "scrollHeight", { configurable: true, value: 640 })
+    Object.defineProperty(pane, "clientHeight", { configurable: true, value: 240 })
+    Object.defineProperty(pane, "scrollTop", { configurable: true, writable: true, value: 40 })
+    Object.defineProperty(pane, "scrollTo", { configurable: true, value: scrollTo })
+
+    fireEvent.scroll(pane)
+
+    const button = screen.getByRole("button", { name: "最新メッセージへ移動" })
+    fireEvent.click(button)
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 640, behavior: "smooth" })
+  })
+
   it("shows the thinking indicator while waiting for a chatbot response", async () => {
     let resolveFetch: (response: ReturnType<typeof mockJsonResponse>) => void = () => undefined
     const fetchMock = vi.fn(
@@ -343,7 +388,26 @@ describe("WidgetShell API wiring", () => {
               finalMedium: "web",
               workSite: "remote-grading",
               documentaryAttachment: { kind: "none" },
+              projectLengthMinutes: 150,
+              additionalWork: ["retouch", "skin-retouch"],
+              preferredStartDate: "2026-06-15",
+              publicReleaseDate: "2026-06-30",
               workflowEstimate: { stages: [], totalMinDays: 2, totalMaxDays: 3, riskFlags: [] },
+            },
+            conversationState: {
+              hasFinalMedium: true,
+              hasJobKind: true,
+              hasProjectLength: true,
+              hasAdditionalWork: true,
+              hasDocumentaryAttachments: true,
+              hasWorkSite: true,
+              hasReferenceUrls: true,
+              hasContactEmail: true,
+              hasDesiredSchedule: true,
+              hasCustomerIdentity: true,
+              customerName: "田中",
+              companyName: "株式会社サンプル",
+              turnCount: 3,
             },
           },
         }),
@@ -355,6 +419,188 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "6月10日 午前" })).toBeInTheDocument()
+    expect(screen.getByLabelText("補足ノート（任意）")).toHaveValue(
+      "尺: 2.5h\n追加作業: 消し物/レタッチ / 肌修正\n作業場所: リモート\n素材搬入/受け取り時期: 2026-06-15\n納品希望日: 2026-06-30",
+    )
+    expect(screen.getByLabelText("会社名（任意）")).toHaveValue("株式会社サンプル")
+    expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("田中")
+  })
+
+  it("renders booking-card responses without conversationState", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        mockJsonResponse({
+          conversationId: "conv_1",
+          userMessage,
+          assistantMessage: {
+            ...assistantMessage,
+            content: "候補日時から予約できます",
+          },
+          tier: "tier-3-ollama-deepseek",
+          ui: {
+            kind: "booking-card",
+            suggestedSlots: [
+              {
+                start: "2026-06-10T01:00:00.000Z",
+                end: "2026-06-10T02:00:00.000Z",
+                label: "6月10日 午前",
+              },
+            ],
+            jobContext: {
+              finalMedium: "web",
+              workSite: "remote-grading",
+              documentaryAttachment: { kind: "none" },
+              workflowEstimate: { stages: [], totalMinDays: 2, totalMaxDays: 3, riskFlags: [] },
+            },
+          },
+        }),
+      ),
+    )
+
+    renderWidgetShell()
+    submitMessage()
+
+    expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
+    expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("")
+    expect(screen.getByLabelText("会社名（任意）")).toHaveValue("")
+  })
+
+  it("sanitizes restored booking-card UI without conversationState", () => {
+    window.localStorage.setItem(
+      "hp-chatbot-session-v1",
+      JSON.stringify({
+        messages: [{ role: "assistant", content: "候補日時から予約できます", createdAt: "2026-06-08T00:00:00.000Z" }],
+        activeUi: {
+          kind: "booking-card",
+          suggestedSlots: [
+            {
+              start: "2026-06-10T01:00:00.000Z",
+              end: "2026-06-10T02:00:00.000Z",
+              label: "6月10日 午前",
+            },
+          ],
+          jobContext: {
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    )
+
+    renderWidgetShell()
+
+    expect(screen.queryByText("候補日時から予約する")).not.toBeInTheDocument()
+  })
+
+  it("does not pass provided sentinels into booking-card default fields", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        mockJsonResponse({
+          conversationId: "conv_1",
+          userMessage,
+          assistantMessage: {
+            ...assistantMessage,
+            content: "候補日時から予約できます",
+          },
+          tier: "tier-3-ollama-deepseek",
+          ui: {
+            kind: "booking-card",
+            suggestedSlots: [
+              {
+                start: "2026-06-10T01:00:00.000Z",
+                end: "2026-06-10T02:00:00.000Z",
+                label: "6月10日 午前",
+              },
+            ],
+            jobContext: {
+              finalMedium: "web",
+              workSite: "remote-grading",
+              documentaryAttachment: { kind: "none" },
+            },
+            conversationState: {
+              hasFinalMedium: true,
+              hasJobKind: true,
+              hasProjectLength: true,
+              hasAdditionalWork: true,
+              hasDocumentaryAttachments: true,
+              hasWorkSite: true,
+              hasReferenceUrls: true,
+              hasContactEmail: true,
+              hasDesiredSchedule: true,
+              hasCustomerIdentity: true,
+              customerName: "provided",
+              companyName: "provided",
+              turnCount: 3,
+            },
+          },
+        }),
+      ),
+    )
+
+    renderWidgetShell()
+    submitMessage()
+
+    expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
+    expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("")
+    expect(screen.getByLabelText("会社名（任意）")).toHaveValue("")
+  })
+
+  it("does not pass job-kind or company-like values into booking-card contact defaults", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        mockJsonResponse({
+          conversationId: "conv_1",
+          userMessage,
+          assistantMessage: {
+            ...assistantMessage,
+            content: "候補日時から予約できます",
+          },
+          tier: "tier-3-ollama-deepseek",
+          ui: {
+            kind: "booking-card",
+            suggestedSlots: [
+              {
+                start: "2026-06-10T01:00:00.000Z",
+                end: "2026-06-10T02:00:00.000Z",
+                label: "6月10日 午前",
+              },
+            ],
+            jobContext: {
+              finalMedium: "web",
+              workSite: "remote-grading",
+              documentaryAttachment: { kind: "none" },
+            },
+            conversationState: {
+              hasFinalMedium: true,
+              hasJobKind: true,
+              hasProjectLength: true,
+              hasAdditionalWork: true,
+              hasDocumentaryAttachments: true,
+              hasWorkSite: true,
+              hasReferenceUrls: true,
+              hasContactEmail: true,
+              hasDesiredSchedule: true,
+              hasCustomerIdentity: true,
+              customerName: "株式会社サンプル",
+              companyName: "ライブ",
+              turnCount: 3,
+            },
+          },
+        }),
+      ),
+    )
+
+    renderWidgetShell()
+    submitMessage()
+
+    expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
+    expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("")
+    expect(screen.getByLabelText("会社名（任意）")).toHaveValue("")
   })
 
   it("renders InquiryForm for tier4 responses and posts submit-inquiry", async () => {
@@ -413,8 +659,8 @@ describe("WidgetShell API wiring", () => {
               subject: "チャットボット相談",
               customerEmail: "client@example.com",
               jobContext: { finalMedium: "live", workSite: "remote-grading" },
-              summaryText: "live-60m / live / remote-grading / 日程未定",
-              openQuestions: ["作業・立ち会い日程未確認"],
+              summaryText: "live-60m / live / remote-grading / 搬入〜納品未定",
+              openQuestions: ["素材搬入〜納品時期未確認"],
             },
           },
         }),

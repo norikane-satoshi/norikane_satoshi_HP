@@ -134,10 +134,11 @@ describe("normalizeChatbotLlmResponse", () => {
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
+            workflowEstimate: { stages: [], totalMinDays: 7, totalMaxDays: 8, riskFlags: [] },
           },
         },
       }),
-    ).toContain("先に空き状況")
+    ).toContain("作業目安は7〜8日")
   })
 
   it("keeps direct-contact routing override", () => {

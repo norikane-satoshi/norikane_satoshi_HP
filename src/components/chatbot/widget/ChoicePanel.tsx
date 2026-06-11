@@ -15,9 +15,7 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
 
   const handleSelect = (choiceId: string) => {
     const nextSelectedIds = allowMultiple
-      ? selectedIds.includes(choiceId)
-        ? selectedIds.filter((id) => id !== choiceId)
-        : [...selectedIds, choiceId]
+      ? toggleMultipleChoice(selectedIds, choiceId)
       : [choiceId]
 
     setSelectedIds(nextSelectedIds)
@@ -48,4 +46,13 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
       </div>
     </section>
   )
+}
+
+function toggleMultipleChoice(selectedIds: string[], choiceId: string): string[] {
+  if (choiceId === "none") return selectedIds.includes("none") ? [] : ["none"]
+
+  const withoutNone = selectedIds.filter((id) => id !== "none")
+  return withoutNone.includes(choiceId)
+    ? withoutNone.filter((id) => id !== choiceId)
+    : [...withoutNone, choiceId]
 }

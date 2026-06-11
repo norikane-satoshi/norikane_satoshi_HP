@@ -10,6 +10,7 @@ import type {
 type ChoicePanelPatch = {
   choiceSetId: SurveyChoiceSet["id"]
   choiceId: SurveyChoice["id"]
+  choiceIds: SurveyChoice["id"][]
   conversationState: Partial<ConversationState>
   jobContext: Partial<JobContext>
 }
@@ -20,7 +21,8 @@ export function applyActiveChoiceAnswer(input: {
   activeChoices?: SurveyChoiceSet
   message: string
 }): ChoicePanelPatch | null {
-  const choice = resolveChoice(input.activeChoices, input.message)
+  const choices = resolveChoices(input.activeChoices, input.message)
+  const choice = choices[0]
   if (!input.activeChoices || !choice) return null
 
   switch (input.activeChoices.id) {
@@ -28,20 +30,33 @@ export function applyActiveChoiceAnswer(input: {
       return {
         choiceSetId: input.activeChoices.id,
         choiceId: choice.id,
+        choiceIds: [choice.id],
         conversationState: { hasFinalMedium: true },
         jobContext: { finalMedium: choice.id as JobContext["finalMedium"] },
       }
     case "additional-work":
+      if (choices.some((item) => item.id === "none")) {
+        return {
+          choiceSetId: input.activeChoices.id,
+          choiceId: "none",
+          choiceIds: ["none"],
+          conversationState: { hasAdditionalWork: true },
+          jobContext: { additionalWork: undefined },
+        }
+      }
+
       return {
         choiceSetId: input.activeChoices.id,
         choiceId: choice.id,
+        choiceIds: choices.map((item) => item.id),
         conversationState: { hasAdditionalWork: true },
-        jobContext: choice.id === "none" ? { additionalWork: undefined } : { additionalWork: [choice.id as AdditionalWork] },
+        jobContext: { additionalWork: choices.map((item) => item.id as AdditionalWork) },
       }
     case "documentary-attachment":
       return {
         choiceSetId: input.activeChoices.id,
         choiceId: choice.id,
+        choiceIds: [choice.id],
         conversationState: { hasDocumentaryAttachments: true },
         jobContext: { documentaryAttachment: toDocumentaryAttachment(choice.id) },
       }
@@ -49,8 +64,30 @@ export function applyActiveChoiceAnswer(input: {
       return {
         choiceSetId: input.activeChoices.id,
         choiceId: choice.id,
+        choiceIds: [choice.id],
         conversationState: { hasWorkSite: true },
         jobContext: { workSite: toWorkSite(choice.id) },
+      }
+    case "production-options":
+      if (choices.some((item) => item.id === "none")) {
+        return {
+          choiceSetId: input.activeChoices.id,
+          choiceId: "none",
+          choiceIds: ["none"],
+          conversationState: { hasProductionOptions: true, productionOptions: [] },
+          jobContext: {},
+        }
+      }
+
+      return {
+        choiceSetId: input.activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: choices.map((item) => item.id),
+        conversationState: {
+          hasProductionOptions: true,
+          productionOptions: choices.map((item) => item.id as ProductionOption),
+        },
+        jobContext: {},
       }
     default:
       return null
@@ -70,22 +107,33 @@ export function isSatisfiedChoicePanel(
       return conversationState.hasDocumentaryAttachments
     case "work-site":
       return conversationState.hasWorkSite
+    case "production-options":
+      return Boolean(conversationState.hasProductionOptions)
     default:
       return false
   }
 }
 
-function resolveChoice(activeChoices: SurveyChoiceSet | undefined, message: string): SurveyChoice | null {
-  if (!activeChoices) return null
-  const normalizedMessage = normalizeChoiceText(message.replace(choicePrefixPattern, ""))
-  return (
-    activeChoices.choices.find((choice) => normalizeChoiceText(choice.id) === normalizedMessage) ??
-    activeChoices.choices.find((choice) => normalizeChoiceText(choice.label) === normalizedMessage) ??
-    null
-  )
+function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: string): SurveyChoice[] {
+  if (!activeChoices) return []
+  const normalizedMessages = message
+    .replace(choicePrefixPattern, "")
+    .split(/[,、\n]/u)
+    .map(normalizeChoiceText)
+    .filter(Boolean)
+  const messages = normalizedMessages.length > 0 ? normalizedMessages : [normalizeChoiceText(message)]
+
+  return messages
+    .map((normalizedMessage) =>
+      activeChoices.choices.find((choice) => normalizeChoiceText(choice.id) === normalizedMessage) ??
+      activeChoices.choices.find((choice) => normalizeChoiceText(choice.label) === normalizedMessage) ??
+      null,
+    )
+    .filter((choice): choice is SurveyChoice => Boolean(choice))
 }
 
 type AdditionalWork = NonNullable<JobContext["additionalWork"]>[number]
+type ProductionOption = NonNullable<ConversationState["productionOptions"]>[number]
 
 function toDocumentaryAttachment(choiceId: string): DocumentaryAttachment {
   if (choiceId === "none") return { kind: "none" }

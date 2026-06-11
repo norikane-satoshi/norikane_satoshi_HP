@@ -55,6 +55,7 @@ type ChatbotMessageUi =
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
       jobContext: JobContext
+      conversationState: ConversationState
     }
   | {
       kind: "direct-contact-card"
@@ -515,10 +516,16 @@ function buildConversationState(
   const merged = {
     hasFinalMedium: false,
     hasJobKind: false,
+    hasProjectLength: false,
+    hasMaterialHandoff: false,
+    hasMaterialDetails: false,
     hasAdditionalWork: false,
     hasDocumentaryAttachments: false,
     hasWorkSite: false,
     hasReferenceUrls: false,
+    hasDeliveryFormat: false,
+    hasProductionOptions: false,
+    hasBudgetRange: false,
     hasContactEmail: false,
     hasDesiredSchedule: false,
     ...stored,
@@ -542,6 +549,24 @@ function buildConversationState(
       input?.hasJobKind,
       activeChoiceConversationState?.hasJobKind,
     ),
+    hasProjectLength: isSlotSatisfied(
+      stored.hasProjectLength,
+      inferred.hasProjectLength,
+      input?.hasProjectLength,
+      activeChoiceConversationState?.hasProjectLength,
+    ),
+    hasMaterialHandoff: isSlotSatisfied(
+      stored.hasMaterialHandoff,
+      inferred.hasMaterialHandoff,
+      input?.hasMaterialHandoff,
+      activeChoiceConversationState?.hasMaterialHandoff,
+    ),
+    hasMaterialDetails: isSlotSatisfied(
+      stored.hasMaterialDetails,
+      inferred.hasMaterialDetails,
+      input?.hasMaterialDetails,
+      activeChoiceConversationState?.hasMaterialDetails,
+    ),
     hasAdditionalWork: isSlotSatisfied(
       stored.hasAdditionalWork,
       inferred.hasAdditionalWork,
@@ -561,6 +586,14 @@ function buildConversationState(
       activeChoiceConversationState?.hasWorkSite,
     ),
     hasReferenceUrls: isSlotSatisfied(stored.hasReferenceUrls, inferred.hasReferenceUrls, input?.hasReferenceUrls),
+    hasDeliveryFormat: isSlotSatisfied(stored.hasDeliveryFormat, inferred.hasDeliveryFormat, input?.hasDeliveryFormat),
+    hasProductionOptions: isSlotSatisfied(
+      stored.hasProductionOptions,
+      inferred.hasProductionOptions,
+      input?.hasProductionOptions,
+      activeChoiceConversationState?.hasProductionOptions,
+    ),
+    hasBudgetRange: isSlotSatisfied(stored.hasBudgetRange, inferred.hasBudgetRange, input?.hasBudgetRange),
     hasContactEmail: isSlotSatisfied(stored.hasContactEmail, inferred.hasContactEmail, input?.hasContactEmail),
     hasDesiredSchedule: isSlotSatisfied(stored.hasDesiredSchedule, inferred.hasDesiredSchedule, input?.hasDesiredSchedule),
     hasCustomerIdentity: isSlotSatisfied(
@@ -626,6 +659,7 @@ function toMessageUi(
       kind: "booking-card",
       suggestedSlots: routingDecision.suggestedSlots,
       jobContext: routingDecision.jobContext,
+      conversationState,
     }
   }
 
@@ -662,7 +696,7 @@ function buildConversationSummary(jobContext: JobContext, conversationState: Con
 
 function buildUiSummaryText(jobContext: JobContext, conversationState: ConversationState): string {
   const jobKind = jobContext.jobKind ?? "案件種別未確認"
-  const schedule = conversationState.hasDesiredSchedule ? "日程あり" : "日程未定"
+  const schedule = conversationState.hasDesiredSchedule ? "搬入〜納品あり" : "搬入〜納品未定"
 
   return `${jobKind} / ${jobContext.finalMedium} / ${jobContext.workSite} / ${schedule}`
 }
@@ -670,12 +704,13 @@ function buildUiSummaryText(jobContext: JobContext, conversationState: Conversat
 function buildUiOpenQuestions(conversationState: ConversationState): string[] {
   return [
     conversationState.hasFinalMedium ? undefined : "最終媒体未確認",
-    conversationState.hasJobKind ? undefined : "案件種別・尺未確認",
+    conversationState.hasJobKind && conversationState.hasProjectLength ? undefined : "案件種別・尺未確認",
+    conversationState.hasMaterialHandoff ? undefined : "素材受け渡し未確認",
     conversationState.hasAdditionalWork ? undefined : "追加作業未確認",
     conversationState.hasDocumentaryAttachments ? undefined : "付随映像未確認",
     conversationState.hasWorkSite ? undefined : "作業場所未確認",
     conversationState.hasReferenceUrls ? undefined : "参考URL未確認",
-    conversationState.hasDesiredSchedule ? undefined : "作業・立ち会い日程未確認",
+    conversationState.hasDesiredSchedule ? undefined : "素材搬入〜納品時期未確認",
   ].filter((item): item is string => Boolean(item))
 }
 
@@ -684,18 +719,28 @@ function conversationText(conversation: ChatbotConversation, userMessage: Chatbo
 }
 
 function inferConversationStateFromText(text: string): Partial<ConversationState> {
-  const hasProjectLength = /(?:尺|長さ|length|duration|4\s*分|４\s*分|\d+\s*min)/iu.test(text)
-  const hasSchedule = /(?:6月中旬|６月中旬|中旬|納品|公開|希望時期|作業したい|まで|deadline)/iu.test(text)
+  const hasProjectLength = /(?:尺|長さ|length|duration|\d+\s*(?:時間|h|hours?|分|m|min|minutes?))/iu.test(text)
+  const hasSchedule = /(?:6月中旬|６月中旬|中旬|素材.*(?:搬入|受け取り|受取)|搬入|受け取り|受取|カラコレ開始|納品|公開|希望時期|月末|まで|deadline)/iu.test(text)
   const hasContactEmail = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu.test(text)
-  const hasCustomerIdentity = /(?:会社|株式会社|合同会社|担当|名前|氏名|お名前)/u.test(text)
+  const identity = inferCustomerIdentityFromText(text)
+  const hasCustomerIdentity = identity.hasCustomerIdentity
   const hasDeliveryFormat = /(?:納品形式|納品フォーマット|prores|mp4|mov|h\.?264|h\.?265)/iu.test(text)
+  const hasMaterialHandoff =
+    /(?:受け渡し|オンライン共有|共有リンク|ギガファイル|gigafile|google\s*drive|dropbox|クラウド|アップロード|sd|hdd|ssd|郵送|持ち込み|搬入|転送)/iu.test(text)
+  const hasMaterialDetails =
+    /(?:素材内容|カメラ\s*\d+\s*台|カメラ台数|収録形式|解像度|フレームレート|fps|4k|full\s*hd|fullhd|1080|prores|raw|log|s-log)/iu.test(text)
+  const hasProductionOptions = /(?:字幕|テロップ|ナレーション|音楽|bgm)/iu.test(text)
+  const hasBudgetRange = /(?:予算|ご予算|概算|レンジ|\d+\s*(?:万|万円|円)|budget)/iu.test(text)
   const hasMeetingPreference = /(?:打ち合わせ|ミーティング|オンライン|zoom|meet)/iu.test(text)
   const hasWorkSite = /(?:作業場所|立ち会い|リモート|オンライン|スタジオ|現地)/u.test(text)
   const hasTransfer = /(?:素材|搬入|受け渡し|アップロード|drive|dropbox|gigafile|ギガファイル)/iu.test(text)
 
   return {
     hasFinalMedium: /(?:web\s*cm|web|cm|mv|ミュージックビデオ|sns|ott|tv|テレビ|劇場|live|ライブ)/iu.test(text),
-    hasJobKind: hasProjectLength || /(?:ab\s*タイプ|a\/b|2\s*本|２\s*本|cm|mv|web\s*cm)/iu.test(text),
+    hasJobKind: /(?:ab\s*タイプ|a\/b|2\s*本|２\s*本|cm|mv|web\s*cm|live|ライブ)/iu.test(text),
+    hasProjectLength,
+    hasMaterialHandoff,
+    hasMaterialDetails,
     hasAdditionalWork: /(?:カラグレ|カラーグレーディング|追加作業|修正|レタッチ|なし)/u.test(text),
     hasDocumentaryAttachments: /(?:付随|資料|参考|なし|素材)/u.test(text),
     hasWorkSite,
@@ -704,26 +749,103 @@ function inferConversationStateFromText(text: string): Partial<ConversationState
     hasDesiredSchedule: hasSchedule,
     hasCustomerIdentity,
     contactEmail: hasContactEmail ? text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu)?.[0] : undefined,
-    customerName: hasCustomerIdentity ? "provided" : undefined,
-    companyName: hasCustomerIdentity ? "provided" : undefined,
+    customerName: identity.customerName,
+    companyName: identity.companyName,
     hasDeliveryFormat,
+    hasProductionOptions,
+    hasBudgetRange,
     hasMeetingPreference,
   } as Partial<ConversationState>
 }
 
+function inferCustomerIdentityFromText(text: string): {
+  hasCustomerIdentity: boolean
+  customerName?: string
+  companyName?: string
+} {
+  const companyName =
+    cleanInferredIdentityValue(
+      text.match(/(?:会社名|社名|所属)\s*(?:は|:|：)?\s*([^\n、,。]+)/u)?.[1],
+      "company",
+    ) ??
+    cleanInferredIdentityValue(text.match(/((?:株式会社|合同会社|有限会社)[^\s、,。の]{1,30})/u)?.[1], "company") ??
+    cleanInferredIdentityValue(text.match(/([^\s、,。]{1,30}(?:株式会社|合同会社|有限会社))/u)?.[1], "company")
+
+  const customerName =
+    cleanInferredIdentityValue(
+      text.match(/(?:担当者氏名|担当者名|担当|氏名|お名前|名前)\s*(?:は|:|：)?\s*([^\n、,。]+)/u)?.[1],
+      "person",
+    ) ?? cleanInferredIdentityValue(text.match(/(?:株式会社|合同会社|有限会社)[^\s、,。の]{1,30}の([^\s、,。]+?)(?:です|と申します)?(?:[。\n、,]|$)/u)?.[1], "person")
+
+  return {
+    hasCustomerIdentity: /(?:会社|株式会社|合同会社|有限会社|担当|名前|氏名|お名前)/u.test(text),
+    ...(customerName ? { customerName } : {}),
+    ...(companyName ? { companyName } : {}),
+  }
+}
+
+function cleanInferredIdentityValue(value: string | undefined, kind: "company" | "person"): string | undefined {
+  if (!value) return undefined
+
+  const cleaned = value
+    .replace(/(?:です|でございます|と申します|になります|です。)$/u, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+
+  if (!cleaned || cleaned === "provided") return undefined
+  if (/(?:共有済み|提供済み|取得済み|未定|不明|連絡先|メール|納品形式|打ち合わせ|作業場所|希望|済み)/u.test(cleaned)) {
+    return undefined
+  }
+  if (/(?:案件種別|最終媒体|尺|素材|受け渡し|納品|解像度|字幕|テロップ|ナレーション|音楽|予算)/u.test(cleaned)) {
+    return undefined
+  }
+  if (/^(?:ライブ|live|web|cm|mv|ott|sns|tv|テレビ|劇場|映画|その他|リモート|オンライン共有|ギガファイル|クラウド)$/iu.test(cleaned)) {
+    return undefined
+  }
+  if (kind === "person" && /(?:株式会社|合同会社|有限会社|会社|法人|スタジオ|プロダクション)/u.test(cleaned)) {
+    return undefined
+  }
+  if (kind === "company" && /(?:さん|様)$/u.test(cleaned)) return undefined
+  if (kind === "company" && cleaned.length > 40) return undefined
+  if (kind === "person" && cleaned.length > 24) return undefined
+
+  return cleaned
+}
+
 function inferJobContextFromText(text: string): Partial<JobContext> {
   const finalMedium = inferFinalMediumFromText(text)
-  const projectLengthMinutes = /(?:4|４)\s*分/u.test(text) ? 4 : undefined
-  const preferredStartDate = /(?:6月中旬|６月中旬|中旬)/u.test(text) ? "2026-06-15" : undefined
-  const publicReleaseDate = /(?:6月20日|６月２０日|6\/20|06-20)/u.test(text) ? "2026-06-20" : undefined
+  const projectLengthMinutes = inferProjectLengthMinutes(text)
+  const preferredStartDate = /(?:6月中旬|６月中旬|中旬|6月中頃|６月中頃)/u.test(text) ? "2026-06-15" : undefined
+  const publicReleaseDate = /(?:6月20日|６月２０日|6\/20|06-20)/u.test(text)
+    ? "2026-06-20"
+    : /(?:月末|6月末|６月末)/u.test(text)
+      ? "2026-06-30"
+      : undefined
 
   return {
     ...(finalMedium ? { finalMedium } : {}),
     ...(/(?:web\s*cm|cm)/iu.test(text) ? { jobKind: "cm-30s" as const } : {}),
+    ...(finalMedium === "live" && projectLengthMinutes !== undefined ? { jobKind: "live-60m" as const } : {}),
     ...(projectLengthMinutes ? { projectLengthMinutes } : {}),
     ...(preferredStartDate ? { preferredStartDate } : {}),
     ...(publicReleaseDate ? { publicReleaseDate } : {}),
   }
+}
+
+function inferProjectLengthMinutes(text: string): number | undefined {
+  const mixedHourMatch = text.match(/(\d+)\s*(?:時間|h|hours?)\s*(?:半|30\s*(?:分|m|min|minutes?))/iu)
+  if (mixedHourMatch?.[1]) return Number.parseInt(mixedHourMatch[1], 10) * 60 + 30
+
+  const decimalHourMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:時間|h|hours?)/iu)
+  if (decimalHourMatch?.[1]) return Number.parseFloat(decimalHourMatch[1]) * 60
+
+  const minuteMatch = text.match(/(\d+)\s*(?:分|m|min|minutes?)/iu)
+  if (minuteMatch?.[1]) return Number.parseInt(minuteMatch[1], 10)
+
+  const hourMatch = text.match(/(\d+)\s*(?:時間|h|hours?)/iu)
+  if (hourMatch?.[1]) return Number.parseInt(hourMatch[1], 10) * 60
+
+  return undefined
 }
 
 function inferFinalMediumFromText(text: string): JobContext["finalMedium"] | undefined {

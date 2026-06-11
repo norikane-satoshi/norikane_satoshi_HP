@@ -16,6 +16,7 @@ export {
   additionalWorkChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
+  productionOptionChoices,
   surveyChoiceSets,
   workSiteChoices,
 } from "@/lib/chatbot/domain/survey-choice"

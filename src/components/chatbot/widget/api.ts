@@ -14,6 +14,7 @@ export type WidgetUi =
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
       jobContext: JobContext
+      conversationState: ConversationState
     }
   | {
       kind: "direct-contact-card"

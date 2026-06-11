@@ -7,6 +7,7 @@ export type SurveyChoiceSet = {
   id: string
   question: string
   choices: SurveyChoice[]
+  selectionMode?: "single" | "multiple"
 }
 
 export const finalMediumChoices = {
@@ -26,6 +27,7 @@ export const finalMediumChoices = {
 export const additionalWorkChoices = {
   id: "additional-work",
   question: "カラグレ以外の追加作業はありますか",
+  selectionMode: "multiple",
   choices: [
     { id: "retouch", label: "消し物" },
     { id: "skin-retouch", label: "肌修正" },
@@ -58,9 +60,23 @@ export const workSiteChoices = {
   ],
 } as const satisfies SurveyChoiceSet
 
+export const productionOptionChoices = {
+  id: "production-options",
+  question: "字幕・テロップ、ナレーション、音楽はありますか",
+  selectionMode: "multiple",
+  choices: [
+    { id: "captions", label: "字幕" },
+    { id: "telops", label: "テロップ" },
+    { id: "narration", label: "ナレーション" },
+    { id: "music", label: "音楽" },
+    { id: "none", label: "なし" },
+  ],
+} as const satisfies SurveyChoiceSet
+
 export const surveyChoiceSets = [
   finalMediumChoices,
   additionalWorkChoices,
   documentaryAttachmentChoices,
   workSiteChoices,
+  productionOptionChoices,
 ] as const satisfies readonly SurveyChoiceSet[]

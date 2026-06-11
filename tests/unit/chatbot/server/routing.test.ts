@@ -4,6 +4,7 @@ import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
   finalMediumChoices,
+  productionOptionChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
@@ -28,6 +29,8 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
   return {
     hasFinalMedium: true,
     hasJobKind: true,
+    hasProjectLength: true,
+    hasMaterialHandoff: true,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
@@ -75,7 +78,7 @@ describe("chatbot fallback router", () => {
       nextQuestion: expect.stringContaining("案件種類"),
     })
     expect(result).toMatchObject({
-      nextQuestion: expect.stringContaining("スケジュールがだいたい決まっているか"),
+      nextQuestion: expect.stringContaining("素材搬入時期・納品希望日"),
     })
     expect(result).toMatchObject({
       nextQuestion: expect.stringContaining("お名前・会社名"),
@@ -127,6 +130,127 @@ describe("chatbot fallback router", () => {
         expect.objectContaining({ note: "1時間候補" }),
       ]),
       jobContext: expect.objectContaining(context),
+    })
+  })
+
+  it("keeps asking for project length before inline booking", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ projectLengthMinutes: undefined }),
+      conversationState: conversationState({ hasProjectLength: false }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      nextQuestion: "案件種別と尺を教えてください",
+    })
+  })
+
+  it("keeps asking for material handoff before inline booking", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({ hasMaterialHandoff: false }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("撮影素材"),
+    })
+  })
+
+  it("does not require optional pre-booking details for inline booking", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({
+        hasMaterialDetails: false,
+        hasDeliveryFormat: false,
+        hasProductionOptions: false,
+        hasBudgetRange: false,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "to-booking-inline",
+    })
+  })
+
+  it("continues with production option choices while optional intake is still in progress", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({
+        hasDesiredSchedule: false,
+        hasContactEmail: false,
+        hasMaterialDetails: true,
+        hasDeliveryFormat: true,
+        hasProductionOptions: false,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      presentChoices: productionOptionChoices,
+    })
+  })
+
+  it("uses date candidates and live workflow days for live 60 minute work", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({
+        jobKind: "live-60m",
+        finalMedium: "live",
+        projectLengthMinutes: 60,
+      }),
+      conversationState: conversationState(),
+    })
+
+    expect(result).toMatchObject({
+      kind: "to-booking-inline",
+      suggestedSlots: expect.arrayContaining([
+        expect.objectContaining({ note: "日付候補 / 仮キープ 7営業日" }),
+      ]),
+      jobContext: expect.objectContaining({
+        workflowEstimate: expect.objectContaining({
+          totalMinDays: 7,
+          totalMaxDays: 8,
+        }),
+      }),
+    })
+    expect(result).not.toMatchObject({
+      suggestedSlots: expect.arrayContaining([
+        expect.objectContaining({ note: "1時間候補" }),
+      ]),
+    })
+  })
+
+  it("routes tightish live work with completed gates to inline booking", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({
+        jobKind: "live-60m",
+        finalMedium: "live",
+        workSite: "on-site",
+        projectLengthMinutes: 150,
+        preferredStartDate: "2026-06-15",
+        publicReleaseDate: "2026-06-30",
+        additionalWork: ["retouch", "skin-retouch"],
+        retouchCutCount: 70,
+      }),
+      conversationState: conversationState({
+        daysUntilStart: tightDeadlineThresholdDays + 2,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "to-booking-inline",
+      suggestedSlots: expect.arrayContaining([
+        expect.objectContaining({
+          label: expect.stringContaining(" - "),
+          note: "日付候補 / 仮キープ 9営業日",
+        }),
+      ]),
+      jobContext: expect.objectContaining({
+        workflowEstimate: expect.objectContaining({
+          totalMinDays: 8.5,
+          totalMaxDays: 10,
+        }),
+      }),
     })
   })
 
@@ -210,8 +334,7 @@ describe("chatbot fallback router", () => {
       reason: "tight-deadline",
     })
     expect(nextDay).toMatchObject({
-      kind: "continue",
-      nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
+      kind: "to-booking-inline",
     })
   })
 
@@ -228,8 +351,7 @@ describe("chatbot fallback router", () => {
     })
 
     expect(boundary).toMatchObject({
-      kind: "continue",
-      nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
+      kind: "to-booking-inline",
     })
     expect(nextDay).toMatchObject({
       kind: "to-booking-inline",

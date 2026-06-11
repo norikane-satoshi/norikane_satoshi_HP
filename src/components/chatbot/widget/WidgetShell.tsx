@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react"
-import { Minus, PanelRightClose, PanelRightOpen, Sparkles } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react"
+import { ChevronDown, Minus, PanelRightClose, PanelRightOpen, Sparkles } from "lucide-react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 
@@ -75,6 +75,98 @@ const FLOATING_RESIZE_CORNERS = [
   { edge: "nw", className: "left-0 top-0 h-5 w-5 cursor-nwse-resize" },
 ] as const
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object")
+}
+
+function cleanDefaultContactValue(value: unknown, kind: "company" | "person"): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === "provided") return undefined
+  if (/^(?:ライブ|live|web|cm|mv|ott|sns|tv|テレビ|劇場|映画|その他|リモート|オンライン共有|ギガファイル|クラウド)$/iu.test(trimmed)) {
+    return undefined
+  }
+  if (/(?:案件種別|最終媒体|尺|素材|受け渡し|納品|解像度|字幕|テロップ|ナレーション|音楽|予算)/u.test(trimmed)) {
+    return undefined
+  }
+  if (kind === "person" && /(?:株式会社|合同会社|有限会社|会社|法人|スタジオ|プロダクション)/u.test(trimmed)) {
+    return undefined
+  }
+  return trimmed
+}
+
+type BookingCardJobContext = Extract<WidgetUi, { kind: "booking-card" }>["jobContext"]
+
+const additionalWorkMemoLabels: Record<NonNullable<BookingCardJobContext["additionalWork"]>[number], string> = {
+  retouch: "消し物/レタッチ",
+  "skin-retouch": "肌修正",
+  other: "その他追加作業",
+}
+
+const workSiteMemoLabels: Record<BookingCardJobContext["workSite"], string> = {
+  "satoshi-studio": "のりかね映像設計室",
+  "remote-grading": "リモート",
+  "on-site": "現地/ポスプロ常駐",
+}
+
+function buildBookingSupplementalNote(jobContext: BookingCardJobContext): string {
+  return [
+    formatProjectLengthMemo(jobContext.projectLengthMinutes),
+    formatAdditionalWorkMemo(jobContext.additionalWork),
+    formatWorkSiteMemo(jobContext.workSite),
+    jobContext.preferredStartDate ? `素材搬入/受け取り時期: ${jobContext.preferredStartDate}` : undefined,
+    jobContext.publicReleaseDate ? `納品希望日: ${jobContext.publicReleaseDate}` : undefined,
+    ...(jobContext.referenceUrls ?? []),
+  ].filter((item): item is string => Boolean(item)).join("\n")
+}
+
+function formatProjectLengthMemo(minutes: number | undefined): string | undefined {
+  if (minutes === undefined) return undefined
+  if (minutes >= 60) {
+    const hours = minutes / 60
+    return `尺: ${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`
+  }
+  return `尺: ${minutes}分`
+}
+
+function formatAdditionalWorkMemo(additionalWork: BookingCardJobContext["additionalWork"]): string | undefined {
+  if (!additionalWork?.length) return undefined
+  return `追加作業: ${additionalWork.map((item) => additionalWorkMemoLabels[item]).join(" / ")}`
+}
+
+function formatWorkSiteMemo(workSite: BookingCardJobContext["workSite"]): string | undefined {
+  if (!workSite) return undefined
+  return `作業場所: ${workSiteMemoLabels[workSite]}`
+}
+
+function sanitizeBookingCardActiveUi(value: Record<string, unknown>): WidgetUi {
+  if (!isRecord(value.conversationState)) return noUi
+
+  const sanitizedConversationState = { ...value.conversationState }
+  const customerName = cleanDefaultContactValue(sanitizedConversationState.customerName, "person")
+  const companyName = cleanDefaultContactValue(sanitizedConversationState.companyName, "company")
+
+  if (customerName) {
+    sanitizedConversationState.customerName = customerName
+  } else {
+    delete sanitizedConversationState.customerName
+  }
+
+  if (companyName) {
+    sanitizedConversationState.companyName = companyName
+  } else {
+    delete sanitizedConversationState.companyName
+  }
+
+  return { ...value, conversationState: sanitizedConversationState } as WidgetUi
+}
+
+function sanitizeStoredActiveUi(value: unknown): WidgetUi {
+  if (!isRecord(value)) return noUi
+  if (value.kind === "booking-card") return sanitizeBookingCardActiveUi(value)
+  return value as WidgetUi
+}
+
 type StoredWidgetSession = {
   messages: Array<Omit<WidgetMessage, "createdAt"> & { createdAt: string }>
   clientSessionId?: string
@@ -120,7 +212,7 @@ function loadStoredWidgetSession(): {
       messages: messages.length > 0 ? messages : [initialMessage],
       clientSessionId: parsed.clientSessionId,
       conversationId: parsed.conversationId,
-      activeUi: parsed.activeUi ?? noUi,
+      activeUi: sanitizeStoredActiveUi(parsed.activeUi),
       lastResponseTier: parsed.lastResponseTier,
       lastTierAttempts: parsed.lastTierAttempts,
     }
@@ -183,7 +275,9 @@ export function WidgetShell({
   const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>(storedSession.lastResponseTier)
   const [lastTierAttempts, setLastTierAttempts] = useState<ChatbotTierAttemptDebug[] | undefined>(storedSession.lastTierAttempts)
   const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
+  const [isMessageScrollAtBottom, setIsMessageScrollAtBottom] = useState(true)
   const shellRef = useRef<HTMLElement | null>(null)
+  const messageScrollRef = useRef<HTMLDivElement | null>(null)
   const activeRequestControllerRef = useRef<AbortController | null>(null)
   const showLocalTierDebug =
     typeof window !== "undefined" && isLocalChatbotTierDebugHostname(window.location.hostname)
@@ -327,6 +421,24 @@ export function WidgetShell({
     setMessages((currentMessages) => [...currentMessages, message])
   }
 
+  const updateMessageScrollState = useCallback(() => {
+    const element = messageScrollRef.current
+    if (!element) return
+    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight
+    setIsMessageScrollAtBottom(distanceFromBottom <= 8)
+  }, [])
+
+  const scrollMessagesToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const element = messageScrollRef.current
+    if (!element) return
+    if (typeof element.scrollTo === "function") {
+      element.scrollTo({ top: element.scrollHeight, behavior })
+    } else {
+      element.scrollTop = element.scrollHeight
+    }
+    window.setTimeout(updateMessageScrollState, 0)
+  }, [updateMessageScrollState])
+
   const markSubmittedUserMessage = (
     createdAt: Date,
     content: string,
@@ -357,6 +469,10 @@ export function WidgetShell({
 
     return () => window.clearTimeout(timeoutId)
   }, [submitting])
+
+  useEffect(() => {
+    scrollMessagesToBottom("auto")
+  }, [activeUi, messages.length, scrollMessagesToBottom, submitting])
 
   useEffect(() => {
     return () => {
@@ -594,7 +710,12 @@ export function WidgetShell({
         </div>
       ) : null}
 
-      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+      <div
+        ref={messageScrollRef}
+        data-testid="chatbot-message-scroll"
+        className="flex-1 space-y-4 overflow-y-auto px-5 py-5"
+        onScroll={updateMessageScrollState}
+      >
         <SecurityNote defaultOpen={false} />
         <div className="space-y-3" role="log" aria-live="polite">
           {messages.map((message, index) => (
@@ -612,6 +733,17 @@ export function WidgetShell({
         </div>
         <ActiveWidgetUi ui={activeUi} conversationId={conversationId} onSubmit={handleSubmit} onInquirySubmit={handleInquirySubmit} />
       </div>
+
+      {!isMessageScrollAtBottom ? (
+        <button
+          type="button"
+          className={`glass-btn absolute bottom-20 left-1/2 z-30 flex h-10 w-10 -translate-x-1/2 items-center justify-center bg-white/65 text-hp shadow-[0_0_24px_rgba(139,127,255,0.22)] ${FOCUS_RING_CLASS}`}
+          aria-label="最新メッセージへ移動"
+          onClick={() => scrollMessagesToBottom("smooth")}
+        >
+          <ChevronDown className="h-5 w-5" aria-hidden="true" />
+        </button>
+      ) : null}
 
       <ChatInput onSubmit={handleSubmit} onStop={handleStop} disabled={submitting} stoppingEnabled={submitting} />
     </section>
@@ -633,6 +765,7 @@ function ActiveWidgetUi({
     return (
       <ChoicePanel
         choiceSet={ui.choiceSet}
+        allowMultiple={ui.choiceSet.selectionMode === "multiple"}
         onSelect={(selectedIds) => onSubmit(`選択: ${selectedIds.join(", ")}`)}
       />
     )
@@ -644,8 +777,10 @@ function ActiveWidgetUi({
         conversationId={conversationId}
         candidates={ui.suggestedSlots}
         estimate={ui.jobContext.workflowEstimate}
+        defaultContactName={cleanDefaultContactValue(ui.conversationState?.customerName, "person")}
+        defaultCompanyName={cleanDefaultContactValue(ui.conversationState?.companyName, "company")}
         defaultDueDate={ui.jobContext.publicReleaseDate}
-        defaultMemo={ui.jobContext.referenceUrls?.join("\n")}
+        defaultMemo={buildBookingSupplementalNote(ui.jobContext)}
       />
     )
   }

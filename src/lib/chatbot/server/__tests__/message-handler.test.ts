@@ -567,7 +567,7 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "Web CMです。尺4分、ABタイプ2本で、6月中旬に作業、6月20日までに納品希望です。会社名と名前、納品形式、打ち合わせ希望、作業場所、連絡先も共有済みです。",
+          "Web CMです。尺4分、ABタイプ2本で、素材は共有リンクで受け渡し、6月中旬に作業、6月20日までに納品希望です。会社名と名前、納品形式、打ち合わせ希望、作業場所、連絡先も共有済みです。",
       },
       harness.options,
     )
@@ -649,6 +649,8 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
+          hasMaterialHandoff: true,
           hasWorkSite: true,
           hasContactEmail: true,
           contactEmail: "client@example.com",
@@ -686,6 +688,8 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
+          hasMaterialHandoff: true,
           hasAdditionalWork: true,
           hasDocumentaryAttachments: true,
           hasWorkSite: true,
@@ -728,6 +732,8 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
+          hasMaterialHandoff: true,
           hasDesiredSchedule: true,
           hasContactEmail: true,
           contactEmail: "client@example.com",
@@ -735,7 +741,6 @@ describe("handleChatbotMessage user context", () => {
         },
         jobContext: {
           finalMedium: "cinema",
-          jobKind: "feature-90m",
           workSite: "remote-grading",
         },
       },
@@ -801,6 +806,119 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("infers concrete customer identity values without provided sentinels", async () => {
+    const harness = setup()
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message:
+          "会社名は株式会社サンプル、担当者氏名は田中太郎です。Web CMで尺4分、6月中旬に作業、6月20日までに納品希望です。client@example.com です。",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toEqual(
+      expect.objectContaining({
+        hasCustomerIdentity: true,
+        customerName: "田中太郎",
+        companyName: "株式会社サンプル",
+      }),
+    )
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).not.toEqual(
+      expect.objectContaining({
+        customerName: "provided",
+        companyName: "provided",
+      }),
+    )
+  })
+
+  it("keeps identity satisfied without storing provided as a display value", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: { turnCount: 2 },
+        },
+        messages: [],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "会社名と名前は共有済みです。Web CMで尺4分です。",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toEqual(
+      expect.objectContaining({
+        hasCustomerIdentity: true,
+      }),
+    )
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.customerName).toBeUndefined()
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.companyName).toBeUndefined()
+  })
+
+  it("does not infer job kind or final medium words as company names", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: { turnCount: 2 },
+        },
+        messages: [],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "会社名はライブです。担当者氏名は未定です。尺は60分で、素材はオンライン共有です。",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toEqual(
+      expect.objectContaining({
+        hasCustomerIdentity: true,
+      }),
+    )
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.companyName).toBeUndefined()
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.customerName).toBeUndefined()
+  })
+
+  it("does not infer company-like values as contact person names", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: { turnCount: 2 },
+        },
+        messages: [],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "会社名は株式会社サンプルです。担当者氏名は株式会社サンプルです。Web CMで尺4分です。",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.companyName).toBe("株式会社サンプル")
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.customerName).toBeUndefined()
+  })
+
   it("aligns assistant text with deterministic choice panel question", async () => {
     const harness = setup({
       existingConversation: conversation({
@@ -811,6 +929,7 @@ describe("handleChatbotMessage user context", () => {
             hasCustomerIdentity: true,
             hasFinalMedium: true,
             hasJobKind: true,
+            hasMaterialHandoff: true,
             hasDesiredSchedule: false,
             turnCount: 3,
           },
@@ -844,6 +963,7 @@ describe("handleChatbotMessage user context", () => {
           hasCustomerIdentity: true,
           hasFinalMedium: true,
           hasJobKind: true,
+          hasMaterialHandoff: true,
           hasDesiredSchedule: false,
           turnCount: 4,
         },
@@ -961,6 +1081,8 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
+          hasMaterialHandoff: true,
           hasWorkSite: true,
           hasDesiredSchedule: true,
           hasContactEmail: true,
@@ -1006,6 +1128,8 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
+          hasMaterialHandoff: true,
           hasWorkSite: true,
           hasDesiredSchedule: true,
           hasContactEmail: true,
@@ -1030,6 +1154,8 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
+          hasMaterialHandoff: true,
           hasWorkSite: true,
           hasContactEmail: true,
           contactEmail: "client@example.com",
@@ -1070,6 +1196,8 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
+          hasMaterialHandoff: true,
           hasWorkSite: true,
           hasContactEmail: true,
           contactEmail: "client@example.com",

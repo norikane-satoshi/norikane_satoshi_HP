@@ -36,10 +36,16 @@ export type ChatbotConversation = {
 export type ConversationState = {
   hasFinalMedium: boolean
   hasJobKind: boolean
+  hasProjectLength: boolean
+  hasMaterialHandoff?: boolean
+  hasMaterialDetails?: boolean
   hasAdditionalWork: boolean
   hasDocumentaryAttachments: boolean
   hasWorkSite: boolean
   hasReferenceUrls: boolean
+  hasDeliveryFormat?: boolean
+  hasProductionOptions?: boolean
+  hasBudgetRange?: boolean
   hasContactEmail: boolean
   hasDesiredSchedule: boolean
   hasCustomerIdentity?: boolean
@@ -60,4 +66,5 @@ export type ConversationState = {
   contactEmail?: string
   customerName?: string
   companyName?: string
+  productionOptions?: Array<"captions" | "telops" | "narration" | "music">
 }

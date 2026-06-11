@@ -57,16 +57,20 @@ export function formatConsultationSummary(input: ConsultationSummaryInput): stri
     `最終媒体: ${conversationState.hasFinalMedium ? labelFinalMedium(jobContext.finalMedium) : missing}`,
     "作業内容:",
     `- 案件種別: ${conversationState.hasJobKind ? labelJobKind(jobContext.jobKind, fallback.jobKind) : missing}`,
-    `- 尺: ${formatValue(formatProjectLength(jobContext.projectLengthMinutes, fallback.projectLength))}`,
+    `- 尺: ${
+      conversationState.hasProjectLength
+        ? formatValue(formatProjectLength(jobContext.projectLengthMinutes, fallback.projectLength))
+        : missing
+    }`,
     `- 追加作業: ${conversationState.hasAdditionalWork ? labelAdditionalWork(jobContext.additionalWork) : missing}`,
     `- 付随素材: ${
       conversationState.hasDocumentaryAttachments ? labelDocumentaryAttachment(jobContext.documentaryAttachment) : missing
     }`,
     "作業場所・立ち会い:",
     `- 作業場所/立ち会い: ${conversationState.hasWorkSite ? labelWorkSite(jobContext.workSite) : missing}`,
-    "希望日時:",
-    `- 開始希望: ${conversationState.hasDesiredSchedule ? formatValue(jobContext.preferredStartDate) : missing}`,
-    `- 公開/納品時期: ${
+    "素材搬入〜納品:",
+    `- 素材搬入/受け取り時期: ${conversationState.hasDesiredSchedule ? formatValue(jobContext.preferredStartDate) : missing}`,
+    `- 納品希望日: ${
       conversationState.hasDesiredSchedule ? formatValue(jobContext.publicReleaseDate ?? fallback.publicReleaseDate) : missing
     }`,
     "連絡先:",
@@ -83,6 +87,8 @@ export function hasRequiredConsultationNotificationSlots(input: {
   return Boolean(
     state.hasFinalMedium &&
       state.hasJobKind &&
+      state.hasProjectLength &&
+      state.hasMaterialHandoff &&
       state.hasWorkSite &&
       state.hasDesiredSchedule &&
       state.hasContactEmail &&
@@ -97,6 +103,8 @@ export function hasRequiredEmailConsultationSlots(input: {
   return Boolean(
     state.hasFinalMedium &&
       state.hasJobKind &&
+      state.hasProjectLength &&
+      state.hasMaterialHandoff &&
       state.hasWorkSite &&
       state.hasContactEmail &&
       state.contactEmail,
