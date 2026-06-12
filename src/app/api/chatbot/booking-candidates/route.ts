@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
       workflowEstimate: parsed.data.workflowEstimate,
       desiredDeadline: parsed.data.jobContext.publicReleaseDate,
       notBefore: laterIsoDate(`${parsed.data.month}-01`, parsed.data.jobContext.preferredStartDate),
+      busyFrom: `${parsed.data.month}-01`,
       now: new Date(`${parsed.data.month}-01T00:00:00.000+09:00`),
       lookaheadWeeks: 9,
       candidateLimit: 31,

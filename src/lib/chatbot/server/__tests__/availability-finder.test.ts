@@ -281,6 +281,37 @@ describe("findCandidateWindows", () => {
     expect(JSON.stringify(calendar)).not.toContain("Secret")
   })
 
+  it("keeps busy date keys visible from busyFrom even when selectable candidates start later", async () => {
+    const fetcher = freeBusy([
+      {
+        start: "2026-06-11T15:00:00.000Z",
+        end: "2026-06-12T15:00:00.000Z",
+      },
+      {
+        start: "2026-06-23T15:00:00.000Z",
+        end: "2026-06-24T15:00:00.000Z",
+      },
+    ])
+
+    const calendar = await findCandidateCalendar({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      now: new Date("2026-06-01T00:00:00+09:00"),
+      notBefore: "2026-06-20",
+      busyFrom: "2026-06-01",
+      busyMode: "block",
+      freeBusyFetcher: fetcher,
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(fetcher).toHaveBeenCalledWith({
+      from: "2026-05-31T15:00:00.000Z",
+      to: "2026-07-26T15:00:00.000Z",
+    })
+    expect(calendar.busyDateKeys).toEqual(["2026-06-12", "2026-06-24"])
+    expect(calendar.candidates.every((window) => new Date(window.start) >= new Date("2026-06-19T15:00:00.000Z"))).toBe(true)
+  })
+
   it("keeps scoring reasoning in CandidateWindow.note", async () => {
     const windows = await findCandidateWindows({
       jobContext: jobContext(),

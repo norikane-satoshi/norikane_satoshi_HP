@@ -70,6 +70,7 @@ describe("POST /api/chatbot/booking-candidates", () => {
       workflowEstimate: expect.objectContaining({ totalMinDays: 2 }),
       desiredDeadline: "2026-08-01",
       notBefore: "2026-07-01",
+      busyFrom: "2026-07-01",
       now: new Date("2026-07-01T00:00:00.000+09:00"),
       lookaheadWeeks: 9,
       candidateLimit: 31,
@@ -107,6 +108,7 @@ describe("POST /api/chatbot/booking-candidates", () => {
     expect(route.findCandidateCalendar).toHaveBeenCalledWith(
       expect.objectContaining({
         notBefore: "2026-07-12",
+        busyFrom: "2026-07-01",
       }),
     )
   })

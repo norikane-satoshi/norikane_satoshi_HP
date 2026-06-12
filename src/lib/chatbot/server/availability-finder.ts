@@ -38,6 +38,7 @@ type CandidateSearchArgs = {
   workflowEstimate: WorkflowEstimate
   desiredDeadline?: string
   notBefore?: string
+  busyFrom?: string
   lookaheadWeeks?: number
   candidateLimit?: number
   busyMode?: "score" | "block"
@@ -62,14 +63,15 @@ export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<
 
   const lookaheadWeeks = args.lookaheadWeeks ?? DEFAULT_LOOKAHEAD_WEEKS
   const searchFrom = maxDate(startOfJstDay(now), args.notBefore ? parseStartDate(args.notBefore) : null)
+  const busyFrom = args.busyFrom ? parseStartDate(args.busyFrom) : searchFrom
   const searchTo = new Date(now.getTime() + lookaheadWeeks * 7 * DAY_MS)
   const deadline = args.desiredDeadline ? parseDeadline(args.desiredDeadline) : null
-  const neededDays = Math.max(1, Math.ceil(args.workflowEstimate.totalMinDays))
+  const neededDays = Math.max(1, Math.ceil(args.workflowEstimate.totalMaxDays))
   const fetcher = args.freeBusyFetcher ?? defaultFreeBusyFetcher
   const resolver = args.attendanceConflictResolver ?? defaultAttendanceConflictResolver
 
   const [busyIntervals, attendanceIntervals] = await Promise.all([
-    runFreeBusyFetcher(fetcher, searchFrom, searchTo),
+    runFreeBusyFetcher(fetcher, busyFrom, searchTo),
     runAttendanceResolver(resolver, searchFrom, searchTo),
   ])
 
@@ -99,7 +101,7 @@ export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<
           "attendanceConflicts=0",
         ].filter(Boolean).join("; "),
       })),
-    busyDateKeys: busyDateKeysFromIntervals(normalizedBusyIntervals, searchFrom, searchTo),
+    busyDateKeys: busyDateKeysFromIntervals(normalizedBusyIntervals, busyFrom, searchTo),
   }
 }
 

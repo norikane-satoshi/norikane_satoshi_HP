@@ -29,6 +29,13 @@ const candidates: CandidateWindow[] = [
 const estimate: WorkflowEstimate = {
   stages: [],
   totalMinDays: 2,
+  totalMaxDays: 2,
+  riskFlags: [],
+}
+
+const rangedEstimate: WorkflowEstimate = {
+  stages: [],
+  totalMinDays: 2,
   totalMaxDays: 3,
   riskFlags: [],
 }
@@ -88,6 +95,14 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByText("利用規約と予約内容に同意します（必須）。")).toBeInTheDocument()
   })
 
+  it("renders calendar date cells with numeric day text only", () => {
+    renderCard()
+
+    const dateCell = screen.getByRole("button", { name: "2026-06-10 選択可" })
+    expect(dateCell).toHaveTextContent(/^10$/)
+    expect(dateCell).not.toHaveTextContent("日")
+  })
+
   it("renders free but unstartable calendar days separately from busy cells", () => {
     renderCard()
 
@@ -106,6 +121,7 @@ describe("ChatbotBookingCard", () => {
     const busyCell = screen.getByRole("button", { name: "2026-06-12 埋まり" })
     expect(busyCell).toBeDisabled()
     expect(busyCell).toHaveAttribute("data-calendar-state", "busy")
+    expect(busyCell).toHaveTextContent(/^12$/)
     expect(screen.queryByLabelText("仮キープ候補カレンダーの凡例")).not.toBeInTheDocument()
     expect(document.body).not.toHaveTextContent("選択可")
     expect(document.body).not.toHaveTextContent("開始不可")
@@ -350,6 +366,48 @@ describe("ChatbotBookingCard", () => {
 
     expect(screen.getAllByText("2／2")).toHaveLength(1)
     expect(screen.getByRole("button", { name: "2026-07-01 選択可" })).toHaveAttribute("data-selected", "true")
+  })
+
+  it("allows selecting up to the workflow estimate maximum day count", () => {
+    renderCard({
+      estimate: rangedEstimate,
+      candidates: [
+        ...candidates,
+        {
+          start: "2026-06-12T01:00:00.000Z",
+          end: "2026-06-13T01:00:00.000Z",
+          label: "6月12日 単日",
+        },
+        {
+          start: "2026-06-13T01:00:00.000Z",
+          end: "2026-06-14T01:00:00.000Z",
+          label: "6月13日 単日",
+        },
+      ],
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-12 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-13 選択可" }))
+
+    expect(screen.getAllByText("3／3")).toHaveLength(1)
+    expect(screen.getByText("上限")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "2026-06-13 選択可" })).toHaveAttribute("aria-pressed", "false")
+  })
+
+  it("uses the selected cell surface instead of circle or check markers", () => {
+    renderCard()
+
+    const firstDate = screen.getByRole("button", { name: "2026-06-10 選択可" })
+    fireEvent.click(firstDate)
+
+    expect(firstDate).toHaveAttribute("aria-pressed", "true")
+    expect(firstDate).toHaveClass("bg-[var(--accent-primary)]")
+    expect(firstDate).toHaveClass("font-bold")
+    expect(firstDate.querySelector("svg")).toBeNull()
+    expect(firstDate.querySelector(".rounded-full")).toBeNull()
   })
 
   it("rejects selecting more than the required day count", () => {

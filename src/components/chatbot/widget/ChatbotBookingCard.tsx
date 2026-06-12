@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
 
 import { DemoStage } from "@/components/chatbot/demo"
@@ -57,7 +57,7 @@ function estimateText(estimate?: WorkflowEstimate): string | null {
 }
 
 function requiredDayCount(estimate?: WorkflowEstimate): number {
-  return Math.max(1, Math.ceil(estimate?.totalMinDays ?? 1))
+  return Math.max(1, Math.ceil(estimate?.totalMaxDays ?? estimate?.totalMinDays ?? 1))
 }
 
 function formatCandidateDate(value: string): string {
@@ -94,12 +94,8 @@ function addJstDays(date: Date, days: number): Date {
 }
 
 function formatCalendarDayLabel(key: string): string {
-  const date = jstDateFromKey(key)
-  if (Number.isNaN(date.getTime())) return key
-  return new Intl.DateTimeFormat("ja-JP", {
-    day: "numeric",
-    timeZone: "Asia/Tokyo",
-  }).format(date)
+  const day = Number(key.split("-")[2])
+  return Number.isFinite(day) ? String(day) : key
 }
 
 function formatCalendarMonthLabel(key: string): string {
@@ -441,8 +437,8 @@ export function ChatbotBookingCard({
                       className={[
                         "relative min-h-11 rounded-[12px] border px-1.5 py-2 text-xs transition",
                         selected
-                          ? "border-[var(--accent-primary)] bg-white/65 text-hp"
-                          : "border-white/55 bg-white/40 text-hp-muted hover:bg-white/55",
+                          ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset"
+                          : "border-white/55 bg-white/35 text-hp-muted opacity-70",
                       ].join(" ")}
                       data-calendar-state="free-unstartable"
                       data-selected={selected ? "true" : undefined}
@@ -450,7 +446,6 @@ export function ChatbotBookingCard({
                       aria-disabled="true"
                     >
                       <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
-                      <span className="mx-auto mt-1 block h-1.5 w-1.5 rounded-full border border-[var(--text-muted)]" aria-hidden="true" />
                     </button>
                   )
                 }
@@ -462,7 +457,7 @@ export function ChatbotBookingCard({
                     className={[
                       "min-h-11 rounded-[12px] border px-1.5 py-2 text-xs transition",
                       selected
-                        ? "border-[var(--accent-primary)] bg-white/80 text-hp shadow-[0_0_24px_rgba(139,127,255,0.30)]"
+                        ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset shadow-[0_0_24px_rgba(117,104,214,0.24)]"
                         : "border-white/65 bg-white/55 text-hp hover:bg-white/75",
                     ].join(" ")}
                     data-selected={selected ? "true" : undefined}
@@ -486,9 +481,6 @@ export function ChatbotBookingCard({
                     }}
                   >
                     <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
-                    <span className="mx-auto mt-1 flex h-4 w-4 items-center justify-center rounded-full border border-[var(--accent-primary)] bg-white/70" aria-hidden="true">
-                      {selected ? <Check className="h-3 w-3 text-[var(--accent-primary)]" /> : null}
-                    </span>
                   </button>
                 )
               })}
