@@ -62,74 +62,76 @@ function ProfileForeground() {
         {hpPublicContent.profile.sectionTitle}
       </h2>
 
-      <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] md:gap-12 xl:gap-16">
-        {/* Left: photo + identity + tools */}
-        <div className="flex flex-col items-center gap-5 md:items-start">
-          <ProfilePhoto />
-          <div className="text-center md:text-left">
-            <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
-            <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
-              {hpPublicContent.profile.title}
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-2 md:justify-start">
-            {hpPublicContent.profile.tools.map((tool) => (
-              <span
-                key={tool}
-                className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
-              >
-                {tool}
-              </span>
-            ))}
-          </div>
-
-          <div className="mt-1 flex items-center justify-center gap-3 md:justify-start">
-            {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
-              const Icon = socialIcons[label]
-              return (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="glass-btn glass-btn--profile-social flex h-10 w-10 items-center justify-center text-hp"
-                  aria-label={label}
-                >
-                  <Icon className="h-4 w-4" />
-                </a>
-              )
-            })}
-            <PressDialog />
-          </div>
-        </div>
-
-        {/* Right: career timeline */}
-        <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-            Career
-          </p>
-          <div className="mt-5 space-y-6 md:space-y-7">
-            {hpPublicContent.profile.timeline.map((item) => (
-              <div
-                key={item.year}
-                className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
-              >
+      <div className="@container/profile">
+        <div className="mt-8 grid grid-cols-1 gap-10 @[680px]/profile:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] @[680px]/profile:gap-12">
+          {/* Left: photo + identity + tools */}
+          <div className="flex flex-col items-center gap-5 @[680px]/profile:items-start">
+            <ProfilePhoto />
+            <div className="text-center @[680px]/profile:text-left">
+              <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
+              <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
+                {hpPublicContent.profile.title}
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2 @[680px]/profile:justify-start">
+              {hpPublicContent.profile.tools.map((tool) => (
                 <span
-                  className="font-[var(--font-inter)] text-sm font-bold"
-                  style={{ color: "var(--accent-primary)" }}
+                  key={tool}
+                  className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
                 >
-                  {item.year}
+                  {tool}
                 </span>
-                <div>
-                  <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
-                    {item.event}
-                  </p>
-                  <p className="hp-body mt-2 text-xs text-hp-muted md:text-sm">
-                    {item.detail}
-                  </p>
+              ))}
+            </div>
+
+            <div className="mt-1 flex items-center justify-center gap-3 @[680px]/profile:justify-start">
+              {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
+                const Icon = socialIcons[label]
+                return (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="glass-btn glass-btn--profile-social flex h-10 w-10 items-center justify-center text-hp"
+                    aria-label={label}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </a>
+                )
+              })}
+              <PressDialog />
+            </div>
+          </div>
+
+          {/* Right: career timeline */}
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
+              Career
+            </p>
+            <div className="mt-5 space-y-6 md:space-y-7">
+              {hpPublicContent.profile.timeline.map((item) => (
+                <div
+                  key={item.year}
+                  className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
+                >
+                  <span
+                    className="font-[var(--font-inter)] text-sm font-bold"
+                    style={{ color: "var(--accent-primary)" }}
+                  >
+                    {item.year}
+                  </span>
+                  <div>
+                    <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
+                      {item.event}
+                    </p>
+                    <p className="hp-body mt-2 text-xs text-hp-muted md:text-sm">
+                      {item.detail}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </div>
