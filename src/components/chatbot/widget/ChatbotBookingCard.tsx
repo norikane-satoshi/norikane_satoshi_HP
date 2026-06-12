@@ -23,6 +23,7 @@ type ChatbotBookingCardProps = {
   defaultProjectTitle?: string
   defaultContactName?: string
   defaultCompanyName?: string
+  defaultContactEmail?: string
   defaultDueDate?: string
   defaultMemo?: string
   showDemo?: boolean
@@ -100,6 +101,17 @@ function addJstDays(date: Date, days: number): Date {
 function formatCalendarDayLabel(key: string): string {
   const day = Number(key.split("-")[2])
   return Number.isFinite(day) ? String(day) : key
+}
+
+function createDayCandidate(dateKey: string): CandidateWindow {
+  const start = jstDateFromKey(dateKey)
+  const end = addJstDays(start, 1)
+  return {
+    start: start.toISOString(),
+    end: end.toISOString(),
+    label: `${dateKey} 単日`,
+    available: true,
+  }
 }
 
 function formatCalendarMonthLabel(key: string): string {
@@ -182,6 +194,7 @@ export function ChatbotBookingCard({
   defaultProjectTitle = "",
   defaultContactName = "",
   defaultCompanyName = "",
+  defaultContactEmail = "",
   defaultDueDate = "",
   defaultMemo = "",
   showDemo = false,
@@ -223,6 +236,7 @@ export function ChatbotBookingCard({
   const [dueDate, setDueDate] = useState(defaultDueDate)
   const [companyName, setCompanyName] = useState(defaultCompanyName)
   const [contactName, setContactName] = useState(defaultContactName)
+  const [contactEmail, setContactEmail] = useState(defaultContactEmail)
   const [phone, setPhone] = useState("")
   const [memo, setMemo] = useState(defaultMemo)
   const [agreed, setAgreed] = useState(false)
@@ -234,7 +248,7 @@ export function ChatbotBookingCard({
 
   const currentJstDateKey = todayJstDateKey()
   const selectedKeys = useMemo(() => selectedDateKeys(selectedSlots), [selectedSlots])
-  const canSubmit = Boolean(selectedSlots.length === requiredDays && projectTitle.trim() && contactName.trim() && agreed && !submitting)
+  const canSubmit = Boolean(selectedSlots.length === requiredDays && projectTitle.trim() && contactName.trim() && contactEmail.trim() && agreed && !submitting)
 
   useEffect(() => {
     if (!jobContext || !effectiveEstimate) return
@@ -299,6 +313,7 @@ export function ChatbotBookingCard({
           conversationId,
           projectTitle: projectTitle.trim(),
           contactName: contactName.trim(),
+          contactEmail: contactEmail.trim(),
           companyName: companyName.trim(),
           phone: phone.trim(),
           dueDate,
@@ -435,7 +450,7 @@ export function ChatbotBookingCard({
                   )
                 }
 
-                if (past || !slot) {
+                if (past) {
                   return (
                     <button
                       key={dateKey}
@@ -445,13 +460,11 @@ export function ChatbotBookingCard({
                         "relative min-h-11 cursor-default rounded-[12px] border px-1.5 py-2 text-xs transition",
                         selected
                           ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset"
-                          : past
-                            ? "border-white/45 bg-white/30 text-hp-muted opacity-45"
-                            : "border-white/55 bg-white/35 text-hp-muted opacity-70",
+                          : "border-white/45 bg-white/30 text-hp-muted opacity-45",
                       ].join(" ")}
-                      data-calendar-state={past ? "past" : "free-unstartable"}
+                      data-calendar-state="past"
                       data-selected={selected ? "true" : undefined}
-                      aria-label={`${dateKey} 空き・開始不可`}
+                      aria-label={`${dateKey} 過去日`}
                       aria-disabled="true"
                     >
                       <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
@@ -459,6 +472,7 @@ export function ChatbotBookingCard({
                   )
                 }
 
+                const selectableSlot = slot?.candidate ?? createDayCandidate(dateKey)
                 return (
                   <button
                     key={dateKey}
@@ -485,7 +499,7 @@ export function ChatbotBookingCard({
                           return current
                         }
                         setCalendarHint(null)
-                        return [...current, slot.candidate].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+                        return [...current, selectableSlot].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
                       })
                     }}
                   >
@@ -543,6 +557,18 @@ export function ChatbotBookingCard({
               onChange={(event) => setContactName(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
               placeholder="氏名"
+              required
+            />
+          </label>
+          <label className="block text-sm font-medium text-hp sm:col-span-2">
+            メールアドレス（必須）
+            <input
+              type="email"
+              value={contactEmail}
+              onChange={(event) => setContactEmail(event.target.value)}
+              className="glass-input mt-2 w-full px-4 py-3 text-sm"
+              placeholder="example@example.com"
+              autoComplete="email"
               required
             />
           </label>

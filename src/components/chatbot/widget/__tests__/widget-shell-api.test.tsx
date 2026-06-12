@@ -580,7 +580,7 @@ describe("WidgetShell API wiring", () => {
     expect(june17).toHaveAttribute("data-calendar-state", "startable")
     expect(june18).toHaveAttribute("data-calendar-state", "startable")
     expect(screen.getByRole("button", { name: "2026-06-12 埋まり" })).toHaveAttribute("data-calendar-state", "busy")
-    expect(screen.getByRole("button", { name: "2026-06-11 空き・開始不可" })).toHaveAttribute("data-calendar-state", "past")
+    expect(screen.getByRole("button", { name: "2026-06-11 過去日" })).toHaveAttribute("data-calendar-state", "past")
     expect(june14).toHaveAttribute("aria-pressed", "true")
     expect(june17).toHaveAttribute("aria-pressed", "true")
 
@@ -711,9 +711,10 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
     expect(screen.getByLabelText("会社名（任意）")).toHaveValue("テスト株式会社")
     expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("テストユーザー")
+    expect(screen.getByLabelText("メールアドレス（必須）")).toHaveValue("test@example.com")
     expect(screen.getByLabelText("納期（任意）")).toHaveValue("2026-07-31")
     const memo = screen.getByLabelText("補足ノート（任意）") as HTMLTextAreaElement
-    expect(memo.value).toContain("連絡先メール: test@example.com")
+    expect(memo.value).not.toContain("連絡先メール: test@example.com")
     expect(memo.value).toContain("案件種類: ライブ")
     expect(memo.value).toContain("素材搬入/受け取り時期: 2026-06-15 目安")
   })

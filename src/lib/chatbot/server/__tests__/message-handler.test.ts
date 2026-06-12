@@ -687,10 +687,9 @@ describe("handleChatbotMessage user context", () => {
       ]),
     })
     expect(result.assistantMessage.content).toContain("先に空き状況")
-    expect(harness.candidateWindowFinder).toHaveBeenCalledWith(expect.objectContaining({
-      notBefore: undefined,
-      busyMode: "block",
-    }))
+    const finderInput = harness.candidateWindowFinder.mock.calls[0]?.[0]
+    expect(finderInput).toEqual(expect.objectContaining({ busyMode: "block" }))
+    expect(finderInput).not.toHaveProperty("notBefore")
   })
 
   it("keeps deterministic booking-card ui when the LLM falls back to tier4", async () => {

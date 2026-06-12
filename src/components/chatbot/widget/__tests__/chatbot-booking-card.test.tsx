@@ -66,6 +66,7 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
       defaultProjectTitle="CM grading"
       defaultContactName="田中"
       defaultCompanyName="株式会社サンプル"
+      defaultContactEmail="tanaka@example.com"
       conversationId="conv_1"
       {...props}
     />,
@@ -94,6 +95,7 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByRole("button", { name: "2026-06-11 選択可" })).toBeInTheDocument()
     expect(screen.getByLabelText("会社名（任意）")).toHaveValue("株式会社サンプル")
     expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("田中")
+    expect(screen.getByLabelText("メールアドレス（必須）")).toHaveValue("tanaka@example.com")
     expect(screen.getByPlaceholderText("作品名または案件名（イニシャル表記も可）")).toBeInTheDocument()
     expect(screen.getByText("利用規約と予約内容に同意します（必須）。")).toBeInTheDocument()
   })
@@ -133,7 +135,7 @@ describe("ChatbotBookingCard", () => {
       ],
     })
 
-    const pastCell = screen.getByRole("button", { name: "2026-06-11 空き・開始不可" })
+    const pastCell = screen.getByRole("button", { name: "2026-06-11 過去日" })
     const todayCell = screen.getByRole("button", { name: "2026-06-12 選択可" })
     expect(pastCell).toBeDisabled()
     expect(pastCell).toHaveAttribute("data-calendar-state", "past")
@@ -150,16 +152,15 @@ describe("ChatbotBookingCard", () => {
     expect(todayCell).toHaveAttribute("aria-pressed", "true")
   })
 
-  it("renders free but unstartable calendar days separately from busy cells", () => {
+  it("keeps future non-busy days selectable even when they are not in suggestedSlots", () => {
     renderCard()
 
-    const unavailableCells = screen.getAllByRole("button", { name: /空き・開始不可/ })
-    expect(unavailableCells.length).toBeGreaterThan(0)
-    expect(unavailableCells[0]).toBeDisabled()
-    expect(unavailableCells[0]).toHaveAttribute("data-calendar-state", "free-unstartable")
+    const synthesizedCell = screen.getByRole("button", { name: "2026-06-12 選択可" })
+    expect(synthesizedCell).toBeEnabled()
+    expect(synthesizedCell).toHaveAttribute("data-calendar-state", "startable")
 
-    fireEvent.click(unavailableCells[0])
-    expect(document.body).not.toHaveTextContent("不可")
+    fireEvent.click(synthesizedCell)
+    expect(synthesizedCell).toHaveAttribute("aria-pressed", "true")
   })
 
   it("renders timed work busy days as non-startable busy cells without exposing private details", () => {
@@ -221,7 +222,7 @@ describe("ChatbotBookingCard", () => {
 
     const grid = screen.getByTestId("chatbot-booking-month-grid")
     expect(screen.getByText("2026年8月")).toBeInTheDocument()
-    expect(grid.children[6]).toHaveAttribute("aria-label", "2026-08-01 空き・開始不可")
+    expect(grid.children[6]).toHaveAttribute("aria-label", "2026-08-01 選択可")
     expect(grid.children[8]).toHaveAttribute("aria-label", "2026-08-03 選択可")
   })
 
@@ -390,7 +391,7 @@ describe("ChatbotBookingCard", () => {
     const june17 = await screen.findByRole("button", { name: "2026-06-17 選択可" })
     const june18 = await screen.findByRole("button", { name: "2026-06-18 選択可" })
     const june12 = screen.getByRole("button", { name: "2026-06-12 埋まり" })
-    const june10 = screen.getByRole("button", { name: "2026-06-10 空き・開始不可" })
+    const june10 = screen.getByRole("button", { name: "2026-06-10 過去日" })
 
     expect(june14).toHaveAttribute("data-calendar-state", "startable")
     expect(june14).toHaveClass("hover:bg-white/85")
@@ -578,6 +579,7 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByLabelText("補足ノート（任意）")).toHaveValue("ライブ2.5h\nプロンプター消し物・顔アップ肌修正")
     expect(screen.getByLabelText("会社名（任意）")).toHaveValue("株式会社サンプル")
     expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("田中")
+    expect(screen.getByLabelText("メールアドレス（必須）")).toHaveValue("tanaka@example.com")
     expect(screen.getByLabelText("案件名（必須）")).toHaveValue("")
   })
 
@@ -614,6 +616,7 @@ describe("ChatbotBookingCard", () => {
       conversationId: "conv_1",
       projectTitle: "CM grading",
       contactName: "田中",
+      contactEmail: "tanaka@example.com",
       selectedSlots: [
         {
           start: "2026-06-10T01:00:00.000Z",

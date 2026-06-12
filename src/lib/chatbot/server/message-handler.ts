@@ -342,10 +342,6 @@ async function resolveBookingCandidates(input: {
     const calendar = normalizeCandidateCalendarResult(await input.candidateWindowFinder({
       jobContext: input.routingDecision.jobContext,
       workflowEstimate,
-      desiredDeadline: input.routingDecision.jobContext.publicReleaseDate,
-      notBefore: input.routingDecision.jobContext.preferredStartDateApproximate
-        ? undefined
-        : input.routingDecision.jobContext.preferredStartDate,
       candidateLimit: 31,
       busyMode: "block",
     }))
@@ -831,7 +827,7 @@ function inferCustomerIdentityFromText(text: string): {
 } {
   const companyName =
     cleanInferredIdentityValue(
-      text.match(/(?:会社名|社名|所属)\s*(?:は|:|：)?\s*([^\n、,。]+)/u)?.[1],
+      text.match(/(?:会社名|社名|所属)\s*(?:は|:|：)?\s*([^\n、,。・]+)/u)?.[1],
       "company",
     ) ??
     cleanInferredIdentityValue(text.match(/((?:株式会社|合同会社|有限会社)[^\s、,。の]{1,30})/u)?.[1], "company") ??
@@ -839,7 +835,7 @@ function inferCustomerIdentityFromText(text: string): {
 
   const customerName =
     cleanInferredIdentityValue(
-      text.match(/(?:担当者氏名|担当者名|担当|氏名|お名前|名前)\s*(?:は|:|：)?\s*([^\n、,。]+)/u)?.[1],
+      text.match(/(?:担当者氏名|担当者名|担当|氏名|お名前|名前)\s*(?:は|:|：)?\s*([^\n、,。・]+)/u)?.[1],
       "person",
     ) ?? cleanInferredIdentityValue(text.match(/(?:株式会社|合同会社|有限会社)[^\s、,。の]{1,30}の([^\s、,。]+?)(?:です|と申します)?(?:[。\n、,]|$)/u)?.[1], "person")
 
@@ -859,7 +855,7 @@ function cleanInferredIdentityValue(value: string | undefined, kind: "company" |
     .trim()
 
   if (!cleaned || cleaned === "provided") return undefined
-  if (/(?:共有済み|提供済み|取得済み|未定|不明|連絡先|メール|納品形式|打ち合わせ|作業場所|希望|済み)/u.test(cleaned)) {
+  if (/(?:共有済み|提供済み|取得済み|未定|不明|連絡先|メール|納品形式|打ち合わせ|作業場所|希望|済み|会社名|社名|所属|担当者|担当|氏名|お名前|名前)/u.test(cleaned)) {
     return undefined
   }
   if (/(?:案件種別|最終媒体|尺|素材|受け渡し|納品|解像度|字幕|テロップ|ナレーション|音楽|予算)/u.test(cleaned)) {

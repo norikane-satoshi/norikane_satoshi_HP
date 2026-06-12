@@ -74,7 +74,6 @@ describe("POST /api/chatbot/booking-candidates", () => {
     expect(route.findCandidateCalendar).toHaveBeenCalledWith({
       jobContext: expect.objectContaining({ workSite: "remote-grading" }),
       workflowEstimate: expect.objectContaining({ totalMinDays: 2 }),
-      desiredDeadline: "2026-08-01",
       notBefore: "2026-07-01",
       busyFrom: "2026-07-01",
       now: new Date("2026-06-12T00:30:00+09:00"),
@@ -96,7 +95,7 @@ describe("POST /api/chatbot/booking-candidates", () => {
     })
   })
 
-  it("keeps the material handoff lower bound when loading a month", async () => {
+  it("ignores material handoff lower bounds when loading a month", async () => {
     const route = await loadPost()
 
     const response = await route.POST(request(validBody({
@@ -113,8 +112,32 @@ describe("POST /api/chatbot/booking-candidates", () => {
     expect(response.status).toBe(200)
     expect(route.findCandidateCalendar).toHaveBeenCalledWith(
       expect.objectContaining({
-        notBefore: "2026-07-12",
+        notBefore: "2026-07-01",
         busyFrom: "2026-07-01",
+      }),
+    )
+  })
+
+  it("keeps June open after a concrete July material handoff date", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request(validBody({
+      month: "2026-06",
+      jobContext: {
+        jobKind: "live-60m",
+        finalMedium: "live",
+        workSite: "remote-grading",
+        documentaryAttachment: { kind: "none" },
+        publicReleaseDate: "2026-07-31",
+        preferredStartDate: "2026-07-01",
+      },
+    })))
+
+    expect(response.status).toBe(200)
+    expect(route.findCandidateCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notBefore: "2026-06-12",
+        busyFrom: "2026-06-01",
       }),
     )
   })

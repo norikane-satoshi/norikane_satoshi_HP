@@ -96,6 +96,12 @@ function cleanDefaultContactValue(value: unknown, kind: "company" | "person"): s
   return trimmed
 }
 
+function cleanDefaultEmail(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  return /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/iu.test(trimmed) ? trimmed : undefined
+}
+
 type BookingCardJobContext = Extract<WidgetUi, { kind: "booking-card" }>["jobContext"]
 type BookingCardConversationState = Extract<WidgetUi, { kind: "booking-card" }>["conversationState"]
 
@@ -138,7 +144,6 @@ function buildBookingSupplementalNote(
   return [
     conversationState?.companyName ? `会社名: ${conversationState.companyName}` : undefined,
     conversationState?.customerName ? `担当者氏名: ${conversationState.customerName}` : undefined,
-    conversationState?.contactEmail ? `連絡先メール: ${conversationState.contactEmail}` : undefined,
     `最終媒体: ${finalMediumMemoLabels[jobContext.finalMedium]}`,
     jobContext.jobKind ? `案件種類: ${jobKindMemoLabels[jobContext.jobKind]}` : undefined,
     formatProjectLengthMemo(jobContext.projectLengthMinutes),
@@ -191,6 +196,7 @@ function sanitizeBookingCardActiveUi(value: Record<string, unknown>): WidgetUi {
   const sanitizedConversationState = { ...value.conversationState }
   const customerName = cleanDefaultContactValue(sanitizedConversationState.customerName, "person")
   const companyName = cleanDefaultContactValue(sanitizedConversationState.companyName, "company")
+  const contactEmail = cleanDefaultEmail(sanitizedConversationState.contactEmail)
 
   if (customerName) {
     sanitizedConversationState.customerName = customerName
@@ -202,6 +208,12 @@ function sanitizeBookingCardActiveUi(value: Record<string, unknown>): WidgetUi {
     sanitizedConversationState.companyName = companyName
   } else {
     delete sanitizedConversationState.companyName
+  }
+
+  if (contactEmail) {
+    sanitizedConversationState.contactEmail = contactEmail
+  } else {
+    delete sanitizedConversationState.contactEmail
   }
 
   return {
@@ -832,6 +844,7 @@ function ActiveWidgetUi({
         jobContext={ui.jobContext}
         defaultContactName={cleanDefaultContactValue(ui.conversationState?.customerName, "person")}
         defaultCompanyName={cleanDefaultContactValue(ui.conversationState?.companyName, "company")}
+        defaultContactEmail={cleanDefaultEmail(ui.conversationState?.contactEmail)}
         defaultDueDate={ui.jobContext.publicReleaseDate}
         defaultMemo={buildBookingSupplementalNote(ui.jobContext, ui.conversationState)}
       />

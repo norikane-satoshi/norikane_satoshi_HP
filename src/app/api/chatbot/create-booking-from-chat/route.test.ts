@@ -13,6 +13,7 @@ function validChatBooking(overrides: Record<string, unknown> = {}) {
     conversationId: "conv_1",
     projectTitle: "Color grading",
     contactName: "Satoshi",
+    contactEmail: "client@example.com",
     companyName: "NCS",
     phone: "",
     dueDate: "2026-06-30",
@@ -278,7 +279,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
         fallback: expect.objectContaining({
           customerName: "Satoshi",
           companyName: "NCS",
-          contactEmail: "satoshi@example.com",
+          contactEmail: "client@example.com",
         }),
         freeText: expect.stringContaining("予約フォーム送信済み"),
       }),
@@ -287,7 +288,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(freeText).toContain("選択日程:")
     expect(freeText).toContain("案件種別: live-60m")
     expect(freeText).toContain("氏名: Satoshi")
-    expect(freeText).toContain("連絡先メール: satoshi@example.com")
+    expect(freeText).toContain("連絡先メール: client@example.com")
     expect(freeText).toContain("電話番号: 090-0000-0000")
     expect(freeText).toContain("同意済み: はい")
   })

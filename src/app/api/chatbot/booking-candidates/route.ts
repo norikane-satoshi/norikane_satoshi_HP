@@ -118,10 +118,8 @@ export async function POST(request: NextRequest) {
     const calendar = await findCandidateCalendar({
       jobContext: parsed.data.jobContext,
       workflowEstimate: parsed.data.workflowEstimate,
-      desiredDeadline: parsed.data.jobContext.publicReleaseDate,
       notBefore: latestIsoDate(
         `${parsed.data.month}-01`,
-        parsed.data.jobContext.preferredStartDateApproximate ? undefined : parsed.data.jobContext.preferredStartDate,
         jstDateKey(now),
       ),
       busyFrom: `${parsed.data.month}-01`,
