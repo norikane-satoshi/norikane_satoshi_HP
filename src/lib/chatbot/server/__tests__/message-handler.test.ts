@@ -995,6 +995,67 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("prefers the latest concrete name and company when earlier label mentions are not values", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: { turnCount: 2 },
+        },
+        messages: [
+          {
+            id: "old_user_1",
+            role: "user",
+            content:
+              "1 は直りました。2は正しく入っていません。変な文字の巻き込みがあります。3のメールアドレスは、専用欄に入力済みで表示されました。担当者氏名と会社名も、今回のテストで打ち込んだので、すでに入力されたフォームとしてメールアドレスと同じような感じで表示してほしいです。",
+            createdAt: "2026-05-26T00:00:00.000Z",
+          },
+        ],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "名前はテストユーザー、会社名はテスト株式会社です。",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toEqual(
+      expect.objectContaining({
+        hasCustomerIdentity: true,
+        customerName: "テストユーザー",
+        companyName: "テスト株式会社",
+      }),
+    )
+  })
+
+  it.each([
+    ["名前はテストユーザー、会社名はテスト株式会社です。"],
+    ["名前はテストユーザー会社名はテスト株式会社です。"],
+    ["名前はテストユーザー\n会社名はテスト株式会社です。"],
+    ["名前はテストユーザーさん、会社名はテスト株式会社です。"],
+    ["会社名は未定です。名前は未定です。\n名前はテストユーザー、会社名はテスト株式会社です。"],
+    ["名前はテストユーザーです。\n会社名はテスト株式会社です。"],
+  ])("extracts customer identity without adjacent label bleed: %s", async (messageText) => {
+    const harness = setup()
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: messageText,
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.customerName).toBe("テストユーザー")
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.companyName).toBe("テスト株式会社")
+  })
+
   it("infers July deadline text and keeps broad June handoff dates approximate", async () => {
     const harness = setup()
 

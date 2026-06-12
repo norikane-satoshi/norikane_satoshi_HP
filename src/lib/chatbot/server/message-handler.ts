@@ -826,18 +826,25 @@ function inferCustomerIdentityFromText(text: string): {
   companyName?: string
 } {
   const companyName =
-    cleanInferredIdentityValue(
-      text.match(/(?:会社名|社名|所属)\s*(?:は|:|：)?\s*([^\n、,。・]+)/u)?.[1],
+    lastCleanedIdentityMatch(
+      text,
+      /(?:会社名|社名|所属)\s*(?:は|:|：|=)\s*([\s\S]{1,80}?)(?=(?:\s*(?:、|,|。|\n|$)|\s*(?:会社名|社名|所属|担当者氏名|担当者名|担当|氏名|お名前|名前)\s*(?:は|:|：|=)))/gu,
       "company",
     ) ??
-    cleanInferredIdentityValue(text.match(/((?:株式会社|合同会社|有限会社)[^\s、,。の]{1,30})/u)?.[1], "company") ??
-    cleanInferredIdentityValue(text.match(/([^\s、,。]{1,30}(?:株式会社|合同会社|有限会社))/u)?.[1], "company")
+    lastCleanedIdentityMatch(text, /(?:^|[\s　、,。\n])((?:株式会社|合同会社|有限会社)[^\s　、,。の]{1,30})(?=$|[\s　、,。\n])/gu, "company") ??
+    lastCleanedIdentityMatch(text, /(?:^|[\s　、,。\n])([^\s　、,。の]{1,30}(?:株式会社|合同会社|有限会社))(?=$|[\s　、,。\n]|です|でございます|と申します)/gu, "company")
 
   const customerName =
-    cleanInferredIdentityValue(
-      text.match(/(?:担当者氏名|担当者名|担当|氏名|お名前|名前)\s*(?:は|:|：)?\s*([^\n、,。・]+)/u)?.[1],
+    lastCleanedIdentityMatch(
+      text,
+      /(?:担当者氏名|担当者名|担当|氏名|お名前|名前)\s*(?:は|:|：|=)\s*([\s\S]{1,80}?)(?=(?:\s*(?:、|,|。|\n|$)|\s*(?:会社名|社名|所属|担当者氏名|担当者名|担当|氏名|お名前|名前)\s*(?:は|:|：|=)))/gu,
       "person",
-    ) ?? cleanInferredIdentityValue(text.match(/(?:株式会社|合同会社|有限会社)[^\s、,。の]{1,30}の([^\s、,。]+?)(?:です|と申します)?(?:[。\n、,]|$)/u)?.[1], "person")
+    ) ??
+    lastCleanedIdentityMatch(
+      text,
+      /(?:株式会社|合同会社|有限会社)[^\s　、,。の]{1,30}の([^\s　、,。]+?)(?:です|と申します)?(?:[。\n、,]|$)/gu,
+      "person",
+    )
 
   return {
     hasCustomerIdentity: /(?:会社|株式会社|合同会社|有限会社|担当|名前|氏名|お名前)/u.test(text),
@@ -846,15 +853,30 @@ function inferCustomerIdentityFromText(text: string): {
   }
 }
 
+function lastCleanedIdentityMatch(text: string, pattern: RegExp, kind: "company" | "person"): string | undefined {
+  let latest: string | undefined
+  for (const match of text.matchAll(pattern)) {
+    const cleaned = cleanInferredIdentityValue(match[1], kind)
+    if (cleaned) latest = cleaned
+  }
+  return latest
+}
+
 function cleanInferredIdentityValue(value: string | undefined, kind: "company" | "person"): string | undefined {
   if (!value) return undefined
 
-  const cleaned = value
-    .replace(/(?:です|でございます|と申します|になります|です。)$/u, "")
+  let cleaned = value
+    .replace(/^[\s　「『【（(]+|[\s　」』】）)]+$/gu, "")
+    .replace(/[、,。]+$/u, "")
+    .replace(/(?:です|でございます|と申します|になります)$/u, "")
     .replace(/\s+/gu, " ")
     .trim()
+  if (kind === "person") {
+    cleaned = cleaned.replace(/(?:さん|様)$/u, "").trim()
+  }
 
   if (!cleaned || cleaned === "provided") return undefined
+  if (/^(?:株式会社|合同会社|有限会社)$/u.test(cleaned)) return undefined
   if (/(?:共有済み|提供済み|取得済み|未定|不明|連絡先|メール|納品形式|打ち合わせ|作業場所|希望|済み|会社名|社名|所属|担当者|担当|氏名|お名前|名前)/u.test(cleaned)) {
     return undefined
   }
