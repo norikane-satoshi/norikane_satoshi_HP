@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ChevronDown, Minus, PanelRightClose, PanelRightOpen, Sparkles } from "lucide-react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
+import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 
 import {
   isChatbotRequestCancelledError,
@@ -120,6 +121,19 @@ function buildBookingSupplementalNote(jobContext: BookingCardJobContext): string
   ].filter((item): item is string => Boolean(item)).join("\n")
 }
 
+function recoverStoredBookingCardJobContext(jobContext: BookingCardJobContext): BookingCardJobContext {
+  if (jobContext.workflowEstimate || !jobContext.jobKind) return jobContext
+
+  try {
+    return {
+      ...jobContext,
+      workflowEstimate: estimateWorkflow(jobContext),
+    }
+  } catch {
+    return jobContext
+  }
+}
+
 function formatProjectLengthMemo(minutes: number | undefined): string | undefined {
   if (minutes === undefined) return undefined
   if (minutes >= 60) {
@@ -141,6 +155,7 @@ function formatWorkSiteMemo(workSite: BookingCardJobContext["workSite"]): string
 
 function sanitizeBookingCardActiveUi(value: Record<string, unknown>): WidgetUi {
   if (!isRecord(value.conversationState)) return noUi
+  if (!isRecord(value.jobContext)) return noUi
 
   const sanitizedConversationState = { ...value.conversationState }
   const customerName = cleanDefaultContactValue(sanitizedConversationState.customerName, "person")
@@ -158,7 +173,11 @@ function sanitizeBookingCardActiveUi(value: Record<string, unknown>): WidgetUi {
     delete sanitizedConversationState.companyName
   }
 
-  return { ...value, conversationState: sanitizedConversationState } as WidgetUi
+  return {
+    ...value,
+    jobContext: recoverStoredBookingCardJobContext(value.jobContext as BookingCardJobContext),
+    conversationState: sanitizedConversationState,
+  } as WidgetUi
 }
 
 function sanitizeStoredActiveUi(value: unknown): WidgetUi {

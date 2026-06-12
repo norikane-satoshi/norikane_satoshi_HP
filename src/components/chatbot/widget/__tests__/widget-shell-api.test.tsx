@@ -497,6 +497,97 @@ describe("WidgetShell API wiring", () => {
     expect(screen.queryByText("候補日時から予約する")).not.toBeInTheDocument()
   })
 
+  it("recovers workflow estimates for restored booking-card UI and refreshes live candidates", async () => {
+    vi.setSystemTime(new Date("2026-06-12T12:00:00+09:00"))
+    const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input) === "/api/chatbot/booking-candidates") {
+        return Promise.resolve(mockJsonResponse({
+          candidates: [
+            {
+              start: "2026-06-13T15:00:00.000Z",
+              end: "2026-06-14T15:00:00.000Z",
+              label: "6月14日 単日",
+            },
+            {
+              start: "2026-06-16T15:00:00.000Z",
+              end: "2026-06-17T15:00:00.000Z",
+              label: "6月17日 単日",
+            },
+            {
+              start: "2026-06-17T15:00:00.000Z",
+              end: "2026-06-18T15:00:00.000Z",
+              label: "6月18日 単日",
+            },
+          ],
+          busyDateKeys: ["2026-06-12", "2026-06-13", "2026-06-15", "2026-06-16", "2026-06-19", "2026-06-24", "2026-06-26"],
+        }))
+      }
+
+      return Promise.resolve(mockJsonResponse({}))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    window.localStorage.setItem(
+      "hp-chatbot-session-v1",
+      JSON.stringify({
+        messages: [{ role: "assistant", content: "候補日時から予約できます", createdAt: "2026-06-12T00:00:00.000Z" }],
+        activeUi: {
+          kind: "booking-card",
+          suggestedSlots: [
+            {
+              start: "2026-06-09T15:00:00.000Z",
+              end: "2026-06-10T15:00:00.000Z",
+              label: "6月10日 単日",
+            },
+          ],
+          busyDateKeys: ["2026-06-12", "2026-06-13", "2026-06-15", "2026-06-16", "2026-06-19", "2026-06-24", "2026-06-26"],
+          jobContext: {
+            jobKind: "mv-5m",
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            preferredStartDate: "2026-06-12",
+            projectLengthMinutes: 5,
+          },
+          conversationState: {
+            hasDesiredSchedule: true,
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasMaterialHandoff: true,
+            hasContactEmail: true,
+            turnCount: 8,
+          },
+        },
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    )
+
+    renderWidgetShell()
+
+    const june14 = await screen.findByRole("button", { name: "2026-06-14 選択可" })
+    const june17 = await screen.findByRole("button", { name: "2026-06-17 選択可" })
+    const june18 = await screen.findByRole("button", { name: "2026-06-18 選択可" })
+    fireEvent.click(june14)
+    fireEvent.click(june17)
+
+    expect(june14).toHaveAttribute("data-calendar-state", "startable")
+    expect(june17).toHaveAttribute("data-calendar-state", "startable")
+    expect(june18).toHaveAttribute("data-calendar-state", "startable")
+    expect(screen.getByRole("button", { name: "2026-06-12 埋まり" })).toHaveAttribute("data-calendar-state", "busy")
+    expect(screen.getByRole("button", { name: "2026-06-11 空き・開始不可" })).toHaveAttribute("data-calendar-state", "past")
+    expect(june14).toHaveAttribute("aria-pressed", "true")
+    expect(june17).toHaveAttribute("aria-pressed", "true")
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/chatbot/booking-candidates",
+        expect.objectContaining({
+          body: expect.stringContaining("\"workflowEstimate\""),
+        }),
+      )
+    })
+  })
+
   it("does not pass provided sentinels into booking-card default fields", async () => {
     vi.stubGlobal(
       "fetch",
