@@ -503,6 +503,60 @@ describe("WidgetShell API wiring", () => {
     expect(screen.queryByText("候補日時から予約する")).not.toBeInTheDocument()
   })
 
+  it("drops malformed restored booking-card UI instead of crashing the widget", () => {
+    window.localStorage.setItem(
+      "hp-chatbot-session-v1",
+      JSON.stringify({
+        messages: [{ role: "assistant", content: "候補日時から予約できます", createdAt: "2026-06-08T00:00:00.000Z" }],
+        activeUi: {
+          kind: "booking-card",
+          jobContext: {
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+          conversationState: { hasDesiredSchedule: true, turnCount: 8 },
+        },
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    )
+
+    expect(() => renderWidgetShell()).not.toThrow()
+    expect(screen.queryByText("候補日時から予約する")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("相談内容")).toBeInTheDocument()
+  })
+
+  it("migrates legacy restored booking-card candidates to suggestedSlots", () => {
+    window.localStorage.setItem(
+      "hp-chatbot-session-v1",
+      JSON.stringify({
+        messages: [{ role: "assistant", content: "候補日時から予約できます", createdAt: "2026-06-08T00:00:00.000Z" }],
+        activeUi: {
+          kind: "booking-card",
+          candidates: [
+            {
+              start: "2026-06-13T01:00:00.000Z",
+              end: "2026-06-13T02:00:00.000Z",
+              label: "6月13日 午前",
+            },
+          ],
+          jobContext: {
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+          conversationState: { hasDesiredSchedule: true, hasContactEmail: true, turnCount: 8 },
+        },
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    )
+
+    renderWidgetShell()
+
+    expect(screen.getByText("候補日時から予約する")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "2026-06-13 選択可" })).toBeInTheDocument()
+  })
+
   it("recovers workflow estimates for restored booking-card UI and refreshes live candidates", async () => {
     vi.setSystemTime(new Date("2026-06-12T12:00:00+09:00"))
     const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {

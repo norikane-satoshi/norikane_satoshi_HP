@@ -80,6 +80,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object")
 }
 
+function isCandidateWindowArray(value: unknown): value is Extract<WidgetUi, { kind: "booking-card" }>["suggestedSlots"] {
+  return Array.isArray(value) && value.every((candidate) => (
+    isRecord(candidate) &&
+    typeof candidate.start === "string" &&
+    typeof candidate.end === "string" &&
+    typeof candidate.label === "string"
+  ))
+}
+
 function cleanDefaultContactValue(value: unknown, kind: "company" | "person"): string | undefined {
   if (typeof value !== "string") return undefined
   const trimmed = value.trim()
@@ -192,6 +201,12 @@ function formatWorkSiteMemo(workSite: BookingCardJobContext["workSite"]): string
 function sanitizeBookingCardActiveUi(value: Record<string, unknown>): WidgetUi {
   if (!isRecord(value.conversationState)) return noUi
   if (!isRecord(value.jobContext)) return noUi
+  const suggestedSlots = isCandidateWindowArray(value.suggestedSlots)
+    ? value.suggestedSlots
+    : isCandidateWindowArray(value.candidates)
+      ? value.candidates
+      : undefined
+  if (!suggestedSlots) return noUi
 
   const sanitizedConversationState = { ...value.conversationState }
   const customerName = cleanDefaultContactValue(sanitizedConversationState.customerName, "person")
@@ -218,6 +233,7 @@ function sanitizeBookingCardActiveUi(value: Record<string, unknown>): WidgetUi {
 
   return {
     ...value,
+    suggestedSlots,
     jobContext: recoverStoredBookingCardJobContext(value.jobContext as BookingCardJobContext),
     conversationState: sanitizedConversationState,
   } as WidgetUi
@@ -834,6 +850,7 @@ function ActiveWidgetUi({
   }
 
   if (ui.kind === "booking-card") {
+    if (!isCandidateWindowArray(ui.suggestedSlots) || !isRecord(ui.jobContext)) return null
     return (
       <ChatbotBookingCard
         key={ui.suggestedSlots.map((slot) => slot.start).join("|")}

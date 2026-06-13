@@ -18,7 +18,7 @@ type ChatbotBookingCardProps = {
   conversationId?: string
   estimate?: WorkflowEstimate
   jobContext?: JobContext
-  candidates: CandidateWindow[]
+  candidates?: CandidateWindow[]
   busyDateKeys?: string[]
   defaultProjectTitle?: string
   defaultContactName?: string
@@ -189,7 +189,7 @@ export function ChatbotBookingCard({
   conversationId,
   estimate,
   jobContext,
-  candidates,
+  candidates = [],
   busyDateKeys = [],
   defaultProjectTitle = "",
   defaultContactName = "",
