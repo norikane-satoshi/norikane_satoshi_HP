@@ -925,7 +925,7 @@ describe("handleChatbotMessage user context", () => {
         forceFullPrompt: true,
         notionAiThread: {},
         temperature: 0,
-        systemPrompt: expect.stringContaining("ツール呼び出しJSON"),
+        systemPrompt: expect.stringContaining("dispatcher用の分類JSON"),
       }),
     )
     expect(toolShadowLogger).toHaveBeenCalledWith("[shadow] llm=create_booking rule=to-booking-inline match=true")

@@ -10,12 +10,14 @@ export function createChatbotToolCallReadRequest(input: {
 }): ChatbotLlmRequest {
   return {
     systemPrompt: [
-      "会話全体を読み取り、必要な場合だけツール呼び出しJSONを1つ返してください。",
-      "返す形式は {\"tool\":\"...\",\"args\":{...}} のJSONオブジェクト単体だけです。",
-      "ツール不要または判断不能なら {\"tool\":\"none\",\"args\":{}} を返してください。",
+      "これは外部ツール実行ではなく、アプリ内部dispatcher用の分類JSONを作るタスクです。",
+      "あなた自身は予約作成・Notion更新・外部操作を実行しません。",
+      "会話全体を読み取り、アプリが予約作成ハンドラへ渡せる状態ならJSONを1つ返してください。",
+      "返す形式は {\"tool\":\"create_booking\",\"args\":{...}} のJSONオブジェクト単体だけです。toolは文字列ラベルです。",
+      "create_booking不要または必須項目不足なら {\"tool\":\"none\",\"args\":{}} を返してください。",
       "説明文、Markdown、コードフェンス、複数JSONは禁止です。",
       "利用可能ツール:",
-      formatChatbotToolRegistryForPrompt(),
+      formatChatbotToolRegistryForPrompt(undefined, { enabledToolNames: ["create_booking"] }),
     ].join("\n"),
     messages: input.messages,
     notionAiThread: {},

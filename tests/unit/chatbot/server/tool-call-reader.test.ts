@@ -34,10 +34,11 @@ describe("chatbot tool-call reader", () => {
       maxOutputTokens: 260,
       latestUserMessage: "7月に予約したいです",
     })
-    expect(request.systemPrompt).toContain('{"tool":"..."')
+    expect(request.systemPrompt).toContain('{"tool":"create_booking"')
+    expect(request.systemPrompt).toContain("外部ツール実行ではなく")
     expect(request.systemPrompt).toContain("create_booking")
-    expect(request.systemPrompt).toContain("show_booking_card")
-    expect(request.systemPrompt).toContain("get_estimate")
+    expect(request.systemPrompt).not.toContain("show_booking_card")
+    expect(request.systemPrompt).not.toContain("get_estimate")
     expect(request.messages).toEqual([{ role: "user", content: "7月に予約したいです" }])
   })
 })
