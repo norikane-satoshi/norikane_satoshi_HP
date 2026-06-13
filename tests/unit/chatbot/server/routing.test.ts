@@ -5,6 +5,8 @@ import {
   additionalWorkChoices,
   finalMediumChoices,
   productionOptionChoices,
+  remoteWorkSiteConfirmationChoices,
+  specificWorkSiteChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
@@ -114,6 +116,39 @@ describe("chatbot fallback router", () => {
     expect(result).toMatchObject({
       kind: "continue",
       presentChoices: workSiteChoices,
+    })
+  })
+
+  it("asks for confirmation before applying remote grading to entrusted work site", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ workSite: "remote-grading" }),
+      conversationState: conversationState({
+        hasWorkSite: false,
+        hasPendingRemoteWorkSiteRecommendation: true,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("リモートグレーディングのご提案"),
+      presentChoices: remoteWorkSiteConfirmationChoices,
+    })
+  })
+
+  it("asks for a concrete work site after remote grading recommendation is declined", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ workSite: "remote-grading" }),
+      conversationState: conversationState({
+        hasWorkSite: false,
+        hasPendingRemoteWorkSiteRecommendation: false,
+        declinedRemoteWorkSiteRecommendation: true,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      nextQuestion: "具体的な作業場所のご希望を教えてください。",
+      presentChoices: specificWorkSiteChoices,
     })
   })
 

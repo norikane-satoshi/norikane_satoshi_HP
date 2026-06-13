@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 
 import type { ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
-import { additionalWorkChoices, finalMediumChoices } from "@/lib/chatbot/domain"
+import {
+  additionalWorkChoices,
+  finalMediumChoices,
+  remoteWorkSiteConfirmationChoices,
+  workSiteChoices,
+} from "@/lib/chatbot/domain"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"
 
@@ -1077,6 +1082,7 @@ describe("handleChatbotMessage user context", () => {
     ["名前はテストユーザーさん、会社名はテスト株式会社です。"],
     ["会社名は未定です。名前は未定です。\n名前はテストユーザー、会社名はテスト株式会社です。"],
     ["名前はテストユーザーです。\n会社名はテスト株式会社です。"],
+    ["名前：テストユーザー（テスト株式会社）"],
   ])("extracts customer identity without adjacent label bleed: %s", async (messageText) => {
     const harness = setup()
 
@@ -1091,6 +1097,26 @@ describe("handleChatbotMessage user context", () => {
 
     expect(harness.generate.mock.calls[0]?.[0].conversationState.customerName).toBe("テストユーザー")
     expect(harness.generate.mock.calls[0]?.[0].conversationState.companyName).toBe("テスト株式会社")
+  })
+
+  it("does not treat online material handoff as a work site choice", async () => {
+    const harness = setup()
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "素材はオンライン共有で受け渡し予定です。受け渡し以外はまだ未定です。",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toEqual(
+      expect.objectContaining({
+        hasMaterialHandoff: true,
+        hasWorkSite: false,
+      }),
+    )
   })
 
   it("infers July deadline text and keeps broad June handoff dates approximate", async () => {
@@ -1372,6 +1398,112 @@ describe("handleChatbotMessage user context", () => {
         activeChoices: null,
         conversationState: expect.objectContaining({ hasFinalMedium: true }),
         jobContext: expect.objectContaining({ finalMedium: "live" }),
+      }),
+    )
+  })
+
+  it("asks for remote grading confirmation after the entrusted work site choice", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: workSiteChoices,
+          currentQuestion: "作業場所のご希望はありますか？",
+          conversationState: {
+            hasCustomerIdentity: true,
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasMaterialHandoff: true,
+            hasAdditionalWork: true,
+            hasDocumentaryAttachments: true,
+            hasDesiredSchedule: true,
+            turnCount: 7,
+          },
+          jobContext: {
+            finalMedium: "live",
+            jobKind: "live-60m",
+            projectLengthMinutes: 150,
+            preferredStartDate: "2026-07-01",
+            publicReleaseDate: "2026-07-31",
+          },
+        },
+        messages: [{ id: "old", role: "assistant", content: "作業場所のご希望はありますか？", createdAt: "2026-05-26T00:00:00.000Z" }],
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "選択: entrust" },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain("リモートグレーディングのご提案")
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      presentChoices: remoteWorkSiteConfirmationChoices,
+    })
+    expect(result.ui).toEqual({ kind: "choice-panel", choiceSet: remoteWorkSiteConfirmationChoices })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: remoteWorkSiteConfirmationChoices,
+        conversationState: expect.objectContaining({
+          hasWorkSite: false,
+          hasPendingRemoteWorkSiteRecommendation: true,
+        }),
+      }),
+    )
+  })
+
+  it("confirms remote grading after a Yes answer to the entrusted work site recommendation", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: remoteWorkSiteConfirmationChoices,
+          currentQuestion: "リモートグレーディングのご提案です。",
+          conversationState: {
+            hasCustomerIdentity: true,
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasMaterialHandoff: true,
+            hasAdditionalWork: true,
+            hasDocumentaryAttachments: true,
+            hasDesiredSchedule: true,
+            hasPendingRemoteWorkSiteRecommendation: true,
+            turnCount: 8,
+          },
+          jobContext: {
+            finalMedium: "live",
+            jobKind: "live-60m",
+            projectLengthMinutes: 150,
+            preferredStartDate: "2026-07-01",
+            publicReleaseDate: "2026-07-31",
+          },
+        },
+        messages: [{ id: "old", role: "assistant", content: "リモートグレーディングのご提案です。", createdAt: "2026-05-26T00:00:00.000Z" }],
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "Yes" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(harness.generate.mock.calls[0]?.[0].jobContext).toEqual(
+      expect.objectContaining({ workSite: "remote-grading" }),
+    )
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: null,
+        conversationState: expect.objectContaining({
+          hasWorkSite: true,
+          hasPendingRemoteWorkSiteRecommendation: false,
+        }),
+        jobContext: expect.objectContaining({ workSite: "remote-grading" }),
       }),
     )
   })

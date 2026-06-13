@@ -639,12 +639,15 @@ function buildConversationState(
       input?.hasDocumentaryAttachments,
       activeChoiceConversationState?.hasDocumentaryAttachments,
     ),
-    hasWorkSite: isSlotSatisfied(
-      stored.hasWorkSite,
-      inferred.hasWorkSite,
-      input?.hasWorkSite,
-      activeChoiceConversationState?.hasWorkSite,
-    ),
+    hasWorkSite:
+      merged.hasPendingRemoteWorkSiteRecommendation || merged.declinedRemoteWorkSiteRecommendation
+        ? false
+        : isSlotSatisfied(
+            stored.hasWorkSite,
+            inferred.hasWorkSite,
+            input?.hasWorkSite,
+            activeChoiceConversationState?.hasWorkSite,
+          ),
     hasReferenceUrls: isSlotSatisfied(stored.hasReferenceUrls, inferred.hasReferenceUrls, input?.hasReferenceUrls),
     hasDeliveryFormat: isSlotSatisfied(stored.hasDeliveryFormat, inferred.hasDeliveryFormat, input?.hasDeliveryFormat),
     hasProductionOptions: isSlotSatisfied(
@@ -794,7 +797,7 @@ function inferConversationStateFromText(text: string): Partial<ConversationState
   const hasProductionOptions = /(?:字幕|テロップ|ナレーション|音楽|bgm)/iu.test(text)
   const hasBudgetRange = /(?:予算|ご予算|概算|レンジ|\d+\s*(?:万|万円|円)|budget)/iu.test(text)
   const hasMeetingPreference = /(?:打ち合わせ|ミーティング|オンライン|zoom|meet)/iu.test(text)
-  const hasWorkSite = /(?:作業場所|立ち会い|リモート|オンライン|スタジオ|現地)/u.test(text)
+  const hasWorkSite = /(?:作業場所|立ち会い|リモート(?:グレーディング|作業|対応)?|スタジオ|現地|ポスプロ|常駐)/u.test(text)
   const hasTransfer = /(?:素材|搬入|受け渡し|アップロード|drive|dropbox|gigafile|ギガファイル)/iu.test(text)
 
   return {
@@ -828,6 +831,11 @@ function inferCustomerIdentityFromText(text: string): {
   const companyName =
     lastCleanedIdentityMatch(
       text,
+      /(?:担当者氏名|担当者名|担当者|担当|氏名|お名前|名前)\s*(?:は|:|：|=)\s*[^\s　、,。\n（）()]{1,30}\s*[（(]\s*([^)）\n]{1,80}?)\s*[）)]/gu,
+      "company",
+    ) ??
+    lastCleanedIdentityMatch(
+      text,
       /(?:会社名|社名|所属)\s*(?:は|:|：|=)\s*([\s\S]{1,80}?)(?=(?:\s*(?:、|,|。|\n|$)|\s*(?:会社名|社名|所属|担当者氏名|担当者名|担当|氏名|お名前|名前)\s*(?:は|:|：|=)))/gu,
       "company",
     ) ??
@@ -835,6 +843,11 @@ function inferCustomerIdentityFromText(text: string): {
     lastCleanedIdentityMatch(text, /(?:^|[\s　、,。\n])([^\s　、,。の]{1,30}(?:株式会社|合同会社|有限会社))(?=$|[\s　、,。\n]|です|でございます|と申します)/gu, "company")
 
   const customerName =
+    lastCleanedIdentityMatch(
+      text,
+      /(?:担当者氏名|担当者名|担当者|担当|氏名|お名前|名前)\s*(?:は|:|：|=)\s*([^\s　、,。\n（）()]{1,30})\s*[（(]\s*[^)）\n]{1,80}?\s*[）)]/gu,
+      "person",
+    ) ??
     lastCleanedIdentityMatch(
       text,
       /(?:担当者氏名|担当者名|担当者|担当|氏名|お名前|名前)\s*(?:は|:|：|=)\s*([\s\S]{1,80}?)(?=(?:\s*(?:、|,|。|\n|$)|\s*(?:会社名|社名|所属|担当者氏名|担当者名|担当者|担当|氏名|お名前|名前)\s*(?:は|:|：|=)))/gu,

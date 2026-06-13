@@ -9,6 +9,8 @@ import {
   documentaryAttachmentChoices,
   finalMediumChoices,
   productionOptionChoices,
+  remoteWorkSiteConfirmationChoices,
+  specificWorkSiteChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import { directContactPolicyMessage } from "@/lib/chatbot/knowledge/forbidden-topics"
@@ -83,6 +85,8 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     conversationState.hasJobKind &&
     conversationState.hasProjectLength &&
     Boolean(conversationState.hasMaterialHandoff) &&
+    !conversationState.hasPendingRemoteWorkSiteRecommendation &&
+    !conversationState.declinedRemoteWorkSiteRecommendation &&
     conversationState.hasContactEmail
   ) {
     return {
@@ -186,6 +190,23 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
   }
 
   if (!conversationState.hasWorkSite) {
+    if (conversationState.hasPendingRemoteWorkSiteRecommendation) {
+      return {
+        kind: "continue",
+        nextQuestion:
+          "リモートグレーディングのご提案です。のりかねさんのスタイルや設備に合わせたリモートグレーディングをおすすめしますが、よろしいでしょうか？",
+        presentChoices: remoteWorkSiteConfirmationChoices,
+      }
+    }
+
+    if (conversationState.declinedRemoteWorkSiteRecommendation) {
+      return {
+        kind: "continue",
+        nextQuestion: "具体的な作業場所のご希望を教えてください。",
+        presentChoices: specificWorkSiteChoices,
+      }
+    }
+
     return {
       kind: "continue",
       nextQuestion: "作業場所のご希望はありますか？",

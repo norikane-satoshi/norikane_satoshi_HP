@@ -6,6 +6,7 @@ import {
   documentaryAttachmentChoices,
   finalMediumChoices,
   productionOptionChoices,
+  remoteWorkSiteConfirmationChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import { applyActiveChoiceAnswer } from "@/lib/chatbot/server/choice-panel-state"
@@ -104,6 +105,28 @@ describe("choice panel state", () => {
     [documentaryAttachmentChoices, "なし", { hasDocumentaryAttachments: true }, { documentaryAttachment: { kind: "none" } }],
     [workSiteChoices, "satoshi-studio", { hasWorkSite: true }, { workSite: "satoshi-studio" }],
     [workSiteChoices, "client-facility-attended", { hasWorkSite: true }, { workSite: "on-site" }],
+    [
+      workSiteChoices,
+      "entrust",
+      { hasWorkSite: false, hasPendingRemoteWorkSiteRecommendation: true },
+      {},
+    ],
+    [
+      remoteWorkSiteConfirmationChoices,
+      "Yes",
+      { hasWorkSite: true, hasPendingRemoteWorkSiteRecommendation: false },
+      { workSite: "remote-grading" },
+    ],
+    [
+      remoteWorkSiteConfirmationChoices,
+      "No",
+      {
+        hasWorkSite: false,
+        hasPendingRemoteWorkSiteRecommendation: false,
+        declinedRemoteWorkSiteRecommendation: true,
+      },
+      {},
+    ],
   ] as const)(
     "maps %s choice %s to conversation state and job context",
     (choiceSet: SurveyChoiceSet, message, expectedState, expectedJobContext) => {

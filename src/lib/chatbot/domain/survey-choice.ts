@@ -60,6 +60,21 @@ export const workSiteChoices = {
   ],
 } as const satisfies SurveyChoiceSet
 
+export const specificWorkSiteChoices = {
+  id: "work-site",
+  question: "具体的な作業場所のご希望を教えてください",
+  choices: workSiteChoices.choices.filter((choice) => choice.id !== "entrust"),
+} as const satisfies SurveyChoiceSet
+
+export const remoteWorkSiteConfirmationChoices = {
+  id: "remote-work-site-confirmation",
+  question: "リモートグレーディングのご提案",
+  choices: [
+    { id: "yes", label: "Yes" },
+    { id: "no", label: "No" },
+  ],
+} as const satisfies SurveyChoiceSet
+
 export const productionOptionChoices = {
   id: "production-options",
   question: "字幕・テロップ、ナレーション、音楽はありますか",
@@ -78,5 +93,7 @@ export const surveyChoiceSets = [
   additionalWorkChoices,
   documentaryAttachmentChoices,
   workSiteChoices,
+  specificWorkSiteChoices,
+  remoteWorkSiteConfirmationChoices,
   productionOptionChoices,
 ] as const satisfies readonly SurveyChoiceSet[]

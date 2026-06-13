@@ -49,6 +49,8 @@ export type ConversationState = {
   hasContactEmail: boolean
   hasDesiredSchedule: boolean
   hasCustomerIdentity?: boolean
+  hasPendingRemoteWorkSiteRecommendation?: boolean
+  declinedRemoteWorkSiteRecommendation?: boolean
   turnCount: number
   outOfScope?: boolean
   technicalQuestion?: boolean

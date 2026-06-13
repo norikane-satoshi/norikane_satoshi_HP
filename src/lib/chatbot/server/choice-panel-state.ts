@@ -61,12 +61,56 @@ export function applyActiveChoiceAnswer(input: {
         jobContext: { documentaryAttachment: toDocumentaryAttachment(choice.id) },
       }
     case "work-site":
+      if (choice.id === "entrust") {
+        return {
+          choiceSetId: input.activeChoices.id,
+          choiceId: choice.id,
+          choiceIds: [choice.id],
+          conversationState: {
+            hasWorkSite: false,
+            hasPendingRemoteWorkSiteRecommendation: true,
+            declinedRemoteWorkSiteRecommendation: false,
+          },
+          jobContext: {},
+        }
+      }
+
       return {
         choiceSetId: input.activeChoices.id,
         choiceId: choice.id,
         choiceIds: [choice.id],
-        conversationState: { hasWorkSite: true },
+        conversationState: {
+          hasWorkSite: true,
+          hasPendingRemoteWorkSiteRecommendation: false,
+          declinedRemoteWorkSiteRecommendation: false,
+        },
         jobContext: { workSite: toWorkSite(choice.id) },
+      }
+    case "remote-work-site-confirmation":
+      if (choice.id === "yes") {
+        return {
+          choiceSetId: input.activeChoices.id,
+          choiceId: choice.id,
+          choiceIds: [choice.id],
+          conversationState: {
+            hasWorkSite: true,
+            hasPendingRemoteWorkSiteRecommendation: false,
+            declinedRemoteWorkSiteRecommendation: false,
+          },
+          jobContext: { workSite: "remote-grading" },
+        }
+      }
+
+      return {
+        choiceSetId: input.activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: [choice.id],
+        conversationState: {
+          hasWorkSite: false,
+          hasPendingRemoteWorkSiteRecommendation: false,
+          declinedRemoteWorkSiteRecommendation: true,
+        },
+        jobContext: {},
       }
     case "production-options":
       if (choices.some((item) => item.id === "none")) {
@@ -107,6 +151,8 @@ export function isSatisfiedChoicePanel(
       return conversationState.hasDocumentaryAttachments
     case "work-site":
       return conversationState.hasWorkSite
+    case "remote-work-site-confirmation":
+      return !conversationState.hasPendingRemoteWorkSiteRecommendation
     case "production-options":
       return Boolean(conversationState.hasProductionOptions)
     default:
