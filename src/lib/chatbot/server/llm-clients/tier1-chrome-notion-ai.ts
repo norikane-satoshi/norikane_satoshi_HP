@@ -139,6 +139,7 @@ type RunInferencePayload = {
   spaceId: string
   transcript: Array<{ id: string; type: string; value: unknown; userId?: string; createdAt?: string }>
   threadId: string
+  threadParentPointer?: NotionAiPointer
   createThread: boolean
   debugOverrides: {
     emitAgentSearchExtractedResults: boolean
@@ -156,6 +157,12 @@ type RunInferencePayload = {
   hasHeartbeat: boolean
   isUserInAnySalesAssistedSpace: boolean
   isSpaceSalesAssisted: boolean
+}
+
+type NotionAiPointer = {
+  table: string
+  id: string
+  spaceId: string
 }
 
 type RunInferenceContextValue = {
@@ -289,6 +296,13 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         this.config.connectTimeoutMs,
       )
       let effectiveRequest = request
+      let createdDedicatedThreadStats:
+        | {
+            threadId: string
+            postDataBytes: number
+            responseBytes: number
+          }
+        | undefined
       let payload = buildRunInferencePayload({
         request,
         runtimeContext,
@@ -297,13 +311,58 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       })
       const headers = buildRunInferenceHeaders(runtimeContext)
       let notionAiThreadFallbackReason: string | undefined
-      let result = await this.evaluate<NotionAiInferenceResult>(
-        session,
-        buildRunInferenceExpression(payload, headers),
-        this.config.requestTimeoutMs,
-      )
+      let result: NotionAiInferenceResult
+
+      if (shouldCreateDedicatedThread(request)) {
+        const createPayload = buildRunInferencePayload({
+          request,
+          runtimeContext,
+          preferredModel: this.config.preferredModel,
+          idFactory: this.idFactory,
+          createThreadOnly: true,
+        })
+        const createResult = await this.evaluate<NotionAiInferenceResult>(
+          session,
+          buildRunInferenceExpression(createPayload, headers, { requireAssistantText: false }),
+          this.config.requestTimeoutMs,
+        )
+
+        if (createResult.ok) {
+          createdDedicatedThreadStats = {
+            threadId: createPayload.threadId,
+            postDataBytes: createResult.postDataBytes,
+            responseBytes: createResult.responseBytes,
+          }
+          effectiveRequest = {
+            ...request,
+            notionAiThread: { threadId: createPayload.threadId },
+          }
+          payload = buildRunInferencePayload({
+            request: effectiveRequest,
+            runtimeContext,
+            preferredModel: this.config.preferredModel,
+            idFactory: this.idFactory,
+            forceFullPrompt: true,
+          })
+          result = await this.evaluate<NotionAiInferenceResult>(
+            session,
+            buildRunInferenceExpression(payload, headers),
+            this.config.requestTimeoutMs,
+          )
+        } else {
+          result = createResult
+        }
+      } else {
+        result = await this.evaluate<NotionAiInferenceResult>(
+          session,
+          buildRunInferenceExpression(payload, headers),
+          this.config.requestTimeoutMs,
+        )
+      }
+
       if (!result.ok && shouldRetryWithoutDedicatedThread(result, request)) {
         notionAiThreadFallbackReason = result.message
+        createdDedicatedThreadStats = undefined
         effectiveRequest = { ...request, notionAiThread: undefined }
         payload = buildRunInferencePayload({
           request: effectiveRequest,
@@ -342,10 +401,18 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           ndjsonPartialParsed: result.parsedPartial,
           ndjsonFinalParsed: result.parsedFinal,
           chunkCount: result.chunkCount,
-          notionAiThreadId: payload.threadId,
-          notionAiThreadCreated: payload.createThread,
+          notionAiThreadId: createdDedicatedThreadStats?.threadId ?? payload.threadId,
+          notionAiThreadCreated: createdDedicatedThreadStats ? true : payload.createThread,
           notionAiThreadPartialTranscript: payload.isPartialTranscript,
-          notionAiThreadMode: resolveNotionAiThreadMode(effectiveRequest),
+          notionAiThreadMode: createdDedicatedThreadStats
+            ? "dedicated-created"
+            : resolveNotionAiThreadMode(effectiveRequest),
+          ...(createdDedicatedThreadStats
+            ? {
+                notionAiThreadCreatePostDataBytes: createdDedicatedThreadStats.postDataBytes,
+                notionAiThreadCreateResponseBytes: createdDedicatedThreadStats.responseBytes,
+              }
+            : {}),
           ...(notionAiThreadFallbackReason
             ? { notionAiThreadFallbackReason }
             : {}),
@@ -601,6 +668,8 @@ export function buildRunInferencePayload(input: {
   preferredModel?: string
   idFactory: IdFactory
   contextPageId?: string
+  createThreadOnly?: boolean
+  forceFullPrompt?: boolean
 }): RunInferencePayload {
   const spaceId = input.runtimeContext.spaceId
   const contextPageId = input.contextPageId ?? input.runtimeContext.contextPageId
@@ -643,15 +712,22 @@ export function buildRunInferencePayload(input: {
           currentDatetime,
         }),
       },
-      {
-        id: input.idFactory(),
-        type: "user",
-        value: [[buildUserPrompt(input.request)]],
-        userId: input.runtimeContext.userId,
-        createdAt: currentDatetime,
-      },
+      ...(input.createThreadOnly
+        ? []
+        : [
+            {
+              id: input.idFactory(),
+              type: "user",
+              value: [[buildUserPrompt(input.request, { forceFullPrompt: input.forceFullPrompt })]],
+              userId: input.runtimeContext.userId,
+              createdAt: currentDatetime,
+            },
+          ]),
     ],
     threadId,
+    ...(dedicatedThread && !hasExistingThread
+      ? { threadParentPointer: { table: "space", id: spaceId, spaceId } }
+      : {}),
     createThread: !hasExistingThread,
     debugOverrides: {
       emitAgentSearchExtractedResults: true,
@@ -663,7 +739,7 @@ export function buildRunInferencePayload(input: {
     saveAllThreadOperations: true,
     setUnreadState: true,
     createdSource: hasExistingThread ? "workflows" : defaultCreatedSource,
-    threadType: defaultThreadType,
+    threadType: input.createThreadOnly ? "context" : defaultThreadType,
     isPartialTranscript: hasExistingThread,
     asPatchResponse: true,
     hasHeartbeat: false,
@@ -877,8 +953,10 @@ function modelIsAvailable(model: string, availableModels?: string[]): boolean {
   return !availableModels || availableModels.includes(model)
 }
 
-function buildUserPrompt(request: ChatbotLlmRequest): string {
-  if (request.notionAiThread?.threadId) return buildDedicatedThreadPatchPrompt(request)
+function buildUserPrompt(request: ChatbotLlmRequest, options: { forceFullPrompt?: boolean } = {}): string {
+  if (request.notionAiThread?.threadId && !options.forceFullPrompt) {
+    return buildDedicatedThreadPatchPrompt(request)
+  }
 
   const promptMessages = buildPromptMessages(request)
 
@@ -1008,6 +1086,10 @@ function shouldRetryWithoutDedicatedThread(
   )
 }
 
+function shouldCreateDedicatedThread(request: ChatbotLlmRequest): boolean {
+  return request.notionAiThread !== undefined && !request.notionAiThread.threadId
+}
+
 function resolveNotionAiThreadMode(request: ChatbotLlmRequest): string {
   if (!request.notionAiThread) return "fixed-full-resend"
   if (request.notionAiThread.threadId) return "dedicated-patch"
@@ -1067,8 +1149,12 @@ function findNotionLoginTarget(
   })
 }
 
-function buildRunInferenceExpression(payload: RunInferencePayload, headers: RunInferenceHeaders): string {
-  return `(() => { const __name = (target) => target; return (${runInferenceInPage.toString()})(${JSON.stringify({ payload, headers })}); })()`
+function buildRunInferenceExpression(
+  payload: RunInferencePayload,
+  headers: RunInferenceHeaders,
+  options: { requireAssistantText?: boolean } = {},
+): string {
+  return `(() => { const __name = (target) => target; return (${runInferenceInPage.toString()})(${JSON.stringify({ payload, headers, requireAssistantText: options.requireAssistantText ?? true })}); })()`
 }
 
 function collectText(value: unknown): string {
@@ -1432,9 +1518,10 @@ const runtimeContextExpression = `(() => (async () => {
 async function runInferenceInPage(input: {
   payload: RunInferencePayload
   headers: RunInferenceHeaders
+  requireAssistantText?: boolean
 }): Promise<NotionAiInferenceResult> {
   const endpoint = "/api/v3/runInferenceTranscript"
-  const { payload, headers } = input
+  const { payload, headers, requireAssistantText = true } = input
   const collectAgentInferenceTextInPage = (value: unknown): string => {
     if (!value || typeof value !== "object") return ""
 
@@ -1732,6 +1819,28 @@ async function runInferenceInPage(input: {
 
     const rawText = finalText || partialText
     if (!rawText) {
+      if (!requireAssistantText) {
+        const createdThreadRecordMap =
+          responseText.length > 1 &&
+          responseText.includes('"recordMap"') &&
+          responseText.includes('"thread"') &&
+          responseText.includes(payload.threadId)
+
+        if (createdThreadRecordMap) {
+          return {
+            ok: true,
+            rawText: "",
+            chunkCount,
+            postDataBytes,
+            responseBytes,
+            responseContentType,
+            responseHeaders,
+            parsedPartial: false,
+            parsedFinal: false,
+          }
+        }
+      }
+
       return {
         ok: false,
         code: "invalid-output",

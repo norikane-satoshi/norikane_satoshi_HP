@@ -41,6 +41,8 @@ function pickLogSafeDiagnostics(diagnostics: Record<string, unknown>): Record<st
     "chunkCount",
     "notionAiThreadId",
     "notionAiThreadCreated",
+    "notionAiThreadCreatePostDataBytes",
+    "notionAiThreadCreateResponseBytes",
     "notionAiThreadPartialTranscript",
     "notionAiThreadMode",
     "notionAiThreadFallbackReason",

@@ -478,6 +478,70 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(vi.mocked(session.evaluate)).toHaveBeenCalledTimes(3)
   })
 
+  it("creates a dedicated thread record before running the first full prompt on that thread", async () => {
+    const session = sessionReturning([
+      {
+        spaceId: "space-id",
+        userId: "user-id",
+        contextPageId: "context-page-id",
+        threadId: "fixed-page-thread-id",
+        selectedModel: "notion-current-model",
+        availableModels: ["apricot-sorbet-high"],
+      },
+      {
+        ok: true,
+        rawText: "",
+        chunkCount: 2,
+        postDataBytes: 1213,
+        responseBytes: 2314,
+        responseContentType: "application/x-ndjson",
+        responseHeaders: {},
+        parsedPartial: false,
+        parsedFinal: false,
+      },
+      {
+        ok: true,
+        rawText: "1〜2日です。",
+        chunkCount: 4,
+        postDataBytes: 3055,
+        responseBytes: 18000,
+        responseContentType: "application/x-ndjson",
+        responseHeaders: {},
+        parsedPartial: true,
+        parsedFinal: true,
+      },
+    ])
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () => session,
+      idFactory: vi.fn(() => "dedicated-thread-id"),
+    })
+
+    await expect(
+      client.generate({
+        ...llmRequest(),
+        notionAiThread: {},
+      }),
+    ).resolves.toMatchObject({
+      rawText: "1〜2日です。",
+      diagnostics: {
+        postDataBytes: 3055,
+        notionAiThreadId: "dedicated-thread-id",
+        notionAiThreadCreated: true,
+        notionAiThreadCreatePostDataBytes: 1213,
+        notionAiThreadCreateResponseBytes: 2314,
+        notionAiThreadMode: "dedicated-created",
+      },
+    })
+
+    const evaluate = vi.mocked(session.evaluate)
+    expect(evaluate).toHaveBeenCalledTimes(3)
+    expect(evaluate.mock.calls[1]?.[0]).toContain("threadParentPointer")
+    expect(evaluate.mock.calls[1]?.[0]).not.toContain("Collect only new project intake details.")
+    expect(evaluate.mock.calls[2]?.[0]).toContain("Collect only new project intake details.")
+    expect(evaluate.mock.calls[2]?.[0]).toContain("dedicated-thread-id")
+  })
+
   it("patches only the new user message into an existing dedicated conversation thread", () => {
     const payload = buildPayloadForRequest({
       ...llmRequest(),
