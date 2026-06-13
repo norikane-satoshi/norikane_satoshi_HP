@@ -22,6 +22,7 @@ export type ChatbotLlmRequest = {
   conversationState: ConversationState
   jobContext: JobContext
   latestUserMessage?: string
+  forceFullPrompt?: boolean
   temperature?: number
   maxOutputTokens?: number
 }

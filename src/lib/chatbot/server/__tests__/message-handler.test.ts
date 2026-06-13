@@ -789,6 +789,8 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.generate.mock.calls[1]?.[0]).toEqual(
       expect.objectContaining({
         systemPrompt: expect.stringContaining("予約フォーム初期値だけをJSON"),
+        notionAiThread: {},
+        forceFullPrompt: true,
         temperature: 0,
       }),
     )
@@ -800,6 +802,33 @@ describe("handleChatbotMessage user context", () => {
         contactEmail: "test@example.com",
         dueDate: "2026-07-31",
       },
+    })
+  })
+
+  it("falls back to empty booking form defaults when the JSON LLM read fails", async () => {
+    const harness = setup()
+    harness.generate
+      .mockResolvedValueOnce({
+        rawText: "候補を出します。",
+        tier: "tier-1-chrome-notion-ai",
+        proposedRoutingDecision: { kind: "continue", nextQuestion: "候補を出します。" },
+      })
+      .mockRejectedValueOnce(new Error("Notion AI response text could not be extracted. bytes=1 preview=["))
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message:
+          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは test@example.com です。",
+      },
+      harness.options,
+    )
+
+    expect(harness.generate).toHaveBeenCalledTimes(2)
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {},
     })
   })
 

@@ -360,6 +360,8 @@ async function extractBookingFormPrefill(input: {
           "説明文、Markdown、コードフェンスは不要です。",
         ].join("\n"),
         messages: [...input.conversation.messages, input.userMessage].map(({ role, content }) => ({ role, content })),
+        notionAiThread: {},
+        forceFullPrompt: true,
         conversationState: input.conversationState,
         jobContext: input.jobContext,
         temperature: 0,

@@ -644,6 +644,34 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(afterPrompt).not.toContain("A社のWeb CM")
   })
 
+  it("can force a full prompt into an isolated dedicated thread for internal JSON reads", () => {
+    const payload = buildPayloadForRequest({
+      ...llmRequest(),
+      systemPrompt: "予約フォーム初期値だけをJSONで返す",
+      messages: [
+        { role: "user", content: "担当者はテストユーザーです" },
+        { role: "assistant", content: "候補を確認します" },
+        { role: "user", content: "会社名はテスト株式会社、メールは test@example.com です" },
+      ],
+      latestUserMessage: undefined,
+      notionAiThread: {},
+      forceFullPrompt: true,
+    })
+    const prompt = payloadPrompt(payload)
+
+    expect(payload).toMatchObject({
+      threadId: "trace-id",
+      createThread: true,
+      isPartialTranscript: false,
+    })
+    expect(prompt.split("\n")).toEqual([
+      "予約フォーム初期値だけをJSONで返す",
+      "user: 担当者はテストユーザーです",
+      "assistant: 候補を確認します",
+      "user: 会社名はテスト株式会社、メールは test@example.com です",
+    ])
+  })
+
   it("patches selected Notion knowledge references without resending the fixed prompt", () => {
     const payload = buildPayloadForRequest({
       ...llmRequest(),

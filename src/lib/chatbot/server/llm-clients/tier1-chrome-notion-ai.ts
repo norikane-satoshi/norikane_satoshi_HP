@@ -377,6 +377,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContext,
         preferredModel,
         idFactory: this.idFactory,
+        forceFullPrompt: request.forceFullPrompt,
       })
       let notionAiThreadFallbackReason: string | undefined
       let result: NotionAiInferenceResult
@@ -410,6 +411,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
             runtimeContext,
             preferredModel,
             idFactory: this.idFactory,
+            forceFullPrompt: request.forceFullPrompt,
           })
           result = await this.evaluate<NotionAiInferenceResult>(
             session,
@@ -436,6 +438,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           runtimeContext,
           preferredModel,
           idFactory: this.idFactory,
+          forceFullPrompt: request.forceFullPrompt,
         })
         result = await this.evaluate<NotionAiInferenceResult>(
           session,
@@ -782,7 +785,7 @@ export function buildRunInferencePayload(input: {
         value: [[
           input.bootstrapThreadOnly
             ? buildDedicatedThreadBootstrapPrompt(input.request)
-            : buildUserPrompt(input.request, { forceFullPrompt: input.forceFullPrompt }),
+            : buildUserPrompt(input.request, { forceFullPrompt: input.forceFullPrompt ?? input.request.forceFullPrompt }),
         ]],
         userId: input.runtimeContext.userId,
         createdAt: currentDatetime,
