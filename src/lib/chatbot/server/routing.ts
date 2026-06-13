@@ -193,8 +193,7 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
     if (conversationState.hasPendingRemoteWorkSiteRecommendation) {
       return {
         kind: "continue",
-        nextQuestion:
-          "リモートグレーディングのご提案です。のりかねさんのスタイルや設備に合わせたリモートグレーディングをおすすめしますが、よろしいでしょうか？",
+        nextQuestion: remoteWorkSiteConfirmationChoices.question,
         presentChoices: remoteWorkSiteConfirmationChoices,
       }
     }

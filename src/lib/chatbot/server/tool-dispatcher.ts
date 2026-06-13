@@ -5,10 +5,18 @@ import type {
   createBookingFromApiInput as defaultCreateBookingFromApiInput,
   CreateBookingResult,
 } from "@/lib/booking/server/create-booking"
-import type { CandidateWindow, JobContext, RoutingDecision, WorkflowEstimate } from "@/lib/chatbot/domain"
+import {
+  additionalWorkChoices,
+  productionOptionChoices,
+  type CandidateWindow,
+  type JobContext,
+  type RoutingDecision,
+  type SurveyChoiceSet,
+  type WorkflowEstimate,
+} from "@/lib/chatbot/domain"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 
-export type ChatbotToolName = "create_booking" | "show_booking_card" | "get_estimate"
+export type ChatbotToolName = "create_booking" | "show_booking_card" | "get_estimate" | "ask_checkbox"
 
 type ToolSafetyDecision =
   | { allowed: true }
@@ -78,6 +86,10 @@ const showBookingCardArgsSchema = z.object({
 
 const getEstimateArgsSchema = z.object({
   jobContext: jobContextSchema,
+})
+
+const askCheckboxArgsSchema = z.object({
+  choiceSetId: z.enum(["additional-work", "production-options"]),
 })
 
 const createBookingTool: ChatbotToolDefinition<
@@ -151,10 +163,41 @@ const getEstimateTool: ChatbotToolDefinition<
   }),
 }
 
+const checkboxChoiceSets = {
+  "additional-work": additionalWorkChoices,
+  "production-options": productionOptionChoices,
+} satisfies Record<z.infer<typeof askCheckboxArgsSchema>["choiceSetId"], SurveyChoiceSet>
+
+const askCheckboxTool: ChatbotToolDefinition<
+  z.infer<typeof askCheckboxArgsSchema>,
+  { routingDecision: Extract<RoutingDecision, { kind: "continue" }> }
+> = {
+  name: "ask_checkbox",
+  description: "Show an existing multiple-selection checkbox survey panel.",
+  executionCondition: "Call when the customer should choose one or more values from an existing multiple-selection survey before the booking flow continues.",
+  inputSchema: askCheckboxArgsSchema,
+  inputJsonExample: '{"choiceSetId":"additional-work"}',
+  canExecute: (args) =>
+    checkboxChoiceSets[args.choiceSetId].selectionMode === "multiple"
+      ? { allowed: true }
+      : { allowed: false, reason: "choiceSetId must point to a multiple-selection survey" },
+  execute: (args) => {
+    const choiceSet = checkboxChoiceSets[args.choiceSetId]
+    return {
+      routingDecision: {
+        kind: "continue",
+        nextQuestion: choiceSet.question,
+        presentChoices: choiceSet,
+      },
+    }
+  },
+}
+
 export const chatbotToolRegistry = {
   create_booking: defineChatbotTool(createBookingTool),
   show_booking_card: defineChatbotTool(showBookingCardTool),
   get_estimate: defineChatbotTool(getEstimateTool),
+  ask_checkbox: defineChatbotTool(askCheckboxTool),
 } satisfies Record<ChatbotToolName, ChatbotToolDefinitionBase>
 
 export function formatChatbotToolRegistryForPrompt(

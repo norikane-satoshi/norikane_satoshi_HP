@@ -30,12 +30,12 @@ describe("ChoicePanel", () => {
     const onSelect = vi.fn()
     render(<ChoicePanel choiceSet={additionalWorkChoices} onSelect={onSelect} allowMultiple />)
 
-    fireEvent.click(screen.getByRole("button", { name: "消し物" }))
-    fireEvent.click(screen.getByRole("button", { name: "肌修正" }))
-    fireEvent.click(screen.getByRole("button", { name: "なし" }))
+    fireEvent.click(screen.getByLabelText("消し物"))
+    fireEvent.click(screen.getByLabelText("肌修正"))
+    fireEvent.click(screen.getByLabelText("なし"))
+    fireEvent.click(screen.getByRole("button", { name: "選択内容を送信" }))
 
-    expect(onSelect).toHaveBeenNthCalledWith(1, ["retouch"])
-    expect(onSelect).toHaveBeenNthCalledWith(2, ["retouch", "skin-retouch"])
-    expect(onSelect).toHaveBeenNthCalledWith(3, ["none"])
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(["none"])
   })
 })

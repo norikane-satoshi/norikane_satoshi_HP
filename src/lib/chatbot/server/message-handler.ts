@@ -353,10 +353,9 @@ async function handleChatbotMessageCore(
   const toolExecutedGetEstimate = executedToolDispatchResult?.tool === "get_estimate"
   const toolEstimate = toolExecutedGetEstimate ? workflowEstimateFromToolResult(executedToolDispatchResult.result) : null
   effectiveJobContext = toolEstimate ? { ...effectiveJobContext, workflowEstimate: toolEstimate } : effectiveJobContext
-  const toolRoutingDecision =
-    executedToolDispatchResult?.tool === "show_booking_card"
-      ? routingDecisionFromToolResult(executedToolDispatchResult.result)
-      : null
+  const toolRoutingDecision = executedToolDispatchResult
+    ? routingDecisionFromToolResult(executedToolDispatchResult.result)
+    : null
   if (toolRoutingDecision) {
     routingDecision = toolRoutingDecision
   }
@@ -439,6 +438,7 @@ const phaseTwoEnabledToolNames: ReadonlyArray<ChatbotToolName> = [
   "create_booking",
   "show_booking_card",
   "get_estimate",
+  "ask_checkbox",
 ]
 
 function buildCreateBookingSuccessContent(result: Extract<ChatbotToolDispatchResult, { status: "executed" }>): string {
@@ -467,12 +467,15 @@ function workflowEstimateFromToolResult(result: unknown): WorkflowEstimate | nul
     : null
 }
 
-function routingDecisionFromToolResult(result: unknown): Extract<RoutingDecision, { kind: "to-booking-inline" }> | null {
+function routingDecisionFromToolResult(result: unknown): RoutingDecision | null {
   if (!result || typeof result !== "object") return null
   const routingDecision = (result as { routingDecision?: unknown }).routingDecision
   if (!routingDecision || typeof routingDecision !== "object") return null
-  if ((routingDecision as { kind?: unknown }).kind !== "to-booking-inline") return null
-  return routingDecision as Extract<RoutingDecision, { kind: "to-booking-inline" }>
+  const kind = (routingDecision as { kind?: unknown }).kind
+  if (kind !== "continue" && kind !== "to-booking-inline" && kind !== "to-email" && kind !== "to-direct-contact") {
+    return null
+  }
+  return routingDecision as RoutingDecision
 }
 
 function buildGetEstimateSuccessContent(estimate: WorkflowEstimate): string {
@@ -767,6 +770,10 @@ function buildChatbotSystemPrompt(
 ): string {
   const lines = [
     buildChatbotStaticPolicyPrompt(),
+    "あなたは『のーちゃん』として、お客様の言葉をまず短く受け止め、要件整理と次の一問を自然な会話でつなぎます。",
+    "定型文をそのまま返すのではなく、直前の発言に含まれる状況・不安・希望を1つ拾ってから返答します。",
+    "情報を一方的に列挙せず、確認済みのことは短く認め、不明点は1〜2点に絞って質問します。",
+    "共感や受容は過剰に盛らず、『承知しました』『その条件なら』など実務的で自然な表現に留めます。",
     "回答範囲は新規案件の調整、要件整理、予約導線に限定し、技術指導、作品レビュー、標準外要望はのりかね本人の確認へ誘導します。",
     "不明なことを推測で断定せず、未確認事項として質問します。",
     "2026年10月より前は作業場所のデフォルト提案をせず、クライアントの希望を先に確認します。",

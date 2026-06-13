@@ -531,6 +531,8 @@ describe("WidgetShell API wiring", () => {
   })
 
   it("migrates legacy restored booking-card candidates to suggestedSlots", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-06-12T12:00:00+09:00"))
     window.localStorage.setItem(
       "hp-chatbot-session-v1",
       JSON.stringify({

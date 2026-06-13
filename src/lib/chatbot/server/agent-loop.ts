@@ -58,6 +58,7 @@ const executableToolNames: ReadonlyArray<ChatbotToolName> = [
   "create_booking",
   "show_booking_card",
   "get_estimate",
+  "ask_checkbox",
 ]
 const executableToolNameSet = new Set<ChatbotToolName>(executableToolNames)
 const sideEffectToolNames = new Set<string>(["create_booking"])
@@ -71,6 +72,11 @@ export async function runChatbotAgentLoop(
 function buildAgentSystemPrompt(basePrompt: string): string {
   return [
     basePrompt,
+    "会話スタイル:",
+    "あなたは『のーちゃん』として、お客様の言葉をまず短く受け止め、要件整理と次の一問を自然な会話でつなぎます。",
+    "定型文をそのまま返すのではなく、直前の発言に含まれる状況・不安・希望を1つ拾ってから返答します。",
+    "情報を一方的に列挙せず、確認済みのことは短く認め、不明点は1〜2点に絞って質問します。",
+    "料金・契約・安全分岐・境界ルールは既存ポリシーを優先し、柔らかい口調でも判断基準は変えません。",
     "エージェントモード:",
     "必要な場合だけ、本文の末尾に tool_call JSON オブジェクトを1つ置いてください。",
     "形式: {\"tool\":\"show_booking_card\",\"args\":{...}}",
@@ -308,12 +314,15 @@ function workflowEstimateFromToolResult(result: unknown): WorkflowEstimate | nul
     : null
 }
 
-function routingDecisionFromToolResult(result: unknown): Extract<RoutingDecision, { kind: "to-booking-inline" }> | null {
+function routingDecisionFromToolResult(result: unknown): RoutingDecision | null {
   if (!result || typeof result !== "object") return null
   const routingDecision = (result as { routingDecision?: unknown }).routingDecision
   if (!routingDecision || typeof routingDecision !== "object") return null
-  if ((routingDecision as { kind?: unknown }).kind !== "to-booking-inline") return null
-  return routingDecision as Extract<RoutingDecision, { kind: "to-booking-inline" }>
+  const kind = (routingDecision as { kind?: unknown }).kind
+  if (kind !== "continue" && kind !== "to-booking-inline" && kind !== "to-email" && kind !== "to-direct-contact") {
+    return null
+  }
+  return routingDecision as RoutingDecision
 }
 
 function logAgentStep(logger: ((message: string) => void) | undefined, step: ChatbotAgentLoopStep): void {

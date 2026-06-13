@@ -196,7 +196,39 @@ describe("handleChatbotMessage user context", () => {
     expect(systemPrompt).toContain("create_booking")
     expect(systemPrompt).toContain("show_booking_card")
     expect(systemPrompt).toContain("get_estimate")
+    expect(systemPrompt).toContain("ask_checkbox")
     expect(systemPrompt).toContain('{"tool":"create_booking","args":{...}}')
+  })
+
+  it("routes ask_checkbox tool calls to a multiple-selection choice panel", async () => {
+    const harness = setup()
+    harness.generate
+      .mockResolvedValueOnce({
+        rawText: '追加作業を確認します。\n{"tool":"ask_checkbox","args":{"choiceSetId":"additional-work"}}',
+        tier: "tier-3-ollama-deepseek",
+        proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
+      })
+      .mockResolvedValueOnce({
+        rawText: "必要なものを複数選んでください。",
+        tier: "tier-3-ollama-deepseek",
+        proposedRoutingDecision: { kind: "continue", nextQuestion: "必要なものを複数選んでください。" },
+      })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "追加作業も相談したいです" },
+      harness.options,
+    )
+
+    expect(result.ui).toEqual({ kind: "choice-panel", choiceSet: additionalWorkChoices })
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      presentChoices: additionalWorkChoices,
+    })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: additionalWorkChoices,
+      }),
+    )
   })
 
   it("uses dedicated Notion AI threads by default", async () => {
@@ -1888,7 +1920,8 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("リモートグレーディングのご提案")
+    expect(result.assistantMessage.content).toContain("リモートグレーディング")
+    expect(result.assistantMessage.content).toContain("オンラインでカラーコレクションのプレビュー")
     expect(result.routingDecision).toMatchObject({
       kind: "continue",
       presentChoices: remoteWorkSiteConfirmationChoices,

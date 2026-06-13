@@ -26,7 +26,7 @@ export const finalMediumChoices = {
 
 export const additionalWorkChoices = {
   id: "additional-work",
-  question: "カラグレ以外の追加作業はありますか",
+  question: "消し物やカラーグレーディング以外に必要な作業はありますか",
   selectionMode: "multiple",
   choices: [
     { id: "retouch", label: "消し物" },
@@ -68,10 +68,10 @@ export const specificWorkSiteChoices = {
 
 export const remoteWorkSiteConfirmationChoices = {
   id: "remote-work-site-confirmation",
-  question: "リモートグレーディングのご提案",
+  question: "リモートグレーディング（遠隔地からオンラインでカラーコレクションのプレビューに立ち会っていただく形式）は大丈夫ですか？",
   choices: [
-    { id: "yes", label: "Yes" },
-    { id: "no", label: "No" },
+    { id: "yes", label: "はい（オンライン立ち会いOK）" },
+    { id: "no", label: "いいえ（対面や別の方法を希望）" },
   ],
 } as const satisfies SurveyChoiceSet
 

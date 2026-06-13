@@ -54,12 +54,12 @@ describe("normalizeChatbotLlmResponse", () => {
         {
           routingDecision: {
             kind: "continue",
-            nextQuestion: "カラグレ以外の追加作業はありますか？",
+            nextQuestion: additionalWorkChoices.question,
             presentChoices: additionalWorkChoices,
           },
         },
       ).content,
-    ).toBe("カラグレ以外の追加作業はありますか？")
+    ).toBe(additionalWorkChoices.question)
   })
 
   it("keeps sanitized LLM text for continue routing without choices", () => {

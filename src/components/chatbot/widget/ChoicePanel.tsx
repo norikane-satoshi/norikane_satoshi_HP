@@ -19,7 +19,7 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
       : [choiceId]
 
     setSelectedIds(nextSelectedIds)
-    onSelect(nextSelectedIds)
+    if (!allowMultiple) onSelect(nextSelectedIds)
   }
 
   return (
@@ -28,6 +28,26 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
       <div className="flex flex-wrap gap-2">
         {choiceSet.choices.map((choice) => {
           const isSelected = selectedIds.includes(choice.id)
+          if (allowMultiple) {
+            return (
+              <label
+                key={choice.id}
+                className={[
+                  "glass-btn inline-flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold",
+                  isSelected ? "border-[var(--accent-primary)] text-hp" : "text-hp-muted",
+                ].join(" ")}
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-[var(--accent-primary)]"
+                  checked={isSelected}
+                  onChange={() => handleSelect(choice.id)}
+                />
+                <span>{choice.label}</span>
+              </label>
+            )
+          }
+
           return (
             <button
               key={choice.id}
@@ -44,6 +64,16 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
           )
         })}
       </div>
+      {allowMultiple ? (
+        <button
+          type="button"
+          className="glass-btn px-4 py-2 text-xs font-semibold text-hp disabled:cursor-not-allowed disabled:opacity-45"
+          disabled={selectedIds.length === 0}
+          onClick={() => onSelect(selectedIds)}
+        >
+          選択内容を送信
+        </button>
+      ) : null}
     </section>
   )
 }

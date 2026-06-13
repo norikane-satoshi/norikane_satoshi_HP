@@ -130,7 +130,7 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("リモートグレーディングのご提案"),
+      nextQuestion: expect.stringContaining("オンラインでカラーコレクションのプレビュー"),
       presentChoices: remoteWorkSiteConfirmationChoices,
     })
   })

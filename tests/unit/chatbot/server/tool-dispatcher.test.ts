@@ -16,10 +16,12 @@ const jobContext = {
 describe("chatbot tool dispatcher", () => {
   it("registers the Phase 0 tools", () => {
     expect(Object.keys(chatbotToolRegistry).sort()).toEqual([
+      "ask_checkbox",
       "create_booking",
       "get_estimate",
       "show_booking_card",
     ])
+    expect(formatChatbotToolRegistryForPrompt()).toContain("ask_checkbox")
     expect(formatChatbotToolRegistryForPrompt()).toContain("create_booking")
     expect(formatChatbotToolRegistryForPrompt()).toContain("show_booking_card")
     expect(formatChatbotToolRegistryForPrompt()).toContain("get_estimate")
@@ -78,6 +80,27 @@ describe("chatbot tool dispatcher", () => {
           kind: "to-booking-inline",
           busyDateKeys: ["2026-06-16"],
           jobContext,
+        },
+      },
+    })
+  })
+
+  it("returns a multiple-selection survey routing shape", async () => {
+    const result = await dispatchChatbotToolCall({
+      tool: "ask_checkbox",
+      args: { choiceSetId: "additional-work" },
+    })
+
+    expect(result).toMatchObject({
+      status: "executed",
+      tool: "ask_checkbox",
+      result: {
+        routingDecision: {
+          kind: "continue",
+          presentChoices: {
+            id: "additional-work",
+            selectionMode: "multiple",
+          },
         },
       },
     })
