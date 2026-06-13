@@ -39,6 +39,8 @@ function pickLogSafeDiagnostics(diagnostics: Record<string, unknown>): Record<st
     "postDataBytes",
     "responseBytes",
     "chunkCount",
+    "notionAiModel",
+    "notionAiModelFallbacks",
     "notionAiThreadId",
     "notionAiThreadCreated",
     "notionAiThreadCreatePostDataBytes",

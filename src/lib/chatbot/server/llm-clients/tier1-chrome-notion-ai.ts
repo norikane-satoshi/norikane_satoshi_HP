@@ -13,6 +13,7 @@ type Tier1ChromeNotionAiClientConfig = {
   requestTimeoutMs: number
   healthCheckTimeoutMs: number
   preferredModel?: string
+  preferredModels: ReadonlyArray<string>
   chromeProfileDir: string
   chromeCommand?: string
   chromeApp: string
@@ -197,6 +198,12 @@ type NotionAiInferenceResult =
     }
   | { ok: false; status?: number; code: "auth" | "invalid-output" | "unknown"; message: string }
 
+type NotionAiModelFallback = {
+  model: string
+  errorCode: string
+  reason: string
+}
+
 export type ParsedInferenceNdjsonChunk = {
   raw: unknown
   isPartialTranscript: boolean
@@ -232,8 +239,16 @@ const jsonListPath = "/json/list"
 const jsonVersionPath = "/json/version"
 const httpGet = "GET"
 const targetTypePage = "page"
-// Notion's runInferenceTranscript API still expects the internal codename for the UI's Fabre 5 model.
-export const tier1ObservedNotionAiModel = "apricot-sorbet-high"
+// Notion's runInferenceTranscript API expects internal codenames for picker labels.
+export const tier1Fabre5HighNotionAiModel = "apricot-sorbet-high"
+export const tier1Gpt55NotionAiModel = "opal-quince-medium"
+export const tier1Opus48NotionAiModel = "ambrosia-tart-high"
+export const tier1NotionAiModelFallbackChain = [
+  tier1Fabre5HighNotionAiModel,
+  tier1Gpt55NotionAiModel,
+  tier1Opus48NotionAiModel,
+] as const
+export const tier1ObservedNotionAiModel = tier1Fabre5HighNotionAiModel
 const defaultCreatedSource = "assistant"
 const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
@@ -274,6 +289,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       healthCheckTimeoutMs:
         options.healthCheckTimeoutMs ?? tier1ChromeNotionAiDefaults.healthCheckTimeoutMs,
       preferredModel: options.preferredModel,
+      preferredModels: normalizePreferredModels(options.preferredModels, options.preferredModel),
       chromeProfileDir: options.chromeProfileDir ?? tier1ChromeNotionAiDefaults.chromeProfileDir,
       chromeCommand: options.chromeCommand,
       chromeApp: options.chromeApp ?? tier1ChromeNotionAiDefaults.chromeApp,
@@ -295,6 +311,59 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.connectTimeoutMs,
       )
+      const headers = buildRunInferenceHeaders(runtimeContext)
+      const modelFallbacks: NotionAiModelFallback[] = []
+      let lastModelError: ChatbotLlmError | undefined
+
+      for (const preferredModel of this.config.preferredModels) {
+        try {
+          return await this.generateWithModel({
+            request,
+            runtimeContext,
+            headers,
+            session,
+            target,
+            startedAt,
+            preferredModel,
+            modelFallbacks,
+          })
+        } catch (error) {
+          const normalizedError = this.mapGenerateError(error)
+          lastModelError = normalizedError
+          if (!shouldTryNextNotionAiModel(normalizedError, preferredModel, this.config.preferredModels)) {
+            throw normalizedError
+          }
+          modelFallbacks.push({
+            model: preferredModel,
+            errorCode: normalizedError.code,
+            reason: normalizedError.message,
+          })
+        }
+      }
+
+      throw lastModelError ?? this.toLlmError({
+        message: "No Notion AI model completed successfully.",
+        code: "unknown",
+        isRetryable: false,
+      })
+    } catch (error) {
+      throw this.mapGenerateError(error)
+    } finally {
+      await session.close()
+    }
+  }
+
+  private async generateWithModel(input: {
+    request: ChatbotLlmRequest
+    runtimeContext: NotionAiRuntimeContext
+    headers: RunInferenceHeaders
+    session: NotionAiCdpSession
+    target: NotionAiCdpTarget
+    startedAt: number
+    preferredModel: string
+    modelFallbacks: ReadonlyArray<NotionAiModelFallback>
+  }): Promise<ChatbotLlmResponse> {
+      const { request, runtimeContext, headers, session, target, startedAt, preferredModel } = input
       let effectiveRequest = request
       let createdDedicatedThreadStats:
         | {
@@ -306,10 +375,9 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       let payload = buildRunInferencePayload({
         request,
         runtimeContext,
-        preferredModel: this.config.preferredModel,
+        preferredModel,
         idFactory: this.idFactory,
       })
-      const headers = buildRunInferenceHeaders(runtimeContext)
       let notionAiThreadFallbackReason: string | undefined
       let result: NotionAiInferenceResult
 
@@ -317,7 +385,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         const createPayload = buildRunInferencePayload({
           request,
           runtimeContext,
-          preferredModel: this.config.preferredModel,
+          preferredModel,
           idFactory: this.idFactory,
           createThreadOnly: true,
         })
@@ -340,7 +408,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           payload = buildRunInferencePayload({
             request: effectiveRequest,
             runtimeContext,
-            preferredModel: this.config.preferredModel,
+            preferredModel,
             idFactory: this.idFactory,
             forceFullPrompt: true,
           })
@@ -367,7 +435,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         payload = buildRunInferencePayload({
           request: effectiveRequest,
           runtimeContext,
-          preferredModel: this.config.preferredModel,
+          preferredModel,
           idFactory: this.idFactory,
         })
         result = await this.evaluate<NotionAiInferenceResult>(
@@ -394,6 +462,8 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         latencyMs: Date.now() - startedAt,
         diagnostics: {
           endpoint: "/api/v3/runInferenceTranscript",
+          notionAiModel: preferredModel,
+          ...(input.modelFallbacks.length > 0 ? { notionAiModelFallbacks: input.modelFallbacks } : {}),
           contentType: result.responseContentType,
           responseHeaders: result.responseHeaders,
           postDataBytes: result.postDataBytes,
@@ -420,11 +490,6 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
         },
       }
-    } catch (error) {
-      throw this.mapGenerateError(error)
-    } finally {
-      await session.close()
-    }
   }
 
   async isHealthy(): Promise<boolean> {
@@ -448,9 +513,9 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         })
         return false
       }
-      if (!this.config.preferredModel) return true
+      if (this.config.preferredModels.length === 0) return true
 
-      const modelAvailable = modelIsAvailable(this.config.preferredModel, runtimeContext.availableModels)
+      const modelAvailable = modelChainHasAvailableModel(this.config.preferredModels, runtimeContext.availableModels)
       if (!modelAvailable) {
         this.lastHealthError = this.toLlmError({
           message: "Preferred Notion AI model is not available in the current page context.",
@@ -480,7 +545,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.healthCheckTimeoutMs,
       )
-      const preferredModel = this.config.preferredModel ?? tier1ObservedNotionAiModel
+      const preferredModel = this.config.preferredModels[0] ?? tier1ObservedNotionAiModel
 
       return {
         targetUrl: target.url,
@@ -951,6 +1016,28 @@ function resolveModel(runtimeContext: NotionAiRuntimeContext, preferredModel?: s
 
 function modelIsAvailable(model: string, availableModels?: string[]): boolean {
   return !availableModels || availableModels.includes(model)
+}
+
+function modelChainHasAvailableModel(models: ReadonlyArray<string>, availableModels?: string[]): boolean {
+  return models.some((model) => modelIsAvailable(model, availableModels))
+}
+
+function normalizePreferredModels(
+  preferredModels: ReadonlyArray<string> | undefined,
+  preferredModel: string | undefined,
+): ReadonlyArray<string> {
+  const candidates = preferredModels ?? (preferredModel ? [preferredModel] : tier1NotionAiModelFallbackChain)
+  return [...new Set(candidates.map((model) => model.trim()).filter(Boolean))]
+}
+
+function shouldTryNextNotionAiModel(
+  error: ChatbotLlmError,
+  model: string,
+  models: ReadonlyArray<string>,
+): boolean {
+  const modelIndex = models.indexOf(model)
+  if (modelIndex < 0 || modelIndex >= models.length - 1) return false
+  return error.code !== "auth"
 }
 
 function buildUserPrompt(request: ChatbotLlmRequest, options: { forceFullPrompt?: boolean } = {}): string {

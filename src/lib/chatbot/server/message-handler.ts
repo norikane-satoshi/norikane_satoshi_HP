@@ -29,7 +29,7 @@ import {
   decideRoutingFallback,
   type UserChatbotContext,
   normalizeChatbotLlmResponse,
-  tier1ObservedNotionAiModel,
+  tier1NotionAiModelFallbackChain,
 } from "@/lib/chatbot/server"
 import { buildChatbotStaticPolicyPrompt } from "@/lib/chatbot/knowledge"
 import {
@@ -458,7 +458,7 @@ function createDefaultChatbotLlmOrchestrator(
   onTierAttempt?: (event: TierAttemptEvent) => void,
 ): ChatbotLlmTierOrchestrator {
   const clients: ChatbotLlmClient[] = [
-    createTier1ChromeNotionAiClient({ preferredModel: tier1ObservedNotionAiModel }),
+    createTier1ChromeNotionAiClient({ preferredModels: tier1NotionAiModelFallbackChain }),
     createTier2HostedChromeNotionAiClient(),
     createTier3OllamaDeepSeekClient(),
     createTier4FormFallbackClient(),

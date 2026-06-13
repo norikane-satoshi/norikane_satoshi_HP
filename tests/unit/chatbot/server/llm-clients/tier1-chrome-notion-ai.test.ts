@@ -16,6 +16,9 @@ import {
   parseInferenceNdjsonStream,
   Tier1ChromeNotionAiClient,
   tier1ChromeNotionAiDefaults,
+  tier1Gpt55NotionAiModel,
+  tier1NotionAiModelFallbackChain,
+  tier1Opus48NotionAiModel,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 import {
   getNotionAiChatbotThreadUrl,
@@ -146,6 +149,16 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(tier1ChromeNotionAiDefaults.requestTimeoutMs).toBe(180000)
     expect(tier1ChromeNotionAiDefaults.chromeProfileDir).toContain(".chrome-cdp-profile-chatbot")
     expect(tier1ChromeNotionAiDefaults.chromeWaitMs).toBe(30000)
+  })
+
+  it("keeps the observed Notion AI model fallback chain explicit", () => {
+    expect(tier1NotionAiModelFallbackChain).toEqual([
+      "apricot-sorbet-high",
+      "opal-quince-medium",
+      "ambrosia-tart-high",
+    ])
+    expect(tier1Gpt55NotionAiModel).toBe("opal-quince-medium")
+    expect(tier1Opus48NotionAiModel).toBe("ambrosia-tart-high")
   })
 
   it("keeps the default target scoped to the chatbot-only Notion AI thread", () => {
@@ -793,6 +806,93 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(evaluate.mock.calls[1][0]).toContain("apricot-sorbet-high")
   })
 
+  it("falls back from Fabre 5 High to GPT-5.5 when the first model returns invalid output", async () => {
+    const session = sessionReturning([
+      {
+        spaceId: "space-id",
+        userId: "user-id",
+        selectedModel: "notion-current-model",
+        availableModels: ["apricot-sorbet-high", "opal-quince-medium", "ambrosia-tart-high"],
+        modelFromUser: true,
+      },
+      {
+        ok: false,
+        code: "invalid-output",
+        message: 'Model resolution failed for "apricot-sorbet-high".',
+      },
+      { ok: true, rawText: "GPT-5.5で復旧しました。", chunkCount: 1 },
+    ])
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () => session,
+      idFactory: vi.fn(() => "stable-id"),
+    })
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      rawText: "GPT-5.5で復旧しました。",
+      diagnostics: {
+        notionAiModel: "opal-quince-medium",
+        notionAiModelFallbacks: [
+          {
+            model: "apricot-sorbet-high",
+            errorCode: "invalid-output",
+            reason: 'Model resolution failed for "apricot-sorbet-high".',
+          },
+        ],
+      },
+    })
+
+    const evaluate = vi.mocked(session.evaluate)
+    expect(evaluate).toHaveBeenCalledTimes(3)
+    expect(evaluate.mock.calls[1][0]).toContain("apricot-sorbet-high")
+    expect(evaluate.mock.calls[2][0]).toContain("opal-quince-medium")
+  })
+
+  it("falls back from GPT-5.5 to Opus 4.8 only after the second model also fails", async () => {
+    const session = sessionReturning([
+      {
+        spaceId: "space-id",
+        userId: "user-id",
+        selectedModel: "notion-current-model",
+        availableModels: ["apricot-sorbet-high", "opal-quince-medium", "ambrosia-tart-high"],
+        modelFromUser: true,
+      },
+      {
+        ok: false,
+        code: "invalid-output",
+        message: 'Model resolution failed for "apricot-sorbet-high".',
+      },
+      {
+        ok: false,
+        code: "invalid-output",
+        message: 'Model resolution failed for "opal-quince-medium".',
+      },
+      { ok: true, rawText: "Opus 4.8で復旧しました。", chunkCount: 1 },
+    ])
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () => session,
+      idFactory: vi.fn(() => "stable-id"),
+    })
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      rawText: "Opus 4.8で復旧しました。",
+      diagnostics: {
+        notionAiModel: "ambrosia-tart-high",
+        notionAiModelFallbacks: [
+          { model: "apricot-sorbet-high", errorCode: "invalid-output" },
+          { model: "opal-quince-medium", errorCode: "invalid-output" },
+        ],
+      },
+    })
+
+    const evaluate = vi.mocked(session.evaluate)
+    expect(evaluate).toHaveBeenCalledTimes(4)
+    expect(evaluate.mock.calls[1][0]).toContain("apricot-sorbet-high")
+    expect(evaluate.mock.calls[2][0]).toContain("opal-quince-medium")
+    expect(evaluate.mock.calls[3][0]).toContain("ambrosia-tart-high")
+  })
+
   it("uses a long inference timeout without extending runtime-context evaluation", async () => {
     const session = sessionReturning([
       {
@@ -938,6 +1038,7 @@ describe("Tier1ChromeNotionAiClient", () => {
         { type: "page", url: "https://notion.so/chat?t=36b13ee3141a8073885d00a99ebb676c" },
       ]),
       sessionFactory: async () => session,
+      preferredModel: "notion-current-model",
     })
 
     await expect(client.isHealthy()).resolves.toBe(true)
@@ -1026,6 +1127,7 @@ describe("Tier1ChromeNotionAiClient", () => {
           },
           { ok: true, rawText: "", chunkCount: 1 },
         ]),
+      preferredModel: "apricot-sorbet-high",
     })
 
     await expectLlmError(client.generate(llmRequest()), {

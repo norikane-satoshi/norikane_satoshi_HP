@@ -6,7 +6,7 @@ import {
 import {
   createTier1ChromeNotionAiClient,
   tier1ChromeNotionAiDefaults,
-  tier1ObservedNotionAiModel,
+  tier1NotionAiModelFallbackChain,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 import {
@@ -107,7 +107,7 @@ function createTier1Response(
         process.env.CHATBOT_HOSTED_WORKER_GENERATE_TIMEOUT_MS,
         tier1ChromeNotionAiDefaults.requestTimeoutMs,
       ),
-      preferredModel: tier1ObservedNotionAiModel,
+      preferredModels: tier1NotionAiModelFallbackChain,
     })
 
   return client.generate(request)

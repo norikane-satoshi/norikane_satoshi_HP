@@ -62,6 +62,14 @@ describe("formatChatbotTierAttemptLogEvent", () => {
         latencyMs: 1200,
         attempt: 1,
         diagnostics: {
+          notionAiModel: "opal-quince-medium",
+          notionAiModelFallbacks: [
+            {
+              model: "apricot-sorbet-high",
+              errorCode: "invalid-output",
+              reason: "Model resolution failed.",
+            },
+          ],
           notionAiThreadId: "thread-a",
           notionAiThreadMode: "dedicated-patch",
           notionAiThreadCreated: false,
@@ -77,6 +85,14 @@ describe("formatChatbotTierAttemptLogEvent", () => {
       latencyMs: 1200,
       attempt: 1,
       diagnostics: {
+        notionAiModel: "opal-quince-medium",
+        notionAiModelFallbacks: [
+          {
+            model: "apricot-sorbet-high",
+            errorCode: "invalid-output",
+            reason: "Model resolution failed.",
+          },
+        ],
         notionAiThreadId: "thread-a",
         notionAiThreadMode: "dedicated-patch",
         notionAiThreadCreated: false,

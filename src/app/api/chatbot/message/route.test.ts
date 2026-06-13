@@ -98,6 +98,11 @@ async function loadPost({
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     decideRoutingFallback,
+    tier1NotionAiModelFallbackChain: [
+      "apricot-sorbet-high",
+      "opal-quince-medium",
+      "ambrosia-tart-high",
+    ],
     tier1ObservedNotionAiModel: "apricot-sorbet-high",
     createLocalChatbotTierAttemptLogger: vi.fn(() => undefined),
     createTier1ChromeNotionAiClient,
