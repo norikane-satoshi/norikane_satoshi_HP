@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
     const result = await handleChatbotMessage({
       sessionId,
       userId: session?.user?.id,
+      userEmail: session?.user?.email ?? undefined,
       message: parsed.data.message,
       conversationId: parsed.data.conversationId,
       editTargetMessageId: parsed.data.editTargetMessageId,

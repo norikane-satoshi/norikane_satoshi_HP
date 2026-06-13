@@ -25,6 +25,15 @@ describe("chatbot tool dispatcher", () => {
     expect(formatChatbotToolRegistryForPrompt()).toContain("get_estimate")
   })
 
+  it("can format only Phase 1 executable tools for the prompt", () => {
+    const prompt = formatChatbotToolRegistryForPrompt(undefined, { enabledToolNames: ["create_booking"] })
+
+    expect(prompt).toContain("create_booking")
+    expect(prompt).toContain("condition:")
+    expect(prompt).not.toContain("show_booking_card")
+    expect(prompt).not.toContain("get_estimate")
+  })
+
   it("dispatches get_estimate through the existing estimator", async () => {
     const result = await dispatchChatbotToolCall({
       tool: "get_estimate",

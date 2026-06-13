@@ -53,7 +53,14 @@ import {
   findCandidateCalendar,
   type CandidateCalendarResult,
 } from "@/lib/chatbot/server/availability-finder"
-import { parseBookingPrefillJson } from "@/lib/chatbot/server/tool-json"
+import {
+  dispatchChatbotToolCall,
+  formatChatbotToolRegistryForPrompt,
+  type ChatbotToolDispatchResult,
+  type ChatbotToolExecutionContext,
+  type ChatbotToolName,
+} from "@/lib/chatbot/server/tool-dispatcher"
+import { parseBookingPrefillJson, parseChatbotToolCallJson } from "@/lib/chatbot/server/tool-json"
 
 type CandidateWindowFinder =
   | typeof findCandidateCalendar
@@ -94,6 +101,7 @@ export type ChatbotMessageApiResult = {
 export type HandleChatbotMessageInput = {
   sessionId: string
   userId?: string
+  userEmail?: string
   message: string
   conversationId?: string
   editTargetMessageId?: string
@@ -129,6 +137,8 @@ type HandleChatbotMessageOptions = {
   operatorNotificationSender?: typeof sendOperatorConsultationNotification
   candidateWindowFinder?: CandidateWindowFinder
   dedicatedNotionAiThreadsEnabled?: boolean
+  createBookingFromApiInput?: ChatbotToolExecutionContext["createBookingFromApiInput"]
+  toolShadowLogger?: (message: string) => void
 }
 
 const defaultRepository: ChatbotMessageRepository = {
@@ -284,15 +294,36 @@ async function handleChatbotMessageCore(
     }),
     candidateWindowFinder: options.candidateWindowFinder ?? findCandidateCalendar,
   })
-  const normalizedLlmResponse = normalizeChatbotLlmResponse(llmResponse, { routingDecision, jobContext })
-  const bookingPrefill = await extractBookingFormPrefill({
+  const toolDispatchResult = await handlePhaseOneToolCall({
+    rawText: llmResponse.rawText,
     routingDecision,
-    conversation,
-    userMessage,
-    conversationState,
-    jobContext,
-    orchestrator,
+    context: {
+      userId: input.userId,
+      userEmail: input.userEmail,
+      createBookingFromApiInput: options.createBookingFromApiInput,
+    },
+    logger: options.toolShadowLogger,
   })
+  const toolExecutedCreateBooking =
+    toolDispatchResult.status === "executed" && toolDispatchResult.tool === "create_booking"
+  const normalizedLlmResponse = toolExecutedCreateBooking
+    ? {
+        content: buildCreateBookingSuccessContent(toolDispatchResult),
+        role: "assistant" as const,
+        model: llmResponse.tier,
+        finish_reason: "stop" as const,
+      }
+    : normalizeChatbotLlmResponse(llmResponse, { routingDecision, jobContext })
+  const bookingPrefill = toolExecutedCreateBooking
+    ? {}
+    : await extractBookingFormPrefill({
+        routingDecision,
+        conversation,
+        userMessage,
+        conversationState,
+        jobContext,
+        orchestrator,
+      })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
     role: "assistant",
@@ -300,7 +331,7 @@ async function handleChatbotMessageCore(
     llmModel: llmResponse.tier,
   })
 
-  if (routingDecision) {
+  if (routingDecision && !toolExecutedCreateBooking) {
     await repository.updateConversationRouting({
       conversationId: conversation.id,
       routingDecision: routingDecision.kind,
@@ -336,8 +367,51 @@ async function handleChatbotMessageCore(
     routingDecision,
     tier: llmResponse.tier,
     tierAttempts: summarizeTierAttempts(tierAttemptEvents),
-    ui: toMessageUi(routingDecision, llmResponse.tier, conversationState, bookingPrefill),
+    ui: toolExecutedCreateBooking
+      ? { kind: "none" }
+      : toMessageUi(routingDecision, llmResponse.tier, conversationState, bookingPrefill),
   }
+}
+
+const phaseOneExecutableToolNames = new Set<ChatbotToolName>(["create_booking"])
+
+async function handlePhaseOneToolCall(input: {
+  rawText: string
+  routingDecision: RoutingDecision
+  context: ChatbotToolExecutionContext
+  logger?: (message: string) => void
+}): Promise<ChatbotToolDispatchResult | { status: "not-requested" }> {
+  const toolCall = parseChatbotToolCallJson(input.rawText)
+  if (!toolCall) return { status: "not-requested" }
+
+  const match = toolCall.tool === "create_booking" && input.routingDecision.kind === "to-booking-inline"
+  const logLine = `[shadow] llm=${toolCall.tool} rule=${input.routingDecision.kind} match=${match}`
+  ;(input.logger ?? console.info)(logLine)
+
+  if (!match || !phaseOneExecutableToolNames.has(toolCall.tool as ChatbotToolName)) {
+    return { status: "fallback", reason: "unknown-tool", tool: toolCall.tool }
+  }
+
+  return dispatchChatbotToolCall({
+    tool: toolCall.tool,
+    args: toolCall.args,
+    context: input.context,
+  })
+}
+
+function buildCreateBookingSuccessContent(result: Extract<ChatbotToolDispatchResult, { status: "executed" }>): string {
+  const bookingGroupId = bookingGroupIdFromToolResult(result.result)
+  return bookingGroupId
+    ? `予約を受け付けました。予約番号: ${bookingGroupId}`
+    : "予約を受け付けました。"
+}
+
+function bookingGroupIdFromToolResult(result: unknown): string | null {
+  if (!result || typeof result !== "object") return null
+  const body = (result as { body?: unknown }).body
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null
+  const bookingGroupId = (body as { bookingGroupId?: unknown }).bookingGroupId
+  return typeof bookingGroupId === "string" && bookingGroupId.trim() ? bookingGroupId : null
 }
 
 async function extractBookingFormPrefill(input: {
@@ -579,6 +653,9 @@ function buildChatbotSystemPrompt(
     "2026年10月より前は作業場所のデフォルト提案をせず、クライアントの希望を先に確認します。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "連絡先を求める場合は、電話番号ではなくメールアドレス（必須）を明示します。電話番号は任意情報として扱います。",
+    "ツール呼び出しが必要な場合は、説明文やMarkdownを混ぜず、次の形式のJSONオブジェクトだけを返します: {\"tool\":\"create_booking\",\"args\":{...}}",
+    "利用可能ツール:",
+    formatChatbotToolRegistryForPrompt(undefined, { enabledToolNames: ["create_booking"] }),
   ]
 
   if (userContext) {

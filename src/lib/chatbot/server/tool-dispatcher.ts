@@ -23,6 +23,7 @@ export type ChatbotToolExecutionContext = {
 type ChatbotToolDefinition<TArgs, TResult> = {
   name: ChatbotToolName
   description: string
+  executionCondition: string
   inputSchema: z.ZodType<TArgs>
   inputJsonExample: string
   canExecute: (args: TArgs, context: ChatbotToolExecutionContext) => ToolSafetyDecision
@@ -32,6 +33,7 @@ type ChatbotToolDefinition<TArgs, TResult> = {
 type ChatbotToolDefinitionBase = {
   name: ChatbotToolName
   description: string
+  executionCondition: string
   inputSchema: z.ZodType<unknown>
   inputJsonExample: string
   canExecute: (args: unknown, context: ChatbotToolExecutionContext) => ToolSafetyDecision
@@ -84,6 +86,10 @@ const createBookingTool: ChatbotToolDefinition<
 > = {
   name: "create_booking",
   description: "Validated booking submission through the existing booking server path.",
+  executionCondition: [
+    "Call only after the customer explicitly provided all booking form fields,",
+    "selectedSlots, and agreed=true; authenticated user context is required.",
+  ].join(" "),
   inputSchema: createBookingArgsSchema,
   inputJsonExample: '{"input":{"projectTitle":"...","dueDate":"...","companyName":"...","contactName":"...","sessionEmail":"...","phone":"","memo":"","agreed":true,"selectedSlots":[{"start":"2026-06-15T01:00:00.000Z","end":"2026-06-15T02:00:00.000Z"}]}}',
   canExecute: (_args, context) =>
@@ -113,6 +119,7 @@ const showBookingCardTool: ChatbotToolDefinition<
 > = {
   name: "show_booking_card",
   description: "Return the existing booking-card routing decision shape.",
+  executionCondition: "Not executable in Phase 1; the existing deterministic rule path still owns booking-card display.",
   inputSchema: showBookingCardArgsSchema,
   inputJsonExample: '{"suggestedSlots":[{"start":"2026-06-15T01:00:00.000Z","end":"2026-06-15T02:00:00.000Z","label":"6月15日 10:00","available":true}],"jobContext":{"finalMedium":"web","workSite":"remote-grading","documentaryAttachment":{"kind":"none"}}}',
   canExecute: () => ({ allowed: true }),
@@ -132,6 +139,7 @@ const getEstimateTool: ChatbotToolDefinition<
 > = {
   name: "get_estimate",
   description: "Calculate the existing workflow estimate for a validated job context.",
+  executionCondition: "Not executable in Phase 1; the existing deterministic rule path still owns estimate display.",
   inputSchema: getEstimateArgsSchema,
   inputJsonExample: '{"jobContext":{"jobKind":"cm-30s","finalMedium":"web","workSite":"remote-grading","documentaryAttachment":{"kind":"none"}}}',
   canExecute: (args) =>
@@ -151,10 +159,17 @@ export const chatbotToolRegistry = {
 
 export function formatChatbotToolRegistryForPrompt(
   registry: Record<ChatbotToolName, ChatbotToolDefinitionBase> = chatbotToolRegistry,
+  options: { enabledToolNames?: ReadonlyArray<ChatbotToolName> } = {},
 ): string {
+  const enabledToolNames = new Set(
+    options.enabledToolNames ?? (Object.keys(registry) as ChatbotToolName[]),
+  )
+
   return Object.values(registry)
+    .filter((tool) => enabledToolNames.has(tool.name))
     .map((tool) => [
       `- ${tool.name}: ${tool.description}`,
+      `  condition: ${tool.executionCondition}`,
       `  args example: ${tool.inputJsonExample}`,
     ].join("\n"))
     .join("\n")

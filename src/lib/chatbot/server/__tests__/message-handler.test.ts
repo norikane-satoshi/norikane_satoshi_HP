@@ -61,6 +61,25 @@ async function waitForMockCalls(mock: { mock: { calls: unknown[] } }, count: num
   }
 }
 
+function bookingInput() {
+  return {
+    projectTitle: "テスト案件",
+    dueDate: "2026-07-31",
+    companyName: "テスト株式会社",
+    contactName: "テストユーザー",
+    sessionEmail: "customer@example.com",
+    phone: "",
+    memo: "",
+    agreed: true,
+    selectedSlots: [
+      {
+        start: "2026-07-01T01:00:00.000Z",
+        end: "2026-07-01T02:00:00.000Z",
+      },
+    ],
+  }
+}
+
 function setup(overrides: {
   existingConversation?: ChatbotConversation | null
   isolatedConversation?: ChatbotConversation | null
@@ -162,6 +181,22 @@ describe("handleChatbotMessage user context", () => {
       { role: "user", content: "相談です" },
     ])
     expect(harness.repository.setConversationNotionAiThreadId).not.toHaveBeenCalled()
+  })
+
+  it("injects the Phase 1 create_booking tool definition into the main prompt", async () => {
+    const harness = setup()
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "相談です" },
+      harness.options,
+    )
+
+    const systemPrompt = harness.generate.mock.calls[0]?.[0].systemPrompt
+    expect(systemPrompt).toContain("利用可能ツール:")
+    expect(systemPrompt).toContain("create_booking")
+    expect(systemPrompt).toContain('{"tool":"create_booking","args":{...}}')
+    expect(systemPrompt).not.toContain("show_booking_card")
+    expect(systemPrompt).not.toContain("get_estimate")
   })
 
   it("uses dedicated Notion AI threads by default", async () => {
@@ -803,6 +838,142 @@ describe("handleChatbotMessage user context", () => {
         dueDate: "2026-07-31",
       },
     })
+  })
+
+  it("logs the shadow comparison and executes create_booking only when the rule path matches", async () => {
+    const harness = setup()
+    const createBookingFromApiInput = vi.fn().mockResolvedValue({
+      status: 200,
+      body: { bookingGroupId: "booking_group_1" },
+    })
+    const toolShadowLogger = vi.fn()
+    harness.generate.mockResolvedValueOnce({
+      rawText: JSON.stringify({
+        tool: "create_booking",
+        args: { input: bookingInput() },
+      }),
+      tier: "tier-1-chrome-notion-ai",
+      proposedRoutingDecision: { kind: "continue", nextQuestion: "候補を出します。" },
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        userEmail: "customer@example.com",
+        message:
+          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
+      },
+      {
+        ...harness.options,
+        createBookingFromApiInput,
+        toolShadowLogger,
+      },
+    )
+
+    expect(toolShadowLogger).toHaveBeenCalledWith("[shadow] llm=create_booking rule=to-booking-inline match=true")
+    expect(createBookingFromApiInput).toHaveBeenCalledWith({
+      input: bookingInput(),
+      userId: "user_a",
+      userEmail: "customer@example.com",
+    })
+    expect(result.assistantMessage.content).toBe("予約を受け付けました。予約番号: booking_group_1")
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(harness.repository.updateConversationRouting).not.toHaveBeenCalled()
+  })
+
+  it("keeps rule fallback when create_booking args are invalid", async () => {
+    const harness = setup()
+    const createBookingFromApiInput = vi.fn()
+    const toolShadowLogger = vi.fn()
+    harness.generate.mockResolvedValueOnce({
+      rawText: '{"tool":"create_booking","args":{}}',
+      tier: "tier-1-chrome-notion-ai",
+      proposedRoutingDecision: { kind: "continue", nextQuestion: "候補を出します。" },
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        userEmail: "customer@example.com",
+        message:
+          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
+      },
+      {
+        ...harness.options,
+        createBookingFromApiInput,
+        toolShadowLogger,
+      },
+    )
+
+    expect(toolShadowLogger).toHaveBeenCalledWith("[shadow] llm=create_booking rule=to-booking-inline match=true")
+    expect(createBookingFromApiInput).not.toHaveBeenCalled()
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({ kind: "booking-card" })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalled()
+  })
+
+  it("keeps rule fallback when the LLM output is not strict tool JSON", async () => {
+    const harness = setup()
+    const createBookingFromApiInput = vi.fn()
+    const toolShadowLogger = vi.fn()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "候補を出します。",
+      tier: "tier-1-chrome-notion-ai",
+      proposedRoutingDecision: { kind: "continue", nextQuestion: "候補を出します。" },
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        userEmail: "customer@example.com",
+        message:
+          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
+      },
+      {
+        ...harness.options,
+        createBookingFromApiInput,
+        toolShadowLogger,
+      },
+    )
+
+    expect(toolShadowLogger).not.toHaveBeenCalled()
+    expect(createBookingFromApiInput).not.toHaveBeenCalled()
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({ kind: "booking-card" })
+  })
+
+  it("leaves get_estimate unexecuted in Phase 1 even when the LLM emits tool JSON", async () => {
+    const harness = setup()
+    const createBookingFromApiInput = vi.fn()
+    const toolShadowLogger = vi.fn()
+    harness.generate.mockResolvedValueOnce({
+      rawText: '{"tool":"get_estimate","args":{"jobContext":{"jobKind":"cm-30s"}}}',
+      tier: "tier-1-chrome-notion-ai",
+      proposedRoutingDecision: { kind: "continue", nextQuestion: "候補を出します。" },
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        userEmail: "customer@example.com",
+        message:
+          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
+      },
+      {
+        ...harness.options,
+        createBookingFromApiInput,
+        toolShadowLogger,
+      },
+    )
+
+    expect(toolShadowLogger).toHaveBeenCalledWith("[shadow] llm=get_estimate rule=to-booking-inline match=false")
+    expect(createBookingFromApiInput).not.toHaveBeenCalled()
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({ kind: "booking-card" })
   })
 
   it("falls back to empty booking form defaults when the JSON LLM read fails", async () => {
