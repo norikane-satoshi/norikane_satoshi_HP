@@ -882,6 +882,62 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.repository.updateConversationRouting).not.toHaveBeenCalled()
   })
 
+  it("uses an isolated tool-call read when the main LLM answer is not strict tool JSON", async () => {
+    const harness = setup()
+    const createBookingFromApiInput = vi.fn().mockResolvedValue({
+      status: 200,
+      body: { bookingGroupId: "booking_group_1" },
+    })
+    const toolShadowLogger = vi.fn()
+    harness.generate
+      .mockResolvedValueOnce({
+        rawText: "候補を出します。",
+        tier: "tier-1-chrome-notion-ai",
+        proposedRoutingDecision: { kind: "continue", nextQuestion: "候補を出します。" },
+      })
+      .mockResolvedValueOnce({
+        rawText: JSON.stringify({
+          tool: "create_booking",
+          args: { input: bookingInput() },
+        }),
+        tier: "tier-1-chrome-notion-ai",
+        proposedRoutingDecision: { kind: "continue", nextQuestion: "候補を出します。" },
+      })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        userEmail: "customer@example.com",
+        message:
+          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
+      },
+      {
+        ...harness.options,
+        createBookingFromApiInput,
+        toolShadowLogger,
+      },
+    )
+
+    expect(harness.generate).toHaveBeenCalledTimes(2)
+    expect(harness.generate.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        forceFullPrompt: true,
+        notionAiThread: {},
+        temperature: 0,
+        systemPrompt: expect.stringContaining("ツール呼び出しJSON"),
+      }),
+    )
+    expect(toolShadowLogger).toHaveBeenCalledWith("[shadow] llm=create_booking rule=to-booking-inline match=true")
+    expect(createBookingFromApiInput).toHaveBeenCalledWith({
+      input: bookingInput(),
+      userId: "user_a",
+      userEmail: "customer@example.com",
+    })
+    expect(result.assistantMessage.content).toBe("予約を受け付けました。予約番号: booking_group_1")
+    expect(result.ui).toEqual({ kind: "none" })
+  })
+
   it("keeps rule fallback when create_booking args are invalid", async () => {
     const harness = setup()
     const createBookingFromApiInput = vi.fn()

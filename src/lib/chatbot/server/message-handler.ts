@@ -60,6 +60,7 @@ import {
   type ChatbotToolExecutionContext,
   type ChatbotToolName,
 } from "@/lib/chatbot/server/tool-dispatcher"
+import { createChatbotToolCallReadRequest } from "@/lib/chatbot/server/tool-call-reader"
 import { parseBookingPrefillJson, parseChatbotToolCallJson } from "@/lib/chatbot/server/tool-json"
 
 type CandidateWindowFinder =
@@ -294,8 +295,18 @@ async function handleChatbotMessageCore(
     }),
     candidateWindowFinder: options.candidateWindowFinder ?? findCandidateCalendar,
   })
-  const toolDispatchResult = await handlePhaseOneToolCall({
+  const toolCallRawText = await resolvePhaseOneToolCallRawText({
     rawText: llmResponse.rawText,
+    routingDecision,
+    messages: llmRequest.messages,
+    conversationState,
+    jobContext,
+    latestUserMessage: input.message,
+    orchestrator,
+    canExecuteCreateBooking: Boolean(input.userId && input.userEmail),
+  })
+  const toolDispatchResult = await handlePhaseOneToolCall({
+    rawText: toolCallRawText,
     routingDecision,
     context: {
       userId: input.userId,
@@ -374,6 +385,37 @@ async function handleChatbotMessageCore(
 }
 
 const phaseOneExecutableToolNames = new Set<ChatbotToolName>(["create_booking"])
+
+async function resolvePhaseOneToolCallRawText(input: {
+  rawText: string
+  routingDecision: RoutingDecision
+  messages: ChatbotLlmRequest["messages"]
+  conversationState: ConversationState
+  jobContext: JobContext
+  latestUserMessage: string
+  orchestrator: ChatbotLlmTierOrchestrator
+  canExecuteCreateBooking: boolean
+}): Promise<string> {
+  if (parseChatbotToolCallJson(input.rawText)) return input.rawText
+  if (input.routingDecision.kind !== "to-booking-inline") return input.rawText
+  if (!input.canExecuteCreateBooking) return input.rawText
+
+  try {
+    const response = await enqueueChatbotLlmGeneration(() =>
+      input.orchestrator.generate(
+        createChatbotToolCallReadRequest({
+          messages: input.messages,
+          conversationState: input.conversationState,
+          jobContext: input.jobContext,
+          latestUserMessage: input.latestUserMessage,
+        }),
+      ),
+    )
+    return response.rawText
+  } catch {
+    return input.rawText
+  }
+}
 
 async function handlePhaseOneToolCall(input: {
   rawText: string
