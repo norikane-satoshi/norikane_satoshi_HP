@@ -798,6 +798,12 @@ export function isNotionAiChatbotTargetUrl(url: string | undefined, targetUrlInc
   try {
     const actualUrl = new URL(url)
     const expectedUrl = new URL(expected)
+    const actualHost = actualUrl.hostname
+    const isNotionAiHome =
+      (actualHost === "app.notion.com" || actualHost.endsWith(".notion.so")) &&
+      actualUrl.pathname === "/ai" &&
+      expectedUrl.searchParams.has("t")
+    if (isNotionAiHome) return true
     const actualThreadId = actualUrl.searchParams.get("t")
     const expectedThreadId = expectedUrl.searchParams.get("t")
 
