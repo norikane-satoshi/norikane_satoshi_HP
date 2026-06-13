@@ -35,6 +35,7 @@ const chromeProfileDir =
   path.join(homedir(), ".cc-notion", "chrome-profiles", "notion-ai")
 const chromeApp = process.env.CHATBOT_TIER1_CHROME_APP ?? "Google Chrome"
 const waitMs = Number(process.env.CHATBOT_TIER1_CHROME_WAIT_MS ?? "30000")
+const openTargetEnabled = process.env.CHATBOT_TIER1_ENSURE_CHROME_OPEN_TARGET !== "0"
 
 async function main(): Promise<void> {
   const before = await inspect()
@@ -46,6 +47,11 @@ async function main(): Promise<void> {
   if (before.status === "login-redirect") {
     print({ ok: false, action: "manual-reauth-required", ...before })
     process.exitCode = 1
+    return
+  }
+
+  if (!openTargetEnabled) {
+    print({ ok: false, action: "read-only", ...before })
     return
   }
 
@@ -174,6 +180,7 @@ function print(value: Record<string, unknown>): void {
         chatbotThreadUrl,
         chatbotThreadId: notionAiChatbotThreadId,
         chromeProfileDir,
+        openTargetEnabled,
         ...value,
       },
       null,
