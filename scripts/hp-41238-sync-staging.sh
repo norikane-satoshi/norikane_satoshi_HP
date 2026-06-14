@@ -5,7 +5,7 @@ export HOME="${HOME:-/Users/norikene_satoshi}"
 export PATH="/opt/homebrew/bin:/usr/local/bin:${HOME}/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 REPO_ROOT="${HOME}/projects/norikane_satoshi_HP"
-LIVE_WORKTREE="${REPO_ROOT}/.codex-worktrees/staging"
+LIVE_WORKTREE="${REPO_ROOT}/.codex-worktrees/staging-live-41238"
 LABEL="com.norikane.hp41238"
 READY_URL="http://127.0.0.1:41238/"
 LOG_DIR="${HOME}/.local/share/hp-41238/logs"

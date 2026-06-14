@@ -6,7 +6,8 @@ export PATH=/opt/homebrew/bin:/usr/local/bin:/Users/norikene_satoshi/.local/bin:
 
 LOG_DIR="${HOME}/.local/share/hp-41238/logs"
 LOG_FILE="${LOG_DIR}/dev.log"
-REPO_DIR="${HOME}/projects/norikane_satoshi_HP/.codex-worktrees/staging"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 mkdir -p "${LOG_DIR}"
 
