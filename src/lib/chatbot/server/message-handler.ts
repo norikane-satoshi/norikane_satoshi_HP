@@ -131,15 +131,21 @@ export async function handleChatbotMessage(
     temperature: 0.2,
     maxOutputTokens: 900,
   })
+  const fallbackRoutingDecision = decideRoutingFallback({
+    jobContext,
+    conversationState,
+    latestUserMessage: input.message,
+  })
   const routingDecision = await resolveRoutingDecision({
     llmResponse,
     jobContext,
+    fallbackRoutingDecision,
     candidateWindowFinder,
   })
   const assistantContent = buildAssistantDisplayContent({
     rawText: llmResponse.rawText,
     routingDecision,
-    fallbackRoutingDecision: decideRoutingFallback({ jobContext, conversationState, latestUserMessage: input.message }),
+    fallbackRoutingDecision,
   })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
@@ -163,7 +169,7 @@ export async function handleChatbotMessage(
     },
     routingDecision,
     tier: llmResponse.tier,
-    ui: toMessageUi({ ...llmResponse, proposedRoutingDecision: routingDecision }),
+    ui: toMessageUi({ tier: llmResponse.tier, routingDecision }),
   }
 }
 
@@ -195,7 +201,7 @@ function buildChatbotSystemPrompt(
     "LOOK Decomposer v2 の詳細には触れず、直接確認が必要な事項として扱います。",
     "2026年10月より前は作業場所のデフォルト提案をせず、クライアントの希望を先に確認します。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
-    "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、dispatcher/JSON タスクの説明だけを返しません。",
+    "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、JSON 出力の説明だけを返しません。",
     '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD"}} を 1 個だけ含めます。',
     "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。",
   ]
@@ -272,10 +278,13 @@ function buildConversationState(
   }
 }
 
-function toMessageUi(response: ChatbotLlmResponse): ChatbotMessageUi {
-  if (response.tier === "tier-4-form-fallback") return { kind: "tier4-inquiry-form" }
+function toMessageUi(input: {
+  tier: ChatbotLlmResponse["tier"]
+  routingDecision: RoutingDecision | undefined
+}): ChatbotMessageUi {
+  if (input.tier === "tier-4-form-fallback") return { kind: "tier4-inquiry-form" }
 
-  const routingDecision = response.proposedRoutingDecision
+  const routingDecision = input.routingDecision
   if (!routingDecision) return { kind: "none" }
 
   if (routingDecision.kind === "continue" && routingDecision.presentChoices) {
@@ -306,9 +315,11 @@ function toMessageUi(response: ChatbotLlmResponse): ChatbotMessageUi {
 async function resolveRoutingDecision(input: {
   llmResponse: ChatbotLlmResponse
   jobContext: JobContext
+  fallbackRoutingDecision: RoutingDecision
   candidateWindowFinder: typeof findCandidateWindows
 }): Promise<RoutingDecision | undefined> {
-  if (input.llmResponse.proposedRoutingDecision) return input.llmResponse.proposedRoutingDecision
+  if (input.llmResponse.tier === "tier-4-form-fallback") return input.fallbackRoutingDecision
+  if (input.fallbackRoutingDecision.kind === "to-direct-contact") return input.fallbackRoutingDecision
 
   const toolCall = parseShowBookingCardToolCall(input.llmResponse.rawText)
   if (!toolCall) return undefined

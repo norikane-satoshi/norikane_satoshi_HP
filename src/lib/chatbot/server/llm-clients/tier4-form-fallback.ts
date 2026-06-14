@@ -1,5 +1,4 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
-import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 
 type Tier4FormFallbackClientOptions = {
   responseText?: string
@@ -22,14 +21,10 @@ export class Tier4FormFallbackClient implements ChatbotLlmClient {
 
   async generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse> {
     const startedAt = Date.now()
+    void request
 
     return {
       rawText: this.responseText,
-      proposedRoutingDecision: decideRoutingFallback({
-        jobContext: request.jobContext,
-        conversationState: request.conversationState,
-        latestUserMessage: request.latestUserMessage,
-      }),
       tier: this.tier,
       latencyMs: Date.now() - startedAt,
     }

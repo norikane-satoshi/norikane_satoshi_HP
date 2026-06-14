@@ -1,9 +1,4 @@
-import type {
-  ChatbotMessageRole,
-  ConversationState,
-  JobContext,
-  RoutingDecision,
-} from "@/lib/chatbot/domain"
+import type { ChatbotMessageRole, ConversationState, JobContext } from "@/lib/chatbot/domain"
 
 export type ChatbotLlmTier =
   | "tier-1-chrome-notion-ai"
@@ -22,7 +17,6 @@ export type ChatbotLlmRequest = {
 
 export type ChatbotLlmResponse = {
   rawText: string
-  proposedRoutingDecision?: RoutingDecision
   tokensUsed?: number
   latencyMs?: number
   tier: ChatbotLlmTier

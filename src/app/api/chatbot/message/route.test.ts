@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { finalMediumChoices } from "@/lib/chatbot/domain"
 import type { ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
 
 function request(body: unknown, cookie?: string) {
@@ -39,11 +38,6 @@ async function loadPost({
   llmResponse = {
     rawText: "最終媒体を教えてください",
     tier: "tier-2-ollama-deepseek" as const,
-    proposedRoutingDecision: {
-      kind: "continue" as const,
-      nextQuestion: "最終媒体を教えてください",
-      presentChoices: finalMediumChoices,
-    },
   },
 }: {
   session?: { user?: { id?: string; email?: string } } | null
@@ -126,7 +120,7 @@ describe("POST /api/chatbot/message", () => {
     await expect(response.json()).resolves.toMatchObject({
       conversationId: "conv_1",
       assistantMessage: { role: "assistant", content: "最終媒体を教えてください" },
-      ui: { kind: "choice-panel" },
+      ui: { kind: "none" },
     })
   })
 
@@ -146,8 +140,13 @@ describe("POST /api/chatbot/message", () => {
     })
   })
 
-  it("returns assistant message and choice-panel ui on orchestrator success", async () => {
-    const route = await loadPost()
+  it("returns tier4-inquiry-form ui for deterministic tier4 fallback", async () => {
+    const route = await loadPost({
+      llmResponse: {
+        rawText: "最終媒体を教えてください",
+        tier: "tier-4-form-fallback",
+      },
+    })
 
     const response = await route.POST(request({ message: "媒体を選びます" }, "chatbot_session_id=session_1"))
 
@@ -158,8 +157,8 @@ describe("POST /api/chatbot/message", () => {
       content: "媒体を選びます",
     })
     await expect(response.json()).resolves.toMatchObject({
-      tier: "tier-2-ollama-deepseek",
-      ui: { kind: "choice-panel", choiceSet: { id: "final-medium" } },
+      tier: "tier-4-form-fallback",
+      ui: { kind: "tier4-inquiry-form" },
     })
   })
 
@@ -168,7 +167,6 @@ describe("POST /api/chatbot/message", () => {
       llmResponse: {
         rawText: "フォームに切り替えます",
         tier: "tier-4-form-fallback",
-        proposedRoutingDecision: { kind: "continue", nextQuestion: "フォームに切り替えます" },
       },
     })
 

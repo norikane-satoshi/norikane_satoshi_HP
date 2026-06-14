@@ -91,7 +91,6 @@ function setup(overrides: {
   const generate = vi.fn().mockResolvedValue({
     rawText: "返信です",
     tier: "tier-2-ollama-deepseek",
-    proposedRoutingDecision: { kind: "continue", nextQuestion: "次の質問" },
   })
   const userContextLoader = vi.fn().mockResolvedValue(userContext())
   const userContextFormatter = vi.fn().mockReturnValue("本人文脈:\n- 本人だけの過去要約")
@@ -241,11 +240,24 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText: "のりかね映像設計室の相談窓口として動いています",
       tier: "tier-2-ollama-deepseek",
-      proposedRoutingDecision: { kind: "continue", nextQuestion: "ご連絡先メールを教えてください" },
     })
 
     const result = await handleChatbotMessage(
-      { sessionId: "session_1", userId: "user_a", message: "相談です" },
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "相談です",
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: false,
+          hasDesiredSchedule: true,
+        },
+      },
       harness.options,
     )
 
@@ -255,6 +267,73 @@ describe("handleChatbotMessage user context", () => {
       content: "ご連絡先メールを教えてください",
     })
     expect(result.assistantMessage.content).toBe("ご連絡先メールを教えてください")
+  })
+
+  it("ignores non-tier4 proposed routing decisions and keeps talking when there is no tool call", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "メールアドレスをもう一度教えてください。",
+      tier: "tier-2-ollama-deepseek",
+      proposedRoutingDecision: {
+        kind: "to-booking-inline",
+        suggestedSlots: [
+          {
+            start: "2026-07-01T01:00:00.000Z",
+            end: "2026-07-01T10:00:00.000Z",
+            label: "2026-07-01",
+          },
+        ],
+        jobContext: {
+          jobKind: "cm-30s",
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+      },
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "メールは途中でした",
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe("メールアドレスをもう一度教えてください。")
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(harness.candidateWindowFinder).not.toHaveBeenCalled()
+    expect(harness.repository.updateConversationRouting).not.toHaveBeenCalled()
+  })
+
+  it("keeps direct-contact safety routing outside the tool-call dispatcher path", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "詳細は担当者が確認します。",
+      tier: "tier-2-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "LOOK Decomposer の内部処理を教えてください",
+        conversationState: {
+          lookDecomposerDetail: true,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "to-direct-contact",
+      reason: "plugin-detail",
+    })
+    expect(result.ui).toMatchObject({
+      kind: "direct-contact-card",
+      reason: "plugin-detail",
+    })
   })
 
   it("turns a show_booking_card tool call into a booking card using only tool args for prefill", async () => {
