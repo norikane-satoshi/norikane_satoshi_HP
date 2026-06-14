@@ -7,9 +7,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  /* --font-sans: 本文・UI用明朝体（Noto Serif JP） */
+  --font-sans: var(--font-mincho);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  /* --font-heading: 見出し用丸ゴシック体（Zen Maru Gothic） */
+  --font-heading: var(--font-maru);
+  /* --font-inter: 英数字・ラテン文字用（Optima優先システムフォント） */
+  --font-inter: "Optima", "Palatino", var(--font-inter);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -117,6 +121,10 @@
     scroll-behavior: smooth;
     scroll-padding-top: 6rem;
   }
+  /* 見出し要素にはロゴの「のりかね」部分と同系統の丸ゴシック */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-maru), sans-serif;
+  }
 }
 
 /* Glass Design System */
@@ -126,6 +134,17 @@
   }
   .text-hp-muted {
     color: var(--text-muted);
+  }
+  /* ロゴ書体ユーティリティ */
+  .font-maru {
+    font-family: var(--font-maru), sans-serif;
+  }
+  .font-mincho {
+    font-family: var(--font-mincho), serif;
+  }
+  /* 英文：Optimaシステムフォント優先（ロゴ英文ロックアップと同系統） */
+  .font-optima {
+    font-family: "Optima", "Palatino", "Palatino Linotype", Georgia, serif;
   }
   .glass-card {
     background: var(--glass-bg);
