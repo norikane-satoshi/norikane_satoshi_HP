@@ -59,7 +59,6 @@ const httpMethodPost = "POST"
 const headerContentType = "content-type"
 const contentTypeJson = "application/json"
 const roleSystem = "system"
-const roleUser = "user"
 const streamDisabled = false
 const httpStatusTooManyRequests = 429
 
@@ -228,7 +227,6 @@ function buildMessages(request: ChatbotLlmRequest) {
   return [
     { role: roleSystem, content: request.systemPrompt },
     ...request.messages,
-    request.latestUserMessage ? { role: roleUser, content: request.latestUserMessage } : undefined,
   ].filter((message): message is Exclude<typeof message, undefined> => Boolean(message))
 }
 

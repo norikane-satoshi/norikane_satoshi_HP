@@ -180,4 +180,69 @@ describe("handleChatbotMessage user context", () => {
       expect.arrayContaining([expect.objectContaining({ content: "old user context" })]),
     )
   })
+
+  it("drops invalid contact emails before confirmed state reaches the LLM request", async () => {
+    const harness = setup()
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "qj9n9not6bov@yahoo.co.j、作業場所はおすすめで、BD納品です",
+        conversationState: {
+          hasContactEmail: true,
+          contactEmail: "qj9n9not6bov@yahoo.co.j",
+        },
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
+      hasContactEmail: false,
+    })
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.contactEmail).toBeUndefined()
+  })
+
+  it("does not trust a valid-looking stored email when the latest user text shows a truncated suffix", async () => {
+    const harness = setup()
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "qj9n9not6bov@yahoo.co.j、作業場所はおすすめで、BD納品です",
+        conversationState: {
+          hasContactEmail: true,
+          contactEmail: "qj9n9not6bov@yahoo.co",
+        },
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
+      hasContactEmail: false,
+    })
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.contactEmail).toBeUndefined()
+  })
+
+  it("replaces backend identity-only assistant text with the routing question", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "のりかね映像設計室の相談窓口として動いています",
+      tier: "tier-2-ollama-deepseek",
+      proposedRoutingDecision: { kind: "continue", nextQuestion: "ご連絡先メールを教えてください" },
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "相談です" },
+      harness.options,
+    )
+
+    expect(harness.repository.appendMessage).toHaveBeenLastCalledWith({
+      conversationId: "conv_1",
+      role: "assistant",
+      content: "ご連絡先メールを教えてください",
+    })
+    expect(result.assistantMessage.content).toBe("ご連絡先メールを教えてください")
+  })
 })

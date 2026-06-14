@@ -108,7 +108,7 @@ describe("chatbot fallback router", () => {
   it.each([
     ["missing contact email", { hasContactEmail: true, contactEmail: undefined }, jobContext()],
     ["invalid contact email", { contactEmail: "client@example" }, jobContext()],
-    ["partial yahoo email", { contactEmail: "qj9n9not6bov@yahoo.co" }, jobContext()],
+    ["one-character tld email", { contactEmail: "qj9n9not6bov@yahoo.co.j" }, jobContext()],
     ["missing contact name", { customerName: "" }, jobContext()],
     ["missing job kind value", {}, jobContext({ jobKind: undefined })],
     ["missing preferred start date", {}, jobContext({ preferredStartDate: undefined })],

@@ -751,7 +751,6 @@ function buildUserPrompt(request: ChatbotLlmRequest): string {
   return [
     request.systemPrompt,
     ...request.messages.map((message) => `${message.role}: ${message.content}`),
-    request.latestUserMessage ? `user: ${request.latestUserMessage}` : undefined,
   ]
     .filter((line): line is string => Boolean(line))
     .join("\n")

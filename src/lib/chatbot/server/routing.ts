@@ -11,6 +11,7 @@ import {
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
+import { isValidChatbotContactEmail } from "@/lib/chatbot/server/contact-email"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 
 export type RoutingDecisionInput = {
@@ -86,21 +87,11 @@ function isBookingInlineReady(jobContext: JobContext, conversationState: Convers
     conversationState.hasFinalMedium &&
     conversationState.hasJobKind &&
     conversationState.hasContactEmail &&
-    isValidBookingEmail(conversationState.contactEmail) &&
+    isValidChatbotContactEmail(conversationState.contactEmail) &&
     hasBookingContactName(conversationState) &&
     Boolean(jobContext.jobKind) &&
     Boolean(jobContext.preferredStartDate?.trim())
   )
-}
-
-function isValidBookingEmail(email: string | undefined): boolean {
-  if (!email) return false
-  const normalized = email.trim()
-  if (normalized.length === 0 || normalized.length > 254) return false
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) return false
-
-  const domain = normalized.slice(normalized.lastIndexOf("@") + 1).toLowerCase()
-  return domain !== "yahoo.co"
 }
 
 function hasBookingContactName(conversationState: ConversationState): boolean {

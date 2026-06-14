@@ -161,7 +161,6 @@ describe("Tier2OllamaDeepSeekClient", () => {
           messages: [
             { role: "system", content: "Collect only new project intake details." },
             { role: "user", content: "来月のWeb CM案件です" },
-            { role: "user", content: "立ち会い候補を相談したいです" },
           ],
           stream: false,
         }),

@@ -22,6 +22,11 @@ import {
   type ChatbotLlmTierOrchestrator,
   type UserChatbotContext,
 } from "@/lib/chatbot/server"
+import {
+  contactEmailConflictsWithLatestUserMessage,
+  normalizeChatbotContactEmail,
+} from "@/lib/chatbot/server/contact-email"
+import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 
 type ChatbotMessageUi =
   | { kind: "none" }
@@ -125,10 +130,15 @@ export async function handleChatbotMessage(
     maxOutputTokens: 900,
   })
   const routingDecision = llmResponse.proposedRoutingDecision
+  const assistantContent = buildAssistantDisplayContent({
+    rawText: llmResponse.rawText,
+    routingDecision,
+    fallbackRoutingDecision: decideRoutingFallback({ jobContext, conversationState, latestUserMessage: input.message }),
+  })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
     role: "assistant",
-    content: llmResponse.rawText,
+    content: assistantContent,
   })
 
   if (routingDecision) {
@@ -179,6 +189,7 @@ function buildChatbotSystemPrompt(
     "LOOK Decomposer v2 の詳細には触れず、直接確認が必要な事項として扱います。",
     "2026年10月より前は作業場所のデフォルト提案をせず、クライアントの希望を先に確認します。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
+    "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、dispatcher/JSON タスクの説明だけを返しません。",
   ]
 
   if (userContext) {
@@ -202,6 +213,54 @@ function buildJobContext(
   }
 }
 
+function sanitizeConversationStateInput(
+  input: Partial<ConversationState> | undefined,
+  latestUserMessage: string,
+): Partial<ConversationState> {
+  const next = { ...(input ?? {}) }
+
+  if (!("contactEmail" in next) && !next.hasContactEmail) return next
+
+  const normalizedEmail = normalizeChatbotContactEmail(next.contactEmail)
+  const hasInvalidSource = contactEmailConflictsWithLatestUserMessage({
+    contactEmail: normalizedEmail,
+    latestUserMessage,
+  })
+
+  if (!normalizedEmail || hasInvalidSource) {
+    next.hasContactEmail = false
+    delete next.contactEmail
+    return next
+  }
+
+  next.hasContactEmail = true
+  next.contactEmail = normalizedEmail
+  return next
+}
+
+function buildAssistantDisplayContent(input: {
+  rawText: string
+  routingDecision: RoutingDecision | undefined
+  fallbackRoutingDecision: RoutingDecision
+}): string {
+  const text = input.rawText.trim()
+  if (!isBackendIdentityOnlyResponse(text)) return text
+
+  const routingDecision =
+    input.routingDecision?.kind === "continue" ? input.routingDecision : input.fallbackRoutingDecision
+  if (routingDecision.kind === "continue") return routingDecision.nextQuestion
+
+  return text
+}
+
+function isBackendIdentityOnlyResponse(text: string): boolean {
+  const compact = text.replace(/\s+/g, "")
+  return (
+    compact === "のりかね映像設計室の相談窓口として動いています" ||
+    compact === "のりかね映像設計室のご相談窓口として動いています"
+  )
+}
+
 function buildConversationState(
   input: Partial<ConversationState> | undefined,
   conversation: ChatbotConversation,
@@ -221,7 +280,7 @@ function buildConversationState(
     hasContactEmail: false,
     hasDesiredSchedule: false,
     turnCount: userTurnCount,
-    ...input,
+    ...sanitizeConversationStateInput(input, userMessage.content),
   }
 }
 

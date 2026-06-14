@@ -325,8 +325,7 @@ describe("Tier1ChromeNotionAiClient", () => {
             "value": [
               [
                 "Collect only new project intake details.
-      user: 来月のWeb CM案件です
-      user: 立ち会い候補を相談したいです",
+      user: 来月のWeb CM案件です",
               ],
             ],
           },
