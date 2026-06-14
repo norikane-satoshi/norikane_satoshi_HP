@@ -14,6 +14,7 @@ import {
   getPreviewClipWindow,
   getYouTubePlayerVars,
 } from "@/components/hp/featured-works"
+import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 
 describe("FeaturedWorks", () => {
   const embeddedWorkCount = FEATURED_WORKS.filter((work) => work.youtubeId).length
@@ -358,13 +359,12 @@ describe("FeaturedWorks", () => {
     expect(dialog.parentElement).toHaveClass(
       "fixed",
       "inset-0",
-      "z-[100]",
       "bg-[rgba(8,4,24,0.42)]",
       "p-4",
       "md:p-8",
     )
     expect(dialog.parentElement).toHaveStyle({
-      right: "var(--chatbot-side-peek-occupied-width, 0px)",
+      zIndex: String(HP_MODAL_OVERLAY_Z_INDEX),
     })
 
     const iframe = dialog.querySelector("iframe")

@@ -28,6 +28,7 @@ import {
   type YouTubeThumbnailVariantSelection,
 } from "@/components/hp/featured-works-data"
 import { MARS_ABSTRACT_COVER_BACKGROUND } from "@/components/hp/hero-deep-surface"
+import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 
 type YouTubePlayerStateChangeEvent = {
   data: number
@@ -933,9 +934,9 @@ function FeaturedWorkVideoDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
+      className="fixed inset-0 flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
       style={{
-        right: "var(--chatbot-side-peek-occupied-width, 0px)",
+        zIndex: HP_MODAL_OVERLAY_Z_INDEX,
       }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {

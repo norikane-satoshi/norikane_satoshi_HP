@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
+import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 
 describe("ProfilePhoto", () => {
@@ -10,7 +11,7 @@ describe("ProfilePhoto", () => {
     cleanup()
   })
 
-  it("keeps the modal centered within the non-chat side-peek area", () => {
+  it("keeps the modal above the chatbot side-peek layer", () => {
     render(<ProfilePhoto />)
 
     fireEvent.click(screen.getByRole("button", { name: "プロフィール写真を拡大表示" }))
@@ -19,7 +20,7 @@ describe("ProfilePhoto", () => {
 
     expect(dialog).toHaveAttribute("aria-modal", "true")
     expect(dialog.parentElement).toHaveStyle({
-      right: "var(--chatbot-side-peek-occupied-width, 0px)",
+      zIndex: String(HP_MODAL_OVERLAY_Z_INDEX),
     })
   })
 })

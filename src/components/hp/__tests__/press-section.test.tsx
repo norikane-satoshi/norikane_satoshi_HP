@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
+import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { PRESS_CATEGORIES, PressDialog } from "@/components/hp/press-section"
 
 describe("PressSection", () => {
@@ -37,7 +38,7 @@ describe("PressSection", () => {
 
     expect(within(dialog).getByRole("heading", { name: "登壇・メディア掲載 / 実績" })).toBeInTheDocument()
     expect(dialog.parentElement).toHaveStyle({
-      right: "var(--chatbot-side-peek-width, var(--chatbot-side-peek-occupied-width, 0px))",
+      zIndex: String(HP_MODAL_OVERLAY_Z_INDEX),
     })
     expect(PRESS_CATEGORIES.map((category) => category.title)).toEqual([
       "登壇・セミナー",

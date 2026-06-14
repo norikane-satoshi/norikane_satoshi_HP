@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { ExternalLink, X } from "lucide-react"
+import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { PRESS_CATEGORIES } from "@/components/hp/press-data"
 export { PRESS_CATEGORIES } from "@/components/hp/press-data"
 
@@ -180,9 +181,9 @@ export function PressDialog() {
   const dialog = open && canUseDocument
     ? createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
+          className="fixed inset-0 flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
           style={{
-            right: "var(--chatbot-side-peek-width, var(--chatbot-side-peek-occupied-width, 0px))",
+            zIndex: HP_MODAL_OVERLAY_Z_INDEX,
           }}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {

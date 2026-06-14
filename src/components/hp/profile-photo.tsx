@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import Image from "next/image"
 import { X } from "lucide-react"
+import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 
 export function ProfilePhoto() {
   const [open, setOpen] = useState(false)
@@ -80,12 +81,12 @@ export function ProfilePhoto() {
               setOpen(false)
             }
           }}
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10"
+          className="fixed inset-0 flex items-center justify-center p-4 md:p-10"
           style={{
-            right: "var(--chatbot-side-peek-occupied-width, 0px)",
             background: "rgba(8, 4, 24, 0.42)",
             backdropFilter: "blur(10px)",
             WebkitBackdropFilter: "blur(10px)",
+            zIndex: HP_MODAL_OVERLAY_Z_INDEX,
           }}
         >
           <div
