@@ -1091,6 +1091,9 @@ function buildConfirmedFactsPrompt(request: ChatbotLlmRequest): string {
   const facts = [
     request.conversationState.hasFinalMedium ? `媒体=${request.jobContext.finalMedium}` : undefined,
     request.conversationState.hasJobKind && request.jobContext.jobKind ? `案件種別=${request.jobContext.jobKind}` : undefined,
+    request.conversationState.hasProjectLength && typeof request.jobContext.projectLengthMinutes === "number"
+      ? `尺=${request.jobContext.projectLengthMinutes}分`
+      : undefined,
     request.conversationState.hasDesiredSchedule && request.jobContext.preferredStartDate
       ? `開始希望=${request.jobContext.preferredStartDate}`
       : undefined,

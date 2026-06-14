@@ -587,6 +587,21 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(prompt).not.toContain("会話Bの直前発言")
   })
 
+  it("includes confirmed project length in dedicated-thread patch facts", () => {
+    const payload = buildPayloadForRequest({
+      ...llmRequest(),
+      latestUserMessage: "予約候補を相談したいです",
+      notionAiThread: { threadId: "thread-b" },
+      jobContext: {
+        ...jobContext(),
+        projectLengthMinutes: 150,
+      },
+    })
+    const prompt = payloadPrompt(payload)
+
+    expect(prompt).toContain("confirmed_facts: 媒体=web / 案件種別=cm-30s / 尺=150分 / 作業場所=remote-grading")
+  })
+
   it("measures fixed-thread full resend versus dedicated-thread patch payload size", () => {
     const messages = [
       { role: "user" as const, content: "A社のWeb CM、尺は30秒です" },
