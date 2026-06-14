@@ -1,7 +1,7 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import { createTier1ChromeNotionAiClient, tier1ObservedNotionAiModel } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 import { runTier1HealthCheck } from "@/lib/chatbot/server/llm-clients/tier1-health-check"
-import { createTier3OllamaDeepSeekClient } from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
+import { createTier2OllamaDeepSeekClient } from "@/lib/chatbot/server/llm-clients/tier2-ollama-deepseek"
 import { createChatbotLlmTierOrchestrator } from "@/lib/chatbot/server/llm-orchestrator"
 import { normalizeChatbotLlmResponse } from "@/lib/chatbot/server/llm-response-normalizer"
 import { recordChatbotGateVerification } from "@/lib/chatbot/server/chatbot-ops-log"
@@ -133,7 +133,7 @@ async function runGate2(logClient: ReturnType<typeof createLocalPrismaClient>) {
 
 async function runGate3(logClient: ReturnType<typeof createLocalPrismaClient>) {
   const tier1 = createTier1ChromeNotionAiClient({ preferredModel: tier1ObservedNotionAiModel })
-  const tier3 = createTier3OllamaDeepSeekClient()
+  const tier2 = createTier2OllamaDeepSeekClient()
   const cases = [
     {
       name: "topic-gating",
@@ -152,7 +152,7 @@ async function runGate3(logClient: ReturnType<typeof createLocalPrismaClient>) {
       request: buildRequest("Gate3 JSON: content role model finish_reason を含むJSON互換で返してください"),
     },
   ]
-  const clients = [tier1, tier3]
+  const clients = [tier1, tier2]
   const details: unknown[] = []
   let passed = 0
   let failed = 0
@@ -284,7 +284,6 @@ function buildRequest(latestUserMessage: string): ChatbotLlmRequest {
     conversationState: {
       hasFinalMedium: true,
       hasJobKind: true,
-      hasProjectLength: true,
       hasAdditionalWork: true,
       hasDocumentaryAttachments: true,
       hasWorkSite: true,

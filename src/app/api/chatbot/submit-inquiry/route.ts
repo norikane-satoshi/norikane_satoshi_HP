@@ -1,18 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { Resend } from "resend"
 import { z } from "zod"
 
 import { enforceBodyLimit } from "@/lib/api/server/body-limit"
-import {
-  hasSentOperatorNotification,
-  sendOperatorConsultationNotification,
-} from "@/lib/chatbot/server/operator-notification"
-import { appendMessage, loadConversationById } from "@/lib/chatbot/server/repository"
+import { getBookingCalendarAdminEmail } from "@/lib/auth/server/is-admin"
+import { appendMessage } from "@/lib/chatbot/server/repository"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+const inquirySubjectPrefix = "[LLM 障害時フォーム]"
+
 const inquiryRequestSchema = z.object({
-  name: z.string().trim().max(80).optional().default(""),
+  name: z.string().trim().min(1).max(80),
   email: z.string().trim().email().max(254),
   jobType: z.string().trim().max(120).optional().default(""),
   duration: z.string().trim().max(120).optional().default(""),
@@ -44,55 +44,27 @@ export async function POST(request: NextRequest) {
   }
 
   const input = parsed.data
-  const customerName = input.name || undefined
-  const conversation = await loadInquiryConversation(input.conversationId)
   await appendInquiryMessage(input)
 
-  if (conversation && hasSentOperatorNotification(conversation.messages)) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[Chatbot Inquiry] RESEND_API_KEY not set, skipping send")
     return NextResponse.json({ ok: true, emailSkipped: true })
   }
 
   try {
-    const result = await sendOperatorConsultationNotification({
-      trigger: "inquiry-form",
-      jobContext: conversation?.context.jobContext,
-      conversationState: {
-        ...conversation?.context.conversationState,
-        hasContactEmail: true,
-        hasCustomerIdentity: Boolean(customerName),
-        contactEmail: input.email,
-        customerName,
-      },
-      fallback: {
-        customerName,
-        contactEmail: input.email,
-        jobKind: input.jobType,
-        projectLength: input.duration,
-        publicReleaseDate: input.desiredDeadline,
-      },
-      freeText: buildInquiryText(input),
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    const subject = `${inquirySubjectPrefix} ${input.name} 様より`
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL ?? "noreply@norikane.studio",
+      to: getBookingCalendarAdminEmail() || "norikane.satoshi@gmail.com",
+      replyTo: input.email,
+      subject,
+      text: buildInquiryText(input),
     })
-
-    if (result.status === "skipped") return NextResponse.json({ ok: true, emailSkipped: true })
-    if (result.status === "failed") return NextResponse.json({ ok: true, emailWarning: "send_failed" })
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error("[Chatbot Inquiry] resend send failed", error instanceof Error ? error.message : "send_failed")
     return NextResponse.json({ ok: true, emailWarning: "send_failed" })
-  }
-}
-
-async function loadInquiryConversation(conversationId: string | undefined) {
-  if (!conversationId) return null
-
-  try {
-    return await loadConversationById(conversationId)
-  } catch (error) {
-    console.warn(
-      "[Chatbot Inquiry] conversation load failed",
-      error instanceof Error ? error.message : "load_failed",
-    )
-    return null
   }
 }
 

@@ -23,7 +23,6 @@ import { getVisualConfig, type VisualConfig } from "@/lib/notes/domain/visuals"
 
 export type VideoVisualProps = {
   isPlaying: boolean
-  isMobile?: boolean
   /** prefers-reduced-motion: reduce が有効な環境では true。アニメ層を mount しない判断に使う */
   reducedMotion: boolean
 }
@@ -85,13 +84,6 @@ const STATIC_MODULES: Record<string, ComponentType<unknown>> = {
   ),
 }
 
-const MOBILE_VIDEO_ASPECTS: Record<string, string> = {
-  "correction-control-math": "800 / 1000",
-  "correction-reversibility": "760 / 1000",
-  "correction-space-choice": "533.3333333333 / 1500",
-  "correction-failure-modes": "1000 / 900",
-}
-
 export function NoteVisual({ slug }: { slug: string }) {
   const config = getVisualConfig(slug)
   if (!config) return null
@@ -104,11 +96,7 @@ export function NoteVisual({ slug }: { slug: string }) {
         data-diagram-slug={config.slug}
         data-diagram-kind={config.kind}
         aria-label={config.alt}
-        className={`mx-auto my-12 overflow-hidden rounded-[16px] border border-white/55 bg-white/35 md:my-16 ${
-          config.slug === "correction-failure-modes"
-            ? "max-w-[72rem]"
-            : "max-w-[58rem]"
-        }`}
+        className="mx-auto my-12 max-w-[58rem] overflow-hidden rounded-[16px] border border-white/55 bg-white/35 md:my-16"
       >
         <VisualBody config={config} />
       </figure>
@@ -171,11 +159,7 @@ function VisualBody({ config }: { config: VisualConfig }) {
       return <PlaceholderBox aspect={aspect} label={config.slug} />
     }
     return (
-      <VideoStage
-        aspect={aspect}
-        mobileAspect={MOBILE_VIDEO_ASPECTS[config.slug]}
-        alt={config.alt}
-      >
+      <VideoStage aspect={aspect} alt={config.alt}>
         {(state) => <Module {...state} />}
       </VideoStage>
     )
@@ -233,19 +217,16 @@ function PlaceholderBox({ aspect, label }: { aspect: string; label: string }) {
  */
 function VideoStage({
   aspect,
-  mobileAspect,
   alt,
   children,
 }: {
   aspect: string
-  mobileAspect?: string
   alt: string
   children: (state: VideoVisualProps) => React.ReactNode
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const [inView, setInView] = useState(false)
   const [docVisible, setDocVisible] = useState(true)
-  const [isMobile, setIsMobile] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
@@ -278,16 +259,7 @@ function VideoStage({
     return () => mq.removeEventListener("change", update)
   }, [])
 
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)")
-    const update = () => setIsMobile(mq.matches)
-    update()
-    mq.addEventListener("change", update)
-    return () => mq.removeEventListener("change", update)
-  }, [])
-
   const isPlaying = inView && docVisible && !reducedMotion
-  const stageAspect = isMobile && mobileAspect ? mobileAspect : aspect
 
   return (
     <div
@@ -295,9 +267,9 @@ function VideoStage({
       role="img"
       aria-label={alt}
       className="relative w-full"
-      style={{ aspectRatio: stageAspect }}
+      style={{ aspectRatio: aspect }}
     >
-      {children({ isPlaying, isMobile, reducedMotion })}
+      {children({ isPlaying, reducedMotion })}
     </div>
   )
 }

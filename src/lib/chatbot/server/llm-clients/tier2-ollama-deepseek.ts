@@ -1,19 +1,18 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 
-type Tier3OllamaDeepSeekClientConfig = {
+type Tier2OllamaDeepSeekClientConfig = {
   baseUrl: string
   modelName: string
   requestTimeoutMs: number
   healthCheckTimeoutMs: number
-  keepAlive: string
 }
 
-type Tier3OllamaDeepSeekClientOptions = Tier3OllamaDeepSeekClientConfig & {
-  httpClient?: Tier3OllamaHttpClient
+type Tier2OllamaDeepSeekClientOptions = Tier2OllamaDeepSeekClientConfig & {
+  httpClient?: Tier2OllamaHttpClient
 }
 
-type Tier3OllamaHttpClient = (input: string, init?: RequestInit) => Promise<Response>
+type Tier2OllamaHttpClient = (input: string, init?: RequestInit) => Promise<Response>
 
 type TimeoutTag = "timeout"
 
@@ -43,16 +42,14 @@ class OllamaHttpStatusError extends Error {
   }
 }
 
-export const tier3OllamaDeepSeekDefaults = {
+export const tier2OllamaDeepSeekDefaults = {
   baseUrl: "http://localhost:11434",
   modelName: "hf.co/mmnga/cyberagent-DeepSeek-R1-Distill-Qwen-14B-Japanese-gguf:Q4_K_M",
   requestTimeoutMs: 90000,
   healthCheckTimeoutMs: 3000,
-  keepAlive: "30m",
-  maxOutputTokens: 120,
 } as const
 
-const tier = "tier-3-ollama-deepseek" as const
+const tier = "tier-2-ollama-deepseek" as const
 const emptyText = ""
 const timeoutTag: TimeoutTag = "timeout"
 const chatEndpointPath = "/api/chat"
@@ -62,22 +59,20 @@ const httpMethodPost = "POST"
 const headerContentType = "content-type"
 const contentTypeJson = "application/json"
 const roleSystem = "system"
-const roleUser = "user"
 const streamDisabled = false
 const httpStatusTooManyRequests = 429
 
-export class Tier3OllamaDeepSeekClient implements ChatbotLlmClient {
+export class Tier2OllamaDeepSeekClient implements ChatbotLlmClient {
   readonly tier = tier
-  private readonly config: Tier3OllamaDeepSeekClientConfig
-  private readonly httpClient: Tier3OllamaHttpClient
+  private readonly config: Tier2OllamaDeepSeekClientConfig
+  private readonly httpClient: Tier2OllamaHttpClient
 
-  constructor(options: Tier3OllamaDeepSeekClientOptions) {
+  constructor(options: Tier2OllamaDeepSeekClientOptions) {
     this.config = {
       baseUrl: options.baseUrl,
       modelName: options.modelName,
       requestTimeoutMs: options.requestTimeoutMs,
       healthCheckTimeoutMs: options.healthCheckTimeoutMs,
-      keepAlive: options.keepAlive,
     }
     this.httpClient = options.httpClient ?? globalFetch
   }
@@ -95,8 +90,6 @@ export class Tier3OllamaDeepSeekClient implements ChatbotLlmClient {
             model: this.config.modelName,
             messages: buildMessages(request),
             stream: streamDisabled,
-            keep_alive: this.config.keepAlive,
-            options: buildOptions(request),
           }),
         },
         this.config.requestTimeoutMs,
@@ -212,17 +205,16 @@ export class Tier3OllamaDeepSeekClient implements ChatbotLlmClient {
   }
 }
 
-export function createTier3OllamaDeepSeekClient(
-  overrides: Partial<Tier3OllamaDeepSeekClientConfig> & {
-    httpClient?: Tier3OllamaHttpClient
+export function createTier2OllamaDeepSeekClient(
+  overrides: Partial<Tier2OllamaDeepSeekClientConfig> & {
+    httpClient?: Tier2OllamaHttpClient
   } = {},
-): Tier3OllamaDeepSeekClient {
-  return new Tier3OllamaDeepSeekClient({
-    baseUrl: process.env.CHATBOT_TIER3_OLLAMA_BASE_URL ?? tier3OllamaDeepSeekDefaults.baseUrl,
-    modelName: process.env.CHATBOT_TIER3_OLLAMA_MODEL ?? tier3OllamaDeepSeekDefaults.modelName,
-    requestTimeoutMs: tier3OllamaDeepSeekDefaults.requestTimeoutMs,
-    healthCheckTimeoutMs: tier3OllamaDeepSeekDefaults.healthCheckTimeoutMs,
-    keepAlive: tier3OllamaDeepSeekDefaults.keepAlive,
+): Tier2OllamaDeepSeekClient {
+  return new Tier2OllamaDeepSeekClient({
+    baseUrl: process.env.CHATBOT_TIER2_OLLAMA_BASE_URL ?? tier2OllamaDeepSeekDefaults.baseUrl,
+    modelName: process.env.CHATBOT_TIER2_OLLAMA_MODEL ?? tier2OllamaDeepSeekDefaults.modelName,
+    requestTimeoutMs: tier2OllamaDeepSeekDefaults.requestTimeoutMs,
+    healthCheckTimeoutMs: tier2OllamaDeepSeekDefaults.healthCheckTimeoutMs,
     ...overrides,
   })
 }
@@ -232,33 +224,10 @@ function globalFetch(input: string, init?: RequestInit): Promise<Response> {
 }
 
 function buildMessages(request: ChatbotLlmRequest) {
-  const latestAlreadyIncluded =
-    request.latestUserMessage &&
-    request.messages.at(-1)?.role === roleUser &&
-    request.messages.at(-1)?.content === request.latestUserMessage
-
   return [
-    {
-      role: roleSystem,
-      content: [request.systemPrompt, request.knowledgeContext?.localMirrorPrompt]
-        .filter((line): line is string => Boolean(line))
-        .join("\n"),
-    },
+    { role: roleSystem, content: request.systemPrompt },
     ...request.messages,
-    request.latestUserMessage && !latestAlreadyIncluded
-      ? { role: roleUser, content: request.latestUserMessage }
-      : undefined,
   ].filter((message): message is Exclude<typeof message, undefined> => Boolean(message))
-}
-
-function buildOptions(request: ChatbotLlmRequest): Record<string, number> {
-  return {
-    temperature: request.temperature ?? 0.2,
-    num_predict: Math.min(
-      request.maxOutputTokens ?? tier3OllamaDeepSeekDefaults.maxOutputTokens,
-      tier3OllamaDeepSeekDefaults.maxOutputTokens,
-    ),
-  }
 }
 
 function getOllamaMessageContent(response: OllamaChatResponse): string {

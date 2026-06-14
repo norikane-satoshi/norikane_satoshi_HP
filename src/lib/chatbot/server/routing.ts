@@ -1,17 +1,12 @@
+import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
 import {
-  hasRequiredEmailConsultationSlots,
-  type ConversationState,
-  type JobContext,
-  type RoutingDecision,
+  additionalWorkChoices,
+  documentaryAttachmentChoices,
+  finalMediumChoices,
+  workSiteChoices,
 } from "@/lib/chatbot/domain"
-import {
-  remoteWorkSiteConfirmationChoices,
-  specificWorkSiteChoices,
-} from "@/lib/chatbot/domain"
-import { directContactPolicyMessage } from "@/lib/chatbot/knowledge/forbidden-topics"
 import {
   complexConversationTurnThreshold,
-  candidateWindowGranularityByJobKind,
   settledConversationTurnThreshold,
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
@@ -37,66 +32,26 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     return directContact("tight-deadline")
   }
 
+  if (
+    conversationState.daysUntilStart !== undefined &&
+    conversationState.daysUntilStart <= tightishDeadlineMaxDays
+  ) {
+    return {
+      kind: "continue",
+      nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
+    }
+  }
+
   if (conversationState.vfxCgHeavy) return directContact("vfx-cg-heavy")
   if (conversationState.editingIncomplete) return directContact("raw-edit-included")
-  if (conversationState.asksPricing) return directContact("pricing")
-  if (conversationState.contractDecision) return directContact("contract-decision")
-  if (conversationState.personalQuestion) return directContact("personal-life")
-  if (conversationState.otherClientInformation) return directContact("other-client")
-  if (conversationState.confidentialTechniqueQuestion || conversationState.privateMethodNameExposure) {
-    return directContact("confidential-technique")
-  }
+  if (conversationState.lookDecomposerDetail) return directContact("plugin-detail")
   if (conversationState.technicalQuestion) return directContact("tech-question")
   if (conversationState.workReviewRequest) return directContact("review-request")
   if (conversationState.outOfScope) return directContact("out-of-scope")
   if (conversationState.turnCount >= complexConversationTurnThreshold) return directContact("complex")
 
   if (
-    conversationState.daysUntilStart !== undefined &&
-    conversationState.daysUntilStart <= tightishDeadlineMaxDays &&
-    !conversationState.hasContactEmail
-  ) {
-    return {
-      kind: "continue",
-      nextQuestion: "素材搬入時期と納品希望日を確認するため 1 点伸ばさせて下さい",
-    }
-  }
-
-  if (shouldPrioritizeSchedule(jobContext, conversationState)) {
-    return {
-      kind: "to-booking-inline",
-      suggestedSlots: buildCandidateWindows(jobContext),
-      jobContext: {
-        ...jobContext,
-        workflowEstimate: jobContext.workflowEstimate ?? buildWorkflowEstimate(jobContext),
-      },
-    }
-  }
-
-  if (
-    conversationState.hasDesiredSchedule &&
-    conversationState.hasFinalMedium &&
-    conversationState.hasJobKind &&
-    conversationState.hasProjectLength &&
-    Boolean(conversationState.hasMaterialHandoff) &&
-    !conversationState.hasPendingAdditionalWorkOther &&
-    !conversationState.hasPendingRemoteWorkSiteRecommendation &&
-    !conversationState.declinedRemoteWorkSiteRecommendation &&
-    conversationState.hasContactEmail
-  ) {
-    return {
-      kind: "to-booking-inline",
-      suggestedSlots: [],
-      jobContext: {
-        ...jobContext,
-        workflowEstimate:
-          jobContext.workflowEstimate ?? (jobContext.jobKind ? estimateWorkflow(jobContext) : undefined),
-      },
-    }
-  }
-
-  if (
-    hasRequiredEmailConsultationSlots({ conversationState }) &&
+    conversationState.hasContactEmail &&
     !conversationState.hasDesiredSchedule &&
     conversationState.turnCount >= settledConversationTurnThreshold
   ) {
@@ -122,65 +77,74 @@ function directContact(reason: Extract<RoutingDecision, { kind: "to-direct-conta
     kind: "to-direct-contact",
     reason,
     requireEmail: true,
-    suggestedMessage: directContactPolicyMessage,
+    suggestedMessage:
+      "のりかね映像設計室の担当者が直接ご対応いたしますので、ご連絡先を共有いただけますか？",
   } as const
 }
 
-function continueDecision(
-  conversationState: ConversationState,
-): RoutingDecision {
-  if (!conversationState.hasAdditionalWork && conversationState.hasPendingAdditionalWorkOther) {
+function continueDecision(conversationState: ConversationState): RoutingDecision {
+  if (!conversationState.hasFinalMedium) {
     return {
       kind: "continue",
-      nextQuestion: "",
+      nextQuestion: "最終媒体は何になりますか？",
+      presentChoices: finalMediumChoices,
     }
   }
 
-  if (!conversationState.hasWorkSite && conversationState.hasPendingRemoteWorkSiteRecommendation) {
+  if (!conversationState.hasJobKind) {
     return {
       kind: "continue",
-      nextQuestion: remoteWorkSiteConfirmationChoices.question,
-      presentChoices: remoteWorkSiteConfirmationChoices,
+      nextQuestion: "案件種別と尺を教えてください",
     }
   }
 
-  if (!conversationState.hasWorkSite && conversationState.declinedRemoteWorkSiteRecommendation) {
+  if (!conversationState.hasAdditionalWork) {
     return {
       kind: "continue",
-      nextQuestion: "具体的な作業場所のご希望を教えてください。",
-      presentChoices: specificWorkSiteChoices,
+      nextQuestion: "カラグレ以外の追加作業はありますか？",
+      presentChoices: additionalWorkChoices,
     }
   }
 
-  if (!hasRequiredBookingReadinessSlots(conversationState)) {
+  if (!conversationState.hasDocumentaryAttachments) {
     return {
       kind: "continue",
-      nextQuestion: "",
+      nextQuestion: "付随する映像はありますか？",
+      presentChoices: documentaryAttachmentChoices,
+    }
+  }
+
+  if (!conversationState.hasWorkSite) {
+    return {
+      kind: "continue",
+      nextQuestion: "作業場所のご希望はありますか？",
+      presentChoices: workSiteChoices,
+    }
+  }
+
+  if (!conversationState.hasReferenceUrls) {
+    return {
+      kind: "continue",
+      nextQuestion: "事前に把握しておきたい参考URLがあれば教えてください",
+    }
+  }
+
+  if (!conversationState.hasDesiredSchedule) {
+    return {
+      kind: "continue",
+      nextQuestion: "作業や立ち会いはいつごろできそうですか",
     }
   }
 
   return {
     kind: "continue",
-    nextQuestion: "",
+    nextQuestion: "ご連絡先メールを教えてください",
   }
-}
-
-function hasRequiredBookingReadinessSlots(conversationState: ConversationState): boolean {
-  return (
-    Boolean(conversationState.hasCustomerIdentity) &&
-    Boolean(conversationState.hasFinalMedium) &&
-    Boolean(conversationState.hasJobKind) &&
-    Boolean(conversationState.hasProjectLength) &&
-    Boolean(conversationState.hasMaterialHandoff) &&
-    Boolean(conversationState.hasWorkSite) &&
-    Boolean(conversationState.hasDesiredSchedule) &&
-    Boolean(conversationState.hasContactEmail)
-  )
 }
 
 function buildSummaryText(jobContext: JobContext, conversationState: ConversationState): string {
   const jobKind = jobContext.jobKind ?? "案件種別未確認"
-  const schedule = conversationState.hasDesiredSchedule ? "搬入〜納品あり" : "搬入〜納品未定"
+  const schedule = conversationState.hasDesiredSchedule ? "日程あり" : "日程未定"
 
   return `${jobKind} / ${jobContext.finalMedium} / ${jobContext.workSite} / ${schedule}`
 }
@@ -188,144 +152,11 @@ function buildSummaryText(jobContext: JobContext, conversationState: Conversatio
 function buildOpenQuestions(conversationState: ConversationState): string[] {
   return [
     conversationState.hasFinalMedium ? undefined : "最終媒体未確認",
-    conversationState.hasJobKind && conversationState.hasProjectLength ? undefined : "案件種別・尺未確認",
+    conversationState.hasJobKind ? undefined : "案件種別・尺未確認",
     conversationState.hasAdditionalWork ? undefined : "追加作業未確認",
     conversationState.hasDocumentaryAttachments ? undefined : "付随映像未確認",
     conversationState.hasWorkSite ? undefined : "作業場所未確認",
     conversationState.hasReferenceUrls ? undefined : "参考URL未確認",
-    conversationState.hasDesiredSchedule ? undefined : "素材搬入〜納品時期未確認",
+    conversationState.hasDesiredSchedule ? undefined : "作業・立ち会い日程未確認",
   ].filter((item): item is string => Boolean(item))
-}
-
-function shouldPrioritizeSchedule(
-  jobContext: JobContext,
-  conversationState: ConversationState,
-): boolean {
-  return (
-    conversationState.hasDesiredSchedule &&
-    conversationState.hasJobKind &&
-    conversationState.hasProjectLength &&
-    Boolean(conversationState.hasMaterialHandoff) &&
-    conversationState.hasWorkSite &&
-    Boolean(conversationState.hasCustomerIdentity) &&
-    !conversationState.hasPendingAdditionalWorkOther &&
-    (conversationState.hasFinalMedium || jobContext.finalMedium === "web") &&
-    (isOneHourCandidateJob(jobContext) || isDateCandidateJob(jobContext))
-  )
-}
-
-function isOneHourCandidateJob(jobContext: JobContext): boolean {
-  if (jobContext.jobKind && candidateWindowGranularityByJobKind[jobContext.jobKind] !== "1時間単位") {
-    return false
-  }
-
-  return (
-    jobContext.finalMedium === "web" ||
-    jobContext.finalMedium === "vertical-sns" ||
-    jobContext.jobKind === "cm-30s" ||
-    jobContext.jobKind === "mv-5m"
-  )
-}
-
-function isDateCandidateJob(jobContext: JobContext): boolean {
-  return Boolean(
-    jobContext.jobKind && candidateWindowGranularityByJobKind[jobContext.jobKind] === "日付単位",
-  )
-}
-
-function buildCandidateWindows(jobContext: JobContext) {
-  return isDateCandidateJob(jobContext)
-    ? buildDateCandidateWindows(jobContext)
-    : buildOneHourCandidateWindows(jobContext)
-}
-
-function buildOneHourCandidateWindows(jobContext: JobContext) {
-  const startDate = jobContext.preferredStartDate ?? "2026-06-15"
-  const base = new Date(`${startDate}T10:00:00+09:00`)
-  const offsets = [0, 1, 2]
-
-  return offsets.map((offset) => {
-    const start = new Date(base.getTime() + offset * 24 * 60 * 60 * 1000)
-    const end = new Date(start.getTime() + 60 * 60 * 1000)
-    return {
-      start: start.toISOString(),
-      end: end.toISOString(),
-      label: formatJstOneHourCandidateLabel(start),
-      available: true,
-      note: "1時間候補",
-    }
-  })
-}
-
-function buildDateCandidateWindows(jobContext: JobContext) {
-  const startDate = jobContext.preferredStartDate ?? "2026-06-15"
-  const base = new Date(`${startDate}T10:00:00+09:00`)
-  const offsets = [0, 1, 2]
-  const estimate = jobContext.workflowEstimate ?? buildWorkflowEstimate(jobContext)
-  const neededDays = Math.max(1, Math.ceil(estimate.totalMinDays))
-
-  return offsets.map((offset) => {
-    const start = new Date(base.getTime() + offset * 24 * 60 * 60 * 1000)
-    const end = endOfDateWindow(start, neededDays)
-    return {
-      start: start.toISOString(),
-      end: end.toISOString(),
-      label: `${formatJstDateCandidateLabel(start)} - ${formatJstDateCandidateLabel(end)}`,
-      available: true,
-      note: `日付候補 / 仮キープ ${neededDays}日`,
-    }
-  })
-}
-
-function endOfDateWindow(start: Date, neededDays: number): Date {
-  let cursor = start
-  let counted = 0
-
-  while (counted < neededDays) {
-    counted += 1
-    if (counted < neededDays) cursor = addJstDays(cursor, 1)
-  }
-
-  return new Date(cursor.getTime() + 8 * 60 * 60 * 1000)
-}
-
-function addJstDays(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000)
-}
-
-function buildWorkflowEstimate(jobContext: JobContext) {
-  if (jobContext.jobKind) return estimateWorkflow(jobContext)
-
-  return {
-    stages: [{ stage: "attended" as const, minDays: 0.125, maxDays: 0.125, note: "1時間候補" }],
-    totalMinDays: 0.125,
-    totalMaxDays: 0.125,
-    riskFlags: [],
-  }
-}
-
-function formatJstOneHourCandidateLabel(date: Date): string {
-  const parts = new Intl.DateTimeFormat("ja-JP", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    hour12: false,
-    timeZone: "Asia/Tokyo",
-  }).formatToParts(date)
-  const value = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? ""
-
-  return `${value("month")}月${value("day")}日 ${value("hour")}:00`
-}
-
-function formatJstDateCandidateLabel(date: Date): string {
-  const parts = new Intl.DateTimeFormat("ja-JP", {
-    month: "numeric",
-    day: "numeric",
-    timeZone: "Asia/Tokyo",
-  }).formatToParts(date)
-  const value = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? ""
-
-  return `${value("month")}月${value("day")}日`
 }

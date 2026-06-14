@@ -97,30 +97,30 @@ export function BookingForm({
       </p>
 
       <label className="booking-form__group">
-        <span className="booking-form__label">案件名（必須）</span>
+        <span className="booking-form__label">案件名</span>
         <input className="glass-input booking-form__control" maxLength={100} {...register("projectTitle")} />
         {errors.projectTitle ? <span className="booking-form__error">{errors.projectTitle.message}</span> : null}
       </label>
 
       <div className="booking-form__grid">
         <label className="booking-form__group">
-          <span className="booking-form__label">納期（任意）</span>
+          <span className="booking-form__label">納期</span>
           <input className="glass-input booking-form__control" type="date" {...register("dueDate")} />
         </label>
         <label className="booking-form__group">
-          <span className="booking-form__label">会社名（任意）</span>
+          <span className="booking-form__label">会社名</span>
           <input className="glass-input booking-form__control" {...register("companyName")} />
         </label>
       </div>
 
       <div className="booking-form__grid">
         <label className="booking-form__group">
-          <span className="booking-form__label">担当者氏名（必須）</span>
+          <span className="booking-form__label">担当者氏名</span>
           <input className="glass-input booking-form__control" {...register("contactName")} />
           {errors.contactName ? <span className="booking-form__error">{errors.contactName.message}</span> : null}
         </label>
         <label className="booking-form__group">
-          <span className="booking-form__label">メールアドレス（必須）</span>
+          <span className="booking-form__label">メールアドレス</span>
           <input className="glass-input booking-form__control booking-form__control--readonly" readOnly {...register("sessionEmail")} />
         </label>
       </div>
@@ -128,14 +128,15 @@ export function BookingForm({
       <div className="booking-form__grid">
         <label className="booking-form__group">
           <span className="booking-form__label">
-            電話番号（任意）
+            電話番号
+            <span className="booking-form__label-optional">(任意)</span>
           </span>
           <input className="glass-input booking-form__control" type="tel" {...register("phone")} />
         </label>
       </div>
 
       <label className="booking-form__group">
-        <span className="booking-form__label">補足メモ（任意）</span>
+        <span className="booking-form__label">補足メモ</span>
         <textarea className="glass-input booking-form__control" maxLength={1000} rows={5} {...register("memo")} />
         {errors.memo ? <span className="booking-form__error">{errors.memo.message}</span> : null}
       </label>
@@ -147,7 +148,6 @@ export function BookingForm({
             利用規約
           </a>
           に同意します
-          （必須）
         </span>
       </label>
       {errors.agreed ? <span className="booking-form__error">{errors.agreed.message}</span> : null}

@@ -4,10 +4,9 @@ import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import {
-  createTier3OllamaDeepSeekClient,
-  Tier3OllamaDeepSeekClient,
-  tier3OllamaDeepSeekDefaults,
-} from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
+  createTier2OllamaDeepSeekClient,
+  Tier2OllamaDeepSeekClient,
+} from "@/lib/chatbot/server/llm-clients/tier2-ollama-deepseek"
 
 const modelName = "hf.co/cyberagent/DeepSeek-R1-Distill-Qwen-Japanese-14B-gguf:Q4_K_M"
 const resolvedModelName = "hf.co/mmnga/cyberagent-DeepSeek-R1-Distill-Qwen-14B-Japanese-gguf:Q4_K_M"
@@ -16,14 +15,12 @@ const baseConfig = {
   modelName,
   requestTimeoutMs: 20,
   healthCheckTimeoutMs: 20,
-  keepAlive: "30m",
 } as const
 
 function conversationState(): ConversationState {
   return {
     hasFinalMedium: true,
     hasJobKind: true,
-    hasProjectLength: true,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
@@ -62,7 +59,7 @@ function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {
 }
 
 function ollamaClient(httpClient: (input: string, init?: RequestInit) => Promise<Response>) {
-  return new Tier3OllamaDeepSeekClient({
+  return new Tier2OllamaDeepSeekClient({
     ...baseConfig,
     httpClient,
   })
@@ -76,32 +73,26 @@ async function expectLlmError(
   await expect(promise).rejects.toMatchObject({
     code: expected.code,
     isRetryable: expected.isRetryable,
-    tier: "tier-3-ollama-deepseek",
+    tier: "tier-2-ollama-deepseek",
   })
 }
 
-describe("Tier3OllamaDeepSeekClient", () => {
-  it("keeps the default request bounded for local Ollama generation", () => {
-    expect(tier3OllamaDeepSeekDefaults.requestTimeoutMs).toBe(90000)
-    expect(tier3OllamaDeepSeekDefaults.keepAlive).toBe("30m")
-    expect(tier3OllamaDeepSeekDefaults.maxOutputTokens).toBe(120)
-  })
-
+describe("Tier2OllamaDeepSeekClient", () => {
   afterEach(() => {
     vi.unstubAllEnvs()
   })
 
-  it("keeps the tier property fixed to tier 3 Ollama DeepSeek", () => {
-    const client = createTier3OllamaDeepSeekClient()
+  it("keeps the tier property fixed to tier 2 Ollama DeepSeek", () => {
+    const client = createTier2OllamaDeepSeekClient()
 
-    expect(client.tier).toBe("tier-3-ollama-deepseek")
+    expect(client.tier).toBe("tier-2-ollama-deepseek")
   })
 
   it("uses the locally installed HF model host by default", async () => {
     const httpClient = vi.fn(async () =>
       jsonResponse({ model: resolvedModelName, message: { content: "OK" } }),
     )
-    const client = createTier3OllamaDeepSeekClient({ ...baseConfig, modelName: resolvedModelName, httpClient })
+    const client = createTier2OllamaDeepSeekClient({ ...baseConfig, modelName: resolvedModelName, httpClient })
 
     await expect(client.generate(llmRequest())).resolves.toMatchObject({
       rawText: "OK",
@@ -110,10 +101,10 @@ describe("Tier3OllamaDeepSeekClient", () => {
   })
 
   it("loads Ollama base URL and model name from tier-specific env", async () => {
-    vi.stubEnv("CHATBOT_TIER3_OLLAMA_BASE_URL", "http://127.0.0.1:11435")
-    vi.stubEnv("CHATBOT_TIER3_OLLAMA_MODEL", "local-model:Q4_K_M")
+    vi.stubEnv("CHATBOT_TIER2_OLLAMA_BASE_URL", "http://127.0.0.1:11435")
+    vi.stubEnv("CHATBOT_TIER2_OLLAMA_MODEL", "local-model:Q4_K_M")
     const httpClient = vi.fn(async () => jsonResponse({ message: { content: "OK" } }))
-    const client = createTier3OllamaDeepSeekClient({
+    const client = createTier2OllamaDeepSeekClient({
       requestTimeoutMs: 20,
       healthCheckTimeoutMs: 20,
       httpClient,
@@ -159,7 +150,7 @@ describe("Tier3OllamaDeepSeekClient", () => {
 
     await expect(client.generate(llmRequest())).resolves.toMatchObject({
       rawText: "候補日を 2 つ確認しました。",
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-ollama-deepseek",
     })
     expect(httpClient).toHaveBeenCalledWith(
       "http://localhost:11434/api/chat",
@@ -170,88 +161,9 @@ describe("Tier3OllamaDeepSeekClient", () => {
           messages: [
             { role: "system", content: "Collect only new project intake details." },
             { role: "user", content: "来月のWeb CM案件です" },
-            { role: "user", content: "立ち会い候補を相談したいです" },
           ],
           stream: false,
-          keep_alive: "30m",
-          options: {
-            temperature: 0.2,
-            num_predict: 120,
-          },
         }),
-      }),
-    )
-  })
-
-  it("does not duplicate the latest user message when messages already include it", async () => {
-    const httpClient = vi.fn(async () =>
-      jsonResponse({ message: { content: "候補日を 2 つ確認しました。" } }),
-    )
-    const client = ollamaClient(httpClient)
-    const latestUserMessage = "立ち会い候補を相談したいです"
-
-    await expect(
-      client.generate({
-        ...llmRequest(),
-        messages: [
-          { role: "user", content: "来月のWeb CM案件です" },
-          { role: "user", content: latestUserMessage },
-        ],
-        latestUserMessage,
-      }),
-    ).resolves.toMatchObject({
-      rawText: "候補日を 2 つ確認しました。",
-    })
-
-    const calls = httpClient.mock.calls as unknown as Array<[string, RequestInit | undefined]>
-    const body = JSON.parse(String(calls[0]?.[1]?.body)) as {
-      messages: Array<{ content: string }>
-    }
-    expect(body.messages.filter((message) => message.content === latestUserMessage)).toHaveLength(1)
-  })
-
-  it("adds selected local mirror detail only to the system message", async () => {
-    const httpClient = vi.fn(async () =>
-      jsonResponse({ message: { content: "候補日を 2 つ確認しました。" } }),
-    )
-    const client = ollamaClient(httpClient)
-
-    await expect(
-      client.generate({
-        ...llmRequest(),
-        knowledgeContext: {
-          selectedSourceIds: ["notion:chatbot-consultation-design"],
-          notionReferencePrompt: "Notion page reference only",
-          localMirrorPrompt: "オンデマンド知識詳細（TIA3 local mirror）:\n- ライブ 60分: 7〜8日",
-        },
-      }),
-    ).resolves.toMatchObject({
-      rawText: "候補日を 2 つ確認しました。",
-    })
-
-    const calls = httpClient.mock.calls as unknown as Array<[string, RequestInit | undefined]>
-    const body = JSON.parse(String(calls[0]?.[1]?.body)) as {
-      messages: Array<{ role: string; content: string }>
-    }
-    expect(body.messages[0]).toMatchObject({
-      role: "system",
-      content: expect.stringContaining("オンデマンド知識詳細"),
-    })
-    expect(body.messages[0]?.content).toContain("ライブ 60分: 7〜8日")
-    expect(body.messages[0]?.content).not.toContain("Notion page reference only")
-  })
-
-  it("caps requested output tokens so local Ollama returns before fallback timeout", async () => {
-    const httpClient = vi.fn(async () => jsonResponse({ message: { content: "OK" } }))
-    const client = ollamaClient(httpClient)
-
-    await expect(client.generate({ ...llmRequest(), temperature: 0.4, maxOutputTokens: 900 })).resolves.toMatchObject({
-      rawText: "OK",
-    })
-    expect(httpClient).toHaveBeenCalledWith(
-      "http://localhost:11434/api/chat",
-      expect.objectContaining({
-        body: expect.stringContaining('"options":{"temperature":0.4,"num_predict":120}'),
       }),
     )
   })
@@ -268,7 +180,7 @@ describe("Tier3OllamaDeepSeekClient", () => {
   })
 
   it("throws a retryable timeout error when the request exceeds requestTimeoutMs", async () => {
-    const client = new Tier3OllamaDeepSeekClient({
+    const client = new Tier2OllamaDeepSeekClient({
       ...baseConfig,
       requestTimeoutMs: 1,
       httpClient: async () => new Promise(() => undefined),

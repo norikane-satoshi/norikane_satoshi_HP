@@ -8,18 +8,15 @@ export type ChatbotMessage = {
   id: string
   role: ChatbotMessageRole
   content: string
-  llmModel?: string | null
   createdAt: string
 }
 
 export type ChatbotConversationContext = {
   sessionId: string
   userId?: string
-  notionAiThreadId?: string
   customerEmail?: string
   currentQuestion?: string
   activeChoices?: SurveyChoiceSet
-  conversationState?: Partial<ConversationState>
   jobContext?: Partial<JobContext>
   routingDecision?: RoutingDecision
 }
@@ -36,49 +33,22 @@ export type ChatbotConversation = {
 export type ConversationState = {
   hasFinalMedium: boolean
   hasJobKind: boolean
-  hasProjectLength: boolean
-  hasMaterialHandoff?: boolean
-  hasMaterialDetails?: boolean
   hasAdditionalWork: boolean
   hasDocumentaryAttachments: boolean
   hasWorkSite: boolean
   hasReferenceUrls: boolean
-  hasDeliveryFormat?: boolean
-  hasProductionOptions?: boolean
-  hasBudgetRange?: boolean
   hasContactEmail: boolean
   hasDesiredSchedule: boolean
-  hasCustomerIdentity?: boolean
-  hasProjectTitle?: boolean
-  hasPendingRemoteWorkSiteRecommendation?: boolean
-  declinedRemoteWorkSiteRecommendation?: boolean
-  hasPendingAdditionalWorkOther?: boolean
   turnCount: number
   outOfScope?: boolean
   technicalQuestion?: boolean
   workReviewRequest?: boolean
-  portfolioQuestion?: boolean
   vfxCgHeavy?: boolean
   editingIncomplete?: boolean
-  asksPricing?: boolean
-  contractDecision?: boolean
-  personalQuestion?: boolean
-  otherClientInformation?: boolean
-  confidentialTechniqueQuestion?: boolean
-  privateMethodNameExposure?: boolean
+  lookDecomposerDetail?: boolean
   daysUntilStart?: number
   contactEmail?: string
+  contactName?: string
   customerName?: string
   companyName?: string
-  projectTitle?: string
-  additionalWorkOtherNote?: string
-  productionOptions?: Array<"captions" | "telops" | "narration" | "music">
-}
-
-export type ChatbotBookingPrefill = {
-  projectTitle?: string
-  contactName?: string
-  companyName?: string
-  contactEmail?: string
-  dueDate?: string
 }

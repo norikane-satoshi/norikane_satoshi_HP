@@ -10,13 +10,11 @@ import type {
   ChatbotConversationContext,
   ChatbotMessage,
   ChatbotMessageRole,
-  ConversationState,
   ConversationSummary,
   DocumentaryAttachment,
   FinalMedium,
   JobContext,
   RoutingDecision,
-  SurveyChoiceSet,
   WorkSite,
 } from "@/lib/chatbot/domain"
 import { prisma } from "@/lib/prisma"
@@ -27,15 +25,6 @@ type ChatbotRepositoryClient = Prisma.TransactionClient | PrismaClient
 type ChatbotConversationRow = Prisma.ChatbotConversationGetPayload<{
   include: { messages: true }
 }>
-
-type ChatbotConversationContextFields = {
-  currentQuestion?: string | null
-  activeChoices?: string | null
-  conversationState?: string | null
-  notionAiThreadId?: string | null
-}
-
-type ChatbotConversationRowWithContext = ChatbotConversationRow & ChatbotConversationContextFields
 
 type ChatbotMessageRow = Prisma.ChatbotMessageGetPayload<Record<string, never>>
 
@@ -65,7 +54,7 @@ export async function createConversation(input: {
     },
   })
 
-  return toDomainConversation({ ...row, ...emptyConversationContextFields(), messages: [] })
+  return toDomainConversation({ ...row, messages: [] })
 }
 
 export async function loadConversationBySessionId(
@@ -80,41 +69,20 @@ export async function loadConversationBySessionId(
     },
   })
 
-  if (!row) return null
-  const contextFields = await loadConversationContextFields(row.id)
-  return toDomainConversation({ ...row, ...contextFields })
-}
-
-export async function loadConversationById(conversationId: string): Promise<ChatbotConversation | null> {
-  const row = await prisma.chatbotConversation.findUnique({
-    where: { id: conversationId },
-    include: {
-      messages: {
-        orderBy: { createdAt: "asc" },
-      },
-    },
-  })
-
-  if (!row) return null
-  const contextFields = await loadConversationContextFields(row.id)
-  return toDomainConversation({ ...row, ...contextFields })
+  return row ? toDomainConversation(row) : null
 }
 
 export async function appendMessage(input: {
-  id?: string
   conversationId: string
   role: ChatbotMessageRole
   content: string
-  llmModel?: string | null
 }): Promise<ChatbotMessage> {
   const row = await prisma.$transaction(async (tx) => {
     const message = await tx.chatbotMessage.create({
       data: {
-        ...(input.id ? { id: input.id } : {}),
         conversationId: input.conversationId,
         role: input.role,
         content: input.content,
-        llmModel: input.llmModel ?? null,
       },
     })
 
@@ -127,53 +95,6 @@ export async function appendMessage(input: {
   })
 
   return toDomainMessage(row)
-}
-
-export async function truncateConversationFromMessage(input: {
-  conversationId: string
-  messageId: string
-}): Promise<{ deletedCount: number }> {
-  return prisma.$transaction(async (tx) => {
-    const messages = await tx.chatbotMessage.findMany({
-      where: { conversationId: input.conversationId },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: { id: true },
-    })
-    const targetIndex = messages.findIndex((message) => message.id === input.messageId)
-    if (targetIndex === -1) {
-      throw new Error("chatbot_edit_target_not_found")
-    }
-
-    const deleteIds = messages.slice(targetIndex).map((message) => message.id)
-    const deleteResult = await tx.chatbotMessage.deleteMany({
-      where: {
-        conversationId: input.conversationId,
-        id: { in: deleteIds },
-      },
-    })
-
-    await tx.chatbotConversation.update({
-      where: { id: input.conversationId },
-      data: {
-        routingDecision: "continue",
-        finalMedium: null,
-        jobType: null,
-        mainDuration: null,
-        workSite: null,
-        attachments: null,
-        additionalWork: null,
-        referenceUrls: null,
-      },
-    })
-    await tx.$executeRawUnsafe(
-      `UPDATE ChatbotConversation
-       SET currentQuestion = NULL, activeChoices = NULL, conversationState = NULL
-       WHERE id = ?`,
-      input.conversationId,
-    )
-
-    return { deletedCount: deleteResult.count }
-  })
 }
 
 export async function recordSurveyResponse(input: {
@@ -218,23 +139,10 @@ export async function recordInquiry(input: {
 export async function updateConversationRouting(input: {
   conversationId: string
   routingDecision: RoutingDecisionKind
-  currentQuestion?: string | null
-  activeChoices?: SurveyChoiceSet | null
-  conversationState?: ConversationState
-  jobContext?: JobContext
 }): Promise<void> {
   await prisma.chatbotConversation.update({
     where: { id: input.conversationId },
-    data: {
-      routingDecision: input.routingDecision,
-      ...(input.jobContext ? toJobContextUpdateData(input.jobContext) : {}),
-    },
-  })
-  await updateConversationContextFields({
-    conversationId: input.conversationId,
-    currentQuestion: input.currentQuestion ?? null,
-    activeChoices: input.activeChoices ? JSON.stringify(input.activeChoices) : null,
-    conversationState: input.conversationState ? JSON.stringify(input.conversationState) : null,
+    data: { routingDecision: input.routingDecision },
   })
 }
 
@@ -246,19 +154,6 @@ export async function linkConversationToUser(input: {
     where: { id: input.conversationId },
     data: { userId: input.userId },
   })
-}
-
-export async function setConversationNotionAiThreadId(input: {
-  conversationId: string
-  threadId: string
-}): Promise<void> {
-  await prisma.$executeRawUnsafe(
-    `UPDATE ChatbotConversation
-     SET notionAiThreadId = ?
-     WHERE id = ?`,
-    input.threadId,
-    input.conversationId,
-  )
 }
 
 export async function linkChatToBookingGroup(input: {
@@ -284,19 +179,13 @@ export async function linkChatToBookingGroup(input: {
   })
 }
 
-function toDomainConversation(row: ChatbotConversationRowWithContext): ChatbotConversation {
+function toDomainConversation(row: ChatbotConversationRow): ChatbotConversation {
   const routingDecisionKind = toRoutingDecisionKind(row.routingDecision)
   const jobContext = toJobContext(row)
-  const activeChoices = toSurveyChoiceSet(row.activeChoices)
-  const conversationState = toConversationState(row.conversationState)
   const context: ChatbotConversationContext = {
     sessionId: row.sessionId,
     ...(row.userId ? { userId: row.userId } : {}),
-    ...(row.notionAiThreadId ? { notionAiThreadId: row.notionAiThreadId } : {}),
     ...(row.customerEmail ? { customerEmail: row.customerEmail } : {}),
-    ...(row.currentQuestion ? { currentQuestion: row.currentQuestion } : {}),
-    ...(activeChoices ? { activeChoices } : {}),
-    ...(conversationState ? { conversationState } : {}),
     ...(Object.keys(jobContext).length > 0 ? { jobContext } : {}),
   }
 
@@ -315,7 +204,6 @@ function toDomainMessage(row: ChatbotMessageRow): ChatbotMessage {
     id: row.id,
     role: toMessageRole(row.role),
     content: row.content,
-    ...(row.llmModel ? { llmModel: row.llmModel } : {}),
     createdAt: row.createdAt.toISOString(),
   }
 }
@@ -394,75 +282,6 @@ function toConversationSummaryUpdateData(
   }
 }
 
-function toJobContextUpdateData(jobContext: JobContext): Prisma.ChatbotConversationUpdateInput {
-  return {
-    finalMedium: jobContext.finalMedium,
-    jobType: jobContext.jobKind ?? null,
-    mainDuration:
-      typeof jobContext.projectLengthMinutes === "number"
-        ? String(jobContext.projectLengthMinutes)
-        : null,
-    workSite: jobContext.workSite,
-    attachments: JSON.stringify(jobContext.documentaryAttachment),
-    additionalWork: jobContext.additionalWork ? JSON.stringify(jobContext.additionalWork) : null,
-    referenceUrls: jobContext.referenceUrls ? JSON.stringify(jobContext.referenceUrls) : null,
-  }
-}
-
-async function loadConversationContextFields(conversationId: string): Promise<{
-  currentQuestion: string | null
-  activeChoices: string | null
-  conversationState: string | null
-  notionAiThreadId: string | null
-}> {
-  const rows = await prisma.$queryRawUnsafe<
-    Array<{
-      currentQuestion: string | null
-      activeChoices: string | null
-      conversationState: string | null
-      notionAiThreadId: string | null
-    }>
-  >(
-    `SELECT currentQuestion, activeChoices, conversationState, notionAiThreadId
-     FROM ChatbotConversation
-     WHERE id = ?`,
-    conversationId,
-  )
-
-  return rows[0] ?? emptyConversationContextFields()
-}
-
-function emptyConversationContextFields(): {
-  currentQuestion: null
-  activeChoices: null
-  conversationState: null
-  notionAiThreadId: null
-} {
-  return {
-    currentQuestion: null,
-    activeChoices: null,
-    conversationState: null,
-    notionAiThreadId: null,
-  }
-}
-
-async function updateConversationContextFields(input: {
-  conversationId: string
-  currentQuestion: string | null
-  activeChoices: string | null
-  conversationState: string | null
-}): Promise<void> {
-  await prisma.$executeRawUnsafe(
-    `UPDATE ChatbotConversation
-     SET currentQuestion = ?, activeChoices = ?, conversationState = ?
-     WHERE id = ?`,
-    input.currentQuestion,
-    input.activeChoices,
-    input.conversationState,
-    input.conversationId,
-  )
-}
-
 function toJobContext(row: ChatbotConversationRow): Partial<JobContext> {
   const jobContext: Partial<JobContext> = {}
   const finalMedium = toFinalMedium(row.finalMedium)
@@ -537,24 +356,6 @@ function toAdditionalWork(value: string | null): JobContext["additionalWork"] | 
   return parsed as JobContext["additionalWork"]
 }
 
-function toSurveyChoiceSet(value: string | null | undefined): SurveyChoiceSet | undefined {
-  if (value == null) return undefined
-  const parsed = parseJson(value, "active choices")
-  if (!isSurveyChoiceSet(parsed)) {
-    throw new Error("Invalid chatbot active choices JSON")
-  }
-  return parsed
-}
-
-function toConversationState(value: string | null | undefined): Partial<ConversationState> | undefined {
-  if (value == null) return undefined
-  const parsed = parseJson(value, "conversation state")
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Invalid chatbot conversation state JSON")
-  }
-  return parsed as Partial<ConversationState>
-}
-
 function toStringArray(value: string | null): string[] | undefined {
   if (value === null) return undefined
   const parsed = parseJson(value, "string array")
@@ -580,17 +381,6 @@ function parseJson(value: string, label: string): unknown {
 
 function isOneOf<const T extends readonly string[]>(value: string, allowed: T): value is T[number] {
   return allowed.includes(value)
-}
-
-function isSurveyChoiceSet(value: unknown): value is SurveyChoiceSet {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false
-  const candidate = value as Partial<SurveyChoiceSet>
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.question === "string" &&
-    Array.isArray(candidate.choices) &&
-    candidate.choices.every((choice) => typeof choice.id === "string" && typeof choice.label === "string")
-  )
 }
 
 export const __chatbotRepositoryTestUtils = {

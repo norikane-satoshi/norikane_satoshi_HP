@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
@@ -81,8 +81,8 @@ function validBooking(overrides: Record<string, unknown> = {}) {
     agreed: true,
     selectedSlots: [
       {
-        start: "2026-06-10T01:00:00.000Z",
-        end: "2026-06-10T02:00:00.000Z",
+        start: "2099-06-10T01:00:00.000Z",
+        end: "2099-06-10T02:00:00.000Z",
       },
     ],
     ...overrides,
@@ -103,7 +103,7 @@ function mockHappyPath() {
   })
   mocks.refreshCalendarAccessToken.mockResolvedValue({
     accessToken: "access_token",
-    expiresAt: new Date("2026-06-10T00:00:00.000Z"),
+    expiresAt: new Date("2099-06-10T00:00:00.000Z"),
     scope: "scope",
   })
   mocks.createCalendarEvent.mockResolvedValue({ id: "gcal_1" })
@@ -350,8 +350,8 @@ describe("POST /api/booking/conflicts", () => {
     mocks.auth.mockResolvedValue(null)
 
     const response = await POSTConflicts(request({
-      start: "2026-06-10T01:00:00.000Z",
-      end: "2026-06-10T02:00:00.000Z",
+      start: "2099-06-10T01:00:00.000Z",
+      end: "2099-06-10T02:00:00.000Z",
     }))
 
     expect(response.status).toBe(401)
@@ -361,8 +361,8 @@ describe("POST /api/booking/conflicts", () => {
     mocks.auth.mockResolvedValue({ user: { id: "user_1" } })
 
     const response = await POSTConflicts(request({
-      start: "2026-06-10T02:00:00.000Z",
-      end: "2026-06-10T01:00:00.000Z",
+      start: "2099-06-10T02:00:00.000Z",
+      end: "2099-06-10T01:00:00.000Z",
     }))
 
     expect(response.status).toBe(400)
@@ -375,8 +375,8 @@ describe("POST /api/booking/conflicts", () => {
     mocks.resolveConflictForFinalSubmit.mockReturnValue(null)
 
     const response = await POSTConflicts(request({
-      start: "2026-06-10T01:00:00.000Z",
-      end: "2026-06-10T02:00:00.000Z",
+      start: "2099-06-10T01:00:00.000Z",
+      end: "2099-06-10T02:00:00.000Z",
       excludeBookingId: "slot_1",
     }))
 
@@ -391,8 +391,8 @@ describe("POST /api/booking/conflicts", () => {
     mocks.resolveConflictForFinalSubmit.mockReturnValue("slot_taken")
 
     const response = await POSTConflicts(request({
-      start: "2026-06-10T01:00:00.000Z",
-      end: "2026-06-10T02:00:00.000Z",
+      start: "2099-06-10T01:00:00.000Z",
+      end: "2099-06-10T02:00:00.000Z",
     }))
 
     expect(response.status).toBe(200)
@@ -406,14 +406,8 @@ describe("POST /api/booking/conflicts", () => {
 
 describe("/api/booking/[id]", () => {
   beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"))
     vi.clearAllMocks()
     mocks.findConflictingBookings.mockResolvedValue([])
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
   })
 
   function context(id = "slot_1") {
@@ -446,8 +440,8 @@ describe("/api/booking/[id]", () => {
         timeSlots: [
           {
             id: "slot_1",
-            startTime: new Date("2026-06-10T01:00:00.000Z"),
-            endTime: new Date("2026-06-10T02:00:00.000Z"),
+            startTime: new Date("2099-06-10T01:00:00.000Z"),
+            endTime: new Date("2099-06-10T02:00:00.000Z"),
             status: "CONFIRMED",
           },
         ],
@@ -500,8 +494,8 @@ describe("/api/booking/[id]", () => {
     const response = await PATCH(
       request({
         action: "move",
-        start: "2026-06-10T03:00:00.000Z",
-        end: "2026-06-10T04:00:00.000Z",
+        start: "2099-06-10T03:00:00.000Z",
+        end: "2099-06-10T04:00:00.000Z",
       }),
       context(),
     )
@@ -521,8 +515,8 @@ describe("/api/booking/[id]", () => {
     const response = await PATCH(
       request({
         action: "move",
-        start: "2026-06-10T03:00:00.000Z",
-        end: "2026-06-10T04:00:00.000Z",
+        start: "2099-06-10T03:00:00.000Z",
+        end: "2099-06-10T04:00:00.000Z",
       }),
       context(),
     )
@@ -538,8 +532,8 @@ describe("/api/booking/[id]", () => {
     const response = await PATCH(
       request({
         action: "move",
-        start: "2026-06-10T03:00:00.000Z",
-        end: "2026-06-10T04:00:00.000Z",
+        start: "2099-06-10T03:00:00.000Z",
+        end: "2099-06-10T04:00:00.000Z",
       }),
       context(),
     )
@@ -554,8 +548,8 @@ describe("/api/booking/[id]", () => {
     const response = await PATCH(
       request({
         action: "move",
-        start: "2026-06-10T04:00:00.000Z",
-        end: "2026-06-10T03:00:00.000Z",
+        start: "2099-06-10T04:00:00.000Z",
+        end: "2099-06-10T03:00:00.000Z",
       }),
       context(),
     )

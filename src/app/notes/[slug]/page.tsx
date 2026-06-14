@@ -53,17 +53,17 @@ export default async function NotePage({ params }: PageProps) {
       <nav>
         <Link
           href="/#philosophy"
-          className="hp-nav-link inline-flex items-center gap-2 rounded-[12px] px-1 py-1 text-sm transition-colors hover:text-hp"
+          className="inline-flex items-center gap-2 text-sm text-hp-muted transition-colors hover:text-hp"
         >
           <span aria-hidden="true">←</span>
           ノート一覧に戻る
         </Link>
       </nav>
-      <article className="glass-card glass-card--hp-note-page p-8 md:p-10 xl:p-14">
+      <article className="glass-card p-8 md:p-10 xl:p-14">
         <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
           {label}
         </p>
-        <h1 className="hp-heading mt-2 text-3xl font-bold text-hp md:text-4xl xl:text-5xl">
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-hp md:text-4xl xl:text-5xl">
           {note.title}
         </h1>
         <div className="mt-8">

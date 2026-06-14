@@ -292,7 +292,7 @@
 
 .booking-calendar__tab[aria-pressed="true"] {
   background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
-  border-color: rgba(117, 104, 214, 0.18);
+  border-color: rgba(139, 127, 255, 0.20);
 }
 
 .booking-calendar__tab:hover {
@@ -391,7 +391,7 @@
 }
 
 .booking-calendar .fc .fc-button {
-  border: 1px solid rgba(117, 104, 214, 0.18);
+  border: 1px solid rgba(139, 127, 255, 0.22);
   border-radius: var(--hp-radius-sm);
   background: rgba(255, 255, 255, 0.52);
   color: var(--text-primary);
@@ -403,7 +403,7 @@
 .booking-calendar .fc .fc-button:focus-visible {
   background: rgba(255, 255, 255, 0.72);
   color: var(--accent-primary);
-  box-shadow: 0 4px 20px rgba(117, 104, 214, 0.18);
+  box-shadow: 0 4px 20px rgba(139, 127, 255, 0.22);
 }
 
 .booking-calendar .fc .fc-button:disabled {
@@ -726,7 +726,7 @@
   min-width: 34px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(117, 104, 214, 0.18);
+  border: 1px solid rgba(139, 127, 255, 0.22);
   border-radius: var(--hp-radius-sm);
   background: rgba(255, 255, 255, 0.52);
   color: var(--text-primary);

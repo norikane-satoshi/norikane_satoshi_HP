@@ -14,24 +14,22 @@ describe("InquiryForm", () => {
 
     expect(screen.getByText("問い合わせフォーム")).toBeInTheDocument()
     expect(screen.getByLabelText("氏名")).toBeInTheDocument()
-    expect(screen.getByLabelText("メールアドレス")).toBeInTheDocument()
+    expect(screen.getByLabelText("メール")).toBeInTheDocument()
     expect(screen.getByLabelText("自由記述")).toBeInTheDocument()
-    expect(screen.getByText("必須")).toBeInTheDocument()
-    expect(screen.getAllByText("任意")).toHaveLength(5)
-    expect(screen.getByText("T・Y案件 等イニシャルでも可")).toBeInTheDocument()
   })
 
-  it("submits normalized form input when email is present", () => {
+  it("submits normalized form input when name and email are present", () => {
     const onSubmit = vi.fn()
     render(<InquiryForm onSubmit={onSubmit} />)
 
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: " client@example.com " } })
+    fireEvent.change(screen.getByLabelText("氏名"), { target: { value: " 田中 " } })
+    fireEvent.change(screen.getByLabelText("メール"), { target: { value: " client@example.com " } })
     fireEvent.change(screen.getByLabelText("案件種別"), { target: { value: " CM " } })
     fireEvent.change(screen.getByLabelText("自由記述"), { target: { value: " 急ぎではありません " } })
     screen.getByRole("button", { name: "送信" }).click()
 
     expect(onSubmit).toHaveBeenCalledWith({
-      name: "",
+      name: "田中",
       email: "client@example.com",
       jobType: "CM",
       duration: "",
@@ -48,31 +46,5 @@ describe("InquiryForm", () => {
     screen.getByRole("button", { name: "送信" }).click()
 
     expect(onSubmit).not.toHaveBeenCalled()
-  })
-
-  it("does not submit an invalid email address", () => {
-    const onSubmit = vi.fn()
-    render(<InquiryForm onSubmit={onSubmit} />)
-
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "090-1234-5678" } })
-    screen.getByRole("button", { name: "送信" }).click()
-
-    expect(onSubmit).not.toHaveBeenCalled()
-  })
-
-  it("renders the consultation summary mode with a required email address", () => {
-    render(
-      <InquiryForm
-        mode="consultation-summary"
-        initialEmail="client@example.com"
-        summaryText="live-60m / live / remote-grading / 搬入〜納品未定"
-        openQuestions={["素材搬入〜納品時期未確認"]}
-        onSubmit={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByText("相談内容を送信")).toBeInTheDocument()
-    expect(screen.getByLabelText("相談サマリ")).toHaveTextContent("live-60m")
-    expect(screen.getByLabelText("メールアドレス")).toHaveValue("client@example.com")
   })
 })

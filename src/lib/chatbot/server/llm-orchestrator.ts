@@ -9,14 +9,6 @@ import {
 
 const llmOrchestratorDefaults = {
   healthCheckTimeoutMs: 3000,
-  retryBackoffMs: 500,
-} as const
-
-const aiGenerateAttemptLimits: Readonly<Record<ChatbotLlmTier, number>> = {
-  "tier-1-chrome-notion-ai": 4,
-  "tier-2-hosted-chrome-notion-ai": 2,
-  "tier-3-ollama-deepseek": 2,
-  "tier-4-form-fallback": 1,
 } as const
 
 export type TierAttemptEvent = {
@@ -24,9 +16,7 @@ export type TierAttemptEvent = {
   phase: "health-check" | "generate"
   outcome: "healthy" | "unhealthy" | "success" | "error"
   error?: ChatbotLlmError | Error
-  diagnostics?: Record<string, unknown>
   latencyMs: number
-  attempt?: number
 }
 
 export interface ChatbotLlmTierOrchestrator {
@@ -38,7 +28,6 @@ type ChatbotLlmTierOrchestratorOptions = {
   clients: ReadonlyArray<ChatbotLlmClient>
   tierOrder?: ReadonlyArray<ChatbotLlmTier>
   healthCheckTimeoutMs?: number
-  retryBackoffMs?: number
   onTierAttempt?: (event: TierAttemptEvent) => void
 }
 
@@ -48,7 +37,6 @@ export function createChatbotLlmTierOrchestrator(
   const tierOrder = options.tierOrder ?? defaultLlmTierOrder
   const healthCheckTimeoutMs =
     options.healthCheckTimeoutMs ?? llmOrchestratorDefaults.healthCheckTimeoutMs
-  const retryBackoffMs = options.retryBackoffMs ?? llmOrchestratorDefaults.retryBackoffMs
   const clientsByTier = new Map(options.clients.map((client) => [client.tier, client]))
 
   async function checkClientHealth(client: ChatbotLlmClient): Promise<boolean> {
@@ -60,7 +48,6 @@ export function createChatbotLlmTierOrchestrator(
         tier: client.tier,
         phase: "health-check",
         outcome: healthy ? "healthy" : "unhealthy",
-        error: healthy ? undefined : client.getLastHealthError?.(),
         latencyMs: Date.now() - startedAt,
       })
       return healthy
@@ -85,37 +72,28 @@ export function createChatbotLlmTierOrchestrator(
         if (!client) continue
 
         lastAttemptedTier = tier
-        await checkClientHealth(client)
+        const isHealthy = await checkClientHealth(client)
+        if (!isHealthy) continue
 
-        const attemptLimit = aiGenerateAttemptLimits[tier] ?? 1
-        for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
-          const startedAt = Date.now()
+        const startedAt = Date.now()
 
-          try {
-            const response = await client.generate(request)
-            emitAttempt(options.onTierAttempt, {
-              tier,
-              phase: "generate",
-              outcome: "success",
-              diagnostics: response.diagnostics,
-              latencyMs: Date.now() - startedAt,
-              attempt,
-            })
-            return response
-          } catch (error) {
-            const normalizedError = normalizeError(error, tier)
-            emitAttempt(options.onTierAttempt, {
-              tier,
-              phase: "generate",
-              outcome: "error",
-              error: normalizedError,
-              latencyMs: Date.now() - startedAt,
-              attempt,
-            })
-
-            if (!shouldRetryGenerate(normalizedError, attempt, attemptLimit)) break
-            await sleep(retryBackoffMs)
-          }
+        try {
+          const response = await client.generate(request)
+          emitAttempt(options.onTierAttempt, {
+            tier,
+            phase: "generate",
+            outcome: "success",
+            latencyMs: Date.now() - startedAt,
+          })
+          return response
+        } catch (error) {
+          emitAttempt(options.onTierAttempt, {
+            tier,
+            phase: "generate",
+            outcome: "error",
+            error: normalizeError(error, tier),
+            latencyMs: Date.now() - startedAt,
+          })
         }
       }
 
@@ -158,19 +136,6 @@ function emitAttempt(onTierAttempt: ChatbotLlmTierOrchestratorOptions["onTierAtt
   } catch {
     // Observability hooks must never block fallback.
   }
-}
-
-function shouldRetryGenerate(
-  error: ChatbotLlmError | Error,
-  attempt: number,
-  attemptLimit: number,
-): boolean {
-  return attempt < attemptLimit && error instanceof ChatbotLlmError && error.isRetryable
-}
-
-async function sleep(delayMs: number): Promise<void> {
-  if (delayMs <= 0) return
-  await new Promise((resolve) => setTimeout(resolve, delayMs))
 }
 
 function normalizeError(error: unknown, tier: ChatbotLlmTier): ChatbotLlmError | Error {

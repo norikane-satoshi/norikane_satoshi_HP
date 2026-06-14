@@ -7,7 +7,6 @@ export type SurveyChoiceSet = {
   id: string
   question: string
   choices: SurveyChoice[]
-  selectionMode?: "single" | "multiple"
 }
 
 export const finalMediumChoices = {
@@ -26,8 +25,7 @@ export const finalMediumChoices = {
 
 export const additionalWorkChoices = {
   id: "additional-work",
-  question: "消し物やカラーグレーディング以外に必要な作業はありますか",
-  selectionMode: "multiple",
+  question: "カラグレ以外の追加作業はありますか",
   choices: [
     { id: "retouch", label: "消し物" },
     { id: "skin-retouch", label: "肌修正" },
@@ -60,40 +58,9 @@ export const workSiteChoices = {
   ],
 } as const satisfies SurveyChoiceSet
 
-export const specificWorkSiteChoices = {
-  id: "work-site",
-  question: "具体的な作業場所のご希望を教えてください",
-  choices: workSiteChoices.choices.filter((choice) => choice.id !== "entrust"),
-} as const satisfies SurveyChoiceSet
-
-export const remoteWorkSiteConfirmationChoices = {
-  id: "remote-work-site-confirmation",
-  question: "リモートグレーディング（遠隔地からオンラインでカラーコレクションのプレビューに立ち会っていただく形式）は大丈夫ですか？",
-  choices: [
-    { id: "yes", label: "はい（オンライン立ち会いOK）" },
-    { id: "no", label: "いいえ（対面や別の方法を希望）" },
-  ],
-} as const satisfies SurveyChoiceSet
-
-export const productionOptionChoices = {
-  id: "production-options",
-  question: "字幕・テロップ、ナレーション、音楽はありますか",
-  selectionMode: "multiple",
-  choices: [
-    { id: "captions", label: "字幕" },
-    { id: "telops", label: "テロップ" },
-    { id: "narration", label: "ナレーション" },
-    { id: "music", label: "音楽" },
-    { id: "none", label: "なし" },
-  ],
-} as const satisfies SurveyChoiceSet
-
 export const surveyChoiceSets = [
   finalMediumChoices,
   additionalWorkChoices,
   documentaryAttachmentChoices,
   workSiteChoices,
-  specificWorkSiteChoices,
-  remoteWorkSiteConfirmationChoices,
-  productionOptionChoices,
 ] as const satisfies readonly SurveyChoiceSet[]

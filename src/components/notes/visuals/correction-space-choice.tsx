@@ -610,11 +610,9 @@ function Cell({
 
 export default function CorrectionSpaceChoice({
   isPlaying,
-  isMobile = false,
   reducedMotion,
 }: {
   isPlaying: boolean
-  isMobile?: boolean
   reducedMotion: boolean
 }) {
   const [animT, setAnimT] = useState(0)
@@ -647,66 +645,6 @@ export default function CorrectionSpaceChoice({
 
   const t = animT
   const logCell = CELLS.find((c) => c.hasPhysicsTooltip)
-
-  if (isMobile) {
-    return (
-      <svg
-        viewBox={`0 0 ${CELL_W} ${CELL_H * CELLS.length}`}
-        className="absolute inset-0 h-full w-full"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        {CELLS.map((spec, index) => {
-          const mobileSpec = {
-            ...spec,
-            clipId: `${spec.clipId}-mobile`,
-          }
-          const plotX = spec.cellX + PLOT_X
-          return (
-            <svg
-              key={spec.clipId}
-              x={0}
-              y={index * CELL_H}
-              width={CELL_W}
-              height={CELL_H}
-              viewBox={`${spec.cellX} 0 ${CELL_W} ${CELL_H}`}
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <defs>
-                <clipPath id={mobileSpec.clipId}>
-                  <rect x={plotX} y={PLOT_Y} width={PLOT_W} height={PLOT_H} />
-                </clipPath>
-              </defs>
-              <Cell
-                spec={mobileSpec}
-                t={t}
-                reducedMotion={reducedMotion}
-              />
-              {spec.hasPhysicsTooltip ? (
-                <PhysicsAttentionBadge
-                  cellX={spec.cellX}
-                  pillsAnchorX={HEADER_X}
-                  open={physicsTooltipOpen}
-                  onToggle={() => setPhysicsTooltipOpen((v) => !v)}
-                />
-              ) : null}
-            </svg>
-          )
-        })}
-        {CELLS.slice(1).map((spec, index) => (
-          <line
-            key={`mobile-sep-${spec.clipId}`}
-            x1={24}
-            y1={(index + 1) * CELL_H}
-            x2={CELL_W - 24}
-            y2={(index + 1) * CELL_H}
-            stroke={GRID}
-            strokeWidth={1}
-            strokeDasharray="6 8"
-          />
-        ))}
-      </svg>
-    )
-  }
 
   return (
     <svg

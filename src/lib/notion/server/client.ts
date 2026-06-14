@@ -14,10 +14,6 @@ export function getNotionClient(): Client | null {
 }
 
 export const IB_NOTE_DATA_SOURCE_ID = "35613ee3-141a-8366-b5ec-07e7bb1c2dd0"
-export const IB_WORK_DATA_SOURCE_ID =
-  process.env.HP_CHATBOT_IB_WORK_DATA_SOURCE_ID ??
-  process.env.CC_NOTION_IB_WORK_DATA_SOURCE_ID ??
-  "34713ee3-141a-817b-8b61-000b5f3d2fee"
 
 export const TITLE_PROPERTY = "名前"
 export const SLUG_PROPERTY = "slug"

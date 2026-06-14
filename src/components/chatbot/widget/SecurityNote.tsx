@@ -30,9 +30,9 @@ export function SecurityNote({ defaultOpen = false }: SecurityNoteProps) {
       {isOpen ? (
         <ul className="mt-3 space-y-1.5 text-xs leading-relaxed text-hp-muted">
           <li>通信と保存データを暗号化して扱います。</li>
-          <li>チャットログは 1 週間で自動削除します。</li>
+          <li>チャットログは 30 日自動削除の対象です。</li>
           <li>他案件情報は参照せず、本人文脈のみを使います。</li>
-          <li>カレンダーは予約が埋まっている時間帯だけを空き状況確認に使います。</li>
+          <li>カレンダーは busy 時間帯のみ参照します。</li>
           <li>
             詳しくは{" "}
             <a className="underline decoration-dotted underline-offset-4 hover:text-hp" href="/privacy">

@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { finalMediumChoices } from "@/lib/chatbot/domain"
 import type { ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
 
 function request(body: unknown, cookie?: string) {
@@ -38,12 +37,7 @@ async function loadPost({
   existingConversation = null,
   llmResponse = {
     rawText: "最終媒体を教えてください",
-    tier: "tier-3-ollama-deepseek" as const,
-    proposedRoutingDecision: {
-      kind: "continue" as const,
-      nextQuestion: "最終媒体を教えてください",
-      presentChoices: finalMediumChoices,
-    },
+    tier: "tier-2-ollama-deepseek" as const,
   },
 }: {
   session?: { user?: { id?: string; email?: string } } | null
@@ -57,13 +51,11 @@ async function loadPost({
   const createConversation = vi.fn().mockResolvedValue(conversation())
   const appendMessage = vi
     .fn()
-    .mockImplementation((input: { id?: string; role: ChatbotMessage["role"]; content: string }) =>
-      Promise.resolve({ ...message(input.role, input.content), ...(input.id ? { id: input.id } : {}) }),
+    .mockImplementation((input: { role: ChatbotMessage["role"]; content: string }) =>
+      Promise.resolve(message(input.role, input.content)),
     )
   const updateConversationRouting = vi.fn().mockResolvedValue(undefined)
-  const truncateConversationFromMessage = vi.fn().mockResolvedValue({ deletedCount: 0 })
   const linkConversationToUser = vi.fn().mockResolvedValue(undefined)
-  const setConversationNotionAiThreadId = vi.fn().mockResolvedValue(undefined)
   const loadUserChatbotContext = vi.fn().mockResolvedValue({
     userId: "user_1",
     recentConversations: [],
@@ -73,49 +65,23 @@ async function loadPost({
   })
   const formatUserChatbotContextForPrompt = vi.fn(() => "本人文脈:\n- 既存の本人文脈はありません。")
   const generate = vi.fn().mockResolvedValue(llmResponse)
-  const decideRoutingFallback = vi.fn(() => llmResponse.proposedRoutingDecision ?? {
-    kind: "continue" as const,
-    nextQuestion: "最終媒体を教えてください",
-  })
-  const createTier1ChromeNotionAiClient = vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" }))
-  const createTier2HostedChromeNotionAiClient = vi.fn(() => ({ tier: "tier-2-hosted-chrome-notion-ai" }))
-  const createTier3OllamaDeepSeekClient = vi.fn(() => ({ tier: "tier-3-ollama-deepseek" }))
-  const createTier4FormFallbackClient = vi.fn(() => ({ tier: "tier-4-form-fallback" }))
-  const createChatbotLlmTierOrchestrator = vi.fn(() => ({
-    generate,
-    isHealthy: vi.fn().mockResolvedValue(true),
-  }))
 
   vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/chatbot/server", () => ({
     loadConversationBySessionId,
     createConversation,
     appendMessage,
-    truncateConversationFromMessage,
     updateConversationRouting,
     linkConversationToUser,
-    setConversationNotionAiThreadId,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
-    decideRoutingFallback,
-    tier1NotionAiModelFallbackChain: [
-      "acai-budino-high",
-      "opal-quince-high",
-      "ambrosia-tart-high",
-    ],
-    tier1ObservedNotionAiModel: "acai-budino-high",
-    createLocalChatbotTierAttemptLogger: vi.fn(() => undefined),
-    createTier1ChromeNotionAiClient,
-    createTier2HostedChromeNotionAiClient,
-    createTier3OllamaDeepSeekClient,
-    createTier4FormFallbackClient,
-    normalizeChatbotLlmResponse: vi.fn((response: { rawText: string; tier: string }) => ({
-      content: response.rawText.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, "").trim(),
-      role: "assistant",
-      model: response.tier,
-      finish_reason: "stop",
+    createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),
+    createTier2OllamaDeepSeekClient: vi.fn(() => ({ tier: "tier-2-ollama-deepseek" })),
+    createTier4FormFallbackClient: vi.fn(() => ({ tier: "tier-4-form-fallback" })),
+    createChatbotLlmTierOrchestrator: vi.fn(() => ({
+      generate,
+      isHealthy: vi.fn().mockResolvedValue(true),
     })),
-    createChatbotLlmTierOrchestrator,
   }))
 
   const route = await import("./route")
@@ -126,17 +92,10 @@ async function loadPost({
     createConversation,
     appendMessage,
     updateConversationRouting,
-    truncateConversationFromMessage,
     linkConversationToUser,
-    setConversationNotionAiThreadId,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     generate,
-    createTier1ChromeNotionAiClient,
-    createTier2HostedChromeNotionAiClient,
-    createTier3OllamaDeepSeekClient,
-    createTier4FormFallbackClient,
-    createChatbotLlmTierOrchestrator,
   }
 }
 
@@ -153,7 +112,6 @@ describe("POST /api/chatbot/message", () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get("set-cookie")).toContain("chatbot_session_id=")
-    expect(response.headers.get("set-cookie")).toContain("Max-Age=604800")
     expect(response.headers.get("set-cookie")).toContain("HttpOnly")
     expect(route.createConversation).toHaveBeenCalledWith({
       sessionId: expect.any(String),
@@ -161,9 +119,8 @@ describe("POST /api/chatbot/message", () => {
     })
     await expect(response.json()).resolves.toMatchObject({
       conversationId: "conv_1",
-      userMessage: { id: "user_1", role: "user", content: "相談したいです" },
       assistantMessage: { role: "assistant", content: "最終媒体を教えてください" },
-      ui: { kind: "choice-panel" },
+      ui: { kind: "none" },
     })
   })
 
@@ -181,123 +138,27 @@ describe("POST /api/chatbot/message", () => {
       userId: "user_1",
       currentConversationId: "conv_1",
     })
-    expect(response.headers.get("set-cookie")).toContain("chatbot_session_id=session_1")
-    expect(response.headers.get("set-cookie")).toContain("Max-Age=604800")
   })
 
-  it("uses clientSessionId when the cookie is missing after a cancelled request", async () => {
-    const route = await loadPost()
-
-    const response = await route.POST(
-      request({
-        message: "編集後です",
-        clientSessionId: "00000000-0000-4000-8000-000000000002",
-      }),
-    )
-
-    expect(response.status).toBe(200)
-    expect(route.createConversation).toHaveBeenCalledWith({
-      sessionId: "00000000-0000-4000-8000-000000000002",
-      userId: null,
+  it("returns tier4-inquiry-form ui for deterministic tier4 fallback", async () => {
+    const route = await loadPost({
+      llmResponse: {
+        rawText: "最終媒体を教えてください",
+        tier: "tier-4-form-fallback",
+      },
     })
-    expect(response.headers.get("set-cookie")).toContain(
-      "chatbot_session_id=00000000-0000-4000-8000-000000000002",
-    )
-  })
 
-  it("returns assistant message and choice-panel ui on orchestrator success", async () => {
-    const route = await loadPost()
-
-    const response = await route.POST(
-      request(
-        {
-          message: "媒体を選びます",
-          clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001",
-        },
-        "chatbot_session_id=session_1",
-      ),
-    )
+    const response = await route.POST(request({ message: "媒体を選びます" }, "chatbot_session_id=session_1"))
 
     expect(response.status).toBe(200)
     expect(route.appendMessage).toHaveBeenCalledWith({
-      id: "client_msg_00000000-0000-4000-8000-000000000001",
       conversationId: "conv_1",
       role: "user",
       content: "媒体を選びます",
     })
     await expect(response.json()).resolves.toMatchObject({
-      tier: "tier-3-ollama-deepseek",
-      ui: { kind: "choice-panel", choiceSet: { id: "final-medium" } },
-    })
-  })
-
-  it("accepts editTargetMessageId and passes it to the message handler path", async () => {
-    const route = await loadPost({
-      existingConversation: conversation({
-        messages: [
-          message("user", "最初の相談です"),
-          { ...message("user", "古い条件です"), id: "msg_edit" },
-        ],
-      }),
-    })
-
-    const response = await route.POST(
-      request(
-        { message: "編集後です", editTargetMessageId: "msg_edit" },
-        "chatbot_session_id=session_1",
-      ),
-    )
-
-    expect(response.status).toBe(200)
-    expect(route.truncateConversationFromMessage).toHaveBeenCalledWith({
-      conversationId: "conv_1",
-      messageId: "msg_edit",
-    })
-    await expect(response.json()).resolves.toMatchObject({
-      userMessage: { id: "user_1", content: "編集後です" },
-      assistantMessage: { id: "assistant_1" },
-    })
-  })
-
-  it("wires the default LLM clients in tier 1, tier 2 Hosted, tier 3, tier 4 order", async () => {
-    const route = await loadPost()
-
-    const response = await route.POST(request({ message: "媒体を選びます" }, "chatbot_session_id=session_1"))
-
-    expect(response.status).toBe(200)
-    expect(route.createChatbotLlmTierOrchestrator).toHaveBeenCalledWith(
-      expect.objectContaining({
-        clients: [
-          { tier: "tier-1-chrome-notion-ai" },
-          { tier: "tier-2-hosted-chrome-notion-ai" },
-          { tier: "tier-3-ollama-deepseek" },
-          { tier: "tier-4-form-fallback" },
-        ],
-      }),
-    )
-    expect(route.createTier2HostedChromeNotionAiClient).toHaveBeenCalledOnce()
-  })
-
-  it("returns sanitized assistant message content", async () => {
-    const route = await loadPost({
-      llmResponse: {
-        rawText: "<think>内部推論です。</think>\n\n最終媒体を教えてください",
-        tier: "tier-3-ollama-deepseek",
-        proposedRoutingDecision: { kind: "continue", nextQuestion: "最終媒体を教えてください" },
-      },
-    })
-
-    const response = await route.POST(request({ message: "相談です" }, "chatbot_session_id=session_1"))
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      assistantMessage: { content: "最終媒体を教えてください" },
-    })
-    expect(route.appendMessage).toHaveBeenCalledWith({
-      conversationId: "conv_1",
-      role: "assistant",
-      content: "最終媒体を教えてください",
-      llmModel: "tier-3-ollama-deepseek",
+      tier: "tier-4-form-fallback",
+      ui: { kind: "tier4-inquiry-form" },
     })
   })
 
@@ -306,7 +167,6 @@ describe("POST /api/chatbot/message", () => {
       llmResponse: {
         rawText: "フォームに切り替えます",
         tier: "tier-4-form-fallback",
-        proposedRoutingDecision: { kind: "continue", nextQuestion: "フォームに切り替えます" },
       },
     })
 

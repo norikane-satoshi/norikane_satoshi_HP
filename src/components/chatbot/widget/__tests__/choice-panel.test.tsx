@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ChoicePanel } from "@/components/chatbot/widget/ChoicePanel"
-import { additionalWorkChoices, finalMediumChoices } from "@/lib/chatbot/domain/survey-choice"
+import { finalMediumChoices } from "@/lib/chatbot/domain/survey-choice"
 
 describe("ChoicePanel", () => {
   afterEach(() => cleanup())
@@ -21,21 +21,8 @@ describe("ChoicePanel", () => {
     const onSelect = vi.fn()
     render(<ChoicePanel choiceSet={finalMediumChoices} onSelect={onSelect} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "劇場公開" }))
+    screen.getByRole("button", { name: "劇場公開" }).click()
 
     expect(onSelect).toHaveBeenCalledWith(["cinema"])
-  })
-
-  it("keeps none exclusive in multiple selection mode", () => {
-    const onSelect = vi.fn()
-    render(<ChoicePanel choiceSet={additionalWorkChoices} onSelect={onSelect} allowMultiple />)
-
-    fireEvent.click(screen.getByLabelText("消し物"))
-    fireEvent.click(screen.getByLabelText("肌修正"))
-    fireEvent.click(screen.getByLabelText("なし"))
-    fireEvent.click(screen.getByRole("button", { name: "選択内容を送信" }))
-
-    expect(onSelect).toHaveBeenCalledTimes(1)
-    expect(onSelect).toHaveBeenCalledWith(["none"])
   })
 })

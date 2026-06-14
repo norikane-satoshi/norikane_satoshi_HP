@@ -13,15 +13,13 @@ describe("DirectContactCard", () => {
     render(
       <DirectContactCard
         reason="tech-question"
-        suggestedMessage="のりかね本人に直接確認します。"
+        suggestedMessage="のりかね映像設計室の担当者に直接確認します。"
         onSubmitEmail={vi.fn()}
       />,
     )
 
     expect(screen.getByText("技術相談")).toBeInTheDocument()
-    expect(screen.getByText("のりかね本人に直接確認します。")).toBeInTheDocument()
-    expect(screen.getByText("必須")).toBeInTheDocument()
-    expect(screen.getAllByText("任意")).toHaveLength(2)
+    expect(screen.getByText("のりかね映像設計室の担当者に直接確認します。")).toBeInTheDocument()
   })
 
   it("submits contact values when email is present", () => {
@@ -37,7 +35,7 @@ describe("DirectContactCard", () => {
     fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: " client@example.com " } })
     fireEvent.change(screen.getByLabelText("会社名"), { target: { value: " Example Studio " } })
     fireEvent.change(screen.getByLabelText("お名前"), { target: { value: " 田中 " } })
-    screen.getByRole("button", { name: "この内容で送信" }).click()
+    screen.getByRole("button", { name: "連絡内容を送る" }).click()
 
     expect(onSubmitEmail).toHaveBeenCalledWith("client@example.com", "Example Studio", "田中")
   })
@@ -52,23 +50,7 @@ describe("DirectContactCard", () => {
       />,
     )
 
-    screen.getByRole("button", { name: "この内容で送信" }).click()
-
-    expect(onSubmitEmail).not.toHaveBeenCalled()
-  })
-
-  it("does not submit a phone number as the required contact", () => {
-    const onSubmitEmail = vi.fn()
-    render(
-      <DirectContactCard
-        reason="tight-deadline"
-        suggestedMessage="確認します。"
-        onSubmitEmail={onSubmitEmail}
-      />,
-    )
-
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "090-1234-5678" } })
-    screen.getByRole("button", { name: "この内容で送信" }).click()
+    screen.getByRole("button", { name: "連絡内容を送る" }).click()
 
     expect(onSubmitEmail).not.toHaveBeenCalled()
   })

@@ -1119,11 +1119,9 @@ if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
 
 export default function CorrectionReversibility({
   isPlaying,
-  isMobile = false,
   reducedMotion,
 }: {
   isPlaying: boolean
-  isMobile?: boolean
   reducedMotion: boolean
 }) {
   const [animT, setAnimT] = useState(0)
@@ -1250,82 +1248,6 @@ export default function CorrectionReversibility({
   )
 
   const badgeOps = badgeOpacities(state)
-
-  if (isMobile) {
-    const mobileCells = [
-      {
-        cellX: 0,
-        title: "ゲイン × ガンマ（乗算 + べき乗）",
-        tint: TINT_GAMMA,
-        curveBuilds: leftCurves,
-        clipId: "cr-plot-left-mobile",
-        rgbFormula: { r: leftFormulaR, g: leftFormulaG, b: leftFormulaB },
-      },
-      {
-        cellX: CELL_W + GAP,
-        title: "リフト × ガンマ（加算 + べき乗）",
-        tint: TINT_LIFT,
-        curveBuilds: rightCurves,
-        clipId: "cr-plot-right-mobile",
-        rgbFormula: {
-          r: rightFormulaR,
-          g: rightFormulaG,
-          b: rightFormulaB,
-        },
-      },
-    ]
-
-    return (
-      <svg
-        viewBox={`0 0 ${CELL_W} ${H * mobileCells.length}`}
-        className="absolute inset-0 h-full w-full"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        {mobileCells.map((cell, index) => (
-          <svg
-            key={cell.clipId}
-            x={0}
-            y={index * H}
-            width={CELL_W}
-            height={H}
-            viewBox={`${cell.cellX} 0 ${CELL_W} ${H}`}
-            preserveAspectRatio="xMidYMid meet"
-          >
-            <defs>
-              <clipPath id={cell.clipId}>
-                <rect
-                  x={cell.cellX + PLOT_X_LOCAL}
-                  y={PLOT_Y}
-                  width={PLOT_W}
-                  height={PLOT_H}
-                />
-              </clipPath>
-            </defs>
-            <Cell
-              cellX={cell.cellX}
-              title={cell.title}
-              tint={cell.tint}
-              showIdeal={showIdeal}
-              idealOpacity={idealOpacity}
-              curveBuilds={cell.curveBuilds}
-              clipId={cell.clipId}
-              rgbFormula={cell.rgbFormula}
-              badgeOps={badgeOps}
-            />
-          </svg>
-        ))}
-        <line
-          x1={32}
-          y1={H}
-          x2={CELL_W - 32}
-          y2={H}
-          stroke={GRID}
-          strokeWidth={1}
-          strokeDasharray="6 8"
-        />
-      </svg>
-    )
-  }
 
   return (
     <svg

@@ -193,7 +193,6 @@ model ChatbotConversation {
   id              String                  @id @default(cuid())
   sessionId       String                  @unique
   userId          String?
-  notionAiThreadId String?                @unique
   startedAt       DateTime                @default(now())
   lastMessageAt   DateTime                @updatedAt
   routingDecision String?
@@ -203,9 +202,6 @@ model ChatbotConversation {
   customerCompany String?
   customerEmail   String?
   customerPhone   String?
-  currentQuestion   String?
-  activeChoices     String?
-  conversationState String?
   finalMedium     String?
   jobType         String?
   mainDuration    String?

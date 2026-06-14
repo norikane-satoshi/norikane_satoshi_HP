@@ -1,25 +1,15 @@
 export type {
   ChatbotConversation,
   ChatbotConversationContext,
-  ChatbotBookingPrefill,
   ChatbotMessage,
   ChatbotMessageRole,
   ConversationState,
 } from "@/lib/chatbot/domain/conversation"
-export type { RoutingDecision } from "@/lib/chatbot/domain/routing-decision"
-export {
-  formatConsultationSummary,
-  hasRequiredConsultationNotificationSlots,
-  hasRequiredEmailConsultationSlots,
-} from "@/lib/chatbot/domain/consultation-summary"
-export type { ConsultationSummaryInput } from "@/lib/chatbot/domain/consultation-summary"
+export type { BookingCardPrefill, RoutingDecision } from "@/lib/chatbot/domain/routing-decision"
 export {
   additionalWorkChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
-  productionOptionChoices,
-  remoteWorkSiteConfirmationChoices,
-  specificWorkSiteChoices,
   surveyChoiceSets,
   workSiteChoices,
 } from "@/lib/chatbot/domain/survey-choice"

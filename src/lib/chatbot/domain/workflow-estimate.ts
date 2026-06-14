@@ -39,7 +39,6 @@ export type CandidateWindow = {
   end: string
   label: string
   note?: string
-  available?: boolean
 }
 
 export type JobContext = {
@@ -52,7 +51,6 @@ export type JobContext = {
   projectLengthMinutes?: number
   publicReleaseDate?: string
   preferredStartDate?: string
-  preferredStartDateApproximate?: boolean
   preferredAttendanceDates?: string[]
   referenceUrls?: string[]
   additionalWork?: Array<"retouch" | "skin-retouch" | "other">

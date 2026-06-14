@@ -84,7 +84,7 @@ export const VISUAL_REGISTRY: Record<string, VisualConfig> = {
     caption:
       "赤主 / 緑主 / 青主 / 黄主 の 4 高彩度サンプルに ch 毎に偏った加算をランプし、ある閾値を超えたところで RGB 順位が反転して chip の hue がジャンプする様を 8 秒 1 ループで可視化。現在 swatch + 起点 inset + RGB バー + 順位ラベル + ひっくり返りバッジで反転の瞬間を見せる。",
     alt: "4 つの高彩度サンプル chip (赤主 / 緑主 / 青主 / 黄主) に偏った加算を当て、RGB 順位反転による hue ジャンプを swatch + バー + バッジで可視化するアニメーション。8 秒 1 ループ。",
-    aspect: { width: 16, height: 9 },
+    aspect: { width: 16, height: 5 },
     intro: "彩度の高い色は、加算の偏りで順位が反転して hue が跳ぶ。",
     loopSec: 8,
   },

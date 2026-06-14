@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   getNotionClient: vi.fn(),
   query: vi.fn(),
   listChildren: vi.fn(),
-  readFile: vi.fn(),
 }))
 
 vi.mock("next/cache", () => ({
@@ -17,10 +16,6 @@ vi.mock("@/lib/notion/server/client", () => ({
   PUBLISHED_PROPERTY: "Published",
   SLUG_PROPERTY: "Slug",
   TITLE_PROPERTY: "Name",
-}))
-
-vi.mock("node:fs/promises", () => ({
-  readFile: mocks.readFile,
 }))
 
 import {
@@ -68,28 +63,12 @@ describe("notion note fetching", () => {
     mocks.getNotionClient.mockReset()
     mocks.query.mockReset()
     mocks.listChildren.mockReset()
-    mocks.readFile.mockReset()
-    mocks.readFile.mockRejectedValue(new Error("missing fixture"))
   })
 
-  it("uses only published fallback notes when the Notion client is unavailable", async () => {
+  it("returns empty/null results when the Notion client is unavailable", async () => {
     mocks.getNotionClient.mockReturnValue(null)
-    mocks.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith("article-correction.md")) {
-        return "# Local correction\n\nCorrection body"
-      }
-      if (path.endsWith("article-grading.md")) {
-        return "# Local grading\n\nGrading body"
-      }
-      if (path.endsWith("article-filmlook.md")) {
-        return "# Local filmlook\n\nFilmlook body"
-      }
-      throw new Error(`Unexpected path: ${path}`)
-    })
 
-    const notes = await listPublishedNotes()
-    expect(notes.map((note) => note.slug)).toEqual(["correction"])
-    expect(notes[0]).toMatchObject({ slug: "correction", title: "Local correction" })
+    await expect(listPublishedNotes()).resolves.toEqual([])
     await expect(getPublishedNoteBySlug("missing")).resolves.toBeNull()
   })
 
@@ -211,110 +190,5 @@ describe("notion note fetching", () => {
 
     await expect(getPublishedNoteBySlug("missing")).resolves.toBeNull()
     await expect(getPublishedNoteBySlug("bad")).resolves.toBeNull()
-  })
-
-  it("does not supplement Notion results with local unpublished fallback notes", async () => {
-    mocks.getNotionClient.mockReturnValue({
-      dataSources: { query: mocks.query },
-      blocks: { children: { list: mocks.listChildren } },
-    })
-    mocks.query.mockResolvedValueOnce({
-      results: [page({ id: "note-1", slug: "correction", title: "Notion correction" })],
-      has_more: false,
-      next_cursor: null,
-    })
-    mocks.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith("article-correction.md")) {
-        return "# Local correction\n\nCorrection body"
-      }
-      if (path.endsWith("article-grading.md")) {
-        return "# Local grading\n\nGrading body"
-      }
-      if (path.endsWith("article-filmlook.md")) {
-        return "# Local filmlook\n\nFilmlook body"
-      }
-      throw new Error(`Unexpected path: ${path}`)
-    })
-
-    const notes = await listPublishedNotes()
-    expect(notes.map((note) => note.slug)).toEqual(["correction"])
-    expect(notes[0]).toMatchObject({ slug: "correction", title: "Notion correction" })
-  })
-
-  it("returns null for unpublished fallback slugs in both Notion and local modes", async () => {
-    mocks.getNotionClient.mockReturnValue({
-      dataSources: { query: mocks.query },
-      blocks: { children: { list: mocks.listChildren } },
-    })
-    mocks.query.mockResolvedValueOnce({
-      results: [],
-      has_more: false,
-      next_cursor: null,
-    })
-    mocks.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith("article-grading.md")) {
-        return "# Local grading\n\nGrading body"
-      }
-      throw new Error(`Unexpected path: ${path}`)
-    })
-
-    await expect(getPublishedNoteBySlug("grading")).resolves.toBeNull()
-
-    mocks.getNotionClient.mockReturnValue(null)
-    await expect(getPublishedNoteBySlug("grading")).resolves.toBeNull()
-  })
-
-  it("returns correction in both Notion and local modes", async () => {
-    mocks.getNotionClient.mockReturnValue({
-      dataSources: { query: mocks.query },
-      blocks: { children: { list: mocks.listChildren } },
-    })
-    mocks.query.mockResolvedValueOnce({
-      results: [page({ id: "note-1", slug: "correction", title: "Notion correction" })],
-      has_more: false,
-      next_cursor: null,
-    })
-    mocks.listChildren.mockResolvedValueOnce({
-      results: [],
-      has_more: false,
-      next_cursor: null,
-    })
-    mocks.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith("article-correction.md")) {
-        return "# Local correction\n\nCorrection body"
-      }
-      throw new Error(`Unexpected path: ${path}`)
-    })
-
-    await expect(getPublishedNoteBySlug("correction")).resolves.toMatchObject({
-      slug: "correction",
-      title: "Notion correction",
-    })
-
-    mocks.getNotionClient.mockReturnValue(null)
-    await expect(getPublishedNoteBySlug("correction")).resolves.toMatchObject({
-      slug: "correction",
-      title: "Local correction",
-      blocks: [{ type: "paragraph" }],
-    })
-  })
-
-  it("parses published fallback article markdown into blocks in local mode", async () => {
-    mocks.getNotionClient.mockReturnValue(null)
-    mocks.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith("article-correction.md")) {
-        return "# Local correction\n\n## Heading\n\nBody with **bold** and [link](https://example.com)."
-      }
-      throw new Error(`Unexpected path: ${path}`)
-    })
-
-    await expect(getPublishedNoteBySlug("correction")).resolves.toMatchObject({
-      slug: "correction",
-      title: "Local correction",
-      blocks: [
-        { type: "heading_1" },
-        { type: "paragraph" },
-      ],
-    })
   })
 })

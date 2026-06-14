@@ -134,7 +134,6 @@ function buildProbeRequest(): ChatbotLlmRequest {
     conversationState: {
       hasFinalMedium: true,
       hasJobKind: true,
-      hasProjectLength: true,
       hasAdditionalWork: true,
       hasDocumentaryAttachments: true,
       hasWorkSite: true,

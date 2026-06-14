@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 /**
  * v5 動画モジュール: 破綻の代表型 — 色のひっくり返り
  *
- * viewBox 1600×900 (16:9)。AY で「暗部の濁り」セルを削除し、
+ * viewBox 1600×500 (16:5)。AY で「暗部の濁り」セルを削除し、
  * 「色のひっくり返り」単独構成に再編した。LOOP = 8s。
  *
  * 加算が偏ると、ある閾値で RGB の信号順位が反転し、chip の hue が跳ぶ。
@@ -23,6 +23,8 @@ import { useEffect, useRef, useState } from "react"
  */
 
 const LOOP = 8.0
+const W = 1600
+const H = 500
 
 const TEXT_PRIMARY = "rgba(28,15,110,0.95)"
 const TEXT_MUTED = "rgba(28,15,110,0.55)"
@@ -48,6 +50,9 @@ function umphase(t: number) {
 function clamp01(v: number) {
   return v < 0 ? 0 : v > 1 ? 1 : v
 }
+
+const FLIP_HEADER_X = 56
+const FLIP_HEADER_Y = 64
 
 type RGB = [number, number, number]
 
@@ -107,148 +112,51 @@ function chipCurrent(spec: ChipSpec, u: number): RGB {
   ]
 }
 
-type FlipLayout = {
-  w: number
-  h: number
-  rectInset: number
-  headerX: number
-  headerY: number
-  titleFont: number
-  descriptionX: number
-  descriptionFont: number
-  strengthFont: number
-  colW: number
-  colGap: number
-  labelY: number
-  labelFont: number
-  swatchY: number
-  swatchSize: number
-  insetSize: number
-  insetLabelOffset: number
-  insetLabelFont: number
-  barY0: number
-  barW: number
-  barH: number
-  barGap: number
-  channelFont: number
-  valueFont: number
-  rankBaseY: number
-  rankNowY: number
-  rankBaseFont: number
-  rankNowFont: number
-  badgeY: number
-  badgeW: number
-  badgeH: number
-  badgeFont: number
-}
-
+const FLIP_COL_W = 240
+const FLIP_COL_GAP = 80
 const FLIP_COLS = 4
+const FLIP_GRID_W = FLIP_COL_W * FLIP_COLS + FLIP_COL_GAP * (FLIP_COLS - 1)
+const FLIP_GRID_X0 = (W - FLIP_GRID_W) / 2
 
-const DESKTOP_LAYOUT: FlipLayout = {
-  w: 1600,
-  h: 900,
-  rectInset: 12,
-  headerX: 56,
-  headerY: 78,
-  titleFont: 38,
-  descriptionX: 392,
-  descriptionFont: 19,
-  strengthFont: 24,
-  colW: 330,
-  colGap: 48,
-  labelY: 158,
-  labelFont: 20,
-  swatchY: 180,
-  swatchSize: 210,
-  insetSize: 56,
-  insetLabelOffset: 8,
-  insetLabelFont: 14,
-  barY0: 520,
-  barW: 250,
-  barH: 26,
-  barGap: 12,
-  channelFont: 17,
-  valueFont: 15,
-  rankBaseY: 720,
-  rankNowY: 756,
-  rankBaseFont: 17,
-  rankNowFont: 20,
-  badgeY: 824,
-  badgeW: 144,
-  badgeH: 38,
-  badgeFont: 17,
-}
-
-const MOBILE_LAYOUT: FlipLayout = {
-  w: 1000,
-  h: 900,
-  rectInset: 10,
-  headerX: 28,
-  headerY: 76,
-  titleFont: 34,
-  descriptionX: 300,
-  descriptionFont: 18,
-  strengthFont: 20,
-  colW: 235,
-  colGap: 15,
-  labelY: 150,
-  labelFont: 20,
-  swatchY: 176,
-  swatchSize: 160,
-  insetSize: 42,
-  insetLabelOffset: 7,
-  insetLabelFont: 13,
-  barY0: 482,
-  barW: 180,
-  barH: 22,
-  barGap: 10,
-  channelFont: 17,
-  valueFont: 15,
-  rankBaseY: 666,
-  rankNowY: 698,
-  rankBaseFont: 17,
-  rankNowFont: 20,
-  badgeY: 765,
-  badgeW: 128,
-  badgeH: 34,
-  badgeFont: 16,
-}
-
-function gridX0(layout: FlipLayout) {
-  return (
-    (layout.w -
-      (layout.colW * FLIP_COLS + layout.colGap * (FLIP_COLS - 1))) /
-    2
-  )
-}
+const FLIP_LABEL_Y = 112
+const FLIP_SWATCH_Y = 126
+const FLIP_SWATCH_SIZE = 150
+const FLIP_INSET_SIZE = 42
+const FLIP_INSET_LABEL_OFFSET = 6
+const FLIP_BAR_Y0 = 300
+const FLIP_BAR_W = 176
+const FLIP_BAR_H = 20
+const FLIP_BAR_GAP = 8
+const FLIP_RANK_BASE_Y = 400
+const FLIP_RANK_NOW_Y = 424
+const FLIP_BADGE_Y = 456
+const VALUE_Y = 474
 
 function FlipColumn({
-  layout,
   col,
   spec,
   u,
 }: {
-  layout: FlipLayout
   col: number
   spec: ChipSpec
   u: number
 }) {
-  const colX = gridX0(layout) + col * (layout.colW + layout.colGap)
+  const colX = FLIP_GRID_X0 + col * (FLIP_COL_W + FLIP_COL_GAP)
   const cur = chipCurrent(spec, u)
   const baseRank = rankLabel(spec.base)
   const curRank = rankLabel(cur)
   const flipped = rankSignature(spec.base) !== rankSignature(cur)
-  const swatchX = (layout.colW - layout.swatchSize) / 2
-  const insetX = swatchX + layout.swatchSize - layout.insetSize - 8
-  const insetY = layout.swatchY + layout.swatchSize - layout.insetSize - 8
+  const swatchX = (FLIP_COL_W - FLIP_SWATCH_SIZE) / 2
+  const insetX = swatchX + FLIP_SWATCH_SIZE - FLIP_INSET_SIZE - 8
+  const insetY = FLIP_SWATCH_Y + FLIP_SWATCH_SIZE - FLIP_INSET_SIZE - 8
   return (
     <g transform={`translate(${colX}, 0)`}>
       {/* Chip ラベル */}
       <text
-        x={layout.colW / 2}
-        y={layout.labelY}
+        x={FLIP_COL_W / 2}
+        y={FLIP_LABEL_Y}
         textAnchor="middle"
-        fontSize={layout.labelFont}
+        fontSize={16}
         fontWeight={600}
         fill={TEXT_MUTED}
       >
@@ -257,21 +165,21 @@ function FlipColumn({
       {/* 現在 swatch (大) */}
       <rect
         x={swatchX}
-        y={layout.swatchY}
-        width={layout.swatchSize}
-        height={layout.swatchSize}
+        y={FLIP_SWATCH_Y}
+        width={FLIP_SWATCH_SIZE}
+        height={FLIP_SWATCH_SIZE}
         rx={14}
         ry={14}
         fill={rgbCss(cur)}
         stroke="rgba(28,15,110,0.18)"
-        strokeWidth={1.6}
+        strokeWidth={1.4}
       />
       {/* 起点 inset (右下、白縁付き) */}
       <text
-        x={insetX + layout.insetSize / 2}
-        y={insetY - layout.insetLabelOffset}
+        x={insetX + FLIP_INSET_SIZE / 2}
+        y={insetY - FLIP_INSET_LABEL_OFFSET}
         textAnchor="middle"
-        fontSize={layout.insetLabelFont}
+        fontSize={11}
         fill="rgba(255,255,255,0.95)"
         fontWeight={700}
       >
@@ -280,8 +188,8 @@ function FlipColumn({
       <rect
         x={insetX}
         y={insetY}
-        width={layout.insetSize}
-        height={layout.insetSize}
+        width={FLIP_INSET_SIZE}
+        height={FLIP_INSET_SIZE}
         rx={8}
         ry={8}
         fill={rgbCss(spec.base)}
@@ -292,16 +200,16 @@ function FlipColumn({
       {(["R", "G", "B"] as const).map((ch, i) => {
         const v = cur[i]
         const baseV = spec.base[i]
-        const barX = (layout.colW - layout.barW) / 2
-        const barY = layout.barY0 + i * (layout.barH + layout.barGap)
+        const barX = (FLIP_COL_W - FLIP_BAR_W) / 2
+        const barY = FLIP_BAR_Y0 + i * (FLIP_BAR_H + FLIP_BAR_GAP)
         const isClipped = v >= 0.999
         return (
           <g key={ch}>
             <text
               x={barX - 10}
-              y={barY + layout.barH - 7}
+              y={barY + FLIP_BAR_H - 7}
               textAnchor="end"
-              fontSize={layout.channelFont}
+              fontSize={14}
               fontWeight={700}
               fill={CHAN_COLORS[ch]}
               fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -311,8 +219,8 @@ function FlipColumn({
             <rect
               x={barX}
               y={barY}
-              width={layout.barW}
-              height={layout.barH}
+              width={FLIP_BAR_W}
+              height={FLIP_BAR_H}
               rx={4}
               ry={4}
               fill="rgba(255,255,255,0.7)"
@@ -323,8 +231,8 @@ function FlipColumn({
             <rect
               x={barX}
               y={barY}
-              width={layout.barW * clamp01(baseV)}
-              height={layout.barH}
+              width={FLIP_BAR_W * clamp01(baseV)}
+              height={FLIP_BAR_H}
               rx={4}
               ry={4}
               fill={CHAN_COLORS[ch]}
@@ -334,8 +242,8 @@ function FlipColumn({
             <rect
               x={barX}
               y={barY}
-              width={layout.barW * clamp01(v)}
-              height={layout.barH}
+              width={FLIP_BAR_W * clamp01(v)}
+              height={FLIP_BAR_H}
               rx={4}
               ry={4}
               fill={CHAN_COLORS[ch]}
@@ -344,18 +252,18 @@ function FlipColumn({
             {/* clip マーカー */}
             {isClipped ? (
               <line
-                x1={barX + layout.barW}
+                x1={barX + FLIP_BAR_W}
                 y1={barY - 3}
-                x2={barX + layout.barW}
-                y2={barY + layout.barH + 3}
+                x2={barX + FLIP_BAR_W}
+                y2={barY + FLIP_BAR_H + 3}
                 stroke="rgb(180,60,80)"
                 strokeWidth={2}
               />
             ) : null}
             <text
-              x={barX + layout.barW + 10}
-              y={barY + layout.barH - 7}
-              fontSize={layout.valueFont}
+              x={barX + FLIP_BAR_W + 10}
+              y={barY + FLIP_BAR_H - 7}
+              fontSize={13}
               fill={TEXT_MUTED}
               fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
             >
@@ -366,10 +274,10 @@ function FlipColumn({
       })}
       {/* 順位ラベル (起点) */}
       <text
-        x={layout.colW / 2}
-        y={layout.rankBaseY}
+        x={FLIP_COL_W / 2}
+        y={FLIP_RANK_BASE_Y}
         textAnchor="middle"
-        fontSize={layout.rankBaseFont}
+        fontSize={14}
         fill={TEXT_MUTED}
         fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
       >
@@ -377,10 +285,10 @@ function FlipColumn({
       </text>
       {/* 順位ラベル (現在) */}
       <text
-        x={layout.colW / 2}
-        y={layout.rankNowY}
+        x={FLIP_COL_W / 2}
+        y={FLIP_RANK_NOW_Y}
         textAnchor="middle"
-        fontSize={layout.rankNowFont}
+        fontSize={16}
         fontWeight={700}
         fill={flipped ? "rgb(180,60,80)" : TEXT_PRIMARY}
         fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -389,23 +297,23 @@ function FlipColumn({
       </text>
       {/* ひっくり返りバッジ */}
       {flipped ? (
-        <g transform={`translate(${layout.colW / 2}, ${layout.badgeY})`}>
+        <g transform={`translate(${FLIP_COL_W / 2}, ${FLIP_BADGE_Y})`}>
           <rect
-            x={-layout.badgeW / 2}
-            y={-layout.badgeH / 2 - 3}
-            width={layout.badgeW}
-            height={layout.badgeH}
-            rx={layout.badgeH / 2}
-            ry={layout.badgeH / 2}
+            x={-58}
+            y={-18}
+            width={116}
+            height={30}
+            rx={15}
+            ry={15}
             fill="rgba(180,60,80,0.18)"
             stroke="rgba(180,60,80,0.65)"
-            strokeWidth={1.4}
+            strokeWidth={1.2}
           />
           <text
             x={0}
-            y={5}
+            y={4}
             textAnchor="middle"
-            fontSize={layout.badgeFont}
+            fontSize={14}
             fontWeight={700}
             fill="rgb(180,60,80)"
           >
@@ -418,28 +326,20 @@ function FlipColumn({
 }
 
 function FlipCell({
-  layout,
   t,
   reducedMotion,
-  isMobile,
 }: {
-  layout: FlipLayout
   t: number
   reducedMotion: boolean
-  isMobile: boolean
 }) {
   const u = reducedMotion ? 0.65 : umphase(t)
-  const descriptionLineGap = layout.descriptionFont * 1.28
-  const descriptionY = isMobile
-    ? layout.headerY - (layout.titleFont - layout.descriptionFont) * 0.8
-    : layout.headerY
   return (
     <g>
       <rect
-        x={layout.rectInset}
-        y={layout.rectInset}
-        width={layout.w - layout.rectInset * 2}
-        height={layout.h - layout.rectInset * 2}
+        x={18}
+        y={18}
+        width={W - 36}
+        height={H - 36}
         rx={24}
         ry={24}
         fill={TINT_FLIP.bg}
@@ -448,74 +348,55 @@ function FlipCell({
         strokeWidth={1.4}
       />
       <rect
-        x={layout.rectInset}
-        y={layout.rectInset}
-        width={layout.w - layout.rectInset * 2}
-        height={layout.h - layout.rectInset * 2}
+        x={18}
+        y={18}
+        width={W - 36}
+        height={H - 36}
         rx={24}
         ry={24}
         fill="rgba(255,255,255,0.55)"
       />
       <text
-        x={layout.headerX}
-        y={layout.headerY}
-        fontSize={layout.titleFont}
+        x={FLIP_HEADER_X}
+        y={FLIP_HEADER_Y}
+        fontSize={32}
         fontWeight={700}
         fill={TINT_FLIP.curve}
       >
         色のひっくり返り
       </text>
-      {isMobile ? (
-        <text
-          x={layout.descriptionX}
-          y={descriptionY}
-          fontSize={layout.descriptionFont}
-          fontWeight={500}
-          fill={TEXT_MUTED}
-        >
-          <tspan x={layout.descriptionX} y={descriptionY}>
-            加算が偏ると、ある閾値で
-          </tspan>
-          <tspan x={layout.descriptionX} dy={descriptionLineGap}>
-            RGB 順位が反転して hue が跳ぶ
-          </tspan>
-        </text>
-      ) : (
-        <text
-          x={layout.descriptionX}
-          y={layout.headerY}
-          fontSize={layout.descriptionFont}
-          fontWeight={500}
-          fill={TEXT_MUTED}
-        >
-          加算が偏ると、ある閾値で RGB 順位が反転して hue が跳ぶ
-        </text>
-      )}
       <text
-        x={layout.w - layout.headerX}
-        y={layout.headerY}
+        x={FLIP_HEADER_X}
+        y={FLIP_HEADER_Y + 32}
+        fontSize={17}
+        fontWeight={500}
+        fill={TEXT_MUTED}
+      >
+        加算が偏ると、ある閾値で RGB 順位が反転して hue が跳ぶ
+      </text>
+      {CHIPS.map((spec, col) => (
+        <FlipColumn key={col} col={col} spec={spec} u={u} />
+      ))}
+      <text
+        x={W - FLIP_HEADER_X}
+        y={VALUE_Y}
         textAnchor="end"
         fill={TEXT_PRIMARY}
-        fontSize={layout.strengthFont}
+        fontSize={22}
         fontWeight={600}
         fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
       >
-        加算強度 {u.toFixed(2)}
+        加算強度 u = {u.toFixed(2)}
       </text>
-      {CHIPS.map((spec, col) => (
-        <FlipColumn key={col} layout={layout} col={col} spec={spec} u={u} />
-      ))}
     </g>
   )
 }
 
 export default function CorrectionFailureModes({
   isPlaying,
-  isMobile,
   reducedMotion,
 }: {
   isPlaying: boolean
-  isMobile?: boolean
   reducedMotion: boolean
 }) {
   const [animT, setAnimT] = useState(0)
@@ -546,20 +427,14 @@ export default function CorrectionFailureModes({
   }, [isPlaying, reducedMotion])
 
   const t = animT
-  const layout = isMobile ? MOBILE_LAYOUT : DESKTOP_LAYOUT
 
   return (
     <svg
-      viewBox={`0 0 ${layout.w} ${layout.h}`}
+      viewBox={`0 0 ${W} ${H}`}
       className="absolute inset-0 h-full w-full"
       preserveAspectRatio="xMidYMid meet"
     >
-      <FlipCell
-        layout={layout}
-        t={t}
-        reducedMotion={reducedMotion}
-        isMobile={Boolean(isMobile)}
-      />
+      <FlipCell t={t} reducedMotion={reducedMotion} />
     </svg>
   )
 }

@@ -1,6 +1,4 @@
 import { unstable_cache } from "next/cache"
-import { readFile } from "node:fs/promises"
-import { join } from "node:path"
 import {
   getNotionClient,
   IB_NOTE_DATA_SOURCE_ID,
@@ -15,7 +13,6 @@ import type {
   PartialBlockObjectResponse,
   QueryDataSourceParameters,
   QueryDataSourceResponse,
-  RichTextItemResponse,
 } from "@notionhq/client"
 import type { BlockWithChildren } from "./types"
 
@@ -70,219 +67,6 @@ function toSummary(page: PageObjectResponse): NoteSummary | null {
 
 type QueryFilter = QueryDataSourceParameters["filter"]
 
-const FALLBACK_NOTES = [
-  { slug: "correction", file: "article-correction.md", published: true },
-  { slug: "grading", file: "article-grading.md", published: false },
-  { slug: "filmlook", file: "article-filmlook.md", published: false },
-] as const
-
-type FallbackNoteSlug = (typeof FALLBACK_NOTES)[number]["slug"]
-
-function fallbackMeta(slug: FallbackNoteSlug) {
-  return FALLBACK_NOTES.find((note) => note.slug === slug)
-}
-
-function fallbackSummary(
-  slug: FallbackNoteSlug,
-  title: string
-): NoteSummary {
-  return {
-    id: `fallback-${slug}`,
-    slug,
-    title,
-    createdTime: "2026-04-24T00:00:00.000Z",
-    lastEditedTime: "2026-04-24T00:00:00.000Z",
-  }
-}
-
-async function readFallbackMarkdown(
-  slug: FallbackNoteSlug
-): Promise<string | null> {
-  const meta = fallbackMeta(slug)
-  if (!meta) return null
-  try {
-    return await readFile(join(process.cwd(), meta.file), "utf8")
-  } catch {
-    return null
-  }
-}
-
-function fallbackTitle(markdown: string) {
-  const heading = markdown
-    .split(/\r?\n/)
-    .find((line) => line.startsWith("# "))
-  return heading?.replace(/^#\s+/, "").trim() ?? ""
-}
-
-function baseAnnotations(overrides?: Partial<RichTextItemResponse["annotations"]>) {
-  return {
-    bold: false,
-    italic: false,
-    strikethrough: false,
-    underline: false,
-    code: false,
-    color: "default" as const,
-    ...overrides,
-  }
-}
-
-function richText(
-  text: string,
-  options?: {
-    href?: string | null
-    annotations?: Partial<RichTextItemResponse["annotations"]>
-  }
-): RichTextItemResponse {
-  return {
-    type: "text",
-    text: { content: text, link: options?.href ? { url: options.href } : null },
-    annotations: baseAnnotations(options?.annotations),
-    plain_text: text,
-    href: options?.href ?? null,
-  } as RichTextItemResponse
-}
-
-function parseInlineMarkdown(text: string): RichTextItemResponse[] {
-  const parts: RichTextItemResponse[] = []
-  const pattern = /(\*\*([^*]+)\*\*|\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`)/g
-  let cursor = 0
-  for (const match of text.matchAll(pattern)) {
-    if (match.index > cursor) {
-      parts.push(richText(text.slice(cursor, match.index)))
-    }
-    if (match[2]) {
-      parts.push(richText(match[2], { annotations: { bold: true } }))
-    } else if (match[3] && match[4]) {
-      parts.push(richText(match[3], { href: match[4] }))
-    } else if (match[5]) {
-      parts.push(richText(match[5], { annotations: { code: true } }))
-    }
-    cursor = match.index + match[0].length
-  }
-  if (cursor < text.length) {
-    parts.push(richText(text.slice(cursor)))
-  }
-  return parts
-}
-
-function fallbackBlock(
-  id: string,
-  type: "heading_1" | "heading_2" | "heading_3" | "paragraph" | "divider",
-  text = ""
-): BlockWithChildren {
-  if (type === "divider") {
-    return { id, type: "divider", has_children: false, divider: {} } as BlockWithChildren
-  }
-  const rich_text = parseInlineMarkdown(text)
-  if (type === "heading_1") {
-    return {
-      id,
-      type,
-      has_children: false,
-      heading_1: { rich_text, is_toggleable: false, color: "default" },
-    } as BlockWithChildren
-  }
-  if (type === "heading_2") {
-    return {
-      id,
-      type,
-      has_children: false,
-      heading_2: { rich_text, is_toggleable: false, color: "default" },
-    } as BlockWithChildren
-  }
-  if (type === "heading_3") {
-    return {
-      id,
-      type,
-      has_children: false,
-      heading_3: { rich_text, is_toggleable: false, color: "default" },
-    } as BlockWithChildren
-  }
-  return {
-    id,
-    type,
-    has_children: false,
-    paragraph: { rich_text, color: "default" },
-  } as BlockWithChildren
-}
-
-function markdownToBlocks(markdown: string, slug: string): BlockWithChildren[] {
-  const blocks: BlockWithChildren[] = []
-  const paragraphLines: string[] = []
-  let blockIndex = 0
-
-  const flushParagraph = () => {
-    if (paragraphLines.length === 0) return
-    const text = paragraphLines.join(" ").trim()
-    paragraphLines.length = 0
-    if (!text) return
-    blocks.push(fallbackBlock(`${slug}-p-${blockIndex++}`, "paragraph", text))
-  }
-
-  for (const rawLine of markdown.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line) {
-      flushParagraph()
-      continue
-    }
-    if (line === "---") {
-      flushParagraph()
-      blocks.push(fallbackBlock(`${slug}-d-${blockIndex++}`, "divider"))
-      continue
-    }
-    if (line.startsWith("# ")) {
-      flushParagraph()
-      continue
-    }
-    if (line.startsWith("#### ")) {
-      flushParagraph()
-      blocks.push(fallbackBlock(`${slug}-h3-${blockIndex++}`, "heading_3", line.slice(5)))
-      continue
-    }
-    if (line.startsWith("### ")) {
-      flushParagraph()
-      blocks.push(fallbackBlock(`${slug}-h2-${blockIndex++}`, "heading_2", line.slice(4)))
-      continue
-    }
-    if (line.startsWith("## ")) {
-      flushParagraph()
-      blocks.push(fallbackBlock(`${slug}-h1-${blockIndex++}`, "heading_1", line.slice(3)))
-      continue
-    }
-    paragraphLines.push(line)
-  }
-
-  flushParagraph()
-  return blocks
-}
-
-async function getFallbackNoteBySlug(
-  slug: string
-): Promise<NoteFull | null> {
-  const meta = fallbackMeta(slug as FallbackNoteSlug)
-  if (!meta || !meta.published) return null
-  const markdown = await readFallbackMarkdown(meta.slug)
-  if (!markdown) return null
-  const title = fallbackTitle(markdown)
-  if (!title) return null
-  return {
-    ...fallbackSummary(meta.slug, title),
-    blocks: markdownToBlocks(markdown, meta.slug),
-  }
-}
-
-async function listFallbackNotes(): Promise<NoteSummary[]> {
-  const summaries: NoteSummary[] = []
-  for (const meta of FALLBACK_NOTES) {
-    if (!meta.published) continue
-    const markdown = await readFallbackMarkdown(meta.slug)
-    if (!markdown) continue
-    const title = fallbackTitle(markdown)
-    if (title) summaries.push(fallbackSummary(meta.slug, title))
-  }
-  return summaries
-}
-
 async function _queryPublishedImpl(
   slugEquals?: string
 ): Promise<PageObjectResponse[]> {
@@ -331,9 +115,6 @@ const queryPublished = unstable_cache(
 )
 
 export async function listPublishedNotes(): Promise<NoteSummary[]> {
-  if (!getNotionClient()) {
-    return listFallbackNotes()
-  }
   const pages = await queryPublished()
   const out: NoteSummary[] = []
   for (const p of pages) {
@@ -397,9 +178,6 @@ const listAllBlocks = unstable_cache(
 export async function getPublishedNoteBySlug(
   slug: string
 ): Promise<NoteFull | null> {
-  if (!getNotionClient()) {
-    return getFallbackNoteBySlug(slug)
-  }
   const pages = await queryPublished(slug)
   const page = pages[0]
   if (!page) return null

@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
-  remoteWorkSiteConfirmationChoices,
-  specificWorkSiteChoices,
+  additionalWorkChoices,
+  finalMediumChoices,
+  workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
   complexConversationTurnThreshold,
@@ -19,6 +20,7 @@ function jobContext(overrides: Partial<JobContext> = {}): JobContext {
     finalMedium: "web",
     workSite: "satoshi-studio",
     documentaryAttachment: { kind: "none" },
+    preferredStartDate: "2026-07-01",
     ...overrides,
   }
 }
@@ -27,25 +29,21 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
   return {
     hasFinalMedium: true,
     hasJobKind: true,
-    hasProjectLength: true,
-    hasMaterialHandoff: true,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
     hasReferenceUrls: true,
     hasContactEmail: true,
     hasDesiredSchedule: true,
-    hasCustomerIdentity: true,
-    hasProjectTitle: true,
     turnCount: settledConversationTurnThreshold,
     contactEmail: "client@example.com",
-    projectTitle: "テスト案件",
+    customerName: "Client",
     ...overrides,
   }
 }
 
 describe("chatbot fallback router", () => {
-  it("continues without rule-generated readiness copy when final medium is missing", () => {
+  it("continues with final medium choices when final medium is missing", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
@@ -57,29 +55,11 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: "",
+      presentChoices: finalMediumChoices,
     })
   })
 
-  it("does not generate initial intake copy on the first turn", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext(),
-      conversationState: conversationState({
-        hasJobKind: false,
-        hasDesiredSchedule: false,
-        hasCustomerIdentity: false,
-        hasContactEmail: false,
-        turnCount: 1,
-      }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "continue",
-      nextQuestion: "",
-    })
-  })
-
-  it("does not return additional-work choices while readiness slots are missing", () => {
+  it("continues with additional work choices after final medium and job kind are collected", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
@@ -91,11 +71,11 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: "",
+      presentChoices: additionalWorkChoices,
     })
   })
 
-  it("continues without rule-generated readiness copy when work site is missing", () => {
+  it("continues with work site choices when work site is missing", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
@@ -107,191 +87,18 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: "",
+      presentChoices: workSiteChoices,
     })
   })
 
-  it("asks for confirmation before applying remote grading to entrusted work site", () => {
+  it("does not pre-route to inline booking when schedule and contact facts are ready", () => {
     const result = decideRoutingFallback({
-      jobContext: jobContext({ workSite: "remote-grading" }),
-      conversationState: conversationState({
-        hasWorkSite: false,
-        hasPendingRemoteWorkSiteRecommendation: true,
-      }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "continue",
-      nextQuestion: expect.stringContaining("オンラインでカラーコレクションのプレビュー"),
-      presentChoices: remoteWorkSiteConfirmationChoices,
-    })
-  })
-
-  it("asks for a concrete work site after remote grading recommendation is declined", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({ workSite: "remote-grading" }),
-      conversationState: conversationState({
-        hasWorkSite: false,
-        hasPendingRemoteWorkSiteRecommendation: false,
-        declinedRemoteWorkSiteRecommendation: true,
-      }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "continue",
-      nextQuestion: "具体的な作業場所のご希望を教えてください。",
-      presentChoices: specificWorkSiteChoices,
-    })
-  })
-
-  it("routes to inline booking when schedule, job context, and email are ready", () => {
-    const context = jobContext()
-    const result = decideRoutingFallback({
-      jobContext: context,
+      jobContext: jobContext(),
       conversationState: conversationState(),
     })
 
     expect(result).toMatchObject({
-      kind: "to-booking-inline",
-      suggestedSlots: expect.arrayContaining([
-        expect.objectContaining({ note: "1時間候補" }),
-      ]),
-      jobContext: expect.objectContaining(context),
-    })
-  })
-
-  it("does not block inline booking only because project title is missing", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext(),
-      conversationState: conversationState({
-        hasProjectTitle: false,
-        projectTitle: undefined,
-      }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "to-booking-inline",
-    })
-  })
-
-  it("keeps asking for project length before inline booking", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({ projectLengthMinutes: undefined }),
-      conversationState: conversationState({ hasProjectLength: false }),
-    })
-
-    expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: "",
-    })
-  })
-
-  it("keeps asking for material handoff before inline booking", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext(),
-      conversationState: conversationState({ hasMaterialHandoff: false }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "continue",
-      nextQuestion: "",
-    })
-  })
-
-  it("does not require optional pre-booking details for inline booking", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext(),
-      conversationState: conversationState({
-        hasMaterialDetails: false,
-        hasDeliveryFormat: false,
-        hasProductionOptions: false,
-        hasBudgetRange: false,
-      }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "to-booking-inline",
-    })
-  })
-
-  it("asks for readiness slots instead of optional production choices", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext(),
-      conversationState: conversationState({
-        hasDesiredSchedule: false,
-        hasContactEmail: false,
-        hasMaterialDetails: true,
-        hasDeliveryFormat: true,
-        hasProductionOptions: false,
-      }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "continue",
-      nextQuestion: "",
-    })
-  })
-
-  it("uses date candidates and live workflow days for live 60 minute work", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({
-        jobKind: "live-60m",
-        finalMedium: "live",
-        projectLengthMinutes: 60,
-      }),
-      conversationState: conversationState(),
-    })
-
-    expect(result).toMatchObject({
-      kind: "to-booking-inline",
-      suggestedSlots: expect.arrayContaining([
-        expect.objectContaining({ note: "日付候補 / 仮キープ 7日" }),
-      ]),
-      jobContext: expect.objectContaining({
-        workflowEstimate: expect.objectContaining({
-          totalMinDays: 7,
-          totalMaxDays: 8,
-        }),
-      }),
-    })
-    expect(result).not.toMatchObject({
-      suggestedSlots: expect.arrayContaining([
-        expect.objectContaining({ note: "1時間候補" }),
-      ]),
-    })
-  })
-
-  it("routes tightish live work with completed gates to inline booking", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({
-        jobKind: "live-60m",
-        finalMedium: "live",
-        workSite: "on-site",
-        projectLengthMinutes: 150,
-        preferredStartDate: "2026-06-15",
-        publicReleaseDate: "2026-06-30",
-        additionalWork: ["retouch", "skin-retouch"],
-        retouchCutCount: 70,
-      }),
-      conversationState: conversationState({
-        daysUntilStart: tightDeadlineThresholdDays + 2,
-      }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "to-booking-inline",
-      suggestedSlots: expect.arrayContaining([
-        expect.objectContaining({
-          label: expect.stringContaining(" - "),
-          note: "日付候補 / 仮キープ 9日",
-        }),
-      ]),
-      jobContext: expect.objectContaining({
-        workflowEstimate: expect.objectContaining({
-          totalMinDays: 8.5,
-          totalMaxDays: 10,
-        }),
-      }),
     })
   })
 
@@ -309,24 +116,6 @@ describe("chatbot fallback router", () => {
       summary: {
         customerEmail: "client@example.com",
       },
-    })
-  })
-
-  it("does not route to email when required consultation slots are missing", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({ finalMedium: "other", jobKind: undefined }),
-      conversationState: conversationState({
-        hasFinalMedium: false,
-        hasJobKind: false,
-        hasWorkSite: false,
-        hasDesiredSchedule: false,
-        turnCount: settledConversationTurnThreshold + 2,
-      }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "continue",
-      nextQuestion: "",
     })
   })
 
@@ -357,7 +146,7 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("keeps the tight deadline boundary inclusive and requires contact before booking on the next day", () => {
+  it("keeps the tight deadline boundary inclusive and the next day as continue", () => {
     const boundary = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({ daysUntilStart: tightDeadlineThresholdDays }),
@@ -376,6 +165,7 @@ describe("chatbot fallback router", () => {
     })
     expect(nextDay).toMatchObject({
       kind: "continue",
+      nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
     })
   })
 
@@ -392,10 +182,11 @@ describe("chatbot fallback router", () => {
     })
 
     expect(boundary).toMatchObject({
-      kind: "to-booking-inline",
+      kind: "continue",
+      nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
     })
     expect(nextDay).toMatchObject({
-      kind: "to-booking-inline",
+      kind: "continue",
     })
   })
 
@@ -423,41 +214,6 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("routes pricing questions to direct contact without returning amounts", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext(),
-      conversationState: conversationState({ asksPricing: true }),
-    })
-
-    expect(result).toMatchObject({
-      kind: "to-direct-contact",
-      reason: "pricing",
-      suggestedMessage: expect.not.stringMatching(/\d+円|万円|¥|￥/u),
-    })
-  })
-
-  it("routes contract, personal, other-client, and private-technique boundaries to direct contact", () => {
-    const cases: Array<[Partial<ConversationState>, string]> = [
-      [{ contractDecision: true }, "contract-decision"],
-      [{ personalQuestion: true }, "personal-life"],
-      [{ otherClientInformation: true }, "other-client"],
-      [{ confidentialTechniqueQuestion: true }, "confidential-technique"],
-      [{ privateMethodNameExposure: true }, "confidential-technique"],
-    ]
-
-    for (const [state, reason] of cases) {
-      const result = decideRoutingFallback({
-        jobContext: jobContext(),
-        conversationState: conversationState(state),
-      })
-
-      expect(result).toMatchObject({
-        kind: "to-direct-contact",
-        reason,
-      })
-    }
-  })
-
   it("routes work review requests to direct contact", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
@@ -482,15 +238,15 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("routes private method detail requests to direct contact", () => {
+  it("routes Look Decomposer detail requests to direct contact", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
-      conversationState: conversationState({ privateMethodNameExposure: true }),
+      conversationState: conversationState({ lookDecomposerDetail: true }),
     })
 
     expect(result).toMatchObject({
       kind: "to-direct-contact",
-      reason: "confidential-technique",
+      reason: "plugin-detail",
     })
   })
 

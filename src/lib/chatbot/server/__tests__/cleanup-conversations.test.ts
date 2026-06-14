@@ -48,7 +48,7 @@ describe("cleanupExpiredChatbotConversations", () => {
     const result = await cleanupExpiredChatbotConversations({ now, batchSize: 10 })
 
     expect(mocks.prisma.chatbotConversation.findMany).toHaveBeenCalledWith({
-      where: { lastMessageAt: { lt: new Date("2026-05-19T00:00:00.000Z") } },
+      where: { lastMessageAt: { lt: new Date("2026-04-26T00:00:00.000Z") } },
       select: { id: true },
       orderBy: { lastMessageAt: "asc" },
       take: 10,
@@ -70,7 +70,7 @@ describe("cleanupExpiredChatbotConversations", () => {
       where: { id: { in: ["conversation-old"] } },
     })
     expect(result).toEqual({
-      cutoffIso: "2026-05-19T00:00:00.000Z",
+      cutoffIso: "2026-04-26T00:00:00.000Z",
       retentionDays: CHATBOT_CONVERSATION_RETENTION_DAYS,
       scannedConversationCount: 1,
       deletedConversationCount: 1,

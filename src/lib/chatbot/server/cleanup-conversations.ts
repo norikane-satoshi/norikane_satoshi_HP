@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 
-export const CHATBOT_CONVERSATION_RETENTION_DAYS = 7
+export const CHATBOT_CONVERSATION_RETENTION_DAYS = 30
 const DEFAULT_BATCH_SIZE = 100
 const DAY_MS = 24 * 60 * 60 * 1000
 

@@ -45,8 +45,8 @@ describe("GET /api/cron/reconcile-pending-gcal", () => {
     mocks.prisma.bookingGroup.findMany.mockResolvedValue([])
     mocks.prisma.adminActionLog.create.mockResolvedValue({})
     mocks.cleanupExpiredChatbotConversations.mockResolvedValue({
-      cutoffIso: "2026-05-19T00:00:00.000Z",
-    retentionDays: 7,
+      cutoffIso: "2026-04-26T00:00:00.000Z",
+      retentionDays: 30,
       scannedConversationCount: 1,
       deletedConversationCount: 1,
       deletedMessageCount: 2,
@@ -67,8 +67,8 @@ describe("GET /api/cron/reconcile-pending-gcal", () => {
       rollbackCount: 0,
       chatbotCleanup: {
         ok: true,
-        cutoffIso: "2026-05-19T00:00:00.000Z",
-      retentionDays: 7,
+        cutoffIso: "2026-04-26T00:00:00.000Z",
+        retentionDays: 30,
         scannedConversationCount: 1,
         deletedConversationCount: 1,
         deletedMessageCount: 2,
@@ -106,6 +106,32 @@ describe("GET /api/cron/reconcile-pending-gcal", () => {
       failedCount: 0,
       rollbackCount: 0,
       chatbotCleanup: { ok: false, error: "cleanup_failed" },
+    })
+  })
+
+  it("still runs cleanup when reconcile throws", async () => {
+    mocks.getCachedCalendarAccessToken.mockRejectedValue(new Error("calendar token failed"))
+
+    const response = await GET(request())
+
+    expect(response.status).toBe(200)
+    expect(mocks.cleanupExpiredChatbotConversations).toHaveBeenCalledTimes(1)
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      reconciledCount: 0,
+      failedCount: 0,
+      rollbackCount: 0,
+      chatbotCleanup: {
+        ok: true,
+        cutoffIso: "2026-04-26T00:00:00.000Z",
+        retentionDays: 30,
+        scannedConversationCount: 1,
+        deletedConversationCount: 1,
+        deletedMessageCount: 2,
+        deletedSurveyResponseCount: 0,
+        deletedInquiryCount: 1,
+        unlinkedBookingGroupCount: 1,
+      },
     })
   })
 })

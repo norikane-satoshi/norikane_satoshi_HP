@@ -1,35 +1,22 @@
-import type {
-  ChatbotMessageRole,
-  ConversationState,
-  JobContext,
-  RoutingDecision,
-} from "@/lib/chatbot/domain"
-import type { ChatbotKnowledgeContext } from "@/lib/chatbot/server/knowledge-context"
+import type { ChatbotMessageRole, ConversationState, JobContext } from "@/lib/chatbot/domain"
 
 export type ChatbotLlmTier =
   | "tier-1-chrome-notion-ai"
-  | "tier-2-hosted-chrome-notion-ai"
-  | "tier-3-ollama-deepseek"
+  | "tier-2-ollama-deepseek"
   | "tier-4-form-fallback"
 
 export type ChatbotLlmRequest = {
   systemPrompt: string
   messages: ReadonlyArray<{ role: ChatbotMessageRole; content: string }>
-  notionAiThread?: {
-    threadId?: string
-  }
-  knowledgeContext?: ChatbotKnowledgeContext
   conversationState: ConversationState
   jobContext: JobContext
   latestUserMessage?: string
-  forceFullPrompt?: boolean
   temperature?: number
   maxOutputTokens?: number
 }
 
 export type ChatbotLlmResponse = {
   rawText: string
-  proposedRoutingDecision?: RoutingDecision
   tokensUsed?: number
   latencyMs?: number
   tier: ChatbotLlmTier
@@ -40,7 +27,6 @@ export interface ChatbotLlmClient {
   readonly tier: ChatbotLlmTier
   generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse>
   isHealthy(): Promise<boolean>
-  getLastHealthError?(): ChatbotLlmError | Error | undefined
 }
 
 type ChatbotLlmErrorCode =
@@ -79,7 +65,6 @@ export class ChatbotLlmError extends Error {
  */
 export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
   "tier-1-chrome-notion-ai",
-  "tier-2-hosted-chrome-notion-ai",
-  "tier-3-ollama-deepseek",
+  "tier-2-ollama-deepseek",
   "tier-4-form-fallback",
 ] as const

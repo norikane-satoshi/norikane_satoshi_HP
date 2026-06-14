@@ -12,7 +12,7 @@ export async function HomeScheduleSection() {
       id="schedule"
       className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
     >
-      <div className="glass-card glass-card--hp-schedule p-8 md:p-10 xl:p-14">
+      <div className="glass-card p-8 md:p-10 xl:p-14">
         <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
           Schedule
         </p>

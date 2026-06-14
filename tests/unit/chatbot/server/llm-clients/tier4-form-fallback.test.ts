@@ -12,19 +12,15 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
   return {
     hasFinalMedium: true,
     hasJobKind: true,
-    hasProjectLength: true,
-    hasMaterialHandoff: true,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
     hasReferenceUrls: true,
     hasContactEmail: true,
     hasDesiredSchedule: true,
-    hasCustomerIdentity: true,
-    hasProjectTitle: true,
     turnCount: 3,
     contactEmail: "client@example.com",
-    projectTitle: "テスト案件",
+    customerName: "Client",
     ...overrides,
   }
 }
@@ -35,6 +31,7 @@ function jobContext(overrides: Partial<JobContext> = {}): JobContext {
     finalMedium: "web",
     workSite: "remote-grading",
     documentaryAttachment: { kind: "none" },
+    preferredStartDate: "2026-07-01",
     ...overrides,
   }
 }
@@ -63,19 +60,12 @@ describe("Tier4FormFallbackClient", () => {
     await expect(client.isHealthy()).resolves.toBe(true)
   })
 
-  it("returns the default fallback text and deterministic routing decision", async () => {
+  it("returns the default fallback text without routing side-channel data", async () => {
     const client = createTier4FormFallbackClient()
 
     await expect(client.generate(llmRequest())).resolves.toMatchObject({
       rawText: tier4FormFallbackDefaults.responseText,
       tier: "tier-4-form-fallback",
-      proposedRoutingDecision: {
-        kind: "to-booking-inline",
-        suggestedSlots: expect.arrayContaining([
-          expect.objectContaining({ note: "1時間候補" }),
-        ]),
-        jobContext: expect.objectContaining(jobContext()),
-      },
     })
   })
 
@@ -89,7 +79,7 @@ describe("Tier4FormFallbackClient", () => {
     })
   })
 
-  it("uses the fallback router for direct-contact decisions", async () => {
+  it("does not embed fallback routing decisions in the LLM response", async () => {
     const client = createTier4FormFallbackClient()
 
     await expect(
@@ -98,13 +88,7 @@ describe("Tier4FormFallbackClient", () => {
           conversationState: conversationState({ technicalQuestion: true }),
         }),
       ),
-    ).resolves.toMatchObject({
-      proposedRoutingDecision: {
-        kind: "to-direct-contact",
-        reason: "tech-question",
-        requireEmail: true,
-      },
-    })
+    ).resolves.not.toHaveProperty("proposedRoutingDecision")
   })
 
   it("does not call fetch or any network transport", async () => {

@@ -4,11 +4,9 @@ import { ArrowRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
-import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { isBookingEnabled } from "@/lib/feature-flags"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
-import { hpPublicContent } from "@/lib/hp/public-content"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
 export const revalidate = 3600
@@ -23,6 +21,40 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image" },
 }
+
+const timeline = [
+  {
+    year: "2013",
+    event: "IMAGICA 入社",
+    detail:
+      "静岡文化芸術大学デザイン学部卒業後、IMAGICA にてカラリストアシスタントとしてキャリアをスタート。フィルムテレシネ業務を経て、DaVinci Resolve によるグレーディング技術を習得。",
+  },
+  {
+    year: "2018",
+    event: "メインカラリスト",
+    detail:
+      "劇場映画・配信作品・CM・MVのカラーグレーディングを担当。DaVinci Resolve によるオンラインエディット・VFX 連携のサービスを立ち上げ、部署全体に新ワークフローを展開。ACES ワークフローによるカラーマネジメントを専門に。DaVinci Resolve 認定トレーナーとして、テレビ局や Blackmagic Design 本社での講義活動も行う。",
+  },
+  {
+    year: "2023",
+    event: "バーチャルプロダクション カラークリエイター兼任",
+    detail:
+      "LED ウォールを用いた撮影現場でのオンセットカラーマネジメントを担当。異なるソース間のカラーを統一し、CG 素材・LED 背景と実写素材の自然な馴染ませを実現。",
+  },
+  {
+    year: "2026",
+    event: "独立開業",
+    detail:
+      "のりかね映像設計室（Norikane Film Design Office）として独立。カラーグレーディングの体系化と教育にも取り組む。",
+  },
+]
+
+const tools = [
+  "DaVinci Resolve",
+  "Premiere Pro",
+  "After Effects",
+  "Photoshop",
+]
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -48,96 +80,19 @@ function InstagramIcon({ className }: { className?: string }) {
   )
 }
 
-const socialIcons = {
-  X: XIcon,
-  YouTube: YoutubeIcon,
-  Instagram: InstagramIcon,
-} as const
-
-function ProfileForeground() {
-  return (
-    <>
-      <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
-      <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
-        {hpPublicContent.profile.sectionTitle}
-      </h2>
-
-      <div className="@container/profile">
-        <div className="mt-8 grid grid-cols-1 gap-10 @[680px]/profile:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] @[680px]/profile:gap-12">
-          {/* Left: photo + identity + tools */}
-          <div className="flex flex-col items-center gap-5 @[680px]/profile:items-start">
-            <ProfilePhoto />
-            <div className="text-center @[680px]/profile:text-left">
-              <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
-              <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
-                {hpPublicContent.profile.title}
-              </p>
-            </div>
-            <div className="flex flex-wrap justify-center gap-2 @[680px]/profile:justify-start">
-              {hpPublicContent.profile.tools.map((tool) => (
-                <span
-                  key={tool}
-                  className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
-                >
-                  {tool}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-1 flex items-center justify-center gap-3 @[680px]/profile:justify-start">
-              {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
-                const Icon = socialIcons[label]
-                return (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="glass-btn glass-btn--profile-social flex h-10 w-10 items-center justify-center text-hp"
-                    aria-label={label}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </a>
-                )
-              })}
-              <PressDialog />
-            </div>
-          </div>
-
-          {/* Right: career timeline */}
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-              Career
-            </p>
-            <div className="mt-5 space-y-6 md:space-y-7">
-              {hpPublicContent.profile.timeline.map((item) => (
-                <div
-                  key={item.year}
-                  className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
-                >
-                  <span
-                    className="font-[var(--font-inter)] text-sm font-bold"
-                    style={{ color: "var(--accent-primary)" }}
-                  >
-                    {item.year}
-                  </span>
-                  <div>
-                    <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
-                      {item.event}
-                    </p>
-                    <p className="hp-body mt-2 text-xs text-hp-muted md:text-sm">
-                      {item.detail}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
+const socialLinks = [
+  { label: "X", href: "https://x.com/norikanesatoshi", Icon: XIcon },
+  {
+    label: "YouTube",
+    href: "https://www.youtube.com/@norikanesatoshi",
+    Icon: YoutubeIcon,
+  },
+  {
+    label: "Instagram",
+    href: "https://www.instagram.com/satoshi_norikane_colorist/",
+    Icon: InstagramIcon,
+  },
+]
 
 export default async function HomePage() {
   const notes = await listPublishedNotes()
@@ -147,8 +102,8 @@ export default async function HomePage() {
 
       {/* Intro */}
       <section className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14">
-        <p className="hp-body text-base text-hp md:text-lg">
-          {hpPublicContent.intro}
+        <p className="text-base leading-relaxed text-hp md:text-lg">
+          フリーランスカラリストとして、劇場映画・配信作品・CM・ブランドフィルムのカラーグレーディングを承っています。立ち会い対応・リモート対応どちらも可能です。プロジェクトの規模・スケジュール・納品仕様に合わせた柔軟なワークフローでご提案いたします。DaVinci Resolve 認定トレーナーとして講義、講習会のご依頼も承ってます。
         </p>
       </section>
 
@@ -158,7 +113,7 @@ export default async function HomePage() {
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
         <p className="text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
-        <h2 className="hp-heading mt-2 text-2xl md:text-3xl font-semibold text-hp">
+        <h2 className="mt-2 text-2xl md:text-3xl font-semibold text-hp">
           ノート
         </h2>
 
@@ -168,7 +123,7 @@ export default async function HomePage() {
               <Link
                 key={note.id}
                 href={`/notes/${note.slug}`}
-                className="group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note p-6 md:p-7"
+                className="group flex shrink-0 snap-start flex-col glass-card p-6 md:p-7"
                 style={{ width: "min(84vw, 340px)", minHeight: 200 }}
               >
                 <div className="flex items-baseline gap-3">
@@ -176,7 +131,7 @@ export default async function HomePage() {
                     {`Note ${String(idx + 1).padStart(2, "0")}`}
                   </span>
                 </div>
-                <h3 className="hp-heading mt-3 text-base md:text-lg font-semibold text-hp">
+                <h3 className="mt-3 text-base md:text-lg font-semibold text-hp leading-snug">
                   {note.title}
                 </h3>
                 <div className="mt-auto pt-6 flex justify-end">
@@ -196,8 +151,80 @@ export default async function HomePage() {
         id="profile"
         className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
       >
-        <div className="glass-card glass-card--hp-profile p-8 md:p-10 xl:p-12">
-          <ProfileForeground />
+        <div className="glass-card p-8 md:p-10 xl:p-12">
+          <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
+          <h2 className="mt-2 text-2xl font-semibold text-hp md:text-3xl">
+            プロフィール
+          </h2>
+
+          <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] md:gap-12 xl:gap-16">
+            {/* Left: photo + identity + tools */}
+            <div className="flex flex-col items-center gap-5 md:items-start">
+              <ProfilePhoto />
+              <div className="text-center md:text-left">
+                <p className="text-sm text-hp-muted">則兼 智志</p>
+                <p className="mt-1 text-base font-semibold text-hp md:text-lg">
+                  フリーランスカラリスト
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2 md:justify-start">
+                {tools.map((tool) => (
+                  <span
+                    key={tool}
+                    className="glass-badge px-3 py-1 text-xs font-medium"
+                  >
+                    {tool}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-1 flex items-center justify-center gap-3 md:justify-start">
+                {socialLinks.map(({ label, href, Icon }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="glass-btn flex h-10 w-10 items-center justify-center text-hp"
+                    aria-label={label}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: career timeline */}
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
+                Career
+              </p>
+              <div className="mt-5 space-y-6 md:space-y-7">
+                {timeline.map((item) => (
+                  <div
+                    key={item.year}
+                    className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
+                  >
+                    <span
+                      className="font-[var(--font-inter)] text-sm font-bold"
+                      style={{ color: "var(--accent-primary)" }}
+                    >
+                      {item.year}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold leading-tight text-hp md:text-base">
+                        {item.event}
+                      </p>
+                      <p className="mt-2 text-xs leading-relaxed text-hp-muted md:text-sm md:leading-[1.75]">
+                        {item.detail}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <FeaturedWorks />
         </div>
       </section>

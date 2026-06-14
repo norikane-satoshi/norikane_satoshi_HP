@@ -1,54 +1,24 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react"
-import { ChevronDown, Minus, PanelRightClose, PanelRightOpen, Sparkles } from "lucide-react"
+import { useState } from "react"
+import { Minus, Sparkles } from "lucide-react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
-import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 
-import {
-  isChatbotRequestCancelledError,
-  submitChatbotInquiry,
-  submitChatbotMessage,
-  type ChatbotResponseTier,
-  type ChatbotTierAttemptDebug,
-  type SubmitInquiryInput,
-  type WidgetUi,
-} from "./api"
+import { submitChatbotInquiry, submitChatbotMessage, type SubmitInquiryInput, type WidgetUi } from "./api"
 import { ChatInput } from "./ChatInput"
 import { ChatMessage } from "./ChatMessage"
 import { ChatbotBookingCard } from "./ChatbotBookingCard"
 import { ChoicePanel } from "./ChoicePanel"
 import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
-import {
-  formatChatbotTierDebugDetails,
-  formatChatbotTierDebugLabel,
-  isLocalChatbotTierDebugHostname,
-} from "./local-tier-debug"
 import { SecurityNote } from "./SecurityNote"
-import { ThinkingIndicator } from "./ThinkingIndicator"
-import {
-  CHATBOT_WIDGET_MIN_HEIGHT,
-  CHATBOT_WIDGET_MIN_WIDTH,
-  getWidgetLayoutBounds,
-  sanitizeWidgetLayout,
-  type WidgetLayout,
-  type WidgetMode,
-  type WidgetPosition,
-  type WidgetSize,
-} from "./useWidgetState"
 
 type WidgetShellProps = {
   onMinimize: () => void
-  layout: WidgetLayout
-  onModeChange: (mode: WidgetMode) => void
-  onFloatingGeometryChange: (geometry: { position?: WidgetPosition; size?: WidgetSize }) => void
-  onSidePeekWidthChange: (width: number) => void
 }
 
 type WidgetMessage = {
-  id?: string
   role: ChatbotMessageRole
   content: string
   createdAt: Date
@@ -62,627 +32,44 @@ const initialMessage = {
 
 const noUi = { kind: "none" } satisfies WidgetUi
 const networkErrorMessage = "通信に失敗しました。少し時間をおいてもう一度お試しください。"
-const inquirySentMessage = "送信しました。のりかね本人が確認して返信します。"
-const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v1"
-const CHATBOT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
-const thinkingDelayNoticeMs = 6000
-const CHATBOT_SIDE_PEEK_OCCUPIED_WIDTH_VAR = "--chatbot-side-peek-occupied-width"
-const FOCUS_RING_CLASS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
-const FLOATING_RESIZE_CORNERS = [
-  { edge: "se", className: "bottom-0 right-0 h-5 w-5 cursor-nwse-resize" },
-  { edge: "sw", className: "bottom-0 left-0 h-5 w-5 cursor-nesw-resize" },
-  { edge: "ne", className: "right-0 top-0 h-5 w-5 cursor-nesw-resize" },
-  { edge: "nw", className: "left-0 top-0 h-5 w-5 cursor-nwse-resize" },
-] as const
+const inquirySentMessage = "送信しました。担当者からの返信をお待ちください。"
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object")
-}
-
-function isCandidateWindowArray(value: unknown): value is Extract<WidgetUi, { kind: "booking-card" }>["suggestedSlots"] {
-  return Array.isArray(value) && value.every((candidate) => (
-    isRecord(candidate) &&
-    typeof candidate.start === "string" &&
-    typeof candidate.end === "string" &&
-    typeof candidate.label === "string"
-  ))
-}
-
-function cleanDefaultContactValue(value: unknown, kind: "company" | "person"): string | undefined {
-  if (typeof value !== "string") return undefined
-  const trimmed = value.trim()
-  if (!trimmed || trimmed === "provided") return undefined
-  if (/^(?:ライブ|live|web|cm|mv|ott|sns|tv|テレビ|劇場|映画|その他|リモート|オンライン共有|ギガファイル|クラウド)$/iu.test(trimmed)) {
-    return undefined
-  }
-  if (/(?:案件種別|最終媒体|尺|素材|受け渡し|納品|解像度|字幕|テロップ|ナレーション|音楽|予算)/u.test(trimmed)) {
-    return undefined
-  }
-  if (kind === "person" && /(?:株式会社|合同会社|有限会社|会社|法人|スタジオ|プロダクション)/u.test(trimmed)) {
-    return undefined
-  }
-  return trimmed
-}
-
-function cleanDefaultEmail(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined
-  const trimmed = value.trim()
-  return /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/iu.test(trimmed) ? trimmed : undefined
-}
-
-type BookingCardJobContext = Extract<WidgetUi, { kind: "booking-card" }>["jobContext"]
-type BookingCardConversationState = Extract<WidgetUi, { kind: "booking-card" }>["conversationState"]
-
-const additionalWorkMemoLabels: Record<NonNullable<BookingCardJobContext["additionalWork"]>[number], string> = {
-  retouch: "消し物/レタッチ",
-  "skin-retouch": "肌修正",
-  other: "その他追加作業",
-}
-
-const workSiteMemoLabels: Record<BookingCardJobContext["workSite"], string> = {
-  "satoshi-studio": "のりかね映像設計室",
-  "remote-grading": "リモート",
-  "on-site": "現地/ポスプロ常駐",
-}
-
-const finalMediumMemoLabels: Record<BookingCardJobContext["finalMedium"], string> = {
-  ott: "配信/OTT",
-  cinema: "劇場",
-  "tv-broadcast": "TV",
-  live: "ライブ",
-  web: "Web",
-  "vertical-sns": "縦型/SNS",
-  other: "その他",
-}
-
-const jobKindMemoLabels: Record<NonNullable<BookingCardJobContext["jobKind"]>, string> = {
-  "cm-30s": "CM 30秒",
-  "mv-5m": "MV 5分",
-  "feature-90m": "本編 90分",
-  "drama-first": "ドラマ初回",
-  "drama-follow-up": "ドラマ 2話目以降",
-  "vertical-60s": "縦型 60秒",
-  "live-60m": "ライブ",
-}
-
-function buildBookingSupplementalNote(
-  jobContext: BookingCardJobContext,
-  conversationState?: BookingCardConversationState,
-): string {
-  return [
-    conversationState?.companyName ? `会社名: ${conversationState.companyName}` : undefined,
-    conversationState?.customerName ? `担当者氏名: ${conversationState.customerName}` : undefined,
-    `最終媒体: ${finalMediumMemoLabels[jobContext.finalMedium]}`,
-    jobContext.jobKind ? `案件種類: ${jobKindMemoLabels[jobContext.jobKind]}` : undefined,
-    formatProjectLengthMemo(jobContext.projectLengthMinutes),
-    formatAdditionalWorkMemo(jobContext.additionalWork),
-    formatWorkSiteMemo(jobContext.workSite),
-    jobContext.preferredStartDate
-      ? `素材搬入/受け取り時期: ${jobContext.preferredStartDate}${jobContext.preferredStartDateApproximate ? " 目安" : ""}`
-      : undefined,
-    jobContext.publicReleaseDate ? `納品希望日: ${jobContext.publicReleaseDate}` : undefined,
-    ...(jobContext.referenceUrls ?? []),
-  ].filter((item): item is string => Boolean(item)).join("\n")
-}
-
-function recoverStoredBookingCardJobContext(jobContext: BookingCardJobContext): BookingCardJobContext {
-  if (jobContext.workflowEstimate || !jobContext.jobKind) return jobContext
-
-  try {
-    return {
-      ...jobContext,
-      workflowEstimate: estimateWorkflow(jobContext),
-    }
-  } catch {
-    return jobContext
-  }
-}
-
-function formatProjectLengthMemo(minutes: number | undefined): string | undefined {
-  if (minutes === undefined) return undefined
-  if (minutes >= 60) {
-    const hours = minutes / 60
-    return `尺: ${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`
-  }
-  return `尺: ${minutes}分`
-}
-
-function formatAdditionalWorkMemo(additionalWork: BookingCardJobContext["additionalWork"]): string | undefined {
-  if (!additionalWork?.length) return undefined
-  return `追加作業: ${additionalWork.map((item) => additionalWorkMemoLabels[item]).join(" / ")}`
-}
-
-function formatWorkSiteMemo(workSite: BookingCardJobContext["workSite"]): string | undefined {
-  if (!workSite) return undefined
-  return `作業場所: ${workSiteMemoLabels[workSite]}`
-}
-
-function sanitizeBookingCardActiveUi(value: Record<string, unknown>): WidgetUi {
-  if (!isRecord(value.conversationState)) return noUi
-  if (!isRecord(value.jobContext)) return noUi
-  const suggestedSlots = isCandidateWindowArray(value.suggestedSlots)
-    ? value.suggestedSlots
-    : isCandidateWindowArray(value.candidates)
-      ? value.candidates
-      : undefined
-  if (!suggestedSlots) return noUi
-
-  const sanitizedConversationState = { ...value.conversationState }
-  const customerName = cleanDefaultContactValue(sanitizedConversationState.customerName, "person")
-  const companyName = cleanDefaultContactValue(sanitizedConversationState.companyName, "company")
-  const contactEmail = cleanDefaultEmail(sanitizedConversationState.contactEmail)
-
-  if (customerName) {
-    sanitizedConversationState.customerName = customerName
-  } else {
-    delete sanitizedConversationState.customerName
-  }
-
-  if (companyName) {
-    sanitizedConversationState.companyName = companyName
-  } else {
-    delete sanitizedConversationState.companyName
-  }
-
-  if (contactEmail) {
-    sanitizedConversationState.contactEmail = contactEmail
-  } else {
-    delete sanitizedConversationState.contactEmail
-  }
-
-  return {
-    ...value,
-    suggestedSlots,
-    jobContext: recoverStoredBookingCardJobContext(value.jobContext as BookingCardJobContext),
-    conversationState: sanitizedConversationState,
-  } as WidgetUi
-}
-
-function sanitizeStoredActiveUi(value: unknown): WidgetUi {
-  if (!isRecord(value)) return noUi
-  if (value.kind === "booking-card") return sanitizeBookingCardActiveUi(value)
-  return value as WidgetUi
-}
-
-type StoredWidgetSession = {
-  messages: Array<Omit<WidgetMessage, "createdAt"> & { createdAt: string }>
-  clientSessionId?: string
-  conversationId?: string
-  activeUi: WidgetUi
-  lastResponseTier?: ChatbotResponseTier
-  lastTierAttempts?: ChatbotTierAttemptDebug[]
-  expiresAt: string
-}
-
-function loadStoredWidgetSession(): {
-  messages: WidgetMessage[]
-  clientSessionId?: string
-  conversationId?: string
-  activeUi: WidgetUi
-  lastResponseTier?: ChatbotResponseTier
-  lastTierAttempts?: ChatbotTierAttemptDebug[]
-} {
-  if (typeof window === "undefined") {
-    return { messages: [initialMessage], activeUi: noUi }
-  }
-
-  try {
-    const raw = window.localStorage.getItem(CHATBOT_SESSION_STORAGE_KEY)
-    if (!raw) return { messages: [initialMessage], activeUi: noUi }
-    const parsed = JSON.parse(raw) as Partial<StoredWidgetSession>
-    if (!parsed.expiresAt || new Date(parsed.expiresAt).getTime() <= Date.now()) {
-      window.localStorage.removeItem(CHATBOT_SESSION_STORAGE_KEY)
-      return { messages: [initialMessage], activeUi: noUi }
-    }
-    const messages = Array.isArray(parsed.messages)
-      ? parsed.messages
-          .filter((message) => message.role && typeof message.content === "string" && message.createdAt)
-          .map((message) => ({
-            id: typeof message.id === "string" ? message.id : undefined,
-            role: message.role,
-            content: message.content,
-            createdAt: new Date(message.createdAt),
-          }))
-      : []
-
-    return {
-      messages: messages.length > 0 ? messages : [initialMessage],
-      clientSessionId: parsed.clientSessionId,
-      conversationId: parsed.conversationId,
-      activeUi: sanitizeStoredActiveUi(parsed.activeUi),
-      lastResponseTier: parsed.lastResponseTier,
-      lastTierAttempts: parsed.lastTierAttempts,
-    }
-  } catch {
-    window.localStorage.removeItem(CHATBOT_SESSION_STORAGE_KEY)
-    return { messages: [initialMessage], activeUi: noUi }
-  }
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
-}
-
-function createClientUserMessageId() {
-  const randomId =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `00000000-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`
-  return `client_msg_${randomId}`
-}
-
-function createClientSessionId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID()
-  }
-
-  return `00000000-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`
-}
-
-function isInteractiveTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest("button, a, input, textarea, select, label"))
-}
-
-function buildInquirySummaryMessage(input: Omit<SubmitInquiryInput, "conversationId">): string {
-  const fields = [
-    ["メール", input.email],
-    ["氏名", input.name],
-    ["案件種別", input.jobType],
-    ["尺", input.duration],
-    ["希望納期", input.desiredDeadline],
-    ["自由記述", input.freeText],
-  ].filter(([, value]) => value.trim())
-
-  return ["送信内容", ...fields.map(([label, value]) => `- ${label}: ${value.trim()}`)].join("\n")
-}
-
-export function WidgetShell({
-  onMinimize,
-  layout,
-  onModeChange,
-  onFloatingGeometryChange,
-  onSidePeekWidthChange,
-}: WidgetShellProps) {
-  const [storedSession] = useState(loadStoredWidgetSession)
-  const [clientSessionId] = useState(() => storedSession.clientSessionId ?? createClientSessionId())
-  const [messages, setMessages] = useState<WidgetMessage[]>(storedSession.messages)
-  const [conversationId, setConversationId] = useState<string | undefined>(storedSession.conversationId)
-  const [activeUi, setActiveUi] = useState<WidgetUi>(storedSession.activeUi)
+export function WidgetShell({ onMinimize }: WidgetShellProps) {
+  const [messages, setMessages] = useState<WidgetMessage[]>([initialMessage])
+  const [conversationId, setConversationId] = useState<string | undefined>()
+  const [activeUi, setActiveUi] = useState<WidgetUi>(noUi)
   const [submitting, setSubmitting] = useState(false)
-  const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>(storedSession.lastResponseTier)
-  const [lastTierAttempts, setLastTierAttempts] = useState<ChatbotTierAttemptDebug[] | undefined>(storedSession.lastTierAttempts)
-  const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
-  const [isMessageScrollAtBottom, setIsMessageScrollAtBottom] = useState(true)
-  const shellRef = useRef<HTMLElement | null>(null)
-  const messageScrollRef = useRef<HTMLDivElement | null>(null)
-  const activeRequestControllerRef = useRef<AbortController | null>(null)
-  const showLocalTierDebug =
-    typeof window !== "undefined" && isLocalChatbotTierDebugHostname(window.location.hostname)
-  const localTierDebugDetails = formatChatbotTierDebugDetails(lastTierAttempts)
-  const sanitizedLayout = useMemo(() => sanitizeWidgetLayout(layout), [layout])
-  const isSidePeek = sanitizedLayout.mode === "side-peek"
-  const shellStyle = {
-    "--chatbot-widget-x": `${sanitizedLayout.floatingPosition.x}px`,
-    "--chatbot-widget-y": `${sanitizedLayout.floatingPosition.y}px`,
-    "--chatbot-widget-width": `${sanitizedLayout.floatingSize.width}px`,
-    "--chatbot-widget-height": `${sanitizedLayout.floatingSize.height}px`,
-    "--chatbot-side-peek-width": `${sanitizedLayout.sidePeekWidth}px`,
-  } as CSSProperties
-
-  useEffect(() => {
-    const root = document.documentElement
-    const mediaQuery =
-      typeof window.matchMedia === "function" ? window.matchMedia("(min-width: 768px)") : null
-    const getIsDesktop = () => (mediaQuery ? mediaQuery.matches : window.innerWidth >= 768)
-    const syncOccupiedWidth = () => {
-      root.style.setProperty(
-        CHATBOT_SIDE_PEEK_OCCUPIED_WIDTH_VAR,
-        isSidePeek && getIsDesktop() ? `${sanitizedLayout.sidePeekWidth}px` : "0px",
-      )
-    }
-
-    syncOccupiedWidth()
-    mediaQuery?.addEventListener("change", syncOccupiedWidth)
-    window.addEventListener("resize", syncOccupiedWidth)
-
-    return () => {
-      mediaQuery?.removeEventListener("change", syncOccupiedWidth)
-      window.removeEventListener("resize", syncOccupiedWidth)
-      root.style.setProperty(CHATBOT_SIDE_PEEK_OCCUPIED_WIDTH_VAR, "0px")
-    }
-  }, [isSidePeek, sanitizedLayout.sidePeekWidth])
-
-  useEffect(() => {
-    try {
-      const stored: StoredWidgetSession = {
-        messages: messages.map((message) => ({
-          ...(message.id ? { id: message.id } : {}),
-          role: message.role,
-          content: message.content,
-          createdAt: message.createdAt.toISOString(),
-        })),
-        clientSessionId,
-        conversationId,
-        activeUi,
-        lastResponseTier,
-        lastTierAttempts,
-        expiresAt: new Date(Date.now() + CHATBOT_SESSION_TTL_MS).toISOString(),
-      }
-      window.localStorage.setItem(CHATBOT_SESSION_STORAGE_KEY, JSON.stringify(stored))
-    } catch {
-      // localStorage may be unavailable in private or restricted contexts.
-    }
-  }, [activeUi, clientSessionId, conversationId, lastResponseTier, lastTierAttempts, messages])
-
-  const startFloatingMove = (event: ReactPointerEvent<HTMLElement>) => {
-    if (isSidePeek || isInteractiveTarget(event.target)) return
-    event.preventDefault()
-    const startX = event.clientX
-    const startY = event.clientY
-    const initialPosition = sanitizedLayout.floatingPosition
-    const size = sanitizedLayout.floatingSize
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const bounds = getWidgetLayoutBounds()
-      onFloatingGeometryChange({
-        position: {
-          x: clamp(initialPosition.x + moveEvent.clientX - startX, bounds.minX, Math.max(bounds.minX, window.innerWidth - size.width - bounds.minX)),
-          y: clamp(initialPosition.y + moveEvent.clientY - startY, bounds.minY, Math.max(bounds.minY, window.innerHeight - size.height - bounds.minY)),
-        },
-      })
-    }
-    const handlePointerUp = () => {
-      window.removeEventListener("pointermove", handlePointerMove)
-      window.removeEventListener("pointerup", handlePointerUp)
-    }
-
-    window.addEventListener("pointermove", handlePointerMove)
-    window.addEventListener("pointerup", handlePointerUp, { once: true })
-  }
-
-  const startFloatingResize = (edge: (typeof FLOATING_RESIZE_CORNERS)[number]["edge"]) => (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    const startX = event.clientX
-    const startY = event.clientY
-    const initialSize = sanitizedLayout.floatingSize
-    const initialPosition = sanitizedLayout.floatingPosition
-    const growsEast = edge.includes("e")
-    const growsSouth = edge.includes("s")
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const bounds = getWidgetLayoutBounds()
-      const dx = moveEvent.clientX - startX
-      const dy = moveEvent.clientY - startY
-      const width = clamp(initialSize.width + (growsEast ? dx : -dx), CHATBOT_WIDGET_MIN_WIDTH, bounds.maxWidth)
-      const height = clamp(initialSize.height + (growsSouth ? dy : -dy), CHATBOT_WIDGET_MIN_HEIGHT, bounds.maxHeight)
-      const x = growsEast ? initialPosition.x : initialPosition.x + initialSize.width - width
-      const y = growsSouth ? initialPosition.y : initialPosition.y + initialSize.height - height
-      onFloatingGeometryChange({
-        size: { width, height },
-        position: {
-          x: clamp(x, bounds.minX, Math.max(bounds.minX, window.innerWidth - width - bounds.minX)),
-          y: clamp(y, bounds.minY, Math.max(bounds.minY, window.innerHeight - height - bounds.minY)),
-        },
-      })
-    }
-    const handlePointerUp = () => {
-      window.removeEventListener("pointermove", handlePointerMove)
-      window.removeEventListener("pointerup", handlePointerUp)
-    }
-
-    window.addEventListener("pointermove", handlePointerMove)
-    window.addEventListener("pointerup", handlePointerUp, { once: true })
-  }
-
-  const startSidePeekResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    const startX = event.clientX
-    const initialWidth = sanitizedLayout.sidePeekWidth
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const bounds = getWidgetLayoutBounds()
-      onSidePeekWidthChange(clamp(initialWidth + startX - moveEvent.clientX, CHATBOT_WIDGET_MIN_WIDTH, bounds.maxWidth))
-    }
-    const handlePointerUp = () => {
-      window.removeEventListener("pointermove", handlePointerMove)
-      window.removeEventListener("pointerup", handlePointerUp)
-    }
-
-    window.addEventListener("pointermove", handlePointerMove)
-    window.addEventListener("pointerup", handlePointerUp, { once: true })
-  }
 
   const appendMessage = (message: WidgetMessage) => {
     setMessages((currentMessages) => [...currentMessages, message])
   }
 
-  const updateMessageScrollState = useCallback(() => {
-    const element = messageScrollRef.current
-    if (!element) return
-    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight
-    setIsMessageScrollAtBottom(distanceFromBottom <= 8)
-  }, [])
-
-  const scrollMessagesToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    const element = messageScrollRef.current
-    if (!element) return
-    if (typeof element.scrollTo === "function") {
-      element.scrollTo({ top: element.scrollHeight, behavior })
-    } else {
-      element.scrollTop = element.scrollHeight
-    }
-    window.setTimeout(updateMessageScrollState, 0)
-  }, [updateMessageScrollState])
-
-  const markSubmittedUserMessage = (
-    createdAt: Date,
-    content: string,
-    userMessage: { id: string; content: string; createdAt: string },
-  ) => {
-    setMessages((currentMessages) =>
-      currentMessages.map((message) =>
-        message.role === "user" &&
-        message.content === content &&
-        message.createdAt.getTime() === createdAt.getTime()
-          ? {
-              ...message,
-              id: userMessage.id,
-              content: userMessage.content,
-              createdAt: new Date(userMessage.createdAt),
-            }
-          : message,
-      ),
-    )
-  }
-
-  useEffect(() => {
-    if (!submitting) return
-
-    const timeoutId = window.setTimeout(() => {
-      setShowThinkingDelayNotice(true)
-    }, thinkingDelayNoticeMs)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [submitting])
-
-  useEffect(() => {
-    scrollMessagesToBottom("auto")
-  }, [activeUi, messages.length, scrollMessagesToBottom, submitting])
-
-  useEffect(() => {
-    return () => {
-      activeRequestControllerRef.current?.abort()
-    }
-  }, [])
-
-  const finishRequest = (controller: AbortController) => {
-    if (activeRequestControllerRef.current !== controller) return
-    activeRequestControllerRef.current = null
-    setShowThinkingDelayNotice(false)
-    setSubmitting(false)
-  }
-
-  const handleStop = () => {
-    const controller = activeRequestControllerRef.current
-    if (!controller) return
-    controller.abort()
-    activeRequestControllerRef.current = null
-    setShowThinkingDelayNotice(false)
-    setSubmitting(false)
-  }
-
   const handleSubmit = async (text: string) => {
-    if (submitting) return
-    const controller = new AbortController()
-    activeRequestControllerRef.current = controller
     const createdAt = new Date()
-    const clientUserMessageId = createClientUserMessageId()
     setMessages((currentMessages) => [
       ...currentMessages,
-      { id: clientUserMessageId, role: "user", content: text, createdAt },
+      { role: "user", content: text, createdAt },
     ])
     setActiveUi(noUi)
-    setShowThinkingDelayNotice(false)
     setSubmitting(true)
 
     try {
-      const payload = await submitChatbotMessage(
-        { message: text, conversationId, clientUserMessageId, clientSessionId },
-        { signal: controller.signal },
-      )
-      if (controller.signal.aborted) return
+      const payload = await submitChatbotMessage({ message: text, conversationId })
       setConversationId(payload.conversationId)
-      setLastResponseTier(payload.tier)
-      setLastTierAttempts(payload.tierAttempts)
-      markSubmittedUserMessage(createdAt, text, payload.userMessage)
       appendMessage({
-        id: payload.assistantMessage.id,
         role: payload.assistantMessage.role,
         content: payload.assistantMessage.content,
         createdAt: new Date(payload.assistantMessage.createdAt),
       })
       setActiveUi(payload.ui)
-    } catch (error) {
-      if (isChatbotRequestCancelledError(error)) return
+    } catch {
       appendMessage({
         role: "system",
         content: networkErrorMessage,
         createdAt: new Date(),
       })
     } finally {
-      finishRequest(controller)
-    }
-  }
-
-  const handleEditMessage = async (messageId: string, newText: string) => {
-    const targetIndex = messages.findIndex((message) => message.id === messageId && message.role === "user")
-    const trimmedText = newText.trim()
-    if (targetIndex === -1 || !trimmedText || submitting) return
-    const controller = new AbortController()
-    activeRequestControllerRef.current = controller
-    const optimisticCreatedAt = new Date()
-
-    setMessages((currentMessages) => {
-      const currentTargetIndex = currentMessages.findIndex(
-        (message) => message.id === messageId && message.role === "user",
-      )
-      const truncateIndex = currentTargetIndex === -1 ? Math.min(targetIndex, currentMessages.length) : currentTargetIndex
-      return [
-        ...currentMessages.slice(0, truncateIndex),
-        { id: messageId, role: "user", content: trimmedText, createdAt: optimisticCreatedAt },
-      ]
-    })
-    setActiveUi(noUi)
-    setShowThinkingDelayNotice(false)
-    setSubmitting(true)
-
-    try {
-      const payload = await submitChatbotMessage({
-        message: trimmedText,
-        conversationId,
-        editTargetMessageId: messageId,
-        clientSessionId,
-      }, { signal: controller.signal })
-      if (controller.signal.aborted) return
-      setConversationId(payload.conversationId)
-      setLastResponseTier(payload.tier)
-      setLastTierAttempts(payload.tierAttempts)
-      setMessages((currentMessages) => {
-        const currentTargetIndex = currentMessages.findIndex(
-          (message) =>
-            message.role === "user" &&
-            (message.id === messageId || message.id === payload.userMessage.id),
-        )
-        const truncateIndex = currentTargetIndex === -1 ? Math.min(targetIndex, currentMessages.length) : currentTargetIndex
-        return [
-          ...currentMessages.slice(0, truncateIndex),
-          {
-            id: payload.userMessage.id,
-            role: payload.userMessage.role,
-            content: payload.userMessage.content,
-            createdAt: new Date(payload.userMessage.createdAt),
-          },
-          {
-            id: payload.assistantMessage.id,
-            role: payload.assistantMessage.role,
-            content: payload.assistantMessage.content,
-            createdAt: new Date(payload.assistantMessage.createdAt),
-          },
-        ]
-      })
-      setActiveUi(payload.ui)
-    } catch (error) {
-      if (isChatbotRequestCancelledError(error)) return
-      appendMessage({
-        role: "system",
-        content: networkErrorMessage,
-        createdAt: new Date(),
-      })
-    } finally {
-      finishRequest(controller)
+      setSubmitting(false)
     }
   }
 
@@ -692,11 +79,6 @@ export function WidgetShell({
       appendMessage({
         role: "assistant",
         content: inquirySentMessage,
-        createdAt: new Date(),
-      })
-      appendMessage({
-        role: "system",
-        content: buildInquirySummaryMessage(input),
         createdAt: new Date(),
       })
       setActiveUi(noUi)
@@ -711,23 +93,10 @@ export function WidgetShell({
 
   return (
     <section
-      ref={shellRef}
-      style={shellStyle}
-      className={[
-        "glass-card glass-card--chat-frost pointer-events-auto relative flex h-[min(560px,calc(100dvh-2rem))] w-full max-w-[384px] animate-in flex-col overflow-hidden rounded-t-[20px] fade-in slide-in-from-bottom-2 duration-300 md:max-w-none md:rounded-[20px]",
-        isSidePeek
-          ? "md:fixed md:right-0 md:top-0 md:h-dvh md:w-[var(--chatbot-side-peek-width)] md:rounded-none md:rounded-l-[20px] md:border-y-0 md:border-r-0"
-          : "md:absolute md:left-[var(--chatbot-widget-x)] md:top-[var(--chatbot-widget-y)] md:h-[var(--chatbot-widget-height)] md:w-[var(--chatbot-widget-width)]",
-      ].join(" ")}
+      className="glass-card pointer-events-auto flex h-[min(560px,calc(100dvh-2rem))] w-full max-w-[384px] animate-in fade-in slide-in-from-bottom-2 duration-300 flex-col overflow-hidden rounded-t-[20px] md:rounded-[20px]"
       aria-label="AI 相談窓口"
     >
-      <div
-        className={[
-          "flex items-center justify-between gap-3 border-b border-[var(--glass-border)] px-5 py-4",
-          isSidePeek ? "" : "md:cursor-grab md:active:cursor-grabbing",
-        ].join(" ")}
-        onPointerDown={startFloatingMove}
-      >
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--glass-border)] px-5 py-4">
         <div className="flex min-w-0 items-center gap-3">
           <span className="glass-badge flex h-10 w-10 shrink-0 items-center justify-center">
             <Sparkles className="h-5 w-5" aria-hidden="true" />
@@ -739,91 +108,32 @@ export function WidgetShell({
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onModeChange(isSidePeek ? "floating" : "side-peek")}
-            className={`glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] ${FOCUS_RING_CLASS}`}
-            aria-label={isSidePeek ? "フローティング表示に切り替え" : "サイドピーク表示に切り替え"}
-            aria-pressed={isSidePeek}
-          >
-            {isSidePeek ? (
-              <PanelRightClose className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={onMinimize}
-            className={`glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] ${FOCUS_RING_CLASS}`}
-            aria-label="最小化"
-          >
-            <Minus className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onMinimize}
+          className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+          aria-label="最小化"
+        >
+          <Minus className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
-      {isSidePeek ? (
-        <span
-          aria-hidden="true"
-          className="absolute left-0 top-0 z-20 hidden h-full w-2 cursor-ew-resize md:block"
-          onPointerDown={startSidePeekResize}
-        />
-      ) : (
-        FLOATING_RESIZE_CORNERS.map((corner) => (
-          <span
-            key={corner.edge}
-            aria-hidden="true"
-            className={`absolute z-20 hidden md:block ${corner.className}`}
-            onPointerDown={startFloatingResize(corner.edge)}
-          />
-        ))
-      )}
-      {showLocalTierDebug && lastResponseTier ? (
-        <div className="border-b border-[var(--glass-border)] px-5 py-2">
-          <p className="glass-badge inline-flex max-w-full px-3 py-1 text-[11px] font-medium">
-            Local debug: {formatChatbotTierDebugLabel(lastResponseTier)}
-            {localTierDebugDetails ? ` | ${localTierDebugDetails}` : ""}
-          </p>
-        </div>
-      ) : null}
 
-      <div
-        ref={messageScrollRef}
-        data-testid="chatbot-message-scroll"
-        className="flex-1 space-y-4 overflow-y-auto px-5 py-5"
-        onScroll={updateMessageScrollState}
-      >
+      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
         <SecurityNote defaultOpen={false} />
         <div className="space-y-3" role="log" aria-live="polite">
           {messages.map((message, index) => (
             <ChatMessage
-              key={message.id ?? `${message.role}-${message.createdAt.toISOString()}-${index}`}
-              id={message.id}
+              key={`${message.role}-${message.createdAt.toISOString()}-${index}`}
               role={message.role}
               content={message.content}
               createdAt={message.createdAt}
-              editingDisabled={submitting}
-              onEdit={handleEditMessage}
             />
           ))}
-          {submitting ? <ThinkingIndicator showDelayNotice={showThinkingDelayNotice} /> : null}
         </div>
         <ActiveWidgetUi ui={activeUi} conversationId={conversationId} onSubmit={handleSubmit} onInquirySubmit={handleInquirySubmit} />
       </div>
 
-      {!isMessageScrollAtBottom ? (
-        <button
-          type="button"
-          className={`glass-btn absolute bottom-20 left-1/2 z-30 flex h-10 w-10 -translate-x-1/2 items-center justify-center bg-white/65 text-hp shadow-[0_0_24px_rgba(139,127,255,0.22)] ${FOCUS_RING_CLASS}`}
-          aria-label="最新メッセージへ移動"
-          onClick={() => scrollMessagesToBottom("smooth")}
-        >
-          <ChevronDown className="h-5 w-5" aria-hidden="true" />
-        </button>
-      ) : null}
-
-      <ChatInput onSubmit={handleSubmit} onStop={handleStop} disabled={submitting} stoppingEnabled={submitting} />
+      <ChatInput onSubmit={handleSubmit} disabled={submitting} />
     </section>
   )
 }
@@ -843,29 +153,22 @@ function ActiveWidgetUi({
     return (
       <ChoicePanel
         choiceSet={ui.choiceSet}
-        allowMultiple={ui.choiceSet.selectionMode === "multiple"}
         onSelect={(selectedIds) => onSubmit(`選択: ${selectedIds.join(", ")}`)}
       />
     )
   }
 
   if (ui.kind === "booking-card") {
-    if (!isCandidateWindowArray(ui.suggestedSlots) || !isRecord(ui.jobContext)) return null
-    const bookingPrefill = ui.bookingPrefill ?? {}
     return (
       <ChatbotBookingCard
-        key={ui.suggestedSlots.map((slot) => slot.start).join("|")}
         conversationId={conversationId}
         candidates={ui.suggestedSlots}
-        busyDateKeys={ui.busyDateKeys}
         estimate={ui.jobContext.workflowEstimate}
-        jobContext={ui.jobContext}
-        defaultProjectTitle={bookingPrefill.projectTitle}
-        defaultContactName={bookingPrefill.contactName}
-        defaultCompanyName={bookingPrefill.companyName}
-        defaultContactEmail={bookingPrefill.contactEmail}
-        defaultDueDate={bookingPrefill.dueDate}
-        defaultMemo={buildBookingSupplementalNote(ui.jobContext, ui.conversationState)}
+        defaultProjectTitle={ui.bookingPrefill?.projectTitle}
+        defaultContactName={ui.bookingPrefill?.contactName}
+        defaultCompanyName={ui.bookingPrefill?.companyName}
+        defaultDueDate={ui.bookingPrefill?.dueDate}
+        defaultMemo={ui.jobContext.referenceUrls?.join("\n")}
       />
     )
   }
@@ -877,7 +180,7 @@ function ActiveWidgetUi({
         suggestedMessage={ui.suggestedMessage}
         onSubmitEmail={(email, companyName, personName) =>
           onInquirySubmit({
-            name: personName,
+            name: personName || "未入力",
             email,
             jobType: ui.reason,
             duration: "",
@@ -891,23 +194,6 @@ function ActiveWidgetUi({
 
   if (ui.kind === "tier4-inquiry-form") {
     return <InquiryForm onSubmit={onInquirySubmit} />
-  }
-
-  if (ui.kind === "consultation-summary-form") {
-    return (
-      <InquiryForm
-        mode="consultation-summary"
-        initialEmail={ui.summary.customerEmail}
-        summaryText={ui.summary.summaryText}
-        openQuestions={ui.summary.openQuestions}
-        onSubmit={(input) =>
-          onInquirySubmit({
-            ...input,
-            freeText: [ui.summary.summaryText, input.freeText].filter(Boolean).join("\n"),
-          })
-        }
-      />
-    )
   }
 
   return null

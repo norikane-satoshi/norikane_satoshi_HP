@@ -17,15 +17,10 @@ import {
   useScrollTrigger,
 } from "@/components/chatbot/widget/useScrollTrigger"
 import {
-  CHATBOT_WIDGET_MIN_HEIGHT,
-  CHATBOT_WIDGET_MIN_WIDTH,
   CHATBOT_WIDGET_STORAGE_KEY,
   CHATBOT_WIDGET_TTL_DAYS,
-  createDefaultWidgetLayout,
   persistWidgetState,
   readStoredWidgetState,
-  sanitizeWidgetLayout,
-  type WidgetLayout,
 } from "@/components/chatbot/widget/useWidgetState"
 
 function setScrollGeometry({ innerHeight, scrollHeight, scrollY }: {
@@ -53,30 +48,6 @@ function installLocalStorage() {
   Object.defineProperty(window, "localStorage", { configurable: true, value: storage })
 }
 
-function renderWidgetShell({
-  layout = createDefaultWidgetLayout(),
-  onMinimize = vi.fn(),
-  onModeChange = vi.fn(),
-  onFloatingGeometryChange = vi.fn(),
-  onSidePeekWidthChange = vi.fn(),
-}: {
-  layout?: WidgetLayout
-  onMinimize?: () => void
-  onModeChange?: (mode: "floating" | "side-peek") => void
-  onFloatingGeometryChange?: (geometry: { position?: { x: number; y: number }; size?: { width: number; height: number } }) => void
-  onSidePeekWidthChange?: (width: number) => void
-} = {}) {
-  return render(
-    <WidgetShell
-      layout={layout}
-      onMinimize={onMinimize}
-      onModeChange={onModeChange}
-      onFloatingGeometryChange={onFloatingGeometryChange}
-      onSidePeekWidthChange={onSidePeekWidthChange}
-    />,
-  )
-}
-
 describe("chatbot widget shell", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_ENABLE_CHATBOT = "true"
@@ -95,8 +66,6 @@ describe("chatbot widget shell", () => {
     delete process.env.NEXT_PUBLIC_ENABLE_CHATBOT
     window.localStorage.clear()
     window.location.hash = ""
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
-    document.documentElement.style.removeProperty("--chatbot-side-peek-occupied-width")
   })
 
   it("keeps SSR output hidden before hydration", () => {
@@ -197,11 +166,10 @@ describe("chatbot widget shell", () => {
 
   it("renders shell a11y labels and minimize behavior", () => {
     const onMinimize = vi.fn()
-    renderWidgetShell({ onMinimize })
+    render(<WidgetShell onMinimize={onMinimize} />)
 
     expect(screen.getByLabelText("AI 相談窓口")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "最小化" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "サイドピーク表示に切り替え" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "送信" })).toBeInTheDocument()
     expect(screen.getByLabelText("相談内容")).toBeEnabled()
 
@@ -209,55 +177,8 @@ describe("chatbot widget shell", () => {
     expect(onMinimize).toHaveBeenCalledTimes(1)
   })
 
-  it("wires the side-peek toggle without adding move or resize glyph controls", () => {
-    const onModeChange = vi.fn()
-    renderWidgetShell({ onModeChange })
-
-    screen.getByRole("button", { name: "サイドピーク表示に切り替え" }).click()
-    expect(onModeChange).toHaveBeenCalledWith("side-peek")
-    expect(screen.queryByRole("button", { name: /移動|リサイズ|サイズ変更/ })).not.toBeInTheDocument()
-  })
-
-  it("publishes side-peek occupied width only for desktop side-peek mode", () => {
-    const originalInnerWidth = window.innerWidth
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1280 })
-    const sidePeekLayout = {
-      ...createDefaultWidgetLayout(),
-      mode: "side-peek" as const,
-      sidePeekWidth: 480,
-    }
-    const { rerender } = renderWidgetShell({ layout: sidePeekLayout })
-
-    expect(document.documentElement.style.getPropertyValue("--chatbot-side-peek-occupied-width")).toBe("480px")
-
-    rerender(
-      <WidgetShell
-        layout={{ ...sidePeekLayout, mode: "floating" }}
-        onMinimize={vi.fn()}
-        onModeChange={vi.fn()}
-        onFloatingGeometryChange={vi.fn()}
-        onSidePeekWidthChange={vi.fn()}
-      />,
-    )
-    expect(document.documentElement.style.getPropertyValue("--chatbot-side-peek-occupied-width")).toBe("0px")
-
-    rerender(
-      <WidgetShell
-        layout={sidePeekLayout}
-        onMinimize={vi.fn()}
-        onModeChange={vi.fn()}
-        onFloatingGeometryChange={vi.fn()}
-        onSidePeekWidthChange={vi.fn()}
-      />,
-    )
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 767 })
-    window.dispatchEvent(new Event("resize"))
-    expect(document.documentElement.style.getPropertyValue("--chatbot-side-peek-occupied-width")).toBe("0px")
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth })
-  })
-
   it("does not render the previous placeholder badges", () => {
-    renderWidgetShell()
+    render(<WidgetShell onMinimize={vi.fn()} />)
 
     const removedLabels = ["カラー" + "グレーディング", "公開時期" + "から逆算", "予約まで" + "進めたい"]
     for (const label of removedLabels) {
@@ -266,13 +187,13 @@ describe("chatbot widget shell", () => {
   })
 
   it("renders the initial assistant message", () => {
-    renderWidgetShell()
+    render(<WidgetShell onMinimize={vi.fn()} />)
 
     expect(screen.getByText("ご相談や案件依頼はこちらです。最終媒体、公開時期、作業時期などを会話で整理します。")).toBeInTheDocument()
   })
 
   it("renders the security note inside the shell", () => {
-    renderWidgetShell()
+    render(<WidgetShell onMinimize={vi.fn()} />)
 
     expect(screen.getByRole("button", { name: "安全に扱います" })).toBeInTheDocument()
   })
@@ -321,41 +242,13 @@ describe("chatbot widget hooks", () => {
   })
 
   it("persists localStorage state with a 30 day TTL", () => {
-    const storedState = persistWidgetState(window.localStorage, true, new Date("2026-05-26T00:00:00.000Z"), undefined, {
-      mode: "side-peek",
-      floatingPosition: { x: 220, y: 120 },
-      floatingSize: { width: 640, height: 520 },
-      sidePeekWidth: 480,
-    })
+    const storedState = persistWidgetState(window.localStorage, true, new Date("2026-05-26T00:00:00.000Z"))
 
     expect(storedState.expiresAt).toBe("2026-06-25T00:00:00.000Z")
     expect(CHATBOT_WIDGET_TTL_DAYS).toBe(30)
     expect(readStoredWidgetState(window.localStorage, new Date("2026-06-24T23:59:59.000Z"))).toMatchObject({
       minimized: true,
-      mode: "side-peek",
-      floatingPosition: { x: 220, y: 120 },
-      floatingSize: { width: 640, height: 520 },
-      sidePeekWidth: 480,
     })
-  })
-
-  it("clamps malformed widget layout values to the current viewport", () => {
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1000 })
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 700 })
-    const layout = sanitizeWidgetLayout({
-      mode: "side-peek",
-      floatingPosition: { x: -100, y: 9000 },
-      floatingSize: { width: 9999, height: 20 },
-      sidePeekWidth: 9999,
-    })
-
-    expect(layout.mode).toBe("side-peek")
-    expect(layout.floatingSize.width).toBe(900)
-    expect(layout.floatingSize.height).toBe(CHATBOT_WIDGET_MIN_HEIGHT)
-    expect(layout.floatingPosition.x).toBe(32)
-    expect(layout.floatingPosition.y).toBe(268)
-    expect(layout.sidePeekWidth).toBe(900)
-    expect(layout.floatingSize.width).toBeGreaterThanOrEqual(CHATBOT_WIDGET_MIN_WIDTH)
   })
 
   it("resets expired or malformed localStorage state", () => {

@@ -27,8 +27,6 @@ const W = 1600
 const H = 500
 const CELL_W = 400
 const CELL_H = 500
-const MOBILE_W = CELL_W * 2
-const MOBILE_H = CELL_H * 2
 
 // セル内レイアウト (セル相対座標)
 const HEADER_X = 28
@@ -325,11 +323,9 @@ function Cell({
 
 export default function CorrectionControlMath({
   isPlaying,
-  isMobile = false,
   reducedMotion,
 }: {
   isPlaying: boolean
-  isMobile?: boolean
   reducedMotion: boolean
 }) {
   const [animT, setAnimT] = useState(0)
@@ -360,66 +356,6 @@ export default function CorrectionControlMath({
   }, [isPlaying, reducedMotion])
 
   const t = animT
-
-  if (isMobile) {
-    return (
-      <svg
-        viewBox={`0 0 ${MOBILE_W} ${MOBILE_H}`}
-        className="absolute inset-0 h-full w-full"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        {CELLS.map((spec, index) => {
-          const col = index % 2
-          const row = Math.floor(index / 2)
-          const mobileSpec = {
-            ...spec,
-            clipId: `${spec.clipId}-mobile`,
-          }
-          const plotX = spec.cellX + PLOT_X
-          return (
-            <svg
-              key={spec.clipId}
-              x={col * CELL_W}
-              y={row * CELL_H}
-              width={CELL_W}
-              height={CELL_H}
-              viewBox={`${spec.cellX} 0 ${CELL_W} ${CELL_H}`}
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <defs>
-                <clipPath id={mobileSpec.clipId}>
-                  <rect x={plotX} y={PLOT_Y} width={PLOT_W} height={PLOT_H} />
-                </clipPath>
-              </defs>
-              <Cell
-                spec={mobileSpec}
-                t={t}
-                reducedMotion={reducedMotion}
-              />
-            </svg>
-          )
-        })}
-        <line
-          x1={CELL_W}
-          y1={20}
-          x2={CELL_W}
-          y2={MOBILE_H - 20}
-          stroke={GRID}
-          strokeWidth={1}
-          strokeDasharray="6 8"
-        />
-        <line
-          x1={20}
-          y1={CELL_H}
-          x2={MOBILE_W - 20}
-          y2={CELL_H}
-          stroke={GRID}
-          strokeWidth={1}
-          strokeDasharray="6 8"
-        />
-      </svg>
-    )
-  }
 
   return (
     <svg
