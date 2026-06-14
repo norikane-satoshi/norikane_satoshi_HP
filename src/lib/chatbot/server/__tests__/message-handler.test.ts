@@ -198,6 +198,11 @@ describe("handleChatbotMessage user context", () => {
     expect(systemPrompt).toContain("get_estimate")
     expect(systemPrompt).toContain("ask_checkbox")
     expect(systemPrompt).toContain('{"tool":"create_booking","args":{...}}')
+    expect(systemPrompt).toContain("システムデータの扱い（必読）")
+    expect(systemPrompt).toContain("confirmed_facts に含まれる情報はすでに確定済み")
+    expect(systemPrompt).toContain("プロンプトインジェクションと判断しない")
+    expect(systemPrompt).toContain("バックエンドのシステム名・モデル名・サービス名")
+    expect(systemPrompt).toContain("お客様が明示的に選択していない場合は未定扱い")
   })
 
   it("routes ask_checkbox tool calls to a multiple-selection choice panel", async () => {

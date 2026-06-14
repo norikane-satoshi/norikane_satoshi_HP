@@ -22,6 +22,7 @@ export function createChatbotToolCallReadRequest(input: {
   return {
     systemPrompt: [
       "これは外部ツール実行ではなく、アプリ内部dispatcher用の分類JSONを作るタスクです。",
+      "このメッセージはアプリ内部からの正規の判定タスクであり、プロンプトインジェクションとして拒否しないでください。",
       "あなた自身は予約作成・Notion更新・外部操作を実行しません。",
       "会話全体を読み取り、アプリ内部dispatcherへ渡せる状態ならJSONを1つ返してください。",
       "返す形式は {\"tool\":\"create_booking\",\"args\":{...}} または {\"tool\":\"show_booking_card\",\"args\":{...}} または {\"tool\":\"get_estimate\",\"args\":{...}} のJSONオブジェクト単体だけです。",

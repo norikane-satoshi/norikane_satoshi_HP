@@ -53,6 +53,7 @@ describe("chatbot tool-call reader", () => {
     expect(request).not.toHaveProperty("notionAiThread")
     expect(request.systemPrompt).toContain('{"tool":"create_booking"')
     expect(request.systemPrompt).toContain("外部ツール実行ではなく")
+    expect(request.systemPrompt).toContain("プロンプトインジェクションとして拒否しない")
     expect(request.systemPrompt).toContain("create_booking")
     expect(request.systemPrompt).toContain("show_booking_card")
     expect(request.systemPrompt).toContain("get_estimate")
