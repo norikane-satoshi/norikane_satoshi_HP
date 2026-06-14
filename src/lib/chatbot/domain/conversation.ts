@@ -49,8 +49,10 @@ export type ConversationState = {
   hasContactEmail: boolean
   hasDesiredSchedule: boolean
   hasCustomerIdentity?: boolean
+  hasProjectTitle?: boolean
   hasPendingRemoteWorkSiteRecommendation?: boolean
   declinedRemoteWorkSiteRecommendation?: boolean
+  hasPendingAdditionalWorkOther?: boolean
   turnCount: number
   outOfScope?: boolean
   technicalQuestion?: boolean
@@ -68,10 +70,13 @@ export type ConversationState = {
   contactEmail?: string
   customerName?: string
   companyName?: string
+  projectTitle?: string
+  additionalWorkOtherNote?: string
   productionOptions?: Array<"captions" | "telops" | "narration" | "music">
 }
 
 export type ChatbotBookingPrefill = {
+  projectTitle?: string
   contactName?: string
   companyName?: string
   contactEmail?: string

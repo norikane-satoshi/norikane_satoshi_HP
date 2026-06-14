@@ -412,6 +412,7 @@ describe("WidgetShell API wiring", () => {
               turnCount: 3,
             },
             bookingPrefill: {
+              projectTitle: "サンプルCM",
               contactName: "田中",
               companyName: "株式会社サンプル",
             },
@@ -436,6 +437,7 @@ describe("WidgetShell API wiring", () => {
     expect(memo.value).toContain("納品希望日: 2026-06-30")
     expect(screen.getByLabelText("会社名（任意）")).toHaveValue("株式会社サンプル")
     expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("田中")
+    expect(screen.getByLabelText("案件名（必須）")).toHaveValue("サンプルCM")
   })
 
   it("renders booking-card responses without conversationState", async () => {
@@ -760,6 +762,7 @@ describe("WidgetShell API wiring", () => {
                 turnCount: 8,
               },
               bookingPrefill: {
+                projectTitle: "テストライブ",
                 companyName: "テスト株式会社",
                 contactName: "テストユーザー",
                 contactEmail: "test@example.com",
@@ -777,6 +780,7 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
     expect(screen.getByLabelText("会社名（任意）")).toHaveValue("テスト株式会社")
     expect(screen.getByLabelText("担当者氏名（必須）")).toHaveValue("テストユーザー")
+    expect(screen.getByLabelText("案件名（必須）")).toHaveValue("テストライブ")
     expect(screen.getByLabelText("メールアドレス（必須）")).toHaveValue("test@example.com")
     expect(screen.getByLabelText("納期（任意）")).toHaveValue("2026-07-31")
     const memo = screen.getByLabelText("補足ノート（任意）") as HTMLTextAreaElement

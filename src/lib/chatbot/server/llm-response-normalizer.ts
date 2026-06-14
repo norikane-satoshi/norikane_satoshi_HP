@@ -50,6 +50,9 @@ export function sanitizeChatbotLlmText(
 
     return nextQuestion.length > 0 ? nextQuestion : fallbackChatbotAssistantContent
   }
+  if (options.routingDecision?.kind === "continue" && isMandatoryContinueQuestion(options.routingDecision.nextQuestion)) {
+    return options.routingDecision.nextQuestion.trim()
+  }
 
   const strippedThoughtBlocks = stripThinkBlocksOutsideCodeFences(rawText)
   const strippedLeadingThought = stripLeadingThoughtExplanation(strippedThoughtBlocks)
@@ -62,6 +65,13 @@ export function sanitizeChatbotLlmText(
   const estimateAligned = alignWorkflowEstimateText(normalizedWhitespace, options.routingDecision, options.jobContext)
 
   return estimateAligned.length > 0 ? estimateAligned : fallbackChatbotAssistantContent
+}
+
+function isMandatoryContinueQuestion(nextQuestion: string): boolean {
+  return (
+    nextQuestion.startsWith("「その他」とは具体的にどのような作業ですか？") ||
+    nextQuestion.startsWith("案件名（プロジェクト名・作品名）を教えてください。")
+  )
 }
 
 function formatDays(value: number): string {

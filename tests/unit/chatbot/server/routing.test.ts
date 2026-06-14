@@ -40,8 +40,10 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
     hasContactEmail: true,
     hasDesiredSchedule: true,
     hasCustomerIdentity: true,
+    hasProjectTitle: true,
     turnCount: settledConversationTurnThreshold,
     contactEmail: "client@example.com",
+    projectTitle: "テスト案件",
     ...overrides,
   }
 }

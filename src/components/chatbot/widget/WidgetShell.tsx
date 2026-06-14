@@ -860,6 +860,7 @@ function ActiveWidgetUi({
         busyDateKeys={ui.busyDateKeys}
         estimate={ui.jobContext.workflowEstimate}
         jobContext={ui.jobContext}
+        defaultProjectTitle={bookingPrefill.projectTitle}
         defaultContactName={bookingPrefill.contactName}
         defaultCompanyName={bookingPrefill.companyName}
         defaultContactEmail={bookingPrefill.contactEmail}

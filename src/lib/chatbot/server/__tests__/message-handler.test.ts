@@ -231,6 +231,114 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("asks for concrete detail when additional-work other is selected", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: additionalWorkChoices,
+          conversationState: {
+            hasCustomerIdentity: true,
+            hasProjectTitle: true,
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasMaterialHandoff: true,
+            hasAdditionalWork: false,
+            turnCount: 4,
+          },
+          jobContext: {
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            jobKind: "cm-30s",
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: JSON.stringify({
+        tool: "show_booking_card",
+        args: {
+          suggestedSlots: [
+            {
+              start: "2026-06-20T01:00:00.000Z",
+              end: "2026-06-20T02:00:00.000Z",
+              label: "6月20日 10:00",
+              available: true,
+            },
+          ],
+          jobContext: {
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+      tier: "tier-1-chrome-notion-ai",
+      proposedRoutingDecision: { kind: "to-booking-inline", suggestedSlots: [], jobContext: { finalMedium: "web", workSite: "remote-grading", documentaryAttachment: { kind: "none" } } },
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "選択: other" },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe("「その他」とは具体的にどのような作業ですか？")
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: "「その他」とは具体的にどのような作業ですか？",
+    })
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: null,
+        conversationState: expect.objectContaining({
+          hasAdditionalWork: false,
+          hasPendingAdditionalWorkOther: true,
+        }),
+      }),
+    )
+  })
+
+  it("keeps asking with examples for vague additional-work other detail", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            hasCustomerIdentity: true,
+            hasProjectTitle: true,
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasMaterialHandoff: true,
+            hasAdditionalWork: false,
+            hasPendingAdditionalWorkOther: true,
+            turnCount: 5,
+          },
+          jobContext: {
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            additionalWork: ["other"],
+          },
+        },
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "わかりません" },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain("「その他」とは具体的にどのような作業ですか？")
+    expect(result.assistantMessage.content).toContain("例えば")
+    expect(result.routingDecision).toMatchObject({ kind: "continue" })
+  })
+
   it("uses dedicated Notion AI threads by default", async () => {
     const previous = process.env.CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS
     delete process.env.CHATBOT_TIER1_DEDICATED_NOTION_AI_THREADS
@@ -733,7 +841,7 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "Web CMです。尺4分、ABタイプ2本で、追加作業はなし、素材は共有リンクで受け渡し、6月中旬に作業、6月20日までに納品希望です。会社名と名前、納品形式、打ち合わせ希望、作業場所、連絡先 client@example.com も共有済みです。",
+          "案件名はテストCMです。Web CMです。尺4分、ABタイプ2本で、追加作業はなし、素材は共有リンクで受け渡し、6月中旬に作業、6月20日までに納品希望です。会社名と名前、納品形式、打ち合わせ希望、作業場所、連絡先 client@example.com も共有済みです。",
       },
       harness.options,
     )
@@ -777,7 +885,7 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "ライブ2時間半のカラグレです。素材は共有リンクで6月中旬に搬入、納期は7月中、追加作業は観客消しと肌修正、リモート作業でお願いします。会社名はテスト株式会社、担当者はテストユーザー、メールは client@example.com です。",
+          "案件名はテストライブです。ライブ2時間半のカラグレです。素材は共有リンクで6月中旬に搬入、納期は7月中、追加作業は観客消しと肌修正、リモート作業でお願いします。会社名はテスト株式会社、担当者はテストユーザー、メールは client@example.com です。",
       },
       harness.options,
     )
@@ -805,7 +913,7 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社です。",
+          "案件名はテストライブです。ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社です。",
       },
       harness.options,
     )
@@ -847,7 +955,7 @@ describe("handleChatbotMessage user context", () => {
       })
       .mockResolvedValueOnce({
         rawText:
-          '{"contactName":"テストユーザー","companyName":"テスト株式会社","contactEmail":"test@example.com","dueDate":"2026-07-31"}',
+          '{"projectTitle":"テストライブ","contactName":"テストユーザー","companyName":"テスト株式会社","contactEmail":"test@example.com","dueDate":"2026-07-31"}',
         tier: "tier-1-chrome-notion-ai",
       })
 
@@ -856,7 +964,7 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは test@example.com です。",
+          "案件名はテストライブです。ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは test@example.com です。",
       },
       harness.options,
     )
@@ -872,6 +980,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.ui).toMatchObject({
       kind: "booking-card",
       bookingPrefill: {
+        projectTitle: "テストライブ",
         contactName: "テストユーザー",
         companyName: "テスト株式会社",
         contactEmail: "test@example.com",
@@ -902,7 +1011,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         userEmail: "customer@example.com",
         message:
-          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
+          "案件名はテストライブです。ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
       },
       {
         ...harness.options,
@@ -954,7 +1063,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         userEmail: "customer@example.com",
         message:
-          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
+          "案件名はテストライブです。ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
       },
       {
         ...harness.options,
@@ -998,7 +1107,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         userEmail: "customer@example.com",
         message:
-          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
+          "案件名はテストライブです。ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
       },
       {
         ...harness.options,
@@ -1080,7 +1189,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         userEmail: "customer@example.com",
         message:
-          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
+          "案件名はテストライブです。ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは customer@example.com です。",
       },
       {
         ...harness.options,
@@ -1135,7 +1244,9 @@ describe("handleChatbotMessage user context", () => {
           hasMaterialHandoff: true,
           hasWorkSite: true,
           hasCustomerIdentity: true,
+          hasProjectTitle: true,
           hasFinalMedium: true,
+          projectTitle: "テストCM",
           turnCount: 3,
         },
         jobContext: {
@@ -1232,7 +1343,7 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは test@example.com です。",
+          "案件名はテストライブです。ライブ映像のカラーグレーディング相談です。尺は約2.5h、素材搬入は7/1以降、納品は7月中、作業形態はリモートグレーディングです。担当者はテストユーザー、会社名はテスト株式会社、メールは test@example.com です。",
       },
       harness.options,
     )
@@ -1369,7 +1480,7 @@ describe("handleChatbotMessage user context", () => {
       {
         sessionId: "session_1",
         userId: "user_a",
-        message: "劇場案件です。希望時期と client@example.com は共有済みです。",
+        message: "案件名はテスト劇場です。劇場案件です。希望時期と client@example.com は共有済みです。",
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
@@ -1413,7 +1524,7 @@ describe("handleChatbotMessage user context", () => {
       {
         sessionId: "session_1",
         userId: "user_a",
-        message: "劇場案件です。希望時期と client@example.com は共有済みです。",
+        message: "案件名はテスト劇場です。劇場案件です。希望時期と client@example.com は共有済みです。",
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
@@ -1955,7 +2066,9 @@ describe("handleChatbotMessage user context", () => {
             hasAdditionalWork: true,
             hasDocumentaryAttachments: true,
             hasDesiredSchedule: true,
+            hasProjectTitle: true,
             hasPendingRemoteWorkSiteRecommendation: true,
+            projectTitle: "テストライブ",
             turnCount: 8,
           },
           jobContext: {
@@ -2032,7 +2145,7 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "Web CMです。尺4分、6月中旬に作業、6月20日までに納品希望です。作業場所はリモートで、client@example.com から連絡できます。",
+          "案件名はテストCMです。Web CMです。尺4分、6月中旬に作業、6月20日までに納品希望です。作業場所はリモートで、client@example.com から連絡できます。",
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
@@ -2072,7 +2185,7 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "Web CMです。尺4分、6月中旬に作業、6月20日までに納品希望です。作業場所はリモートで、client@example.com から連絡できます。",
+          "案件名はテストCMです。Web CMです。尺4分、6月中旬に作業、6月20日までに納品希望です。作業場所はリモートで、client@example.com から連絡できます。",
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,

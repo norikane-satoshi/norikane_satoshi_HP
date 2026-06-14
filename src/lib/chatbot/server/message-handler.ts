@@ -313,6 +313,7 @@ async function handleChatbotMessageCore(
           userId: input.userId,
           userEmail: input.userEmail,
           createBookingFromApiInput: options.createBookingFromApiInput,
+          conversationState,
         },
         logger: options.toolShadowLogger,
       })
@@ -376,15 +377,18 @@ async function handleChatbotMessageCore(
       : normalizeChatbotLlmResponse(llmResponse, { routingDecision, jobContext: effectiveJobContext })
   const bookingPrefill = toolExecutedCreateBooking
     ? {}
-    : await extractBookingFormPrefill({
-        routingDecision,
-        conversation,
-        userMessage,
-        conversationState,
-        jobContext,
-        orchestrator,
-        notionAiThread: resolveExistingNotionAiThreadForJsonRead(conversation, llmResponse),
-      })
+    : mergeBookingPrefills(
+        bookingPrefillFromToolResult(executedToolDispatchResult?.result),
+        await extractBookingFormPrefill({
+          routingDecision,
+          conversation,
+          userMessage,
+          conversationState,
+          jobContext,
+          orchestrator,
+          notionAiThread: resolveExistingNotionAiThreadForJsonRead(conversation, llmResponse),
+        }),
+      )
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
     role: "assistant",
@@ -467,6 +471,13 @@ function workflowEstimateFromToolResult(result: unknown): WorkflowEstimate | nul
     : null
 }
 
+function bookingPrefillFromToolResult(result: unknown): ChatbotBookingPrefill {
+  if (!result || typeof result !== "object") return {}
+  const bookingPrefill = (result as { bookingPrefill?: unknown }).bookingPrefill
+  if (!bookingPrefill || typeof bookingPrefill !== "object" || Array.isArray(bookingPrefill)) return {}
+  return sanitizeBookingPrefillObject(bookingPrefill as Record<string, unknown>)
+}
+
 function routingDecisionFromToolResult(result: unknown): RoutingDecision | null {
   if (!result || typeof result !== "object") return null
   const routingDecision = (result as { routingDecision?: unknown }).routingDecision
@@ -497,13 +508,14 @@ async function extractBookingFormPrefill(input: {
 }): Promise<ChatbotBookingPrefill> {
   if (input.routingDecision.kind !== "to-booking-inline") return {}
   if (input.routingDecision.suggestedSlots.length === 0) return {}
+  const deterministicPrefill = buildDeterministicBookingPrefill(input.conversationState, input.jobContext)
 
   try {
     const response = await enqueueChatbotLlmGeneration(() =>
       input.orchestrator.generate({
         systemPrompt: [
           "会話全体を読み取り、予約フォーム初期値だけをJSONで返してください。",
-          "返すキーは contactName, companyName, contactEmail, dueDate の4つだけです。",
+          "返すキーは projectTitle, contactName, companyName, contactEmail, dueDate の5つだけです。",
           "会話中に明示されていない値は空文字にしてください。推測補入は禁止です。",
           "説明文、Markdown、コードフェンスは不要です。",
         ].join("\n"),
@@ -517,10 +529,59 @@ async function extractBookingFormPrefill(input: {
       }),
     )
 
-    return parseBookingPrefillJson(response.rawText)
+    return mergeBookingPrefills(deterministicPrefill, parseBookingPrefillJson(response.rawText))
   } catch {
-    return {}
+    return deterministicPrefill
   }
+}
+
+function buildDeterministicBookingPrefill(
+  conversationState: ConversationState,
+  jobContext: JobContext,
+): ChatbotBookingPrefill {
+  return sanitizeBookingPrefillObject({
+    projectTitle: conversationState.projectTitle,
+    contactName: conversationState.customerName,
+    companyName: conversationState.companyName,
+    contactEmail: conversationState.contactEmail,
+    dueDate: jobContext.publicReleaseDate,
+  })
+}
+
+function sanitizeBookingPrefillObject(value: Record<string, unknown>): ChatbotBookingPrefill {
+  return mergeBookingPrefills({
+    projectTitle: sanitizePrefillString(value.projectTitle, 120),
+    contactName: sanitizePrefillString(value.contactName, 80),
+    companyName: sanitizePrefillString(value.companyName, 120),
+    contactEmail: sanitizePrefillEmail(value.contactEmail),
+    dueDate: sanitizePrefillString(value.dueDate, 40),
+  })
+}
+
+function mergeBookingPrefills(...prefills: Array<ChatbotBookingPrefill | undefined>): ChatbotBookingPrefill {
+  const merged: ChatbotBookingPrefill = {}
+  for (const prefill of prefills) {
+    if (!prefill) continue
+    if (prefill.projectTitle) merged.projectTitle = prefill.projectTitle
+    if (prefill.contactName) merged.contactName = prefill.contactName
+    if (prefill.companyName) merged.companyName = prefill.companyName
+    if (prefill.contactEmail) merged.contactEmail = prefill.contactEmail
+    if (prefill.dueDate) merged.dueDate = prefill.dueDate
+  }
+  return merged
+}
+
+function sanitizePrefillString(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > maxLength) return undefined
+  if (/^(?:未入力|未定|不明|なし|null|undefined|provided)$/iu.test(trimmed)) return undefined
+  return trimmed
+}
+
+function sanitizePrefillEmail(value: unknown): string | undefined {
+  const trimmed = sanitizePrefillString(value, 120)
+  return trimmed && /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/iu.test(trimmed) ? trimmed : undefined
 }
 
 function resolveExistingNotionAiThreadForJsonRead(
@@ -773,6 +834,10 @@ function buildChatbotSystemPrompt(
     "あなたは『のーちゃん』として、お客様の言葉をまず短く受け止め、要件整理と次の一問を自然な会話でつなぎます。",
     "定型文をそのまま返すのではなく、直前の発言に含まれる状況・不安・希望を1つ拾ってから返答します。",
     "情報を一方的に列挙せず、確認済みのことは短く認め、不明点は1〜2点に絞って質問します。",
+    "順番通りにフォーム項目を埋めることを目的にせず、お客様の言葉から意図・背景・未整理の事情を読み取り、次の質問へ移る前に小さくアクノリッジします。",
+    "一見関係なさそうな情報にも重要な文脈が含まれることがあります。気になる情報は流さず、必要なら深掘りしてから次へ進みます。",
+    "追加作業で『その他』が選ばれた場合は、内容が具体化するまで必ず『「その他」とは具体的にどのような作業ですか？』と確認し、booking-card や create_booking へ進めません。『わかりません』『詳しくはまた』『謎』などの曖昧な回答には具体例を挙げて倒し込みます。",
+    "予約候補を出す前に、案件名（プロジェクト名・作品名）も自然に確認します。未定なら仮称でよいことを伝えます。",
     "共感や受容は過剰に盛らず、『承知しました』『その条件なら』など実務的で自然な表現に留めます。",
     "回答範囲は新規案件の調整、要件整理、予約導線に限定し、技術指導、作品レビュー、標準外要望はのりかね本人の確認へ誘導します。",
     "不明なことを推測で断定せず、未確認事項として質問します。",
@@ -824,6 +889,11 @@ function buildConversationState(
   const topicGate = classifyChatbotTopic(userMessage.content)
   const stored = conversation.context.conversationState ?? {}
   const inferred = inferConversationStateFromText(conversationText(conversation, userMessage))
+  const pendingAdditionalWorkOtherPatch = resolvePendingAdditionalWorkOtherPatch({
+    stored,
+    latestUserMessage: userMessage.content,
+    activeChoiceConversationState,
+  })
   const merged = {
     hasFinalMedium: false,
     hasJobKind: false,
@@ -839,11 +909,13 @@ function buildConversationState(
     hasBudgetRange: false,
     hasContactEmail: false,
     hasDesiredSchedule: false,
+    hasProjectTitle: false,
     ...stored,
     ...inferred,
     ...input,
     ...activeChoiceConversationState,
     ...topicGate,
+    ...pendingAdditionalWorkOtherPatch,
   }
 
   return {
@@ -878,12 +950,15 @@ function buildConversationState(
       input?.hasMaterialDetails,
       activeChoiceConversationState?.hasMaterialDetails,
     ),
-    hasAdditionalWork: isSlotSatisfied(
-      stored.hasAdditionalWork,
-      inferred.hasAdditionalWork,
-      input?.hasAdditionalWork,
-      activeChoiceConversationState?.hasAdditionalWork,
-    ),
+    hasAdditionalWork: merged.hasPendingAdditionalWorkOther
+      ? false
+      : isSlotSatisfied(
+          stored.hasAdditionalWork,
+          inferred.hasAdditionalWork,
+          input?.hasAdditionalWork,
+          activeChoiceConversationState?.hasAdditionalWork,
+          pendingAdditionalWorkOtherPatch.hasAdditionalWork,
+        ),
     hasDocumentaryAttachments: isSlotSatisfied(
       stored.hasDocumentaryAttachments,
       inferred.hasDocumentaryAttachments,
@@ -916,6 +991,11 @@ function buildConversationState(
       Boolean(input?.customerName ?? input?.companyName),
       inferred.hasCustomerIdentity,
     ),
+    hasProjectTitle: isSlotSatisfied(
+      stored.hasProjectTitle,
+      inferred.hasProjectTitle,
+      input?.hasProjectTitle,
+    ),
     turnCount: Math.max(stored.turnCount ?? 0, input?.turnCount ?? 0, userTurnCount),
   }
 }
@@ -926,6 +1006,8 @@ function chooseRoutingDecision(input: {
   conversationState: ConversationState
 }): RoutingDecision {
   if (input.deterministicRoutingDecision.kind !== "continue") return input.deterministicRoutingDecision
+  if (input.conversationState.hasPendingAdditionalWorkOther) return input.deterministicRoutingDecision
+  if (!input.conversationState.hasProjectTitle) return input.deterministicRoutingDecision
 
   if (
     input.deterministicRoutingDecision.kind === "continue" &&
@@ -947,6 +1029,29 @@ function chooseRoutingDecision(input: {
 
 function isSlotSatisfied(...values: Array<boolean | undefined>): boolean {
   return values.some(Boolean)
+}
+
+function resolvePendingAdditionalWorkOtherPatch(input: {
+  stored: Partial<ConversationState>
+  latestUserMessage: string
+  activeChoiceConversationState: Partial<ConversationState> | undefined
+}): Partial<ConversationState> {
+  if (input.activeChoiceConversationState?.hasPendingAdditionalWorkOther !== undefined) return {}
+  if (!input.stored.hasPendingAdditionalWorkOther) return {}
+
+  const detail = inferAdditionalWorkOtherDetail(input.latestUserMessage)
+  if (!detail) {
+    return {
+      hasAdditionalWork: false,
+      hasPendingAdditionalWorkOther: true,
+    }
+  }
+
+  return {
+    hasAdditionalWork: true,
+    hasPendingAdditionalWorkOther: false,
+    additionalWorkOtherNote: detail,
+  }
 }
 
 function toMessageUi(
@@ -1042,6 +1147,7 @@ function inferConversationStateFromText(text: string): Partial<ConversationState
   const hasContactEmail = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu.test(text)
   const identity = inferCustomerIdentityFromText(text)
   const hasCustomerIdentity = identity.hasCustomerIdentity
+  const projectTitle = inferProjectTitleFromText(text)
   const hasDeliveryFormat = /(?:納品形式|納品フォーマット|prores|mp4|mov|h\.?264|h\.?265)/iu.test(text)
   const hasMaterialHandoff =
     /(?:受け渡し|オンライン共有|共有リンク|ギガファイル|gigafile|google\s*drive|dropbox|クラウド|アップロード|sd|hdd|ssd|郵送|持ち込み|搬入|転送)/iu.test(text)
@@ -1066,14 +1172,61 @@ function inferConversationStateFromText(text: string): Partial<ConversationState
     hasContactEmail,
     hasDesiredSchedule: hasSchedule,
     hasCustomerIdentity,
+    hasProjectTitle: Boolean(projectTitle),
     contactEmail: hasContactEmail ? text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu)?.[0] : undefined,
     customerName: identity.customerName,
     companyName: identity.companyName,
+    ...(projectTitle ? { projectTitle } : {}),
     hasDeliveryFormat,
     hasProductionOptions,
     hasBudgetRange,
     hasMeetingPreference,
   } as Partial<ConversationState>
+}
+
+function inferProjectTitleFromText(text: string): string | undefined {
+  const patterns = [
+    /(?:案件名|プロジェクト名|作品名|タイトル)\s*(?:は|:|：|=)\s*[「『"']?([\s\S]{1,80}?)[」』"']?(?=(?:\s*(?:、|,|。|\n|$)|\s*(?:会社名|社名|所属|担当者氏名|担当者名|担当|氏名|お名前|名前|メール|連絡先|素材|納品|尺|最終媒体)\s*(?:は|:|：|=)))/gu,
+    /[「『]([^」』\n]{1,80})[」』]\s*(?:という|の)?(?:案件|作品|プロジェクト)/gu,
+  ]
+
+  let latest: string | undefined
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const cleaned = cleanProjectTitle(match[1])
+      if (cleaned) latest = cleaned
+    }
+  }
+
+  return latest
+}
+
+function cleanProjectTitle(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const cleaned = value
+    .replace(/^[\s　「『【（("']+|[\s　」』】）)"']+$/gu, "")
+    .replace(/[、,。]+$/u, "")
+    .replace(/(?:です|でございます|になります)$/u, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+  if (!cleaned || cleaned.length > 80) return undefined
+  if (/^(?:未入力|未定|不明|なし|null|undefined|仮|仮称)$/iu.test(cleaned)) return undefined
+  if (/(?:会社名|社名|所属|担当者|担当|氏名|お名前|名前|メール|連絡先|納品形式|作業場所|希望)$/u.test(cleaned)) return undefined
+  return cleaned
+}
+
+function inferAdditionalWorkOtherDetail(message: string): string | undefined {
+  const normalized = message
+    .replace(/^選択\s*[:：]\s*/u, "")
+    .replace(/[「」『』]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+  if (!normalized || normalized.length > 120) return undefined
+  if (/^(?:わかりません|分かりません|不明|未定|謎|詳しくはまた|まだわからない|まだ分からない|要相談|相談したい|その他)$/u.test(normalized)) {
+    return undefined
+  }
+  if (/^(?:はい|いいえ|yes|no|ok|なし|none)$/iu.test(normalized)) return undefined
+  return normalized
 }
 
 function inferCustomerIdentityFromText(text: string): {

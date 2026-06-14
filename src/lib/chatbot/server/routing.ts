@@ -85,8 +85,10 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     conversationState.hasJobKind &&
     conversationState.hasProjectLength &&
     Boolean(conversationState.hasMaterialHandoff) &&
+    !conversationState.hasPendingAdditionalWorkOther &&
     !conversationState.hasPendingRemoteWorkSiteRecommendation &&
     !conversationState.declinedRemoteWorkSiteRecommendation &&
+    Boolean(conversationState.hasProjectTitle) &&
     conversationState.hasContactEmail
   ) {
     return {
@@ -119,7 +121,7 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     }
   }
 
-  return continueDecision(conversationState)
+  return continueDecision(conversationState, input.latestUserMessage)
 }
 
 function directContact(reason: Extract<RoutingDecision, { kind: "to-direct-contact" }>["reason"]) {
@@ -131,7 +133,10 @@ function directContact(reason: Extract<RoutingDecision, { kind: "to-direct-conta
   } as const
 }
 
-function continueDecision(conversationState: ConversationState): RoutingDecision {
+function continueDecision(
+  conversationState: ConversationState,
+  latestUserMessage?: string,
+): RoutingDecision {
   if (
     conversationState.turnCount <= 1 &&
     (!conversationState.hasJobKind ||
@@ -174,6 +179,13 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
   }
 
   if (!conversationState.hasAdditionalWork) {
+    if (conversationState.hasPendingAdditionalWorkOther) {
+      return {
+        kind: "continue",
+        nextQuestion: buildAdditionalWorkOtherQuestion(latestUserMessage),
+      }
+    }
+
     return {
       kind: "continue",
       nextQuestion: "カラグレ以外の追加作業はありますか？",
@@ -210,6 +222,13 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
       kind: "continue",
       nextQuestion: "作業場所のご希望はありますか？",
       presentChoices: workSiteChoices,
+    }
+  }
+
+  if (!conversationState.hasProjectTitle) {
+    return {
+      kind: "continue",
+      nextQuestion: "案件名（プロジェクト名・作品名）を教えてください。まだ未定なら仮の呼び名でも大丈夫です。",
     }
   }
 
@@ -262,6 +281,19 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
   }
 }
 
+function buildAdditionalWorkOtherQuestion(latestUserMessage: string | undefined): string {
+  if (!latestUserMessage || !isVagueAdditionalWorkOtherAnswer(latestUserMessage)) {
+    return "「その他」とは具体的にどのような作業ですか？"
+  }
+
+  return "「その他」とは具体的にどのような作業ですか？例えば、テロップ整理、簡単な合成、不要物消し以外のレタッチ、納品形式違いの書き出しなど、近いものだけでも大丈夫です。"
+}
+
+function isVagueAdditionalWorkOtherAnswer(message: string): boolean {
+  const normalized = message.normalize("NFKC").trim().toLowerCase()
+  return /^(?:選択\s*[:：]\s*)?(?:わかりません|分かりません|不明|未定|謎|詳しくはまた|まだわからない|まだ分からない|要相談|相談したい|その他)$/u.test(normalized)
+}
+
 function buildSummaryText(jobContext: JobContext, conversationState: ConversationState): string {
   const jobKind = jobContext.jobKind ?? "案件種別未確認"
   const schedule = conversationState.hasDesiredSchedule ? "搬入〜納品あり" : "搬入〜納品未定"
@@ -292,6 +324,8 @@ function shouldPrioritizeSchedule(
     Boolean(conversationState.hasMaterialHandoff) &&
     conversationState.hasWorkSite &&
     Boolean(conversationState.hasCustomerIdentity) &&
+    Boolean(conversationState.hasProjectTitle) &&
+    !conversationState.hasPendingAdditionalWorkOther &&
     (conversationState.hasFinalMedium || jobContext.finalMedium === "web") &&
     (isOneHourCandidateJob(jobContext) || isDateCandidateJob(jobContext))
   )

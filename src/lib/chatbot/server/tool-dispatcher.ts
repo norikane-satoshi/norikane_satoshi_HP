@@ -8,6 +8,8 @@ import type {
 import {
   additionalWorkChoices,
   productionOptionChoices,
+  type ChatbotBookingPrefill,
+  type ConversationState,
   type CandidateWindow,
   type JobContext,
   type RoutingDecision,
@@ -26,6 +28,7 @@ export type ChatbotToolExecutionContext = {
   userId?: string
   userEmail?: string
   createBookingFromApiInput?: typeof defaultCreateBookingFromApiInput
+  conversationState?: ConversationState
 }
 
 type ChatbotToolDefinition<TArgs, TResult> = {
@@ -78,10 +81,19 @@ const createBookingArgsSchema = z.object({
   input: bookingApiSchema,
 })
 
+const bookingPrefillSchema = z.object({
+  projectTitle: z.string().trim().min(1).max(120).optional(),
+  contactName: z.string().trim().min(1).max(80).optional(),
+  companyName: z.string().trim().min(1).max(120).optional(),
+  contactEmail: z.string().trim().email().optional(),
+  dueDate: z.string().trim().min(1).max(40).optional(),
+}).optional()
+
 const showBookingCardArgsSchema = z.object({
   suggestedSlots: z.array(candidateWindowSchema).min(1),
   busyDateKeys: z.array(z.string().trim().min(1)).optional(),
   jobContext: jobContextSchema,
+  bookingPrefill: bookingPrefillSchema,
 })
 
 const getEstimateArgsSchema = z.object({
@@ -104,10 +116,14 @@ const createBookingTool: ChatbotToolDefinition<
   ].join(" "),
   inputSchema: createBookingArgsSchema,
   inputJsonExample: '{"input":{"projectTitle":"...","dueDate":"...","companyName":"...","contactName":"...","sessionEmail":"...","phone":"","memo":"","agreed":true,"selectedSlots":[{"start":"2026-06-15T01:00:00.000Z","end":"2026-06-15T02:00:00.000Z"}]}}',
-  canExecute: (_args, context) =>
-    context.userId && context.userEmail
+  canExecute: (_args, context) => {
+    if (context.conversationState?.hasPendingAdditionalWorkOther) {
+      return { allowed: false, reason: "additional work other detail is required" }
+    }
+    return context.userId && context.userEmail
       ? { allowed: true }
-      : { allowed: false, reason: "authenticated user context is required" },
+      : { allowed: false, reason: "authenticated user context is required" }
+  },
   execute: async (args, context) => {
     if (!context.userId || !context.userEmail) {
       throw new Error("authenticated user context is required")
@@ -127,14 +143,20 @@ const createBookingTool: ChatbotToolDefinition<
 
 const showBookingCardTool: ChatbotToolDefinition<
   z.infer<typeof showBookingCardArgsSchema>,
-  { routingDecision: Extract<RoutingDecision, { kind: "to-booking-inline" }> }
+  {
+    routingDecision: Extract<RoutingDecision, { kind: "to-booking-inline" }>
+    bookingPrefill?: ChatbotBookingPrefill
+  }
 > = {
   name: "show_booking_card",
   description: "Return the existing booking-card routing decision shape.",
   executionCondition: "Call when the customer is ready to see booking candidates and the deterministic safety route also allows booking-card display.",
   inputSchema: showBookingCardArgsSchema,
-  inputJsonExample: '{"suggestedSlots":[{"start":"2026-06-15T01:00:00.000Z","end":"2026-06-15T02:00:00.000Z","label":"6月15日 10:00","available":true}],"jobContext":{"finalMedium":"web","workSite":"remote-grading","documentaryAttachment":{"kind":"none"}}}',
-  canExecute: () => ({ allowed: true }),
+  inputJsonExample: '{"suggestedSlots":[{"start":"2026-06-15T01:00:00.000Z","end":"2026-06-15T02:00:00.000Z","label":"6月15日 10:00","available":true}],"jobContext":{"finalMedium":"web","workSite":"remote-grading","documentaryAttachment":{"kind":"none"}},"bookingPrefill":{"projectTitle":"...","companyName":"...","contactName":"..."}}',
+  canExecute: (_args, context) =>
+    context.conversationState?.hasPendingAdditionalWorkOther
+      ? { allowed: false, reason: "additional work other detail is required" }
+      : { allowed: true },
   execute: (args) => ({
     routingDecision: {
       kind: "to-booking-inline",
@@ -142,6 +164,7 @@ const showBookingCardTool: ChatbotToolDefinition<
       ...(args.busyDateKeys ? { busyDateKeys: args.busyDateKeys } : {}),
       jobContext: args.jobContext,
     },
+    ...(args.bookingPrefill ? { bookingPrefill: args.bookingPrefill } : {}),
   }),
 }
 

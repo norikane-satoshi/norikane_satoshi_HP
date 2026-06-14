@@ -9,7 +9,10 @@ import {
   remoteWorkSiteConfirmationChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
-import { applyActiveChoiceAnswer } from "@/lib/chatbot/server/choice-panel-state"
+import {
+  applyActiveChoiceAnswer,
+  isSatisfiedChoicePanel,
+} from "@/lib/chatbot/server/choice-panel-state"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 
 function baseState(overrides: Partial<ConversationState> = {}): ConversationState {
@@ -25,6 +28,7 @@ function baseState(overrides: Partial<ConversationState> = {}): ConversationStat
     hasContactEmail: false,
     hasDesiredSchedule: false,
     hasCustomerIdentity: true,
+    hasProjectTitle: true,
     turnCount: 2,
     ...overrides,
   }
@@ -87,6 +91,7 @@ describe("choice panel state", () => {
     [finalMediumChoices, "live", { hasFinalMedium: true }, { finalMedium: "live" }],
     [additionalWorkChoices, "retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch"] }],
     [additionalWorkChoices, "選択: retouch, skin-retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch", "skin-retouch"] }],
+    [additionalWorkChoices, "選択: retouch, other", { hasAdditionalWork: false, hasPendingAdditionalWorkOther: true }, { additionalWork: ["retouch", "other"] }],
     [additionalWorkChoices, "選択: none, retouch", { hasAdditionalWork: true }, { additionalWork: undefined }],
     [additionalWorkChoices, "なし", { hasAdditionalWork: true }, { additionalWork: undefined }],
     [
@@ -136,4 +141,20 @@ describe("choice panel state", () => {
       })
     },
   )
+
+  it("keeps additional-work other unsatisfied until the detail is confirmed", () => {
+    const patch = applyActiveChoiceAnswer({
+      activeChoices: additionalWorkChoices,
+      message: "選択: other",
+    })
+
+    expect(patch).toMatchObject({
+      conversationState: {
+        hasAdditionalWork: false,
+        hasPendingAdditionalWorkOther: true,
+      },
+      jobContext: { additionalWork: ["other"] },
+    })
+    expect(isSatisfiedChoicePanel(additionalWorkChoices, baseState(patch?.conversationState))).toBe(false)
+  })
 })

@@ -40,8 +40,24 @@ export function applyActiveChoiceAnswer(input: {
           choiceSetId: input.activeChoices.id,
           choiceId: "none",
           choiceIds: ["none"],
-          conversationState: { hasAdditionalWork: true },
+          conversationState: {
+            hasAdditionalWork: true,
+            hasPendingAdditionalWorkOther: false,
+          },
           jobContext: { additionalWork: undefined },
+        }
+      }
+
+      if (choices.some((item) => item.id === "other")) {
+        return {
+          choiceSetId: input.activeChoices.id,
+          choiceId: choice.id,
+          choiceIds: choices.map((item) => item.id),
+          conversationState: {
+            hasAdditionalWork: false,
+            hasPendingAdditionalWorkOther: true,
+          },
+          jobContext: { additionalWork: choices.map((item) => item.id as AdditionalWork) },
         }
       }
 
@@ -49,7 +65,10 @@ export function applyActiveChoiceAnswer(input: {
         choiceSetId: input.activeChoices.id,
         choiceId: choice.id,
         choiceIds: choices.map((item) => item.id),
-        conversationState: { hasAdditionalWork: true },
+        conversationState: {
+          hasAdditionalWork: true,
+          hasPendingAdditionalWorkOther: false,
+        },
         jobContext: { additionalWork: choices.map((item) => item.id as AdditionalWork) },
       }
     case "documentary-attachment":
@@ -146,7 +165,7 @@ export function isSatisfiedChoicePanel(
     case "final-medium":
       return conversationState.hasFinalMedium
     case "additional-work":
-      return conversationState.hasAdditionalWork
+      return conversationState.hasAdditionalWork && !conversationState.hasPendingAdditionalWorkOther
     case "documentary-attachment":
       return conversationState.hasDocumentaryAttachments
     case "work-site":

@@ -123,6 +123,7 @@ export function parseBookingPrefillJson(rawText: string): ChatbotBookingPrefill 
   if (!parsed) return {}
 
   return {
+    ...stringField(parsed.projectTitle, 120, "projectTitle"),
     ...stringField(parsed.contactName, 80, "contactName"),
     ...stringField(parsed.companyName, 120, "companyName"),
     ...emailField(parsed.contactEmail),
@@ -140,7 +141,7 @@ function exactJsonObjectText(rawText: string): string | null {
 function stringField(
   value: unknown,
   maxLength: number,
-  key: "contactName" | "companyName",
+  key: "projectTitle" | "contactName" | "companyName",
 ): Pick<ChatbotBookingPrefill, typeof key> | Record<string, never> {
   if (typeof value !== "string") return {}
   const trimmed = value.trim()
