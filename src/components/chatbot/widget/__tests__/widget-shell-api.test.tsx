@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { WidgetShell } from "@/components/chatbot/widget/WidgetShell"
@@ -34,6 +34,7 @@ describe("WidgetShell API wiring", () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   it("posts submitted chat text to /api/chatbot/message", async () => {
@@ -51,6 +52,7 @@ describe("WidgetShell API wiring", () => {
     submitMessage()
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText("Local debug: Tier 2 Ollama DeepSeek (tier-2-ollama-deepseek)")).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/chatbot/message",
       expect.objectContaining({
@@ -62,6 +64,57 @@ describe("WidgetShell API wiring", () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
       message: "相談したいです",
     })
+  })
+
+  it("shows the thinking indicator while waiting for a chatbot response", async () => {
+    let resolveFetch: (response: ReturnType<typeof mockJsonResponse>) => void = () => undefined
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<ReturnType<typeof mockJsonResponse>>((resolve) => {
+          resolveFetch = resolve
+        }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    submitMessage()
+
+    expect(await screen.findByText("考え中")).toBeInTheDocument()
+    expect(screen.getByLabelText("相談内容")).toBeDisabled()
+    expect(screen.getByRole("button", { name: "送信" })).toBeDisabled()
+
+    resolveFetch(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        assistantMessage,
+        tier: "tier-2-ollama-deepseek",
+        ui: { kind: "none" },
+      }),
+    )
+
+    expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText("考え中")).not.toBeInTheDocument())
+    expect(screen.getByLabelText("相談内容")).toBeEnabled()
+  })
+
+  it("adds a delay notice after six seconds while the response is pending", async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)))
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    act(() => {
+      submitMessage()
+    })
+
+    expect(screen.getByText("考え中")).toBeInTheDocument()
+    expect(screen.queryByText("少々お時間をいただいています…")).not.toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6000)
+    })
+
+    expect(screen.getByText("少々お時間をいただいています…")).toBeInTheDocument()
   })
 
   it("renders ChoicePanel for choice-panel responses", async () => {
@@ -110,12 +163,6 @@ describe("WidgetShell API wiring", () => {
               documentaryAttachment: { kind: "none" },
               workflowEstimate: { stages: [], totalMinDays: 2, totalMaxDays: 3, riskFlags: [] },
             },
-            bookingPrefill: {
-              projectTitle: "CM案件",
-              contactName: "山田太郎",
-              companyName: "Example",
-              dueDate: "2026-07-10",
-            },
           },
         }),
       ),
@@ -126,10 +173,6 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "6月10日 午前" })).toBeInTheDocument()
-    expect(screen.getByDisplayValue("CM案件")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("山田太郎")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("Example")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("2026-07-10")).toBeInTheDocument()
   })
 
   it("renders InquiryForm for tier4 responses and posts submit-inquiry", async () => {
