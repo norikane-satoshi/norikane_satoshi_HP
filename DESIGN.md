@@ -79,26 +79,11 @@ If older notes mention orange aurora, treat that as historical and superseded by
 
 Fonts are loaded in `src/app/layout.tsx`.
 
-Font choices are derived from the brand logo lockup:
-- **「のりかね」** part of the logo uses **筑紫A丸ゴシック Regular** → web substitute: **Zen Maru Gothic**
-- **「映像設計室」** part of the logo uses **ヒラギノ明朝 W3** → web substitute: **Noto Serif JP**
-- **English lockup** uses **Optima Regular** → system font `"Optima", "Palatino"` + Inter fallback
-
 | Role | Font | Variable | Weights |
 |---|---|---|---|
-| Japanese headings / brand display | Zen Maru Gothic | `--font-maru` | 400, 500, 700 |
-| Japanese body / prose | Noto Serif JP | `--font-mincho` | 400, 600, 700 |
+| Japanese / default UI | Noto Sans JP | `--font-sans` | 400, 600, 700 |
 | Latin brand / numeric emphasis | Inter | `--font-inter` | 400, 600, 700 |
 | Code / counters / small technical labels | Geist Mono | `--font-geist-mono` | default |
-
-**CSS mapping in `@theme inline`:**
-- `--font-sans` → `--font-mincho` (Noto Serif JP) — default body font
-- `--font-heading` → `--font-maru` (Zen Maru Gothic) — h1–h6 elements
-
-**Utility classes:**
-- `.font-maru` — Zen Maru Gothic (heading/display)
-- `.font-mincho` — Noto Serif JP (body/prose)
-- `.font-optima` — Optima system font stack (English brand text)
 
 ### 3.1 Japanese UI rules
 
@@ -110,19 +95,18 @@ This site is Japanese-first. Quality often breaks in text handling before it bre
 - Keep headings tight but readable: `tracking-tight` is OK for large display headings.
 - Avoid `break-all` as a blanket fix. Use it only for URLs or unavoidable technical strings.
 - Forms, tables, captions, and body prose must have separate density rules.
-- Noto Serif JP body text pairs well with generous `leading-relaxed` — do not tighten it.
 
 ### 3.2 Type hierarchy
 
 | Role | Typical class |
 |---|---|
-| Page title | `text-3xl md:text-4xl xl:text-5xl font-bold tracking-tight text-hp font-maru` |
-| Hero display | `text-5xl md:text-7xl xl:text-8xl font-bold leading-[0.95] tracking-tight text-white font-maru` |
-| Section heading | `text-2xl md:text-3xl font-semibold text-hp font-maru` |
-| Card heading | `text-base md:text-lg font-semibold text-hp font-maru` |
+| Page title | `text-3xl md:text-4xl xl:text-5xl font-bold tracking-tight text-hp` |
+| Hero display | `text-5xl md:text-7xl xl:text-8xl font-bold leading-[0.95] tracking-tight text-white` |
+| Section heading | `text-2xl md:text-3xl font-semibold text-hp` |
+| Card heading | `text-base md:text-lg font-semibold text-hp` |
 | Body | `text-base md:text-lg leading-relaxed text-hp-muted` |
 | Small body | `text-xs md:text-sm leading-relaxed text-hp-muted` |
-| Eyebrow | `text-xs uppercase tracking-[0.22em] text-hp-muted font-optima` |
+| Eyebrow | `text-xs uppercase tracking-[0.22em] text-hp-muted` |
 | Technical counter | `font-[var(--font-geist-mono)] text-[10px] text-hp-muted` |
 
 ## 4. Component styling contract
@@ -355,7 +339,7 @@ A UI change fails L1 if any of these are true:
 - Uses Tailwind default heavy shadows such as `shadow-lg`, `shadow-xl` for primary surfaces
 - Adds dark sections outside the hero
 - Breaks the canonical width/padding shell
-- Uses fonts other than Zen Maru Gothic, Noto Serif JP, Inter, Geist Mono (or the Optima system stack)
+- Uses fonts other than Noto Sans JP, Inter, Geist Mono
 - Bakes text into diagram images
 - Makes Japanese body text cramped
 
@@ -392,7 +376,6 @@ L3 should not mean more effects. For this site, L3 means clarity, restraint, and
 - Keep CTA language calm and professional.
 - Reuse existing layouts before inventing new ones.
 - Update this file when the design system changes.
-- Use `.font-maru` for headings, `.font-mincho` for prose, `.font-optima` for English brand text.
 
 ### Don't
 
@@ -402,7 +385,7 @@ L3 should not mean more effects. For this site, L3 means clarity, restraint, and
 - Do not add new aurora colors.
 - Do not use thick borders or default Tailwind heavy shadows.
 - Do not nest blur-heavy cards.
-- Do not introduce fonts outside the approved set (Zen Maru Gothic, Noto Serif JP, Inter, Geist Mono, Optima system stack).
+- Do not introduce new fonts.
 - Do not make Japanese body copy tight or overly letter-spaced.
 - Do not rely on color alone for meaning.
 - Do not turn the portfolio into a loud SaaS landing page.
@@ -431,7 +414,7 @@ Before finishing UI work:
 
 When asking an AI agent to build UI in this repo, use:
 
-> Follow `DESIGN.md`. Use the existing Glass Design System in `src/app/globals.css`. Do not use the retired neumorphism rules. Reuse `.glass-card`, `.glass-card-sm`, `.glass-btn`, `.glass-input`, `.glass-badge`, and `.glass-bar`. Keep Japanese text readable and use the canonical `max-w-[1440px] px-6 md:px-10 xl:px-14` shell. Use `.font-maru` for headings and `.font-mincho` for body prose.
+> Follow `DESIGN.md`. Use the existing Glass Design System in `src/app/globals.css`. Do not use the retired neumorphism rules. Reuse `.glass-card`, `.glass-card-sm`, `.glass-btn`, `.glass-input`, `.glass-badge`, and `.glass-bar`. Keep Japanese text readable and use the canonical `max-w-[1440px] px-6 md:px-10 xl:px-14` shell.
 
 For diagrams:
 

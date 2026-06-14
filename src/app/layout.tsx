@@ -65,7 +65,10 @@ export default function RootLayout({
         <main className="flex-1 pt-24 md:pt-28 pb-16">
           {children}
         </main>
-        <footer className="px-6 py-8 text-center text-sm text-hp-muted">
+        <footer
+          className="px-6 py-8 text-center text-sm text-hp-muted"
+          style={{ background: "rgba(248, 246, 255, 0.85)", borderTop: "1px solid rgba(255,255,255,0.6)" }}
+        >
           <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-center gap-3 md:flex-row md:gap-6">
             <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
             <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2" aria-label="法務">
