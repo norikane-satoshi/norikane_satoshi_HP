@@ -8,7 +8,6 @@ import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
 import { NavHeader } from "@/components/hp/nav-header";
 import { SITE_BRAND_NAME, SITE_OWNER_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand";
 
-// 見出し・ブランド表示用：筑紫A丸ゴシックに近い丸ゴシック体
 const zenMaruGothic = Zen_Maru_Gothic({
   subsets: ["latin"],
   variable: "--font-maru",
@@ -16,7 +15,6 @@ const zenMaruGothic = Zen_Maru_Gothic({
   display: "swap",
 });
 
-// 本文・テキスト用：ヒラギノ明朝W3に近い明朝体
 const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
   variable: "--font-mincho",
@@ -67,7 +65,7 @@ export default function RootLayout({
         </main>
         <footer
           className="px-6 py-8 text-center text-sm text-hp-muted"
-          style={{ background: "var(--bg-base)", borderTop: "1px solid rgba(255,255,255,0.6)" }}
+          style={{ background: "rgba(248, 246, 255, 0.85)", borderTop: "1px solid rgba(255,255,255,0.6)" }}
         >
           <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-center gap-3 md:flex-row md:gap-6">
             <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
