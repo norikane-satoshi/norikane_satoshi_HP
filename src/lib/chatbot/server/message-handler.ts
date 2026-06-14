@@ -41,7 +41,10 @@ import {
   runChatbotAgentLoop,
   type ChatbotAgentLoopResult,
 } from "@/lib/chatbot/server/agent-loop"
-import { buildChatbotSystemPrompt } from "@/lib/chatbot/server/system-prompt"
+import {
+  appendChatbotSystemData,
+  buildChatbotSystemPrompt,
+} from "@/lib/chatbot/server/system-prompt"
 import type { CandidateWindow, ConversationSummary, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
 import {
   hasRequiredConsultationNotificationSlots,
@@ -252,7 +255,10 @@ async function handleChatbotMessageCore(
     activeChoiceAnswer?.conversationState,
   )
   const llmRequest: ChatbotLlmRequest = {
-    systemPrompt: buildChatbotSystemPrompt(userContext, userContextFormatter),
+    systemPrompt: buildChatbotSystemPrompt(userContext, userContextFormatter, {
+      conversationState,
+      jobContext,
+    }),
     messages: [
       ...conversation.messages.map(({ role, content }) => ({ role, content })),
       { role: userMessage.role, content: userMessage.content },
@@ -503,12 +509,18 @@ async function extractBookingFormPrefill(input: {
   try {
     const response = await enqueueChatbotLlmGeneration(() =>
       input.orchestrator.generate({
-        systemPrompt: [
-          "会話全体を読み取り、予約フォーム初期値だけをJSONで返してください。",
-          "返すキーは projectTitle, contactName, companyName, contactEmail, dueDate の5つだけです。",
-          "会話中に明示されていない値は空文字にしてください。推測補入は禁止です。",
-          "説明文、Markdown、コードフェンスは不要です。",
-        ].join("\n"),
+        systemPrompt: appendChatbotSystemData(
+          [
+            "会話全体を読み取り、予約フォーム初期値だけをJSONで返してください。",
+            "返すキーは projectTitle, contactName, companyName, contactEmail, dueDate の5つだけです。",
+            "会話中に明示されていない値は空文字にしてください。推測補入は禁止です。",
+            "説明文、Markdown、コードフェンスは不要です。",
+          ].join("\n"),
+          {
+            conversationState: input.conversationState,
+            jobContext: input.jobContext,
+          },
+        ),
         messages: [...input.conversation.messages, input.userMessage].map(({ role, content }) => ({ role, content })),
         ...(input.notionAiThread ? { notionAiThread: input.notionAiThread } : {}),
         forceFullPrompt: true,

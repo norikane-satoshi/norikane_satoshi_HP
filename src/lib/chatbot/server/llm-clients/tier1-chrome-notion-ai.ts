@@ -1068,8 +1068,8 @@ function buildDedicatedThreadPatchPrompt(request: ChatbotLlmRequest): string {
   const latestUserMessage = request.latestUserMessage?.trim()
   if (latestUserMessage) {
     return [
+      extractSystemDataSection(request.systemPrompt),
       request.knowledgeContext?.notionReferencePrompt,
-      buildConfirmedFactsPrompt(request),
       `user: ${latestUserMessage}`,
     ]
       .filter((line): line is string => Boolean(line))
@@ -1079,41 +1079,18 @@ function buildDedicatedThreadPatchPrompt(request: ChatbotLlmRequest): string {
   const lastMessage = request.messages.at(-1)
   if (!lastMessage) return emptyText
   return [
+    extractSystemDataSection(request.systemPrompt),
     request.knowledgeContext?.notionReferencePrompt,
-    buildConfirmedFactsPrompt(request),
     `${lastMessage.role}: ${lastMessage.content}`,
   ]
     .filter((line): line is string => Boolean(line))
     .join("\n")
 }
 
-function buildConfirmedFactsPrompt(request: ChatbotLlmRequest): string {
-  const facts = [
-    request.conversationState.hasFinalMedium ? `媒体=${request.jobContext.finalMedium}` : undefined,
-    request.conversationState.hasJobKind && request.jobContext.jobKind ? `案件種別=${request.jobContext.jobKind}` : undefined,
-    request.conversationState.hasProjectLength && typeof request.jobContext.projectLengthMinutes === "number"
-      ? `尺=${request.jobContext.projectLengthMinutes}分`
-      : undefined,
-    request.conversationState.hasDesiredSchedule && request.jobContext.preferredStartDate
-      ? `開始希望=${request.jobContext.preferredStartDate}`
-      : undefined,
-    request.conversationState.hasDesiredSchedule && request.jobContext.publicReleaseDate
-      ? `公開/納品=${request.jobContext.publicReleaseDate}`
-      : undefined,
-    request.conversationState.hasWorkSite ? `作業場所=${request.jobContext.workSite}` : undefined,
-    request.conversationState.hasContactEmail && request.conversationState.contactEmail
-      ? `メール=${request.conversationState.contactEmail}`
-      : undefined,
-    request.conversationState.hasCustomerIdentity && request.conversationState.customerName
-      ? `氏名=${request.conversationState.customerName}`
-      : undefined,
-    request.conversationState.hasCustomerIdentity && request.conversationState.companyName
-      ? `会社=${request.conversationState.companyName}`
-      : undefined,
-  ].filter((fact): fact is string => Boolean(fact))
-
-  if (facts.length === 0) return emptyText
-  return `confirmed_facts: ${facts.join(" / ")}`
+function extractSystemDataSection(systemPrompt: string): string {
+  const marker = "システムデータ固定領域:"
+  const markerIndex = systemPrompt.lastIndexOf(marker)
+  return markerIndex >= 0 ? systemPrompt.slice(markerIndex).trim() : emptyText
 }
 
 function buildPromptMessages(

@@ -1,4 +1,5 @@
 import { buildChatbotStaticPolicyPrompt } from "@/lib/chatbot/knowledge"
+import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
   formatChatbotToolRegistryForPrompt,
   type ChatbotToolName,
@@ -59,9 +60,15 @@ const toolUsePrinciples = [
   "- 安全分岐に該当する内容はツール化せず、アプリ層の direct-contact 判定に従う。",
 ] as const
 
+type SystemDataInput = {
+  conversationState: ConversationState
+  jobContext: JobContext
+}
+
 export function buildChatbotSystemPrompt(
   userContext?: UserChatbotContext | null,
   userContextFormatter?: typeof formatUserChatbotContextForPrompt,
+  systemData?: SystemDataInput,
 ): string {
   const lines = [
     ...systemDataHandlingPrinciples,
@@ -77,16 +84,58 @@ export function buildChatbotSystemPrompt(
     lines.push(userContextFormatter(userContext))
   }
 
+  const confirmedFacts = buildConfirmedFactsSection(systemData)
+  if (confirmedFacts) {
+    lines.push(confirmedFacts)
+  }
+
   return lines.join("\n")
 }
 
 export function buildChatbotAgentSystemPrompt(basePrompt: string): string {
   return [
-    basePrompt,
     "エージェントモード:",
-    "上記の単一システムプロンプトを会話方針の正本として使う。",
+    "この単一システムプロンプト全体を会話方針の正本として使う。",
     "ツール呼び出しが必要な場合だけ、本文末尾に tool_call JSON オブジェクトを1つ置く。",
     "利用可能ツール:",
     formatChatbotToolRegistryForPrompt(undefined, { enabledToolNames: enabledAgentToolNames }),
+    basePrompt,
   ].join("\n")
+}
+
+export function appendChatbotSystemData(prompt: string, systemData?: SystemDataInput): string {
+  const confirmedFacts = buildConfirmedFactsSection(systemData)
+  return [prompt, confirmedFacts].filter((line): line is string => Boolean(line)).join("\n")
+}
+
+function buildConfirmedFactsSection(systemData: SystemDataInput | undefined): string {
+  if (!systemData) return ""
+
+  const { conversationState, jobContext } = systemData
+  const facts = [
+    conversationState.hasFinalMedium ? `媒体=${jobContext.finalMedium}` : undefined,
+    conversationState.hasJobKind && jobContext.jobKind ? `案件種別=${jobContext.jobKind}` : undefined,
+    conversationState.hasProjectLength && typeof jobContext.projectLengthMinutes === "number"
+      ? `尺=${jobContext.projectLengthMinutes}分`
+      : undefined,
+    conversationState.hasDesiredSchedule && jobContext.preferredStartDate
+      ? `開始希望=${jobContext.preferredStartDate}`
+      : undefined,
+    conversationState.hasDesiredSchedule && jobContext.publicReleaseDate
+      ? `公開/納品=${jobContext.publicReleaseDate}`
+      : undefined,
+    conversationState.hasWorkSite ? `作業場所=${jobContext.workSite}` : undefined,
+    conversationState.hasContactEmail && conversationState.contactEmail
+      ? `メール=${conversationState.contactEmail}`
+      : undefined,
+    conversationState.hasCustomerIdentity && conversationState.customerName
+      ? `氏名=${conversationState.customerName}`
+      : undefined,
+    conversationState.hasCustomerIdentity && conversationState.companyName
+      ? `会社=${conversationState.companyName}`
+      : undefined,
+  ].filter((fact): fact is string => Boolean(fact))
+
+  if (facts.length === 0) return ""
+  return ["システムデータ固定領域:", `confirmed_facts: ${facts.join(" / ")}`].join("\n")
 }

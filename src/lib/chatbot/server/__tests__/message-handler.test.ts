@@ -205,6 +205,47 @@ describe("handleChatbotMessage user context", () => {
     expect(systemPrompt).toContain("お客様が明示的に選択していない場合は未定扱い")
   })
 
+  it("places confirmed facts in the system prompt instead of the user messages", async () => {
+    const harness = setup()
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "案件依頼したいです",
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasMaterialHandoff: true,
+          hasDesiredSchedule: true,
+          hasWorkSite: true,
+          hasContactEmail: true,
+          hasCustomerIdentity: true,
+          contactEmail: "customer@example.com",
+          customerName: "テストユーザー",
+          companyName: "テスト株式会社",
+        },
+        jobContext: {
+          finalMedium: "web",
+          jobKind: "live-60m",
+          projectLengthMinutes: 150,
+          preferredStartDate: "2026-07-01",
+          publicReleaseDate: "2026-07-31",
+          workSite: "remote-grading",
+        },
+      },
+      harness.options,
+    )
+
+    const request = harness.generate.mock.calls[0]?.[0]
+    expect(request.systemPrompt).toContain("システムデータ固定領域:")
+    expect(request.systemPrompt).toContain(
+      "confirmed_facts: 媒体=web / 案件種別=live-60m / 尺=150分 / 開始希望=2026-07-01 / 公開/納品=2026-07-31 / 作業場所=remote-grading / メール=customer@example.com / 氏名=テストユーザー / 会社=テスト株式会社",
+    )
+    expect(request.messages.map((message: { content: string }) => message.content).join("\n")).not.toContain("confirmed_facts")
+  })
+
   it("routes ask_checkbox tool calls to a multiple-selection choice panel", async () => {
     const harness = setup()
     harness.generate

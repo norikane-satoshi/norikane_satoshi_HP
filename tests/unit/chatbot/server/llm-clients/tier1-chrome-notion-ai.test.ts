@@ -25,6 +25,7 @@ import {
   notionAiChatbotThreadId,
   notionAiChatbotThreadUrl,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
+import { appendChatbotSystemData } from "@/lib/chatbot/server/system-prompt"
 import type {
   NotionAiCdpSession,
   NotionAiCdpTarget,
@@ -63,12 +64,17 @@ function jobContext(): JobContext {
 }
 
 function llmRequest(): ChatbotLlmRequest {
+  const state = conversationState()
+  const context = jobContext()
   return {
-    systemPrompt: "Collect only new project intake details.",
+    systemPrompt: appendChatbotSystemData("Collect only new project intake details.", {
+      conversationState: state,
+      jobContext: context,
+    }),
     messages: [{ role: "user", content: "来月のWeb CM案件です" }],
     latestUserMessage: "立ち会い候補を相談したいです",
-    conversationState: conversationState(),
-    jobContext: jobContext(),
+    conversationState: state,
+    jobContext: context,
   }
 }
 
@@ -370,6 +376,8 @@ describe("Tier1ChromeNotionAiClient", () => {
             "value": [
               [
                 "Collect only new project intake details.
+      システムデータ固定領域:
+      confirmed_facts: 媒体=web / 案件種別=cm-30s / 作業場所=remote-grading
       user: 来月のWeb CM案件です
       user: 立ち会い候補を相談したいです",
               ],
@@ -418,6 +426,8 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     expect(payloadPrompt(payload)).toBe([
       "Collect only new project intake details.",
+      "システムデータ固定領域:",
+      "confirmed_facts: 媒体=web / 案件種別=cm-30s / 作業場所=remote-grading",
       "user: 来月のWeb CM案件です",
       "user: 立ち会い候補を相談したいです",
     ].join("\n"))
@@ -560,7 +570,10 @@ describe("Tier1ChromeNotionAiClient", () => {
   it("patches only the new user message into an existing dedicated conversation thread", () => {
     const payload = buildPayloadForRequest({
       ...llmRequest(),
-      systemPrompt: "固定プロンプトは再送しない",
+      systemPrompt: appendChatbotSystemData("固定プロンプトは再送しない", {
+        conversationState: conversationState(),
+        jobContext: jobContext(),
+      }),
       messages: [
         { role: "user", content: "会話Aの発言が混じったら失敗" },
         { role: "assistant", content: "過去の応答も再送しない" },
@@ -579,6 +592,7 @@ describe("Tier1ChromeNotionAiClient", () => {
       createdSource: "workflows",
     })
     expect(prompt.split("\n")).toEqual([
+      "システムデータ固定領域:",
       "confirmed_facts: 媒体=web / 案件種別=cm-30s / 作業場所=remote-grading",
       "user: 会話Bの今回の新規発言",
     ])
@@ -588,17 +602,25 @@ describe("Tier1ChromeNotionAiClient", () => {
   })
 
   it("includes confirmed project length in dedicated-thread patch facts", () => {
+    const state = conversationState()
+    const context = {
+      ...jobContext(),
+      projectLengthMinutes: 150,
+    }
     const payload = buildPayloadForRequest({
       ...llmRequest(),
+      systemPrompt: appendChatbotSystemData("Collect only new project intake details.", {
+        conversationState: state,
+        jobContext: context,
+      }),
       latestUserMessage: "予約候補を相談したいです",
       notionAiThread: { threadId: "thread-b" },
-      jobContext: {
-        ...jobContext(),
-        projectLengthMinutes: 150,
-      },
+      conversationState: state,
+      jobContext: context,
     })
     const prompt = payloadPrompt(payload)
 
+    expect(prompt).toContain("システムデータ固定領域:")
     expect(prompt).toContain("confirmed_facts: 媒体=web / 案件種別=cm-30s / 尺=150分 / 作業場所=remote-grading")
   })
 
@@ -613,13 +635,19 @@ describe("Tier1ChromeNotionAiClient", () => {
     const latestUserMessage = "見積もりに必要な情報を教えてください"
     const beforePayload = buildPayloadForRequest({
       ...llmRequest(),
-      systemPrompt: "固定プロンプト全文",
+      systemPrompt: appendChatbotSystemData("固定プロンプト全文", {
+        conversationState: conversationState(),
+        jobContext: jobContext(),
+      }),
       messages,
       latestUserMessage,
     })
     const afterPayload = buildPayloadForRequest({
       ...llmRequest(),
-      systemPrompt: "固定プロンプト全文",
+      systemPrompt: appendChatbotSystemData("固定プロンプト全文", {
+        conversationState: conversationState(),
+        jobContext: jobContext(),
+      }),
       messages,
       latestUserMessage,
       notionAiThread: { threadId: "thread-a" },
@@ -641,17 +669,18 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     expect(beforeMetrics).toEqual({
       transcriptMessages: 3,
-      promptLines: 7,
-      promptChars: 155,
-      postDataBytes: 2963,
+      promptLines: 9,
+      promptChars: 228,
+      postDataBytes: 3038,
     })
     expect(afterMetrics).toEqual({
       transcriptMessages: 3,
-      promptLines: 2,
-      promptChars: 84,
-      postDataBytes: 2886,
+      promptLines: 3,
+      promptChars: 97,
+      postDataBytes: 2900,
     })
     expect(afterPrompt.split("\n")).toEqual([
+      "システムデータ固定領域:",
       "confirmed_facts: 媒体=web / 案件種別=cm-30s / 作業場所=remote-grading",
       "user: 見積もりに必要な情報を教えてください",
     ])
@@ -690,7 +719,10 @@ describe("Tier1ChromeNotionAiClient", () => {
   it("patches selected Notion knowledge references without resending the fixed prompt", () => {
     const payload = buildPayloadForRequest({
       ...llmRequest(),
-      systemPrompt: "固定プロンプトは再送しない",
+      systemPrompt: appendChatbotSystemData("固定プロンプトは再送しない", {
+        conversationState: conversationState(),
+        jobContext: jobContext(),
+      }),
       messages: [{ role: "user", content: "過去の応答も再送しない" }],
       latestUserMessage: "ライブの工程日数を知りたいです",
       notionAiThread: { threadId: "thread-b" },
@@ -705,6 +737,7 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     expect(prompt).toContain("オンデマンド知識参照")
     expect(prompt).toContain("AIチャットボット 相談窓口の設計")
+    expect(prompt).toContain("システムデータ固定領域:")
     expect(prompt).toContain("confirmed_facts: 媒体=web / 案件種別=cm-30s / 作業場所=remote-grading")
     expect(prompt).toContain("user: ライブの工程日数を知りたいです")
     expect(prompt).not.toContain("固定プロンプト")
@@ -736,6 +769,8 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     expect(prompt.split("\n")).toEqual([
       "Collect only new project intake details.",
+      "システムデータ固定領域:",
+      "confirmed_facts: 媒体=web / 案件種別=cm-30s / 作業場所=remote-grading",
       expect.stringContaining("過去の会話要約: 古い履歴 14件を決定的に圧縮"),
       "user: 履歴15: Web CM の相談詳細 15",
       "assistant: 履歴16: Web CM の相談詳細 16",
