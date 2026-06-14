@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Sans_JP, Inter, Geist_Mono, Playfair_Display } from "next/font/google";
+import { Zen_Maru_Gothic, Noto_Serif_JP, Inter, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import "@/components/booking/booking-calendar.css";
@@ -8,9 +8,16 @@ import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
 import { NavHeader } from "@/components/hp/nav-header";
 import { SITE_BRAND_NAME, SITE_OWNER_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand";
 
-const notoSansJP = Noto_Sans_JP({
+const zenMaruGothic = Zen_Maru_Gothic({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-maru",
+  weight: ["400", "500", "700"],
+  display: "swap",
+});
+
+const notoSerifJP = Noto_Serif_JP({
+  subsets: ["latin"],
+  variable: "--font-mincho",
   weight: ["400", "600", "700"],
   display: "swap",
 });
@@ -25,13 +32,6 @@ const inter = Inter({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-});
-
-const playfairDisplay = Playfair_Display<"--font-display">({
-  subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["400", "700"],
-  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -56,7 +56,7 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${notoSansJP.variable} ${inter.variable} ${geistMono.variable} ${playfairDisplay.variable} h-full antialiased`}
+      className={`${zenMaruGothic.variable} ${notoSerifJP.variable} ${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <NavHeader />
@@ -65,10 +65,7 @@ export default function RootLayout({
         </main>
         <footer
           className="px-6 py-8 text-center text-sm text-hp-muted"
-          style={{
-            background: "color-mix(in srgb, var(--bg-base) 85%, white)",
-            borderTop: "1px solid rgba(255,255,255,0.6)",
-          }}
+          style={{ background: "rgba(248, 246, 255, 0.85)", borderTop: "1px solid rgba(255,255,255,0.6)" }}
         >
           <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-center gap-3 md:flex-row md:gap-6">
             <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
