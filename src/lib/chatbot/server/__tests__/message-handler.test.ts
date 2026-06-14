@@ -331,10 +331,12 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toBe("「その他」とは具体的にどのような作業ですか？")
+    expect(result.assistantMessage.content).toBe(
+      "確認しました。案件内容を整理するため、最終媒体・尺・希望時期を教えてください。",
+    )
     expect(result.routingDecision).toMatchObject({
       kind: "continue",
-      nextQuestion: "「その他」とは具体的にどのような作業ですか？",
+      nextQuestion: "",
     })
     expect(result.ui).toEqual({ kind: "none" })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
@@ -348,7 +350,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("keeps asking with examples for vague additional-work other detail", async () => {
+  it("uses the LLM response for vague additional-work other detail", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
@@ -380,9 +382,8 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("「その他」とは具体的にどのような作業ですか？")
-    expect(result.assistantMessage.content).toContain("例えば")
-    expect(result.routingDecision).toMatchObject({ kind: "continue" })
+    expect(result.assistantMessage.content).toBe("返信です")
+    expect(result.routingDecision).toMatchObject({ kind: "continue", nextQuestion: "次の質問" })
   })
 
   it("uses dedicated Notion AI threads by default", async () => {
@@ -847,7 +848,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).not.toMatch(/\d+万円|¥|￥/u)
   })
 
-  it("keeps first-turn inquiry intake when the LLM proposes early direct contact", async () => {
+  it("keeps first-turn inquiry in continue routing when the LLM proposes early direct contact", async () => {
     const harness = setup({ existingConversation: null })
     harness.generate.mockResolvedValueOnce({
       rawText: "連絡先を教えてください。",
@@ -867,14 +868,14 @@ describe("handleChatbotMessage user context", () => {
 
     expect(result.routingDecision).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("案件種類"),
+      nextQuestion: "",
     })
     expect(result.ui).not.toMatchObject({ kind: "direct-contact-card" })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationId: "created_session_1",
         routingDecision: "continue",
-        currentQuestion: expect.stringContaining("案件種類"),
+        currentQuestion: "",
       }),
     )
   })
@@ -1558,7 +1559,8 @@ describe("handleChatbotMessage user context", () => {
       kind: "consultation-summary-form",
       summary: expect.objectContaining({
         customerEmail: "client@example.com",
-        summaryText: expect.stringContaining("cinema"),
+        summaryText: "",
+        openQuestions: [],
       }),
     })
   })
@@ -1621,7 +1623,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("persists the readiness fallback returned by deterministic routing", async () => {
+  it("persists the LLM continue decision when deterministic routing only gates readiness", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
@@ -1642,7 +1644,7 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationId: "conv_1",
-        currentQuestion: expect.stringContaining("最終媒体"),
+        currentQuestion: "次の質問",
         activeChoices: null,
       }),
     )
@@ -2028,7 +2030,7 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(result.routingDecision).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("案件種別・尺"),
+      nextQuestion: "",
     })
     expect(result.routingDecision).not.toMatchObject({ presentChoices: finalMediumChoices })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(

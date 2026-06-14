@@ -16,7 +16,6 @@ import {
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
-import { initialIntakeQuestions } from "@/lib/chatbot/knowledge/response-policy"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 
 export type RoutingDecisionInput = {
@@ -83,7 +82,6 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     !conversationState.hasPendingAdditionalWorkOther &&
     !conversationState.hasPendingRemoteWorkSiteRecommendation &&
     !conversationState.declinedRemoteWorkSiteRecommendation &&
-    Boolean(conversationState.hasProjectTitle) &&
     conversationState.hasContactEmail
   ) {
     return {
@@ -116,7 +114,7 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     }
   }
 
-  return continueDecision(conversationState, input.latestUserMessage)
+  return continueDecision(conversationState)
 }
 
 function directContact(reason: Extract<RoutingDecision, { kind: "to-direct-contact" }>["reason"]) {
@@ -130,24 +128,11 @@ function directContact(reason: Extract<RoutingDecision, { kind: "to-direct-conta
 
 function continueDecision(
   conversationState: ConversationState,
-  latestUserMessage?: string,
 ): RoutingDecision {
-  if (
-    conversationState.turnCount <= 1 &&
-    (!conversationState.hasJobKind ||
-      !conversationState.hasDesiredSchedule ||
-      !conversationState.hasCustomerIdentity)
-  ) {
-    return {
-      kind: "continue",
-      nextQuestion: `まず ${initialIntakeQuestions.join(" / ")} を教えてください。`,
-    }
-  }
-
   if (!conversationState.hasAdditionalWork && conversationState.hasPendingAdditionalWorkOther) {
     return {
       kind: "continue",
-      nextQuestion: buildAdditionalWorkOtherQuestion(latestUserMessage),
+      nextQuestion: "",
     }
   }
 
@@ -167,49 +152,30 @@ function continueDecision(
     }
   }
 
-  const missingIntakeLabels = requiredBookingReadinessMissingLabels(conversationState)
-  if (missingIntakeLabels.length > 0) {
+  if (!hasRequiredBookingReadinessSlots(conversationState)) {
     return {
       kind: "continue",
-      nextQuestion: buildReadinessFallbackQuestion(missingIntakeLabels),
+      nextQuestion: "",
     }
   }
 
   return {
     kind: "continue",
-    nextQuestion: "予約候補を出す前に、ほかに共有しておきたい制約があれば教えてください。",
+    nextQuestion: "",
   }
 }
 
-function requiredBookingReadinessMissingLabels(conversationState: ConversationState): string[] {
-  return [
-    conversationState.hasCustomerIdentity ? undefined : "お名前・会社名",
-    conversationState.hasFinalMedium ? undefined : "最終媒体",
-    conversationState.hasJobKind && conversationState.hasProjectLength ? undefined : "案件種別・尺",
-    conversationState.hasMaterialHandoff ? undefined : "素材受け渡し",
-    conversationState.hasWorkSite ? undefined : "作業場所",
-    conversationState.hasProjectTitle ? undefined : "案件名",
-    conversationState.hasDesiredSchedule ? undefined : "素材搬入時期・納品希望日",
-    conversationState.hasContactEmail ? undefined : "メールアドレス",
-  ].filter((label): label is string => Boolean(label))
-}
-
-function buildReadinessFallbackQuestion(missingLabels: string[]): string {
-  const focusedLabels = missingLabels.slice(0, 2)
-  return `予約候補を正確に出すため、${focusedLabels.join(" と ")}を教えてください。`
-}
-
-function buildAdditionalWorkOtherQuestion(latestUserMessage: string | undefined): string {
-  if (!latestUserMessage || !isVagueAdditionalWorkOtherAnswer(latestUserMessage)) {
-    return "「その他」とは具体的にどのような作業ですか？"
-  }
-
-  return "「その他」とは具体的にどのような作業ですか？例えば、テロップ整理、簡単な合成、不要物消し以外のレタッチ、納品形式違いの書き出しなど、近いものだけでも大丈夫です。"
-}
-
-function isVagueAdditionalWorkOtherAnswer(message: string): boolean {
-  const normalized = message.normalize("NFKC").trim().toLowerCase()
-  return /^(?:選択\s*[:：]\s*)?(?:わかりません|分かりません|不明|未定|謎|詳しくはまた|まだわからない|まだ分からない|要相談|相談したい|その他)$/u.test(normalized)
+function hasRequiredBookingReadinessSlots(conversationState: ConversationState): boolean {
+  return (
+    Boolean(conversationState.hasCustomerIdentity) &&
+    Boolean(conversationState.hasFinalMedium) &&
+    Boolean(conversationState.hasJobKind) &&
+    Boolean(conversationState.hasProjectLength) &&
+    Boolean(conversationState.hasMaterialHandoff) &&
+    Boolean(conversationState.hasWorkSite) &&
+    Boolean(conversationState.hasDesiredSchedule) &&
+    Boolean(conversationState.hasContactEmail)
+  )
 }
 
 function buildSummaryText(jobContext: JobContext, conversationState: ConversationState): string {
@@ -242,7 +208,6 @@ function shouldPrioritizeSchedule(
     Boolean(conversationState.hasMaterialHandoff) &&
     conversationState.hasWorkSite &&
     Boolean(conversationState.hasCustomerIdentity) &&
-    Boolean(conversationState.hasProjectTitle) &&
     !conversationState.hasPendingAdditionalWorkOther &&
     (conversationState.hasFinalMedium || jobContext.finalMedium === "web") &&
     (isOneHourCandidateJob(jobContext) || isDateCandidateJob(jobContext))

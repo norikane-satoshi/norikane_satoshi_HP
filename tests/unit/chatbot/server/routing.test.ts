@@ -45,7 +45,7 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
 }
 
 describe("chatbot fallback router", () => {
-  it("continues with a readiness question when final medium is missing", () => {
+  it("continues without rule-generated readiness copy when final medium is missing", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
@@ -57,11 +57,11 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("最終媒体"),
+      nextQuestion: "",
     })
   })
 
-  it("starts with the required three intake questions on the first turn", () => {
+  it("does not generate initial intake copy on the first turn", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
@@ -75,13 +75,7 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("案件種類"),
-    })
-    expect(result).toMatchObject({
-      nextQuestion: expect.stringContaining("素材搬入時期・納品希望日"),
-    })
-    expect(result).toMatchObject({
-      nextQuestion: expect.stringContaining("お名前・会社名"),
+      nextQuestion: "",
     })
   })
 
@@ -97,11 +91,11 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("素材搬入時期・納品希望日"),
+      nextQuestion: "",
     })
   })
 
-  it("continues with a readiness question when work site is missing", () => {
+  it("continues without rule-generated readiness copy when work site is missing", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
@@ -113,7 +107,7 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("作業場所"),
+      nextQuestion: "",
     })
   })
 
@@ -166,6 +160,20 @@ describe("chatbot fallback router", () => {
     })
   })
 
+  it("does not block inline booking only because project title is missing", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({
+        hasProjectTitle: false,
+        projectTitle: undefined,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "to-booking-inline",
+    })
+  })
+
   it("keeps asking for project length before inline booking", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext({ projectLengthMinutes: undefined }),
@@ -174,7 +182,7 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("案件種別・尺"),
+      nextQuestion: "",
     })
   })
 
@@ -186,7 +194,7 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("素材受け渡し"),
+      nextQuestion: "",
     })
   })
 
@@ -220,7 +228,7 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("素材搬入時期・納品希望日"),
+      nextQuestion: "",
     })
   })
 
@@ -318,7 +326,7 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("最終媒体"),
+      nextQuestion: "",
     })
   })
 

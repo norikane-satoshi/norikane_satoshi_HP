@@ -976,8 +976,6 @@ function chooseRoutingDecision(input: {
   conversationState: ConversationState
 }): RoutingDecision {
   if (input.deterministicRoutingDecision.kind !== "continue") return input.deterministicRoutingDecision
-  if (input.conversationState.hasPendingAdditionalWorkOther) return input.deterministicRoutingDecision
-  if (!input.conversationState.hasProjectTitle) return input.deterministicRoutingDecision
 
   if (
     input.deterministicRoutingDecision.kind === "continue" &&
@@ -1082,29 +1080,9 @@ function buildConversationSummary(jobContext: JobContext, conversationState: Con
     ...(conversationState.customerName ? { customerName: conversationState.customerName } : {}),
     ...(conversationState.companyName ? { companyName: conversationState.companyName } : {}),
     jobContext,
-    summaryText: buildUiSummaryText(jobContext, conversationState),
-    openQuestions: buildUiOpenQuestions(conversationState),
+    summaryText: "",
+    openQuestions: [],
   }
-}
-
-function buildUiSummaryText(jobContext: JobContext, conversationState: ConversationState): string {
-  const jobKind = jobContext.jobKind ?? "案件種別未確認"
-  const schedule = conversationState.hasDesiredSchedule ? "搬入〜納品あり" : "搬入〜納品未定"
-
-  return `${jobKind} / ${jobContext.finalMedium} / ${jobContext.workSite} / ${schedule}`
-}
-
-function buildUiOpenQuestions(conversationState: ConversationState): string[] {
-  return [
-    conversationState.hasFinalMedium ? undefined : "最終媒体未確認",
-    conversationState.hasJobKind && conversationState.hasProjectLength ? undefined : "案件種別・尺未確認",
-    conversationState.hasMaterialHandoff ? undefined : "素材受け渡し未確認",
-    conversationState.hasAdditionalWork ? undefined : "追加作業未確認",
-    conversationState.hasDocumentaryAttachments ? undefined : "付随映像未確認",
-    conversationState.hasWorkSite ? undefined : "作業場所未確認",
-    conversationState.hasReferenceUrls ? undefined : "参考URL未確認",
-    conversationState.hasDesiredSchedule ? undefined : "素材搬入〜納品時期未確認",
-  ].filter((item): item is string => Boolean(item))
 }
 
 function conversationText(conversation: ChatbotConversation, userMessage: ChatbotMessage): string {

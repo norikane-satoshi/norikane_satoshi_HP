@@ -7,6 +7,7 @@ import {
 } from "@/lib/chatbot/knowledge"
 import type { ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
+import { parseChatbotAgentToolCallJson } from "@/lib/chatbot/server/tool-json"
 
 export type NormalizedChatbotLlmResponse = {
   content: string
@@ -56,6 +57,8 @@ export function sanitizeChatbotLlmText(
 
   const strippedThoughtBlocks = stripThinkBlocksOutsideCodeFences(rawText)
   const strippedLeadingThought = stripLeadingThoughtExplanation(strippedThoughtBlocks)
+  if (parseChatbotAgentToolCallJson(strippedLeadingThought)) return fallbackChatbotAssistantContent
+
   const normalizedWhitespace = enforceAssistantQuestionLimit(
     removeForbiddenAssistantSurface(strippedLeadingThought),
   )

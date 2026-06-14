@@ -63,7 +63,7 @@ describe("choice panel state", () => {
 
     expect(routingDecision).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("案件種別・尺"),
+      nextQuestion: "",
     })
     expect(routingDecision).not.toMatchObject({ presentChoices: finalMediumChoices })
   })
