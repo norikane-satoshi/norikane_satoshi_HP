@@ -1,4 +1,5 @@
 import type {
+  BookingCardPrefill,
   ChatbotConversation,
   ChatbotMessage,
   ConversationState,
@@ -22,10 +23,8 @@ import {
   type ChatbotLlmTierOrchestrator,
   type UserChatbotContext,
 } from "@/lib/chatbot/server"
-import {
-  contactEmailConflictsWithLatestUserMessage,
-  normalizeChatbotContactEmail,
-} from "@/lib/chatbot/server/contact-email"
+import { ChatbotAvailabilityError, findCandidateWindows } from "@/lib/chatbot/server/availability-finder"
+import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 
 type ChatbotMessageUi =
@@ -35,6 +34,7 @@ type ChatbotMessageUi =
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
       jobContext: JobContext
+      bookingPrefill?: BookingCardPrefill
     }
   | {
       kind: "direct-contact-card"
@@ -73,6 +73,7 @@ type HandleChatbotMessageOptions = {
   orchestratorFactory?: () => ChatbotLlmTierOrchestrator
   userContextLoader?: typeof loadUserChatbotContext
   userContextFormatter?: typeof formatUserChatbotContextForPrompt
+  candidateWindowFinder?: typeof findCandidateWindows
 }
 
 const defaultRepository: ChatbotMessageRepository = {
@@ -91,6 +92,7 @@ export async function handleChatbotMessage(
   const orchestrator = options.orchestratorFactory?.() ?? createDefaultChatbotLlmOrchestrator()
   const userContextLoader = options.userContextLoader ?? loadUserChatbotContext
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
+  const candidateWindowFinder = options.candidateWindowFinder ?? findCandidateWindows
   let conversation =
     (await repository.loadConversationBySessionId(input.sessionId)) ??
     (await repository.createConversation({ sessionId: input.sessionId, userId: input.userId ?? null }))
@@ -129,7 +131,11 @@ export async function handleChatbotMessage(
     temperature: 0.2,
     maxOutputTokens: 900,
   })
-  const routingDecision = llmResponse.proposedRoutingDecision
+  const routingDecision = await resolveRoutingDecision({
+    llmResponse,
+    jobContext,
+    candidateWindowFinder,
+  })
   const assistantContent = buildAssistantDisplayContent({
     rawText: llmResponse.rawText,
     routingDecision,
@@ -157,7 +163,7 @@ export async function handleChatbotMessage(
     },
     routingDecision,
     tier: llmResponse.tier,
-    ui: toMessageUi(llmResponse),
+    ui: toMessageUi({ ...llmResponse, proposedRoutingDecision: routingDecision }),
   }
 }
 
@@ -190,6 +196,8 @@ function buildChatbotSystemPrompt(
     "2026年10月より前は作業場所のデフォルト提案をせず、クライアントの希望を先に確認します。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、dispatcher/JSON タスクの説明だけを返しません。",
+    '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD"}} を 1 個だけ含めます。',
+    "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。",
   ]
 
   if (userContext) {
@@ -213,37 +221,17 @@ function buildJobContext(
   }
 }
 
-function sanitizeConversationStateInput(
-  input: Partial<ConversationState> | undefined,
-  latestUserMessage: string,
-): Partial<ConversationState> {
-  const next = { ...(input ?? {}) }
-
-  if (!("contactEmail" in next) && !next.hasContactEmail) return next
-
-  const normalizedEmail = normalizeChatbotContactEmail(next.contactEmail)
-  const hasInvalidSource = contactEmailConflictsWithLatestUserMessage({
-    contactEmail: normalizedEmail,
-    latestUserMessage,
-  })
-
-  if (!normalizedEmail || hasInvalidSource) {
-    next.hasContactEmail = false
-    delete next.contactEmail
-    return next
-  }
-
-  next.hasContactEmail = true
-  next.contactEmail = normalizedEmail
-  return next
-}
-
 function buildAssistantDisplayContent(input: {
   rawText: string
   routingDecision: RoutingDecision | undefined
   fallbackRoutingDecision: RoutingDecision
 }): string {
   const text = input.rawText.trim()
+  const toolFreeText = stripShowBookingCardToolCall(text).trim()
+  if (input.routingDecision?.kind === "to-booking-inline" && toolFreeText.length === 0) {
+    return "候補日を確認しました。"
+  }
+  if (toolFreeText !== text) return toolFreeText
   if (!isBackendIdentityOnlyResponse(text)) return text
 
   const routingDecision =
@@ -280,7 +268,7 @@ function buildConversationState(
     hasContactEmail: false,
     hasDesiredSchedule: false,
     turnCount: userTurnCount,
-    ...sanitizeConversationStateInput(input, userMessage.content),
+    ...(input ?? {}),
   }
 }
 
@@ -300,6 +288,7 @@ function toMessageUi(response: ChatbotLlmResponse): ChatbotMessageUi {
       kind: "booking-card",
       suggestedSlots: routingDecision.suggestedSlots,
       jobContext: routingDecision.jobContext,
+      bookingPrefill: routingDecision.bookingPrefill,
     }
   }
 
@@ -312,4 +301,117 @@ function toMessageUi(response: ChatbotLlmResponse): ChatbotMessageUi {
   }
 
   return { kind: "none" }
+}
+
+async function resolveRoutingDecision(input: {
+  llmResponse: ChatbotLlmResponse
+  jobContext: JobContext
+  candidateWindowFinder: typeof findCandidateWindows
+}): Promise<RoutingDecision | undefined> {
+  if (input.llmResponse.proposedRoutingDecision) return input.llmResponse.proposedRoutingDecision
+
+  const toolCall = parseShowBookingCardToolCall(input.llmResponse.rawText)
+  if (!toolCall) return undefined
+  if (!input.jobContext.jobKind) return undefined
+
+  const workflowEstimate = estimateWorkflow(input.jobContext)
+  const jobContext = {
+    ...input.jobContext,
+    workflowEstimate,
+  }
+
+  try {
+    const suggestedSlots = await input.candidateWindowFinder({
+      jobContext,
+      workflowEstimate,
+      desiredDeadline: toolCall.args.dueDate,
+    })
+
+    return {
+      kind: "to-booking-inline",
+      suggestedSlots,
+      jobContext,
+      bookingPrefill: toolCall.args,
+    }
+  } catch (error) {
+    if (error instanceof ChatbotAvailabilityError) return undefined
+    throw error
+  }
+}
+
+type ShowBookingCardToolCall = {
+  tool: "show_booking_card"
+  args: BookingCardPrefill
+}
+
+function parseShowBookingCardToolCall(text: string): ShowBookingCardToolCall | undefined {
+  for (const candidate of extractJsonObjectCandidates(text)) {
+    const parsed = parseJson(candidate)
+    if (!isRecord(parsed) || parsed.tool !== "show_booking_card" || !isRecord(parsed.args)) continue
+
+    return {
+      tool: "show_booking_card",
+      args: {
+        projectTitle: optionalString(parsed.args.projectTitle),
+        contactName: optionalString(parsed.args.contactName),
+        contactEmail: optionalString(parsed.args.contactEmail),
+        companyName: optionalString(parsed.args.companyName),
+        dueDate: optionalString(parsed.args.dueDate),
+      },
+    }
+  }
+
+  return undefined
+}
+
+function stripShowBookingCardToolCall(text: string): string {
+  let next = text
+  for (const candidate of extractJsonObjectCandidates(text)) {
+    if (parseShowBookingCardToolCall(candidate)) {
+      next = next.replace(candidate, "")
+    }
+  }
+
+  return next
+    .replace(/```json\s*```/gi, "")
+    .replace(/```\s*```/g, "")
+}
+
+function extractJsonObjectCandidates(text: string): string[] {
+  const candidates: string[] = []
+  const fencedPattern = /```(?:json)?\s*([\s\S]*?)```/gi
+  let match: RegExpExecArray | null
+  while ((match = fencedPattern.exec(text))) {
+    const body = match[1]?.trim()
+    if (body?.startsWith("{") && body.endsWith("}")) candidates.push(body)
+  }
+
+  const trimmed = text.trim()
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) candidates.push(trimmed)
+
+  const firstBrace = text.indexOf("{")
+  const lastBrace = text.lastIndexOf("}")
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(text.slice(firstBrace, lastBrace + 1))
+  }
+
+  return [...new Set(candidates)]
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return undefined
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value))
+}
+
+function optionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
 }

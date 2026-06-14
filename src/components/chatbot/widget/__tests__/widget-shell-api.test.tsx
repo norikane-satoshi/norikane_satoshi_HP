@@ -110,6 +110,12 @@ describe("WidgetShell API wiring", () => {
               documentaryAttachment: { kind: "none" },
               workflowEstimate: { stages: [], totalMinDays: 2, totalMaxDays: 3, riskFlags: [] },
             },
+            bookingPrefill: {
+              projectTitle: "CM案件",
+              contactName: "山田太郎",
+              companyName: "Example",
+              dueDate: "2026-07-10",
+            },
           },
         }),
       ),
@@ -120,6 +126,10 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "6月10日 午前" })).toBeInTheDocument()
+    expect(screen.getByDisplayValue("CM案件")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("山田太郎")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("Example")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("2026-07-10")).toBeInTheDocument()
   })
 
   it("renders InquiryForm for tier4 responses and posts submit-inquiry", async () => {

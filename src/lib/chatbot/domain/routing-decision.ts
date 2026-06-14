@@ -1,9 +1,22 @@
 import type { SurveyChoiceSet } from "@/lib/chatbot/domain/survey-choice"
 import type { CandidateWindow, ConversationSummary, JobContext } from "@/lib/chatbot/domain/workflow-estimate"
 
+export type BookingCardPrefill = {
+  projectTitle?: string
+  contactName?: string
+  contactEmail?: string
+  companyName?: string
+  dueDate?: string
+}
+
 export type RoutingDecision =
   | { kind: "continue"; nextQuestion: string; presentChoices?: SurveyChoiceSet }
-  | { kind: "to-booking-inline"; suggestedSlots: CandidateWindow[]; jobContext: JobContext }
+  | {
+      kind: "to-booking-inline"
+      suggestedSlots: CandidateWindow[]
+      jobContext: JobContext
+      bookingPrefill?: BookingCardPrefill
+    }
   | { kind: "to-email"; summary: ConversationSummary }
   | {
       kind: "to-direct-contact"

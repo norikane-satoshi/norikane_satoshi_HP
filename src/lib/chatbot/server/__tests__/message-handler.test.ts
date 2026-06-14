@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 
-import type { ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
+import type { CandidateWindow, ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"
 
@@ -95,17 +95,26 @@ function setup(overrides: {
   })
   const userContextLoader = vi.fn().mockResolvedValue(userContext())
   const userContextFormatter = vi.fn().mockReturnValue("本人文脈:\n- 本人だけの過去要約")
+  const candidateWindowFinder = vi.fn().mockResolvedValue([
+    {
+      start: "2026-07-01T01:00:00.000Z",
+      end: "2026-07-01T10:00:00.000Z",
+      label: "2026-07-01",
+    },
+  ] satisfies CandidateWindow[])
 
   return {
     repository,
     generate,
     userContextLoader,
     userContextFormatter,
+    candidateWindowFinder,
     options: {
       repository,
       orchestratorFactory: () => ({ generate, isHealthy: vi.fn() }),
       userContextLoader,
       userContextFormatter,
+      candidateWindowFinder,
     },
   }
 }
@@ -181,7 +190,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("drops invalid contact emails before confirmed state reaches the LLM request", async () => {
+  it("passes confirmed contact email state through to the LLM without server-side validation", async () => {
     const harness = setup()
 
     await handleChatbotMessage(
@@ -198,15 +207,19 @@ describe("handleChatbotMessage user context", () => {
     )
 
     expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
-      hasContactEmail: false,
+      hasContactEmail: true,
+      contactEmail: "qj9n9not6bov@yahoo.co.j",
     })
-    expect(harness.generate.mock.calls[0]?.[0].conversationState.contactEmail).toBeUndefined()
   })
 
-  it("does not trust a valid-looking stored email when the latest user text shows a truncated suffix", async () => {
+  it("does not show a booking card for incomplete email text unless the LLM calls the tool", async () => {
     const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "メールアドレスの末尾が途中で切れているようです。正しいメールアドレスを教えてください。",
+      tier: "tier-2-ollama-deepseek",
+    })
 
-    await handleChatbotMessage(
+    const result = await handleChatbotMessage(
       {
         sessionId: "session_1",
         userId: "user_a",
@@ -219,10 +232,8 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
-      hasContactEmail: false,
-    })
-    expect(harness.generate.mock.calls[0]?.[0].conversationState.contactEmail).toBeUndefined()
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(harness.candidateWindowFinder).not.toHaveBeenCalled()
   })
 
   it("replaces backend identity-only assistant text with the routing question", async () => {
@@ -244,5 +255,62 @@ describe("handleChatbotMessage user context", () => {
       content: "ご連絡先メールを教えてください",
     })
     expect(result.assistantMessage.content).toBe("ご連絡先メールを教えてください")
+  })
+
+  it("turns a show_booking_card tool call into a booking card using only tool args for prefill", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+      tier: "tier-2-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "CM案件、山田太郎、client@example.com、7月10日納品です",
+        jobContext: {
+          jobKind: "cm-30s",
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: false,
+          hasDesiredSchedule: true,
+          customerName: "Stored Customer",
+          companyName: "Stored Company",
+          contactEmail: "stored@example.com",
+        },
+      },
+      harness.options,
+    )
+
+    expect(harness.candidateWindowFinder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        desiredDeadline: "2026-07-10",
+      }),
+    )
+    expect(result.assistantMessage.content).toBe("候補日を確認しました。")
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "CM案件",
+        contactName: "山田太郎",
+        contactEmail: "client@example.com",
+        companyName: "Example",
+        dueDate: "2026-07-10",
+      },
+    })
+    expect(JSON.stringify(result.ui)).not.toContain("Stored Customer")
+    expect(JSON.stringify(result.ui)).not.toContain("Stored Company")
+    expect(JSON.stringify(result.ui)).not.toContain("stored@example.com")
   })
 })

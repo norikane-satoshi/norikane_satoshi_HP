@@ -91,31 +91,10 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("routes to inline booking when schedule, job context, and email are ready", () => {
-    const context = jobContext()
+  it("does not pre-route to inline booking when schedule and contact facts are ready", () => {
     const result = decideRoutingFallback({
-      jobContext: context,
+      jobContext: jobContext(),
       conversationState: conversationState(),
-    })
-
-    expect(result).toEqual({
-      kind: "to-booking-inline",
-      suggestedSlots: [],
-      jobContext: context,
-    })
-  })
-
-  it.each([
-    ["missing contact email", { hasContactEmail: true, contactEmail: undefined }, jobContext()],
-    ["invalid contact email", { contactEmail: "client@example" }, jobContext()],
-    ["one-character tld email", { contactEmail: "qj9n9not6bov@yahoo.co.j" }, jobContext()],
-    ["missing contact name", { customerName: "" }, jobContext()],
-    ["missing job kind value", {}, jobContext({ jobKind: undefined })],
-    ["missing preferred start date", {}, jobContext({ preferredStartDate: undefined })],
-  ])("keeps routing on continue when booking gate fails: %s", (_caseName, stateOverrides, context) => {
-    const result = decideRoutingFallback({
-      jobContext: context,
-      conversationState: conversationState(stateOverrides),
     })
 
     expect(result).toMatchObject({
@@ -207,7 +186,7 @@ describe("chatbot fallback router", () => {
       nextQuestion: "契約書条件を確認するため 1 点伸ばさせて下さい",
     })
     expect(nextDay).toMatchObject({
-      kind: "to-booking-inline",
+      kind: "continue",
     })
   })
 

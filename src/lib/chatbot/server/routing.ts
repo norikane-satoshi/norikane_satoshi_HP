@@ -11,7 +11,6 @@ import {
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
-import { isValidChatbotContactEmail } from "@/lib/chatbot/server/contact-email"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 
 export type RoutingDecisionInput = {
@@ -51,14 +50,6 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
   if (conversationState.outOfScope) return directContact("out-of-scope")
   if (conversationState.turnCount >= complexConversationTurnThreshold) return directContact("complex")
 
-  if (isBookingInlineReady(jobContext, conversationState)) {
-    return {
-      kind: "to-booking-inline",
-      suggestedSlots: [],
-      jobContext,
-    }
-  }
-
   if (
     conversationState.hasContactEmail &&
     !conversationState.hasDesiredSchedule &&
@@ -79,23 +70,6 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
   }
 
   return continueDecision(conversationState)
-}
-
-function isBookingInlineReady(jobContext: JobContext, conversationState: ConversationState): boolean {
-  return (
-    conversationState.hasDesiredSchedule &&
-    conversationState.hasFinalMedium &&
-    conversationState.hasJobKind &&
-    conversationState.hasContactEmail &&
-    isValidChatbotContactEmail(conversationState.contactEmail) &&
-    hasBookingContactName(conversationState) &&
-    Boolean(jobContext.jobKind) &&
-    Boolean(jobContext.preferredStartDate?.trim())
-  )
-}
-
-function hasBookingContactName(conversationState: ConversationState): boolean {
-  return Boolean((conversationState.contactName ?? conversationState.customerName)?.trim())
 }
 
 function directContact(reason: Extract<RoutingDecision, { kind: "to-direct-contact" }>["reason"]) {

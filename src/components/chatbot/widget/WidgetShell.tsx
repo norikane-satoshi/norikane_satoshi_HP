@@ -164,7 +164,10 @@ function ActiveWidgetUi({
         conversationId={conversationId}
         candidates={ui.suggestedSlots}
         estimate={ui.jobContext.workflowEstimate}
-        defaultDueDate={ui.jobContext.publicReleaseDate}
+        defaultProjectTitle={ui.bookingPrefill?.projectTitle}
+        defaultContactName={ui.bookingPrefill?.contactName}
+        defaultCompanyName={ui.bookingPrefill?.companyName}
+        defaultDueDate={ui.bookingPrefill?.dueDate}
         defaultMemo={ui.jobContext.referenceUrls?.join("\n")}
       />
     )

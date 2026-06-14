@@ -1,4 +1,10 @@
-import type { ChatbotMessageRole, ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
+import type {
+  BookingCardPrefill,
+  ChatbotMessageRole,
+  ConversationState,
+  JobContext,
+  RoutingDecision,
+} from "@/lib/chatbot/domain"
 
 export type WidgetAssistantMessage = {
   role: ChatbotMessageRole
@@ -13,6 +19,7 @@ export type WidgetUi =
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
       jobContext: JobContext
+      bookingPrefill?: BookingCardPrefill
     }
   | {
       kind: "direct-contact-card"

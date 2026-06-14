@@ -67,9 +67,7 @@ describe("Tier4FormFallbackClient", () => {
       rawText: tier4FormFallbackDefaults.responseText,
       tier: "tier-4-form-fallback",
       proposedRoutingDecision: {
-        kind: "to-booking-inline",
-        suggestedSlots: [],
-        jobContext: jobContext(),
+        kind: "continue",
       },
     })
   })
