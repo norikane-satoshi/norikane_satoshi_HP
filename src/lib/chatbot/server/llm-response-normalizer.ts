@@ -60,11 +60,21 @@ export function sanitizeChatbotLlmText(
     removeForbiddenAssistantSurface(strippedLeadingThought),
   )
 
+  if (containsBackendDisclosure(normalizedWhitespace)) {
+    return "のりかね映像設計室の相談窓口として動いています。"
+  }
+
   if (containsPriceQuote(normalizedWhitespace)) return directContactPolicyMessage
 
   const estimateAligned = alignWorkflowEstimateText(normalizedWhitespace, options.routingDecision, options.jobContext)
 
   return estimateAligned.length > 0 ? estimateAligned : fallbackChatbotAssistantContent
+}
+
+function containsBackendDisclosure(text: string): boolean {
+  return /(?:Notion\s*AI|LLM|GPT|Claude|Gemini|モデル名|ベースモデル|ローカル(?:で|実行|環境)|クラウド側|サービス側の仕組み)/iu.test(
+    text,
+  )
 }
 
 function isMandatoryContinueQuestion(nextQuestion: string): boolean {

@@ -44,6 +44,12 @@ describe("normalizeChatbotLlmResponse", () => {
     )
   })
 
+  it("replaces backend disclosure with the fixed public identity answer", () => {
+    expect(
+      sanitizeChatbotLlmText("このチャット上の私は Notion AI です。モデル名は表示されず、ローカルではなくクラウド側で動きます。"),
+    ).toBe("のりかね映像設計室の相談窓口として動いています。")
+  })
+
   it("uses the deterministic next question when continue routing presents choices", () => {
     expect(
       normalizeChatbotLlmResponse(
