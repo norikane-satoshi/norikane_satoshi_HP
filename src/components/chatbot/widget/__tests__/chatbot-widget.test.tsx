@@ -2,7 +2,7 @@
 
 import "@testing-library/jest-dom/vitest"
 import React from "react"
-import { act, cleanup, render, renderHook, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -21,6 +21,7 @@ import {
   CHATBOT_WIDGET_TTL_DAYS,
   persistWidgetState,
   readStoredWidgetState,
+  sanitizeWidgetLayout,
 } from "@/components/chatbot/widget/useWidgetState"
 
 function setScrollGeometry({ innerHeight, scrollHeight, scrollY }: {
@@ -177,6 +178,45 @@ describe("chatbot widget shell", () => {
     expect(onMinimize).toHaveBeenCalledTimes(1)
   })
 
+  it("renders desktop display and resize controls without visible move or resize glyph affordances", () => {
+    const onResize = vi.fn()
+    const onSideResize = vi.fn()
+    const onToggle = vi.fn()
+    const { rerender } = render(
+      <WidgetShell
+        displayMode="floating"
+        isDesktopLayout
+        onFloatingResizeBy={onResize}
+        onMinimize={vi.fn()}
+        onSidePeekResizeBy={onSideResize}
+        onToggleDisplayMode={onToggle}
+      />,
+    )
+
+    expect(screen.queryByRole("button", { name: "パネルを移動" })).not.toBeInTheDocument()
+
+    const resizeControl = screen.getByRole("button", { name: "パネルを拡大・縮小" })
+    expect(resizeControl.querySelector("svg")).toBeNull()
+    fireEvent.keyDown(resizeControl, { key: "ArrowDown" })
+    expect(onResize).toHaveBeenCalledWith(0, 16)
+
+    screen.getByRole("button", { name: "サイドピーク表示に切り替え" }).click()
+    expect(onToggle).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <WidgetShell
+        displayMode="side-peek"
+        isDesktopLayout
+        onMinimize={vi.fn()}
+        onSidePeekResizeBy={onSideResize}
+        onToggleDisplayMode={onToggle}
+      />,
+    )
+    fireEvent.keyDown(screen.getByRole("button", { name: "サイドピーク幅を変更" }), { key: "ArrowLeft" })
+    expect(onSideResize).toHaveBeenCalledWith(16)
+    expect(screen.getByRole("button", { name: "フローティング表示に切り替え" })).toBeInTheDocument()
+  })
+
   it("does not render the previous placeholder badges", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
 
@@ -248,6 +288,62 @@ describe("chatbot widget hooks", () => {
     expect(CHATBOT_WIDGET_TTL_DAYS).toBe(30)
     expect(readStoredWidgetState(window.localStorage, new Date("2026-06-24T23:59:59.000Z"))).toMatchObject({
       minimized: true,
+    })
+  })
+
+  it("extends persisted state with layout while preserving old stored state compatibility", () => {
+    const storedState = persistWidgetState(
+      window.localStorage,
+      false,
+      new Date("2026-05-26T00:00:00.000Z"),
+      undefined,
+      {
+        displayMode: "side-peek",
+        floatingSize: { width: 520, height: 620 },
+        floatingPosition: { x: 40, y: 50 },
+        sidePeekWidth: 460,
+      },
+    )
+
+    expect(storedState).toMatchObject({
+      minimized: false,
+      displayMode: "side-peek",
+      floatingSize: { width: 520, height: 620 },
+      floatingPosition: { x: 40, y: 50 },
+      sidePeekWidth: 460,
+    })
+
+    window.localStorage.setItem(
+      CHATBOT_WIDGET_STORAGE_KEY,
+      JSON.stringify({
+        minimized: true,
+        firstShownAt: "2026-05-26T00:00:00.000Z",
+        lastSeenAt: "2026-05-26T00:00:00.000Z",
+        expiresAt: "2026-06-25T00:00:00.000Z",
+      }),
+    )
+
+    expect(readStoredWidgetState(window.localStorage, new Date("2026-05-27T00:00:00.000Z"))).toMatchObject({
+      minimized: true,
+    })
+  })
+
+  it("clamps invalid restored layout values to the desktop viewport", () => {
+    expect(
+      sanitizeWidgetLayout(
+        {
+          displayMode: "side-peek",
+          floatingSize: { width: 9999, height: 10 },
+          floatingPosition: { x: 9999, y: -50 },
+          sidePeekWidth: Number.NaN,
+        },
+        { width: 1200, height: 900 },
+      ),
+    ).toMatchObject({
+      displayMode: "side-peek",
+      floatingSize: { width: 1080, height: 400 },
+      floatingPosition: { x: 120, y: 0 },
+      sidePeekWidth: 384,
     })
   })
 
