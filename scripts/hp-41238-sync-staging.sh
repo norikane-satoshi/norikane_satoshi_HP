@@ -48,6 +48,7 @@ main() {
   local target_head
   local old_lock
   local new_lock
+  local changed=false
 
   log "sync start"
 
@@ -64,6 +65,7 @@ main() {
   if [[ "${old_head}" != "${target_head}" ]]; then
     git -C "${LIVE_WORKTREE}" checkout --detach "${target_head}"
     log "checked out live worktree: ${old_head} -> ${target_head}"
+    changed=true
   else
     log "live worktree already at ${target_head}"
   fi
@@ -71,6 +73,11 @@ main() {
   if [[ -n "${old_lock}" && -n "${new_lock}" && "${old_lock}" != "${new_lock}" ]]; then
     log "pnpm-lock changed; running pnpm install --frozen-lockfile"
     (cd "${LIVE_WORKTREE}" && pnpm install --frozen-lockfile) >> "${LOG_FILE}" 2>&1
+  fi
+
+  if [[ "${changed}" != "true" ]]; then
+    log "sync complete unchanged target=${target_head}"
+    return 0
   fi
 
   launchctl kickstart -k "gui/$(id -u)/${LABEL}"
