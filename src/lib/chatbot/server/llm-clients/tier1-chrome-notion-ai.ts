@@ -257,13 +257,17 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.requestTimeoutMs,
       )
+      const effectiveRuntimeContext = withConfiguredThreadContext(
+        runtimeContext,
+        this.config.targetUrlIncludes,
+      )
       const payload = buildRunInferencePayload({
         request,
-        runtimeContext,
+        runtimeContext: effectiveRuntimeContext,
         preferredModel: this.config.preferredModel,
         idFactory: this.idFactory,
       })
-      const headers = buildRunInferenceHeaders(runtimeContext)
+      const headers = buildRunInferenceHeaders(effectiveRuntimeContext)
       const result = await this.evaluate<NotionAiInferenceResult>(
         session,
         buildRunInferenceExpression(payload, headers),
@@ -316,11 +320,15 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.healthCheckTimeoutMs,
       )
+      const effectiveRuntimeContext = withConfiguredThreadContext(
+        runtimeContext,
+        this.config.targetUrlIncludes,
+      )
 
-      if (!runtimeContext.spaceId) return false
+      if (!effectiveRuntimeContext.spaceId) return false
       if (!this.config.preferredModel) return true
 
-      return modelIsAvailable(this.config.preferredModel, runtimeContext.availableModels)
+      return modelIsAvailable(this.config.preferredModel, effectiveRuntimeContext.availableModels)
     } catch {
       return false
     } finally {
@@ -337,14 +345,18 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.healthCheckTimeoutMs,
       )
+      const effectiveRuntimeContext = withConfiguredThreadContext(
+        runtimeContext,
+        this.config.targetUrlIncludes,
+      )
       const preferredModel = this.config.preferredModel ?? tier1ObservedNotionAiModel
 
       return {
         targetUrl: target.url,
-        selectedModel: runtimeContext.selectedModel,
-        finalModelName: runtimeContext.finalModelName,
-        availableModels: runtimeContext.availableModels,
-        preferredModelAvailable: modelIsAvailable(preferredModel, runtimeContext.availableModels),
+        selectedModel: effectiveRuntimeContext.selectedModel,
+        finalModelName: effectiveRuntimeContext.finalModelName,
+        availableModels: effectiveRuntimeContext.availableModels,
+        preferredModelAvailable: modelIsAvailable(preferredModel, effectiveRuntimeContext.availableModels),
       }
     } finally {
       await session.close()
@@ -812,6 +824,29 @@ function isNotionAiRuntimeTargetUrl(url: string | undefined): boolean {
     return parsed.hostname === "app.notion.com" && parsed.pathname === "/ai"
   } catch {
     return url.includes("app.notion.com/ai")
+  }
+}
+
+function withConfiguredThreadContext(
+  runtimeContext: NotionAiRuntimeContext,
+  targetUrlIncludes: string,
+): NotionAiRuntimeContext {
+  if (runtimeContext.threadId) return runtimeContext
+
+  const threadId = getThreadIdFromUrl(targetUrlIncludes)
+  return threadId ? { ...runtimeContext, threadId } : runtimeContext
+}
+
+function getThreadIdFromUrl(url: string): string | undefined {
+  try {
+    const value = new URL(url.trim()).searchParams.get("t")
+    if (!value) return undefined
+    if (/^[0-9a-f]{32}$/i.test(value)) {
+      return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`
+    }
+    return value
+  } catch {
+    return undefined
   }
 }
 

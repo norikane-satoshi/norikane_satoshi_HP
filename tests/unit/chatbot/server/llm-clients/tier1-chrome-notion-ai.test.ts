@@ -528,6 +528,59 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(attachedTargets[0]?.webSocketDebuggerUrl).toContain("notion-ai-runtime")
   })
 
+  it("uses the configured chat thread id when the attached app runtime URL has no thread id", async () => {
+    let evaluationCount = 0
+    const evaluate = vi.fn(async <T,>(expression: string): Promise<T> => {
+      evaluationCount += 1
+      if (evaluationCount === 1) {
+        return {
+          spaceId: "space-id",
+          userId: "user-id",
+          selectedModel: "notion-current-model",
+          availableModels: ["apricot-sorbet-high", "notion-current-model"],
+        } as T
+      }
+
+      expect(expression).toContain('"threadId":"36b13ee3-141a-8073-885d-00a99ebb676c"')
+      expect(expression).toContain('"createThread":false')
+      return {
+        ok: true,
+        rawText: "相談内容を整理します。",
+        chunkCount: 1,
+        postDataBytes: 100,
+        responseBytes: 20,
+        responseContentType: "application/x-ndjson",
+        responseHeaders: {},
+        parsedPartial: false,
+        parsedFinal: true,
+      } as T
+    }) as unknown as NotionAiCdpSession["evaluate"]
+    const session: NotionAiCdpSession = {
+      evaluate,
+      close: vi.fn(async () => undefined),
+    }
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch([
+        {
+          type: "page",
+          url: "https://www.notion.so/chat?t=36b13ee3141a8073885d00a99ebb676c",
+          webSocketDebuggerUrl: "ws://127.0.0.1:9223/devtools/page/redirect-stub",
+        },
+        {
+          type: "page",
+          url: "https://app.notion.com/ai",
+          webSocketDebuggerUrl: "ws://127.0.0.1:9223/devtools/page/notion-ai-runtime",
+        },
+      ]),
+      sessionFactory: async () => session,
+    })
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      tier: "tier-1-chrome-notion-ai",
+      rawText: "相談内容を整理します。",
+    })
+  })
+
   it("rejects non-chatbot Notion AI targets before attaching", async () => {
     const client = new Tier1ChromeNotionAiClient({
       fetchClient: cdpFetch([
