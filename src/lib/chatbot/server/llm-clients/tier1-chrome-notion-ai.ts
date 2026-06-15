@@ -873,7 +873,7 @@ function collectAgentInferenceText(value: unknown): string {
     .join(emptyText)
 }
 
-const runtimeContextExpression = `(() => {
+const runtimeContextExpression = `(() => (async () => {
   const root = globalThis;
   const explicit = root.__notionAiChatbotRuntimeContext;
   if (explicit && typeof explicit === "object") return explicit;
@@ -891,6 +891,76 @@ const runtimeContextExpression = `(() => {
       return value;
     } catch {
       return undefined;
+    }
+  };
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidGlobalPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+  const isUuid = (value) => typeof value === "string" && uuidPattern.test(value);
+  const objectKeys = (value) => value && typeof value === "object" ? Object.keys(value) : [];
+  const readJson = (raw) => {
+    try {
+      return typeof raw === "string" && raw.length > 0 ? JSON.parse(raw) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const readCurrentUserId = () => {
+    const explicitUserId = readStorage("LRU:KeyValueStore2:lastVisitedRouteUserId") || readStorage("LRU:KeyValueStore2:current-user-id");
+    return isUuid(explicitUserId) ? explicitUserId : undefined;
+  };
+  const readSpaceIdFromStorage = (userId) => {
+    try {
+      const explicitSpaceId = readStorage("LRU:KeyValueStore2:lastVisitedRouteSpaceId");
+      if (isUuid(explicitSpaceId)) return explicitSpaceId;
+
+      const spaceIdToShortId = readJson(localStorage.getItem("LRU:KeyValueStore2:spaceIdToShortId"));
+      const spaceIdToShortIdValue = spaceIdToShortId && typeof spaceIdToShortId === "object" && spaceIdToShortId.value
+        ? spaceIdToShortId.value
+        : spaceIdToShortId;
+      const storedSpaceId = objectKeys(spaceIdToShortIdValue).find((id) => isUuid(id) && id !== userId);
+      if (storedSpaceId) return storedSpaceId;
+
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index) || "";
+        const matches = key.match(uuidGlobalPattern) || [];
+        const candidate = matches.find((id) => isUuid(id) && id !== userId);
+        if (candidate) return candidate;
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  };
+  const readContextFromGetSpaces = async () => {
+    try {
+      const response = await fetch("/api/v3/getSpaces", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) return {};
+      const spaces = await response.json();
+      if (!spaces || typeof spaces !== "object") return {};
+      const topLevelUserId = objectKeys(spaces).find(isUuid);
+      const firstRecord = topLevelUserId ? spaces[topLevelUserId] : Object.values(spaces).find((entry) => entry && typeof entry === "object");
+      if (!firstRecord || typeof firstRecord !== "object") return { userId: topLevelUserId };
+
+      const notionUser = firstRecord.notion_user;
+      const userId = objectKeys(notionUser).find(isUuid) || topLevelUserId;
+      const space = firstRecord.space;
+      const directSpaceId = objectKeys(space).find(isUuid);
+      if (directSpaceId) return { spaceId: directSpaceId, userId };
+
+      const spaceView = firstRecord.space_view;
+      for (const entry of Object.values(spaceView || {})) {
+        const value = entry && typeof entry === "object" ? entry.value : undefined;
+        const spaceId = value && typeof value === "object" && isUuid(value.space_id) ? value.space_id : undefined;
+        if (spaceId) return { spaceId, userId };
+      }
+      return { userId };
+    } catch {
+      return {};
     }
   };
   const readNotionAiContextPageId = () => {
@@ -936,9 +1006,13 @@ const runtimeContextExpression = `(() => {
     }
   })();
 
+  const apiContext = await readContextFromGetSpaces();
+  const userId = root.__notionAiUserId || readCurrentUserId() || apiContext.userId;
+  const spaceId = root.__notionAiSpaceId || readSpaceIdFromStorage(userId) || apiContext.spaceId;
+
   return {
-    spaceId: root.__notionAiSpaceId || readStorage("LRU:KeyValueStore2:lastVisitedRouteSpaceId"),
-    userId: root.__notionAiUserId || readStorage("LRU:KeyValueStore2:lastVisitedRouteUserId"),
+    spaceId,
+    userId,
     notionClientVersion: root.__notionClientVersion || buildId || readMeta("notion-client-version"),
     contextPageId: root.__notionAiContextPageId || readNotionAiContextPageId(),
     threadId,
@@ -948,7 +1022,7 @@ const runtimeContextExpression = `(() => {
     modelFromUser: true,
     workflowValue: root.__notionAiWorkflowValue,
   };
-})()`
+})())()`
 
 async function runInferenceInPage(input: {
   payload: RunInferencePayload
