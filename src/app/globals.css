@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-noto-sans);
+  --font-sans: var(--font-mincho);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-inter);
   --font-heading: var(--font-mincho);
@@ -111,6 +111,7 @@
       radial-gradient(ellipse 72% 54% at 55% 85%, var(--aurora-sky) 0%, transparent 64%);
     background-attachment: fixed;
     color: var(--text-primary);
+    font-weight: 500;
   }
   html {
     @apply font-sans;

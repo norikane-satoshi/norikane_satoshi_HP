@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Sans_JP, Noto_Serif_JP, Inter, Geist_Mono } from "next/font/google";
+import { Noto_Serif_JP, Inter, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import "@/components/booking/booking-calendar.css";
@@ -8,17 +8,10 @@ import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
 import { NavHeader } from "@/components/hp/nav-header";
 import { SITE_BRAND_NAME, SITE_OWNER_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand";
 
-const notoSansJP = Noto_Sans_JP({
-  subsets: ["latin"],
-  variable: "--font-noto-sans",
-  weight: ["400", "500", "700"],
-  display: "swap",
-});
-
 const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
   variable: "--font-mincho",
-  weight: ["400", "600", "700"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -56,7 +49,7 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${notoSansJP.variable} ${notoSerifJP.variable} ${inter.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${notoSerifJP.variable} ${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <NavHeader />
