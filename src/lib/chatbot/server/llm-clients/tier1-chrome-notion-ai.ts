@@ -932,21 +932,25 @@ const runtimeContextExpression = `(() => (async () => {
     return isUuid(explicitUserId) ? explicitUserId : undefined;
   };
   const readSpaceIdFromStorage = (userId) => {
-    const explicitSpaceId = readStorage("LRU:KeyValueStore2:lastVisitedRouteSpaceId");
-    if (isUuid(explicitSpaceId)) return explicitSpaceId;
+    try {
+      const explicitSpaceId = readStorage("LRU:KeyValueStore2:lastVisitedRouteSpaceId");
+      if (isUuid(explicitSpaceId)) return explicitSpaceId;
 
-    const spaceIdToShortId = readJson(localStorage.getItem("LRU:KeyValueStore2:spaceIdToShortId"));
-    const spaceIdToShortIdValue = spaceIdToShortId && typeof spaceIdToShortId === "object" && spaceIdToShortId.value
-      ? spaceIdToShortId.value
-      : spaceIdToShortId;
-    const storedSpaceId = objectKeys(spaceIdToShortIdValue).find((id) => isUuid(id) && id !== userId);
-    if (storedSpaceId) return storedSpaceId;
+      const spaceIdToShortId = readJson(localStorage.getItem("LRU:KeyValueStore2:spaceIdToShortId"));
+      const spaceIdToShortIdValue = spaceIdToShortId && typeof spaceIdToShortId === "object" && spaceIdToShortId.value
+        ? spaceIdToShortId.value
+        : spaceIdToShortId;
+      const storedSpaceId = objectKeys(spaceIdToShortIdValue).find((id) => isUuid(id) && id !== userId);
+      if (storedSpaceId) return storedSpaceId;
 
-    for (let index = 0; index < localStorage.length; index += 1) {
-      const key = localStorage.key(index) || "";
-      const matches = key.match(uuidGlobalPattern) || [];
-      const candidate = matches.find((id) => isUuid(id) && id !== userId);
-      if (candidate) return candidate;
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index) || "";
+        const matches = key.match(uuidGlobalPattern) || [];
+        const candidate = matches.find((id) => isUuid(id) && id !== userId);
+        if (candidate) return candidate;
+      }
+    } catch {
+      return undefined;
     }
     return undefined;
   };
