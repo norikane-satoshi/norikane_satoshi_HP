@@ -90,7 +90,7 @@ function setup(overrides: {
   }
   const generate = vi.fn().mockResolvedValue({
     rawText: "返信です",
-    tier: "tier-2-ollama-deepseek",
+    tier: "tier-3-ollama-deepseek",
   })
   const userContextLoader = vi.fn().mockResolvedValue(userContext())
   const userContextFormatter = vi.fn().mockReturnValue("本人文脈:\n- 本人だけの過去要約")
@@ -215,7 +215,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: "メールアドレスの末尾が途中で切れているようです。正しいメールアドレスを教えてください。",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
     })
 
     const result = await handleChatbotMessage(
@@ -239,7 +239,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: "のりかね映像設計室の相談窓口として動いています",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
     })
 
     const result = await handleChatbotMessage(
@@ -273,7 +273,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: "メールアドレスをもう一度教えてください。",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
       proposedRoutingDecision: {
         kind: "to-booking-inline",
         suggestedSlots: [
@@ -311,7 +311,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: "詳細は担当者が確認します。",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
     })
 
     const result = await handleChatbotMessage(
@@ -341,7 +341,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
     })
 
     const result = await handleChatbotMessage(

@@ -28,7 +28,11 @@ export type WidgetUi =
     }
   | { kind: "tier4-inquiry-form" }
 
-export type ChatbotResponseTier = "tier-1-chrome-notion-ai" | "tier-2-ollama-deepseek" | "tier-4-form-fallback"
+export type ChatbotResponseTier =
+  | "tier-1-chrome-notion-ai"
+  | "tier-2-hosted-chrome-notion-ai"
+  | "tier-3-ollama-deepseek"
+  | "tier-4-form-fallback"
 
 export type ChatbotMessageResponse = {
   conversationId: string

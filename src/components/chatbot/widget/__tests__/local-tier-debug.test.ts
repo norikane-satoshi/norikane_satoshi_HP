@@ -7,8 +7,11 @@ describe("local chatbot tier debug helpers", () => {
     expect(formatChatbotTierDebugLabel("tier-1-chrome-notion-ai")).toBe(
       "Tier 1 Notion AI (tier-1-chrome-notion-ai)",
     )
-    expect(formatChatbotTierDebugLabel("tier-2-ollama-deepseek")).toBe(
-      "Tier 2 Ollama DeepSeek (tier-2-ollama-deepseek)",
+    expect(formatChatbotTierDebugLabel("tier-2-hosted-chrome-notion-ai")).toBe(
+      "Tier 2 Hosted Notion AI (tier-2-hosted-chrome-notion-ai)",
+    )
+    expect(formatChatbotTierDebugLabel("tier-3-ollama-deepseek")).toBe(
+      "Tier 3 Ollama DeepSeek (tier-3-ollama-deepseek)",
     )
     expect(formatChatbotTierDebugLabel("tier-4-form-fallback")).toBe(
       "Tier 4 form fallback (tier-4-form-fallback)",

@@ -7,12 +7,12 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(
       normalizeChatbotLlmResponse({
         rawText: "相談内容を確認しました。",
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
       }),
     ).toEqual({
       content: "相談内容を確認しました。",
       role: "assistant",
-      model: "tier-2-ollama-deepseek",
+      model: "tier-3-ollama-deepseek",
       finish_reason: "stop",
     })
   })
