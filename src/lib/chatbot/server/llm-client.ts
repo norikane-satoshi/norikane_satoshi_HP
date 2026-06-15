@@ -2,7 +2,8 @@ import type { ChatbotMessageRole, ConversationState, JobContext } from "@/lib/ch
 
 export type ChatbotLlmTier =
   | "tier-1-chrome-notion-ai"
-  | "tier-2-ollama-deepseek"
+  | "tier-2-hosted-chrome-notion-ai"
+  | "tier-3-ollama-deepseek"
   | "tier-4-form-fallback"
 
 export type ChatbotLlmRequest = {
@@ -65,6 +66,7 @@ export class ChatbotLlmError extends Error {
  */
 export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
   "tier-1-chrome-notion-ai",
-  "tier-2-ollama-deepseek",
+  "tier-2-hosted-chrome-notion-ai",
+  "tier-3-ollama-deepseek",
   "tier-4-form-fallback",
 ] as const

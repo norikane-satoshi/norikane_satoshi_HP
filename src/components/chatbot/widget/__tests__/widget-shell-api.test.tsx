@@ -42,7 +42,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
         ui: { kind: "none" },
       }),
     )
@@ -52,7 +52,7 @@ describe("WidgetShell API wiring", () => {
     submitMessage()
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-    expect(await screen.findByText("Local debug: Tier 2 Ollama DeepSeek (tier-2-ollama-deepseek)")).toBeInTheDocument()
+    expect(await screen.findByText("Local debug: Tier 3 Ollama DeepSeek (tier-3-ollama-deepseek)")).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/chatbot/message",
       expect.objectContaining({
@@ -87,7 +87,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-2-ollama-deepseek",
+        tier: "tier-3-ollama-deepseek",
         ui: { kind: "none" },
       }),
     )
@@ -124,7 +124,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
         }),
       ),
@@ -147,7 +147,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "候補日時から予約できます",
           },
-          tier: "tier-2-ollama-deepseek",
+          tier: "tier-3-ollama-deepseek",
           ui: {
             kind: "booking-card",
             suggestedSlots: [

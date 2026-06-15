@@ -2,7 +2,8 @@ import type { ChatbotResponseTier } from "./api"
 
 const tierLabels: Record<ChatbotResponseTier, string> = {
   "tier-1-chrome-notion-ai": "Tier 1 Notion AI",
-  "tier-2-ollama-deepseek": "Tier 2 Ollama DeepSeek",
+  "tier-2-hosted-chrome-notion-ai": "Tier 2 Hosted Notion AI",
+  "tier-3-ollama-deepseek": "Tier 3 Ollama DeepSeek",
   "tier-4-form-fallback": "Tier 4 form fallback",
 }
 

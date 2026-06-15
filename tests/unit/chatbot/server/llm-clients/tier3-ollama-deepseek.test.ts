@@ -4,9 +4,9 @@ import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import {
-  createTier2OllamaDeepSeekClient,
-  Tier2OllamaDeepSeekClient,
-} from "@/lib/chatbot/server/llm-clients/tier2-ollama-deepseek"
+  createTier3OllamaDeepSeekClient,
+  Tier3OllamaDeepSeekClient,
+} from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
 
 const modelName = "hf.co/cyberagent/DeepSeek-R1-Distill-Qwen-Japanese-14B-gguf:Q4_K_M"
 const resolvedModelName = "hf.co/mmnga/cyberagent-DeepSeek-R1-Distill-Qwen-14B-Japanese-gguf:Q4_K_M"
@@ -59,7 +59,7 @@ function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {
 }
 
 function ollamaClient(httpClient: (input: string, init?: RequestInit) => Promise<Response>) {
-  return new Tier2OllamaDeepSeekClient({
+  return new Tier3OllamaDeepSeekClient({
     ...baseConfig,
     httpClient,
   })
@@ -73,26 +73,26 @@ async function expectLlmError(
   await expect(promise).rejects.toMatchObject({
     code: expected.code,
     isRetryable: expected.isRetryable,
-    tier: "tier-2-ollama-deepseek",
+    tier: "tier-3-ollama-deepseek",
   })
 }
 
-describe("Tier2OllamaDeepSeekClient", () => {
+describe("Tier3OllamaDeepSeekClient", () => {
   afterEach(() => {
     vi.unstubAllEnvs()
   })
 
-  it("keeps the tier property fixed to tier 2 Ollama DeepSeek", () => {
-    const client = createTier2OllamaDeepSeekClient()
+  it("keeps the tier property fixed to tier 3 Ollama DeepSeek", () => {
+    const client = createTier3OllamaDeepSeekClient()
 
-    expect(client.tier).toBe("tier-2-ollama-deepseek")
+    expect(client.tier).toBe("tier-3-ollama-deepseek")
   })
 
   it("uses the locally installed HF model host by default", async () => {
     const httpClient = vi.fn(async () =>
       jsonResponse({ model: resolvedModelName, message: { content: "OK" } }),
     )
-    const client = createTier2OllamaDeepSeekClient({ ...baseConfig, modelName: resolvedModelName, httpClient })
+    const client = createTier3OllamaDeepSeekClient({ ...baseConfig, modelName: resolvedModelName, httpClient })
 
     await expect(client.generate(llmRequest())).resolves.toMatchObject({
       rawText: "OK",
@@ -101,10 +101,10 @@ describe("Tier2OllamaDeepSeekClient", () => {
   })
 
   it("loads Ollama base URL and model name from tier-specific env", async () => {
-    vi.stubEnv("CHATBOT_TIER2_OLLAMA_BASE_URL", "http://127.0.0.1:11435")
-    vi.stubEnv("CHATBOT_TIER2_OLLAMA_MODEL", "local-model:Q4_K_M")
+    vi.stubEnv("CHATBOT_TIER3_OLLAMA_BASE_URL", "http://127.0.0.1:11435")
+    vi.stubEnv("CHATBOT_TIER3_OLLAMA_MODEL", "local-model:Q4_K_M")
     const httpClient = vi.fn(async () => jsonResponse({ message: { content: "OK" } }))
-    const client = createTier2OllamaDeepSeekClient({
+    const client = createTier3OllamaDeepSeekClient({
       requestTimeoutMs: 20,
       healthCheckTimeoutMs: 20,
       httpClient,
@@ -150,7 +150,7 @@ describe("Tier2OllamaDeepSeekClient", () => {
 
     await expect(client.generate(llmRequest())).resolves.toMatchObject({
       rawText: "候補日を 2 つ確認しました。",
-      tier: "tier-2-ollama-deepseek",
+      tier: "tier-3-ollama-deepseek",
     })
     expect(httpClient).toHaveBeenCalledWith(
       "http://localhost:11434/api/chat",
@@ -180,7 +180,7 @@ describe("Tier2OllamaDeepSeekClient", () => {
   })
 
   it("throws a retryable timeout error when the request exceeds requestTimeoutMs", async () => {
-    const client = new Tier2OllamaDeepSeekClient({
+    const client = new Tier3OllamaDeepSeekClient({
       ...baseConfig,
       requestTimeoutMs: 1,
       httpClient: async () => new Promise(() => undefined),

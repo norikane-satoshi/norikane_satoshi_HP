@@ -37,7 +37,7 @@ async function loadPost({
   existingConversation = null,
   llmResponse = {
     rawText: "最終媒体を教えてください",
-    tier: "tier-2-ollama-deepseek" as const,
+    tier: "tier-3-ollama-deepseek" as const,
   },
 }: {
   session?: { user?: { id?: string; email?: string } } | null
@@ -76,7 +76,8 @@ async function loadPost({
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),
-    createTier2OllamaDeepSeekClient: vi.fn(() => ({ tier: "tier-2-ollama-deepseek" })),
+    createTier2HostedChromeNotionAiClient: vi.fn(() => ({ tier: "tier-2-hosted-chrome-notion-ai" })),
+    createTier3OllamaDeepSeekClient: vi.fn(() => ({ tier: "tier-3-ollama-deepseek" })),
     createTier4FormFallbackClient: vi.fn(() => ({ tier: "tier-4-form-fallback" })),
     createChatbotLlmTierOrchestrator: vi.fn(() => ({
       generate,
