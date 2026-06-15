@@ -232,7 +232,6 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
   private readonly fetchClient: CdpFetchClient
   private readonly sessionFactory: NotionAiCdpSessionFactory
   private readonly idFactory: IdFactory
-  private lastHealthError?: ChatbotLlmError | Error
 
   constructor(options: Tier1ChromeNotionAiClientOptions = {}) {
     this.config = {
@@ -258,13 +257,17 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.requestTimeoutMs,
       )
+      const effectiveRuntimeContext = withConfiguredThreadContext(
+        runtimeContext,
+        this.config.targetUrlIncludes,
+      )
       const payload = buildRunInferencePayload({
         request,
-        runtimeContext,
+        runtimeContext: effectiveRuntimeContext,
         preferredModel: this.config.preferredModel,
         idFactory: this.idFactory,
       })
-      const headers = buildRunInferenceHeaders(runtimeContext)
+      const headers = buildRunInferenceHeaders(effectiveRuntimeContext)
       const result = await this.evaluate<NotionAiInferenceResult>(
         session,
         buildRunInferenceExpression(payload, headers),
@@ -310,7 +313,6 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     let session: NotionAiCdpSession | undefined
 
     try {
-      this.lastHealthError = undefined
       const opened = await this.openTargetSession(this.config.healthCheckTimeoutMs)
       session = opened.session
       const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
@@ -318,36 +320,20 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.healthCheckTimeoutMs,
       )
+      const effectiveRuntimeContext = withConfiguredThreadContext(
+        runtimeContext,
+        this.config.targetUrlIncludes,
+      )
 
-      if (!runtimeContext.spaceId) {
-        this.lastHealthError = this.toLlmError({
-          message: "Notion AI runtime context does not expose a space id.",
-          code: "auth",
-          isRetryable: false,
-        })
-        return false
-      }
+      if (!effectiveRuntimeContext.spaceId) return false
       if (!this.config.preferredModel) return true
 
-      const modelAvailable = modelIsAvailable(this.config.preferredModel, runtimeContext.availableModels)
-      if (!modelAvailable) {
-        this.lastHealthError = this.toLlmError({
-          message: "Preferred Notion AI model is not available in the current page context.",
-          code: "connection",
-          isRetryable: true,
-        })
-      }
-      return modelAvailable
-    } catch (error) {
-      this.lastHealthError = error instanceof Error ? error : this.mapGenerateError(error)
+      return modelIsAvailable(this.config.preferredModel, effectiveRuntimeContext.availableModels)
+    } catch {
       return false
     } finally {
       await session?.close()
     }
-  }
-
-  getLastHealthError(): ChatbotLlmError | Error | undefined {
-    return this.lastHealthError
   }
 
   async inspectRuntimeContext(): Promise<NotionAiRuntimeInspection> {
@@ -359,14 +345,18 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContextExpression,
         this.config.healthCheckTimeoutMs,
       )
+      const effectiveRuntimeContext = withConfiguredThreadContext(
+        runtimeContext,
+        this.config.targetUrlIncludes,
+      )
       const preferredModel = this.config.preferredModel ?? tier1ObservedNotionAiModel
 
       return {
         targetUrl: target.url,
-        selectedModel: runtimeContext.selectedModel,
-        finalModelName: runtimeContext.finalModelName,
-        availableModels: runtimeContext.availableModels,
-        preferredModelAvailable: modelIsAvailable(preferredModel, runtimeContext.availableModels),
+        selectedModel: effectiveRuntimeContext.selectedModel,
+        finalModelName: effectiveRuntimeContext.finalModelName,
+        availableModels: effectiveRuntimeContext.availableModels,
+        preferredModelAvailable: modelIsAvailable(preferredModel, effectiveRuntimeContext.availableModels),
       }
     } finally {
       await session.close()
@@ -773,7 +763,6 @@ function buildUserPrompt(request: ChatbotLlmRequest): string {
   return [
     request.systemPrompt,
     ...request.messages.map((message) => `${message.role}: ${message.content}`),
-    request.latestUserMessage ? `user: ${request.latestUserMessage}` : undefined,
   ]
     .filter((line): line is string => Boolean(line))
     .join("\n")
@@ -835,6 +824,29 @@ function isNotionAiRuntimeTargetUrl(url: string | undefined): boolean {
     return parsed.hostname === "app.notion.com" && parsed.pathname === "/ai"
   } catch {
     return url.includes("app.notion.com/ai")
+  }
+}
+
+function withConfiguredThreadContext(
+  runtimeContext: NotionAiRuntimeContext,
+  targetUrlIncludes: string,
+): NotionAiRuntimeContext {
+  if (runtimeContext.threadId) return runtimeContext
+
+  const threadId = getThreadIdFromUrl(targetUrlIncludes)
+  return threadId ? { ...runtimeContext, threadId } : runtimeContext
+}
+
+function getThreadIdFromUrl(url: string): string | undefined {
+  try {
+    const value = new URL(url.trim()).searchParams.get("t")
+    if (!value) return undefined
+    if (/^[0-9a-f]{32}$/i.test(value)) {
+      return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`
+    }
+    return value
+  } catch {
+    return undefined
   }
 }
 
@@ -948,7 +960,7 @@ const runtimeContextExpression = `(() => (async () => {
     }
   };
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const uuidGlobalPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+  const uuidGlobalPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
   const isUuid = (value) => typeof value === "string" && uuidPattern.test(value);
   const objectKeys = (value) => value && typeof value === "object" ? Object.keys(value) : [];
   const readJson = (raw) => {
