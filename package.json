@@ -21,7 +21,8 @@
     "db:migrate:turso": "tsx scripts/turso-migrate-deploy.ts",
     "db:backfill:step0": "tsx scripts/migrate-step-0-backfill.ts",
     "e2e:resend:real-send": "tsx scripts/e2e-resend-real-send.mjs",
-    "chatbot:local-tier-guard": "tsx scripts/chatbot/local-tier-guard.ts"
+    "chatbot:local-tier-guard": "tsx scripts/chatbot/local-tier-guard.ts",
+    "chatbot:hosted-tier2-heartbeat": "tsx scripts/chatbot/hosted-tier2-heartbeat.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

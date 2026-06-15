@@ -1,0 +1,10 @@
+[Unit]
+Description=Norikane HP hosted Tier2 heartbeat
+Wants=network-online.target hosted-notion-ai-worker.service hosted-worker-chrome.service
+After=network-online.target hosted-notion-ai-worker.service hosted-worker-chrome.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/norikane_satoshi_HP
+EnvironmentFile=%h/.config/norikane/hosted-tier2-heartbeat.env
+ExecStart=%h/norikane_satoshi_HP/node_modules/.bin/tsx %h/norikane_satoshi_HP/scripts/chatbot/hosted-tier2-heartbeat.ts

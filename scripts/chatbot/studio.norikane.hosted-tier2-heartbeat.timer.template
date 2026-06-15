@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Norikane HP hosted Tier2 heartbeat every 2 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=30s
+RandomizedDelaySec=15s
+Persistent=true
+Unit=studio.norikane.hosted-tier2-heartbeat.service
+
+[Install]
+WantedBy=timers.target
