@@ -14,7 +14,11 @@ import { isNotionAiChatbotTargetUrl } from "@/lib/chatbot/server/llm-clients/tie
 import { createTier4FormFallbackClient } from "@/lib/chatbot/server/llm-clients/tier4-form-fallback"
 import { tier3OllamaDeepSeekDefaults } from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
 
-type TierName = "tier-1-chrome-notion-ai" | "tier-3-ollama-deepseek" | "tier-4-form-fallback"
+type TierName =
+  | "tier-1-chrome-notion-ai"
+  | "tier-3-ollama-deepseek"
+  | "tier-4-form-fallback"
+  | "local-41238-runtime"
 type GuardStatus = "green" | "yellow" | "red"
 
 type CdpTarget = {
@@ -64,12 +68,44 @@ export async function runGuard(options: GuardOptions): Promise<TierResult[]> {
     await guardTier1(options),
     await guardTier3(options),
     await guardTier4(options),
+    await guardLocal41238Runtime(),
   ]
 
   await writeLog(options.logPath, results)
   console.log(JSON.stringify({ ok: results.every((result) => result.status === "green"), results }, null, 2))
 
   return results
+}
+
+async function guardLocal41238Runtime(): Promise<TierResult> {
+  const inspection = await inspectLocal41238Runtime()
+
+  if (inspection.status === "current") {
+    return {
+      tier: "local-41238-runtime",
+      status: "green",
+      action: "none",
+      detail: `head_current:${inspection.head.slice(0, 12)}`,
+    }
+  }
+
+  if (inspection.status === "stale") {
+    return {
+      tier: "local-41238-runtime",
+      status: "red",
+      action: "update-41238-worktree-required",
+      detail: `head_stale:${inspection.head.slice(0, 12)};expected:${inspection.expectedHead.slice(0, 12)};cwd:${inspection.cwd}`,
+      nextAction: "update_41238_to_origin_staging_without_restart",
+    }
+  }
+
+  return {
+    tier: "local-41238-runtime",
+    status: "red",
+    action: "inspect-41238-runtime-required",
+    detail: inspection.detail,
+    nextAction: "inspect_41238_listener_and_worktree",
+  }
 }
 
 async function guardTier1(options: GuardOptions): Promise<TierResult> {
@@ -350,6 +386,96 @@ async function guardTier4(options: GuardOptions): Promise<TierResult> {
     detail: `client:${clientHealthy ? "ready" : "not_ready"};RESEND_API_KEY:${hasResendApiKey ? "present" : "missing"};RESEND_FROM_EMAIL:${hasFromEmail ? "present" : "missing"}`,
     nextAction: "restore_resend_env",
   }
+}
+
+type Local41238RuntimeInspection =
+  | { status: "current"; cwd: string; head: string; expectedHead: string }
+  | { status: "stale"; cwd: string; head: string; expectedHead: string }
+  | { status: "unknown"; detail: string }
+
+export function classifyLocal41238Runtime(input: {
+  cwd?: string
+  head?: string
+  expectedHead?: string
+  error?: string
+}): Local41238RuntimeInspection {
+  if (input.error) return { status: "unknown", detail: input.error }
+  if (!input.cwd) return { status: "unknown", detail: "41238_listener_cwd_missing" }
+  if (!input.head) return { status: "unknown", detail: `41238_head_missing;cwd:${input.cwd}` }
+  if (!input.expectedHead) return { status: "unknown", detail: `41238_expected_head_missing;cwd:${input.cwd}` }
+
+  if (input.head === input.expectedHead) {
+    return {
+      status: "current",
+      cwd: input.cwd,
+      head: input.head,
+      expectedHead: input.expectedHead,
+    }
+  }
+
+  return {
+    status: "stale",
+    cwd: input.cwd,
+    head: input.head,
+    expectedHead: input.expectedHead,
+  }
+}
+
+async function inspectLocal41238Runtime(): Promise<Local41238RuntimeInspection> {
+  try {
+    const cwd = await read41238ListenerCwd()
+    const [head, expectedHead] = await Promise.all([
+      readGitRevision(cwd, "HEAD"),
+      readGitRevision(cwd, process.env.CHATBOT_41238_EXPECTED_REF ?? "origin/staging"),
+    ])
+    return classifyLocal41238Runtime({ cwd, head, expectedHead })
+  } catch (error) {
+    return classifyLocal41238Runtime({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+async function read41238ListenerCwd(): Promise<string> {
+  const pid = await read41238ListenerPid()
+  const result = await spawnCapture("/usr/sbin/lsof", ["-p", pid, "-a", "-d", "cwd", "-Fn"])
+  if (result.exitCode !== 0) {
+    throw new Error(`lsof_cwd_failed:${result.stderr.trim() || result.stdout.trim()}`)
+  }
+
+  const cwd = result.stdout
+    .split("\n")
+    .find((line) => line.startsWith("n"))
+    ?.slice(1)
+    .trim()
+  if (!cwd) throw new Error("41238_listener_cwd_missing")
+
+  return cwd
+}
+
+async function read41238ListenerPid(): Promise<string> {
+  const result = await spawnCapture("/usr/sbin/lsof", ["-nP", "-iTCP:41238", "-sTCP:LISTEN", "-Fp"])
+  if (result.exitCode !== 0) {
+    throw new Error(`lsof_41238_failed:${result.stderr.trim() || result.stdout.trim()}`)
+  }
+
+  const pid = result.stdout
+    .split("\n")
+    .find((line) => line.startsWith("p"))
+    ?.slice(1)
+    .trim()
+  if (!pid) throw new Error("41238_listener_pid_missing")
+
+  return pid
+}
+
+async function readGitRevision(cwd: string, ref: string): Promise<string> {
+  const result = await spawnCapture("git", ["-C", cwd, "rev-parse", ref])
+  if (result.exitCode !== 0) {
+    throw new Error(`git_rev_parse_failed:${ref}:${result.stderr.trim() || result.stdout.trim()}`)
+  }
+
+  return result.stdout.trim()
 }
 
 export function hasOllamaModel(models: unknown[], modelName: string): boolean {
