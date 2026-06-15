@@ -63,7 +63,7 @@ export default async function NotePage({ params }: PageProps) {
         <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
           {label}
         </p>
-        <h1 className="hp-heading mt-2 text-3xl font-bold text-hp md:text-4xl xl:text-5xl">
+        <h1 className="hp-heading hp-note-title mt-2 text-3xl font-bold text-hp md:text-4xl xl:text-5xl">
           {note.title}
         </h1>
         <div className="mt-8">

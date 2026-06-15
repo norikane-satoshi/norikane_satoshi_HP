@@ -213,6 +213,15 @@
     box-shadow: var(--glass-shadow);
     border-radius: var(--hp-radius);
   }
+  article.glass-card--hp-note-page {
+    container-name: hp-note-page;
+    container-type: inline-size;
+  }
+  article.glass-card--hp-note-page .hp-note-title {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
   @media (max-width: 767px) {
     article.glass-card--hp-note-page {
       margin-left: -1.5rem;
