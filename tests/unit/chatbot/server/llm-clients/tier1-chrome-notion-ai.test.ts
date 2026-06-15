@@ -493,6 +493,42 @@ describe("Tier1ChromeNotionAiClient", () => {
     await expect(client.isHealthy()).resolves.toBe(true)
   })
 
+  it("attaches to the app Notion AI runtime target when the configured chat target redirects", async () => {
+    const attachedTargets: NotionAiCdpTarget[] = []
+    const session = sessionReturning([
+      {
+        spaceId: "space-id",
+        userId: "user-id",
+        selectedModel: "notion-current-model",
+        availableModels: ["notion-current-model"],
+      },
+    ])
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch([
+        {
+          type: "page",
+          url: "https://www.notion.so/chat?t=36b13ee3141a8073885d00a99ebb676c",
+          webSocketDebuggerUrl: "ws://127.0.0.1:9223/devtools/page/redirect-stub",
+        },
+        {
+          type: "page",
+          url: "https://app.notion.com/ai",
+          webSocketDebuggerUrl: "ws://127.0.0.1:9223/devtools/page/notion-ai-runtime",
+        },
+      ]),
+      sessionFactory: async (attachedTarget) => {
+        attachedTargets.push(attachedTarget)
+        return session
+      },
+    })
+
+    expect(isNotionAiChatbotTargetUrl("https://app.notion.com/ai", notionAiChatbotThreadUrl)).toBe(
+      true,
+    )
+    await expect(client.isHealthy()).resolves.toBe(true)
+    expect(attachedTargets[0]?.webSocketDebuggerUrl).toContain("notion-ai-runtime")
+  })
+
   it("rejects non-chatbot Notion AI targets before attaching", async () => {
     const client = new Tier1ChromeNotionAiClient({
       fetchClient: cdpFetch([

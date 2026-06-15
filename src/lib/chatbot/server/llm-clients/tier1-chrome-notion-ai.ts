@@ -783,12 +783,23 @@ function findNotionAiTarget(
   targets: CdpTargetsResponse,
   targetUrlIncludes: string,
 ): NotionAiCdpTarget | undefined {
-  return targets.find((target) => {
-    return target.type === targetTypePage && isNotionAiChatbotTargetUrl(target.url, targetUrlIncludes)
+  const configuredTarget = targets.find((target) => {
+    return target.type === targetTypePage && isConfiguredNotionAiChatTargetUrl(target.url, targetUrlIncludes)
   })
+  const runtimeTarget = targets.find((target) => {
+    return target.type === targetTypePage && isNotionAiRuntimeTargetUrl(target.url)
+  })
+
+  return configuredTarget && runtimeTarget ? runtimeTarget : configuredTarget
 }
 
 export function isNotionAiChatbotTargetUrl(url: string | undefined, targetUrlIncludes: string): boolean {
+  if (isExpectedChatTargetUrl(targetUrlIncludes) && isNotionAiRuntimeTargetUrl(url)) return true
+
+  return isConfiguredNotionAiChatTargetUrl(url, targetUrlIncludes)
+}
+
+function isConfiguredNotionAiChatTargetUrl(url: string | undefined, targetUrlIncludes: string): boolean {
   if (!url) return false
   const expected = targetUrlIncludes.trim()
   if (!expected) return false
@@ -804,6 +815,26 @@ export function isNotionAiChatbotTargetUrl(url: string | undefined, targetUrlInc
     return Boolean(expectedThreadId && actualThreadId === expectedThreadId)
   } catch {
     return url.includes(expected)
+  }
+}
+
+function isExpectedChatTargetUrl(targetUrlIncludes: string): boolean {
+  try {
+    const expectedUrl = new URL(targetUrlIncludes.trim())
+    return expectedUrl.pathname.includes("/chat") && Boolean(expectedUrl.searchParams.get("t"))
+  } catch {
+    return targetUrlIncludes.includes("/chat")
+  }
+}
+
+function isNotionAiRuntimeTargetUrl(url: string | undefined): boolean {
+  if (!url) return false
+
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname === "app.notion.com" && parsed.pathname === "/ai"
+  } catch {
+    return url.includes("app.notion.com/ai")
   }
 }
 
