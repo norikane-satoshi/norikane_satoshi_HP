@@ -9,7 +9,7 @@ Runtime shape:
 - A lightweight `POST /generate` smoke runs at most every 15 minutes by default.
 - Three consecutive failed runs move state to `unhealthy`.
 - On the first unhealthy transition, the script tries one repair sequence: `POST /ensure-chrome`, `systemctl --user restart hosted-notion-ai-worker.service`, then `systemctl --user restart hosted-worker-chrome.service`.
-- Notifications are state-change only: `unhealthy` and `recovered`. Same-state alert spam is rate-limited.
+- Notifications are state-change only: `unhealthy` and `recovered`. Slack is primary when configured; Resend email remains fallback. Same-state alert spam is rate-limited.
 - Logs are JSONL and do not include bearer tokens, raw prompts, raw model output, cookies, or personal request bodies.
 
 Default VPS files:
@@ -24,11 +24,12 @@ Required env keys stay on the VPS only:
 
 - `CHATBOT_HOSTED_NOTION_AI_WORKER_URL`
 - `CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN`
-- `RESEND_API_KEY`
-- `RESEND_FROM_EMAIL`
+- `SLACK_BOT_TOKEN` plus `CHATBOT_HOSTED_TIER2_HEARTBEAT_SLACK_CHANNEL`, or `CHATBOT_HOSTED_TIER2_HEARTBEAT_SLACK_WEBHOOK_URL`
 
 Optional env keys:
 
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
 - `CHATBOT_HOSTED_TIER2_HEARTBEAT_NOTIFY_EMAIL`
 - `CHATBOT_HOSTED_TIER2_HEARTBEAT_GENERATE_INTERVAL_MS`
 - `CHATBOT_HOSTED_TIER2_HEARTBEAT_GENERATE_TIMEOUT_MS`

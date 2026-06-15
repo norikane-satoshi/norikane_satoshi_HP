@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -27,6 +27,9 @@ function config(dir: string, overrides: Partial<HeartbeatConfig> = {}): Heartbea
     notificationTo: "norikane.satoshi@gmail.com",
     notificationFrom: "noreply@norikane.studio",
     resendApiKey: "resend-secret",
+    slackBotToken: undefined,
+    slackChannel: undefined,
+    slackWebhookUrl: undefined,
     dryRunNotify: true,
     repair: false,
     forceGenerate: false,
@@ -121,6 +124,95 @@ describe("hosted-tier2-heartbeat", () => {
 
     expect(result.status).toBe("unhealthy")
     expect(result.notification).toMatchObject({ kind: "unhealthy", status: "dry-run" })
+  })
+
+  it("sends unhealthy state changes to Slack bot without leaking secrets", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    dirs.push(dir)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: false, status: "cdp_connection_refused" }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, ts: "123.456" }, 200))
+
+    const result = await runHeartbeat(
+      config(dir, {
+        dryRunNotify: false,
+        failureThreshold: 1,
+        slackBotToken: "test-slack-token",
+        slackChannel: "D0AB0UMUFNZ",
+      }),
+      {
+        fetch: fetchMock as typeof fetch,
+        now: () => new Date("2026-06-15T00:00:00.000Z"),
+        runCommand: vi.fn(),
+      },
+    )
+
+    expect(result.notification).toMatchObject({ kind: "unhealthy", status: "sent", detail: "slack_bot:http:200" })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [, slackInput] = fetchMock.mock.calls[1]
+    expect(fetchMock.mock.calls[1][0]).toBe("https://slack.com/api/chat.postMessage")
+    const slackBody = JSON.parse(String(slackInput?.body)) as { channel: string; text: string }
+    expect(slackBody.channel).toBe("D0AB0UMUFNZ")
+    expect(slackBody.text).toContain("tier: tier-2-hosted-chrome-notion-ai")
+    expect(slackBody.text).toContain("state: unhealthy")
+    expect(slackBody.text).toContain("failure_reason: ok:false;status:cdp_connection_refused;model_available:undefined")
+    expect(slackBody.text).not.toContain("secret-token")
+    expect(slackBody.text).not.toContain("test-slack-token")
+    expect(slackBody.text).not.toContain("resend-secret")
+  })
+
+  it("falls back to Resend when Slack primary fails", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    dirs.push(dir)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: false, status: "cdp_connection_refused" }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: false, error: "channel_not_found" }, 200))
+      .mockResolvedValueOnce(jsonResponse({ id: "email-id" }, 202))
+
+    const result = await runHeartbeat(
+      config(dir, {
+        dryRunNotify: false,
+        failureThreshold: 1,
+        slackBotToken: "test-slack-token",
+        slackChannel: "D0AB0UMUFNZ",
+      }),
+      {
+        fetch: fetchMock as typeof fetch,
+        now: () => new Date("2026-06-15T00:00:00.000Z"),
+        runCommand: vi.fn(),
+      },
+    )
+
+    expect(result.notification).toMatchObject({
+      kind: "unhealthy",
+      status: "sent",
+      detail: "slack_failed:slack_bot:http:200:channel_not_found;fallback:resend:http:202",
+    })
+    expect(fetchMock.mock.calls[2][0]).toBe("https://api.resend.com/emails")
+  })
+
+  it("rate-limits repeated new unhealthy notifications", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    dirs.push(dir)
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        status: "healthy",
+        consecutiveFailures: 0,
+        lastNotificationAt: "2026-06-15T00:00:00.000Z",
+      }),
+    )
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: false, status: "cdp_connection_refused" }, 200))
+
+    const result = await runHeartbeat(config(dir, { failureThreshold: 1 }), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-06-15T00:10:00.000Z"),
+      runCommand: vi.fn(),
+    })
+
+    expect(result.notification).toMatchObject({ kind: "unhealthy", status: "skipped", detail: "rate_limited" })
   })
 
   it("runs the bounded repair sequence once on an unhealthy transition", async () => {

@@ -48,6 +48,9 @@ export type HeartbeatConfig = {
   notificationTo: string
   notificationFrom?: string
   resendApiKey?: string
+  slackWebhookUrl?: string
+  slackBotToken?: string
+  slackChannel?: string
   dryRunNotify: boolean
   repair: boolean
   forceGenerate: boolean
@@ -317,7 +320,101 @@ async function sendNotification(
   fetchClient: typeof fetch,
   now: Date,
 ): Promise<NotificationResult> {
-  if (config.dryRunNotify) return { kind, status: "dry-run", detail: config.notificationTo }
+  const message = buildNotificationMessage(config, kind, checks, repairActions, now)
+  const slackRoute = resolveSlackRoute(config)
+  if (config.dryRunNotify) return { kind, status: "dry-run", detail: slackRoute ?? `resend:${config.notificationTo}` }
+
+  if (slackRoute) {
+    const slack = await sendSlackNotification(config, slackRoute, message, fetchClient, kind)
+    if (slack.status === "sent") return slack
+    const fallback = await sendResendNotification(config, kind, message, fetchClient)
+    if (fallback.status !== "skipped") {
+      return {
+        kind,
+        status: fallback.status,
+        detail: `slack_failed:${slack.detail};fallback:${fallback.detail}`,
+      }
+    }
+    return slack
+  }
+
+  return sendResendNotification(config, kind, message, fetchClient)
+}
+
+function buildNotificationMessage(
+  config: HeartbeatConfig,
+  kind: NotificationKind,
+  checks: CheckResult[],
+  repairActions: RepairAction[],
+  now: Date,
+): string {
+  const primaryFailure = checks.find((check) => !check.ok)
+  return [
+    `tier: ${tier}`,
+    `state: ${kind}`,
+    `detected_at_jst: ${formatJst(now)}`,
+    `failure_reason: ${primaryFailure ? sanitizePublicText(primaryFailure.detail) : "none"}`,
+    `http_status: ${primaryFailure?.status ?? checks[0]?.status ?? "none"}`,
+    `checks: ${checks.map((check) => `${check.name}:${check.status ?? 0}:${sanitizePublicText(check.detail)}`).join(", ") || "test"}`,
+    `repair_actions: ${repairActions.map((action) => `${action.action}:${action.ok}`).join(", ") || "none"}`,
+    `current_state: ${kind}`,
+    `log_path: ${config.logPath}`,
+  ].join("\n")
+}
+
+type SlackRoute = "slack_webhook" | "slack_bot"
+
+function resolveSlackRoute(config: HeartbeatConfig): SlackRoute | undefined {
+  if (config.slackWebhookUrl) return "slack_webhook"
+  if (config.slackBotToken && config.slackChannel) return "slack_bot"
+  return undefined
+}
+
+async function sendSlackNotification(
+  config: HeartbeatConfig,
+  route: SlackRoute,
+  text: string,
+  fetchClient: typeof fetch,
+  kind: NotificationKind,
+): Promise<NotificationResult> {
+  try {
+    if (route === "slack_webhook") {
+      const response = await fetchClient(config.slackWebhookUrl as string, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text, unfurl_links: false, unfurl_media: false }),
+      })
+      return { kind, status: response.ok ? "sent" : "failed", detail: `slack_webhook:http:${response.status}` }
+    }
+
+    const response = await fetchClient("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: {
+        authorization: `${bearerPrefix}${config.slackBotToken}`,
+        "content-type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        channel: config.slackChannel,
+        text,
+        unfurl_links: false,
+        unfurl_media: false,
+      }),
+    })
+    const body = (await response.json().catch(() => undefined)) as unknown
+    const ok = response.ok && isRecord(body) && body.ok === true
+    const error = isRecord(body) && typeof body.error === "string" ? `:${body.error}` : ""
+    return { kind, status: ok ? "sent" : "failed", detail: `slack_bot:http:${response.status}${error}` }
+  } catch (error) {
+    return { kind, status: "failed", detail: `slack:${publicError(error)}` }
+  }
+}
+
+async function sendResendNotification(
+  config: HeartbeatConfig,
+  kind: NotificationKind,
+  text: string,
+  fetchClient: typeof fetch,
+): Promise<NotificationResult> {
   if (!config.resendApiKey || !config.notificationFrom) {
     return { kind, status: "skipped", detail: "missing_resend_env" }
   }
@@ -328,14 +425,6 @@ async function sendNotification(
       : kind === "test"
         ? "[norikane HP] Tier2 hosted worker heartbeat test"
         : "[norikane HP] Tier2 hosted worker unhealthy"
-  const text = [
-    `tier: ${tier}`,
-    `state: ${kind}`,
-    `detected_at_jst: ${formatJst(now)}`,
-    `checks: ${checks.map((check) => `${check.name}:${check.status ?? 0}:${check.detail}`).join(", ") || "test"}`,
-    `repair_actions: ${repairActions.map((action) => `${action.action}:${action.ok}`).join(", ") || "none"}`,
-    `log_path: ${config.logPath}`,
-  ].join("\n")
 
   try {
     const response = await fetchClient("https://api.resend.com/emails", {
@@ -354,10 +443,10 @@ async function sendNotification(
     return {
       kind,
       status: response.ok ? "sent" : "failed",
-      detail: `http:${response.status}`,
+      detail: `resend:http:${response.status}`,
     }
   } catch (error) {
-    return { kind, status: "failed", detail: publicError(error) }
+    return { kind, status: "failed", detail: `resend:${publicError(error)}` }
   }
 }
 
@@ -507,6 +596,9 @@ function resolveConfig(argv: string[]): { config: HeartbeatConfig; sendTestNotif
       notificationFrom:
         process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_FROM_EMAIL ?? process.env.RESEND_FROM_EMAIL,
       resendApiKey: process.env.RESEND_API_KEY,
+      slackWebhookUrl: process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_SLACK_WEBHOOK_URL,
+      slackBotToken: process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_SLACK_BOT_TOKEN ?? process.env.SLACK_BOT_TOKEN,
+      slackChannel: process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_SLACK_CHANNEL,
       dryRunNotify: args["dry-run-notify"] === "true" || process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_DRY_RUN_NOTIFY === "1",
       repair: args["no-repair"] !== "true",
       forceGenerate: args["force-generate"] === "true",
@@ -620,6 +712,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function publicError(error: unknown): string {
   if (error instanceof Error) return error.name === "AbortError" ? "timeout" : error.message
   return String(error)
+}
+
+function sanitizePublicText(value: string): string {
+  return value
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+    .replace(/xox[baprs]-[A-Za-z0-9-]+/gi, "[redacted-slack-token]")
+    .replace(/https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]+/gi, "[redacted-slack-webhook]")
 }
 
 async function main(): Promise<void> {
