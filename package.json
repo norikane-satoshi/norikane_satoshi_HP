@@ -22,6 +22,7 @@
     "db:backfill:step0": "tsx scripts/migrate-step-0-backfill.ts",
     "e2e:resend:real-send": "tsx scripts/e2e-resend-real-send.mjs",
     "chatbot:local-tier-guard": "tsx scripts/chatbot/local-tier-guard.ts",
+    "chatbot:tier1:ensure-chrome": "tsx scripts/chatbot/ensure-tier1-chrome-notion-ai.ts",
     "chatbot:hosted-tier2-heartbeat": "tsx scripts/chatbot/hosted-tier2-heartbeat.ts"
   },
   "prisma": {
