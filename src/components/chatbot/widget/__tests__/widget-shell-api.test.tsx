@@ -2,6 +2,8 @@
 
 import "@testing-library/jest-dom/vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { hydrateRoot } from "react-dom/client"
+import { renderToString } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { WidgetShell } from "@/components/chatbot/widget/WidgetShell"
@@ -47,6 +49,24 @@ function removeStoredWidgetSession() {
   } catch {
     // Some tests intentionally simulate unavailable storage.
   }
+}
+
+function writeStoredWidgetSession(session: {
+  messages: Array<{ role: string; content: string; createdAt: string }>
+  conversationId?: string
+  activeUi?: unknown
+  lastResponseTier?: string
+}) {
+  window.localStorage.setItem(
+    chatbotSessionStorageKey,
+    JSON.stringify({
+      messages: session.messages,
+      conversationId: session.conversationId,
+      activeUi: session.activeUi ?? { kind: "none" },
+      lastResponseTier: session.lastResponseTier,
+      expiresAt: "2999-01-01T00:00:00.000Z",
+    }),
+  )
 }
 
 function submitMessage(text = "相談したいです") {
@@ -212,6 +232,54 @@ describe("WidgetShell API wiring", () => {
       message: "続きです",
       conversationId: "conv_1",
     })
+  })
+
+  it("restores messages, active UI, and conversation id after browser reload hydration", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockJsonResponse({
+        conversationId: "conv_reload",
+        assistantMessage: {
+          ...assistantMessage,
+          content: "続きの回答です",
+        },
+        tier: "tier-3-ollama-deepseek",
+        ui: { kind: "none" },
+      }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const serverHtml = renderToString(<WidgetShell onMinimize={vi.fn()} />)
+    const container = document.createElement("div")
+    container.innerHTML = serverHtml
+    document.body.appendChild(container)
+
+    writeStoredWidgetSession({
+      messages: [
+        { role: "user", content: "リロード前の相談です", createdAt: "2026-05-26T00:00:00.000Z" },
+        { role: "assistant", content: "保存済みの回答です", createdAt: "2026-05-26T00:00:01.000Z" },
+      ],
+      conversationId: "conv_reload",
+      activeUi: { kind: "choice-panel", choiceSet: finalMediumChoices },
+      lastResponseTier: "tier-3-ollama-deepseek",
+    })
+
+    const onRecoverableError = vi.fn()
+    const root = hydrateRoot(container, <WidgetShell onMinimize={vi.fn()} />, { onRecoverableError })
+
+    expect(await screen.findByText("リロード前の相談です")).toBeInTheDocument()
+    expect(screen.getByText("保存済みの回答です")).toBeInTheDocument()
+    expect(screen.getByText("最終媒体を教えてください")).toBeInTheDocument()
+    expect(onRecoverableError).not.toHaveBeenCalled()
+
+    submitMessage("リロード後の続きです")
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      message: "リロード後の続きです",
+      conversationId: "conv_reload",
+    })
+
+    root.unmount()
   })
 
   it("starts a fresh session when stored session data is expired or malformed", async () => {

@@ -132,13 +132,13 @@ export function WidgetShell({
   onSidePeekResizePointerDown,
   onToggleDisplayMode,
 }: WidgetShellProps) {
-  const [storedSession] = useState(loadStoredWidgetSession)
-  const [messages, setMessages] = useState<WidgetMessage[]>(storedSession.messages)
-  const [conversationId, setConversationId] = useState<string | undefined>(storedSession.conversationId)
-  const [activeUi, setActiveUi] = useState<WidgetUi>(storedSession.activeUi)
+  const [messages, setMessages] = useState<WidgetMessage[]>(() => getInitialWidgetSession().messages)
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined)
+  const [activeUi, setActiveUi] = useState<WidgetUi>(noUi)
   const [submitting, setSubmitting] = useState(false)
   const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
-  const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>(storedSession.lastResponseTier)
+  const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>(undefined)
+  const [hasRestoredSession, setHasRestoredSession] = useState(false)
   const showLocalTierDebug =
     typeof window !== "undefined" && isLocalChatbotTierDebugHostname(window.location.hostname)
 
@@ -157,6 +157,19 @@ export function WidgetShell({
   }, [submitting])
 
   useEffect(() => {
+    const storedSession = loadStoredWidgetSession()
+    /* eslint-disable react-hooks/set-state-in-effect -- localStorage restore must run after hydration before the first save. */
+    setMessages(storedSession.messages)
+    setConversationId(storedSession.conversationId)
+    setActiveUi(storedSession.activeUi)
+    setLastResponseTier(storedSession.lastResponseTier)
+    setHasRestoredSession(true)
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [])
+
+  useEffect(() => {
+    if (!hasRestoredSession) return
+
     try {
       const stored: StoredWidgetSession = {
         messages: messages.map((message) => ({
@@ -173,7 +186,7 @@ export function WidgetShell({
     } catch {
       // localStorage may be unavailable in private or restricted contexts.
     }
-  }, [activeUi, conversationId, lastResponseTier, messages])
+  }, [activeUi, conversationId, hasRestoredSession, lastResponseTier, messages])
 
   const handleSubmit = async (text: string) => {
     const createdAt = new Date()
