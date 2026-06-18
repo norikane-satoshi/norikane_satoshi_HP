@@ -50,7 +50,72 @@ const initialMessage = {
 const noUi = { kind: "none" } satisfies WidgetUi
 const networkErrorMessage = "通信に失敗しました。少し時間をおいてもう一度お試しください。"
 const inquirySentMessage = "送信しました。担当者からの返信をお待ちください。"
+const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v1"
+const CHATBOT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const thinkingDelayNoticeMs = 6000
+
+type StoredWidgetSession = {
+  messages: Array<Omit<WidgetMessage, "createdAt"> & { createdAt: string }>
+  conversationId?: string
+  activeUi: WidgetUi
+  lastResponseTier?: ChatbotResponseTier
+  expiresAt: string
+}
+
+function getInitialWidgetSession() {
+  return {
+    messages: [initialMessage],
+    activeUi: noUi,
+  }
+}
+
+function removeStoredWidgetSession() {
+  try {
+    window.localStorage.removeItem(CHATBOT_SESSION_STORAGE_KEY)
+  } catch {
+    // localStorage may be unavailable in private or restricted contexts.
+  }
+}
+
+function loadStoredWidgetSession(): {
+  messages: WidgetMessage[]
+  conversationId?: string
+  activeUi: WidgetUi
+  lastResponseTier?: ChatbotResponseTier
+} {
+  if (typeof window === "undefined") return getInitialWidgetSession()
+
+  try {
+    const raw = window.localStorage.getItem(CHATBOT_SESSION_STORAGE_KEY)
+    if (!raw) return getInitialWidgetSession()
+
+    const parsed = JSON.parse(raw) as Partial<StoredWidgetSession>
+    if (!parsed.expiresAt || new Date(parsed.expiresAt).getTime() <= Date.now()) {
+      removeStoredWidgetSession()
+      return getInitialWidgetSession()
+    }
+
+    const messages = Array.isArray(parsed.messages)
+      ? parsed.messages
+          .filter((message) => message.role && typeof message.content === "string" && message.createdAt)
+          .map((message) => ({
+            role: message.role,
+            content: message.content,
+            createdAt: new Date(message.createdAt),
+          }))
+      : []
+
+    return {
+      messages: messages.length > 0 ? messages : [initialMessage],
+      conversationId: parsed.conversationId,
+      activeUi: parsed.activeUi ?? noUi,
+      lastResponseTier: parsed.lastResponseTier,
+    }
+  } catch {
+    removeStoredWidgetSession()
+    return getInitialWidgetSession()
+  }
+}
 
 function isInteractiveTarget(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest("a,button,input,select,textarea"))
@@ -67,12 +132,13 @@ export function WidgetShell({
   onSidePeekResizePointerDown,
   onToggleDisplayMode,
 }: WidgetShellProps) {
-  const [messages, setMessages] = useState<WidgetMessage[]>([initialMessage])
-  const [conversationId, setConversationId] = useState<string | undefined>()
-  const [activeUi, setActiveUi] = useState<WidgetUi>(noUi)
+  const [storedSession] = useState(loadStoredWidgetSession)
+  const [messages, setMessages] = useState<WidgetMessage[]>(storedSession.messages)
+  const [conversationId, setConversationId] = useState<string | undefined>(storedSession.conversationId)
+  const [activeUi, setActiveUi] = useState<WidgetUi>(storedSession.activeUi)
   const [submitting, setSubmitting] = useState(false)
   const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
-  const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>()
+  const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>(storedSession.lastResponseTier)
   const showLocalTierDebug =
     typeof window !== "undefined" && isLocalChatbotTierDebugHostname(window.location.hostname)
 
@@ -89,6 +155,25 @@ export function WidgetShell({
 
     return () => window.clearTimeout(timeoutId)
   }, [submitting])
+
+  useEffect(() => {
+    try {
+      const stored: StoredWidgetSession = {
+        messages: messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+          createdAt: message.createdAt.toISOString(),
+        })),
+        conversationId,
+        activeUi,
+        lastResponseTier,
+        expiresAt: new Date(Date.now() + CHATBOT_SESSION_TTL_MS).toISOString(),
+      }
+      window.localStorage.setItem(CHATBOT_SESSION_STORAGE_KEY, JSON.stringify(stored))
+    } catch {
+      // localStorage may be unavailable in private or restricted contexts.
+    }
+  }, [activeUi, conversationId, lastResponseTier, messages])
 
   const handleSubmit = async (text: string) => {
     const createdAt = new Date()

@@ -2,7 +2,7 @@
 
 import "@testing-library/jest-dom/vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { WidgetShell } from "@/components/chatbot/widget/WidgetShell"
 import { finalMediumChoices } from "@/lib/chatbot/domain"
@@ -24,6 +24,30 @@ const assistantMessage = {
   content: "最終媒体を選んでください",
   createdAt: "2026-05-26T00:00:00.000Z",
 }
+const chatbotSessionStorageKey = "hp-chatbot-session-v1"
+
+function installLocalStorage() {
+  const values = new Map<string, string>()
+  const storage: Storage = {
+    get length() {
+      return values.size
+    },
+    clear: () => values.clear(),
+    getItem: (key: string) => values.get(key) ?? null,
+    key: (index: number) => Array.from(values.keys())[index] ?? null,
+    removeItem: (key: string) => values.delete(key),
+    setItem: (key: string, value: string) => values.set(key, String(value)),
+  }
+  Object.defineProperty(window, "localStorage", { configurable: true, value: storage })
+}
+
+function removeStoredWidgetSession() {
+  try {
+    window.localStorage.removeItem(chatbotSessionStorageKey)
+  } catch {
+    // Some tests intentionally simulate unavailable storage.
+  }
+}
 
 function submitMessage(text = "相談したいです") {
   fireEvent.change(screen.getByLabelText("相談内容"), { target: { value: text } })
@@ -31,8 +55,14 @@ function submitMessage(text = "相談したいです") {
 }
 
 describe("WidgetShell API wiring", () => {
+  beforeEach(() => {
+    installLocalStorage()
+    removeStoredWidgetSession()
+  })
+
   afterEach(() => {
     cleanup()
+    removeStoredWidgetSession()
     vi.unstubAllGlobals()
     vi.useRealTimers()
   })
@@ -135,6 +165,131 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("最終媒体を教えてください")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "OTT 配信" })).toBeInTheDocument()
+  })
+
+  it("restores messages, active UI, and conversation id after the shell remounts", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        mockJsonResponse({
+          conversationId: "conv_1",
+          assistantMessage,
+          tier: "tier-3-ollama-deepseek",
+          ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
+        }),
+      )
+      .mockResolvedValueOnce(
+        mockJsonResponse({
+          conversationId: "conv_1",
+          assistantMessage: {
+            ...assistantMessage,
+            content: "次の質問です",
+          },
+          tier: "tier-3-ollama-deepseek",
+          ui: { kind: "none" },
+        }),
+      )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const firstRender = render(<WidgetShell onMinimize={vi.fn()} />)
+    submitMessage("初回相談です")
+
+    expect(await screen.findByText("初回相談です")).toBeInTheDocument()
+    expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
+    expect(await screen.findByText("最終媒体を教えてください")).toBeInTheDocument()
+
+    firstRender.unmount()
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    expect(screen.getByText("初回相談です")).toBeInTheDocument()
+    expect(screen.getByText("最終媒体を選んでください")).toBeInTheDocument()
+    expect(screen.getByText("最終媒体を教えてください")).toBeInTheDocument()
+
+    submitMessage("続きです")
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      message: "続きです",
+      conversationId: "conv_1",
+    })
+  })
+
+  it("starts a fresh session when stored session data is expired or malformed", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockJsonResponse({
+        conversationId: "conv_new",
+        assistantMessage,
+        tier: "tier-3-ollama-deepseek",
+        ui: { kind: "none" },
+      }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    window.localStorage.setItem(
+      chatbotSessionStorageKey,
+      JSON.stringify({
+        messages: [{ role: "user", content: "期限切れ相談", createdAt: "2026-05-26T00:00:00.000Z" }],
+        conversationId: "conv_expired",
+        activeUi: { kind: "choice-panel", choiceSet: finalMediumChoices },
+        expiresAt: "2000-01-01T00:00:00.000Z",
+      }),
+    )
+
+    const expiredRender = render(<WidgetShell onMinimize={vi.fn()} />)
+    expect(screen.queryByText("期限切れ相談")).not.toBeInTheDocument()
+    submitMessage("新規相談です")
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      message: "新規相談です",
+    })
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty("conversationId")
+
+    expiredRender.unmount()
+    fetchMock.mockClear()
+    window.localStorage.setItem(chatbotSessionStorageKey, "{")
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    expect(screen.queryByText("期限切れ相談")).not.toBeInTheDocument()
+    submitMessage("壊れた保存後の相談です")
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      message: "壊れた保存後の相談です",
+    })
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty("conversationId")
+  })
+
+  it("continues with the initial session when localStorage is unavailable", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: () => {
+          throw new Error("storage unavailable")
+        },
+        removeItem: () => {
+          throw new Error("storage unavailable")
+        },
+        setItem: () => {
+          throw new Error("storage unavailable")
+        },
+      },
+    })
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        assistantMessage,
+        tier: "tier-3-ollama-deepseek",
+        ui: { kind: "none" },
+      }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    expect(screen.getByText("ご相談や案件依頼はこちらです。最終媒体、公開時期、作業時期などを会話で整理します。")).toBeInTheDocument()
+    submitMessage("保存できない環境です")
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
   })
 
   it("renders ChatbotBookingCard for booking-card responses", async () => {
