@@ -7,6 +7,17 @@ import { fileURLToPath } from "node:url"
 
 type HeartbeatStatus = "healthy" | "suspect" | "unhealthy"
 type NotificationKind = "unhealthy" | "recovered" | "test"
+type IncidentClass =
+  | "none"
+  | "chrome_cdp"
+  | "notion_model"
+  | "notion_runtime_trust_rule_denied"
+  | "worker_error:auth"
+  | "worker_error:connection"
+  | "worker_http_502"
+  | "http"
+  | "timeout"
+  | "unknown"
 
 export type HeartbeatState = {
   status: HeartbeatStatus
@@ -14,6 +25,9 @@ export type HeartbeatState = {
   lastGenerateAt?: string
   lastNotificationAt?: string
   lastRepairAt?: string
+  incidentClass?: IncidentClass
+  incidentStartedAt?: string
+  lastTransientGenerateFailureAt?: string
 }
 
 type CheckResult = {
@@ -82,6 +96,7 @@ const defaultGenerateTimeoutMs = 45_000
 const defaultGenerateIntervalMs = 15 * 60_000
 const defaultNotificationCooldownMs = 60 * 60_000
 const defaultFailureThreshold = 3
+const transientGenerateWarmupMs = 20 * 60_000
 const stateDir = path.join(homedir(), ".local", "state", "norikane_satoshi_hp")
 const defaultStatePath = path.join(stateDir, "hosted-tier2-heartbeat-state.json")
 const defaultLogPath = path.join(stateDir, "hosted-tier2-heartbeat.jsonl")
@@ -109,13 +124,48 @@ export async function runHeartbeat(
     checks.push(generate)
   }
 
-  let ok = checks.every((check) => check.ok)
-  let nextState = buildNextState(previous, ok, now, config.failureThreshold, generate?.ok === true)
+  if (!generate && shouldHoldTransientWarmup(previous, now)) {
+    checks.push({
+      name: "generate",
+      ok: false,
+      detail: `warming_after_transient:${previous.incidentClass ?? "unknown"}`,
+    })
+  }
 
-  if (!ok && nextState.status === "unhealthy" && previous.status !== "unhealthy" && config.repair) {
+  const primaryFailure = checks.find((check) => !check.ok)
+  const incidentClass = classifyFailureOrigin(primaryFailure)
+  const transientGenerateFailure = isTransientGenerateFailure(primaryFailure)
+  let ok = checks.every((check) => check.ok)
+  let nextState = buildNextState({
+    previous,
+    ok,
+    now,
+    threshold: config.failureThreshold,
+    generateSucceeded: generate?.ok === true,
+    generateFailed: generate?.ok === false,
+    incidentClass,
+    transientGenerateFailure,
+  })
+
+  if (
+    !ok &&
+    nextState.status === "unhealthy" &&
+    previous.status !== "unhealthy" &&
+    config.repair &&
+    shouldAttemptRepair(nextState, checks, now)
+  ) {
     const repaired = await attemptRepair(config, deps, repairActions, checks)
     ok = repaired
-    nextState = buildNextState(previous, ok, now, config.failureThreshold, generate?.ok === true)
+    nextState = buildNextState({
+      previous,
+      ok,
+      now,
+      threshold: config.failureThreshold,
+      generateSucceeded: generate?.ok === true,
+      generateFailed: generate?.ok === false,
+      incidentClass,
+      transientGenerateFailure,
+    })
     if (repairActions.length > 0) nextState.lastRepairAt = now.toISOString()
   }
 
@@ -459,28 +509,68 @@ async function sendResendNotification(
   }
 }
 
-function buildNextState(
-  previous: HeartbeatState,
-  ok: boolean,
-  now: Date,
-  threshold: number,
-  generateSucceeded: boolean,
-): HeartbeatState {
+function buildNextState(input: {
+  previous: HeartbeatState
+  ok: boolean
+  now: Date
+  threshold: number
+  generateSucceeded: boolean
+  generateFailed: boolean
+  incidentClass: IncidentClass
+  transientGenerateFailure: boolean
+}): HeartbeatState {
+  const { previous, ok, now, threshold, generateSucceeded, generateFailed, incidentClass, transientGenerateFailure } =
+    input
+
   if (ok) {
     return {
       ...previous,
       status: "healthy",
       consecutiveFailures: 0,
       lastGenerateAt: generateSucceeded ? now.toISOString() : previous.lastGenerateAt,
+      incidentClass: undefined,
+      incidentStartedAt: undefined,
     }
   }
 
   const consecutiveFailures = previous.consecutiveFailures + 1
+  const existingIncidentStartedAt =
+    previous.status === "healthy" || previous.incidentClass !== incidentClass
+      ? undefined
+      : previous.incidentStartedAt
+  const incidentStartedAt = existingIncidentStartedAt ?? now.toISOString()
+  const status =
+    transientGenerateFailure && now.getTime() - Date.parse(incidentStartedAt) < transientGenerateWarmupMs
+      ? "suspect"
+      : consecutiveFailures >= threshold
+        ? "unhealthy"
+        : "suspect"
+
   return {
     ...previous,
-    status: consecutiveFailures >= threshold ? "unhealthy" : "suspect",
+    status,
     consecutiveFailures,
+    incidentClass,
+    incidentStartedAt,
+    lastGenerateAt: generateFailed && transientGenerateFailure ? now.toISOString() : previous.lastGenerateAt,
+    lastTransientGenerateFailureAt:
+      generateFailed && transientGenerateFailure ? now.toISOString() : previous.lastTransientGenerateFailureAt,
   }
+}
+
+function shouldHoldTransientWarmup(previous: HeartbeatState, now: Date): boolean {
+  if (previous.status === "healthy" || !isTransientGenerateIncident(previous.incidentClass)) return false
+  if (!previous.incidentStartedAt) return false
+  const startedAt = Date.parse(previous.incidentStartedAt)
+  return Number.isFinite(startedAt) && now.getTime() - startedAt < transientGenerateWarmupMs
+}
+
+function shouldAttemptRepair(nextState: HeartbeatState, checks: CheckResult[], now: Date): boolean {
+  if (isTransientGenerateFailure(checks.find((check) => !check.ok))) return false
+
+  if (!nextState.lastRepairAt) return true
+  const lastRepairAt = Date.parse(nextState.lastRepairAt)
+  return !Number.isFinite(lastRepairAt) || now.getTime() - lastRepairAt >= transientGenerateWarmupMs
 }
 
 async function requestJson(
@@ -523,6 +613,9 @@ async function readState(statePath: string): Promise<HeartbeatState> {
       lastGenerateAt: stringOrUndefined(parsed.lastGenerateAt),
       lastNotificationAt: stringOrUndefined(parsed.lastNotificationAt),
       lastRepairAt: stringOrUndefined(parsed.lastRepairAt),
+      incidentClass: isIncidentClass(parsed.incidentClass) ? parsed.incidentClass : undefined,
+      incidentStartedAt: stringOrUndefined(parsed.incidentStartedAt),
+      lastTransientGenerateFailureAt: stringOrUndefined(parsed.lastTransientGenerateFailureAt),
     }
   } catch {
     return { status: "healthy", consecutiveFailures: 0 }
@@ -706,6 +799,21 @@ function isHeartbeatStatus(value: unknown): value is HeartbeatStatus {
   return value === "healthy" || value === "suspect" || value === "unhealthy"
 }
 
+function isIncidentClass(value: unknown): value is IncidentClass {
+  return (
+    value === "none" ||
+    value === "chrome_cdp" ||
+    value === "notion_model" ||
+    value === "notion_runtime_trust_rule_denied" ||
+    value === "worker_error:auth" ||
+    value === "worker_error:connection" ||
+    value === "worker_http_502" ||
+    value === "http" ||
+    value === "timeout" ||
+    value === "unknown"
+  )
+}
+
 function stringOrUndefined(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined
 }
@@ -734,14 +842,29 @@ function publicResponseErrorDetail(body: unknown): string {
     .replace(/^/, ";")
 }
 
-function classifyFailureOrigin(check: CheckResult | undefined): string {
+function classifyFailureOrigin(check: CheckResult | undefined): IncidentClass {
   if (!check) return "none"
+  if (check.detail.includes("notion_runtime_trust_rule_denied")) return "notion_runtime_trust_rule_denied"
+  if (check.detail.includes("trust-rule-denied") || check.detail.includes("AI inference is not allowed")) {
+    return "notion_runtime_trust_rule_denied"
+  }
   if (check.detail.includes("error:connection")) return "worker_error:connection"
   if (check.detail.includes("error:auth")) return "worker_error:auth"
   if (check.detail.includes("cdp_")) return "chrome_cdp"
   if (check.detail.includes("model_available:false")) return "notion_model"
+  if (check.detail.includes("timeout")) return "timeout"
+  if (check.detail.includes("worker_http_502")) return "worker_http_502"
   if (check.status === 502) return "worker_http_502"
+  if (check.status && check.status >= 400) return "http"
   return "unknown"
+}
+
+function isTransientGenerateIncident(incidentClass: IncidentClass | undefined): boolean {
+  return incidentClass === "notion_runtime_trust_rule_denied" || incidentClass === "worker_http_502"
+}
+
+function isTransientGenerateFailure(check: CheckResult | undefined): boolean {
+  return check?.name === "generate" && isTransientGenerateIncident(classifyFailureOrigin(check))
 }
 
 function publicError(error: unknown): string {
@@ -750,10 +873,11 @@ function publicError(error: unknown): string {
 }
 
 function sanitizePublicText(value: string): string {
-  return value
+  const sanitized = value
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
     .replace(/xox[baprs]-[A-Za-z0-9-]+/gi, "[redacted-slack-token]")
     .replace(/https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]+/gi, "[redacted-slack-webhook]")
+  return sanitized.length <= 600 ? sanitized : `${sanitized.slice(0, 600)}...[truncated]`
 }
 
 async function main(): Promise<void> {

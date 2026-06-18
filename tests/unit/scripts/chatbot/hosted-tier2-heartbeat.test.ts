@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -45,6 +45,26 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
     json: vi.fn(async () => body),
   } as unknown as Response
+}
+
+function trustRuleDeniedResponse(): Response {
+  return jsonResponse(
+    {
+      ok: false,
+      tier: "tier-2-hosted-chrome-notion-ai",
+      error: {
+        code: "invalid-output",
+        message:
+          'Notion AI response text could not be extracted. preview={"type":"patch-start","data":{"s":[{"type":"error","subType":"trust-rule-denied","message":"AI inference is not allowed."}]}}',
+        retryable: false,
+      },
+    },
+    502,
+  )
+}
+
+function readState(dir: string) {
+  return JSON.parse(readFileSync(join(dir, "state.json"), "utf8")) as Record<string, unknown>
 }
 
 describe("hosted-tier2-heartbeat", () => {
@@ -225,6 +245,117 @@ describe("hosted-tier2-heartbeat", () => {
     expect(slackBody.text).toContain("http_status: 502")
     expect(slackBody.text).toContain("error:connection")
     expect(slackBody.text).not.toContain("test-slack-token")
+  })
+
+  it("keeps Notion trust-rule generate 502 in warmup without unhealthy notification or restart", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    dirs.push(dir)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(trustRuleDeniedResponse())
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+    const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
+
+    await runHeartbeat(config(dir, { failureThreshold: 1, repair: true }), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-06-18T03:19:31.000Z"),
+      runCommand,
+    })
+    await runHeartbeat(config(dir, { failureThreshold: 1, repair: true }), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-06-18T03:22:01.000Z"),
+      runCommand,
+    })
+    const result = await runHeartbeat(config(dir, { failureThreshold: 1, repair: true }), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-06-18T03:24:41.000Z"),
+      runCommand,
+    })
+
+    expect(result.status).toBe("suspect")
+    expect(result.notification).toBeUndefined()
+    expect(result.repairActions).toEqual([])
+    expect(runCommand).not.toHaveBeenCalled()
+    expect(result.checks.at(-1)).toMatchObject({
+      name: "generate",
+      ok: false,
+      detail: "warming_after_transient:notion_runtime_trust_rule_denied",
+    })
+    expect(readState(dir)).toMatchObject({
+      status: "suspect",
+      incidentClass: "notion_runtime_trust_rule_denied",
+      lastGenerateAt: "2026-06-18T03:19:31.000Z",
+    })
+  })
+
+  it("recovers a transient Notion generate incident only after a later generate succeeds", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    dirs.push(dir)
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        status: "suspect",
+        consecutiveFailures: 3,
+        lastGenerateAt: "2026-06-18T03:19:31.000Z",
+        incidentClass: "notion_runtime_trust_rule_denied",
+        incidentStartedAt: "2026-06-18T03:19:31.000Z",
+      }),
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ tier: "tier-2-hosted-chrome-notion-ai", rawText: "OK" }))
+
+    const result = await runHeartbeat(config(dir), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-06-18T03:35:00.000Z"),
+      runCommand: vi.fn(),
+    })
+
+    expect(result.status).toBe("healthy")
+    expect(result.checks).toContainEqual(
+      expect.objectContaining({ name: "generate", ok: true, detail: "tier:tier-2-hosted-chrome-notion-ai;rawText:present" }),
+    )
+    const state = readState(dir)
+    expect(state).toMatchObject({
+      status: "healthy",
+      consecutiveFailures: 0,
+    })
+    expect(state).not.toHaveProperty("incidentClass")
+    expect(state).not.toHaveProperty("incidentStartedAt")
+  })
+
+  it("escalates sustained Notion trust-rule generate failure without restart looping", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    dirs.push(dir)
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        status: "suspect",
+        consecutiveFailures: 5,
+        lastGenerateAt: "2026-06-18T03:19:31.000Z",
+        incidentClass: "notion_runtime_trust_rule_denied",
+        incidentStartedAt: "2026-06-18T03:19:31.000Z",
+      }),
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(trustRuleDeniedResponse())
+    const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
+
+    const result = await runHeartbeat(config(dir, { repair: true }), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-06-18T03:41:00.000Z"),
+      runCommand,
+    })
+
+    expect(result.status).toBe("unhealthy")
+    expect(result.repairActions).toEqual([])
+    expect(result.notification).toMatchObject({ kind: "unhealthy", status: "dry-run" })
+    expect(runCommand).not.toHaveBeenCalled()
   })
 
   it("falls back to Resend when Slack primary fails", async () => {
