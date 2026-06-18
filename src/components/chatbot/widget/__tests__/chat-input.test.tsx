@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ChatInput } from "@/components/chatbot/widget/ChatInput"
+import { CHATBOT_CONVERSATION_CONTENT_STYLE } from "@/components/chatbot/widget/conversationTypography"
 
 describe("ChatInput", () => {
   afterEach(() => cleanup())
@@ -13,6 +14,14 @@ describe("ChatInput", () => {
     render(<ChatInput onSubmit={vi.fn()} placeholder="案件内容を書いてください" />)
 
     expect(screen.getByPlaceholderText("案件内容を書いてください")).toBeInTheDocument()
+  })
+
+  it("uses the same font family as submitted conversation content", () => {
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    expect(screen.getByLabelText("相談内容")).toHaveStyle({
+      fontFamily: CHATBOT_CONVERSATION_CONTENT_STYLE.fontFamily,
+    })
   })
 
   it("submits trimmed text and clears the input", async () => {

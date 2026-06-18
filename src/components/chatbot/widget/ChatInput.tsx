@@ -2,6 +2,10 @@
 
 import { FormEvent, useState } from "react"
 import { Send } from "lucide-react"
+import {
+  CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
+  CHATBOT_CONVERSATION_CONTENT_STYLE,
+} from "./conversationTypography"
 
 type ChatInputProps = {
   onSubmit: (text: string) => void
@@ -24,7 +28,8 @@ export function ChatInput({ onSubmit, disabled = false, placeholder = "案件内
     <form className="border-t border-[var(--glass-border)] p-4" onSubmit={handleSubmit}>
       <div className="glass-card-sm flex items-center gap-2 px-3 py-2 focus-within:border-[var(--accent-primary)]">
         <input
-          className="min-w-0 flex-1 bg-transparent text-sm text-hp outline-none placeholder:text-hp-muted"
+          className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} min-w-0 flex-1 bg-transparent text-sm text-hp outline-none placeholder:text-hp-muted`}
+          style={CHATBOT_CONVERSATION_CONTENT_STYLE}
           placeholder={placeholder}
           aria-label="相談内容"
           value={text}
