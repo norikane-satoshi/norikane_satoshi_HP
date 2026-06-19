@@ -1,7 +1,7 @@
 "use client"
 
 import { Check, Pencil, X } from "lucide-react"
-import { useState } from "react"
+import { Fragment, useState, type ReactNode } from "react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import {
@@ -22,6 +22,30 @@ const roleLabel: Record<ChatbotMessageRole, string> = {
   user: "お客さま",
   assistant: "AI アシスタント",
   system: "システム",
+}
+
+function renderAssistantMarkdown(content: string): ReactNode {
+  const pattern = /(\*\*|__)([\s\S]+?)\1/g
+  const nodes: ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(content))) {
+    if (match.index > lastIndex) {
+      nodes.push(content.slice(lastIndex, match.index))
+    }
+    nodes.push(
+      <strong key={`${match.index}-${pattern.lastIndex}`} className="font-semibold">
+        {match[2]}
+      </strong>,
+    )
+    lastIndex = pattern.lastIndex
+  }
+
+  if (nodes.length === 0) return content
+  if (lastIndex < content.length) nodes.push(content.slice(lastIndex))
+
+  return nodes.map((node, index) => <Fragment key={index}>{node}</Fragment>)
 }
 
 export function ChatMessage({
@@ -167,7 +191,7 @@ export function ChatMessage({
           className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} whitespace-pre-wrap`}
           style={CHATBOT_CONVERSATION_CONTENT_STYLE}
         >
-          {content}
+          {role === "assistant" ? renderAssistantMarkdown(content) : content}
         </p>
       )}
     </article>

@@ -45,6 +45,19 @@ describe("ChatMessage", () => {
     expect(screen.getByText("AI アシスタント")).not.toHaveClass(...conversationContentClasses)
   })
 
+  it("renders assistant bold markdown without exposing raw markers", () => {
+    render(<ChatMessage role="assistant" content="まず **媒体** と __公開時期__ を確認します。" />)
+
+    const medium = screen.getByText("媒体")
+    const releaseWindow = screen.getByText("公開時期")
+    expect(medium.tagName).toBe("STRONG")
+    expect(releaseWindow.tagName).toBe("STRONG")
+    expect(medium).toHaveClass("font-semibold")
+    expect(releaseWindow).toHaveClass("font-semibold")
+    expect(screen.getByText(/まず/)).not.toHaveTextContent("**")
+    expect(screen.getByText(/まず/)).not.toHaveTextContent("__")
+  })
+
   it("edits only user messages after explicit truncation confirmation", () => {
     const onEdit = vi.fn()
     render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={onEdit} />)
