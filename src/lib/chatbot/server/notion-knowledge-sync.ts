@@ -6,7 +6,7 @@ export const defaultChatbotKnowledgeManifestPageId = "3088971f957b481baff8499ff9
 const knowledgeSnapshotKey = "chatbot-notion-knowledge"
 const knowledgeSnapshotVersion = 1
 
-export type ChatbotKnowledgeEntryUsage = "workflow-duration"
+export type ChatbotKnowledgeEntryUsage = "workflow-duration" | "color-correction" | "color-grading" | "film-look"
 
 export type ChatbotKnowledgeManifestEntry = {
   id: string
@@ -22,6 +22,15 @@ export type SyncedWorkflowDurationPreset = WorkflowDurationPreset & {
   source: "static" | "notion-sync"
 }
 
+export type SyncedNoteKnowledge = {
+  usage: Exclude<ChatbotKnowledgeEntryUsage, "workflow-duration">
+  pageId: string
+  pageTitle?: string
+  referenceRange: string
+  content: string
+  source: "notion-sync"
+}
+
 export type ChatbotKnowledgeSnapshot = {
   version: 1
   manifestPageId: string
@@ -34,6 +43,7 @@ export type ChatbotKnowledgeSnapshot = {
   workflowDurations: {
     presets: SyncedWorkflowDurationPreset[]
   }
+  noteKnowledge: SyncedNoteKnowledge[]
 }
 
 export type ChatbotKnowledgeRepository = {
@@ -71,6 +81,7 @@ export function createStaticChatbotKnowledgeSnapshot(syncedAt = new Date(0).toIS
     workflowDurations: {
       presets: workflowDurationPresets.map((preset) => ({ ...preset, source: "static" })),
     },
+    noteKnowledge: [],
   }
 }
 
@@ -125,23 +136,31 @@ export async function syncChatbotNotionKnowledge(input: {
     const sortedEntries = [...entries].sort((a, b) => a.priority - b.priority)
     const nextEntries: ChatbotKnowledgeSnapshot["entries"] = []
     let workflowPresets = snapshot.workflowDurations.presets
+    const noteKnowledge: SyncedNoteKnowledge[] = []
 
     for (const entry of sortedEntries) {
-      if (entry.usage !== "workflow-duration") {
-        nextEntries.push({ ...entry, status: "skipped", lastSyncedAt: now.toISOString() })
-        continue
-      }
-
       const sourceBlocks = await listAllChildren(client, entry.pageId)
-      workflowPresets = mergeWorkflowDurationPresets(
-        workflowPresets,
-        extractWorkflowDurationPresets(sourceBlocks, entry.referenceRange),
-      )
+      if (entry.usage === "workflow-duration") {
+        workflowPresets = mergeWorkflowDurationPresets(
+          workflowPresets,
+          extractWorkflowDurationPresets(sourceBlocks, entry.referenceRange),
+        )
+      } else {
+        noteKnowledge.push({
+          usage: entry.usage,
+          pageId: entry.pageId,
+          pageTitle: entry.pageTitle,
+          referenceRange: entry.referenceRange,
+          content: extractPublicNoteKnowledge(sourceBlocks, entry.referenceRange),
+          source: "notion-sync",
+        })
+      }
       nextEntries.push({ ...entry, status: "synced", lastSyncedAt: now.toISOString() })
     }
 
     snapshot.entries = nextEntries
     snapshot.workflowDurations.presets = workflowPresets
+    snapshot.noteKnowledge = noteKnowledge
     await repository.saveSuccess(snapshot)
 
     return { ok: true, usedFallback: false, snapshot }
@@ -229,6 +248,8 @@ function parseSnapshotJson(value: string): ChatbotKnowledgeSnapshot | null {
   try {
     const parsed = JSON.parse(value) as Partial<ChatbotKnowledgeSnapshot>
     if (parsed.version !== knowledgeSnapshotVersion || !parsed.workflowDurations) return null
+    parsed.entries ??= []
+    parsed.noteKnowledge ??= []
     return parsed as ChatbotKnowledgeSnapshot
   } catch {
     return null
@@ -285,7 +306,7 @@ function parseKnowledgeManifestEntries(blocks: unknown[]): ChatbotKnowledgeManif
     const usage = normalizeUsage(values["用途"] ?? values.usage ?? tableValues.usage ?? row.text)
     const referenceRange = normalizeReferenceRange(
       values["参照範囲"] ?? values.referenceRange ?? values.range ?? tableValues.referenceRange,
-    )
+    ) ?? defaultReferenceRangeForUsage(usage)
     if (!pageId || !usage || !referenceRange) continue
 
     entries.push({
@@ -340,6 +361,62 @@ function extractWorkflowDurationPresets(
   }
 
   return next
+}
+
+function extractPublicNoteKnowledge(blocks: unknown[], referenceRange: string): string {
+  const sectionRows = collectSectionRows(blocks, referenceRange)
+  const rows = sectionRows.length > 0 ? sectionRows : collectPublicNoteRows(blocks)
+  const lines = rows
+    .map((row) => sanitizePublicNoteLine(row.text))
+    .filter((line): line is string => Boolean(line))
+
+  return Array.from(new Set(lines)).join("\n").slice(0, 6000)
+}
+
+function collectPublicNoteRows(blocks: unknown[]): SectionRow[] {
+  const rows: SectionRow[] = []
+  let blockedByHeading = false
+
+  for (const block of blocks) {
+    const type = readType(block)
+    const text = blockPlainText(block)
+    const isHeading = type === "heading_1" || type === "heading_2" || type === "heading_3"
+
+    if (isHeading) {
+      blockedByHeading = isInternalNoteHeading(text)
+      if (blockedByHeading || !text.trim()) continue
+    }
+    if (blockedByHeading) continue
+
+    const cells = blockCells(block)
+    const rowText = cells.length > 0 ? cells.join(" / ") : text
+    if (!rowText.trim()) continue
+    rows.push({
+      id: blockId(block),
+      parentId: blockParentId(block),
+      text: rowText,
+      pageReference: firstPageReference(block),
+      cells,
+    })
+  }
+
+  return rows
+}
+
+function sanitizePublicNoteLine(text: string): string | null {
+  const normalized = text.replace(/\s+/g, " ").trim()
+  if (!normalized) return null
+  if (isInternalNoteHeading(normalized)) return null
+  if (/(^|\s)(system|developer|assistant|user)\s*[:：]/i.test(normalized)) return null
+  if (/ignore (all )?(previous|prior) instructions/i.test(normalized)) return null
+  if (/(内部メモ|非公開|未承認|料金|契約|個別案件|他案件|プロンプト命令|指示文|この指示に従)/.test(normalized)) {
+    return null
+  }
+  return normalized
+}
+
+function isInternalNoteHeading(text: string): boolean {
+  return /(内部|非公開|未承認|管理用|下書きメモ|TODO|ToDo|料金|契約|個別案件|他案件|プロンプト|指示|開発メモ)/i.test(text)
 }
 
 function mergeWorkflowDurationPresets(
@@ -432,7 +509,21 @@ function normalizeUsage(value: string | undefined): ChatbotKnowledgeEntryUsage |
   ) {
     return "workflow-duration"
   }
+  if (/color[-_\s]?correction/i.test(value) || value.includes("カラーコレクション") || value.includes("カラコレ")) {
+    return "color-correction"
+  }
+  if (/color[-_\s]?grading/i.test(value) || value.includes("カラーグレーディング")) {
+    return "color-grading"
+  }
+  if (/film[-_\s]?look/i.test(value) || value.includes("フィルムルック")) {
+    return "film-look"
+  }
   return undefined
+}
+
+function defaultReferenceRangeForUsage(usage: ChatbotKnowledgeEntryUsage | undefined): string | undefined {
+  if (!usage || usage === "workflow-duration") return undefined
+  return "公開本文"
 }
 
 function normalizeReferenceRange(value: string | undefined): string | undefined {
