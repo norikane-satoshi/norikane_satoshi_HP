@@ -43,6 +43,7 @@ type Tier1HealthCheckOptions = {
 const alertSubjectPrefix = "チャットボット Tier 1 警告"
 const failureWindowSize = 3
 const lowRateLimitRatio = 0.2
+const maxTransientGenerateAttempts = 2
 
 export async function runTier1HealthCheck(
   options: Tier1HealthCheckOptions,
@@ -63,7 +64,7 @@ export async function runTier1HealthCheck(
   try {
     inspection = await client.inspectRuntimeContext()
     details.inspection = inspection
-    const response = await client.generate(buildProbeRequest())
+    const response = await generateProbeWithTransientRetry(client, details)
     responseSuccess = true
     details.latencyMs = response.latencyMs
     details.rawTextPreview = response.rawText.replace(/\s+/g, " ").slice(0, 120)
@@ -124,6 +125,31 @@ export async function runTier1HealthCheck(
     alertSent,
     details,
   }
+}
+
+async function generateProbeWithTransientRetry(
+  client: Tier1HealthCheckClient,
+  details: Record<string, unknown>,
+): ReturnType<Tier1HealthCheckClient["generate"]> {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= maxTransientGenerateAttempts; attempt += 1) {
+    details.generateAttempts = attempt
+    try {
+      return await client.generate(buildProbeRequest())
+    } catch (error) {
+      lastError = error
+      const message = error instanceof Error ? error.message : String(error)
+      if (attempt >= maxTransientGenerateAttempts || !isTransientEmptyNotionResponse(message)) break
+      details.transientGenerateError = message
+    }
+  }
+
+  throw lastError
+}
+
+function isTransientEmptyNotionResponse(message: string): boolean {
+  return message.includes("bytes=0") || message.includes("empty NDJSON stream")
 }
 
 function buildProbeRequest(): ChatbotLlmRequest {

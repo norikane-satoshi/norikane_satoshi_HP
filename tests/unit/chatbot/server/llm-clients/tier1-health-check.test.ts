@@ -18,7 +18,9 @@ function healthClient(overrides: {
   preferredModelAvailable?: boolean
   responseHeaders?: Record<string, string>
   generateError?: Error
+  generateErrors?: Error[]
 } = {}) {
+  const generateErrors = [...(overrides.generateErrors ?? [])]
   return {
     inspectRuntimeContext: vi.fn(async () => ({
       targetUrl: "https://www.notion.so/chat?t=36b13ee3141a8073885d00a99ebb676c&wfv=chat",
@@ -27,6 +29,8 @@ function healthClient(overrides: {
       preferredModelAvailable: overrides.preferredModelAvailable ?? true,
     })),
     generate: vi.fn(async () => {
+      const generateError = generateErrors.shift()
+      if (generateError) throw generateError
       if (overrides.generateError) throw overrides.generateError
       return {
         rawText: "OK",
@@ -104,6 +108,33 @@ describe("runTier1HealthCheck", () => {
       responseSuccess: false,
       consecutiveFailures: 3,
       alertSent: true,
+    })
+  })
+
+  it("retries one transient empty Notion AI response before recording the probe", async () => {
+    const db = logClient()
+    const client = healthClient({
+      generateErrors: [new Error("Notion AI response text could not be extracted. bytes=0 preview=")],
+    })
+
+    await expect(
+      runTier1HealthCheck({
+        logClient: db,
+        client,
+      }),
+    ).resolves.toMatchObject({
+      responseSuccess: true,
+      consecutiveFailures: 0,
+      details: {
+        generateAttempts: 2,
+        transientGenerateError: "Notion AI response text could not be extracted. bytes=0 preview=",
+      },
+    })
+    expect(client.generate).toHaveBeenCalledTimes(2)
+    expect(db.chatbotHealthCheckLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        responseSuccess: true,
+      }),
     })
   })
 })
