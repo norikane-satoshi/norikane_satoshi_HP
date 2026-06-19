@@ -20,6 +20,7 @@ export function SecurityNote({ defaultOpen = false }: SecurityNoteProps) {
       <button
         type="button"
         className="flex w-full items-center justify-between gap-3 text-left text-xs font-semibold text-hp"
+        style={CHATBOT_CONVERSATION_CONTENT_STYLE}
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >

@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
 
+import { CHATBOT_CONVERSATION_CONTENT_STYLE } from "@/components/chatbot/widget/conversationTypography"
 import { SecurityNote } from "@/components/chatbot/widget/SecurityNote"
 
 describe("SecurityNote", () => {
@@ -23,5 +24,13 @@ describe("SecurityNote", () => {
 
     expect(screen.getByText("チャットログは 30 日自動削除の対象です。")).toBeInTheDocument()
     expect(screen.getByText("カレンダーは busy 時間帯のみ参照します。")).toBeInTheDocument()
+  })
+
+  it("renders the heading with the conversation sans-serif font family", () => {
+    render(<SecurityNote defaultOpen={false} />)
+
+    expect(screen.getByRole("button", { name: "安全に扱います" }).style.fontFamily).toBe(
+      CHATBOT_CONVERSATION_CONTENT_STYLE.fontFamily,
+    )
   })
 })
