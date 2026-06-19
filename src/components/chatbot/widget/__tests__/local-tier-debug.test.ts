@@ -4,6 +4,9 @@ import { formatChatbotTierDebugLabel, isLocalChatbotTierDebugHostname } from "@/
 
 describe("local chatbot tier debug helpers", () => {
   it("formats human labels with raw tier ids", () => {
+    expect(formatChatbotTierDebugLabel("local-deterministic")).toBe(
+      "Local deterministic (local-deterministic)",
+    )
     expect(formatChatbotTierDebugLabel("tier-1-chrome-notion-ai")).toBe(
       "Tier 1 Notion AI (tier-1-chrome-notion-ai)",
     )

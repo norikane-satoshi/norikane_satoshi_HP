@@ -106,6 +106,7 @@ const defaultRepository: ChatbotMessageRepository = {
 
 const clientUserMessageIdPattern =
   /^client_msg_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const assistantNameAnswer = "のーちゃんです。"
 
 export async function handleChatbotMessage(
   input: HandleChatbotMessageInput,
@@ -172,6 +173,30 @@ export async function handleChatbotMessage(
     role: "user",
     content: input.message,
   })
+  if (isAssistantNameQuestion(input.message)) {
+    const assistantMessage = await repository.appendMessage({
+      conversationId: conversation.id,
+      role: "assistant",
+      content: assistantNameAnswer,
+    })
+    return {
+      conversationId: conversation.id,
+      userMessage: {
+        id: userMessage.id,
+        role: userMessage.role,
+        content: userMessage.content,
+        createdAt: userMessage.createdAt,
+      },
+      assistantMessage: {
+        id: assistantMessage.id,
+        role: assistantMessage.role,
+        content: assistantMessage.content,
+        createdAt: assistantMessage.createdAt,
+      },
+      tier: "local-deterministic",
+      ui: { kind: "none" },
+    }
+  }
   const activeChoiceAnswer = applyActiveChoiceAnswer({
     activeChoices: conversation.context.activeChoices,
     message: input.message,
@@ -370,6 +395,26 @@ function isBackendIdentityOnlyResponse(text: string): boolean {
   return (
     compact === "のりかね映像設計室の相談窓口として動いています" ||
     compact === "のりかね映像設計室のご相談窓口として動いています"
+  )
+}
+
+function isAssistantNameQuestion(message: string): boolean {
+  const normalized = message.normalize("NFKC").toLowerCase()
+  const compact = normalized.replace(/[\s　。、,.!！?？「」『』()[\]（）]/g, "")
+  if (!/(名前|なまえ|呼び名|なんて呼べ|何て呼べ)/.test(compact)) return false
+
+  const asksQuestion =
+    /[?？]/.test(normalized) || /(何|なに|なん|教えて|ですか|でしょうか|呼べば)/.test(compact)
+  if (!asksQuestion) return false
+
+  return (
+    /(あなた|君|きみ|ai|アシスタント|ボット|bot|相談窓口|このチャット|ここのチャット|チャット)(の)?(名前|なまえ|呼び名)/.test(
+      compact,
+    ) ||
+    /(あなた|君|きみ|ai|アシスタント|ボット|bot|相談窓口|このチャット|ここのチャット|チャット)(を)?(なんて|何て|どう)呼べ/.test(
+      compact,
+    ) ||
+    /^(お)?名前は(何|なに|なん)/.test(compact)
   )
 }
 

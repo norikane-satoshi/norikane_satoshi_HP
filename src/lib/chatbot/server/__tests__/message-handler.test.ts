@@ -193,6 +193,37 @@ describe("handleChatbotMessage user context", () => {
     })
   })
 
+  it.each(["あなたの名前は？", "AIアシスタントの名前は？", "このチャットの名前は？"])(
+    "answers assistant name questions as Nochan without invoking the LLM: %s",
+    async (prompt) => {
+      const harness = setup()
+
+      const result = await handleChatbotMessage(
+        { sessionId: "session_1", userId: "user_a", message: prompt },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toBe("のーちゃんです。")
+      expect(result.tier).toBe("local-deterministic")
+      expect(result.ui).toEqual({ kind: "none" })
+      expect(harness.generate).not.toHaveBeenCalled()
+      expect(harness.repository.updateConversationRouting).not.toHaveBeenCalled()
+    },
+  )
+
+  it("keeps normal consultations from self-naming", async () => {
+    const harness = setup()
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "カラーグレーディングの相談です" },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe("返信です")
+    expect(result.assistantMessage.content).not.toContain("のーちゃん")
+    expect(harness.generate).toHaveBeenCalledOnce()
+  })
+
   it("truncates an edited server-side user message before regenerating the reply", async () => {
     const harness = setup({
       existingConversation: conversation({
