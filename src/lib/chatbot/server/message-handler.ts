@@ -30,6 +30,7 @@ import {
 import { ChatbotAvailabilityError, findCandidateWindows } from "@/lib/chatbot/server/availability-finder"
 import { applyActiveChoiceAnswer } from "@/lib/chatbot/server/choice-panel-state"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
+import { sanitizeChatbotLlmText } from "@/lib/chatbot/server/llm-response-normalizer"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 
 type ChatbotMessageUi =
@@ -210,6 +211,7 @@ export async function handleChatbotMessage(
     rawText: llmResponse.rawText,
     routingDecision,
     fallbackRoutingDecision,
+    jobContext,
   })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
@@ -316,20 +318,27 @@ function buildAssistantDisplayContent(input: {
   rawText: string
   routingDecision: RoutingDecision | undefined
   fallbackRoutingDecision: RoutingDecision
+  jobContext: JobContext
 }): string {
   const text = input.rawText.trim()
   const toolFreeText = stripShowBookingCardToolCall(text).trim()
+  const sanitize = (content: string) =>
+    sanitizeChatbotLlmText(content, {
+      routingDecision: input.routingDecision,
+      jobContext: input.jobContext,
+    })
+
   if (input.routingDecision?.kind === "to-booking-inline" && toolFreeText.length === 0) {
     return "候補日を確認しました。"
   }
-  if (toolFreeText !== text) return toolFreeText
-  if (!isBackendIdentityOnlyResponse(text)) return text
+  if (toolFreeText !== text) return sanitize(toolFreeText)
+  if (!isBackendIdentityOnlyResponse(text)) return sanitize(text)
 
   const routingDecision =
     input.routingDecision?.kind === "continue" ? input.routingDecision : input.fallbackRoutingDecision
-  if (routingDecision.kind === "continue") return routingDecision.nextQuestion
+  if (routingDecision.kind === "continue") return sanitize(routingDecision.nextQuestion)
 
-  return text
+  return sanitize(text)
 }
 
 function isBackendIdentityOnlyResponse(text: string): boolean {
