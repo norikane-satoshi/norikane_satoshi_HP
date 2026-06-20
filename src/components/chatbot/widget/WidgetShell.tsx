@@ -1,7 +1,7 @@
 "use client"
 
 import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react"
-import { GripHorizontal, Minus, PanelRightOpen, Sparkles } from "lucide-react"
+import { ArrowDown, GripHorizontal, Minus, PanelRightOpen, Sparkles } from "lucide-react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
@@ -25,6 +25,7 @@ import { InquiryForm } from "./InquiryForm"
 import { formatChatbotTierDebugLabel, isLocalChatbotTierDebugHostname } from "./local-tier-debug"
 import { SecurityNote } from "./SecurityNote"
 import { ThinkingIndicator } from "./ThinkingIndicator"
+import { useConversationScroll } from "./useConversationScroll"
 
 type WidgetShellProps = {
   onMinimize: () => void
@@ -210,6 +211,21 @@ export function WidgetShell({
   const activeRequestControllerRef = useRef<AbortController | null>(null)
   const showLocalTierDebug =
     typeof window !== "undefined" && isLocalChatbotTierDebugHostname(window.location.hostname)
+  const conversationContentKey = [
+    messages
+      .map((message) => `${message.id ?? ""}:${message.role}:${message.createdAt.toISOString()}:${message.content}`)
+      .join("|"),
+    activeUi.kind,
+    submitting ? "submitting" : "idle",
+    showThinkingDelayNotice ? "delay" : "normal",
+    displayMode,
+  ].join("::")
+  const {
+    containerRef: conversationScrollRef,
+    handleScroll: handleConversationScroll,
+    hasPendingLatest,
+    scrollToLatest,
+  } = useConversationScroll(conversationContentKey)
 
   const appendMessage = (message: WidgetMessage) => {
     setMessages((currentMessages) => [...currentMessages, message])
@@ -552,7 +568,12 @@ export function WidgetShell({
         </div>
       ) : null}
 
-      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+      <div
+        ref={conversationScrollRef}
+        onScroll={handleConversationScroll}
+        className="flex-1 space-y-4 overflow-y-auto px-5 py-5"
+        aria-label="チャット本文"
+      >
         <SecurityNote defaultOpen={false} />
         <div className="space-y-3" role="log" aria-live="polite">
           {messages.map((message, index) => (
@@ -570,6 +591,17 @@ export function WidgetShell({
         </div>
         <ActiveWidgetUi ui={activeUi} conversationId={conversationId} onSubmit={handleSubmit} onInquirySubmit={handleInquirySubmit} />
       </div>
+      {hasPendingLatest ? (
+        <button
+          type="button"
+          onClick={scrollToLatest}
+          className="glass-btn absolute bottom-[88px] right-5 z-20 inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-hp hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+          aria-label="一番下へ移動"
+        >
+          <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+          一番下へ移動
+        </button>
+      ) : null}
 
       <ChatInput
         onSubmit={handleSubmit}

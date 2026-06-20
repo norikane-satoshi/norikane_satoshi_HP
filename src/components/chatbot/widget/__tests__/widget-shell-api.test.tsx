@@ -77,6 +77,14 @@ function submitMessage(text = "相談したいです") {
   fireEvent.click(screen.getByRole("button", { name: "送信" }))
 }
 
+function setConversationScrollGeometry(input: { scrollTop: number; clientHeight: number; scrollHeight: number }) {
+  const container = screen.getByLabelText("チャット本文")
+  Object.defineProperty(container, "clientHeight", { configurable: true, value: input.clientHeight })
+  Object.defineProperty(container, "scrollHeight", { configurable: true, value: input.scrollHeight })
+  container.scrollTop = input.scrollTop
+  return container
+}
+
 describe("WidgetShell API wiring", () => {
   beforeEach(() => {
     installLocalStorage()
@@ -148,6 +156,68 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByText("考え中")).not.toBeInTheDocument())
     expect(screen.getByLabelText("相談内容")).toBeEnabled()
+  })
+
+  it("auto-scrolls to the latest assistant response when the conversation is already at bottom", async () => {
+    let resolveFetch: (response: ReturnType<typeof mockJsonResponse>) => void = () => undefined
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<ReturnType<typeof mockJsonResponse>>((resolve) => {
+          resolveFetch = resolve
+        }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    const container = setConversationScrollGeometry({ scrollTop: 300, clientHeight: 300, scrollHeight: 600 })
+    submitMessage("最新回答まで追従したいです")
+
+    setConversationScrollGeometry({ scrollTop: container.scrollTop, clientHeight: 300, scrollHeight: 900 })
+    resolveFetch(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        assistantMessage,
+        tier: "tier-3-ollama-deepseek",
+        ui: { kind: "none" },
+      }),
+    )
+
+    expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
+    await waitFor(() => expect(container.scrollTop).toBe(900))
+    expect(screen.queryByRole("button", { name: "一番下へ移動" })).not.toBeInTheDocument()
+  })
+
+  it("keeps the reader position and exposes a jump button when new messages arrive away from bottom", async () => {
+    let resolveFetch: (response: ReturnType<typeof mockJsonResponse>) => void = () => undefined
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<ReturnType<typeof mockJsonResponse>>((resolve) => {
+          resolveFetch = resolve
+        }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    const container = setConversationScrollGeometry({ scrollTop: 0, clientHeight: 300, scrollHeight: 900 })
+    fireEvent.scroll(container)
+    submitMessage("過去ログを読みながら相談します")
+
+    setConversationScrollGeometry({ scrollTop: 0, clientHeight: 300, scrollHeight: 1200 })
+    resolveFetch(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        assistantMessage,
+        tier: "tier-3-ollama-deepseek",
+        ui: { kind: "none" },
+      }),
+    )
+
+    expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
+    expect(container.scrollTop).toBe(0)
+
+    fireEvent.click(screen.getByRole("button", { name: "一番下へ移動" }))
+    expect(container.scrollTop).toBe(1200)
+    expect(screen.queryByRole("button", { name: "一番下へ移動" })).not.toBeInTheDocument()
   })
 
   it("stops an in-flight chatbot response without showing a network error", async () => {
@@ -259,6 +329,55 @@ describe("WidgetShell API wiring", () => {
       message: "選択: 消し物、肌修正",
       conversationId: "conv_1",
     })
+  })
+
+  it("treats confirmed ChoicePanel submissions as new conversation content for bottom follow-up", async () => {
+    let resolveChoiceResponse: (response: ReturnType<typeof mockJsonResponse>) => void = () => undefined
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        mockJsonResponse({
+          conversationId: "conv_1",
+          assistantMessage,
+          tier: "tier-3-ollama-deepseek",
+          ui: { kind: "choice-panel", choiceSet: additionalWorkChoices },
+        }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<ReturnType<typeof mockJsonResponse>>((resolve) => {
+            resolveChoiceResponse = resolve
+          }),
+      )
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    const container = setConversationScrollGeometry({ scrollTop: 300, clientHeight: 300, scrollHeight: 600 })
+    submitMessage()
+
+    expect(await screen.findByText("カラグレ以外の追加作業はありますか")).toBeInTheDocument()
+    setConversationScrollGeometry({ scrollTop: 0, clientHeight: 300, scrollHeight: 900 })
+    fireEvent.scroll(container)
+    fireEvent.click(screen.getByRole("button", { name: "消し物" }))
+    fireEvent.click(screen.getByRole("button", { name: "肌修正" }))
+    fireEvent.click(screen.getByRole("button", { name: "選択を送信" }))
+
+    setConversationScrollGeometry({ scrollTop: 0, clientHeight: 300, scrollHeight: 1200 })
+    resolveChoiceResponse(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        assistantMessage: {
+          ...assistantMessage,
+          content: "次の質問です",
+        },
+        tier: "tier-3-ollama-deepseek",
+        ui: { kind: "none" },
+      }),
+    )
+
+    expect(await screen.findByText("次の質問です")).toBeInTheDocument()
+    expect(container.scrollTop).toBe(0)
+    expect(screen.getByRole("button", { name: "一番下へ移動" })).toBeInTheDocument()
   })
 
   it("sends other comments with the selected choice labels", async () => {
