@@ -653,6 +653,73 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it.each([
+    {
+      prompt: "Web CM 30秒、追加作業なしです。所要日数だけ知りたいです。",
+      rawText: "Web CM 30秒の所要日数の目安は17〜20日です。",
+      expectedRange: "所要日数の目安は1〜2日",
+      expectedJobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 },
+    },
+    {
+      prompt: "MV 5分のカラーグレーディング相談です。",
+      rawText: "MV 5分の作業期間は17〜20日です。",
+      expectedRange: "作業期間は2〜2.5日",
+      expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
+    },
+    {
+      prompt: "OTT向け本編90分です。工程感を知りたいです。",
+      rawText: "本編90分の工程目安は17〜20日です。",
+      expectedRange: "工程目安は11〜12日",
+      expectedJobContext: { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 },
+    },
+    {
+      prompt: "ドラマ初回の案件です。期間の目安を教えてください。",
+      rawText: "ドラマ初回の期間は17〜20日です。",
+      expectedRange: "期間は6〜7日",
+      expectedJobContext: { jobKind: "drama-first" },
+    },
+    {
+      prompt: "縦型動画60秒の相談です。工程だけ知りたいです。",
+      rawText: "縦型動画60秒の工程は17〜20日です。",
+      expectedRange: "工程は1.5〜1.5日",
+      expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 },
+    },
+  ])("infers workflow estimate facts from non-live free text: $prompt", async ({ prompt, rawText, expectedRange, expectedJobContext }) => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText,
+      tier: "tier-3-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: prompt,
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain(expectedRange)
+    expect(result.assistantMessage.content).not.toContain("17〜20日")
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobContext: expect.objectContaining(expectedJobContext),
+        conversationState: expect.objectContaining({
+          hasJobKind: true,
+          ...(expectedJobContext.projectLengthMinutes ? { hasProjectLength: true } : {}),
+        }),
+      }),
+    )
+  })
+
   it("shows a consultation summary form when a settled no-schedule consultation can be emailed", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({

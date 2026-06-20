@@ -65,4 +65,28 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(normalized.content).toContain("7〜8日")
     expect(normalized.content).not.toMatch(/17(?:日から|[〜～-])20日/u)
   })
+
+  it("does not rewrite unrelated price, date, or headcount ranges", () => {
+    const normalized = normalizeChatbotLlmResponse(
+      {
+        rawText: "費用は17〜20万円では答えません。日程は7/17〜7/20が候補で、2〜3名体制です。工程目安は17〜20日です。",
+        tier: "tier-3-ollama-deepseek",
+      },
+      {
+        jobContext: {
+          jobKind: "cm-30s",
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: 0.5,
+        },
+      },
+    )
+
+    expect(normalized.content).toContain("費用は17〜20万円")
+    expect(normalized.content).toContain("日程は7/17〜7/20")
+    expect(normalized.content).toContain("2〜3名体制")
+    expect(normalized.content).toContain("工程目安は1〜2日")
+    expect(normalized.content).not.toContain("工程目安は17〜20日")
+  })
 })

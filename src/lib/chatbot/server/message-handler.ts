@@ -29,7 +29,7 @@ import {
 } from "@/lib/chatbot/server"
 import { ChatbotAvailabilityError, findCandidateWindows } from "@/lib/chatbot/server/availability-finder"
 import { applyActiveChoiceAnswer } from "@/lib/chatbot/server/choice-panel-state"
-import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
+import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import { sanitizeChatbotLlmText } from "@/lib/chatbot/server/llm-response-normalizer"
 import {
   loadLatestChatbotKnowledgeSnapshot,
@@ -385,45 +385,8 @@ function buildJobContext(
   }
   return {
     ...base,
-    ...inferExplicitJobContextFromText(latestUserMessage, base),
+    ...inferWorkflowJobContextFromText(latestUserMessage, base),
   }
-}
-
-function inferExplicitJobContextFromText(
-  message: string | undefined,
-  current: JobContext,
-): Partial<JobContext> {
-  if (!message) return {}
-
-  const normalized = message.normalize("NFKC").toLowerCase()
-  const mentionsLive = /(?:ライブ|live)/u.test(normalized)
-  if (!mentionsLive) return {}
-
-  const inferred: Partial<JobContext> = {}
-  const lengthMinutes = inferProjectLengthMinutes(normalized)
-
-  if (current.finalMedium === "other") inferred.finalMedium = "live"
-  if (!current.jobKind && lengthMinutes !== undefined) inferred.jobKind = "live-60m"
-  if (current.projectLengthMinutes === undefined && lengthMinutes !== undefined) {
-    inferred.projectLengthMinutes = lengthMinutes
-  }
-
-  return inferred
-}
-
-function inferProjectLengthMinutes(text: string): number | undefined {
-  const hoursAndHalf = /(\d+(?:\.\d+)?)\s*時間\s*半/u.exec(text)
-  if (hoursAndHalf) return Number(hoursAndHalf[1]) * 60 + 30
-
-  const hoursAndMinutes = /(\d+(?:\.\d+)?)\s*時間(?:\s*(\d+(?:\.\d+)?)\s*分)?/u.exec(text)
-  if (hoursAndMinutes) {
-    return Number(hoursAndMinutes[1]) * 60 + (hoursAndMinutes[2] ? Number(hoursAndMinutes[2]) : 0)
-  }
-
-  const minutes = /(\d+(?:\.\d+)?)\s*分/u.exec(text)
-  if (minutes) return Number(minutes[1])
-
-  return undefined
 }
 
 function hasNewJobKindFact(input: {

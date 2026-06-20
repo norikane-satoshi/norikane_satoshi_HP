@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { JobContext } from "@/lib/chatbot/domain"
-import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
+import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 
 function jobContext(overrides: Partial<JobContext>): JobContext {
   return {
@@ -14,6 +14,27 @@ function jobContext(overrides: Partial<JobContext>): JobContext {
 }
 
 describe("chatbot duration estimator", () => {
+  it.each([
+    ["Web CM 30秒です", { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 }],
+    ["MV 5分の相談です", { jobKind: "mv-5m", projectLengthMinutes: 5 }],
+    ["OTT向け本編90分です", { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 }],
+    ["ドラマ初回です", { jobKind: "drama-first" }],
+    ["ドラマ2話目以降です", { jobKind: "drama-follow-up" }],
+    ["縦型動画60秒です", { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 }],
+    ["ライブ2時間半です", { finalMedium: "live", jobKind: "live-60m", projectLengthMinutes: 150 }],
+  ])("infers workflow facts from explicit free text: %s", (message, expected) => {
+    expect(inferWorkflowJobContextFromText(message, jobContext({ jobKind: undefined, finalMedium: "other" }))).toMatchObject(expected)
+  })
+
+  it("does not overwrite already confirmed job facts from free text", () => {
+    expect(
+      inferWorkflowJobContextFromText(
+        "Web CM 30秒です",
+        jobContext({ jobKind: "mv-5m", finalMedium: "live", projectLengthMinutes: 5 }),
+      ),
+    ).toEqual({})
+  })
+
   it("estimates CM 30s without additional work at satoshi-studio", () => {
     const result = estimateWorkflow(jobContext({ projectLengthMinutes: 0.5 }))
 

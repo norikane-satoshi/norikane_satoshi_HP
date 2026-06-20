@@ -41,6 +41,91 @@ type DurationEstimatorOptions = {
 
 export type { JobKind }
 
+export function inferWorkflowJobContextFromText(
+  message: string | undefined,
+  current: JobContext,
+): Partial<JobContext> {
+  if (!message) return {}
+
+  const normalized = message.normalize("NFKC").toLowerCase()
+  const explicitJobKind = inferJobKind(normalized)
+  const explicitProjectLengthMinutes = inferProjectLengthMinutes(normalized)
+  const safeExplicitJobKind =
+    explicitJobKind && canInferExplicitJobKind(explicitJobKind, explicitProjectLengthMinutes)
+      ? explicitJobKind
+      : undefined
+  const jobKind = current.jobKind ?? safeExplicitJobKind
+  const canInferProjectLength =
+    current.projectLengthMinutes === undefined &&
+    Boolean(jobKind) &&
+    (!current.jobKind || !explicitJobKind || explicitJobKind === current.jobKind)
+  const projectLengthMinutes = canInferProjectLength ? explicitProjectLengthMinutes : undefined
+  const finalMedium = current.finalMedium === "other" ? inferFinalMedium(normalized, jobKind) : undefined
+  const inferred: Partial<JobContext> = {}
+
+  if (!current.jobKind && safeExplicitJobKind) inferred.jobKind = safeExplicitJobKind
+  if (current.projectLengthMinutes === undefined && projectLengthMinutes !== undefined) {
+    inferred.projectLengthMinutes = projectLengthMinutes
+  }
+  if (current.finalMedium === "other" && finalMedium) inferred.finalMedium = finalMedium
+
+  return inferred
+}
+
+function canInferExplicitJobKind(jobKind: JobKind, projectLengthMinutes: number | undefined): boolean {
+  return workflowDurationJobKindMap[jobKind].baselineMinutes === undefined || projectLengthMinutes !== undefined
+}
+
+function inferJobKind(text: string): JobKind | undefined {
+  if (/(?:ライブ|live)/u.test(text)) return "live-60m"
+  if (/(?:縦型|縦動画|縦長|shorts|reels|tiktok|vertical)/u.test(text)) return "vertical-60s"
+  if (/(?:ドラマ|drama)/u.test(text)) {
+    if (/(?:2話目以降|二話目以降|第?[2-9][0-9]*話|[2-9][0-9]*話目|続話|継続)/u.test(text)) {
+      return "drama-follow-up"
+    }
+    if (/(?:初回|第?1話|1話目|一話目)/u.test(text)) return "drama-first"
+    return undefined
+  }
+  if (/(?:本編|長編|feature)/u.test(text)) return "feature-90m"
+  if (/(?:ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(text)) return "mv-5m"
+  if (/(?:web\s*cm|ウェブ\s*cm|webコマーシャル|cm\s*\d|(?:^|[^a-z0-9])cm(?:$|[^a-z0-9])|コマーシャル)/u.test(text)) {
+    return "cm-30s"
+  }
+
+  return undefined
+}
+
+function inferFinalMedium(text: string, jobKind: JobKind | undefined): FinalMedium | undefined {
+  if (/(?:ott|配信|streaming)/u.test(text)) return "ott"
+  if (/(?:劇場|映画館|cinema|theater)/u.test(text)) return "cinema"
+  if (/(?:テレビ|tv|放送|地上波)/u.test(text)) return "tv-broadcast"
+  if (/(?:ライブ|live)/u.test(text)) return "live"
+  if (/(?:縦型|縦動画|縦長|shorts|reels|tiktok|vertical)/u.test(text)) return "vertical-sns"
+  if (/(?:web|ウェブ|youtube|サイト|sns)/u.test(text)) return "web"
+  if (jobKind === "live-60m") return "live"
+  if (jobKind === "vertical-60s") return "vertical-sns"
+
+  return undefined
+}
+
+function inferProjectLengthMinutes(text: string): number | undefined {
+  const hoursAndHalf = /(\d+(?:\.\d+)?)\s*時間\s*半/u.exec(text)
+  if (hoursAndHalf) return Number(hoursAndHalf[1]) * 60 + 30
+
+  const hoursAndMinutes = /(\d+(?:\.\d+)?)\s*(?:時間|h)(?:\s*(\d+(?:\.\d+)?)\s*分)?/u.exec(text)
+  if (hoursAndMinutes) {
+    return Number(hoursAndMinutes[1]) * 60 + (hoursAndMinutes[2] ? Number(hoursAndMinutes[2]) : 0)
+  }
+
+  const minutes = /(\d+(?:\.\d+)?)\s*(?:分|m(?:in)?(?:ute)?s?)/u.exec(text)
+  if (minutes) return Number(minutes[1])
+
+  const seconds = /(\d+(?:\.\d+)?)\s*(?:秒|s(?:ec(?:ond)?s?)?)/u.exec(text)
+  if (seconds) return Number(seconds[1]) / 60
+
+  return undefined
+}
+
 export function estimateBaseDuration(
   jobKind: JobKind,
   lengthMinutes?: number,
