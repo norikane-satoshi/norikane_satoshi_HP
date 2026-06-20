@@ -1,7 +1,7 @@
 "use client"
 
 import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react"
-import { ArrowDown, GripHorizontal, Minus, PanelRightOpen, Sparkles } from "lucide-react"
+import { GripHorizontal, Minus, PanelRightOpen, Sparkles } from "lucide-react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
@@ -595,11 +595,10 @@ export function WidgetShell({
         <button
           type="button"
           onClick={scrollToLatest}
-          className="glass-btn absolute bottom-[88px] right-5 z-20 inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-hp hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+          className="glass-badge absolute left-1/2 top-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center border border-[var(--glass-border)] bg-[rgba(255,255,255,0.56)] p-0 text-base font-semibold text-[var(--accent-primary)] shadow-[var(--glass-shadow)] transition hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
           aria-label="一番下へ移動"
         >
-          <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
-          一番下へ移動
+          <span aria-hidden="true">▽</span>
         </button>
       ) : null}
 

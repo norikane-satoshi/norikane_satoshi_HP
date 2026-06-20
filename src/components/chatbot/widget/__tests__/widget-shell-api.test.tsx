@@ -200,7 +200,11 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     const container = setConversationScrollGeometry({ scrollTop: 0, clientHeight: 300, scrollHeight: 900 })
     fireEvent.scroll(container)
-    expect(screen.getByRole("button", { name: "一番下へ移動" })).toBeInTheDocument()
+    const jumpButton = screen.getByRole("button", { name: "一番下へ移動" })
+    expect(jumpButton).toBeInTheDocument()
+    expect(jumpButton).toHaveClass("left-1/2", "top-1/2", "h-11", "w-11")
+    expect(screen.getByText("▽")).toBeInTheDocument()
+    expect(screen.queryByText("一番下へ移動")).not.toBeInTheDocument()
     submitMessage("過去ログを読みながら相談します")
 
     setConversationScrollGeometry({ scrollTop: 0, clientHeight: 300, scrollHeight: 1200 })
@@ -216,7 +220,7 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
     expect(container.scrollTop).toBe(0)
 
-    fireEvent.click(screen.getByRole("button", { name: "一番下へ移動" }))
+    fireEvent.click(jumpButton)
     expect(container.scrollTop).toBe(1200)
     expect(screen.queryByRole("button", { name: "一番下へ移動" })).not.toBeInTheDocument()
   })
@@ -378,7 +382,8 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("次の質問です")).toBeInTheDocument()
     expect(container.scrollTop).toBe(0)
-    expect(screen.getByRole("button", { name: "一番下へ移動" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "一番下へ移動" })).toHaveTextContent("▽")
+    expect(screen.queryByText("一番下へ移動")).not.toBeInTheDocument()
   })
 
   it("sends other comments with the selected choice labels", async () => {
