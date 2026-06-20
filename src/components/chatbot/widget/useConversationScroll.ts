@@ -13,7 +13,6 @@ export function useConversationScroll(contentKey: string) {
   const hasObservedContentRef = useRef(false)
   const wasNearBottomRef = useRef(true)
   const [hasPendingLatest, setHasPendingLatest] = useState(false)
-  const [isAwayFromLatest, setIsAwayFromLatest] = useState(false)
 
   const scrollToLatest = useCallback(() => {
     const container = containerRef.current
@@ -21,7 +20,6 @@ export function useConversationScroll(contentKey: string) {
     container.scrollTop = container.scrollHeight
     wasNearBottomRef.current = true
     setHasPendingLatest(false)
-    setIsAwayFromLatest(false)
   }, [])
 
   const handleScroll = useCallback(() => {
@@ -29,10 +27,7 @@ export function useConversationScroll(contentKey: string) {
     if (!container) return
     const nearBottom = isNearBottom(container)
     wasNearBottomRef.current = nearBottom
-    setIsAwayFromLatest(!nearBottom)
-    if (nearBottom) {
-      setHasPendingLatest(false)
-    }
+    setHasPendingLatest(!nearBottom)
   }, [])
 
   useLayoutEffect(() => {
@@ -57,7 +52,7 @@ export function useConversationScroll(contentKey: string) {
     containerRef,
     handleScroll,
     hasPendingLatest,
-    shouldShowLatestButton: hasPendingLatest || isAwayFromLatest,
+    shouldShowLatestButton: hasPendingLatest,
     scrollToLatest,
   }
 }
