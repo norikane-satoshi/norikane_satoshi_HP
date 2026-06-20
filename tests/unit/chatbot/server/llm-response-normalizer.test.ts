@@ -38,6 +38,27 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(normalized.content).not.toContain("17〜20日")
   })
 
+  it("keeps nearby premise-based duration ranges so the LLM can adapt to context", () => {
+    const normalized = normalizeChatbotLlmResponse(
+      {
+        rawText: "ライブ2時間半規模の工程目安は通常7〜9日です。素材状況や追加作業で前後します。",
+        tier: "tier-3-ollama-deepseek",
+      },
+      {
+        jobContext: {
+          jobKind: "live-60m",
+          finalMedium: "live",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: 150,
+        },
+      },
+    )
+
+    expect(normalized.content).toContain("通常7〜9日")
+    expect(normalized.content).toContain("素材状況や追加作業で前後")
+  })
+
   it.each([
     ["作業期間は17～20日ほど見てください。"],
     ["工程: 17-20日で進められます。"],
@@ -45,7 +66,7 @@ describe("normalizeChatbotLlmResponse", () => {
     ["所要日数の目安は17〜20日です。"],
     ["スタジオの手配は、所要日数（17〜20日）を踏まえて相談します。"],
     ["ライブ2時間半のカラーグレーディングは、目安として17〜20日です。"],
-  ])("aligns workflow range notation: %s", (rawText) => {
+  ])("suppresses clearly hallucinated workflow range notation: %s", (rawText) => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText,
