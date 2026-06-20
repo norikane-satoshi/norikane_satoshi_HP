@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 import { ExternalLink, X } from "lucide-react"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { PRESS_CATEGORIES } from "@/components/hp/press-data"
+import type { PointerEvent } from "react"
 export { PRESS_CATEGORIES } from "@/components/hp/press-data"
 
 const focusableSelector = [
@@ -99,6 +100,16 @@ export function PressDialog() {
   const dialogRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  const openDialog = useCallback(() => {
+    setOpen(true)
+  }, [])
+
+  const openFromPrimaryPointer = useCallback((event: PointerEvent<HTMLButtonElement>) => {
+    if (event.button === 0) {
+      openDialog()
+    }
+  }, [openDialog])
 
   const close = useCallback(() => {
     setOpen(false)
@@ -235,7 +246,8 @@ export function PressDialog() {
         aria-expanded={open}
         aria-label="実績"
         title="実績"
-        onClick={() => setOpen(true)}
+        onPointerUp={openFromPrimaryPointer}
+        onClick={openDialog}
       >
         <SpeakerAtLecternIcon className="h-[22px] w-[22px] shrink-0" />
         <OpenBookIcon className="h-5 w-5 shrink-0" />
