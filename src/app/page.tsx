@@ -147,7 +147,7 @@ export default async function HomePage() {
 
       {/* Intro */}
       <section className="hp-section-shell hp-grid">
-        <p className="hp-body hp-grid-main text-base text-hp md:text-lg">
+        <p className="hp-body hp-grid-main hp-grid-centered-measure text-base text-hp md:text-lg">
           {hpPublicContent.intro}
         </p>
       </section>
@@ -158,7 +158,7 @@ export default async function HomePage() {
         className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
       >
         <div className="hp-grid">
-          <p className="hp-section-heading text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
+          <p className="hp-section-heading text-xs uppercase tracking-[0.22em] text-hp-muted">Notes</p>
           <h2 className="hp-heading hp-section-heading mt-2 text-2xl md:text-3xl font-semibold text-hp">
             ノート
           </h2>
