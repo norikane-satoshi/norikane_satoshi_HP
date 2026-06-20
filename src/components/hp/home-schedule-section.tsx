@@ -14,12 +14,14 @@ export async function HomeScheduleSection() {
     >
       <div className="glass-card glass-card--hp-schedule p-8 md:p-10 xl:p-14">
         <div className="hp-grid">
-          <p className="hp-section-heading text-xs uppercase tracking-[0.22em] text-hp-muted">
-            Schedule
-          </p>
-          <h2 className="hp-heading hp-section-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
-            予約カレンダー
-          </h2>
+          <div className="hp-section-heading hp-section-title-stack">
+            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
+              Schedule
+            </p>
+            <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
+              予約カレンダー
+            </h2>
+          </div>
         </div>
 
         <div className="mt-[var(--hp-space-4)]">

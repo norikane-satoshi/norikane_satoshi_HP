@@ -57,10 +57,12 @@ const socialIcons = {
 function ProfileForeground() {
   return (
     <>
-      <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
-      <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
-        {hpPublicContent.profile.sectionTitle}
-      </h2>
+      <div className="hp-section-title-stack">
+        <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
+        <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
+          {hpPublicContent.profile.sectionTitle}
+        </h2>
+      </div>
 
       <div className="@container/profile">
         <div className="hp-grid hp-profile-grid mt-[var(--hp-space-4)]">
@@ -158,10 +160,12 @@ export default async function HomePage() {
         className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
       >
         <div className="hp-grid">
-          <p className="hp-section-heading text-xs uppercase tracking-[0.22em] text-hp-muted">Notes</p>
-          <h2 className="hp-heading hp-section-heading mt-2 text-2xl md:text-3xl font-semibold text-hp">
-            ノート
-          </h2>
+          <div className="hp-section-heading hp-section-title-stack">
+            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Notes</p>
+            <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
+              ノート
+            </h2>
+          </div>
         </div>
 
         <div className="mt-[var(--hp-space-4)] -mx-6 md:-mx-10 xl:-mx-14 overflow-x-auto">

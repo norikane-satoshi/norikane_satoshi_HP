@@ -202,6 +202,11 @@
   .hp-grid-centered-measure {
     grid-column: 1 / -1;
   }
+  .hp-section-title-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hp-space-1);
+  }
   .hp-profile-grid {
     row-gap: var(--hp-space-5);
   }
@@ -224,15 +229,16 @@
   }
   .hp-career-item {
     align-items: baseline;
-    column-gap: var(--hp-grid-gutter);
+    column-gap: var(--hp-space-2);
     display: grid;
-    grid-template-columns: repeat(var(--hp-grid-columns), minmax(0, 1fr));
+    grid-template-columns: max-content minmax(0, 1fr);
   }
   .hp-career-year {
-    grid-column: 1 / span 3;
+    grid-column: auto;
   }
   .hp-career-body {
-    grid-column: 4 / -1;
+    grid-column: auto;
+    min-width: 0;
   }
   .hp-featured-works-block {
     margin-top: var(--hp-space-5);
@@ -620,7 +626,7 @@
     grid-column: 1 / span 9;
   }
   .hp-grid-centered-measure {
-    grid-column: 3 / span 8;
+    grid-column: 2 / span 10;
   }
   .hp-hero-grid {
     align-items: end;
@@ -636,10 +642,10 @@
     margin-top: var(--hp-space-4);
   }
   .hp-career-year {
-    grid-column: 1 / span 2;
+    grid-column: auto;
   }
   .hp-career-body {
-    grid-column: 3 / -1;
+    grid-column: auto;
   }
   .hp-featured-works-block {
     margin-top: var(--hp-space-6);
@@ -651,7 +657,7 @@
     grid-column: 1 / span 8;
   }
   .hp-grid-centered-measure {
-    grid-column: 3 / span 8;
+    grid-column: 2 / span 10;
   }
 }
 
