@@ -751,6 +751,71 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("recovers workflow estimate facts from prior user turns when stored job context is missing", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasAdditionalWork: true,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            hasProjectLength: true,
+            turnCount: 2,
+          },
+          jobContext: {
+            finalMedium: "live",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+        messages: [
+          message("user", "案件を依頼したい"),
+          message(
+            "user",
+            "案件種類はライブで2時間半ぐらいあります。素材搬入は7月1日、納品期限は7月いっぱいです。",
+          ),
+          message("assistant", "所要日数の目安は7〜8日程度を見込んでいます。"),
+          message("user", "選択: 消し物、肌修正、その他\nその他コメント: 観客の顔ぼかしあります。"),
+          message("assistant", "追加作業について確認します。"),
+        ],
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        "ライブ2時間半の基本工程に加え、観客ぼかしの作業量によって変動します。基本工程（17〜20日）に対し、ぼかし作業の規模次第で延びる可能性があります。",
+      tier: "tier-3-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message:
+          "数名だけですけど、同じカメラに映っているカットが結構あるので、カット数で言うと30カット以上はあるんじゃないかなと思います。",
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain("基本工程（7〜8日）")
+    expect(result.assistantMessage.content).not.toContain("17〜20日")
+    expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
+      finalMedium: "live",
+      jobKind: "live-60m",
+      projectLengthMinutes: 150,
+      workflowEstimate: expect.objectContaining({
+        totalMinDays: 7,
+        totalMaxDays: 8,
+      }),
+    })
+  })
+
   it("shows a consultation summary form when a settled no-schedule consultation can be emailed", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
