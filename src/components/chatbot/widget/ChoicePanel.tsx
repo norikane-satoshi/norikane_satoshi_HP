@@ -24,7 +24,6 @@ type ChoicePanelProps = {
 export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: ChoicePanelProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [otherComment, setOtherComment] = useState("")
-  const selectedChoices = choiceSet.choices.filter((choice) => selectedIds.includes(choice.id))
   const hasOtherSelected = selectedIds.includes("other")
   const needsConfirm = allowMultiple || hasOtherSelected
 
@@ -86,12 +85,6 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
           )
         })}
       </div>
-      {selectedChoices.length > 0 ? (
-        <div className="rounded-[12px] border border-white/55 bg-white/40 px-3 py-2 text-xs text-hp-muted">
-          <span className="font-semibold text-hp">選択中 {selectedChoices.length}件: </span>
-          {selectedChoices.map((choice) => choice.label).join("、")}
-        </div>
-      ) : null}
       {hasOtherSelected ? (
         <label className="block space-y-1 text-xs font-semibold text-hp">
           <span>その他の内容</span>

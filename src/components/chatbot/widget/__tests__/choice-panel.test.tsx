@@ -29,7 +29,7 @@ describe("ChoicePanel", () => {
     })
   })
 
-  it("marks multiple selected choices and shows the selected summary", () => {
+  it("marks multiple selected choices without rendering a selected summary row", () => {
     render(<ChoicePanel choiceSet={additionalWorkChoices} onSelect={vi.fn()} allowMultiple />)
 
     fireEvent.click(screen.getByRole("button", { name: "消し物" }))
@@ -37,8 +37,8 @@ describe("ChoicePanel", () => {
 
     expect(screen.getByRole("button", { name: "消し物" })).toHaveAttribute("aria-pressed", "true")
     expect(screen.getByRole("button", { name: "肌修正" })).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getByText("選択中 2件:")).toBeInTheDocument()
-    expect(screen.getByText("消し物、肌修正")).toBeInTheDocument()
+    expect(screen.queryByText(/選択中/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/件:/)).not.toBeInTheDocument()
   })
 
   it("keeps none exclusive in multiple selection mode", () => {
