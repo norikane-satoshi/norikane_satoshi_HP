@@ -199,6 +199,9 @@
   .hp-section-heading {
     grid-column: 1 / -1;
   }
+  .hp-grid-centered-measure {
+    grid-column: 1 / -1;
+  }
   .hp-profile-grid {
     row-gap: var(--hp-space-5);
   }
@@ -616,6 +619,9 @@
   .hp-grid-main {
     grid-column: 1 / span 9;
   }
+  .hp-grid-centered-measure {
+    grid-column: 3 / span 8;
+  }
   .hp-hero-grid {
     align-items: end;
     row-gap: var(--hp-space-6);
@@ -643,6 +649,9 @@
 @media (min-width: 1280px) {
   .hp-grid-main {
     grid-column: 1 / span 8;
+  }
+  .hp-grid-centered-measure {
+    grid-column: 3 / span 8;
   }
 }
 

@@ -17,7 +17,7 @@ export async function HomeScheduleSection() {
           <p className="hp-section-heading text-xs uppercase tracking-[0.22em] text-hp-muted">
             Schedule
           </p>
-          <h2 className="hp-section-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
+          <h2 className="hp-heading hp-section-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
             予約カレンダー
           </h2>
         </div>
