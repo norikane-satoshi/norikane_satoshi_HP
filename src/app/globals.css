@@ -97,6 +97,30 @@
   --hp-radius-sm: 12px;
   --hp-radius: 16px;
   --hp-radius-lg: 20px;
+  --hp-section-max-width: 1440px;
+  --hp-section-padding-x: 24px;
+  --hp-grid-columns: 12;
+  --hp-grid-gutter: 24px;
+  --hp-space-1: 8px;
+  --hp-space-2: 16px;
+  --hp-space-3: 24px;
+  --hp-space-4: 32px;
+  --hp-space-5: 40px;
+  --hp-space-6: 48px;
+  --hp-space-7: 56px;
+  --hp-space-8: 64px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --hp-section-padding-x: 40px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --hp-section-padding-x: 56px;
+  }
 }
 
 @layer base {
@@ -153,6 +177,62 @@
   }
   .text-hp-muted {
     color: var(--text-muted);
+  }
+  .hp-section-shell {
+    margin-inline: auto;
+    max-width: var(--hp-section-max-width);
+    padding-inline: var(--hp-section-padding-x);
+    width: 100%;
+  }
+  .hp-section-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hp-space-6);
+  }
+  .hp-grid {
+    column-gap: var(--hp-grid-gutter);
+    display: grid;
+    grid-template-columns: repeat(var(--hp-grid-columns), minmax(0, 1fr));
+    row-gap: var(--hp-grid-gutter);
+  }
+  .hp-grid-main,
+  .hp-section-heading {
+    grid-column: 1 / -1;
+  }
+  .hp-profile-grid {
+    row-gap: var(--hp-space-5);
+  }
+  .hp-hero-grid {
+    row-gap: var(--hp-space-5);
+  }
+  .hp-hero-title,
+  .hp-hero-meta {
+    grid-column: 1 / -1;
+  }
+  .hp-profile-sidebar,
+  .hp-profile-main {
+    grid-column: 1 / -1;
+  }
+  .hp-career-list {
+    margin-top: var(--hp-space-3);
+  }
+  .hp-career-list > * + * {
+    margin-top: var(--hp-space-3);
+  }
+  .hp-career-item {
+    align-items: baseline;
+    column-gap: var(--hp-grid-gutter);
+    display: grid;
+    grid-template-columns: repeat(var(--hp-grid-columns), minmax(0, 1fr));
+  }
+  .hp-career-year {
+    grid-column: 1 / span 3;
+  }
+  .hp-career-body {
+    grid-column: 4 / -1;
+  }
+  .hp-featured-works-block {
+    margin-top: var(--hp-space-5);
   }
   .font-maru {
     font-family: var(--font-maru), sans-serif;
@@ -526,6 +606,52 @@
       animation: none;
       transform: none;
     }
+  }
+}
+
+@media (min-width: 768px) {
+  .hp-section-stack {
+    gap: var(--hp-space-8);
+  }
+  .hp-grid-main {
+    grid-column: 1 / span 9;
+  }
+  .hp-hero-grid {
+    align-items: end;
+    row-gap: var(--hp-space-6);
+  }
+  .hp-hero-title {
+    grid-column: 1 / span 8;
+  }
+  .hp-hero-meta {
+    grid-column: 9 / -1;
+  }
+  .hp-career-list > * + * {
+    margin-top: var(--hp-space-4);
+  }
+  .hp-career-year {
+    grid-column: 1 / span 2;
+  }
+  .hp-career-body {
+    grid-column: 3 / -1;
+  }
+  .hp-featured-works-block {
+    margin-top: var(--hp-space-6);
+  }
+}
+
+@media (min-width: 1280px) {
+  .hp-grid-main {
+    grid-column: 1 / span 8;
+  }
+}
+
+@container profile (min-width: 680px) {
+  .hp-profile-sidebar {
+    grid-column: 1 / span 3;
+  }
+  .hp-profile-main {
+    grid-column: 4 / -1;
   }
 }
 

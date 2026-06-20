@@ -17,9 +17,9 @@ export function HeroSection() {
         data-hp-abstract-art="hero"
         style={{ background: HERO_ABSTRACT_ART_BACKGROUND }}
       />
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-6 pb-10 pt-28 md:px-10 md:pb-14 md:pt-32 xl:px-14">
-        <div className="mt-auto grid grid-cols-1 gap-10 md:grid-cols-[1fr_auto] md:items-end md:gap-12">
-          <div>
+      <div className="hp-section-shell relative z-10 flex min-h-screen flex-col pb-[var(--hp-space-5)] pt-28 md:pb-[var(--hp-space-7)] md:pt-32">
+        <div className="hp-grid hp-hero-grid mt-auto">
+          <div className="hp-hero-title">
             <h1 className="hp-display-heading font-[var(--font-sans)] text-5xl font-bold text-white md:text-7xl xl:text-8xl">
               {hpPublicContent.hero.name}
               <span className="hp-heading mt-4 block text-2xl font-semibold text-white/86 md:text-4xl xl:text-5xl">
@@ -28,7 +28,7 @@ export function HeroSection() {
             </h1>
             {/* Keep the latin display utility available for a future English locale. */}
           </div>
-          <div className="text-left font-[var(--font-sans)] md:text-right">
+          <div className="hp-hero-meta text-left font-[var(--font-sans)] md:text-right">
             <p className="text-xs tracking-[0.12em] text-white/70">
               {hpPublicContent.hero.locationLine}
             </p>

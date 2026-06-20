@@ -2,6 +2,8 @@
 
 import "@testing-library/jest-dom/vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import HomePage from "@/app/page"
@@ -37,6 +39,32 @@ vi.mock("@/lib/notion/server/fetch-note", () => ({
 describe("HomePage profile press dialog trigger", () => {
   afterEach(() => {
     cleanup()
+  })
+
+  it("uses the shared HP grid shell and spacing tokens for home sections", async () => {
+    const globalsCss = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8")
+    expect(globalsCss).toContain("--hp-grid-columns: 12;")
+    expect(globalsCss).toContain("--hp-grid-gutter: 24px;")
+    expect(globalsCss).toContain("--hp-space-1: 8px;")
+    expect(globalsCss).toContain("--hp-space-8: 64px;")
+    expect(globalsCss).toContain(".hp-grid")
+    expect(globalsCss).toContain("repeat(var(--hp-grid-columns), minmax(0, 1fr))")
+
+    const { container } = render(await HomePage())
+
+    expect(container.firstElementChild).toHaveClass("hp-section-stack")
+
+    const philosophy = container.querySelector("#philosophy")
+    expect(philosophy).toHaveClass("hp-section-shell")
+    expect(philosophy?.querySelector(".hp-grid")).toBeInTheDocument()
+
+    const notesScroller = philosophy?.querySelector(".overflow-x-auto")
+    expect(notesScroller).toHaveClass("-mx-6", "md:-mx-10", "xl:-mx-14")
+
+    const profile = container.querySelector("#profile")
+    expect(profile).toHaveClass("hp-section-shell")
+    expect(profile?.querySelector(".hp-profile-grid")).toHaveClass("hp-grid")
+    expect(profile?.querySelector(".hp-career-item")).toBeInTheDocument()
   })
 
   it("opens the press dialog from the profile badge on primary pointer release", async () => {

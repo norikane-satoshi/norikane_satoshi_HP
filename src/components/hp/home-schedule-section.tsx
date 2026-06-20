@@ -10,17 +10,19 @@ export async function HomeScheduleSection() {
   return (
     <section
       id="schedule"
-      className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
+      className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
     >
       <div className="glass-card glass-card--hp-schedule p-8 md:p-10 xl:p-14">
-        <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-          Schedule
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold text-hp md:text-3xl">
-          予約カレンダー
-        </h2>
+        <div className="hp-grid">
+          <p className="hp-section-heading text-xs uppercase tracking-[0.22em] text-hp-muted">
+            Schedule
+          </p>
+          <h2 className="hp-section-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
+            予約カレンダー
+          </h2>
+        </div>
 
-        <div className="mt-8">
+        <div className="mt-[var(--hp-space-4)]">
           {session?.user?.id ? (
             <BookingSection
               isCalendarAdmin={isCalendarAdmin}

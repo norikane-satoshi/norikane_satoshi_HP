@@ -1850,7 +1850,7 @@ export function FeaturedWorks() {
   )
 
   return (
-    <div className="mt-10 md:mt-12">
+    <div className="hp-featured-works-block">
       <style>{`
         [data-featured-work-marquee-segment] {
           display: contents;
@@ -1875,9 +1875,11 @@ export function FeaturedWorks() {
           }
         }
       `}</style>
-      <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-        Featured Works
-      </p>
+      <div className="hp-grid">
+        <p className="hp-section-heading text-xs uppercase tracking-[0.22em] text-hp-muted">
+          Featured Works
+        </p>
+      </div>
 
       <div
         className="relative mt-6 -mx-8 md:-mx-10 xl:-mx-12"

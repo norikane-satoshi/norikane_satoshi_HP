@@ -63,9 +63,9 @@ function ProfileForeground() {
       </h2>
 
       <div className="@container/profile">
-        <div className="mt-8 grid grid-cols-1 gap-10 @[680px]/profile:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] @[680px]/profile:gap-12">
+        <div className="hp-grid hp-profile-grid mt-[var(--hp-space-4)]">
           {/* Left: photo + identity + tools */}
-          <div className="flex flex-col items-center gap-5 @[680px]/profile:items-start">
+          <div className="hp-profile-sidebar flex flex-col items-center gap-5 @[680px]/profile:items-start">
             <ProfilePhoto />
             <div className="text-center @[680px]/profile:text-left">
               <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
@@ -105,23 +105,23 @@ function ProfileForeground() {
           </div>
 
           {/* Right: career timeline */}
-          <div>
+          <div className="hp-profile-main">
             <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
               Career
             </p>
-            <div className="mt-5 space-y-6 md:space-y-7">
+            <div className="hp-career-list">
               {hpPublicContent.profile.timeline.map((item) => (
                 <div
                   key={item.year}
-                  className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-3 md:gap-4"
+                  className="hp-career-item"
                 >
                   <span
-                    className="font-[var(--font-inter)] text-sm font-bold"
+                    className="hp-career-year font-[var(--font-inter)] text-sm font-bold"
                     style={{ color: "var(--accent-primary)" }}
                   >
                     {item.year}
                   </span>
-                  <div>
+                  <div className="hp-career-body">
                     <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
                       {item.event}
                     </p>
@@ -142,12 +142,12 @@ function ProfileForeground() {
 export default async function HomePage() {
   const notes = await listPublishedNotes()
   return (
-    <div className="space-y-10 md:space-y-14">
+    <div className="hp-section-stack">
       <HeroSection />
 
       {/* Intro */}
-      <section className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14">
-        <p className="hp-body text-base text-hp md:text-lg">
+      <section className="hp-section-shell hp-grid">
+        <p className="hp-body hp-grid-main text-base text-hp md:text-lg">
           {hpPublicContent.intro}
         </p>
       </section>
@@ -155,14 +155,16 @@ export default async function HomePage() {
       {/* Philosophy — horizontal scroll notes */}
       <section
         id="philosophy"
-        className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
+        className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
       >
-        <p className="text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
-        <h2 className="hp-heading mt-2 text-2xl md:text-3xl font-semibold text-hp">
-          ノート
-        </h2>
+        <div className="hp-grid">
+          <p className="hp-section-heading text-xs uppercase tracking-[0.28em] text-hp-muted">Notes</p>
+          <h2 className="hp-heading hp-section-heading mt-2 text-2xl md:text-3xl font-semibold text-hp">
+            ノート
+          </h2>
+        </div>
 
-        <div className="mt-8 -mx-6 md:-mx-10 xl:-mx-14 overflow-x-auto">
+        <div className="mt-[var(--hp-space-4)] -mx-6 md:-mx-10 xl:-mx-14 overflow-x-auto">
           <div className="flex snap-x snap-mandatory gap-4 px-6 pb-4 md:gap-5 md:px-10 xl:px-14">
             {notes.map((note, idx) => (
               <Link
@@ -194,7 +196,7 @@ export default async function HomePage() {
       {/* Profile */}
       <section
         id="profile"
-        className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 scroll-mt-24 md:scroll-mt-28"
+        className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
       >
         <div className="glass-card glass-card--hp-profile p-8 md:p-10 xl:p-12">
           <ProfileForeground />
