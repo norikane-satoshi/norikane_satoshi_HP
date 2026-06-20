@@ -202,8 +202,19 @@ describe("WidgetShell API wiring", () => {
     fireEvent.scroll(container)
     const jumpButton = screen.getByRole("button", { name: "一番下へ移動" })
     expect(jumpButton).toBeInTheDocument()
-    expect(jumpButton).toHaveClass("left-1/2", "top-1/2", "h-11", "w-11")
-    expect(screen.getByText("▽")).toBeInTheDocument()
+    expect(jumpButton.parentElement).toBe(container.parentElement)
+    expect(jumpButton).toHaveClass("bottom-4", "left-1/2", "h-11", "w-11")
+    expect(jumpButton).not.toHaveClass("top-1/2")
+    expect(jumpButton).not.toHaveClass("-translate-y-1/2")
+    expect(jumpButton).toHaveStyle({
+      background: "rgba(255, 255, 255, 0.42)",
+      backdropFilter: "blur(18px) saturate(140%)",
+    })
+    const chevron = jumpButton.querySelector("svg")
+    expect(chevron).toBeInTheDocument()
+    expect(chevron).toHaveAttribute("aria-hidden", "true")
+    expect(chevron).toHaveAttribute("stroke-linecap", "square")
+    expect(screen.queryByText("▽")).not.toBeInTheDocument()
     expect(screen.queryByText("一番下へ移動")).not.toBeInTheDocument()
     submitMessage("過去ログを読みながら相談します")
 
@@ -382,7 +393,9 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("次の質問です")).toBeInTheDocument()
     expect(container.scrollTop).toBe(0)
-    expect(screen.getByRole("button", { name: "一番下へ移動" })).toHaveTextContent("▽")
+    const jumpButton = screen.getByRole("button", { name: "一番下へ移動" })
+    expect(jumpButton.querySelector("svg")).toBeInTheDocument()
+    expect(jumpButton).not.toHaveTextContent("▽")
     expect(screen.queryByText("一番下へ移動")).not.toBeInTheDocument()
   })
 

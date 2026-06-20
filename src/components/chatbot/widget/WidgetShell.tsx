@@ -1,7 +1,7 @@
 "use client"
 
 import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react"
-import { GripHorizontal, Minus, PanelRightOpen, Sparkles } from "lucide-react"
+import { ChevronDown, GripHorizontal, Minus, PanelRightOpen, Sparkles } from "lucide-react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
@@ -568,39 +568,46 @@ export function WidgetShell({
         </div>
       ) : null}
 
-      <div
-        ref={conversationScrollRef}
-        onScroll={handleConversationScroll}
-        className="flex-1 space-y-4 overflow-y-auto px-5 py-5"
-        aria-label="チャット本文"
-      >
-        <SecurityNote defaultOpen={false} />
-        <div className="space-y-3" role="log" aria-live="polite">
-          {messages.map((message, index) => (
-            <ChatMessage
-              key={message.id ?? `${message.role}-${message.createdAt.toISOString()}-${index}`}
-              id={message.id}
-              role={message.role}
-              content={message.content}
-              createdAt={message.createdAt}
-              editingDisabled={submitting}
-              onEdit={handleEditMessage}
-            />
-          ))}
-          {submitting ? <ThinkingIndicator showDelayNotice={showThinkingDelayNotice} /> : null}
-        </div>
-        <ActiveWidgetUi ui={activeUi} conversationId={conversationId} onSubmit={handleSubmit} onInquirySubmit={handleInquirySubmit} />
-      </div>
-      {shouldShowLatestButton ? (
-        <button
-          type="button"
-          onClick={scrollToLatest}
-          className="glass-badge absolute left-1/2 top-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center border border-[var(--glass-border)] bg-[rgba(255,255,255,0.56)] p-0 text-base font-semibold text-[var(--accent-primary)] shadow-[var(--glass-shadow)] transition hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
-          aria-label="一番下へ移動"
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={conversationScrollRef}
+          onScroll={handleConversationScroll}
+          className="h-full space-y-4 overflow-y-auto px-5 py-5"
+          aria-label="チャット本文"
         >
-          <span aria-hidden="true">▽</span>
-        </button>
-      ) : null}
+          <SecurityNote defaultOpen={false} />
+          <div className="space-y-3" role="log" aria-live="polite">
+            {messages.map((message, index) => (
+              <ChatMessage
+                key={message.id ?? `${message.role}-${message.createdAt.toISOString()}-${index}`}
+                id={message.id}
+                role={message.role}
+                content={message.content}
+                createdAt={message.createdAt}
+                editingDisabled={submitting}
+                onEdit={handleEditMessage}
+              />
+            ))}
+            {submitting ? <ThinkingIndicator showDelayNotice={showThinkingDelayNotice} /> : null}
+          </div>
+          <ActiveWidgetUi ui={activeUi} conversationId={conversationId} onSubmit={handleSubmit} onInquirySubmit={handleInquirySubmit} />
+        </div>
+        {shouldShowLatestButton ? (
+          <button
+            type="button"
+            onClick={scrollToLatest}
+            className="glass-badge absolute bottom-4 left-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center border border-[var(--glass-border)] p-0 text-[var(--accent-primary)] shadow-[var(--glass-shadow)] transition hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+            style={{
+              background: "rgba(255, 255, 255, 0.42)",
+              backdropFilter: "blur(18px) saturate(140%)",
+              WebkitBackdropFilter: "blur(18px) saturate(140%)",
+            }}
+            aria-label="一番下へ移動"
+          >
+            <ChevronDown className="h-5 w-5" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
 
       <ChatInput
         onSubmit={handleSubmit}
