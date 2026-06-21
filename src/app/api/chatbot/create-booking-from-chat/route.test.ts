@@ -85,6 +85,17 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
   })
 
+  it("returns 400 for an invalid contact email field", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request(validChatBooking({ contactEmail: "invalid-email" })))
+
+    expect(response.status).toBe(400)
+    const payload = await response.json()
+    expect(payload.error).toBe("invalid_request")
+    expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+  })
+
   it("calls the shared booking service with the session email", async () => {
     const route = await loadPost()
 

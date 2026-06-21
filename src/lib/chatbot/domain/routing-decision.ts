@@ -7,6 +7,7 @@ export type BookingCardPrefill = {
   contactEmail?: string
   companyName?: string
   dueDate?: string
+  memo?: string
 }
 
 export type RoutingDecision =

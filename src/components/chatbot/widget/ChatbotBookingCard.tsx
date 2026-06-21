@@ -27,6 +27,7 @@ type ChatbotBookingCardProps = {
   busyDateKeys?: string[]
   defaultProjectTitle?: string
   defaultContactName?: string
+  defaultContactEmail?: string
   defaultCompanyName?: string
   defaultDueDate?: string
   defaultMemo?: string
@@ -173,6 +174,10 @@ function formatSelectedSlots(slots: CandidateWindow[]): string {
   return slots.map((slot) => formatCandidateDate(slot.start)).join("、")
 }
 
+function isValidEmail(value: string): boolean {
+  return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 export function ChatbotBookingCard({
   conversationId,
   estimate,
@@ -181,6 +186,7 @@ export function ChatbotBookingCard({
   busyDateKeys = [],
   defaultProjectTitle = "",
   defaultContactName = "",
+  defaultContactEmail = "",
   defaultCompanyName = "",
   defaultDueDate = "",
   defaultMemo = "",
@@ -223,6 +229,7 @@ export function ChatbotBookingCard({
   const [dueDate, setDueDate] = useState(defaultDueDate)
   const [companyName, setCompanyName] = useState(defaultCompanyName)
   const [contactName, setContactName] = useState(defaultContactName)
+  const [contactEmail, setContactEmail] = useState(defaultContactEmail)
   const [phone, setPhone] = useState("")
   const [memo, setMemo] = useState(defaultMemo)
   const [agreed, setAgreed] = useState(false)
@@ -234,7 +241,15 @@ export function ChatbotBookingCard({
 
   const currentJstDateKey = todayJstDateKey()
   const selectedKeys = useMemo(() => selectedDateKeys(selectedSlots), [selectedSlots])
-  const canSubmit = Boolean(selectedSlots.length === requiredDays && projectTitle.trim() && contactName.trim() && agreed && !submitting)
+  const contactEmailValid = isValidEmail(contactEmail.trim())
+  const canSubmit = Boolean(
+    selectedSlots.length === requiredDays &&
+      projectTitle.trim() &&
+      contactName.trim() &&
+      contactEmailValid &&
+      agreed &&
+      !submitting,
+  )
 
   useEffect(() => {
     if (!jobContext || !effectiveEstimate) return
@@ -299,6 +314,7 @@ export function ChatbotBookingCard({
           conversationId,
           projectTitle: projectTitle.trim(),
           contactName: contactName.trim(),
+          contactEmail: contactEmail.trim(),
           companyName: companyName.trim(),
           phone: phone.trim(),
           dueDate,
@@ -548,6 +564,22 @@ export function ChatbotBookingCard({
             />
           </label>
           <label className="block text-sm font-medium text-hp sm:col-span-2">
+            メールアドレス（任意）
+            <input
+              value={contactEmail}
+              onChange={(event) => setContactEmail(event.target.value)}
+              className="glass-input mt-2 w-full px-4 py-3 text-sm"
+              type="email"
+              placeholder="client@example.jp"
+              aria-invalid={contactEmailValid ? undefined : "true"}
+            />
+          </label>
+          {!contactEmailValid ? (
+            <p className="text-xs text-red-500 sm:col-span-2" role="alert">
+              メールアドレスの形式を確認してください
+            </p>
+          ) : null}
+          <label className="block text-sm font-medium text-hp sm:col-span-2">
             電話番号（任意）
             <input
               value={phone}
@@ -574,7 +606,26 @@ export function ChatbotBookingCard({
             onChange={(event) => setAgreed(event.target.checked)}
             className="mt-1"
           />
-          <span>利用規約と予約内容に同意します（必須）。</span>
+          <span>
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-dotted underline-offset-4 hover:text-hp"
+            >
+              利用規約
+            </a>
+            、
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-dotted underline-offset-4 hover:text-hp"
+            >
+              プライバシーポリシー
+            </a>
+            と予約内容に同意します（必須）。
+          </span>
         </label>
 
         {errorMessage ? (

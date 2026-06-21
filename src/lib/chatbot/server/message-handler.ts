@@ -407,7 +407,8 @@ function buildChatbotSystemPrompt(
     "2026年10月より前は作業場所のデフォルト提案をせず、クライアントの希望を先に確認します。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、JSON 出力の説明だけを返しません。",
-    '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD"}} を 1 個だけ含めます。',
+    '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD","memo":"..."}} を 1 個だけ含めます。',
+    "show_booking_card の projectTitle は作品名または短い案件名だけにし、ライブ内容、作業内容、顔ぼかしカット数、素材状況、立ち会い方法、希望条件は memo に分離します。",
     "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。",
     "所要日数は同期済み正本ナレッジを基準値・判断材料として使い、案件種別、尺、媒体、素材状況、追加作業、希望納期を文脈から読んで前提つきの目安を返します。",
     "工程別日数テーブルを単純な固定回答として扱わず、迷う場合は通常範囲と変動要因を短く添え、正本から大きく外れる断定は避けます。",
@@ -698,7 +699,7 @@ async function resolveRoutingDecision(input: {
       suggestedSlots: calendar.candidates,
       busyDateKeys: calendar.busyDateKeys,
       jobContext,
-      bookingPrefill: toolCall.args,
+      bookingPrefill: normalizeBookingCardPrefill(toolCall.args, jobContext),
     }
   } catch (error) {
     if (error instanceof ChatbotAvailabilityError) return undefined
@@ -730,6 +731,7 @@ function parseShowBookingCardToolCall(text: string): ShowBookingCardToolCall | u
         contactEmail: optionalString(parsed.args.contactEmail),
         companyName: optionalString(parsed.args.companyName),
         dueDate: optionalString(parsed.args.dueDate),
+        memo: optionalString(parsed.args.memo),
       },
     }
   }
@@ -787,4 +789,60 @@ function optionalString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
+}
+
+function normalizeBookingCardPrefill(prefill: BookingCardPrefill, jobContext: JobContext): BookingCardPrefill {
+  const projectTitle = normalizeBookingProjectTitle(prefill.projectTitle, jobContext)
+  const memoParts = [prefill.memo]
+
+  if (prefill.projectTitle && projectTitle !== prefill.projectTitle) {
+    memoParts.push(prefill.projectTitle)
+  }
+
+  return {
+    ...(projectTitle ? { projectTitle } : {}),
+    ...(prefill.contactName ? { contactName: prefill.contactName } : {}),
+    ...(isValidContactEmail(prefill.contactEmail) ? { contactEmail: prefill.contactEmail } : {}),
+    ...(prefill.companyName ? { companyName: prefill.companyName } : {}),
+    ...(prefill.dueDate ? { dueDate: prefill.dueDate } : {}),
+    ...mergeMemoParts(memoParts),
+  }
+}
+
+function normalizeBookingProjectTitle(value: string | undefined, jobContext: JobContext): string | undefined {
+  if (!value) return defaultProjectTitleForJob(jobContext)
+  const title = value.trim()
+  if (!title) return defaultProjectTitleForJob(jobContext)
+  if (isLikelyProjectDetail(title)) return defaultProjectTitleForJob(jobContext)
+  return title.slice(0, 80)
+}
+
+function isLikelyProjectDetail(value: string): boolean {
+  const normalized = value.replace(/\s+/g, "")
+  if (normalized.length > 28) return true
+  return /(顔ぼかし|消し物|肌修正|カット|素材|納品|立ち会い|リモート|作業内容|追加作業|希望|打ち合わせ|相談)/u.test(
+    normalized,
+  )
+}
+
+function defaultProjectTitleForJob(jobContext: JobContext): string | undefined {
+  if (jobContext.jobKind === "live-60m" || jobContext.finalMedium === "live") return "ライブ案件"
+  if (jobContext.jobKind?.startsWith("cm-")) return "CM案件"
+  if (jobContext.jobKind?.startsWith("mv-")) return "MV案件"
+  if (jobContext.jobKind?.startsWith("drama-")) return "ドラマ案件"
+  if (jobContext.jobKind?.startsWith("feature-")) return "長編案件"
+  if (jobContext.jobKind?.startsWith("vertical-")) return "縦型動画案件"
+  return undefined
+}
+
+function mergeMemoParts(parts: Array<string | undefined>): Pick<BookingCardPrefill, "memo"> | Record<string, never> {
+  const memo = parts
+    .filter((part): part is string => Boolean(part?.trim()))
+    .map((part) => part.trim())
+    .join("\n")
+  return memo ? { memo } : {}
+}
+
+function isValidContactEmail(value: string | undefined): value is string {
+  return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
 }

@@ -354,6 +354,43 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.candidateWindowFinder).not.toHaveBeenCalled()
   })
 
+  it("keeps booking project titles short and moves detailed work notes into the booking memo", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        '候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"ライブ2.5h 消し物・肌修正・観客の顔ぼかし30カット以上、リモートでも立ち会いでも相談","contactName":"テスト太郎","contactEmail":"client@example.jp","companyName":"テスト株式会社","dueDate":"2026-07-31"}}',
+      tier: "tier-3-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "メールは client@example.jp です。顔ぼかしは30カット以上です。",
+        jobContext: {
+          jobKind: "live-60m",
+          finalMedium: "live",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: 150,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "ライブ案件",
+        contactName: "テスト太郎",
+        contactEmail: "client@example.jp",
+        companyName: "テスト株式会社",
+        dueDate: "2026-07-31",
+        memo: expect.stringContaining("観客の顔ぼかし30カット以上"),
+      },
+    })
+  })
+
   it("replaces backend identity-only assistant text with the routing question", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({

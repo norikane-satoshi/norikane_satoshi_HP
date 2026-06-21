@@ -159,8 +159,9 @@ function createClientSessionId() {
   return `00000000-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`
 }
 
-function buildBookingSupplementalNote(jobContext: JobContext): string {
+function buildBookingSupplementalNote(jobContext: JobContext, prefillMemo?: string): string {
   return [
+    prefillMemo,
     formatProjectLengthMemo(jobContext.projectLengthMinutes),
     formatAdditionalWorkMemo(jobContext.additionalWork),
     formatWorkSiteMemo(jobContext.workSite),
@@ -663,9 +664,10 @@ function ActiveWidgetUi({
         estimate={ui.jobContext.workflowEstimate}
         defaultProjectTitle={ui.bookingPrefill?.projectTitle}
         defaultContactName={ui.bookingPrefill?.contactName}
+        defaultContactEmail={ui.bookingPrefill?.contactEmail}
         defaultCompanyName={ui.bookingPrefill?.companyName}
         defaultDueDate={ui.bookingPrefill?.dueDate ?? ui.jobContext.publicReleaseDate}
-        defaultMemo={buildBookingSupplementalNote(ui.jobContext)}
+        defaultMemo={buildBookingSupplementalNote(ui.jobContext, ui.bookingPrefill?.memo)}
       />
     )
   }
