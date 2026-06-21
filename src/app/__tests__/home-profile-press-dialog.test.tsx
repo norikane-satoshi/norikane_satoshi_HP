@@ -7,6 +7,10 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import HomePage from "@/app/page"
+import {
+  DAVINCI_RESOLVE_TRAINER_TEXT,
+  DAVINCI_RESOLVE_TRAINING_URL,
+} from "@/components/hp/davinci-trainer-dialog"
 import { hpPublicContent } from "@/lib/hp/public-content"
 
 vi.mock("@/components/hp/featured-works", () => ({
@@ -68,23 +72,44 @@ describe("HomePage profile press dialog trigger", () => {
     expect(profile?.querySelector(".hp-career-item")).toBeInTheDocument()
   })
 
-  it("links only the DaVinci Resolve certified trainer text in the intro", async () => {
+  it("opens the DaVinci Resolve certified trainer guidance modal from the intro text", async () => {
     const { container } = render(await HomePage())
 
     const intro = container.querySelector(".hp-intro-measure")
     expect(intro).toBeInTheDocument()
     expect(intro).toHaveTextContent(hpPublicContent.intro)
 
-    const link = within(intro as HTMLElement).getByRole("link", {
-      name: "DaVinci Resolve 認定トレーナー",
+    const trigger = within(intro as HTMLElement).getByRole("button", {
+      name: DAVINCI_RESOLVE_TRAINER_TEXT,
     })
-    expect(link).toHaveAttribute(
-      "href",
-      "https://www.blackmagicdesign.com/jp/products/davinciresolve/training",
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog")
+    expect(trigger).toHaveAttribute("aria-expanded", "false")
+    expect(within(intro as HTMLElement).queryByRole("link")).not.toBeInTheDocument()
+
+    fireEvent.click(trigger)
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true")
+    const dialog = screen.getByRole("dialog", { name: DAVINCI_RESOLVE_TRAINER_TEXT })
+    expect(dialog).toBeVisible()
+    expect(dialog.parentElement).toHaveStyle({
+      zIndex: "2147483647",
+    })
+    expect(dialog).toHaveTextContent(
+      "Blackmagic Design公式のDaVinci Resolveトレーニングページで、認定トレーナーとして掲載されています。",
     )
-    expect(link).toHaveAttribute("target", "_blank")
-    expect(link).toHaveAttribute("rel", "noopener noreferrer")
-    expect(within(intro as HTMLElement).getAllByRole("link")).toHaveLength(1)
+    expect(dialog).toHaveTextContent(
+      "トレーニング形式を「認定トレーナー」、国を「日本」にして「則兼 智志」をご確認ください。",
+    )
+
+    const officialLink = within(dialog).getByRole("link", {
+      name: "Blackmagic公式ページで確認する",
+    })
+    expect(officialLink).toHaveAttribute("href", DAVINCI_RESOLVE_TRAINING_URL)
+    expect(officialLink).toHaveAttribute("target", "_blank")
+    expect(officialLink).toHaveAttribute("rel", "noopener noreferrer")
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByRole("dialog", { name: DAVINCI_RESOLVE_TRAINER_TEXT })).not.toBeInTheDocument()
   })
 
   it("opens the press dialog from the profile badge on primary pointer release", async () => {

@@ -1,6 +1,10 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
+import {
+  DAVINCI_RESOLVE_TRAINER_TEXT,
+  DavinciTrainerDialogTrigger,
+} from "@/components/hp/davinci-trainer-dialog"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
@@ -54,12 +58,8 @@ const socialIcons = {
   Instagram: InstagramIcon,
 } as const
 
-const davinciResolveTrainingUrl =
-  "https://www.blackmagicdesign.com/jp/products/davinciresolve/training"
-const davinciResolveTrainerLinkText = "DaVinci Resolve 認定トレーナー"
-
-function renderIntroTextWithTrainerLink() {
-  const [before, after] = hpPublicContent.intro.split(davinciResolveTrainerLinkText)
+function renderIntroTextWithTrainerDialog() {
+  const [before, after] = hpPublicContent.intro.split(DAVINCI_RESOLVE_TRAINER_TEXT)
 
   if (after === undefined) {
     return hpPublicContent.intro
@@ -68,14 +68,7 @@ function renderIntroTextWithTrainerLink() {
   return (
     <>
       {before}
-      <a
-        href={davinciResolveTrainingUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline decoration-current decoration-1 underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
-      >
-        {davinciResolveTrainerLinkText}
-      </a>
+      <DavinciTrainerDialogTrigger />
       {after}
     </>
   )
@@ -177,7 +170,7 @@ export default async function HomePage() {
       {/* Intro */}
       <section className="hp-section-shell hp-grid">
         <p className="hp-body hp-intro-measure text-base text-hp md:text-lg">
-          {renderIntroTextWithTrainerLink()}
+          {renderIntroTextWithTrainerDialog()}
         </p>
       </section>
 
