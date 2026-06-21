@@ -309,7 +309,7 @@ export async function handleChatbotMessage(
   })
   const routingDecision =
     resolvedRoutingDecision ??
-    (activeChoiceAnswer || durationContext.hasNewFacts
+    (activeChoiceAnswer || durationContext.hasNewFacts || isLectureTrainingInquiry(conversationState)
       ? fallbackRoutingDecision
       : undefined)
   const assistantDisplay = buildAssistantDisplayContent({

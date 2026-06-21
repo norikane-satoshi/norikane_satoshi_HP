@@ -1414,4 +1414,32 @@ describe("handleChatbotMessage user context", () => {
       }),
     )
   })
+
+  it("uses lecture and training fallback routing even when the LLM only returns text", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "講習内容を整理します。",
+      tier: "tier-3-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "講師依頼です。DaVinci Resolve の研修をお願いしたいです。",
+      },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("開催場所"),
+    })
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentQuestion: expect.stringContaining("開催場所"),
+      }),
+    )
+  })
 })
