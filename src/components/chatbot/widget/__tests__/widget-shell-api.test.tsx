@@ -657,9 +657,9 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
     expect(screen.getByLabelText("仮キープ候補のカレンダー選択")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-07-10 選択可" })).toBeInTheDocument()
-    expect(screen.getByLabelText("案件名（必須）")).toHaveValue("ライブ案件")
-    expect(screen.getByLabelText("メールアドレス（必須）")).toHaveValue("client@example.jp")
-    expect(screen.getByLabelText("補足ノート（任意）")).toHaveValue("観客の顔ぼかし30カット以上\n作業場所: リモート")
+    expect(screen.getByLabelText("案件名")).toHaveValue("ライブ案件")
+    expect(screen.getByLabelText("メールアドレス")).toHaveValue("client@example.jp")
+    expect(screen.getByLabelText("補足ノート")).toHaveValue("観客の顔ぼかし30カット以上\n作業場所: リモート")
 
     const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
     expect(stored.activeUi.bookingPrefill).toMatchObject({

@@ -202,6 +202,14 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
+function RequiredMark() {
+  return (
+    <span className="ml-1 font-semibold text-red-500" aria-hidden="true">
+      必須
+    </span>
+  )
+}
+
 export function ChatbotBookingCard({
   conversationId,
   estimate,
@@ -409,7 +417,10 @@ export function ChatbotBookingCard({
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <fieldset className="space-y-2">
-          <legend className="text-sm font-semibold text-hp">仮キープ候補</legend>
+          <legend className="text-sm font-semibold text-hp">
+            仮キープ候補
+            <RequiredMark />
+          </legend>
           <div className="rounded-[16px] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
             <div className="mb-3 flex items-center justify-between gap-3">
               <button
@@ -551,46 +562,53 @@ export function ChatbotBookingCard({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium text-hp">
-            案件名（必須）
+            案件名
+            <RequiredMark />
             <textarea
               ref={projectTitleRef}
               value={projectTitle}
               onChange={(event) => setProjectTitle(event.target.value)}
               className="glass-input mt-2 min-h-12 w-full resize-none overflow-hidden px-4 py-3 text-sm leading-relaxed"
               placeholder="作品名または案件名（イニシャル表記も可）"
+              aria-label="案件名"
               required
             />
           </label>
           <label className="block text-sm font-medium text-hp">
-            納期（任意）
+            納期
             <input
               value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
               placeholder="2026-06-30"
+              aria-label="納期"
             />
           </label>
           <label className="block text-sm font-medium text-hp">
-            会社名（任意）
+            会社名
             <input
               value={companyName}
               onChange={(event) => setCompanyName(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
               placeholder="会社名"
+              aria-label="会社名"
             />
           </label>
           <label className="block text-sm font-medium text-hp">
-            担当者氏名（必須）
+            担当者氏名
+            <RequiredMark />
             <input
               value={contactName}
               onChange={(event) => setContactName(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
               placeholder="氏名"
+              aria-label="担当者氏名"
               required
             />
           </label>
           <label className="block text-sm font-medium text-hp sm:col-span-2">
-            メールアドレス（必須）
+            メールアドレス
+            <RequiredMark />
             <input
               value={contactEmail}
               onChange={(event) => setContactEmail(event.target.value)}
@@ -598,6 +616,7 @@ export function ChatbotBookingCard({
               type="email"
               placeholder="client@example.jp"
               aria-invalid={contactEmailErrorVisible ? "true" : undefined}
+              aria-label="メールアドレス"
               required
             />
           </label>
@@ -607,21 +626,23 @@ export function ChatbotBookingCard({
             </p>
           ) : null}
           <label className="block text-sm font-medium text-hp sm:col-span-2">
-            電話番号（任意）
+            電話番号
             <input
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
               placeholder="連絡可能な電話番号"
+              aria-label="電話番号"
             />
           </label>
           <label className="block text-sm font-medium text-hp sm:col-span-2">
-            補足ノート（任意）
+            補足ノート
             <textarea
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
               className="glass-input mt-2 min-h-24 w-full px-4 py-3 text-sm"
               placeholder="入力欄に入りきらない共有事項"
+              aria-label="補足ノート"
             />
           </label>
         </div>
@@ -651,7 +672,8 @@ export function ChatbotBookingCard({
             >
               プライバシーポリシー
             </a>
-            と予約内容に同意します（必須）。
+            と予約内容に同意します。
+            <RequiredMark />
           </span>
         </label>
 
