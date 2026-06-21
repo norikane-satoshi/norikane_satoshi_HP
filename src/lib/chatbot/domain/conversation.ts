@@ -1,6 +1,6 @@
 import type { RoutingDecision } from "@/lib/chatbot/domain/routing-decision"
 import type { SurveyChoiceSet } from "@/lib/chatbot/domain/survey-choice"
-import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
+import type { JobContext, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
 
 export type ChatbotMessageRole = "user" | "assistant" | "system"
 
@@ -67,4 +67,12 @@ export type ConversationState = {
   companyName?: string
   productionOptions?: Array<"captions" | "telops" | "narration" | "music" | "other">
   otherChoiceComments?: Record<string, string>
+  durationContext?: {
+    workflowFacts?: Partial<
+      Pick<JobContext, "jobKind" | "finalMedium" | "workSite" | "projectLengthMinutes" | "additionalWork">
+    >
+    workflowEstimate?: Pick<WorkflowEstimate, "totalMinDays" | "totalMaxDays" | "riskFlags">
+    knowledgeSyncedAt?: string
+    snapshotStatus: "current" | "missing"
+  }
 }

@@ -880,8 +880,168 @@ describe("handleChatbotMessage user context", () => {
           jobKind: "cm-30s",
           projectLengthMinutes: 0.5,
         }),
+        conversationState: expect.objectContaining({
+          durationContext: expect.objectContaining({
+            workflowFacts: expect.objectContaining({
+              finalMedium: "web",
+              jobKind: "cm-30s",
+              projectLengthMinutes: 0.5,
+            }),
+            workflowEstimate: expect.objectContaining({
+              totalMinDays: 1,
+              totalMaxDays: 2,
+            }),
+            snapshotStatus: "current",
+          }),
+        }),
       }),
     )
+  })
+
+  it.each([
+    {
+      prior: "Web CM 30秒のカラーグレーディング相談です。",
+      latest: "素材はオンラインで渡せます。追加作業は今のところありません。",
+      rawText: "素材状況を踏まえると、基本工程は17〜20日です。",
+      expectedRange: "基本工程は1〜2日",
+      expectedJobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 },
+    },
+    {
+      prior: "MV 5分のカラーグレーディング相談です。",
+      latest: "肌修正が少しあります。基本工程はどれくらいですか？",
+      rawText: "追加作業込みでも基本工程は17〜20日から考えます。",
+      expectedRange: "基本工程は2〜2.5日",
+      expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
+    },
+    {
+      prior: "OTT向け本編90分です。",
+      latest: "素材は整っています。まず基本工程だけ知りたいです。",
+      rawText: "本編90分なら工程目安は17〜20日です。",
+      expectedRange: "工程目安は11〜12日",
+      expectedJobContext: { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 },
+    },
+    {
+      prior: "縦型動画60秒の相談です。",
+      latest: "テロップだけ追加になるかもしれません。期間感は？",
+      rawText: "縦型動画の工程は17〜20日です。",
+      expectedRange: "工程は1.5〜1.5日",
+      expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 },
+    },
+  ])("reuses prior workflow facts on follow-up turns: $prior", async ({ prior, latest, rawText, expectedRange, expectedJobContext }) => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            hasFinalMedium: false,
+            hasJobKind: false,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 2,
+          },
+          jobContext: {
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+        messages: [message("user", prior), message("assistant", "案件条件を確認しました。")],
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText,
+      tier: "tier-3-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: latest,
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain(expectedRange)
+    expect(result.assistantMessage.content).not.toContain("17〜20日")
+    expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject(expectedJobContext)
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationState: expect.objectContaining({
+          durationContext: expect.objectContaining({
+            workflowFacts: expect.objectContaining(expectedJobContext),
+            workflowEstimate: expect.any(Object),
+          }),
+        }),
+      }),
+    )
+  })
+
+  it("reuses workflow facts persisted in conversationState durationContext when DB scalar context is sparse", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 3,
+            durationContext: {
+              workflowFacts: {
+                finalMedium: "vertical-sns",
+                jobKind: "vertical-60s",
+                workSite: "remote-grading",
+                projectLengthMinutes: 1,
+              },
+              workflowEstimate: { totalMinDays: 1.5, totalMaxDays: 1.5, riskFlags: [] },
+              snapshotStatus: "current",
+            },
+          },
+          jobContext: {
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+        messages: [message("user", "追加素材はありません。")],
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "素材状況を踏まえると、工程目安は17〜20日です。",
+      tier: "tier-3-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "基本工程だけもう一度教えてください。",
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain("工程目安は1.5〜1.5日")
+    expect(result.assistantMessage.content).not.toContain("17〜20日")
+    expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
+      finalMedium: "vertical-sns",
+      jobKind: "vertical-60s",
+      projectLengthMinutes: 1,
+      workflowEstimate: expect.objectContaining({
+        totalMinDays: 1.5,
+        totalMaxDays: 1.5,
+      }),
+    })
   })
 
   it("persists rederived project length when the stored job kind is present but duration is missing", async () => {

@@ -15,6 +15,7 @@ import type {
   DocumentaryAttachment,
   FinalMedium,
   JobContext,
+  JobKind,
   RoutingDecision,
   SurveyChoiceSet,
   WorkSite,
@@ -48,6 +49,15 @@ const routingDecisionKinds = [
 ] as const satisfies readonly RoutingDecisionKind[]
 
 const messageRoles = ["user", "assistant", "system"] as const satisfies readonly ChatbotMessageRole[]
+const jobKinds = [
+  "cm-30s",
+  "mv-5m",
+  "feature-90m",
+  "drama-first",
+  "drama-follow-up",
+  "vertical-60s",
+  "live-60m",
+] as const satisfies readonly JobKind[]
 const finalMediums = ["ott", "cinema", "tv-broadcast", "live", "web", "vertical-sns", "other"] as const
 const workSites = ["satoshi-studio", "remote-grading", "on-site"] as const
 const additionalWorkKinds = ["retouch", "skin-retouch", "other"] as const
@@ -451,7 +461,9 @@ function toJobContext(row: ChatbotConversationRow): Partial<JobContext> {
   const additionalWork = toAdditionalWork(row.additionalWork)
   const referenceUrls = toStringArray(row.referenceUrls)
   const projectLengthMinutes = toNumber(row.mainDuration)
+  const jobKind = toJobKind(row.jobType)
 
+  if (jobKind) jobContext.jobKind = jobKind
   if (finalMedium) jobContext.finalMedium = finalMedium
   if (workSite) jobContext.workSite = workSite
   if (documentaryAttachment) jobContext.documentaryAttachment = documentaryAttachment
@@ -460,6 +472,12 @@ function toJobContext(row: ChatbotConversationRow): Partial<JobContext> {
   if (typeof projectLengthMinutes === "number") jobContext.projectLengthMinutes = projectLengthMinutes
 
   return jobContext
+}
+
+function toJobKind(value: string | null): JobKind | undefined {
+  if (value === null) return undefined
+  if (isOneOf(value, jobKinds)) return value
+  return undefined
 }
 
 function toConversationStatus(

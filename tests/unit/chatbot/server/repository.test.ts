@@ -81,6 +81,18 @@ describe("chatbot repository mapping helpers", () => {
     })
   })
 
+  it("restores persisted workflow jobKind from jobType when it is a known duration enum", () => {
+    const result = __chatbotRepositoryTestUtils.toDomainConversation(
+      conversationRow({ jobType: "feature-90m" }),
+    )
+
+    expect(result.context.jobContext).toMatchObject({
+      jobKind: "feature-90m",
+      finalMedium: "cinema",
+      projectLengthMinutes: 90,
+    })
+  })
+
   it("maps routing decisions to conversation statuses", () => {
     expect(
       __chatbotRepositoryTestUtils.toDomainConversation(
