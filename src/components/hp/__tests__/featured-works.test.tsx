@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   FEATURED_PLAYLIST_WORKS,
@@ -49,10 +49,13 @@ describe("FeaturedWorks", () => {
   })
 
   it("renders non-navigating work cards with only badge links", () => {
-    render(<FeaturedWorks />)
+    const { container } = render(<FeaturedWorks />)
+    const primary = getPrimarySegment(container)
+    const primaryQueries = within(primary)
 
     for (const work of FEATURED_WORKS) {
-      const card = screen.getByLabelText(`${work.title} 作品カード`)
+      const card = primaryQueries.getByLabelText(`${work.title} 作品カード`)
+      const cardQueries = within(card)
       expect(card).toBeInTheDocument()
       expect(card.tagName).toBe("DIV")
       expect(card).not.toHaveAttribute("href")
@@ -62,7 +65,7 @@ describe("FeaturedWorks", () => {
         : work.links
 
       for (const link of visibleLinks) {
-        const badge = screen.getByRole("link", {
+        const badge = cardQueries.getByRole("link", {
           name: `${work.title} ${link.label}を新しいタブで開く`,
         })
         expect(badge).toHaveAttribute("href", link.url)
@@ -72,7 +75,7 @@ describe("FeaturedWorks", () => {
 
       if (work.youtubeId) {
         expect(
-          screen.queryByRole("link", {
+          cardQueries.queryByRole("link", {
             name: `${work.title} YouTubeを新しいタブで開く`,
           }),
         ).not.toBeInTheDocument()
@@ -1138,6 +1141,58 @@ describe("FeaturedWorks", () => {
     vi.useFakeTimers()
     vi.spyOn(Math, "random").mockReturnValue(0.5)
 
+    const observers: MockIntersectionObserver[] = []
+
+    class MockIntersectionObserver implements IntersectionObserver {
+      readonly root: Element | Document | null
+      readonly rootMargin: string
+      readonly thresholds: ReadonlyArray<number>
+      readonly elements: Element[] = []
+
+      constructor(
+        private readonly callback: IntersectionObserverCallback,
+        options: IntersectionObserverInit = {},
+      ) {
+        this.root = options.root ?? null
+        this.rootMargin = options.rootMargin ?? "0px"
+        this.thresholds = Array.isArray(options.threshold)
+          ? options.threshold
+          : [options.threshold ?? 0]
+        observers.push(this)
+      }
+
+      observe = (element: Element) => {
+        this.elements.push(element)
+      }
+
+      unobserve = (element: Element) => {
+        const index = this.elements.indexOf(element)
+        if (index >= 0) {
+          this.elements.splice(index, 1)
+        }
+      }
+
+      disconnect = () => {
+        this.elements.length = 0
+      }
+
+      takeRecords = () => []
+
+      emit(element: Element, isIntersecting: boolean) {
+        this.callback(
+          [
+            {
+              isIntersecting,
+              target: element,
+            } as IntersectionObserverEntry,
+          ],
+          this,
+        )
+      }
+    }
+
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver)
+
     type MockPlayerOptions = {
       videoId?: string
       playerVars?: Record<string, string | number>
@@ -1181,9 +1236,34 @@ describe("FeaturedWorks", () => {
       },
     }
 
-    render(<FeaturedWorks />)
+    const { container } = render(<FeaturedWorks />)
 
     await act(async () => {
+      await Promise.resolve()
+    })
+
+    const viewport = container.querySelector(
+      '[data-featured-work-marquee-viewport="true"]',
+    ) as HTMLElement
+    const sectionObserver = observers.find((observer) => observer.root === null)
+    expect(sectionObserver).toBeDefined()
+
+    await act(async () => {
+      sectionObserver?.emit(viewport, true)
+      await Promise.resolve()
+    })
+
+    const singleCard = screen.getByLabelText(
+      "十角館の殺人 / 時計館の殺人 作品カード",
+    )
+    const singleObserver = observers.find(
+      (observer) =>
+        observer.root === viewport && observer.elements.includes(singleCard),
+    )
+    expect(singleObserver).toBeDefined()
+
+    await act(async () => {
+      singleObserver?.emit(singleCard, true)
       await Promise.resolve()
       await Promise.resolve()
     })
