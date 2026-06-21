@@ -54,6 +54,33 @@ const socialIcons = {
   Instagram: InstagramIcon,
 } as const
 
+const davinciResolveTrainingUrl =
+  "https://www.blackmagicdesign.com/jp/products/davinciresolve/training"
+const davinciResolveTrainerLinkText = "DaVinci Resolve 認定トレーナー"
+
+function renderIntroTextWithTrainerLink() {
+  const [before, after] = hpPublicContent.intro.split(davinciResolveTrainerLinkText)
+
+  if (after === undefined) {
+    return hpPublicContent.intro
+  }
+
+  return (
+    <>
+      {before}
+      <a
+        href={davinciResolveTrainingUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline decoration-current decoration-1 underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+      >
+        {davinciResolveTrainerLinkText}
+      </a>
+      {after}
+    </>
+  )
+}
+
 function ProfileForeground() {
   return (
     <>
@@ -150,7 +177,7 @@ export default async function HomePage() {
       {/* Intro */}
       <section className="hp-section-shell hp-grid">
         <p className="hp-body hp-intro-measure text-base text-hp md:text-lg">
-          {hpPublicContent.intro}
+          {renderIntroTextWithTrainerLink()}
         </p>
       </section>
 

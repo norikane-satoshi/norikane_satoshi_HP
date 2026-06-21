@@ -7,6 +7,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import HomePage from "@/app/page"
+import { hpPublicContent } from "@/lib/hp/public-content"
 
 vi.mock("@/components/hp/featured-works", () => ({
   FeaturedWorks: () => <div data-testid="featured-works" />,
@@ -65,6 +66,25 @@ describe("HomePage profile press dialog trigger", () => {
     expect(profile).toHaveClass("hp-section-shell")
     expect(profile?.querySelector(".hp-profile-grid")).toHaveClass("hp-grid")
     expect(profile?.querySelector(".hp-career-item")).toBeInTheDocument()
+  })
+
+  it("links only the DaVinci Resolve certified trainer text in the intro", async () => {
+    const { container } = render(await HomePage())
+
+    const intro = container.querySelector(".hp-intro-measure")
+    expect(intro).toBeInTheDocument()
+    expect(intro).toHaveTextContent(hpPublicContent.intro)
+
+    const link = within(intro as HTMLElement).getByRole("link", {
+      name: "DaVinci Resolve 認定トレーナー",
+    })
+    expect(link).toHaveAttribute(
+      "href",
+      "https://www.blackmagicdesign.com/jp/products/davinciresolve/training",
+    )
+    expect(link).toHaveAttribute("target", "_blank")
+    expect(link).toHaveAttribute("rel", "noopener noreferrer")
+    expect(within(intro as HTMLElement).getAllByRole("link")).toHaveLength(1)
   })
 
   it("opens the press dialog from the profile badge on primary pointer release", async () => {
