@@ -42,7 +42,7 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     conversationState.daysUntilStart !== undefined &&
     conversationState.daysUntilStart <= tightDeadlineThresholdDays
   ) {
-    return directContact("tight-deadline")
+    return directContact("tight-deadline", { workflowEstimate: estimate })
   }
 
   if (
@@ -92,13 +92,38 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
   return continueDecision(conversationState)
 }
 
-function directContact(reason: Extract<RoutingDecision, { kind: "to-direct-contact" }>["reason"]) {
+function directContact(
+  reason: Extract<RoutingDecision, { kind: "to-direct-contact" }>["reason"],
+  options: Pick<JobContext, "workflowEstimate"> = {},
+) {
   return {
     kind: "to-direct-contact",
     reason,
     requireEmail: true,
-    suggestedMessage: directContactPolicyMessage,
+    suggestedMessage:
+      reason === "tight-deadline"
+        ? buildTightDeadlineConsultationMessage(options.workflowEstimate)
+        : directContactPolicyMessage,
   } as const
+}
+
+function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["workflowEstimate"]): string {
+  const baseline = workflowEstimate
+    ? `通常は正本ライン ${formatDays(workflowEstimate.totalMinDays)}〜${formatDays(
+        workflowEstimate.totalMaxDays,
+      )}日が目安です。`
+    : "通常の正本ラインを目安にします。"
+
+  return [
+    baseline,
+    "希望日数内でも、内容・素材状況・空き状況によって調整できる可能性があるため、条件を整理して相談できます。",
+    "ただし、この場では確約せず、空き状況・内容確認・本人確認後に判断します。",
+    "送信前に整理内容を確認して、ご連絡先のメールアドレスを必ず添えてください。",
+  ].join("")
+}
+
+function formatDays(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
 }
 
 function continueDecision(conversationState: ConversationState): RoutingDecision {
