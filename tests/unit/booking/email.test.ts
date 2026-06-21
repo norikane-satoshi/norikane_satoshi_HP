@@ -69,6 +69,66 @@ describe("booking email sender", () => {
     }))
   })
 
+  it("sends chatbot booking owner notification to the default owner with selected slots", async () => {
+    process.env.RESEND_API_KEY = "resend_key"
+    process.env.RESEND_FROM_EMAIL = "booking@norikane.studio"
+    mocks.send.mockResolvedValue({ data: { id: "email_owner_1" }, error: null })
+    const { sendChatbotBookingOwnerNotification } = await import("@/lib/booking/server/email")
+
+    await expect(sendChatbotBookingOwnerNotification({
+      bookingGroupId: "group_1",
+      projectTitle: "<Color grading>",
+      contactName: "田中",
+      contactEmail: "client@example.com",
+      companyName: "Example Inc.",
+      memo: "補足 & note",
+      selectedSlots: [
+        {
+          start: "2026-06-10T01:00:00.000Z",
+          end: "2026-06-10T02:00:00.000Z",
+        },
+        {
+          start: "2026-06-12T01:00:00.000Z",
+          end: "2026-06-12T02:00:00.000Z",
+        },
+      ],
+      submittedAt: "2026-06-21T12:00:00.000Z",
+    })).resolves.toEqual({ skipped: false, id: "email_owner_1" })
+
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
+      from: "のりかね映像設計室 <booking@norikane.studio>",
+      to: "norikane.satoshi@gmail.com",
+      replyTo: "client@example.com",
+      subject: "【チャットボット予約通知】<Color grading>",
+      text: expect.stringContaining("経由: HPチャットボット Booking Order"),
+      html: expect.stringContaining("&lt;Color grading&gt;"),
+    }))
+    expect(mocks.send.mock.calls[0][0].text).toEqual(expect.stringContaining("予約番号: group_1"))
+    expect(mocks.send.mock.calls[0][0].text).toEqual(expect.stringContaining("候補日: 2026/06/10"))
+    expect(mocks.send.mock.calls[0][0].text).toEqual(expect.stringContaining("2026/06/12"))
+  })
+
+  it("marks chatbot booking owner notification as unscheduled when no slots are selected", async () => {
+    process.env.RESEND_API_KEY = "resend_key"
+    process.env.CHATBOT_BOOKING_OWNER_EMAIL = "owner@example.com"
+    mocks.send.mockResolvedValue({ data: { id: "email_owner_2" }, error: null })
+    const { sendChatbotBookingOwnerNotification } = await import("@/lib/booking/server/email")
+
+    await sendChatbotBookingOwnerNotification({
+      bookingGroupId: "group_2",
+      projectTitle: "Schedule later",
+      contactName: "田中",
+      contactEmail: "client@example.com",
+      selectedSlots: [],
+    })
+
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
+      to: "owner@example.com",
+      text: expect.stringContaining("候補日: 候補日未選択"),
+    }))
+    delete process.env.CHATBOT_BOOKING_OWNER_EMAIL
+  })
+
   it("raises Resend errors", async () => {
     process.env.RESEND_API_KEY = "resend_key"
     mocks.send.mockResolvedValue({ data: null, error: { message: "rate limited" } })

@@ -23,9 +23,21 @@ export type BookingTimeChangedEmailArgs = {
   newEnd: string | Date
 }
 
+export type ChatbotBookingOwnerNotificationArgs = {
+  bookingGroupId: string
+  projectTitle: string
+  contactName: string
+  contactEmail: string
+  companyName?: string
+  memo?: string
+  selectedSlots: { start: string | Date; end: string | Date }[]
+  submittedAt?: string | Date
+}
+
 const SITE_URL = "https://norikane.studio"
 const SHOP_NAME = "のりかね映像設計室"
 const DEFAULT_FROM_EMAIL = "noreply@norikane.studio"
+export const DEFAULT_CHATBOT_BOOKING_OWNER_EMAIL = "norikane.satoshi@gmail.com"
 
 export function getResendClient(): Resend | null {
   const apiKey = process.env.RESEND_API_KEY
@@ -81,8 +93,9 @@ function paragraphsToHtml(lines: string[]): string {
 }
 
 async function sendBookingEmail(args: {
-  tag: "confirmed" | "time_changed"
+  tag: "confirmed" | "time_changed" | "chatbot_owner"
   to: string
+  replyTo?: string
   subject: string
   lines: string[]
 }): Promise<BookingEmailResult> {
@@ -95,6 +108,7 @@ async function sendBookingEmail(args: {
   const { data, error } = await resend.emails.send({
     from: getFrom(),
     to: args.to,
+    replyTo: args.replyTo,
     subject: args.subject,
     text: args.lines.join("\n"),
     html: paragraphsToHtml(args.lines),
@@ -105,6 +119,48 @@ async function sendBookingEmail(args: {
 
 function signatureLines(): string[] {
   return ["", SHOP_NAME, SITE_URL]
+}
+
+function getChatbotBookingOwnerEmail(): string {
+  return process.env.CHATBOT_BOOKING_OWNER_EMAIL?.trim() || DEFAULT_CHATBOT_BOOKING_OWNER_EMAIL
+}
+
+function formatOptional(value: string | undefined): string {
+  return value?.trim() || "-"
+}
+
+function formatSelectedSlots(slots: ChatbotBookingOwnerNotificationArgs["selectedSlots"]): string {
+  if (slots.length === 0) return "候補日未選択"
+  return slots.map((slot) => formatSchedule(slot.start, slot.end)).join("\n")
+}
+
+export async function sendChatbotBookingOwnerNotification(
+  args: ChatbotBookingOwnerNotificationArgs,
+): Promise<BookingEmailResult> {
+  const to = getChatbotBookingOwnerEmail()
+  const schedule = formatSelectedSlots(args.selectedSlots)
+  const submittedAt = args.submittedAt ?? new Date()
+
+  return sendBookingEmail({
+    tag: "chatbot_owner",
+    to,
+    replyTo: args.contactEmail,
+    subject: `【チャットボット予約通知】${args.projectTitle}`,
+    lines: [
+      "HPチャットボット経由で Booking Order が送信されました。",
+      "",
+      `案件名: ${args.projectTitle}`,
+      `担当者氏名: ${args.contactName}`,
+      `メールアドレス: ${args.contactEmail}`,
+      `会社名: ${formatOptional(args.companyName)}`,
+      `候補日: ${schedule}`,
+      `補足ノート: ${formatOptional(args.memo)}`,
+      `予約番号: ${args.bookingGroupId}`,
+      `送信日時: ${formatDateTime(submittedAt)}`,
+      "経由: HPチャットボット Booking Order",
+      ...signatureLines(),
+    ],
+  })
 }
 
 export async function sendBookingConfirmedEmail(args: BookingEmailArgs): Promise<BookingEmailResult> {

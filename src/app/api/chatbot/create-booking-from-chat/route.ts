@@ -6,8 +6,12 @@ import { respondInternalError } from "@/lib/api/server/error-response"
 import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { bookingFormSchema } from "@/lib/booking/domain/form-schema"
 import { createBookingFromApiInput } from "@/lib/booking/server/create-booking"
+import { sendChatbotBookingOwnerNotification } from "@/lib/booking/server/email"
 import { BookingConflictError } from "@/lib/booking/server/errors"
-import { respondChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
+import {
+  logChatbotOperationFailure,
+  respondChatbotOperationFailure,
+} from "@/lib/chatbot/server/operation-failure"
 import { linkChatToBookingGroup } from "@/lib/chatbot/server/repository"
 
 export const runtime = "nodejs"
@@ -84,10 +88,64 @@ function bookingGroupIdFromBody(body: unknown): string | null {
 }
 
 function bodyWithLinkWarning(body: unknown): unknown {
+  return bodyWithWarning(body, "linkWarning", "chat_link_failed")
+}
+
+function bodyWithNotificationWarning(body: unknown, warning: "skipped" | "send_failed"): unknown {
+  return bodyWithWarning(body, "ownerNotificationWarning", warning)
+}
+
+function bodyWithWarning(body: unknown, key: string, value: string): unknown {
   if (!body || typeof body !== "object" || Array.isArray(body)) return body
   return {
     ...body,
-    linkWarning: "chat_link_failed",
+    [key]: value,
+  }
+}
+
+async function notifyOwner(input: z.infer<typeof chatbotBookingRequestSchema>, bookingGroupId: string) {
+  const selectedSlots = normalizeSelectedSlots(input)
+  try {
+    const result = await sendChatbotBookingOwnerNotification({
+      bookingGroupId,
+      projectTitle: input.projectTitle,
+      contactName: input.contactName,
+      contactEmail: input.contactEmail,
+      companyName: input.companyName,
+      memo: input.memo,
+      selectedSlots,
+      submittedAt: new Date(),
+    })
+
+    if (result.skipped) {
+      logChatbotOperationFailure({
+        operation: "create-booking-from-chat",
+        stage: "notification-send",
+        status: 202,
+        error: new Error("chatbot_booking_owner_notification_skipped_missing_resend_api_key"),
+        requestSummary: {
+          bookingGroupId,
+          conversationId: input.conversationId,
+          selectedSlotCount: selectedSlots.length,
+        },
+      })
+      return "skipped" as const
+    }
+
+    return null
+  } catch (error) {
+    logChatbotOperationFailure({
+      operation: "create-booking-from-chat",
+      stage: "notification-send",
+      status: 202,
+      error,
+      requestSummary: {
+        bookingGroupId,
+        conversationId: input.conversationId,
+        selectedSlotCount: selectedSlots.length,
+      },
+    })
+    return "send_failed" as const
   }
 }
 
@@ -137,6 +195,14 @@ export async function POST(request: NextRequest) {
   try {
     const result = await createBookingFromApiInput({ input, userId, userEmail })
     const bookingGroupId = bookingGroupIdFromBody(result.body)
+    let responseBody = result.body
+    if (result.status >= 200 && result.status < 300 && bookingGroupId) {
+      const notificationWarning = await notifyOwner(parsed.data, bookingGroupId)
+      if (notificationWarning) {
+        responseBody = bodyWithNotificationWarning(responseBody, notificationWarning)
+      }
+    }
+
     if (result.status >= 200 && result.status < 300 && bookingGroupId && parsed.data.conversationId) {
       try {
         await linkChatToBookingGroup({
@@ -148,14 +214,14 @@ export async function POST(request: NextRequest) {
           bookingGroupId,
           error: error instanceof Error ? error.message : String(error),
         })
-        return NextResponse.json(bodyWithLinkWarning(result.body), {
+        return NextResponse.json(bodyWithLinkWarning(responseBody), {
           status: result.status,
           headers: result.headers,
         })
       }
     }
 
-    return NextResponse.json(result.body, { status: result.status, headers: result.headers })
+    return NextResponse.json(responseBody, { status: result.status, headers: result.headers })
   } catch (error) {
     if (error instanceof BookingConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 })

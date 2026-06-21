@@ -45,9 +45,11 @@ async function loadPost(session: { user?: { id?: string; email?: string } } | nu
     },
   })
   const linkChatToBookingGroup = vi.fn().mockResolvedValue(undefined)
+  const sendChatbotBookingOwnerNotification = vi.fn().mockResolvedValue({ skipped: false, id: "email_1" })
 
   vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/booking/server/create-booking", () => ({ createBookingFromApiInput }))
+  vi.doMock("@/lib/booking/server/email", () => ({ sendChatbotBookingOwnerNotification }))
   vi.doMock("@/lib/chatbot/server/repository", () => ({ linkChatToBookingGroup }))
 
   const route = await import("./route")
@@ -56,6 +58,7 @@ async function loadPost(session: { user?: { id?: string; email?: string } } | nu
     auth,
     createBookingFromApiInput,
     linkChatToBookingGroup,
+    sendChatbotBookingOwnerNotification,
   }
 }
 
@@ -95,6 +98,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     const payload = await response.json()
     expect(payload.error).toBe("invalid_request")
     expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+    expect(route.sendChatbotBookingOwnerNotification).not.toHaveBeenCalled()
   })
 
   it("returns 400 when contact email is missing or empty", async () => {
@@ -129,6 +133,15 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       userId: "user_1",
       userEmail: "satoshi@example.com",
     })
+    expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({
+      contactEmail: "client@example.com",
+      selectedSlots: [
+        {
+          start: "2026-06-10T01:00:00.000Z",
+          end: "2026-06-10T02:00:00.000Z",
+        },
+      ],
+    }))
   })
 
   it("accepts multiple selected slots from the chatbot calendar", async () => {
@@ -186,6 +199,67 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       userId: "user_1",
       userEmail: "satoshi@example.com",
     })
+  })
+
+  it("sends an owner notification for a chatbot booking submission", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request(validChatBooking({
+      selectedSlot: undefined,
+      selectedSlots: [
+        {
+          start: "2026-06-10T15:00:00.000Z",
+          end: "2026-06-11T15:00:00.000Z",
+        },
+        {
+          start: "2026-06-12T15:00:00.000Z",
+          end: "2026-06-13T15:00:00.000Z",
+        },
+      ],
+    })))
+
+    expect(response.status).toBe(200)
+    expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith({
+      bookingGroupId: "group_1",
+      projectTitle: "Color grading",
+      contactName: "Satoshi",
+      contactEmail: "client@example.com",
+      companyName: "NCS",
+      memo: "初回相談",
+      selectedSlots: [
+        {
+          start: "2026-06-10T15:00:00.000Z",
+          end: "2026-06-11T15:00:00.000Z",
+        },
+        {
+          start: "2026-06-12T15:00:00.000Z",
+          end: "2026-06-13T15:00:00.000Z",
+        },
+      ],
+      submittedAt: expect.any(Date),
+    })
+  })
+
+  it("keeps the booking response successful and logs when owner notification fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    const route = await loadPost()
+    route.sendChatbotBookingOwnerNotification.mockRejectedValueOnce(new Error("resend down"))
+
+    const response = await route.POST(request(validChatBooking({
+      selectedSlot: undefined,
+      selectedSlots: [],
+    })))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      status: "ok",
+      ownerNotificationWarning: "send_failed",
+    })
+    expect(consoleError).toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("\"stage\":\"notification-send\""),
+    )
+    consoleError.mockRestore()
   })
 
   it("links the conversation when conversationId is present", async () => {
