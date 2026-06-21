@@ -782,10 +782,10 @@ describe("ChatbotBookingCard", () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it("shows login guidance and calls onRequireLogin on 401", async () => {
+  it("does not convert 401 responses into login guidance", async () => {
     mockFetch(401, { error: "unauthorized" })
     const onRequireLogin = vi.fn()
-    const { container } = renderCard({ onRequireLogin })
+    renderCard({ onRequireLogin })
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
@@ -793,10 +793,10 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
-    expect(await screen.findByText("ログインして予約に進んでください")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "ログインリンクを送信" })).toBeInTheDocument()
-    expect(container.querySelectorAll("form form")).toHaveLength(0)
-    expect(onRequireLogin).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText("予約申込で予期せぬエラーが発生しました")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "ログインして予約に進む" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "ログインリンクを送信" })).not.toBeInTheDocument()
+    expect(onRequireLogin).not.toHaveBeenCalled()
   })
 
   it("retries transient booking API failures before showing completion", async () => {

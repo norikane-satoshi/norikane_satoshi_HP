@@ -29,12 +29,14 @@ function validChatBooking(overrides: Record<string, unknown> = {}) {
   }
 }
 
-async function loadPost(session: { user?: { id?: string; email?: string } } | null = {
-  user: { id: "user_1", email: "satoshi@example.com" },
-}) {
+async function loadPost() {
   vi.resetModules()
 
-  const auth = vi.fn().mockResolvedValue(session)
+  const prisma = {
+    user: {
+      upsert: vi.fn().mockResolvedValue({ id: "public_chatbot_user_1" }),
+    },
+  }
   const createBookingFromApiInput = vi.fn().mockResolvedValue({
     status: 200,
     body: {
@@ -47,7 +49,7 @@ async function loadPost(session: { user?: { id?: string; email?: string } } | nu
   const linkChatToBookingGroup = vi.fn().mockResolvedValue(undefined)
   const sendChatbotBookingOwnerNotification = vi.fn().mockResolvedValue({ skipped: false, id: "email_1" })
 
-  vi.doMock("@/auth", () => ({ auth }))
+  vi.doMock("@/lib/prisma", () => ({ prisma }))
   vi.doMock("@/lib/booking/server/create-booking", () => ({ createBookingFromApiInput }))
   vi.doMock("@/lib/booking/server/email", () => ({ sendChatbotBookingOwnerNotification }))
   vi.doMock("@/lib/chatbot/server/repository", () => ({ linkChatToBookingGroup }))
@@ -55,7 +57,7 @@ async function loadPost(session: { user?: { id?: string; email?: string } } | nu
   const route = await import("./route")
   return {
     POST: route.POST,
-    auth,
+    prisma,
     createBookingFromApiInput,
     linkChatToBookingGroup,
     sendChatbotBookingOwnerNotification,
@@ -68,14 +70,28 @@ afterEach(() => {
 })
 
 describe("POST /api/chatbot/create-booking-from-chat", () => {
-  it("returns 401 when unauthenticated", async () => {
-    const route = await loadPost(null)
+  it("accepts unauthenticated public chatbot booking submissions", async () => {
+    const route = await loadPost()
 
     const response = await route.POST(request(validChatBooking()))
 
-    expect(response.status).toBe(401)
-    await expect(response.json()).resolves.toEqual({ error: "unauthorized" })
-    expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(route.prisma.user.upsert).toHaveBeenCalledWith({
+      where: { email: "chatbot-booking@norikane.studio" },
+      update: { name: "Chatbot Public Booking" },
+      create: {
+        email: "chatbot-booking@norikane.studio",
+        name: "Chatbot Public Booking",
+      },
+      select: { id: true },
+    })
+    expect(route.createBookingFromApiInput).toHaveBeenCalledWith({
+      input: expect.objectContaining({
+        sessionEmail: "client@example.com",
+      }),
+      userId: "public_chatbot_user_1",
+      userEmail: "client@example.com",
+    })
   })
 
   it("returns 400 for an invalid body", async () => {
@@ -112,7 +128,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
   })
 
-  it("calls the shared booking service with the session email", async () => {
+  it("calls the shared booking service with the public chatbot identity and contact email", async () => {
     const route = await loadPost()
 
     const response = await route.POST(request(validChatBooking()))
@@ -122,7 +138,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       input: expect.objectContaining({
         projectTitle: "Color grading",
         contactName: "Satoshi",
-        sessionEmail: "satoshi@example.com",
+        sessionEmail: "client@example.com",
         selectedSlots: [
           {
             start: "2026-06-10T01:00:00.000Z",
@@ -130,8 +146,8 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
           },
         ],
       }),
-      userId: "user_1",
-      userEmail: "satoshi@example.com",
+      userId: "public_chatbot_user_1",
+      userEmail: "client@example.com",
     })
     expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({
       contactEmail: "client@example.com",
@@ -175,8 +191,8 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
           },
         ],
       }),
-      userId: "user_1",
-      userEmail: "satoshi@example.com",
+      userId: "public_chatbot_user_1",
+      userEmail: "client@example.com",
     })
   })
 
@@ -193,11 +209,11 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       input: expect.objectContaining({
         projectTitle: "Color grading",
         contactName: "Satoshi",
-        sessionEmail: "satoshi@example.com",
+        sessionEmail: "client@example.com",
         selectedSlots: [],
       }),
-      userId: "user_1",
-      userEmail: "satoshi@example.com",
+      userId: "public_chatbot_user_1",
+      userEmail: "client@example.com",
     })
   })
 

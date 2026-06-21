@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 
-import { auth } from "@/auth"
 import { respondInternalError } from "@/lib/api/server/error-response"
 import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { bookingFormSchema } from "@/lib/booking/domain/form-schema"
@@ -13,6 +12,7 @@ import {
   respondChatbotOperationFailure,
 } from "@/lib/chatbot/server/operation-failure"
 import { linkChatToBookingGroup } from "@/lib/chatbot/server/repository"
+import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -51,18 +51,34 @@ const chatbotBookingRequestSchema = z
     workflowEstimate: z.unknown().optional(),
   })
 
+const PUBLIC_CHATBOT_BOOKING_USER_EMAIL = "chatbot-booking@norikane.studio"
+
+async function getPublicChatbotBookingUserId(): Promise<string> {
+  const user = await prisma.user.upsert({
+    where: { email: PUBLIC_CHATBOT_BOOKING_USER_EMAIL },
+    update: { name: "Chatbot Public Booking" },
+    create: {
+      email: PUBLIC_CHATBOT_BOOKING_USER_EMAIL,
+      name: "Chatbot Public Booking",
+    },
+    select: { id: true },
+  })
+
+  return user.id
+}
+
 function normalizeSelectedSlots(input: z.infer<typeof chatbotBookingRequestSchema>) {
   return input.selectedSlots?.length ? input.selectedSlots : input.selectedSlot ? [input.selectedSlot] : []
 }
 
-function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>, sessionEmail: string): BookingApiInput {
+function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>): BookingApiInput {
   const selectedSlots = normalizeSelectedSlots(input)
   const baseInput = {
     projectTitle: input.projectTitle,
     dueDate: input.dueDate ?? "",
     companyName: input.companyName ?? "",
     contactName: input.contactName,
-    sessionEmail,
+    sessionEmail: input.contactEmail,
     phone: input.phone ?? "",
     memo: input.memo ?? "",
     agreed: input.agreed,
@@ -150,14 +166,6 @@ async function notifyOwner(input: z.infer<typeof chatbotBookingRequestSchema>, b
 }
 
 export async function POST(request: NextRequest) {
-  const session = await auth()
-  const userId = session?.user?.id
-  const userEmail = session?.user?.email
-
-  if (!userId || !userEmail) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  }
-
   let raw: unknown
   try {
     raw = await request.json()
@@ -178,7 +186,7 @@ export async function POST(request: NextRequest) {
 
   let input: BookingApiInput
   try {
-    input = toBookingApiInput(parsed.data, userEmail)
+    input = toBookingApiInput(parsed.data)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -193,6 +201,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const userId = await getPublicChatbotBookingUserId()
+    const userEmail = parsed.data.contactEmail
     const result = await createBookingFromApiInput({ input, userId, userEmail })
     const bookingGroupId = bookingGroupIdFromBody(result.body)
     let responseBody = result.body

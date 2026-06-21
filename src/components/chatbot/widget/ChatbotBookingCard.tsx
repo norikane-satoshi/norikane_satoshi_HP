@@ -4,7 +4,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
 
 import { DemoStage } from "@/components/chatbot/demo"
-import { ChatbotLoginCard } from "@/components/chatbot/widget/ChatbotLoginCard"
 import { mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 import { bookingOnboardingDemoScript } from "@/lib/chatbot/demo"
 import type { CandidateWindow, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
@@ -228,7 +227,6 @@ export function ChatbotBookingCard({
   defaultMemo = "",
   showDemo = false,
   onBooked,
-  onRequireLogin,
 }: ChatbotBookingCardProps) {
   const visibleCandidates = useMemo(() => candidates.slice(0, MAX_VISIBLE_CANDIDATES), [candidates])
   const initialMonthKey = useMemo(
@@ -271,7 +269,6 @@ export function ChatbotBookingCard({
   const [agreed, setAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [loginRequired, setLoginRequired] = useState(false)
   const [booked, setBooked] = useState<BookingResult | null>(null)
   const projectTitleRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -341,7 +338,6 @@ export function ChatbotBookingCard({
 
     setSubmitting(true)
     setErrorMessage(null)
-    setLoginRequired(false)
 
     try {
       const payload = await postChatbotJson<ApiResponse>(
@@ -380,9 +376,7 @@ export function ChatbotBookingCard({
       onBooked?.(result)
     } catch (error) {
       if (isChatbotOperationError(error) && error.status === 401) {
-        setLoginRequired(true)
-        setErrorMessage("ログインして予約に進んでください")
-        onRequireLogin?.()
+        setErrorMessage(mapErrorCodeToJa("unknown"))
         return
       }
       setErrorMessage(mapErrorCodeToJa(error instanceof Error ? error.message : "unknown"))
@@ -693,8 +687,6 @@ export function ChatbotBookingCard({
           {submitting ? "送信中..." : "予約内容を送信"}
         </button>
       </form>
-
-      {loginRequired ? <ChatbotLoginCard callbackUrl="/booking" /> : null}
     </section>
   )
 
