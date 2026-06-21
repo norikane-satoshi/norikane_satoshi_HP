@@ -144,6 +144,22 @@ describe("chatbot fallback router", () => {
       kind: "to-direct-contact",
       reason: "tight-deadline",
     })
+    expect(result).toMatchObject({
+      kind: "to-direct-contact",
+      suggestedMessage: expect.stringContaining("希望日数内でも"),
+    })
+    expect(result).toMatchObject({
+      kind: "to-direct-contact",
+      suggestedMessage: expect.stringContaining("確約せず"),
+    })
+    expect(result).toMatchObject({
+      kind: "to-direct-contact",
+      suggestedMessage: expect.stringContaining("正本ライン 1〜2日"),
+    })
+    expect(result).toMatchObject({
+      kind: "to-direct-contact",
+      suggestedMessage: expect.not.stringContaining("受け付けできません"),
+    })
   })
 
   it("keeps the tight deadline boundary inclusive and the next day as continue", () => {
