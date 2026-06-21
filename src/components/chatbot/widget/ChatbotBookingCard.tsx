@@ -17,6 +17,7 @@ import {
 type BookingResult = {
   bookingGroupId: string
   bookingIds?: string[]
+  scheduleLabel?: string
 }
 
 type ChatbotBookingCardProps = {
@@ -40,6 +41,9 @@ type ApiResponse = {
   error?: string
   bookingGroupId?: string
   bookingIds?: string[]
+  bookingStatus?: string
+  scheduleLabel?: string
+  scheduleStatus?: string
 }
 
 type CandidatesApiResponse = {
@@ -277,8 +281,7 @@ export function ChatbotBookingCard({
   const contactEmailValid = isValidEmail(trimmedContactEmail)
   const contactEmailErrorVisible = trimmedContactEmail.length > 0 && !contactEmailValid
   const canSubmit = Boolean(
-    selectedSlots.length > 0 &&
-      projectTitle.trim() &&
+    projectTitle.trim() &&
       contactName.trim() &&
       contactEmailValid &&
       agreed &&
@@ -371,6 +374,7 @@ export function ChatbotBookingCard({
       const result = {
         bookingGroupId: payload.bookingGroupId,
         bookingIds: payload.bookingIds,
+        scheduleLabel: payload.scheduleLabel ?? (selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "候補日未選択"),
       }
       setBooked(result)
       onBooked?.(result)
@@ -411,6 +415,7 @@ export function ChatbotBookingCard({
       {booked ? (
         <div className="glass-inset space-y-2 p-4" role="status">
           <p className="text-sm font-semibold text-hp">予約を受け付けました</p>
+          <p className="text-xs text-hp-muted">候補日: {booked.scheduleLabel ?? "候補日未選択"}</p>
           <p className="break-all text-xs text-hp-muted">予約番号: {booked.bookingGroupId}</p>
         </div>
       ) : null}
@@ -419,7 +424,6 @@ export function ChatbotBookingCard({
         <fieldset className="space-y-2">
           <legend className="text-sm font-semibold text-hp">
             仮キープ候補
-            <RequiredMark />
           </legend>
           <div className="rounded-[16px] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -554,7 +558,9 @@ export function ChatbotBookingCard({
               </p>
             ) : null}
             <p className="mt-3 text-xs leading-relaxed text-hp-muted" aria-live="polite">
-              <span className="font-semibold text-hp">{selectedSlots.length}／{requiredDays}</span>
+              <span className="font-semibold text-hp">
+                {selectedSlots.length > 0 ? `${selectedSlots.length}／${requiredDays}` : "候補日未選択"}
+              </span>
               {selectedSlots.length > 0 ? <span className="ml-2">{formatSelectedSlots(selectedSlots)}</span> : null}
             </p>
           </div>

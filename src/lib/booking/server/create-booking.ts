@@ -33,6 +33,7 @@ function nullable(value: string): string | null {
 
 function createDescription(input: BookingApiInput): string {
   return [
+    ["候補日", input.selectedSlots.length > 0 ? input.selectedSlots.map((slot) => `${slot.start} - ${slot.end}`).join(" / ") : "候補日未選択"],
     ["案件名", input.projectTitle],
     ["納期", input.dueDate],
     ["会社名", input.companyName],
@@ -110,8 +111,13 @@ export async function createBookingFromApiInput({
 }: CreateBookingFromApiInputArgs): Promise<CreateBookingResult> {
   const slots = input.selectedSlots
   const primarySlot = slots[0]
+  const hasSelectedSlots = slots.length > 0
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   const teamId = input.teamId ?? null
+  const storedMemo = [input.memo, hasSelectedSlots ? undefined : "候補日未選択"]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join("\n")
 
   const customer = await prisma.customer.upsert({
     where: { userId },
@@ -119,14 +125,14 @@ export async function createBookingFromApiInput({
       displayName: input.contactName,
       phone: nullable(input.phone),
       companyName: nullable(input.companyName),
-      notes: nullable(input.memo),
+      notes: nullable(storedMemo),
     },
     create: {
       userId,
       displayName: input.contactName,
       phone: nullable(input.phone),
       companyName: nullable(input.companyName),
-      notes: nullable(input.memo),
+      notes: nullable(storedMemo),
     },
   })
 
@@ -145,10 +151,10 @@ export async function createBookingFromApiInput({
       data: {
         customerId: customer.id,
         teamId,
-        status: "PENDING_GCAL",
-        pendingExpiresAt: new Date(Date.now() + 60_000),
+        status: hasSelectedSlots ? "PENDING_GCAL" : "NEEDS_SCHEDULE",
+        pendingExpiresAt: hasSelectedSlots ? new Date(Date.now() + 60_000) : null,
         projectTitle: input.projectTitle,
-        memo: nullable(input.memo),
+        memo: nullable(storedMemo),
         contactName: input.contactName,
         companyName: nullable(input.companyName),
         customerEmail: userEmail,
@@ -167,6 +173,21 @@ export async function createBookingFromApiInput({
   }, { maxWait: 5000, timeout: 10000 })
 
   const bookingIds = bookingGroup.timeSlots.map((slot) => slot.id)
+
+  if (!hasSelectedSlots) {
+    return {
+      body: {
+        status: "schedule_unselected",
+        bookingGroupId: bookingGroup.id,
+        bookingIds,
+        bookingStatus: "NEEDS_SCHEDULE",
+        scheduleStatus: "unscheduled",
+        scheduleLabel: "候補日未選択",
+      },
+      status: 200,
+    }
+  }
+
   const confirmBooking = async (gcalEventId?: string | null) => {
     await prisma.bookingGroup.update({
       where: { id: bookingGroup.id },

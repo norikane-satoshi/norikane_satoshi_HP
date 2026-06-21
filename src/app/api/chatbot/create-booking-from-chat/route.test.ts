@@ -167,6 +167,27 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     })
   })
 
+  it("accepts zero selected slots as an unscheduled chatbot booking request", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request(validChatBooking({
+      selectedSlot: undefined,
+      selectedSlots: [],
+    })))
+
+    expect(response.status).toBe(200)
+    expect(route.createBookingFromApiInput).toHaveBeenCalledWith({
+      input: expect.objectContaining({
+        projectTitle: "Color grading",
+        contactName: "Satoshi",
+        sessionEmail: "satoshi@example.com",
+        selectedSlots: [],
+      }),
+      userId: "user_1",
+      userEmail: "satoshi@example.com",
+    })
+  })
+
   it("links the conversation when conversationId is present", async () => {
     const route = await loadPost()
 
