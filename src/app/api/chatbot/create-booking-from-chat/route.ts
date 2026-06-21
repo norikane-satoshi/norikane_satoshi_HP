@@ -4,6 +4,7 @@ import { z } from "zod"
 import { auth } from "@/auth"
 import { respondInternalError } from "@/lib/api/server/error-response"
 import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/domain/api-schema"
+import { bookingFormSchema } from "@/lib/booking/domain/form-schema"
 import { createBookingFromApiInput } from "@/lib/booking/server/create-booking"
 import { BookingConflictError } from "@/lib/booking/server/errors"
 import { respondChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
@@ -41,17 +42,9 @@ const chatbotBookingRequestSchema = z
     memo: z.string().trim().max(2000).optional(),
     agreed: z.literal(true),
     selectedSlot: selectedSlotSchema.optional(),
-    selectedSlots: z.array(selectedSlotSchema).min(1).optional(),
+    selectedSlots: z.array(selectedSlotSchema).optional(),
     jobContext: z.unknown().optional(),
     workflowEstimate: z.unknown().optional(),
-  })
-  .superRefine((value, context) => {
-    if (value.selectedSlots?.length || value.selectedSlot) return
-    context.addIssue({
-      code: "custom",
-      message: "予約日時を選択してください",
-      path: ["selectedSlots"],
-    })
   })
 
 function normalizeSelectedSlots(input: z.infer<typeof chatbotBookingRequestSchema>) {
@@ -59,7 +52,8 @@ function normalizeSelectedSlots(input: z.infer<typeof chatbotBookingRequestSchem
 }
 
 function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>, sessionEmail: string): BookingApiInput {
-  return bookingApiSchema.parse({
+  const selectedSlots = normalizeSelectedSlots(input)
+  const baseInput = {
     projectTitle: input.projectTitle,
     dueDate: input.dueDate ?? "",
     companyName: input.companyName ?? "",
@@ -68,8 +62,19 @@ function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>, s
     phone: input.phone ?? "",
     memo: input.memo ?? "",
     agreed: input.agreed,
-    selectedSlots: normalizeSelectedSlots(input),
-  })
+  }
+
+  if (selectedSlots.length > 0) {
+    return bookingApiSchema.parse({
+      ...baseInput,
+      selectedSlots,
+    })
+  }
+
+  return {
+    ...bookingFormSchema.parse(baseInput),
+    selectedSlots: [],
+  }
 }
 
 function bookingGroupIdFromBody(body: unknown): string | null {

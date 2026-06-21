@@ -111,11 +111,12 @@ describe("ChatbotBookingCard", () => {
     expect(bookingOrder).not.toHaveTextContent("（必須）")
 
     const requiredMarks = within(bookingOrder).getAllByText("必須")
-    expect(requiredMarks).toHaveLength(5)
+    expect(requiredMarks).toHaveLength(4)
     requiredMarks.forEach((mark) => {
       expect(mark).toHaveClass("text-red-500")
     })
     expect(within(bookingOrder).getByText("仮キープ候補")).toBeInTheDocument()
+    expect(within(bookingOrder).getByText("仮キープ候補").parentElement).not.toHaveTextContent("必須")
     expect(screen.getByLabelText("案件名")).toBeRequired()
     expect(screen.getByLabelText("担当者氏名")).toBeRequired()
     expect(screen.getByLabelText("メールアドレス")).toBeRequired()
@@ -748,7 +749,27 @@ describe("ChatbotBookingCard", () => {
     })
   })
 
-  it("does not fetch without agreement or a selected candidate", () => {
+  it("submits without selected candidate dates when required fields and agreement are complete", async () => {
+    const fetchMock = mockFetch(200, {
+      bookingGroupId: "group_1",
+      bookingIds: [],
+      bookingStatus: "NEEDS_SCHEDULE",
+      scheduleStatus: "unscheduled",
+    })
+    renderCard()
+
+    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "client@example.jp" } })
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      selectedSlots: [],
+    })
+    expect(await screen.findByText("候補日: 候補日未選択")).toBeInTheDocument()
+  })
+
+  it("does not fetch without agreement", () => {
     const fetchMock = mockFetch(200, { bookingGroupId: "group_1" })
 
     renderCard({ candidates: [{ ...candidates[0], start: "2026-06-12T01:00:00.000Z" }, candidates[1]] })
@@ -757,7 +778,6 @@ describe("ChatbotBookingCard", () => {
 
     cleanup()
     renderCard({ candidates: [] })
-    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -821,9 +841,9 @@ describe("ChatbotBookingCard", () => {
     expect(await screen.findByText("予約を受け付けました")).toBeInTheDocument()
     expect(screen.getByText("予約番号: group_1")).toBeInTheDocument()
     expect(screen.queryByText(/bookingGroupId:/)).not.toBeInTheDocument()
-    expect(onBooked).toHaveBeenCalledWith({
+    expect(onBooked).toHaveBeenCalledWith(expect.objectContaining({
       bookingGroupId: "group_1",
       bookingIds: ["slot_1"],
-    })
+    }))
   })
 })
