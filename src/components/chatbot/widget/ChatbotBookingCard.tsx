@@ -277,7 +277,7 @@ export function ChatbotBookingCard({
   const contactEmailValid = isValidEmail(trimmedContactEmail)
   const contactEmailErrorVisible = trimmedContactEmail.length > 0 && !contactEmailValid
   const canSubmit = Boolean(
-    selectedSlots.length === requiredDays &&
+    selectedSlots.length > 0 &&
       projectTitle.trim() &&
       contactName.trim() &&
       contactEmailValid &&

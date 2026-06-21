@@ -728,6 +728,26 @@ describe("ChatbotBookingCard", () => {
     })
   })
 
+  it("submits when one of multiple displayed candidate days is selected", async () => {
+    const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: ["slot_1"] })
+    renderCard()
+
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "client@example.jp" } })
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      selectedSlots: [
+        {
+          start: "2026-06-10T01:00:00.000Z",
+          end: "2026-06-10T02:00:00.000Z",
+        },
+      ],
+    })
+  })
+
   it("does not fetch without agreement or a selected candidate", () => {
     const fetchMock = mockFetch(200, { bookingGroupId: "group_1" })
 
