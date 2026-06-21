@@ -1,10 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
-import {
-  DAVINCI_RESOLVE_TRAINER_TEXT,
-  DavinciTrainerDialogTrigger,
-} from "@/components/hp/davinci-trainer-dialog"
+import { DavinciTrainerDialogTrigger } from "@/components/hp/davinci-trainer-dialog"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
@@ -12,6 +9,7 @@ import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { isBookingEnabled } from "@/lib/feature-flags"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
+import { DAVINCI_RESOLVE_TRAINER_TEXT } from "@/lib/hp/davinci-trainer"
 import { hpPublicContent } from "@/lib/hp/public-content"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 

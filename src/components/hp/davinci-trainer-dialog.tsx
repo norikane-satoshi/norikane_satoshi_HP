@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { ExternalLink, X } from "lucide-react"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
-
-export const DAVINCI_RESOLVE_TRAINING_URL =
-  "https://www.blackmagicdesign.com/jp/products/davinciresolve/training"
-export const DAVINCI_RESOLVE_TRAINER_TEXT = "DaVinci Resolve 認定トレーナー"
+import {
+  DAVINCI_RESOLVE_TRAINER_TEXT,
+  DAVINCI_RESOLVE_TRAINING_URL,
+} from "@/lib/hp/davinci-trainer"
 
 const focusableSelector = [
   "a[href]",

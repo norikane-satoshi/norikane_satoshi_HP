@@ -10,7 +10,7 @@ import HomePage from "@/app/page"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
   DAVINCI_RESOLVE_TRAINING_URL,
-} from "@/components/hp/davinci-trainer-dialog"
+} from "@/lib/hp/davinci-trainer"
 import { hpPublicContent } from "@/lib/hp/public-content"
 
 vi.mock("@/components/hp/featured-works", () => ({
