@@ -32,6 +32,11 @@ type ChatbotConversationRow = Prisma.ChatbotConversationGetPayload<{
 type ChatbotMessageRow = Prisma.ChatbotMessageGetPayload<Record<string, never>>
 
 type InquiryCreateData = Prisma.ChatbotInquiryCreateInput
+type RepositoryContextFields = {
+  currentQuestion: string | null
+  activeChoices: string | null
+  conversationState: string | null
+}
 
 const routingDecisionKinds = [
   "continue",
@@ -66,7 +71,7 @@ export async function createConversation(input: {
     },
   })
 
-  return toDomainConversation({ ...row, messages: [] })
+  return toDomainConversation(withDefaultRepositoryContextFields({ ...row, messages: [] }))
 }
 
 export async function loadConversationBySessionId(
@@ -82,7 +87,7 @@ export async function loadConversationBySessionId(
   })
 
   if (!row) return null
-  return toDomainConversation(row)
+  return toDomainConversation(await withRepositoryContextFields(row))
 }
 
 export async function loadConversationById(
@@ -98,7 +103,7 @@ export async function loadConversationById(
   })
 
   if (!row) return null
-  return toDomainConversation(row)
+  return toDomainConversation(await withRepositoryContextFields(row))
 }
 
 export async function appendMessage(input: {
@@ -164,13 +169,11 @@ export async function truncateConversationFromMessage(input: {
         referenceUrls: null,
       },
     })
-    await tx.chatbotConversation.update({
-      where: { id: input.conversationId },
-      data: {
-        currentQuestion: null,
-        activeChoices: null,
-        conversationState: null,
-      },
+    await updateRepositoryContextFields(tx, {
+      conversationId: input.conversationId,
+      currentQuestion: null,
+      activeChoices: null,
+      conversationState: null,
     })
 
     return { deletedCount: deleteResult.count }
@@ -229,10 +232,13 @@ export async function updateConversationRouting(input: {
     data: {
       routingDecision: input.routingDecision,
       ...(input.jobContext ? toJobContextUpdateData(input.jobContext) : {}),
-      currentQuestion: input.currentQuestion ?? null,
-      activeChoices: serializeActiveChoices(input.activeChoices ?? null),
-      conversationState: serializeConversationState(input.conversationState ?? null),
     },
+  })
+  await updateRepositoryContextFields(prisma, {
+    conversationId: input.conversationId,
+    currentQuestion: input.currentQuestion ?? null,
+    activeChoices: serializeActiveChoices(input.activeChoices ?? null),
+    conversationState: serializeConversationState(input.conversationState ?? null),
   })
 }
 
@@ -292,6 +298,51 @@ function toDomainConversation(row: ChatbotConversationRow): ChatbotConversation 
     context,
     messages: row.messages.map(toDomainMessage),
   }
+}
+
+function withDefaultRepositoryContextFields<T extends Partial<RepositoryContextFields>>(
+  row: T,
+): T & RepositoryContextFields {
+  return {
+    ...row,
+    currentQuestion: row.currentQuestion ?? null,
+    activeChoices: row.activeChoices ?? null,
+    conversationState: row.conversationState ?? null,
+  }
+}
+
+async function withRepositoryContextFields<T extends { id: string } & Partial<RepositoryContextFields>>(
+  row: T,
+): Promise<T & RepositoryContextFields> {
+  if (
+    "currentQuestion" in row &&
+    "activeChoices" in row &&
+    "conversationState" in row
+  ) {
+    return withDefaultRepositoryContextFields(row)
+  }
+
+  const [fields] = await prisma.$queryRaw<RepositoryContextFields[]>`
+    SELECT "currentQuestion", "activeChoices", "conversationState"
+    FROM "ChatbotConversation"
+    WHERE "id" = ${row.id}
+    LIMIT 1
+  `
+  return withDefaultRepositoryContextFields({ ...row, ...fields })
+}
+
+async function updateRepositoryContextFields(
+  client: ChatbotRepositoryClient,
+  input: RepositoryContextFields & { conversationId: string },
+): Promise<void> {
+  await client.$executeRaw`
+    UPDATE "ChatbotConversation"
+    SET
+      "currentQuestion" = ${input.currentQuestion},
+      "activeChoices" = ${input.activeChoices},
+      "conversationState" = ${input.conversationState}
+    WHERE "id" = ${input.conversationId}
+  `
 }
 
 function toDomainMessage(row: ChatbotMessageRow): ChatbotMessage {
@@ -564,4 +615,5 @@ export const __chatbotRepositoryTestUtils = {
   serializeActiveChoices,
   serializeConversationState,
   normalizeSurveyChoiceSet,
+  withDefaultRepositoryContextFields,
 }

@@ -6,7 +6,7 @@ It is intentionally a release checklist, not permission to deploy.
 ## Repository State Contract
 
 - `ChatbotConversation.currentQuestion`, `activeChoices`, and `conversationState` are owned by the repository layer through Prisma fields.
-- JSON serialization for `activeChoices` and `conversationState` is centralized in `src/lib/chatbot/server/repository.ts`; do not add raw SQL or ad hoc `JSON.stringify` writes for these fields.
+- JSON serialization for `activeChoices` and `conversationState` is centralized in `src/lib/chatbot/server/repository.ts`; do not add ad hoc `JSON.stringify` writes for these fields. If generated Prisma Client lags behind schema on `41238`, only the repository-owned context helpers may use raw SQL to read/write these fields.
 - `conversationState.durationContext` is a persisted hint for workflow facts and synced-knowledge status. It is not a deterministic answer table and must not replace the LLM's judgment.
 - No schema or Prisma migration is required for the current cleanup. If typed JSON columns are introduced later, migrate with a read-compatible rollout: add columns, dual-write, backfill, read-new/fallback-old, then remove legacy text fields in a separate deploy.
 
@@ -37,12 +37,14 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 mkdir -p "${LOG_DIR}"
 cd "${REPO_DIR}"
+/Users/norikene_satoshi/.local/bin/pnpm exec prisma generate >> "${LOG_FILE}" 2>&1
 exec /Users/norikene_satoshi/.local/bin/pnpm exec next dev --port 41238 --webpack >> "${LOG_FILE}" 2>&1
 EOF
 chmod +x scripts/hp-41238-dev.sh
 ```
 
 The local-tier guard treats an otherwise-current `41238` worktree with dirty files as yellow, not green. After this ignore rule is present in the live worktree, this local script should no longer create dirty count by itself; any remaining yellow means inspect the actual tracked or unignored diff without reset.
+The same guard also checks that generated `@prisma/client` schema contains the repository-owned chatbot state fields before treating `41238` as green; if it reports `regenerate-prisma-client-required`, run `pnpm exec prisma generate` before any chatbot runtime verification.
 
 ## Staging to Production Audit
 

@@ -15,19 +15,24 @@ type ChatbotOperationFailureInput = {
   operation: ChatbotOperation
   stage: ChatbotFailureStage
   error: unknown
+  requestId?: string
   status?: number
   requestSummary?: Record<string, unknown>
 }
 
-function serializeError(error: unknown): Record<string, unknown> {
+function serializeError(error: unknown, depth = 0): Record<string, unknown> {
   if (error instanceof Error) {
+    const cause = error.cause
     return {
       name: error.name,
       message: error.message,
       stack: error.stack,
-      cause: error.cause instanceof Error
-        ? { name: error.cause.name, message: error.cause.message, stack: error.cause.stack }
-        : undefined,
+      cause:
+        cause instanceof Error && depth < 3
+          ? serializeError(cause, depth + 1)
+          : cause === undefined
+            ? undefined
+            : { name: typeof cause, message: String(cause) },
     }
   }
 
@@ -44,6 +49,7 @@ export function logChatbotOperationFailure(input: ChatbotOperationFailureInput):
     "[CHATBOT_OPERATION_FAILURE]",
     JSON.stringify({
       event: "chatbot_operation_failure",
+      requestId: input.requestId,
       operation: input.operation,
       stage: input.stage,
       status,
@@ -61,6 +67,7 @@ export function respondChatbotOperationFailure(input: ChatbotOperationFailureInp
   return NextResponse.json(
     {
       error: "chatbot_operation_failed",
+      requestId: input.requestId,
       operation: input.operation,
       failure: {
         stage: input.stage,

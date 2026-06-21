@@ -104,6 +104,31 @@ type HandleChatbotMessageOptions = {
   knowledgeSnapshotLoader?: typeof loadLatestChatbotKnowledgeSnapshot
 }
 
+export class ChatbotMessagePersistenceError extends Error {
+  readonly chatbotFailureStage = "conversation-save"
+  readonly chatbotFailureSummary: Record<string, unknown>
+
+  constructor(input: {
+    cause: unknown
+    conversationId: string
+    tier: ChatbotLlmResponse["tier"]
+    routingDecisionKind: RoutingDecision["kind"]
+    uiKind: ChatbotMessageUi["kind"]
+  }) {
+    super("chatbot_conversation_routing_save_failed", {
+      cause: input.cause,
+    })
+    this.name = "ChatbotMessagePersistenceError"
+    this.chatbotFailureSummary = {
+      conversationId: input.conversationId,
+      tier: input.tier,
+      routingDecisionKind: input.routingDecisionKind,
+      dbWrite: "updateConversationRouting",
+      fallbackUiKind: input.uiKind,
+    }
+  }
+}
+
 const defaultRepository: ChatbotMessageRepository = {
   loadConversationBySessionId,
   createConversation,
@@ -292,15 +317,26 @@ export async function handleChatbotMessage(
     content: assistantContent,
   })
 
+  const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState })
   if (routingDecision) {
-    await repository.updateConversationRouting({
-      conversationId: conversation.id,
-      routingDecision: routingDecision.kind,
-      currentQuestion: routingDecision.kind === "continue" ? routingDecision.nextQuestion : null,
-      activeChoices: routingDecision.kind === "continue" ? routingDecision.presentChoices ?? null : null,
-      conversationState,
-      jobContext,
-    })
+    try {
+      await repository.updateConversationRouting({
+        conversationId: conversation.id,
+        routingDecision: routingDecision.kind,
+        currentQuestion: routingDecision.kind === "continue" ? routingDecision.nextQuestion : null,
+        activeChoices: routingDecision.kind === "continue" ? routingDecision.presentChoices ?? null : null,
+        conversationState,
+        jobContext,
+      })
+    } catch (error) {
+      throw new ChatbotMessagePersistenceError({
+        cause: error,
+        conversationId: conversation.id,
+        tier: llmResponse.tier,
+        routingDecisionKind: routingDecision.kind,
+        uiKind: ui.kind,
+      })
+    }
   }
 
   return {
@@ -319,7 +355,7 @@ export async function handleChatbotMessage(
     },
     routingDecision,
     tier: llmResponse.tier,
-    ui: toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState }),
+    ui,
   }
 }
 

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
-import { appendFile, mkdir } from "node:fs/promises"
+import { appendFile, mkdir, readFile } from "node:fs/promises"
+import { createRequire } from "node:module"
 import { homedir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -86,7 +87,7 @@ async function guardLocal41238Runtime(): Promise<TierResult> {
       status: "green",
       action: "none",
       httpStatus: inspection.httpStatus,
-      detail: `pid:${inspection.pid};head_current:${inspection.head.slice(0, 12)};dirty:${inspection.dirtyFiles};cwd:${inspection.cwd}`,
+      detail: `pid:${inspection.pid};head_current:${inspection.head.slice(0, 12)};dirty:${inspection.dirtyFiles};prisma_client_schema:${inspection.prismaClientSchema};cwd:${inspection.cwd}`,
     }
   }
 
@@ -96,7 +97,7 @@ async function guardLocal41238Runtime(): Promise<TierResult> {
       status: "yellow",
       action: "inspect-41238-dirty-diff",
       httpStatus: inspection.httpStatus,
-      detail: `pid:${inspection.pid};head_current:${inspection.head.slice(0, 12)};dirty:${inspection.dirtyFiles};cwd:${inspection.cwd}`,
+      detail: `pid:${inspection.pid};head_current:${inspection.head.slice(0, 12)};dirty:${inspection.dirtyFiles};prisma_client_schema:${inspection.prismaClientSchema};cwd:${inspection.cwd}`,
       nextAction: "inspect_41238_dirty_diff_without_reset",
     }
   }
@@ -107,8 +108,19 @@ async function guardLocal41238Runtime(): Promise<TierResult> {
       status: "red",
       action: "inspect-41238-http-required",
       httpStatus: inspection.httpStatus,
-      detail: `pid:${inspection.pid};http_status:${inspection.httpStatus};head:${inspection.head.slice(0, 12)};expected:${inspection.expectedHead.slice(0, 12)};dirty:${inspection.dirtyFiles};cwd:${inspection.cwd}`,
+      detail: `pid:${inspection.pid};http_status:${inspection.httpStatus};head:${inspection.head.slice(0, 12)};expected:${inspection.expectedHead.slice(0, 12)};dirty:${inspection.dirtyFiles};prisma_client_schema:${inspection.prismaClientSchema};cwd:${inspection.cwd}`,
       nextAction: "inspect_41238_http_without_restart",
+    }
+  }
+
+  if (inspection.status === "prisma-client-stale") {
+    return {
+      tier: "local-41238-runtime",
+      status: "red",
+      action: "regenerate-prisma-client-required",
+      httpStatus: inspection.httpStatus,
+      detail: `pid:${inspection.pid};prisma_client_schema:${inspection.prismaClientSchema};head:${inspection.head.slice(0, 12)};dirty:${inspection.dirtyFiles};cwd:${inspection.cwd}`,
+      nextAction: "run_prisma_generate_before_chatbot_runtime",
     }
   }
 
@@ -118,7 +130,7 @@ async function guardLocal41238Runtime(): Promise<TierResult> {
       status: "red",
       action: "update-41238-worktree-required",
       httpStatus: inspection.httpStatus,
-      detail: `pid:${inspection.pid};head_stale:${inspection.head.slice(0, 12)};expected:${inspection.expectedHead.slice(0, 12)};dirty:${inspection.dirtyFiles};cwd:${inspection.cwd}`,
+      detail: `pid:${inspection.pid};head_stale:${inspection.head.slice(0, 12)};expected:${inspection.expectedHead.slice(0, 12)};dirty:${inspection.dirtyFiles};prisma_client_schema:${inspection.prismaClientSchema};cwd:${inspection.cwd}`,
       nextAction: "update_41238_to_origin_staging_without_restart",
     }
   }
@@ -413,11 +425,14 @@ async function guardTier4(options: GuardOptions): Promise<TierResult> {
 }
 
 type Local41238RuntimeInspection =
-  | { status: "current"; cwd: string; pid: string; head: string; expectedHead: string; httpStatus: number; dirtyFiles: number }
-  | { status: "dirty"; cwd: string; pid: string; head: string; expectedHead: string; httpStatus: number; dirtyFiles: number }
-  | { status: "stale"; cwd: string; pid: string; head: string; expectedHead: string; httpStatus: number; dirtyFiles: number }
-  | { status: "unreachable"; cwd: string; pid: string; head: string; expectedHead: string; httpStatus: number; dirtyFiles: number }
+  | { status: "current"; cwd: string; pid: string; head: string; expectedHead: string; httpStatus: number; dirtyFiles: number; prismaClientSchema: PrismaClientSchemaStatus }
+  | { status: "dirty"; cwd: string; pid: string; head: string; expectedHead: string; httpStatus: number; dirtyFiles: number; prismaClientSchema: PrismaClientSchemaStatus }
+  | { status: "stale"; cwd: string; pid: string; head: string; expectedHead: string; httpStatus: number; dirtyFiles: number; prismaClientSchema: PrismaClientSchemaStatus }
+  | { status: "unreachable"; cwd: string; pid: string; head: string; expectedHead: string; httpStatus: number; dirtyFiles: number; prismaClientSchema: PrismaClientSchemaStatus }
+  | { status: "prisma-client-stale"; cwd: string; pid: string; head: string; expectedHead: string; httpStatus: number; dirtyFiles: number; prismaClientSchema: PrismaClientSchemaStatus }
   | { status: "unknown"; detail: string }
+
+type PrismaClientSchemaStatus = "current" | "stale" | "missing" | "unknown"
 
 export function classifyLocal41238Runtime(input: {
   cwd?: string
@@ -426,6 +441,7 @@ export function classifyLocal41238Runtime(input: {
   expectedHead?: string
   httpStatus?: number
   dirtyFiles?: number
+  prismaClientSchema?: PrismaClientSchemaStatus
   error?: string
 }): Local41238RuntimeInspection {
   if (input.error) return { status: "unknown", detail: input.error }
@@ -435,6 +451,7 @@ export function classifyLocal41238Runtime(input: {
   if (!input.expectedHead) return { status: "unknown", detail: `41238_expected_head_missing;cwd:${input.cwd}` }
   if (input.httpStatus === undefined) return { status: "unknown", detail: `41238_http_status_missing;cwd:${input.cwd}` }
   const dirtyFiles = input.dirtyFiles ?? 0
+  const prismaClientSchema = input.prismaClientSchema ?? "current"
 
   if (input.httpStatus !== 200) {
     return {
@@ -445,6 +462,20 @@ export function classifyLocal41238Runtime(input: {
       expectedHead: input.expectedHead,
       httpStatus: input.httpStatus,
       dirtyFiles,
+      prismaClientSchema,
+    }
+  }
+
+  if (prismaClientSchema !== "current") {
+    return {
+      status: "prisma-client-stale",
+      cwd: input.cwd,
+      pid: input.pid,
+      head: input.head,
+      expectedHead: input.expectedHead,
+      httpStatus: input.httpStatus,
+      dirtyFiles,
+      prismaClientSchema,
     }
   }
 
@@ -458,6 +489,7 @@ export function classifyLocal41238Runtime(input: {
         expectedHead: input.expectedHead,
         httpStatus: input.httpStatus,
         dirtyFiles,
+        prismaClientSchema,
       }
     }
     return {
@@ -468,6 +500,7 @@ export function classifyLocal41238Runtime(input: {
       expectedHead: input.expectedHead,
       httpStatus: input.httpStatus,
       dirtyFiles,
+      prismaClientSchema,
     }
   }
 
@@ -479,6 +512,7 @@ export function classifyLocal41238Runtime(input: {
     expectedHead: input.expectedHead,
     httpStatus: input.httpStatus,
     dirtyFiles,
+    prismaClientSchema,
   }
 }
 
@@ -486,17 +520,35 @@ async function inspectLocal41238Runtime(): Promise<Local41238RuntimeInspection> 
   try {
     const pid = await read41238ListenerPid()
     const cwd = await read41238ListenerCwd(pid)
-    const [head, expectedHead, httpStatus, dirtyFiles] = await Promise.all([
+    const [head, expectedHead, httpStatus, dirtyFiles, prismaClientSchema] = await Promise.all([
       readGitRevision(cwd, "HEAD"),
       readGitRevision(cwd, process.env.CHATBOT_41238_EXPECTED_REF ?? "origin/staging"),
       readLocal41238HttpStatus(),
       readGitDirtyFileCount(cwd),
+      readPrismaClientSchemaStatus(cwd),
     ])
-    return classifyLocal41238Runtime({ cwd, pid, head, expectedHead, httpStatus, dirtyFiles })
+    return classifyLocal41238Runtime({ cwd, pid, head, expectedHead, httpStatus, dirtyFiles, prismaClientSchema })
   } catch (error) {
     return classifyLocal41238Runtime({
       error: error instanceof Error ? error.message : String(error),
     })
+  }
+}
+
+async function readPrismaClientSchemaStatus(cwd: string): Promise<PrismaClientSchemaStatus> {
+  try {
+    const appSchema = await readFile(path.join(cwd, "prisma", "schema.prisma"), "utf8")
+    const requireFromRepo = createRequire(path.join(cwd, "package.json"))
+    const clientPackageJson = requireFromRepo.resolve("@prisma/client/package.json")
+    const generatedSchemaPath = path.join(path.dirname(clientPackageJson), "..", "..", ".prisma", "client", "schema.prisma")
+    const generatedSchema = await readFile(generatedSchemaPath, "utf8")
+    const requiredFields = ["currentQuestion", "activeChoices", "conversationState"]
+    return requiredFields.every((field) => !appSchema.includes(field) || generatedSchema.includes(field))
+      ? "current"
+      : "stale"
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return message.includes("Cannot find module") || message.includes("ENOENT") ? "missing" : "unknown"
   }
 }
 

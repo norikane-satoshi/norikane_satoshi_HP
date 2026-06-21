@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   ChatbotRequestCancelledError,
+  isChatbotOperationError,
   isChatbotRequestCancelledError,
   submitChatbotMessage,
 } from "@/components/chatbot/widget/api"
@@ -30,5 +31,34 @@ describe("submitChatbotMessage", () => {
   it("identifies chatbot cancellation errors", () => {
     expect(isChatbotRequestCancelledError(new ChatbotRequestCancelledError())).toBe(true)
     expect(isChatbotRequestCancelledError(new Error("AbortError"))).toBe(false)
+  })
+
+  it("preserves request-scoped failure metadata from the message route", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: vi.fn().mockResolvedValue({
+        error: "chatbot_operation_failed",
+        requestId: "req_1",
+        failure: {
+          stage: "conversation-save",
+          retryable: true,
+          fallback: "tier4-inquiry-form",
+        },
+      }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    try {
+      await submitChatbotMessage({ message: "相談したいです" })
+      throw new Error("expected submitChatbotMessage to reject")
+    } catch (error) {
+      expect(isChatbotOperationError(error)).toBe(true)
+      if (!isChatbotOperationError(error)) return
+      expect(error.requestId).toBe("req_1")
+      expect(error.stage).toBe("conversation-save")
+      expect(error.retryable).toBe(true)
+      expect(error.fallback).toBe("tier4-inquiry-form")
+    }
   })
 })

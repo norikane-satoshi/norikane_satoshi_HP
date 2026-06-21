@@ -21,7 +21,13 @@ const chatbotMessageRequestSchema = z.object({
   conversationState: z.record(z.string(), z.unknown()).optional(),
 })
 
+type ChatbotFailureTaggedError = Error & {
+  chatbotFailureStage?: "conversation-save"
+  chatbotFailureSummary?: Record<string, unknown>
+}
+
 export async function POST(request: NextRequest) {
+  const requestId = crypto.randomUUID()
   const bodyLimit = enforceBodyLimit(request)
   if (bodyLimit) return bodyLimit
 
@@ -71,11 +77,14 @@ export async function POST(request: NextRequest) {
 
     return response
   } catch (error) {
+    const taggedError = error instanceof Error ? (error as ChatbotFailureTaggedError) : undefined
     return respondChatbotOperationFailure({
       operation: "message",
-      stage: "server-handler",
+      requestId,
+      stage: classifyMessageFailureStage(error),
       error,
       requestSummary: {
+        requestId,
         conversationId: parsed.data.conversationId,
         clientSessionId: parsed.data.clientSessionId,
         hasCookieSession: Boolean(existingSessionId),
@@ -83,7 +92,20 @@ export async function POST(request: NextRequest) {
         isChoicePanelSelection: parsed.data.message.startsWith("選択:"),
         hasJobContext: Boolean(parsed.data.jobContext),
         hasConversationState: Boolean(parsed.data.conversationState),
+        ...(taggedError?.chatbotFailureSummary ?? {}),
       },
     })
   }
+}
+
+function classifyMessageFailureStage(error: unknown) {
+  if (error instanceof Error) {
+    const taggedError = error as ChatbotFailureTaggedError
+    if (taggedError.chatbotFailureStage) return taggedError.chatbotFailureStage
+    if (error.message.includes("Invalid chatbot active choices JSON")) return "conversation-load"
+    if (error.message.includes("Invalid chatbot conversation state JSON")) return "conversation-load"
+    if (error.stack?.includes("updateConversationRouting")) return "conversation-save"
+    if (error.stack?.includes("appendMessage")) return "conversation-save"
+  }
+  return "server-handler"
 }

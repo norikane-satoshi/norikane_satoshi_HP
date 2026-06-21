@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port ${PORT:-41237}",
+    "dev": "prisma generate && next dev --port ${PORT:-41237}",
     "build": "next build --webpack",
     "check:console": "node scripts/check-browser-console.mjs",
     "verify:staging-baseline": "node scripts/verify-staging-baseline.mjs",

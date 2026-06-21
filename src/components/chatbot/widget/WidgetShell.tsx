@@ -350,6 +350,8 @@ export function WidgetShell({
         console.warn("[CHATBOT_WIDGET_FAILURE]", {
           event: "chatbot_widget_failure",
           operation: error.operation,
+          requestId: error.requestId,
+          stage: error.stage,
           status: error.status,
           retryable: error.retryable,
           fallback: error.fallback,

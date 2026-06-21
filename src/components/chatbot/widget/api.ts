@@ -81,12 +81,16 @@ export class ChatbotOperationError extends Error {
   readonly status?: number
   readonly retryable: boolean
   readonly fallback: "tier4-inquiry-form"
+  readonly requestId?: string
+  readonly stage?: string
 
   constructor(input: {
     operation: ChatbotOperationError["operation"]
     status?: number
     retryable: boolean
     fallback?: "tier4-inquiry-form"
+    requestId?: string
+    stage?: string
     message?: string
   }) {
     super(input.message ?? "chatbot_operation_failed")
@@ -95,6 +99,8 @@ export class ChatbotOperationError extends Error {
     this.status = input.status
     this.retryable = input.retryable
     this.fallback = input.fallback ?? "tier4-inquiry-form"
+    this.requestId = input.requestId
+    this.stage = input.stage
   }
 }
 
@@ -142,7 +148,7 @@ function operationErrorFromResponse(
 ): ChatbotOperationError {
   const failure =
     body && typeof body === "object" && !Array.isArray(body)
-      ? (body as { failure?: { retryable?: unknown; fallback?: unknown }; error?: unknown })
+      ? (body as { requestId?: unknown; failure?: { retryable?: unknown; fallback?: unknown; stage?: unknown }; error?: unknown })
       : {}
   const retryable =
     typeof failure.failure?.retryable === "boolean"
@@ -155,6 +161,8 @@ function operationErrorFromResponse(
     status: response.status,
     retryable,
     fallback,
+    requestId: typeof failure.requestId === "string" ? failure.requestId : undefined,
+    stage: typeof failure.failure?.stage === "string" ? failure.failure.stage : undefined,
     message: typeof failure.error === "string" ? failure.error : undefined,
   })
 }
@@ -188,6 +196,8 @@ export async function postChatbotJson<T>(
           operation,
           attempt,
           status: error instanceof ChatbotOperationError ? error.status : undefined,
+          requestId: error instanceof ChatbotOperationError ? error.requestId : undefined,
+          stage: error instanceof ChatbotOperationError ? error.stage : undefined,
         })
         continue
       }

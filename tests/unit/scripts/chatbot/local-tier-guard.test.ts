@@ -87,4 +87,21 @@ describe("local-tier-guard", () => {
       httpStatus: 503,
     })
   })
+
+  it("marks the local 41238 runtime red when generated Prisma client is stale", () => {
+    expect(
+      classifyLocal41238Runtime({
+        cwd: "/repo/.codex-worktrees/staging-live-41238",
+        pid: "1423",
+        head: "1a1108c1a79dd20a8915fb756425d6e6404f781f",
+        expectedHead: "1a1108c1a79dd20a8915fb756425d6e6404f781f",
+        httpStatus: 200,
+        dirtyFiles: 0,
+        prismaClientSchema: "stale",
+      }),
+    ).toMatchObject({
+      status: "prisma-client-stale",
+      prismaClientSchema: "stale",
+    })
+  })
 })

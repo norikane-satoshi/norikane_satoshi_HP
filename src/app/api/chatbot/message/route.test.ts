@@ -36,6 +36,7 @@ async function loadPost({
   session = null,
   existingConversation = null,
   loadConversationError,
+  updateConversationRoutingError,
   llmResponse = {
     rawText: "最終媒体を教えてください",
     tier: "tier-3-ollama-deepseek" as const,
@@ -44,6 +45,7 @@ async function loadPost({
   session?: { user?: { id?: string; email?: string } } | null
   existingConversation?: ChatbotConversation | null
   loadConversationError?: Error
+  updateConversationRoutingError?: Error
   llmResponse?: Record<string, unknown>
 } = {}) {
   vi.resetModules()
@@ -59,7 +61,9 @@ async function loadPost({
       Promise.resolve({ ...message(input.role, input.content), ...(input.id ? { id: input.id } : {}) }),
     )
   const truncateConversationFromMessage = vi.fn().mockResolvedValue({ deletedCount: 1 })
-  const updateConversationRouting = vi.fn().mockResolvedValue(undefined)
+  const updateConversationRouting = updateConversationRoutingError
+    ? vi.fn().mockRejectedValue(updateConversationRoutingError)
+    : vi.fn().mockResolvedValue(undefined)
   const linkConversationToUser = vi.fn().mockResolvedValue(undefined)
   const loadUserChatbotContext = vi.fn().mockResolvedValue({
     userId: "user_1",
@@ -251,10 +255,11 @@ describe("POST /api/chatbot/message", () => {
       error: "chatbot_operation_failed",
       operation: "message",
       failure: {
-        stage: "server-handler",
+        stage: "conversation-load",
         retryable: true,
         fallback: "tier4-inquiry-form",
       },
+      requestId: expect.any(String),
     })
     expect(consoleError).toHaveBeenCalledWith(
       "[CHATBOT_OPERATION_FAILURE]",
@@ -263,6 +268,60 @@ describe("POST /api/chatbot/message", () => {
     expect(consoleError).toHaveBeenCalledWith(
       "[CHATBOT_OPERATION_FAILURE]",
       expect.stringContaining("\"isChoicePanelSelection\":true"),
+    )
+    expect(consoleError).toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("\"requestId\":\""),
+    )
+    consoleError.mockRestore()
+  })
+
+  it("returns request-scoped conversation-save metadata when routing persistence fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const route = await loadPost({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          activeChoices: {
+            id: "final-medium",
+            question: "最終媒体を教えてください",
+            selectionMode: "single",
+            choices: [{ id: "web", label: "Web" }],
+          },
+        },
+      }),
+      updateConversationRoutingError: new Error("Unknown argument `currentQuestion`"),
+    })
+
+    const response = await route.POST(
+      request(
+        {
+          message: "選択: web",
+          clientSessionId: "11111111-1111-4111-8111-111111111111",
+        },
+        "chatbot_session_id=session_1",
+      ),
+    )
+
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body).toMatchObject({
+      error: "chatbot_operation_failed",
+      requestId: expect.any(String),
+      operation: "message",
+      failure: {
+        stage: "conversation-save",
+        retryable: true,
+        fallback: "tier4-inquiry-form",
+      },
+    })
+    expect(consoleError).toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("\"stage\":\"conversation-save\""),
+    )
+    expect(consoleError).toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("\"dbWrite\":\"updateConversationRouting\""),
     )
     consoleError.mockRestore()
   })
