@@ -2,40 +2,10 @@
 
 import { execFileSync } from "node:child_process";
 
-const DEFAULT_BASE = "ccba8e324bf6fadc7c678c3138dffc1fb45007ed";
-const DEFAULT_ALLOWED = [
-  "src/app/globals.css",
-  "src/app/layout.tsx",
-  "src/app/page.tsx",
-  "src/components/chatbot/widget/ChatbotWidget.tsx",
-  "src/components/chatbot/widget/ThinkingIndicator.tsx",
-  "src/components/chatbot/widget/WidgetShell.tsx",
-  "src/components/chatbot/widget/__tests__/chatbot-widget.test.tsx",
-  "src/components/chatbot/widget/__tests__/local-tier-debug.test.ts",
-  "src/components/chatbot/widget/__tests__/widget-shell-api.test.tsx",
-  "src/components/chatbot/widget/api.ts",
-  "src/components/chatbot/widget/local-tier-debug.ts",
-  "src/components/chatbot/widget/useWidgetState.ts",
-  "public/nori_header_black.svg",
-  "src/components/hp/__tests__/featured-works-data.test.ts",
-  "src/components/hp/__tests__/featured-works.test.tsx",
-  "src/components/hp/__tests__/hero-section.test.tsx",
-  "src/components/hp/__tests__/hp-color-fields.test.tsx",
-  "src/components/hp/__tests__/nav-header.test.tsx",
-  "src/components/hp/__tests__/press-section.test.tsx",
-  "src/components/hp/__tests__/profile-photo.test.tsx",
-  "src/components/hp/calendar-embed.tsx",
-  "src/components/hp/featured-works-data.ts",
-  "src/components/hp/featured-works.tsx",
-  "src/components/hp/hero-deep-surface.ts",
-  "src/components/hp/hero-section.tsx",
-  "src/components/hp/home-schedule-section.tsx",
-  "src/components/hp/nav-header.tsx",
-  "src/components/hp/press-data.ts",
-  "src/components/hp/press-section.tsx",
-  "src/components/hp/profile-photo.tsx",
-  "src/lib/hp/public-content.ts",
-];
+const DEFAULT_BASE = "55e000e218210a6125e43022eaf09d45dc5098c0";
+// Default mode protects the current staging baseline from unreviewed drift.
+// For scoped integration checks, pass --base <previous staging tip> and exact --allow paths.
+const DEFAULT_ALLOWED = [];
 const SELF_ALLOWED = [
   "CONTRIBUTING.md",
   "package.json",

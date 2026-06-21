@@ -10,11 +10,15 @@
 
 ## Staging Baseline
 
-Before restoring the 41238 staging branch from a known-good chatbot baseline, run:
+Before updating or restoring the 41238 staging branch from a known-good staging baseline, run:
 
-`corepack pnpm verify:staging-baseline -- --base ccba8e32 --allow src/app/globals.css --allow src/app/layout.tsx`
+`corepack pnpm verify:staging-baseline`
 
-This check must stay read-only. It verifies that the staging diff is limited to the approved font files plus the baseline guard files.
+Default mode compares against the last intentionally verified `origin/staging` baseline and should only allow this guard's own maintenance files. For a scoped integration, pass the previous staging tip plus exact changed files:
+
+`corepack pnpm verify:staging-baseline -- --base <previous-staging-sha> --allow <path> --allow <path>`
+
+Keep this check read-only. Do not replace the exact path allowlist with wildcards; update the default baseline only after `origin/staging` has intentionally advanced and the default diff has been reviewed.
 
 ## CI Secrets
 
