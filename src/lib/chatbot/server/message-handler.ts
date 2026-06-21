@@ -714,7 +714,7 @@ async function resolveRoutingDecision(input: {
       suggestedSlots: calendar.candidates,
       busyDateKeys: calendar.busyDateKeys,
       jobContext,
-      bookingPrefill: normalizeBookingCardPrefill(toolCall.args, jobContext),
+      bookingPrefill: normalizeBookingCardPrefill(toolCall.args, jobContext, input.conversationState),
     }
   } catch (error) {
     if (error instanceof ChatbotAvailabilityError) return undefined
@@ -806,9 +806,14 @@ function optionalString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
-function normalizeBookingCardPrefill(prefill: BookingCardPrefill, jobContext: JobContext): BookingCardPrefill {
+function normalizeBookingCardPrefill(
+  prefill: BookingCardPrefill,
+  jobContext: JobContext,
+  conversationState: ConversationState,
+): BookingCardPrefill {
   const projectTitle = normalizeBookingProjectTitle(prefill.projectTitle, jobContext)
   const memoParts = [prefill.memo]
+  const contactEmail = isValidContactEmail(prefill.contactEmail) ? prefill.contactEmail : conversationState.contactEmail
 
   if (prefill.projectTitle && projectTitle !== prefill.projectTitle) {
     memoParts.push(prefill.projectTitle)
@@ -817,7 +822,7 @@ function normalizeBookingCardPrefill(prefill: BookingCardPrefill, jobContext: Jo
   return {
     ...(projectTitle ? { projectTitle } : {}),
     ...(prefill.contactName ? { contactName: prefill.contactName } : {}),
-    ...(isValidContactEmail(prefill.contactEmail) ? { contactEmail: prefill.contactEmail } : {}),
+    ...(isValidContactEmail(contactEmail) ? { contactEmail } : {}),
     ...(prefill.companyName ? { companyName: prefill.companyName } : {}),
     ...(prefill.dueDate ? { dueDate: prefill.dueDate } : {}),
     ...mergeMemoParts(memoParts),
