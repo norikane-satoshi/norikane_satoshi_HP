@@ -785,7 +785,7 @@ describe("ChatbotBookingCard", () => {
   it("shows login guidance and calls onRequireLogin on 401", async () => {
     mockFetch(401, { error: "unauthorized" })
     const onRequireLogin = vi.fn()
-    renderCard({ onRequireLogin })
+    const { container } = renderCard({ onRequireLogin })
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
@@ -795,6 +795,7 @@ describe("ChatbotBookingCard", () => {
 
     expect(await screen.findByText("ログインして予約に進んでください")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "ログインリンクを送信" })).toBeInTheDocument()
+    expect(container.querySelectorAll("form form")).toHaveLength(0)
     expect(onRequireLogin).toHaveBeenCalledTimes(1)
   })
 

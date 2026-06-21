@@ -689,12 +689,12 @@ export function ChatbotBookingCard({
           </p>
         ) : null}
 
-        {loginRequired ? <ChatbotLoginCard callbackUrl="/booking" /> : null}
-
         <button type="submit" disabled={!canSubmit} className="glass-btn w-full px-4 py-3 text-sm font-medium disabled:opacity-50">
           {submitting ? "送信中..." : "予約内容を送信"}
         </button>
       </form>
+
+      {loginRequired ? <ChatbotLoginCard callbackUrl="/booking" /> : null}
     </section>
   )
 
