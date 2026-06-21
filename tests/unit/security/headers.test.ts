@@ -19,7 +19,7 @@ const expectedSecurityHeaders = {
   "Permissions-Policy":
     "camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), interest-cohort=()",
   "Content-Security-Policy-Report-Only":
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; report-uri /api/csp-report; object-src 'none'",
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; frame-src https://www.youtube.com https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; report-uri /api/csp-report; object-src 'none'",
 }
 
 const cacheControlValue = "no-store, no-cache, must-revalidate"
@@ -69,6 +69,20 @@ describe("security headers", () => {
     expect(csp).toContain("object-src 'none'")
     expect(csp).toContain("base-uri 'self'")
     expect(csp).toContain("report-uri /api/csp-report")
+  })
+
+  it("allows the existing YouTube embed surfaces in report-only mode", async () => {
+    const routes = await loadHeaderRoutes()
+    const csp = headerMap(findRoute(routes, "/:path*")).get(
+      "Content-Security-Policy-Report-Only",
+    )
+
+    expect(csp).toContain(
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com",
+    )
+    expect(csp).toContain(
+      "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
+    )
   })
 
   it("disables caching for admin routes", async () => {
