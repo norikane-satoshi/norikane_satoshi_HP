@@ -614,9 +614,16 @@ describe("WidgetShell API wiring", () => {
   })
 
   it("renders ChatbotBookingCard for booking-card responses", async () => {
+    const slot = {
+      start: "2026-07-10T01:00:00.000Z",
+      end: "2026-07-10T02:00:00.000Z",
+      label: "7月10日 午前",
+    }
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
+      vi
+        .fn()
+        .mockResolvedValueOnce(
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage: {
@@ -626,13 +633,7 @@ describe("WidgetShell API wiring", () => {
           tier: "tier-3-ollama-deepseek",
           ui: {
             kind: "booking-card",
-            suggestedSlots: [
-              {
-                start: "2026-06-10T01:00:00.000Z",
-                end: "2026-06-10T02:00:00.000Z",
-                label: "6月10日 午前",
-              },
-            ],
+            suggestedSlots: [slot],
             jobContext: {
               finalMedium: "web",
               workSite: "remote-grading",
@@ -641,14 +642,16 @@ describe("WidgetShell API wiring", () => {
             },
           },
         }),
-      ),
+      )
+        .mockResolvedValue(mockJsonResponse({ candidates: [slot], busyDateKeys: [] })),
     )
 
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage()
 
     expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "6月10日 午前" })).toBeInTheDocument()
+    expect(screen.getByLabelText("仮キープ候補のカレンダー選択")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "2026-07-10 選択可" })).toBeInTheDocument()
   })
 
   it("renders InquiryForm for tier4 responses and posts submit-inquiry", async () => {

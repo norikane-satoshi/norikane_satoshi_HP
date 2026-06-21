@@ -29,19 +29,33 @@ const selectedSlotSchema = z
     }
   })
 
-const chatbotBookingRequestSchema = z.object({
-  conversationId: z.string().trim().min(1).optional(),
-  projectTitle: z.string().trim().min(1).max(200),
-  contactName: z.string().trim().min(1).max(80),
-  companyName: z.string().trim().max(120).optional(),
-  phone: z.string().trim().max(32).optional(),
-  dueDate: z.string().optional(),
-  memo: z.string().trim().max(2000).optional(),
-  agreed: z.literal(true),
-  selectedSlot: selectedSlotSchema,
-  jobContext: z.unknown().optional(),
-  workflowEstimate: z.unknown().optional(),
-})
+const chatbotBookingRequestSchema = z
+  .object({
+    conversationId: z.string().trim().min(1).optional(),
+    projectTitle: z.string().trim().min(1).max(200),
+    contactName: z.string().trim().min(1).max(80),
+    companyName: z.string().trim().max(120).optional(),
+    phone: z.string().trim().max(32).optional(),
+    dueDate: z.string().optional(),
+    memo: z.string().trim().max(2000).optional(),
+    agreed: z.literal(true),
+    selectedSlot: selectedSlotSchema.optional(),
+    selectedSlots: z.array(selectedSlotSchema).min(1).optional(),
+    jobContext: z.unknown().optional(),
+    workflowEstimate: z.unknown().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.selectedSlots?.length || value.selectedSlot) return
+    context.addIssue({
+      code: "custom",
+      message: "予約日時を選択してください",
+      path: ["selectedSlots"],
+    })
+  })
+
+function normalizeSelectedSlots(input: z.infer<typeof chatbotBookingRequestSchema>) {
+  return input.selectedSlots?.length ? input.selectedSlots : input.selectedSlot ? [input.selectedSlot] : []
+}
 
 function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>, sessionEmail: string): BookingApiInput {
   return bookingApiSchema.parse({
@@ -53,7 +67,7 @@ function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>, s
     phone: input.phone ?? "",
     memo: input.memo ?? "",
     agreed: input.agreed,
-    selectedSlots: [input.selectedSlot],
+    selectedSlots: normalizeSelectedSlots(input),
   })
 }
 
@@ -146,7 +160,7 @@ export async function POST(request: NextRequest) {
       error,
       requestSummary: {
         conversationId: parsed.data.conversationId,
-        hasSelectedSlot: Boolean(parsed.data.selectedSlot),
+        selectedSlotCount: normalizeSelectedSlots(parsed.data).length,
         hasWorkflowEstimate: Boolean(parsed.data.workflowEstimate),
       },
     })

@@ -658,6 +658,8 @@ function ActiveWidgetUi({
       <ChatbotBookingCard
         conversationId={conversationId}
         candidates={ui.suggestedSlots}
+        busyDateKeys={ui.busyDateKeys}
+        jobContext={ui.jobContext}
         estimate={ui.jobContext.workflowEstimate}
         defaultProjectTitle={ui.bookingPrefill?.projectTitle}
         defaultContactName={ui.bookingPrefill?.contactName}

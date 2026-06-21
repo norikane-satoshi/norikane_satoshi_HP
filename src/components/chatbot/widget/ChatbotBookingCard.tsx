@@ -1,12 +1,13 @@
 "use client"
 
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
 
 import { DemoStage } from "@/components/chatbot/demo"
 import { ChatbotLoginCard } from "@/components/chatbot/widget/ChatbotLoginCard"
 import { mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 import { bookingOnboardingDemoScript } from "@/lib/chatbot/demo"
-import type { CandidateWindow, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
+import type { CandidateWindow, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
 import { isChatbotOperationError, postChatbotJson } from "./api"
 import {
   CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
@@ -21,7 +22,9 @@ type BookingResult = {
 type ChatbotBookingCardProps = {
   conversationId?: string
   estimate?: WorkflowEstimate
+  jobContext?: JobContext
   candidates: CandidateWindow[]
+  busyDateKeys?: string[]
   defaultProjectTitle?: string
   defaultContactName?: string
   defaultCompanyName?: string
@@ -38,12 +41,23 @@ type ApiResponse = {
   bookingIds?: string[]
 }
 
+type CandidatesApiResponse = {
+  candidates?: CandidateWindow[]
+  busyDateKeys?: string[]
+}
+
 const API_PATH = "/api/chatbot/create-booking-from-chat"
-const MAX_VISIBLE_CANDIDATES = 12
+const CANDIDATES_API_PATH = "/api/chatbot/booking-candidates"
+const MAX_VISIBLE_CANDIDATES = 31
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 
 function estimateText(estimate?: WorkflowEstimate): string | null {
   if (!estimate) return null
   return `工程目安 ${estimate.totalMinDays}〜${estimate.totalMaxDays} 日`
+}
+
+function requiredDayCount(estimate?: WorkflowEstimate): number {
+  return Math.max(1, Math.ceil(estimate?.totalMaxDays ?? estimate?.totalMinDays ?? 1))
 }
 
 function formatCandidateDate(value: string): string {
@@ -57,44 +71,114 @@ function formatCandidateDate(value: string): string {
   }).format(date)
 }
 
-function formatCandidateTimeRange(candidate: CandidateWindow): string {
-  const start = new Date(candidate.start)
-  const end = new Date(candidate.end)
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return candidate.label
-  if (isMultiDayCandidate(start, end)) return "連続日程"
+function jstDateKey(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value
+  if (Number.isNaN(date.getTime())) return typeof value === "string" ? value : ""
+  const jst = new Date(date.getTime() + JST_OFFSET_MS)
+  return [
+    String(jst.getUTCFullYear()),
+    String(jst.getUTCMonth() + 1).padStart(2, "0"),
+    String(jst.getUTCDate()).padStart(2, "0"),
+  ].join("-")
+}
 
-  const formatter = new Intl.DateTimeFormat("ja-JP", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
+function todayJstDateKey(): string {
+  return jstDateKey(new Date())
+}
+
+function jstDateFromKey(key: string): Date {
+  const [year, month, day] = key.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, day) - JST_OFFSET_MS)
+}
+
+function addJstDays(date: Date, days: number): Date {
+  const key = jstDateKey(date)
+  const [year, month, day] = key.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days) - JST_OFFSET_MS)
+}
+
+function formatCalendarDayLabel(key: string): string {
+  const day = Number(key.split("-")[2])
+  return Number.isFinite(day) ? String(day) : key
+}
+
+function formatCalendarMonthLabel(key: string): string {
+  const date = /^\d{4}-\d{2}$/.test(key) ? jstDateFromKey(`${key}-01`) : jstDateFromKey(key)
+  if (Number.isNaN(date.getTime())) return "候補カレンダー"
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "long",
     timeZone: "Asia/Tokyo",
-  })
-  return `${formatter.format(start)}-${formatter.format(end)}`
+  }).format(date)
 }
 
-function isMultiDayCandidate(start: Date, end: Date): boolean {
-  return formatCandidateDate(start.toISOString()) !== formatCandidateDate(end.toISOString())
+function jstMonthKey(value: string | Date): string {
+  return jstDateKey(value).slice(0, 7)
 }
 
-function buildCandidateSeatMap(candidates: CandidateWindow[]) {
-  const dates = Array.from(new Set(candidates.map((candidate) => formatCandidateDate(candidate.start))))
-  const timeRanges = Array.from(new Set(candidates.map(formatCandidateTimeRange)))
-  const slotByCell = new Map<string, { candidate: CandidateWindow; index: number }>()
+function addJstMonths(monthKey: string, months: number): string {
+  const [year, month] = monthKey.split("-").map(Number)
+  const date = new Date(Date.UTC(year, month - 1 + months, 1) - JST_OFFSET_MS)
+  return jstMonthKey(date)
+}
+
+function getJstWeekday(date: Date): number {
+  return new Date(date.getTime() + JST_OFFSET_MS).getUTCDay()
+}
+
+function buildMonthCells(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number)
+  const monthStart = new Date(Date.UTC(year, month - 1, 1) - JST_OFFSET_MS)
+  const nextMonthStart = new Date(Date.UTC(year, month, 1) - JST_OFFSET_MS)
+  const cells: Array<string | null> = []
+  const leadingBlanks = getJstWeekday(monthStart)
+
+  for (let i = 0; i < leadingBlanks; i += 1) {
+    cells.push(null)
+  }
+
+  for (let cursor = monthStart; cursor.getTime() < nextMonthStart.getTime(); cursor = addJstDays(cursor, 1)) {
+    cells.push(jstDateKey(cursor))
+  }
+
+  while (cells.length % 7 !== 0) {
+    cells.push(null)
+  }
+
+  return cells
+}
+
+function buildCandidateCalendar(monthKey: string, candidates: CandidateWindow[], busyDateKeys: string[]) {
+  const candidateByStartDate = new Map<string, { candidate: CandidateWindow; index: number }>()
+  const busyDateKeySet = new Set(busyDateKeys.filter((key) => key.startsWith(`${monthKey}-`)))
 
   candidates.forEach((candidate, index) => {
-    slotByCell.set(`${formatCandidateDate(candidate.start)}|${formatCandidateTimeRange(candidate)}`, {
-      candidate,
-      index,
-    })
+    if (candidate.available === false) return
+    candidateByStartDate.set(jstDateKey(candidate.start), { candidate, index })
   })
 
-  return { dates, timeRanges, slotByCell }
+  return {
+    monthLabel: formatCalendarMonthLabel(monthKey),
+    dayCells: buildMonthCells(monthKey),
+    candidateByStartDate,
+    busyDateKeySet,
+  }
+}
+
+function selectedDateKeys(slots: CandidateWindow[]) {
+  return new Set(slots.map((slot) => jstDateKey(slot.start)))
+}
+
+function formatSelectedSlots(slots: CandidateWindow[]): string {
+  return slots.map((slot) => formatCandidateDate(slot.start)).join("、")
 }
 
 export function ChatbotBookingCard({
   conversationId,
   estimate,
+  jobContext,
   candidates,
+  busyDateKeys = [],
   defaultProjectTitle = "",
   defaultContactName = "",
   defaultCompanyName = "",
@@ -105,8 +189,36 @@ export function ChatbotBookingCard({
   onRequireLogin,
 }: ChatbotBookingCardProps) {
   const visibleCandidates = useMemo(() => candidates.slice(0, MAX_VISIBLE_CANDIDATES), [candidates])
-  const candidateSeatMap = useMemo(() => buildCandidateSeatMap(visibleCandidates), [visibleCandidates])
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(visibleCandidates.length === 1 ? 0 : null)
+  const initialMonthKey = useMemo(
+    () => jstMonthKey(visibleCandidates[0]?.start ?? new Date()),
+    [visibleCandidates],
+  )
+  const [displayedMonthOffset, setDisplayedMonthOffset] = useState(0)
+  const effectiveEstimate = estimate ?? jobContext?.workflowEstimate
+  const requiredDays = requiredDayCount(effectiveEstimate)
+  const displayedMonthKey = useMemo(
+    () => addJstMonths(initialMonthKey, displayedMonthOffset),
+    [displayedMonthOffset, initialMonthKey],
+  )
+  const [monthCandidateOverrides, setMonthCandidateOverrides] = useState<Record<string, CandidateWindow[]>>({})
+  const [monthBusyDateKeyOverrides, setMonthBusyDateKeyOverrides] = useState<Record<string, string[]>>({})
+  const displayedCandidates = useMemo(
+    () => monthCandidateOverrides[displayedMonthKey] ?? visibleCandidates.filter((candidate) => jstMonthKey(candidate.start) === displayedMonthKey),
+    [displayedMonthKey, monthCandidateOverrides, visibleCandidates],
+  )
+  const displayedBusyDateKeys = useMemo(
+    () => monthBusyDateKeyOverrides[displayedMonthKey] ?? busyDateKeys.filter((key) => key.startsWith(`${displayedMonthKey}-`)),
+    [busyDateKeys, displayedMonthKey, monthBusyDateKeyOverrides],
+  )
+  const candidateCalendar = useMemo(
+    () => buildCandidateCalendar(displayedMonthKey, displayedCandidates, displayedBusyDateKeys),
+    [displayedBusyDateKeys, displayedCandidates, displayedMonthKey],
+  )
+  const [selectedSlots, setSelectedSlots] = useState<CandidateWindow[]>(() => (
+    visibleCandidates.length === 1 && requiredDays === 1 ? [visibleCandidates[0]] : []
+  ))
+  const [monthLoadError, setMonthLoadError] = useState<string | null>(null)
+  const [calendarHint, setCalendarHint] = useState<string | null>(null)
   const [projectTitle, setProjectTitle] = useState(defaultProjectTitle)
   const [dueDate, setDueDate] = useState(defaultDueDate)
   const [companyName, setCompanyName] = useState(defaultCompanyName)
@@ -120,8 +232,49 @@ export function ChatbotBookingCard({
   const [booked, setBooked] = useState<BookingResult | null>(null)
   const projectTitleRef = useRef<HTMLTextAreaElement | null>(null)
 
-  const selectedSlot = selectedIndex === null ? null : visibleCandidates[selectedIndex] ?? null
-  const canSubmit = Boolean(selectedSlot && projectTitle.trim() && contactName.trim() && agreed && !submitting)
+  const currentJstDateKey = todayJstDateKey()
+  const selectedKeys = useMemo(() => selectedDateKeys(selectedSlots), [selectedSlots])
+  const canSubmit = Boolean(selectedSlots.length === requiredDays && projectTitle.trim() && contactName.trim() && agreed && !submitting)
+
+  useEffect(() => {
+    if (!jobContext || !effectiveEstimate) return
+    if (monthCandidateOverrides[displayedMonthKey]) return
+
+    let cancelled = false
+
+    fetch(CANDIDATES_API_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jobContext,
+        workflowEstimate: effectiveEstimate,
+        month: displayedMonthKey,
+      }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("booking_candidates_failed")
+        return (await response.json()) as CandidatesApiResponse
+      })
+      .then((payload) => {
+        if (cancelled) return
+        setMonthCandidateOverrides((current) => ({
+          ...current,
+          [displayedMonthKey]: Array.isArray(payload.candidates) ? payload.candidates.slice(0, MAX_VISIBLE_CANDIDATES) : [],
+        }))
+        setMonthBusyDateKeyOverrides((current) => ({
+          ...current,
+          [displayedMonthKey]: Array.isArray(payload.busyDateKeys) ? payload.busyDateKeys : [],
+        }))
+        setMonthLoadError(null)
+      })
+      .catch(() => {
+        if (!cancelled) setMonthLoadError("候補の読み込みに失敗しました")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [displayedMonthKey, displayedMonthOffset, effectiveEstimate, jobContext, monthCandidateOverrides, monthBusyDateKeyOverrides])
 
   useEffect(() => {
     const textarea = projectTitleRef.current
@@ -132,7 +285,7 @@ export function ChatbotBookingCard({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!canSubmit || !selectedSlot) return
+    if (!canSubmit) return
 
     setSubmitting(true)
     setErrorMessage(null)
@@ -151,11 +304,12 @@ export function ChatbotBookingCard({
           dueDate,
           memo: memo.trim(),
           agreed,
-          selectedSlot: {
-            start: selectedSlot.start,
-            end: selectedSlot.end,
-          },
-          workflowEstimate: estimate,
+          selectedSlots: selectedSlots.map((slot) => ({
+            start: slot.start,
+            end: slot.end,
+          })),
+          jobContext,
+          workflowEstimate: effectiveEstimate,
         },
       )
 
@@ -194,12 +348,12 @@ export function ChatbotBookingCard({
         >
           素材搬入時期と納品希望日が決まっている場合は、候補を仮キープして予約内容を送信できます。
         </p>
-        {estimateText(estimate) ? (
+        {estimateText(effectiveEstimate) ? (
           <p
             className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-2 text-xs font-medium text-hp-muted`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
           >
-            {estimateText(estimate)}
+            {estimateText(effectiveEstimate)}
           </p>
         ) : null}
       </div>
@@ -214,63 +368,142 @@ export function ChatbotBookingCard({
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <fieldset className="space-y-2">
           <legend className="text-sm font-semibold text-hp">仮キープ候補</legend>
-          <div className="overflow-x-auto rounded-[16px]" aria-label="仮キープ候補の座席選択">
+          <div className="rounded-[16px] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                className="glass-btn flex h-9 w-9 items-center justify-center disabled:opacity-35"
+                aria-label="前月を表示"
+                disabled={displayedMonthOffset <= -1}
+                onClick={() => setDisplayedMonthOffset((value) => Math.max(-1, value - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <p className="text-sm font-semibold text-hp" aria-live="polite">{candidateCalendar.monthLabel}</p>
+              <button
+                type="button"
+                className="glass-btn flex h-9 w-9 items-center justify-center disabled:opacity-35"
+                aria-label="翌月を表示"
+                disabled={displayedMonthOffset >= 1}
+                onClick={() => setDisplayedMonthOffset((value) => Math.min(1, value + 1))}
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="mb-3 flex min-h-4 items-center justify-end gap-3">
+              {monthLoadError ? (
+                <p className="text-xs text-red-500" role="alert">{monthLoadError}</p>
+              ) : null}
+            </div>
             <div
-              className="grid min-w-[520px] gap-2"
-              style={{ gridTemplateColumns: `minmax(5.5rem,0.8fr) repeat(${Math.max(candidateSeatMap.dates.length, 1)}, minmax(8rem,1fr))` }}
+              className="grid grid-cols-7 gap-1.5 text-center text-[11px] font-medium text-hp-muted"
+              aria-hidden="true"
+              data-testid="chatbot-booking-weekday-header"
             >
-              <div className="text-xs font-medium text-hp-muted">枠</div>
-              {candidateSeatMap.dates.map((date) => (
-                <div key={date} className="text-center text-xs font-semibold text-hp">
-                  {date}
-                </div>
-              ))}
-              {candidateSeatMap.timeRanges.map((timeRange) => (
-                <div key={timeRange} className="contents">
-                  <div className="flex items-center text-xs font-medium text-hp-muted">{timeRange}</div>
-                  {candidateSeatMap.dates.map((date) => {
-                    const slot = candidateSeatMap.slotByCell.get(`${date}|${timeRange}`)
-                    if (!slot) {
-                      return (
-                        <button
-                          key={`${date}-${timeRange}-empty`}
-                          type="button"
-                          disabled
-                          className="glass-btn min-h-16 px-3 py-2 text-center text-xs opacity-35"
-                          aria-disabled="true"
-                        >
-                          空きなし
-                        </button>
-                      )
-                    }
-
-                    const selected = selectedIndex === slot.index
-                    return (
-                      <button
-                        key={`${slot.candidate.start}-${slot.candidate.end}`}
-                        type="button"
-                        className={[
-                          "glass-btn min-h-16 px-3 py-2 text-center text-sm",
-                          selected ? "border-[var(--accent-primary)] bg-white/75 shadow-[0_0_24px_rgba(139,127,255,0.25)]" : "",
-                        ].join(" ")}
-                        aria-pressed={selected}
-                        onClick={() => setSelectedIndex(slot.index)}
-                      >
-                        <span className="block font-semibold text-hp">{slot.candidate.label}</span>
-                        {slot.candidate.note ? (
-                          <span
-                            className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} block text-xs text-hp-muted`}
-                            style={CHATBOT_CONVERSATION_CONTENT_STYLE}
-                          >
-                            {slot.candidate.note}
-                          </span>
-                        ) : null}
-                      </button>
-                    )
-                  })}
-                </div>
+              {["日", "月", "火", "水", "木", "金", "土"].map((day) => (
+                <span key={day}>{day}</span>
               ))}
             </div>
+            <div className="mt-1.5 grid grid-cols-7 gap-1.5" data-testid="chatbot-booking-month-grid">
+              {candidateCalendar.dayCells.map((dateKey, cellIndex) => {
+                if (!dateKey) {
+                  return <span key={`blank-${cellIndex}`} aria-hidden="true" />
+                }
+
+                const slot = candidateCalendar.candidateByStartDate.get(dateKey)
+                const busy = candidateCalendar.busyDateKeySet.has(dateKey)
+                const selected = selectedKeys.has(dateKey)
+                const past = dateKey < currentJstDateKey
+
+                if (busy) {
+                  return (
+                    <button
+                      key={dateKey}
+                      type="button"
+                      disabled
+                      className={[
+                        "relative min-h-11 cursor-default overflow-hidden rounded-[12px] border border-[var(--text-muted)] bg-[var(--text-muted)] px-1.5 py-2 text-xs text-white/95 opacity-85",
+                        selected ? "ring-2 ring-[var(--accent-primary)] ring-offset-1 ring-offset-white/60" : "",
+                      ].join(" ")}
+                      data-calendar-state="busy"
+                      data-selected={selected ? "true" : undefined}
+                      aria-label={`${dateKey} 埋まり`}
+                      aria-disabled="true"
+                    >
+                      <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
+                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 rotate-[-28deg] rounded-full bg-white/80" aria-hidden="true" />
+                    </button>
+                  )
+                }
+
+                if (past || !slot) {
+                  return (
+                    <button
+                      key={dateKey}
+                      type="button"
+                      disabled
+                      className={[
+                        "relative min-h-11 cursor-default rounded-[12px] border px-1.5 py-2 text-xs transition",
+                        selected
+                          ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset"
+                          : past
+                            ? "border-white/45 bg-white/30 text-hp-muted opacity-45"
+                            : "border-white/55 bg-white/35 text-hp-muted opacity-70",
+                      ].join(" ")}
+                      data-calendar-state={past ? "past" : "free-unstartable"}
+                      data-selected={selected ? "true" : undefined}
+                      aria-label={`${dateKey} 空き・開始不可`}
+                      aria-disabled="true"
+                    >
+                      <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
+                    </button>
+                  )
+                }
+
+                return (
+                  <button
+                    key={dateKey}
+                    type="button"
+                    className={[
+                      "min-h-11 rounded-[12px] border px-1.5 py-2 text-xs transition duration-150 ease-out",
+                      selected
+                        ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset shadow-[0_0_24px_rgba(117,104,214,0.24)]"
+                        : "border-white/65 bg-white/55 text-hp hover:-translate-y-0.5 hover:scale-[1.04] hover:border-[var(--accent-primary)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--accent-primary)]/45 hover:ring-inset hover:shadow-[0_0_24px_rgba(139,127,255,0.24)] focus-visible:border-[var(--accent-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/45 focus-visible:ring-inset",
+                    ].join(" ")}
+                    data-selected={selected ? "true" : undefined}
+                    data-calendar-state="startable"
+                    aria-label={`${dateKey} 選択可`}
+                    aria-pressed={selected}
+                    onClick={() => {
+                      setSelectedSlots((current) => {
+                        const exists = current.some((selectedSlot) => jstDateKey(selectedSlot.start) === dateKey)
+                        if (exists) {
+                          setCalendarHint(null)
+                          return current.filter((selectedSlot) => jstDateKey(selectedSlot.start) !== dateKey)
+                        }
+                        if (current.length >= requiredDays) {
+                          setCalendarHint("上限")
+                          return current
+                        }
+                        setCalendarHint(null)
+                        return [...current, slot.candidate].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+                      })
+                    }}
+                  >
+                    <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {calendarHint ? (
+              <p className="mt-3 text-xs leading-relaxed text-hp-muted" role="status" aria-live="polite">
+                {calendarHint}
+              </p>
+            ) : null}
+            <p className="mt-3 text-xs leading-relaxed text-hp-muted" aria-live="polite">
+              <span className="font-semibold text-hp">{selectedSlots.length}／{requiredDays}</span>
+              {selectedSlots.length > 0 ? <span className="ml-2">{formatSelectedSlots(selectedSlots)}</span> : null}
+            </p>
           </div>
         </fieldset>
 

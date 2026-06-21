@@ -7,8 +7,6 @@ const CANDIDATE_LIMIT = 3
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const VALID_WORK_SITES = new Set<WorkSite>(["satoshi-studio", "remote-grading", "on-site"])
-const CALENDAR_TOKEN_USER_ID = "satoshi-calendar-owner"
-
 export type FreeBusyFetcher = (args: {
   from: string
   to: string
@@ -35,114 +33,92 @@ export class ChatbotAvailabilityError extends Error {
   }
 }
 
-export async function findCandidateWindows(args: {
+type CandidateSearchArgs = {
   jobContext: JobContext
   workflowEstimate: WorkflowEstimate
   desiredDeadline?: string
+  notBefore?: string
+  busyFrom?: string
   lookaheadWeeks?: number
+  candidateLimit?: number
+  busyMode?: "score" | "block"
   now?: Date
   freeBusyFetcher?: FreeBusyFetcher
   attendanceConflictResolver?: AttendanceConflictResolver
-}): Promise<CandidateWindow[]> {
+}
+
+export type CandidateCalendarResult = {
+  candidates: CandidateWindow[]
+  busyDateKeys: string[]
+}
+
+export async function findCandidateWindows(args: CandidateSearchArgs): Promise<CandidateWindow[]> {
+  const result = await findCandidateCalendar(args)
+  return result.candidates
+}
+
+export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<CandidateCalendarResult> {
   const now = args.now ?? new Date()
   assertWorkSite(args.jobContext.workSite, now)
 
   const lookaheadWeeks = args.lookaheadWeeks ?? DEFAULT_LOOKAHEAD_WEEKS
-  const searchFrom = startOfJstDay(now)
+  const searchFrom = maxDate(startOfJstDay(now), args.notBefore ? parseStartDate(args.notBefore) : null)
+  const busyFrom = args.busyFrom ? parseStartDate(args.busyFrom) : searchFrom
   const searchTo = new Date(now.getTime() + lookaheadWeeks * 7 * DAY_MS)
   const deadline = args.desiredDeadline ? parseDeadline(args.desiredDeadline) : null
-  const neededBusinessDays = Math.max(1, Math.ceil(args.workflowEstimate.totalMinDays))
+  const neededDays = Math.max(1, Math.ceil(args.workflowEstimate.totalMaxDays))
   const fetcher = args.freeBusyFetcher ?? defaultFreeBusyFetcher
   const resolver = args.attendanceConflictResolver ?? defaultAttendanceConflictResolver
 
   const [busyIntervals, attendanceIntervals] = await Promise.all([
-    runFreeBusyFetcher(fetcher, searchFrom, searchTo),
+    runFreeBusyFetcher(fetcher, busyFrom, searchTo),
     runAttendanceResolver(resolver, searchFrom, searchTo),
   ])
 
+  const normalizedBusyIntervals = busyIntervals.map(normalizeInterval).filter(isValidInterval)
   const candidates = buildCandidateWindows({
     searchFrom,
     searchTo,
-    neededBusinessDays,
     deadline,
-    busyIntervals: busyIntervals.map(normalizeInterval).filter(isValidInterval),
+    busyMode: args.busyMode ?? "score",
+    busyIntervals: normalizedBusyIntervals,
     attendanceIntervals: attendanceIntervals.map(normalizeInterval).filter(isValidInterval),
   })
 
-  return candidates
-    .sort((a, b) => b.score - a.score || a.start.getTime() - b.start.getTime())
-    .slice(0, CANDIDATE_LIMIT)
-    .map((candidate) => ({
-      start: candidate.start.toISOString(),
-      end: candidate.end.toISOString(),
-      label: `${formatJstDate(candidate.start)} - ${formatJstDate(addJstDays(candidate.end, -1))}`,
-      note: [
-        `businessDays=${neededBusinessDays}`,
-        `busyRatio=${candidate.busyRatio.toFixed(2)}`,
-        deadline ? `deadlineSlackDays=${candidate.deadlineSlackDays.toFixed(1)}` : null,
-        "attendanceConflicts=0",
-      ].filter(Boolean).join("; "),
-    }))
+  return {
+    candidates: candidates
+      .sort((a, b) => b.score - a.score || a.start.getTime() - b.start.getTime())
+      .slice(0, args.candidateLimit ?? CANDIDATE_LIMIT)
+      .map((candidate) => ({
+        start: candidate.start.toISOString(),
+        end: candidate.end.toISOString(),
+        label: `${formatJstDate(candidate.start)} 単日`,
+        available: true,
+        note: [
+          `requiredDays=${neededDays}`,
+          `busyRatio=${candidate.busyRatio.toFixed(2)}`,
+          deadline ? `deadlineSlackDays=${candidate.deadlineSlackDays.toFixed(1)}` : null,
+          "attendanceConflicts=0",
+        ].filter(Boolean).join("; "),
+      })),
+    busyDateKeys: busyDateKeysFromIntervals(normalizedBusyIntervals, busyFrom, searchTo),
+  }
 }
 
 async function defaultFreeBusyFetcher(args: {
   from: string
   to: string
 }): Promise<Array<{ start: string; end: string }>> {
-  const { getCalendarFreeBusyForUser } = await import("@/lib/booking/server/calendar-free-busy/free-busy")
-  const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
-  const result = await getCalendarFreeBusyForUser({
-    userId: CALENDAR_TOKEN_USER_ID,
-    teamId: null,
-    timeMin: args.from,
-    timeMax: args.to,
-    calendarId,
-    isCalendarAdmin: false,
-    useCache: false,
-  })
-
-  if (result.status >= 400 || result.code) {
-    throw new Error(result.code ?? `calendar_free_busy_status_${result.status}`)
-  }
-
-  return result.busy.map((slot) => ({
-    start: slot.start,
-    end: slot.end,
-  }))
+  const { getNotionWorkScheduleBusyIntervals } = await import("@/lib/chatbot/server/notion-work-schedule-busy")
+  return getNotionWorkScheduleBusyIntervals(args)
 }
 
 async function defaultAttendanceConflictResolver(args: {
   from: string
   to: string
 }): Promise<Array<{ start: string; end: string; bookingId: string }>> {
-  const { prisma } = await import("@/lib/prisma")
-  const activeStatuses = ["PENDING_GCAL", "CONFIRMED"]
-  const now = new Date()
-  const slots = await prisma.bookingTimeSlot.findMany({
-    where: {
-      startTime: { lt: new Date(args.to) },
-      endTime: { gt: new Date(args.from) },
-      status: { in: activeStatuses },
-      bookingGroup: {
-        status: { in: activeStatuses },
-        OR: [
-          { pendingExpiresAt: null },
-          { pendingExpiresAt: { gt: now } },
-        ],
-      },
-    },
-    select: {
-      id: true,
-      startTime: true,
-      endTime: true,
-    },
-  })
-
-  return slots.map((slot) => ({
-    bookingId: slot.id,
-    start: slot.startTime.toISOString(),
-    end: slot.endTime.toISOString(),
-  }))
+  void args
+  return []
 }
 
 async function runFreeBusyFetcher(
@@ -156,7 +132,7 @@ async function runFreeBusyFetcher(
     if (error instanceof ChatbotAvailabilityError) throw error
     throw new ChatbotAvailabilityError(
       "free-busy-fetch-failed",
-      "Failed to fetch Google Calendar busy intervals.",
+      "Failed to fetch chatbot busy intervals.",
       { cause: error },
     )
   }
@@ -210,6 +186,21 @@ function parseDeadline(value: string): Date {
   return parsed
 }
 
+function parseStartDate(value: string): Date {
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00.000+09:00`)
+    : new Date(value)
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new ChatbotAvailabilityError(
+      "work-site-unspecified",
+      "notBefore must be an ISO 8601 string or ISO date string.",
+    )
+  }
+
+  return startOfJstDay(parsed)
+}
+
 type Interval = {
   start: Date
   end: Date
@@ -224,8 +215,8 @@ type ScoredCandidate = Interval & {
 function buildCandidateWindows(args: {
   searchFrom: Date
   searchTo: Date
-  neededBusinessDays: number
   deadline: Date | null
+  busyMode: "score" | "block"
   busyIntervals: Interval[]
   attendanceIntervals: Interval[]
 }): ScoredCandidate[] {
@@ -235,12 +226,11 @@ function buildCandidateWindows(args: {
     cursor.getTime() < args.searchTo.getTime();
     cursor = addJstDays(cursor, 1)
   ) {
-    if (!isBusinessDay(cursor)) continue
-
-    const window = createBusinessWindow(cursor, args.neededBusinessDays)
+    const window = createDayWindow(cursor)
     if (window.end.getTime() > args.searchTo.getTime()) continue
     if (args.deadline && window.end.getTime() > args.deadline.getTime()) continue
     if (args.attendanceIntervals.some((interval) => overlaps(window, interval))) continue
+    if (args.busyMode === "block" && args.busyIntervals.some((interval) => overlaps(window, interval))) continue
 
     const busyMs = args.busyIntervals.reduce((sum, interval) => sum + overlapMs(window, interval), 0)
     const durationMs = window.end.getTime() - window.start.getTime()
@@ -267,22 +257,10 @@ function buildCandidateWindows(args: {
   return candidates
 }
 
-function createBusinessWindow(start: Date, businessDays: number): Interval {
-  let countedDays = 0
-  let cursor = start
-  let lastBusinessDay = start
-
-  while (countedDays < businessDays) {
-    if (isBusinessDay(cursor)) {
-      countedDays += 1
-      lastBusinessDay = cursor
-    }
-    cursor = addJstDays(cursor, 1)
-  }
-
+function createDayWindow(start: Date): Interval {
   return {
     start,
-    end: addJstDays(lastBusinessDay, 1),
+    end: addJstDays(start, 1),
   }
 }
 
@@ -323,19 +301,39 @@ function overlaps(a: Interval, b: Interval): boolean {
   return a.start.getTime() < b.end.getTime() && a.end.getTime() > b.start.getTime()
 }
 
+function busyDateKeysFromIntervals(intervals: Interval[], from: Date, to: Date): string[] {
+  const keys = new Set<string>()
+
+  for (const interval of intervals) {
+    const firstDay = startOfJstDay(maxDate(interval.start, from))
+    for (
+      let cursor = firstDay;
+      cursor.getTime() < interval.end.getTime() && cursor.getTime() < to.getTime();
+      cursor = addJstDays(cursor, 1)
+    ) {
+      const day = { start: cursor, end: addJstDays(cursor, 1) }
+      if (overlaps(day, interval) && overlaps(day, { start: from, end: to })) {
+        keys.add(formatJstDate(cursor))
+      }
+    }
+  }
+
+  return [...keys].sort()
+}
+
 function overlapMs(a: Interval, b: Interval): number {
   if (!overlaps(a, b)) return 0
   return Math.max(0, Math.min(a.end.getTime(), b.end.getTime()) - Math.max(a.start.getTime(), b.start.getTime()))
 }
 
-function isBusinessDay(date: Date): boolean {
-  const day = getJstDay(date)
-  return day !== 0 && day !== 6
-}
-
 function startOfJstDay(date: Date): Date {
   const parts = getJstDateParts(date)
   return jstDate(parts.year, parts.month, parts.day)
+}
+
+function maxDate(a: Date, b: Date | null): Date {
+  if (!b) return a
+  return a.getTime() >= b.getTime() ? a : b
 }
 
 function addJstDays(date: Date, days: number): Date {
@@ -345,10 +343,6 @@ function addJstDays(date: Date, days: number): Date {
 
 function jstDate(year: number, month: number, day: number): Date {
   return new Date(Date.UTC(year, month - 1, day) - JST_OFFSET_MS)
-}
-
-function getJstDay(date: Date): number {
-  return new Date(date.getTime() + JST_OFFSET_MS).getUTCDay()
 }
 
 function getJstDateParts(date: Date): { year: number; month: number; day: number } {

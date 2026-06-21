@@ -42,6 +42,7 @@ export type CandidateWindow = {
   start: string
   end: string
   label: string
+  available?: boolean
   note?: string
 }
 

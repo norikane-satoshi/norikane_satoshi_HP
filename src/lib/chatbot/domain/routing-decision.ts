@@ -14,6 +14,7 @@ export type RoutingDecision =
   | {
       kind: "to-booking-inline"
       suggestedSlots: CandidateWindow[]
+      busyDateKeys?: string[]
       jobContext: JobContext
       bookingPrefill?: BookingCardPrefill
     }

@@ -28,7 +28,11 @@ import {
   type ChatbotLlmTierOrchestrator,
   type UserChatbotContext,
 } from "@/lib/chatbot/server"
-import { ChatbotAvailabilityError, findCandidateWindows } from "@/lib/chatbot/server/availability-finder"
+import {
+  ChatbotAvailabilityError,
+  findCandidateCalendar,
+  type CandidateCalendarResult,
+} from "@/lib/chatbot/server/availability-finder"
 import { applyActiveChoiceAnswer } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import {
@@ -52,6 +56,7 @@ type ChatbotMessageUi =
   | {
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
+      busyDateKeys?: Extract<RoutingDecision, { kind: "to-booking-inline" }>["busyDateKeys"]
       jobContext: JobContext
       bookingPrefill?: BookingCardPrefill
     }
@@ -95,12 +100,16 @@ type ChatbotMessageRepository = {
   linkConversationToUser: typeof linkConversationToUser
 }
 
+type CandidateWindowFinder =
+  | typeof findCandidateCalendar
+  | ((args: Parameters<typeof findCandidateCalendar>[0]) => Promise<CandidateCalendarResult | Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]>)
+
 type HandleChatbotMessageOptions = {
   repository?: ChatbotMessageRepository
   orchestratorFactory?: () => ChatbotLlmTierOrchestrator
   userContextLoader?: typeof loadUserChatbotContext
   userContextFormatter?: typeof formatUserChatbotContextForPrompt
-  candidateWindowFinder?: typeof findCandidateWindows
+  candidateWindowFinder?: CandidateWindowFinder
   knowledgeSnapshotLoader?: typeof loadLatestChatbotKnowledgeSnapshot
 }
 
@@ -150,7 +159,7 @@ export async function handleChatbotMessage(
   const orchestrator = options.orchestratorFactory?.() ?? createDefaultChatbotLlmOrchestrator()
   const userContextLoader = options.userContextLoader ?? loadUserChatbotContext
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
-  const candidateWindowFinder = options.candidateWindowFinder ?? findCandidateWindows
+  const candidateWindowFinder = options.candidateWindowFinder ?? findCandidateCalendar
   const knowledgeSnapshotLoader = options.knowledgeSnapshotLoader ?? loadLatestChatbotKnowledgeSnapshot
   let conversation =
     (await repository.loadConversationBySessionId(input.sessionId)) ??
@@ -565,6 +574,7 @@ function toMessageUi(input: {
     return {
       kind: "booking-card",
       suggestedSlots: routingDecision.suggestedSlots,
+      busyDateKeys: routingDecision.busyDateKeys,
       jobContext: routingDecision.jobContext,
       bookingPrefill: routingDecision.bookingPrefill,
     }
@@ -656,7 +666,7 @@ async function resolveRoutingDecision(input: {
   llmResponse: ChatbotLlmResponse
   jobContext: JobContext
   fallbackRoutingDecision: RoutingDecision
-  candidateWindowFinder: typeof findCandidateWindows
+  candidateWindowFinder: CandidateWindowFinder
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
 }): Promise<RoutingDecision | undefined> {
   if (input.llmResponse.tier === "tier-4-form-fallback") return input.fallbackRoutingDecision
@@ -674,15 +684,19 @@ async function resolveRoutingDecision(input: {
   }
 
   try {
-    const suggestedSlots = await input.candidateWindowFinder({
+    const calendar = normalizeCandidateCalendarResult(await input.candidateWindowFinder({
       jobContext,
       workflowEstimate,
       desiredDeadline: toolCall.args.dueDate,
-    })
+      notBefore: input.jobContext.preferredStartDate,
+      candidateLimit: 31,
+      busyMode: "block",
+    }))
 
     return {
       kind: "to-booking-inline",
-      suggestedSlots,
+      suggestedSlots: calendar.candidates,
+      busyDateKeys: calendar.busyDateKeys,
       jobContext,
       bookingPrefill: toolCall.args,
     }
@@ -690,6 +704,12 @@ async function resolveRoutingDecision(input: {
     if (error instanceof ChatbotAvailabilityError) return undefined
     throw error
   }
+}
+
+function normalizeCandidateCalendarResult(
+  result: CandidateCalendarResult | Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"],
+): CandidateCalendarResult {
+  return Array.isArray(result) ? { candidates: result, busyDateKeys: [] } : result
 }
 
 type ShowBookingCardToolCall = {
