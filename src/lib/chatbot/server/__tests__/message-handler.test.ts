@@ -1380,6 +1380,50 @@ describe("handleChatbotMessage user context", () => {
     expect(JSON.stringify(result.ui)).not.toContain("stored@example.com")
   })
 
+  it("prefills a stored contact email when the booking tool call omits it", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-31"}}',
+      tier: "tier-3-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "メールは stored@example.com、7月いっぱい納品です",
+        jobContext: {
+          jobKind: "cm-30s",
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          publicReleaseDate: "2026-07-31",
+        },
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: true,
+          hasDesiredSchedule: true,
+          contactEmail: "stored@example.com",
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        contactEmail: "stored@example.com",
+        dueDate: "2026-07-31",
+      },
+    })
+  })
+
   it("keeps lecture and training inquiries out of inline booking even when the LLM emits a booking tool call", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({

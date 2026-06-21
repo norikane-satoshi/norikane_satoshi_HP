@@ -34,7 +34,7 @@ const chatbotBookingRequestSchema = z
     conversationId: z.string().trim().min(1).optional(),
     projectTitle: z.string().trim().min(1).max(200),
     contactName: z.string().trim().min(1).max(80),
-    contactEmail: z.string().trim().email().max(254).optional().or(z.literal("")),
+    contactEmail: z.string().trim().email().max(254),
     companyName: z.string().trim().max(120).optional(),
     phone: z.string().trim().max(32).optional(),
     dueDate: z.string().optional(),

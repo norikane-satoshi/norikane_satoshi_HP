@@ -658,7 +658,7 @@ describe("WidgetShell API wiring", () => {
     expect(screen.getByLabelText("仮キープ候補のカレンダー選択")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-07-10 選択可" })).toBeInTheDocument()
     expect(screen.getByLabelText("案件名（必須）")).toHaveValue("ライブ案件")
-    expect(screen.getByLabelText("メールアドレス（任意）")).toHaveValue("client@example.jp")
+    expect(screen.getByLabelText("メールアドレス（必須）")).toHaveValue("client@example.jp")
     expect(screen.getByLabelText("補足ノート（任意）")).toHaveValue("観客の顔ぼかし30カット以上\n作業場所: リモート")
 
     const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")

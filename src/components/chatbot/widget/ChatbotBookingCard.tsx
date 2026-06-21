@@ -174,8 +174,32 @@ function formatSelectedSlots(slots: CandidateWindow[]): string {
   return slots.map((slot) => formatCandidateDate(slot.start)).join("、")
 }
 
+function safeJstMonthKey(value: string | undefined): string | null {
+  if (!value) return null
+  const date = /^\d{4}-\d{2}$/.test(value)
+    ? jstDateFromKey(`${value}-01`)
+    : /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? jstDateFromKey(value)
+      : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return jstMonthKey(date)
+}
+
+function resolveInitialMonthKey(input: {
+  defaultDueDate: string
+  jobContext?: JobContext
+  firstCandidateStart?: string
+}): string {
+  return (
+    safeJstMonthKey(input.defaultDueDate) ??
+    safeJstMonthKey(input.jobContext?.publicReleaseDate) ??
+    safeJstMonthKey(input.jobContext?.preferredStartDate) ??
+    jstMonthKey(input.firstCandidateStart ?? new Date())
+  )
+}
+
 function isValidEmail(value: string): boolean {
-  return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
 export function ChatbotBookingCard({
@@ -196,8 +220,8 @@ export function ChatbotBookingCard({
 }: ChatbotBookingCardProps) {
   const visibleCandidates = useMemo(() => candidates.slice(0, MAX_VISIBLE_CANDIDATES), [candidates])
   const initialMonthKey = useMemo(
-    () => jstMonthKey(visibleCandidates[0]?.start ?? new Date()),
-    [visibleCandidates],
+    () => resolveInitialMonthKey({ defaultDueDate, jobContext, firstCandidateStart: visibleCandidates[0]?.start }),
+    [defaultDueDate, jobContext, visibleCandidates],
   )
   const [displayedMonthOffset, setDisplayedMonthOffset] = useState(0)
   const effectiveEstimate = estimate ?? jobContext?.workflowEstimate
@@ -241,7 +265,9 @@ export function ChatbotBookingCard({
 
   const currentJstDateKey = todayJstDateKey()
   const selectedKeys = useMemo(() => selectedDateKeys(selectedSlots), [selectedSlots])
-  const contactEmailValid = isValidEmail(contactEmail.trim())
+  const trimmedContactEmail = contactEmail.trim()
+  const contactEmailValid = isValidEmail(trimmedContactEmail)
+  const contactEmailErrorVisible = trimmedContactEmail.length > 0 && !contactEmailValid
   const canSubmit = Boolean(
     selectedSlots.length === requiredDays &&
       projectTitle.trim() &&
@@ -314,7 +340,7 @@ export function ChatbotBookingCard({
           conversationId,
           projectTitle: projectTitle.trim(),
           contactName: contactName.trim(),
-          contactEmail: contactEmail.trim(),
+          contactEmail: trimmedContactEmail,
           companyName: companyName.trim(),
           phone: phone.trim(),
           dueDate,
@@ -564,17 +590,18 @@ export function ChatbotBookingCard({
             />
           </label>
           <label className="block text-sm font-medium text-hp sm:col-span-2">
-            メールアドレス（任意）
+            メールアドレス（必須）
             <input
               value={contactEmail}
               onChange={(event) => setContactEmail(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
               type="email"
               placeholder="client@example.jp"
-              aria-invalid={contactEmailValid ? undefined : "true"}
+              aria-invalid={contactEmailErrorVisible ? "true" : undefined}
+              required
             />
           </label>
-          {!contactEmailValid ? (
+          {contactEmailErrorVisible ? (
             <p className="text-xs text-red-500 sm:col-span-2" role="alert">
               メールアドレスの形式を確認してください
             </p>

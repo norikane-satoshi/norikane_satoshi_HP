@@ -13,6 +13,7 @@ function validChatBooking(overrides: Record<string, unknown> = {}) {
     conversationId: "conv_1",
     projectTitle: "Color grading",
     contactName: "Satoshi",
+    contactEmail: "client@example.com",
     companyName: "NCS",
     phone: "",
     dueDate: "2026-06-30",
@@ -93,6 +94,17 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(response.status).toBe(400)
     const payload = await response.json()
     expect(payload.error).toBe("invalid_request")
+    expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+  })
+
+  it("returns 400 when contact email is missing or empty", async () => {
+    const route = await loadPost()
+
+    const missingResponse = await route.POST(request(validChatBooking({ contactEmail: undefined })))
+    expect(missingResponse.status).toBe(400)
+
+    const emptyResponse = await route.POST(request(validChatBooking({ contactEmail: "" })))
+    expect(emptyResponse.status).toBe(400)
     expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
   })
 
