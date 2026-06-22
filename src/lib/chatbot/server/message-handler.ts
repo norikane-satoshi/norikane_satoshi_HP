@@ -26,6 +26,8 @@ import {
   type ChatbotLlmClient,
   type ChatbotLlmResponse,
   type ChatbotLlmTierOrchestrator,
+  type ChatbotLlmTier,
+  type TierAttemptEvent,
   type UserChatbotContext,
 } from "@/lib/chatbot/server"
 import {
@@ -85,6 +87,7 @@ export type ChatbotMessageApiResult = {
 }
 
 export type HandleChatbotMessageInput = {
+  requestId?: string
   sessionId: string
   userId?: string
   message: string
@@ -160,7 +163,6 @@ export async function handleChatbotMessage(
   options: HandleChatbotMessageOptions = {},
 ): Promise<ChatbotMessageApiResult> {
   const repository = options.repository ?? defaultRepository
-  const orchestrator = options.orchestratorFactory?.() ?? createDefaultChatbotLlmOrchestrator()
   const userContextLoader = options.userContextLoader ?? loadUserChatbotContext
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
   const candidateWindowFinder = options.candidateWindowFinder ?? findCandidateCalendar
@@ -278,6 +280,14 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
     latestUserMessage: input.message,
   })
+  const orchestrator =
+    options.orchestratorFactory?.() ??
+    createDefaultChatbotLlmOrchestrator({
+      requestId: input.requestId,
+      sessionId: conversation.context.sessionId,
+      conversationId: conversation.id,
+      latestUserMessage: input.message,
+    })
   const llmResponse = await orchestrator.generate({
     systemPrompt,
     messages: [
@@ -333,6 +343,14 @@ export async function handleChatbotMessage(
   })
 
   const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState })
+  logChatbotLlmFinalResponse({
+    requestId: input.requestId,
+    conversationId: conversation.id,
+    sessionId: conversation.context.sessionId,
+    tier: llmResponse.tier,
+    routingDecisionKind: routingDecision?.kind,
+    uiKind: ui.kind,
+  })
   if (routingDecision) {
     try {
       await repository.updateConversationRouting({
@@ -405,14 +423,24 @@ function shouldIsolateExistingConversation(
   return conversation.context.userId !== userId
 }
 
-function createDefaultChatbotLlmOrchestrator(): ChatbotLlmTierOrchestrator {
+function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogContext): ChatbotLlmTierOrchestrator {
   const clients: ChatbotLlmClient[] = [
     createTier1ChromeNotionAiClient(),
     createTier2HostedChromeNotionAiClient(),
     createTier3OllamaDeepSeekClient(),
     createTier4FormFallbackClient(),
   ]
-  return createChatbotLlmTierOrchestrator({ clients })
+  return createChatbotLlmTierOrchestrator({
+    clients,
+    onTierAttempt: (event) => logChatbotLlmTierAttempt(context, event),
+  })
+}
+
+type ChatbotTierAttemptLogContext = {
+  requestId?: string
+  conversationId: string
+  sessionId: string
+  latestUserMessage: string
 }
 
 function buildChatbotSystemPrompt(
@@ -616,6 +644,65 @@ function logChatbotKnowledgeSourceTrace(input: {
       })),
     }),
   )
+}
+
+function logChatbotLlmTierAttempt(
+  context: ChatbotTierAttemptLogContext,
+  event: TierAttemptEvent,
+): void {
+  if (process.env.NODE_ENV === "test") return
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_llm_tier_attempt",
+      requestId: context.requestId,
+      conversationId: context.conversationId,
+      sessionId: context.sessionId,
+      latestUserMessagePreview: redactForChatbotLog(context.latestUserMessage),
+      tier: event.tier,
+      phase: event.phase,
+      outcome: event.outcome,
+      latencyMs: event.latencyMs,
+      ...(event.error ? { error: serializeTierAttemptError(event.error) } : {}),
+    }),
+  )
+}
+
+function logChatbotLlmFinalResponse(input: {
+  requestId?: string
+  conversationId: string
+  sessionId: string
+  tier: ChatbotLlmTier
+  routingDecisionKind?: RoutingDecision["kind"]
+  uiKind: ChatbotMessageUi["kind"]
+}): void {
+  if (process.env.NODE_ENV === "test") return
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_llm_final_response",
+      requestId: input.requestId,
+      conversationId: input.conversationId,
+      sessionId: input.sessionId,
+      tier: input.tier,
+      routingDecisionKind: input.routingDecisionKind ?? null,
+      uiKind: input.uiKind,
+    }),
+  )
+}
+
+function serializeTierAttemptError(error: Error) {
+  const maybeLlmError = error as Error & {
+    code?: unknown
+    isRetryable?: unknown
+  }
+
+  return {
+    name: error.name,
+    ...(typeof maybeLlmError.code === "string" ? { code: maybeLlmError.code } : {}),
+    message: error.message,
+    ...(typeof maybeLlmError.isRetryable === "boolean" ? { retryable: maybeLlmError.isRetryable } : {}),
+  }
 }
 
 const dayRangePattern = /\d+(?:\.\d+)?\s*(?:日\s*から\s*|[〜～\-ー]\s*)\d+(?:\.\d+)?\s*日/u

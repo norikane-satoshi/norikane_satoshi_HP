@@ -218,6 +218,7 @@ const defaultCreatedSource = "assistant"
 const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
 const emptyText = ""
+let tier1GenerateQueue = Promise.resolve()
 
 export const tier1ChromeNotionAiDefaults = {
   cdpBaseUrl: "http://127.0.0.1:9223",
@@ -249,6 +250,13 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
 
   async generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse> {
     const startedAt = Date.now()
+    return runTier1GenerateExclusive(() => this.generateUnqueued(request, startedAt))
+  }
+
+  private async generateUnqueued(
+    request: ChatbotLlmRequest,
+    startedAt: number,
+  ): Promise<ChatbotLlmResponse> {
     const { session, target } = await this.openTargetSession(this.config.requestTimeoutMs)
 
     try {
@@ -493,6 +501,12 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       cause: input.cause,
     })
   }
+}
+
+function runTier1GenerateExclusive<T>(operation: () => Promise<T>): Promise<T> {
+  const run = tier1GenerateQueue.then(operation, operation)
+  tier1GenerateQueue = run.then(() => undefined, () => undefined)
+  return run
 }
 
 export function createTier1ChromeNotionAiClient(

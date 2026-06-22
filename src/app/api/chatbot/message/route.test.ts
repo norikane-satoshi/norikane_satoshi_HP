@@ -184,6 +184,29 @@ describe("POST /api/chatbot/message", () => {
     })
   })
 
+  it("prefers the client storage session over a stale session cookie", async () => {
+    const route = await loadPost()
+    const clientSessionId = "11111111-1111-4111-8111-111111111111"
+
+    const response = await route.POST(
+      request(
+        {
+          message: "保存データ削除後の新規相談です",
+          clientSessionId,
+        },
+        "chatbot_session_id=stale_cookie_session",
+      ),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("set-cookie")).toContain(`chatbot_session_id=${clientSessionId}`)
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=604800")
+    expect(route.createConversation).toHaveBeenCalledWith({
+      sessionId: clientSessionId,
+      userId: null,
+    })
+  })
+
   it("returns tier4-inquiry-form ui for deterministic tier4 fallback", async () => {
     const route = await loadPost({
       llmResponse: {

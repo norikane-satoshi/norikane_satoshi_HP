@@ -10,6 +10,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const sessionCookieName = "chatbot_session_id"
+const sessionMaxAgeSeconds = 7 * 24 * 60 * 60
 
 const chatbotMessageRequestSchema = z.object({
   message: z.string().trim().min(1).max(4000),
@@ -51,10 +52,11 @@ export async function POST(request: NextRequest) {
 
   const session = await auth()
   const existingSessionId = request.cookies.get(sessionCookieName)?.value
-  const sessionId = existingSessionId ?? parsed.data.clientSessionId ?? crypto.randomUUID()
+  const sessionId = parsed.data.clientSessionId ?? existingSessionId ?? crypto.randomUUID()
 
   try {
     const result = await handleChatbotMessage({
+      requestId,
       sessionId,
       userId: session?.user?.id,
       message: parsed.data.message,
@@ -66,12 +68,13 @@ export async function POST(request: NextRequest) {
     })
     const response = NextResponse.json(result)
 
-    if (!existingSessionId) {
+    if (existingSessionId !== sessionId) {
       response.cookies.set(sessionCookieName, sessionId, {
         httpOnly: true,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
         path: "/",
+        maxAge: sessionMaxAgeSeconds,
       })
     }
 
