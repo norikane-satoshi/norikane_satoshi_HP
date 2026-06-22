@@ -1900,6 +1900,31 @@ describe("handleChatbotMessage user context", () => {
     }))
   })
 
+  it("does not post a problem notification for successful tier2 or tier3 responses without explicit fallback evidence", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "通常応答です。",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "Tier2通常応答" },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenCalledTimes(1)
+    expect(harness.slackNotifier).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "conversation",
+      tier: "tier-2-hosted-chrome-notion-ai",
+      threadTs: "1700000000.000100",
+    }))
+  })
+
   it("returns the chatbot response when Slack notification fails", async () => {
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const harness = setup()

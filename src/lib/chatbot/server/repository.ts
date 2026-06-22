@@ -246,8 +246,11 @@ export async function updateConversationSlackThreadTs(input: {
   conversationId: string
   slackThreadTs: string
 }): Promise<void> {
-  await prisma.chatbotConversation.update({
-    where: { id: input.conversationId },
+  await prisma.chatbotConversation.updateMany({
+    where: {
+      id: input.conversationId,
+      slackThreadTs: null,
+    },
     data: { slackThreadTs: input.slackThreadTs },
   })
 }

@@ -35,8 +35,10 @@ function message(role: ChatbotMessage["role"], content: string): ChatbotMessage 
 async function loadPost({
   session = null,
   existingConversation = null,
+  existingConversationById,
   loadConversationError,
   updateConversationRoutingError,
+  slackNotificationResult = { status: "skipped", reason: "disabled" },
   llmResponse = {
     rawText: "最終媒体を教えてください",
     tier: "tier-3-ollama-deepseek" as const,
@@ -44,8 +46,10 @@ async function loadPost({
 }: {
   session?: { user?: { id?: string; email?: string } } | null
   existingConversation?: ChatbotConversation | null
+  existingConversationById?: ChatbotConversation | null
   loadConversationError?: Error
   updateConversationRoutingError?: Error
+  slackNotificationResult?: Record<string, unknown>
   llmResponse?: Record<string, unknown>
 } = {}) {
   vi.resetModules()
@@ -54,6 +58,9 @@ async function loadPost({
   const loadConversationBySessionId = loadConversationError
     ? vi.fn().mockRejectedValue(loadConversationError)
     : vi.fn().mockResolvedValue(existingConversation)
+  const loadConversationById = vi.fn().mockResolvedValue(
+    existingConversationById === undefined ? existingConversation : existingConversationById,
+  )
   const createConversation = vi.fn().mockResolvedValue(conversation())
   const appendMessage = vi
     .fn()
@@ -75,10 +82,12 @@ async function loadPost({
   })
   const formatUserChatbotContextForPrompt = vi.fn(() => "本人文脈:\n- 既存の本人文脈はありません。")
   const generate = vi.fn().mockResolvedValue(llmResponse)
+  const sendChatbotSlackNotification = vi.fn().mockResolvedValue(slackNotificationResult)
 
   vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/chatbot/server", () => ({
     loadConversationBySessionId,
+    loadConversationById,
     createConversation,
     appendMessage,
     truncateConversationFromMessage,
@@ -96,12 +105,16 @@ async function loadPost({
       isHealthy: vi.fn().mockResolvedValue(true),
     })),
   }))
+  vi.doMock("@/lib/chatbot/server/slack-notifier", () => ({
+    sendChatbotSlackNotification,
+  }))
 
   const route = await import("./route")
   return {
     POST: route.POST,
     auth,
     loadConversationBySessionId,
+    loadConversationById,
     createConversation,
     appendMessage,
     truncateConversationFromMessage,
@@ -111,6 +124,7 @@ async function loadPost({
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     generate,
+    sendChatbotSlackNotification,
   }
 }
 
@@ -349,6 +363,76 @@ describe("POST /api/chatbot/message", () => {
       "[CHATBOT_OPERATION_FAILURE]",
       expect.stringContaining("\"dbWrite\":\"updateConversationRouting\""),
     )
+    consoleError.mockRestore()
+  })
+
+  it("posts message failures into an existing Slack thread when the conversation can be loaded by id", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const route = await loadPost({
+      loadConversationError: new Error("Invalid chatbot active choices JSON"),
+      existingConversationById: conversation({
+        id: "conv_threaded",
+        context: { sessionId: "session_threaded", slackThreadTs: "1700000000.000100" },
+      }),
+      slackNotificationResult: { status: "sent", ts: "1700000000.000200" },
+    })
+
+    const response = await route.POST(
+      request(
+        {
+          message: "選択: web",
+          conversationId: "conv_threaded",
+          clientSessionId: "11111111-1111-4111-8111-111111111111",
+        },
+        "chatbot_session_id=session_legacy",
+      ),
+    )
+
+    expect(response.status).toBe(500)
+    expect(route.loadConversationById).toHaveBeenCalledWith("conv_threaded")
+    expect(route.sendChatbotSlackNotification).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "issue",
+      conversationId: "conv_threaded",
+      sessionId: "session_threaded",
+      threadTs: "1700000000.000100",
+      issueReasons: ["message-conversation-load"],
+    }))
+    expect(route.updateConversationSlackThreadTs).not.toHaveBeenCalled()
+    consoleError.mockRestore()
+  })
+
+  it("saves a new Slack thread ts for message failures when a real conversation is found", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const route = await loadPost({
+      loadConversationError: new Error("Invalid chatbot conversation state JSON"),
+      existingConversationById: conversation({
+        id: "conv_unthreaded",
+        context: { sessionId: "session_unthreaded" },
+      }),
+      slackNotificationResult: { status: "sent", ts: "1700000000.000300" },
+    })
+
+    const response = await route.POST(
+      request(
+        {
+          message: "選択: web",
+          conversationId: "conv_unthreaded",
+          clientSessionId: "11111111-1111-4111-8111-111111111111",
+        },
+        "chatbot_session_id=session_legacy",
+      ),
+    )
+
+    expect(response.status).toBe(500)
+    expect(route.sendChatbotSlackNotification).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "issue",
+      conversationId: "conv_unthreaded",
+      threadTs: undefined,
+    }))
+    expect(route.updateConversationSlackThreadTs).toHaveBeenCalledWith({
+      conversationId: "conv_unthreaded",
+      slackThreadTs: "1700000000.000300",
+    })
     consoleError.mockRestore()
   })
 })

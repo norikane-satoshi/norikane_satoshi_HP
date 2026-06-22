@@ -470,9 +470,6 @@ function detectChatbotIssueReasons(tier: ChatbotLlmResponse["tier"]): string[] {
   switch (tier) {
     case "tier-4-form-fallback":
       return ["tier4-form-fallback"]
-    case "tier-2-hosted-chrome-notion-ai":
-    case "tier-3-ollama-deepseek":
-      return [`fallback:${tier}`]
     default:
       return []
   }

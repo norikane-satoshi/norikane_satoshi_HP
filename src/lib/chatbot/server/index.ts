@@ -8,6 +8,7 @@ export {
   createConversation,
   linkChatToBookingGroup,
   linkConversationToUser,
+  loadConversationById,
   loadConversationBySessionId,
   recordInquiry,
   recordSurveyResponse,

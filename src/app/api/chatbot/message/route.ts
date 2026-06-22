@@ -3,8 +3,14 @@ import { z } from "zod"
 
 import { auth } from "@/auth"
 import { enforceBodyLimit } from "@/lib/api/server/body-limit"
+import type { ChatbotConversation } from "@/lib/chatbot/domain"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { respondChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
+import {
+  loadConversationById,
+  loadConversationBySessionId,
+  updateConversationSlackThreadTs,
+} from "@/lib/chatbot/server"
 import { sendChatbotSlackNotification } from "@/lib/chatbot/server/slack-notifier"
 
 export const runtime = "nodejs"
@@ -115,15 +121,48 @@ async function notifySlackMessageFailure(input: {
   stage: ReturnType<typeof classifyMessageFailureStage>
 }): Promise<void> {
   try {
-    await sendChatbotSlackNotification({
+    const conversation = await loadFailureNotificationConversation({
+      conversationId: input.conversationId,
+      sessionId: input.sessionId,
+    })
+    const threadTs = conversation?.context.slackThreadTs
+    const result = await sendChatbotSlackNotification({
       kind: "issue",
       requestId: input.requestId,
-      conversationId: input.conversationId ?? "unpersisted",
-      sessionId: input.sessionId,
+      conversationId: conversation?.id ?? input.conversationId ?? "unpersisted",
+      sessionId: conversation?.context.sessionId ?? input.sessionId,
+      threadTs,
       issueReasons: [`message-${input.stage}`],
     })
+    if (!threadTs && conversation?.id && result.status === "sent" && result.ts) {
+      await updateConversationSlackThreadTs({
+        conversationId: conversation.id,
+        slackThreadTs: result.ts,
+      })
+    }
   } catch (error) {
     console.warn("[chatbot slack notification failed]", error instanceof Error ? error.message : String(error))
+  }
+}
+
+async function loadFailureNotificationConversation(input: {
+  conversationId?: string
+  sessionId: string
+}): Promise<ChatbotConversation | null> {
+  if (input.conversationId) {
+    try {
+      const conversation = await loadConversationById(input.conversationId)
+      if (conversation) return conversation
+    } catch (error) {
+      console.warn("[chatbot slack notification conversation load failed]", error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  try {
+    return await loadConversationBySessionId(input.sessionId)
+  } catch (error) {
+    console.warn("[chatbot slack notification conversation load failed]", error instanceof Error ? error.message : String(error))
+    return null
   }
 }
 
