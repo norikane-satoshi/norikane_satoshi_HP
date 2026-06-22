@@ -20,6 +20,7 @@ function conversationRow(overrides = {}) {
     customerCompany: "Studio",
     customerEmail: "satoshi@example.com",
     customerPhone: null,
+    slackThreadTs: null,
     finalMedium: "cinema",
     jobType: "本編",
     mainDuration: "90",
@@ -109,6 +110,14 @@ describe("chatbot repository mapping helpers", () => {
         conversationRow({ routingDecision: "to-direct-contact", messages: [] }),
       ).status,
     ).toBe("direct-contact")
+  })
+
+  it("maps Slack thread ts into the conversation context", () => {
+    const result = __chatbotRepositoryTestUtils.toDomainConversation(
+      conversationRow({ slackThreadTs: "1700000000.000100" }),
+    )
+
+    expect(result.context.slackThreadTs).toBe("1700000000.000100")
   })
 
   it("normalizes legacy active choices without selectionMode as single-select", () => {

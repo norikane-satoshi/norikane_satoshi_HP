@@ -89,12 +89,14 @@ function setup(overrides: {
       ),
     truncateConversationFromMessage: vi.fn().mockResolvedValue({ deletedCount: 1 }),
     updateConversationRouting: vi.fn(),
+    updateConversationSlackThreadTs: vi.fn(),
     linkConversationToUser: vi.fn(),
   }
   const generate = vi.fn().mockResolvedValue({
     rawText: "返信です",
     tier: "tier-3-ollama-deepseek",
   })
+  const slackNotifier = vi.fn().mockResolvedValue({ status: "skipped", reason: "disabled" })
   const userContextLoader = vi.fn().mockResolvedValue(userContext())
   const userContextFormatter = vi.fn().mockReturnValue("本人文脈:\n- 本人だけの過去要約")
   const candidateWindowFinder = vi.fn().mockResolvedValue([
@@ -111,12 +113,14 @@ function setup(overrides: {
     userContextLoader,
     userContextFormatter,
     candidateWindowFinder,
+    slackNotifier,
     options: {
       repository,
       orchestratorFactory: () => ({ generate, isHealthy: vi.fn() }),
       userContextLoader,
       userContextFormatter,
       candidateWindowFinder,
+      slackNotifier,
     },
   }
 }
@@ -1792,5 +1796,126 @@ describe("handleChatbotMessage user context", () => {
         currentQuestion: expect.stringContaining("開催場所"),
       }),
     )
+  })
+
+  it("posts the first Slack conversation notification as a parent message and saves the returned thread ts", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.slackNotifier.mockResolvedValueOnce({ status: "sent", ts: "1700000000.000100" })
+
+    await handleChatbotMessage(
+      { requestId: "req_1", sessionId: "session_1", userId: "user_a", message: "Slack通知テスト" },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "conversation",
+      requestId: "req_1",
+      conversationId: "conv_1",
+      sessionId: "session_1",
+      threadTs: undefined,
+      userMessage: "Slack通知テスト",
+      assistantResponse: "返信です",
+    }))
+    expect(harness.repository.updateConversationSlackThreadTs).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      slackThreadTs: "1700000000.000100",
+    })
+  })
+
+  it("posts later Slack conversation notifications into the stored thread", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+      }),
+    })
+    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.slackNotifier.mockResolvedValueOnce({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "2通目です" },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "conversation",
+      threadTs: "1700000000.000100",
+    }))
+    expect(harness.repository.updateConversationSlackThreadTs).not.toHaveBeenCalled()
+  })
+
+  it("creates separate Slack parent posts for separate sessions", async () => {
+    const harness = setup({ existingConversation: null, isolatedConversation: null })
+    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.slackNotifier
+      .mockResolvedValueOnce({ status: "sent", ts: "1700000000.000100" })
+      .mockResolvedValueOnce({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage({ sessionId: "session_a", message: "A" }, harness.options)
+    await handleChatbotMessage({ sessionId: "session_b", message: "B" }, harness.options)
+
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      conversationId: "created_session_a",
+      threadTs: undefined,
+    }))
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      conversationId: "created_session_b",
+      threadTs: undefined,
+    }))
+    expect(harness.repository.updateConversationSlackThreadTs).toHaveBeenCalledWith({
+      conversationId: "created_session_a",
+      slackThreadTs: "1700000000.000100",
+    })
+    expect(harness.repository.updateConversationSlackThreadTs).toHaveBeenCalledWith({
+      conversationId: "created_session_b",
+      slackThreadTs: "1700000000.000200",
+    })
+  })
+
+  it("posts a problem notification into the same thread for tier4 fallback", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "フォームで相談内容を送ってください。",
+      tier: "tier-4-form-fallback",
+    })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "Tier4に落ちるケース" },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      kind: "conversation",
+      threadTs: "1700000000.000100",
+    }))
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      kind: "issue",
+      threadTs: "1700000000.000100",
+      issueReasons: ["tier4-form-fallback"],
+    }))
+  })
+
+  it("returns the chatbot response when Slack notification fails", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const harness = setup()
+    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.slackNotifier.mockResolvedValueOnce({ status: "failed", reason: "send-failed" })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "Slack失敗でも返答する" },
+      harness.options,
+    )
+
+    expect(result).toMatchObject({
+      conversationId: "conv_1",
+      assistantMessage: { content: "返信です" },
+    })
+    expect(harness.repository.updateConversationSlackThreadTs).not.toHaveBeenCalled()
+    consoleWarn.mockRestore()
   })
 })

@@ -242,6 +242,16 @@ export async function updateConversationRouting(input: {
   })
 }
 
+export async function updateConversationSlackThreadTs(input: {
+  conversationId: string
+  slackThreadTs: string
+}): Promise<void> {
+  await prisma.chatbotConversation.update({
+    where: { id: input.conversationId },
+    data: { slackThreadTs: input.slackThreadTs },
+  })
+}
+
 export async function linkConversationToUser(input: {
   conversationId: string
   userId: string
@@ -284,6 +294,7 @@ function toDomainConversation(row: ChatbotConversationRow): ChatbotConversation 
     sessionId: row.sessionId,
     ...(row.userId ? { userId: row.userId } : {}),
     ...(row.customerEmail ? { customerEmail: row.customerEmail } : {}),
+    ...(row.slackThreadTs ? { slackThreadTs: row.slackThreadTs } : {}),
     ...(row.currentQuestion ? { currentQuestion: row.currentQuestion } : {}),
     ...(activeChoices ? { activeChoices } : {}),
     ...(conversationState ? { conversationState } : {}),

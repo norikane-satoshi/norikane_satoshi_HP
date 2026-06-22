@@ -64,6 +64,7 @@ async function loadPost({
   const updateConversationRouting = updateConversationRoutingError
     ? vi.fn().mockRejectedValue(updateConversationRoutingError)
     : vi.fn().mockResolvedValue(undefined)
+  const updateConversationSlackThreadTs = vi.fn().mockResolvedValue(undefined)
   const linkConversationToUser = vi.fn().mockResolvedValue(undefined)
   const loadUserChatbotContext = vi.fn().mockResolvedValue({
     userId: "user_1",
@@ -82,6 +83,7 @@ async function loadPost({
     appendMessage,
     truncateConversationFromMessage,
     updateConversationRouting,
+    updateConversationSlackThreadTs,
     linkConversationToUser,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
@@ -104,6 +106,7 @@ async function loadPost({
     appendMessage,
     truncateConversationFromMessage,
     updateConversationRouting,
+    updateConversationSlackThreadTs,
     linkConversationToUser,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,

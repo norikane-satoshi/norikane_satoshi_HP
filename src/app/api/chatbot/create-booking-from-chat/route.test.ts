@@ -47,12 +47,24 @@ async function loadPost() {
     },
   })
   const linkChatToBookingGroup = vi.fn().mockResolvedValue(undefined)
+  const loadConversationById = vi.fn().mockResolvedValue({
+    id: "conv_1",
+    context: { sessionId: "session_1", slackThreadTs: "1700000000.000100" },
+    messages: [],
+  })
+  const updateConversationSlackThreadTs = vi.fn().mockResolvedValue(undefined)
   const sendChatbotBookingOwnerNotification = vi.fn().mockResolvedValue({ skipped: false, id: "email_1" })
+  const sendChatbotSlackNotification = vi.fn().mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
 
   vi.doMock("@/lib/prisma", () => ({ prisma }))
   vi.doMock("@/lib/booking/server/create-booking", () => ({ createBookingFromApiInput }))
   vi.doMock("@/lib/booking/server/email", () => ({ sendChatbotBookingOwnerNotification }))
-  vi.doMock("@/lib/chatbot/server/repository", () => ({ linkChatToBookingGroup }))
+  vi.doMock("@/lib/chatbot/server/repository", () => ({
+    linkChatToBookingGroup,
+    loadConversationById,
+    updateConversationSlackThreadTs,
+  }))
+  vi.doMock("@/lib/chatbot/server/slack-notifier", () => ({ sendChatbotSlackNotification }))
 
   const route = await import("./route")
   return {
@@ -60,7 +72,10 @@ async function loadPost() {
     prisma,
     createBookingFromApiInput,
     linkChatToBookingGroup,
+    loadConversationById,
+    updateConversationSlackThreadTs,
     sendChatbotBookingOwnerNotification,
+    sendChatbotSlackNotification,
   }
 }
 
@@ -288,6 +303,23 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       conversationId: "conv_1",
       bookingGroupId: "group_1",
     })
+  })
+
+  it("posts booking completion to the existing Slack thread", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request(validChatBooking()))
+
+    expect(response.status).toBe(200)
+    expect(route.sendChatbotSlackNotification).toHaveBeenCalledWith({
+      kind: "booking-completed",
+      conversationId: "conv_1",
+      sessionId: "session_1",
+      threadTs: "1700000000.000100",
+      bookingGroupId: "group_1",
+      selectedSlotCount: 1,
+    })
+    expect(route.updateConversationSlackThreadTs).not.toHaveBeenCalled()
   })
 
   it("maps shared conflict and calendar_unavailable statuses", async () => {
