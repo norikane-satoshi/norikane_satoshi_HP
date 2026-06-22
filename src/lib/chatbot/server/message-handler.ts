@@ -178,6 +178,7 @@ export async function handleChatbotMessage(
     await repository.linkConversationToUser({ conversationId: conversation.id, userId: input.userId })
   }
 
+  const isEditRequest = Boolean(input.editTargetMessageId)
   if (input.editTargetMessageId) {
     const targetIndex = conversation.messages.findIndex((message) => message.id === input.editTargetMessageId)
     if (targetIndex === -1) {
@@ -190,27 +191,16 @@ export async function handleChatbotMessage(
           conversationId: conversation.id,
           messageId: conversation.messages[fallbackTargetIndex].id,
         })
-        conversation = {
-          ...conversation,
-          status: "open",
-          messages: conversation.messages.slice(0, fallbackTargetIndex),
-        }
+        conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, fallbackTargetIndex))
+      } else {
+        conversation = resetEditedConversationContext(conversation, [])
       }
     } else {
       await repository.truncateConversationFromMessage({
         conversationId: conversation.id,
         messageId: input.editTargetMessageId,
       })
-      conversation = {
-        ...conversation,
-        status: "open",
-        context: {
-          sessionId: conversation.context.sessionId,
-          ...(conversation.context.userId ? { userId: conversation.context.userId } : {}),
-          ...(conversation.context.customerEmail ? { customerEmail: conversation.context.customerEmail } : {}),
-        },
-        messages: conversation.messages.slice(0, targetIndex),
-      }
+      conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, targetIndex))
     }
   }
 
@@ -257,7 +247,7 @@ export async function handleChatbotMessage(
   const knowledgeSnapshot = await knowledgeSnapshotLoader()
   const noteAccess = evaluateCustomerFacingNoteAccess(input.message, knowledgeSnapshot)
   const durationContext = resolveWorkflowDurationContext({
-    inputJobContext: input.jobContext,
+    inputJobContext: isEditRequest ? undefined : input.jobContext,
     conversation,
     activeChoiceJobContext: activeChoiceAnswer?.jobContext,
     latestUserMessage: input.message,
@@ -268,7 +258,7 @@ export async function handleChatbotMessage(
     conversation,
     latestUserMessage: input.message,
     conversationState: buildConversationState({
-      inputConversationState: input.conversationState,
+      inputConversationState: isEditRequest ? undefined : input.conversationState,
       conversation,
       userMessage,
       activeChoiceConversationState: activeChoiceAnswer?.conversationState,
@@ -389,6 +379,22 @@ function findLastUserMessageIndex(messages: ChatbotMessage[]): number {
     if (messages[index].role === "user") return index
   }
   return -1
+}
+
+function resetEditedConversationContext(
+  conversation: ChatbotConversation,
+  messages: ChatbotMessage[],
+): ChatbotConversation {
+  return {
+    ...conversation,
+    status: "open",
+    context: {
+      sessionId: conversation.context.sessionId,
+      ...(conversation.context.userId ? { userId: conversation.context.userId } : {}),
+      ...(conversation.context.customerEmail ? { customerEmail: conversation.context.customerEmail } : {}),
+    },
+    messages,
+  }
 }
 
 function shouldIsolateExistingConversation(

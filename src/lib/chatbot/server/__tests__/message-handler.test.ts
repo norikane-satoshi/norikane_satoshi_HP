@@ -283,6 +283,136 @@ describe("handleChatbotMessage user context", () => {
     ])
   })
 
+  it("drops stale routing state when a persisted user message is edited", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: additionalWorkChoices,
+          currentQuestion: "カラグレ以外の追加作業はありますか？",
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasAdditionalWork: false,
+            turnCount: 3,
+            otherChoiceComments: { "additional-work": "MA も相談したい" },
+            durationContext: {
+              workflowFacts: {
+                jobKind: "live-60m",
+                finalMedium: "live",
+                workSite: "remote-grading",
+                projectLengthMinutes: 150,
+              },
+              snapshotStatus: "current",
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            workSite: "remote-grading",
+            projectLengthMinutes: 150,
+          },
+        },
+        messages: [
+          { id: "user_1", role: "user", content: "ライブ2.5hの相談です", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_1", role: "assistant", content: "カラグレ以外の追加作業はありますか？", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "グレーディングについて教えてください",
+        editTargetMessageId: "user_1",
+        jobContext: {
+          jobKind: "live-60m",
+          finalMedium: "live",
+          workSite: "remote-grading",
+          projectLengthMinutes: 150,
+        },
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasAdditionalWork: false,
+          turnCount: 3,
+          otherChoiceComments: { "additional-work": "MA も相談したい" },
+        },
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
+      { role: "user", content: "グレーディングについて教えてください" },
+    ])
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
+      hasFinalMedium: false,
+      hasJobKind: false,
+      hasAdditionalWork: false,
+      turnCount: 1,
+    })
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.otherChoiceComments).toBeUndefined()
+    expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
+      finalMedium: "other",
+      workSite: "remote-grading",
+      documentaryAttachment: { kind: "none" },
+    })
+    expect(harness.generate.mock.calls[0]?.[0].jobContext.jobKind).toBeUndefined()
+    expect(harness.generate.mock.calls[0]?.[0].jobContext.additionalWork).toBeUndefined()
+  })
+
+  it("drops stale routing state when a client-only edit id falls back to the last stored user message", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: additionalWorkChoices,
+          currentQuestion: "カラグレ以外の追加作業はありますか？",
+          conversationState: { hasFinalMedium: true, hasJobKind: true, hasAdditionalWork: false, turnCount: 3 },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            workSite: "remote-grading",
+            projectLengthMinutes: 150,
+          },
+        },
+        messages: [
+          { id: "user_last", role: "user", content: "ライブ2.5hの相談です", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_last", role: "assistant", content: "カラグレ以外の追加作業はありますか？", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "グレーディングについて教えてください",
+        editTargetMessageId: "client_msg_22222222-2222-4222-8222-222222222222",
+        conversationState: { hasFinalMedium: true, hasJobKind: true, hasAdditionalWork: false, turnCount: 3 },
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.truncateConversationFromMessage).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      messageId: "user_last",
+    })
+    expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
+      { role: "user", content: "グレーディングについて教えてください" },
+    ])
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
+      hasFinalMedium: false,
+      hasJobKind: false,
+      hasAdditionalWork: false,
+      turnCount: 1,
+    })
+    expect(harness.generate.mock.calls[0]?.[0].jobContext.jobKind).toBeUndefined()
+  })
+
   it("isolates a previous user's conversation when the authenticated user changes", async () => {
     const harness = setup({
       existingConversation: conversation({
