@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { enforceBodyLimit } from "@/lib/api/server/body-limit"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { respondChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
+import { sendChatbotSlackNotification } from "@/lib/chatbot/server/slack-notifier"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -81,6 +82,12 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error) {
     const taggedError = error instanceof Error ? (error as ChatbotFailureTaggedError) : undefined
+    await notifySlackMessageFailure({
+      requestId,
+      conversationId: parsed.data.conversationId,
+      sessionId,
+      stage: classifyMessageFailureStage(error),
+    })
     return respondChatbotOperationFailure({
       operation: "message",
       requestId,
@@ -98,6 +105,25 @@ export async function POST(request: NextRequest) {
         ...(taggedError?.chatbotFailureSummary ?? {}),
       },
     })
+  }
+}
+
+async function notifySlackMessageFailure(input: {
+  requestId: string
+  conversationId?: string
+  sessionId: string
+  stage: ReturnType<typeof classifyMessageFailureStage>
+}): Promise<void> {
+  try {
+    await sendChatbotSlackNotification({
+      kind: "issue",
+      requestId: input.requestId,
+      conversationId: input.conversationId ?? "unpersisted",
+      sessionId: input.sessionId,
+      issueReasons: [`message-${input.stage}`],
+    })
+  } catch (error) {
+    console.warn("[chatbot slack notification failed]", error instanceof Error ? error.message : String(error))
   }
 }
 

@@ -11,7 +11,12 @@ import {
   logChatbotOperationFailure,
   respondChatbotOperationFailure,
 } from "@/lib/chatbot/server/operation-failure"
-import { linkChatToBookingGroup } from "@/lib/chatbot/server/repository"
+import {
+  linkChatToBookingGroup,
+  loadConversationById,
+  updateConversationSlackThreadTs,
+} from "@/lib/chatbot/server/repository"
+import { sendChatbotSlackNotification } from "@/lib/chatbot/server/slack-notifier"
 import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
@@ -165,6 +170,73 @@ async function notifyOwner(input: z.infer<typeof chatbotBookingRequestSchema>, b
   }
 }
 
+async function notifySlackBookingCompleted(input: {
+  request: z.infer<typeof chatbotBookingRequestSchema>
+  bookingGroupId: string
+  selectedSlotCount: number
+  ownerNotificationWarning: "skipped" | "send_failed" | null
+}): Promise<void> {
+  if (!input.request.conversationId) return
+
+  try {
+    const conversation = await loadConversationById(input.request.conversationId)
+    const threadTs = conversation?.context.slackThreadTs
+    const result = await sendChatbotSlackNotification({
+      kind: "booking-completed",
+      conversationId: input.request.conversationId,
+      sessionId: conversation?.context.sessionId,
+      threadTs,
+      bookingGroupId: input.bookingGroupId,
+      selectedSlotCount: input.selectedSlotCount,
+    })
+
+    const savedThreadTs = threadTs ?? (result.status === "sent" ? result.ts : null)
+    if (!threadTs && savedThreadTs) {
+      await updateConversationSlackThreadTs({
+        conversationId: input.request.conversationId,
+        slackThreadTs: savedThreadTs,
+      })
+    }
+
+    if (result.status === "failed") {
+      logChatbotOperationFailure({
+        operation: "create-booking-from-chat",
+        stage: "notification-send",
+        status: 202,
+        error: new Error("chatbot_slack_booking_notification_failed"),
+        requestSummary: {
+          bookingGroupId: input.bookingGroupId,
+          conversationId: input.request.conversationId,
+          selectedSlotCount: input.selectedSlotCount,
+        },
+      })
+    }
+
+    if (input.ownerNotificationWarning === "send_failed" && savedThreadTs) {
+      await sendChatbotSlackNotification({
+        kind: "issue",
+        conversationId: input.request.conversationId,
+        sessionId: conversation?.context.sessionId,
+        threadTs: savedThreadTs,
+        bookingGroupId: input.bookingGroupId,
+        issueReasons: ["booking-owner-email-send-failed"],
+      })
+    }
+  } catch (error) {
+    logChatbotOperationFailure({
+      operation: "create-booking-from-chat",
+      stage: "notification-send",
+      status: 202,
+      error,
+      requestSummary: {
+        bookingGroupId: input.bookingGroupId,
+        conversationId: input.request.conversationId,
+        selectedSlotCount: input.selectedSlotCount,
+      },
+    })
+  }
+}
+
 export async function POST(request: NextRequest) {
   let raw: unknown
   try {
@@ -205,9 +277,11 @@ export async function POST(request: NextRequest) {
     const userEmail = parsed.data.contactEmail
     const result = await createBookingFromApiInput({ input, userId, userEmail })
     const bookingGroupId = bookingGroupIdFromBody(result.body)
+    const selectedSlotCount = normalizeSelectedSlots(parsed.data).length
     let responseBody = result.body
+    let notificationWarning: "skipped" | "send_failed" | null = null
     if (result.status >= 200 && result.status < 300 && bookingGroupId) {
-      const notificationWarning = await notifyOwner(parsed.data, bookingGroupId)
+      notificationWarning = await notifyOwner(parsed.data, bookingGroupId)
       if (notificationWarning) {
         responseBody = bodyWithNotificationWarning(responseBody, notificationWarning)
       }
@@ -229,6 +303,15 @@ export async function POST(request: NextRequest) {
           headers: result.headers,
         })
       }
+    }
+
+    if (result.status >= 200 && result.status < 300 && bookingGroupId) {
+      await notifySlackBookingCompleted({
+        request: parsed.data,
+        bookingGroupId,
+        selectedSlotCount,
+        ownerNotificationWarning: notificationWarning,
+      })
     }
 
     return NextResponse.json(responseBody, { status: result.status, headers: result.headers })

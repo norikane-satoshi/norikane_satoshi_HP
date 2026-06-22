@@ -16,6 +16,7 @@ export type ChatbotConversationContext = {
   sessionId: string
   userId?: string
   customerEmail?: string
+  slackThreadTs?: string
   currentQuestion?: string
   activeChoices?: SurveyChoiceSet
   conversationState?: Partial<ConversationState>

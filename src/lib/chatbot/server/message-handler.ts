@@ -23,6 +23,7 @@ import {
   loadConversationBySessionId,
   truncateConversationFromMessage,
   updateConversationRouting,
+  updateConversationSlackThreadTs,
   type ChatbotLlmClient,
   type ChatbotLlmResponse,
   type ChatbotLlmTierOrchestrator,
@@ -54,7 +55,12 @@ import {
   applyLectureTrainingConversationState,
   isLectureTrainingInquiry,
 } from "@/lib/chatbot/server/lecture-training"
+import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
+import {
+  sendChatbotSlackNotification,
+  type ChatbotSlackNotificationInput,
+} from "@/lib/chatbot/server/slack-notifier"
 
 type ChatbotMessageUi =
   | { kind: "none" }
@@ -104,6 +110,7 @@ type ChatbotMessageRepository = {
   appendMessage: typeof appendMessage
   truncateConversationFromMessage: typeof truncateConversationFromMessage
   updateConversationRouting: typeof updateConversationRouting
+  updateConversationSlackThreadTs: typeof updateConversationSlackThreadTs
   linkConversationToUser: typeof linkConversationToUser
 }
 
@@ -118,6 +125,7 @@ type HandleChatbotMessageOptions = {
   userContextFormatter?: typeof formatUserChatbotContextForPrompt
   candidateWindowFinder?: CandidateWindowFinder
   knowledgeSnapshotLoader?: typeof loadLatestChatbotKnowledgeSnapshot
+  slackNotifier?: typeof sendChatbotSlackNotification
 }
 
 export class ChatbotMessagePersistenceError extends Error {
@@ -151,6 +159,7 @@ const defaultRepository: ChatbotMessageRepository = {
   appendMessage,
   truncateConversationFromMessage,
   updateConversationRouting,
+  updateConversationSlackThreadTs,
   linkConversationToUser,
 }
 
@@ -167,6 +176,7 @@ export async function handleChatbotMessage(
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
   const candidateWindowFinder = options.candidateWindowFinder ?? findCandidateCalendar
   const knowledgeSnapshotLoader = options.knowledgeSnapshotLoader ?? loadLatestChatbotKnowledgeSnapshot
+  const slackNotifier = options.slackNotifier ?? sendChatbotSlackNotification
   let conversation =
     (await repository.loadConversationBySessionId(input.sessionId)) ??
     (await repository.createConversation({ sessionId: input.sessionId, userId: input.userId ?? null }))
@@ -371,6 +381,17 @@ export async function handleChatbotMessage(
       })
     }
   }
+  await notifySlackForChatbotResponse({
+    notifier: slackNotifier,
+    repository,
+    requestId: input.requestId,
+    conversation,
+    userText: userMessage.content,
+    assistantText: assistantMessage.content,
+    tier: llmResponse.tier,
+    routingDecisionKind: routingDecision?.kind,
+    bookingProgress: routingDecision?.kind === "to-booking-inline",
+  })
 
   return {
     conversationId: conversation.id,
@@ -389,6 +410,71 @@ export async function handleChatbotMessage(
     routingDecision,
     tier: llmResponse.tier,
     ui,
+  }
+}
+
+async function notifySlackForChatbotResponse(input: {
+  notifier: typeof sendChatbotSlackNotification
+  repository: ChatbotMessageRepository
+  requestId?: string
+  conversation: ChatbotConversation
+  userText: string
+  assistantText: string
+  tier: ChatbotLlmResponse["tier"]
+  routingDecisionKind?: RoutingDecision["kind"]
+  bookingProgress: boolean
+}): Promise<void> {
+  try {
+    const threadTs = input.conversation.context.slackThreadTs
+    const baseNotification: ChatbotSlackNotificationInput = {
+      kind: "conversation",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      routingDecisionKind: input.routingDecisionKind,
+      threadTs,
+      userMessage: input.userText,
+      assistantResponse: input.assistantText,
+      bookingProgress: input.bookingProgress,
+    }
+    const result = await input.notifier(baseNotification)
+    const savedThreadTs = threadTs ?? (result.status === "sent" ? result.ts : null)
+
+    if (!threadTs && savedThreadTs) {
+      await input.repository.updateConversationSlackThreadTs({
+        conversationId: input.conversation.id,
+        slackThreadTs: savedThreadTs,
+      })
+    }
+
+    const issueReasons = detectChatbotIssueReasons(input.tier)
+    if (issueReasons.length > 0 && savedThreadTs) {
+      await input.notifier({
+        kind: "issue",
+        requestId: input.requestId,
+        conversationId: input.conversation.id,
+        sessionId: input.conversation.context.sessionId,
+        tier: input.tier,
+        routingDecisionKind: input.routingDecisionKind,
+        threadTs: savedThreadTs,
+        issueReasons,
+      })
+    }
+  } catch (error) {
+    console.warn("[chatbot slack notification failed]", error instanceof Error ? error.message : String(error))
+  }
+}
+
+function detectChatbotIssueReasons(tier: ChatbotLlmResponse["tier"]): string[] {
+  switch (tier) {
+    case "tier-4-form-fallback":
+      return ["tier4-form-fallback"]
+    case "tier-2-hosted-chrome-notion-ai":
+    case "tier-3-ollama-deepseek":
+      return [`fallback:${tier}`]
+    default:
+      return []
   }
 }
 
@@ -706,14 +792,6 @@ function serializeTierAttemptError(error: Error) {
 }
 
 const dayRangePattern = /\d+(?:\.\d+)?\s*(?:日\s*から\s*|[〜～\-ー]\s*)\d+(?:\.\d+)?\s*日/u
-
-function redactForChatbotLog(value: string): string {
-  return value
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+/giu, "[email]")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 240)
-}
 
 function isBackendIdentityOnlyResponse(text: string): boolean {
   const compact = text.replace(/\s+/g, "")
