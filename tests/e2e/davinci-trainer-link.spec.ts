@@ -7,7 +7,11 @@ test("DaVinci Resolve trainer link uses the verified Blackmagic partners anchor"
   const response = await page.goto("/")
   expect(response?.status()).toBe(200)
 
-  const trigger = page.getByRole("button", { name: "DaVinci Resolve 認定トレーナー" })
+  const intro = page.locator(".hp-intro-measure")
+  const trigger = intro.getByRole("button", {
+    name: "DaVinci Resolve 認定トレーナー",
+    exact: true,
+  })
   await expect(trigger).toHaveAttribute("aria-haspopup", "dialog")
   await expect(trigger).toHaveAttribute("aria-expanded", "false")
 
