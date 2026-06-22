@@ -6,3 +6,15 @@
 export const isBookingEnabled = () => process.env.NEXT_PUBLIC_ENABLE_BOOKING === "true"
 
 export const isChatbotEnabled = () => process.env.NEXT_PUBLIC_ENABLE_CHATBOT !== "false"
+
+const localBookingScheduleHosts = new Set([
+  "localhost:41238",
+  "127.0.0.1:41238",
+  "[::1]:41238",
+])
+
+export const isLocalBookingScheduleHost = (host: string | null | undefined) =>
+  localBookingScheduleHosts.has((host ?? "").trim().toLowerCase())
+
+export const isBookingScheduleSectionVisible = (host: string | null | undefined) =>
+  isBookingEnabled() || isLocalBookingScheduleHost(host)

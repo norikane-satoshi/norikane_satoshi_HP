@@ -1,11 +1,13 @@
 import { auth } from "@/auth"
 import { BookingSection } from "@/components/booking/booking-section"
 import { isAdmin } from "@/lib/auth/server/is-admin"
-import { isBookingEnabled } from "@/lib/feature-flags"
+import { isBookingScheduleSectionVisible } from "@/lib/feature-flags"
 import Link from "next/link"
+import { headers } from "next/headers"
 
 export async function HomeScheduleSection() {
-  if (!isBookingEnabled()) return null
+  const requestHeaders = await headers()
+  if (!isBookingScheduleSectionVisible(requestHeaders.get("host"))) return null
 
   const session = await auth()
   const isCalendarAdmin = isAdmin(session?.user?.email)

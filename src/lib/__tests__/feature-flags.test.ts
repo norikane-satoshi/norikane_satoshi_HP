@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { isBookingEnabled, isChatbotEnabled } from "@/lib/feature-flags"
+import {
+  isBookingEnabled,
+  isBookingScheduleSectionVisible,
+  isChatbotEnabled,
+  isLocalBookingScheduleHost,
+} from "@/lib/feature-flags"
 
 describe("feature flags", () => {
   afterEach(() => {
@@ -55,6 +60,44 @@ describe("feature flags", () => {
       process.env.NEXT_PUBLIC_ENABLE_CHATBOT = value
 
       expect(isChatbotEnabled()).toBe(true)
+    })
+  })
+
+  describe("isLocalBookingScheduleHost", () => {
+    it.each(["localhost:41238", "127.0.0.1:41238", "[::1]:41238"])(
+      "allows the local schedule host %s",
+      (host) => {
+        expect(isLocalBookingScheduleHost(host)).toBe(true)
+      },
+    )
+
+    it.each(["localhost:3000", "norikane.studio", "preview-norikane.vercel.app", "localhost"])(
+      "rejects non-41238 host %s",
+      (host) => {
+        expect(isLocalBookingScheduleHost(host)).toBe(false)
+      },
+    )
+  })
+
+  describe("isBookingScheduleSectionVisible", () => {
+    it("shows the schedule on localhost:41238 without enabling all booking entrypoints", () => {
+      delete process.env.NEXT_PUBLIC_ENABLE_BOOKING
+
+      expect(isBookingEnabled()).toBe(false)
+      expect(isBookingScheduleSectionVisible("localhost:41238")).toBe(true)
+    })
+
+    it("keeps production-like hosts hidden when the booking flag is unset", () => {
+      delete process.env.NEXT_PUBLIC_ENABLE_BOOKING
+
+      expect(isBookingScheduleSectionVisible("norikane.studio")).toBe(false)
+      expect(isBookingScheduleSectionVisible("localhost:3000")).toBe(false)
+    })
+
+    it("preserves the explicit booking flag override", () => {
+      vi.stubEnv("NEXT_PUBLIC_ENABLE_BOOKING", "true")
+
+      expect(isBookingScheduleSectionVisible("norikane.studio")).toBe(true)
     })
   })
 })
