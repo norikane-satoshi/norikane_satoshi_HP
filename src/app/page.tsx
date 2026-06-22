@@ -2,15 +2,13 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
+import { DavinciTrainerLink } from "@/components/hp/davinci-trainer-link"
 import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
-import {
-  DAVINCI_RESOLVE_TRAINER_TEXT,
-  DAVINCI_RESOLVE_TRAINING_URL,
-} from "@/lib/hp/davinci-trainer"
+import { DAVINCI_RESOLVE_TRAINER_TEXT } from "@/lib/hp/davinci-trainer"
 import { hpPublicContent } from "@/lib/hp/public-content"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
@@ -67,14 +65,11 @@ function renderIntroTextWithTrainerLink() {
   return (
     <>
       {before}
-      <a
-        href={DAVINCI_RESOLVE_TRAINING_URL}
-        target="_blank"
-        rel="noopener noreferrer"
+      <DavinciTrainerLink
         className="inline text-inherit underline decoration-current decoration-1 underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
       >
         {DAVINCI_RESOLVE_TRAINER_TEXT}
-      </a>
+      </DavinciTrainerLink>
       {after}
     </>
   )

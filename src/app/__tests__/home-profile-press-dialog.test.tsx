@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import HomePage from "@/app/page"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
+  DAVINCI_RESOLVE_TRAINING_BASE_URL,
   DAVINCI_RESOLVE_TRAINING_URL,
 } from "@/lib/hp/davinci-trainer"
 import { hpPublicContent } from "@/lib/hp/public-content"
@@ -44,6 +45,8 @@ vi.mock("@/lib/notion/server/fetch-note", () => ({
 describe("HomePage profile press dialog trigger", () => {
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it("uses the shared HP grid shell and spacing tokens for home sections", async () => {
@@ -97,6 +100,46 @@ describe("HomePage profile press dialog trigger", () => {
     expect(within(intro as HTMLElement).queryByRole("button", {
       name: DAVINCI_RESOLVE_TRAINER_TEXT,
     })).not.toBeInTheDocument()
+  })
+
+  it("reapplies the verified partners URL after a normal left click without leaving opener", async () => {
+    vi.useFakeTimers()
+    const popup = { opener: window, location: { href: "" } }
+    const open = vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window)
+    const { container } = render(await HomePage())
+
+    const intro = container.querySelector(".hp-intro-measure")
+    const officialLink = within(intro as HTMLElement).getByRole("link", {
+      name: DAVINCI_RESOLVE_TRAINER_TEXT,
+    })
+
+    fireEvent.click(officialLink, { button: 0, detail: 1 })
+    expect(open).toHaveBeenCalledWith("about:blank", "_blank")
+    expect(popup.opener).toBeNull()
+    expect(popup.location.href).toBe(DAVINCI_RESOLVE_TRAINING_BASE_URL)
+
+    vi.advanceTimersByTime(2200)
+    expect(popup.location.href).toBe(DAVINCI_RESOLVE_TRAINING_BASE_URL)
+    vi.advanceTimersByTime(150)
+    expect(popup.location.href).toBe(DAVINCI_RESOLVE_TRAINING_URL)
+
+    vi.advanceTimersByTime(3150)
+    expect(popup.location.href).toBe(DAVINCI_RESOLVE_TRAINING_BASE_URL)
+    vi.advanceTimersByTime(150)
+    expect(popup.location.href).toBe(DAVINCI_RESOLVE_TRAINING_URL)
+  })
+
+  it("keeps modified clicks on the trainer link as normal anchor behavior", async () => {
+    const open = vi.spyOn(window, "open")
+    const { container } = render(await HomePage())
+
+    const intro = container.querySelector(".hp-intro-measure")
+    const officialLink = within(intro as HTMLElement).getByRole("link", {
+      name: DAVINCI_RESOLVE_TRAINER_TEXT,
+    })
+
+    fireEvent.click(officialLink, { button: 0, detail: 1, metaKey: true })
+    expect(open).not.toHaveBeenCalled()
   })
 
   it("opens the press dialog from the profile badge on primary pointer release", async () => {
