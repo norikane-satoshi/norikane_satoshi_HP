@@ -28,6 +28,8 @@ export type NoteFull = NoteSummary & {
   blocks: BlockWithChildren[]
 }
 
+export type NotePublicationStatus = "published" | "unpublished" | "missing"
+
 function isFullPage(
   row: QueryDataSourceResponse["results"][number]
 ): row is PageObjectResponse {
@@ -50,6 +52,12 @@ function extractSlug(page: PageObjectResponse): string {
     return prop.title.map((t) => t.plain_text).join("").trim()
   }
   return ""
+}
+
+function extractPublished(page: PageObjectResponse): boolean {
+  const prop = page.properties[PUBLISHED_PROPERTY]
+  if (prop?.type !== "checkbox") return false
+  return prop.checkbox
 }
 
 function toSummary(page: PageObjectResponse): NoteSummary | null {
@@ -108,9 +116,45 @@ async function _queryPublishedImpl(
   return results
 }
 
+async function _queryBySlugImpl(slugEquals: string): Promise<PageObjectResponse[]> {
+  const notion = getNotionClient()
+  if (!notion) return []
+  const results: PageObjectResponse[] = []
+  let cursor: string | undefined = undefined
+
+  const filter: QueryFilter = {
+    property: SLUG_PROPERTY,
+    rich_text: { equals: slugEquals },
+  }
+
+  // Paginate defensively in case duplicated slugs exist.
+  for (let i = 0; i < 10; i += 1) {
+    const resp: QueryDataSourceResponse = await notion.dataSources.query({
+      data_source_id: IB_NOTE_DATA_SOURCE_ID,
+      filter,
+      sorts: [{ timestamp: "created_time", direction: "ascending" }],
+      page_size: 100,
+      start_cursor: cursor,
+    })
+    for (const row of resp.results) {
+      if (isFullPage(row)) results.push(row)
+    }
+    if (!resp.has_more || !resp.next_cursor) break
+    cursor = resp.next_cursor
+  }
+
+  return results
+}
+
 const queryPublished = unstable_cache(
   _queryPublishedImpl,
   ["notion-query-published"],
+  { tags: ["notes"] }
+)
+
+const queryBySlug = unstable_cache(
+  _queryBySlugImpl,
+  ["notion-query-by-slug"],
   { tags: ["notes"] }
 )
 
@@ -122,6 +166,15 @@ export async function listPublishedNotes(): Promise<NoteSummary[]> {
     if (s) out.push(s)
   }
   return out
+}
+
+export async function getNotePublicationStatusBySlug(
+  slug: string
+): Promise<NotePublicationStatus> {
+  const pages = await queryBySlug(slug)
+  const page = pages[0]
+  if (!page) return "missing"
+  return extractPublished(page) ? "published" : "unpublished"
 }
 
 function isFullBlock(

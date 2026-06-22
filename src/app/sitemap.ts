@@ -5,8 +5,6 @@ export const dynamic = "force-static";
 
 const SITE_URL = "https://norikane.studio";
 
-const FALLBACK_NOTE_SLUGS = ["correction", "grading", "filmlook"] as const;
-
 const LEGAL_PAGES = ["/privacy", "/terms"] as const;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -36,15 +34,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })),
     ];
   } catch {
-    return [
-      root,
-      ...legalPages,
-      ...FALLBACK_NOTE_SLUGS.map((slug) => ({
-        url: new URL(`/notes/${slug}`, SITE_URL).toString(),
-        lastModified: new Date(),
-        changeFrequency: "monthly" as const,
-        priority: 0.7,
-      })),
-    ];
+    return [root, ...legalPages];
   }
 }
