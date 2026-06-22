@@ -72,15 +72,37 @@ describe("HomePage profile press dialog trigger", () => {
     expect(profile?.querySelector(".hp-career-item")).toBeInTheDocument()
   })
 
-  it("renders the DaVinci Resolve certified trainer intro text as a direct official link", async () => {
+  it("opens the DaVinci Resolve certified trainer guidance modal from the intro text", async () => {
     const { container } = render(await HomePage())
 
     const intro = container.querySelector(".hp-intro-measure")
     expect(intro).toBeInTheDocument()
     expect(intro).toHaveTextContent(hpPublicContent.intro)
 
-    const officialLink = within(intro as HTMLElement).getByRole("link", {
+    const trigger = within(intro as HTMLElement).getByRole("button", {
       name: DAVINCI_RESOLVE_TRAINER_TEXT,
+    })
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog")
+    expect(trigger).toHaveAttribute("aria-expanded", "false")
+    expect(within(intro as HTMLElement).queryByRole("link")).not.toBeInTheDocument()
+
+    fireEvent.click(trigger)
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true")
+    const dialog = screen.getByRole("dialog", { name: DAVINCI_RESOLVE_TRAINER_TEXT })
+    expect(dialog).toBeVisible()
+    expect(dialog.parentElement).toHaveStyle({
+      zIndex: "2147483647",
+    })
+    expect(dialog).toHaveTextContent(
+      "Blackmagic Design公式のDaVinci Resolveトレーニングページで、認定トレーナーとして掲載されています。",
+    )
+    expect(dialog).toHaveTextContent(
+      "トレーニング形式を「認定トレーナー」、国を「日本」にして「則兼 智志」をご確認ください。",
+    )
+
+    const officialLink = within(dialog).getByRole("link", {
+      name: "Blackmagic公式ページで確認する",
     })
     expect(officialLink).toHaveAttribute("href", DAVINCI_RESOLVE_TRAINING_URL)
     expect(officialLink).toHaveAttribute(
@@ -93,10 +115,9 @@ describe("HomePage profile press dialog trigger", () => {
     expect(DAVINCI_RESOLVE_TRAINING_URL).not.toContain("#TrainingType")
     expect(officialLink).toHaveAttribute("target", "_blank")
     expect(officialLink).toHaveAttribute("rel", "noopener noreferrer")
+
+    fireEvent.keyDown(document, { key: "Escape" })
     expect(screen.queryByRole("dialog", { name: DAVINCI_RESOLVE_TRAINER_TEXT })).not.toBeInTheDocument()
-    expect(within(intro as HTMLElement).queryByRole("button", {
-      name: DAVINCI_RESOLVE_TRAINER_TEXT,
-    })).not.toBeInTheDocument()
   })
 
   it("opens the press dialog from the profile badge on primary pointer release", async () => {

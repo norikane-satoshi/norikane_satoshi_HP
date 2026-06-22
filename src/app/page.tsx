@@ -1,16 +1,14 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
+import { DavinciTrainerDialogTrigger } from "@/components/hp/davinci-trainer-dialog"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
-import {
-  DAVINCI_RESOLVE_TRAINER_TEXT,
-  DAVINCI_RESOLVE_TRAINING_URL,
-} from "@/lib/hp/davinci-trainer"
+import { DAVINCI_RESOLVE_TRAINER_TEXT } from "@/lib/hp/davinci-trainer"
 import { hpPublicContent } from "@/lib/hp/public-content"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
@@ -57,7 +55,7 @@ const socialIcons = {
   Instagram: InstagramIcon,
 } as const
 
-function renderIntroTextWithTrainerLink() {
+function renderIntroTextWithTrainerDialog() {
   const [before, after] = hpPublicContent.intro.split(DAVINCI_RESOLVE_TRAINER_TEXT)
 
   if (after === undefined) {
@@ -67,14 +65,7 @@ function renderIntroTextWithTrainerLink() {
   return (
     <>
       {before}
-      <a
-        href={DAVINCI_RESOLVE_TRAINING_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline text-inherit underline decoration-current decoration-1 underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
-      >
-        {DAVINCI_RESOLVE_TRAINER_TEXT}
-      </a>
+      <DavinciTrainerDialogTrigger />
       {after}
     </>
   )
@@ -176,7 +167,7 @@ export default async function HomePage() {
       {/* Intro */}
       <section className="hp-section-shell hp-grid">
         <p className="hp-body hp-intro-measure text-base text-hp md:text-lg">
-          {renderIntroTextWithTrainerLink()}
+          {renderIntroTextWithTrainerDialog()}
         </p>
       </section>
 
