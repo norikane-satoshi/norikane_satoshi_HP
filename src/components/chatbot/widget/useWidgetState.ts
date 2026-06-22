@@ -32,6 +32,7 @@ export type WidgetLayoutState = {
 
 export type StoredWidgetState = {
   minimized: boolean
+  hasOpened: boolean
   firstShownAt: string
   lastSeenAt: string
   expiresAt: string
@@ -45,6 +46,7 @@ type WidgetState = {
   hasHydrated: boolean
   isVisible: boolean
   isMinimized: boolean
+  shouldShowMinimizedAttention: boolean
   layout: WidgetLayoutState
   showInitial: () => void
   open: () => void
@@ -157,9 +159,11 @@ function createStoredState(
   now: Date,
   firstShownAt = now,
   layout = sanitizeWidgetLayout(null),
+  hasOpened = true,
 ): StoredWidgetState {
   return {
     minimized,
+    hasOpened,
     firstShownAt: firstShownAt.toISOString(),
     lastSeenAt: now.toISOString(),
     expiresAt: addDays(firstShownAt, CHATBOT_WIDGET_TTL_DAYS).toISOString(),
@@ -186,7 +190,10 @@ export function readStoredWidgetState(storage: Storage, now: Date): StoredWidget
       return null
     }
 
-    return parsed as StoredWidgetState
+    return {
+      ...parsed,
+      hasOpened: typeof parsed.hasOpened === "boolean" ? parsed.hasOpened : true,
+    } as StoredWidgetState
   } catch {
     storage.removeItem(CHATBOT_WIDGET_STORAGE_KEY)
     return null
@@ -199,8 +206,9 @@ export function persistWidgetState(
   now: Date,
   firstShownAt?: Date,
   layout?: WidgetLayoutState,
+  hasOpened = true,
 ) {
-  const storedState = createStoredState(minimized, now, firstShownAt, layout)
+  const storedState = createStoredState(minimized, now, firstShownAt, layout, hasOpened)
   storage.setItem(CHATBOT_WIDGET_STORAGE_KEY, JSON.stringify(storedState))
   return storedState
 }
@@ -209,6 +217,7 @@ export function useWidgetState(): WidgetState {
   const [hasHydrated, setHasHydrated] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
+  const [hasOpened, setHasOpened] = useState(true)
   const [layout, setLayout] = useState<WidgetLayoutState>(() => sanitizeWidgetLayout(null))
   const [firstShownAt, setFirstShownAt] = useState<Date | null>(null)
 
@@ -222,6 +231,7 @@ export function useWidgetState(): WidgetState {
         setFirstShownAt(new Date(storedState.firstShownAt))
         setIsVisible(true)
         setIsMinimized(storedState.minimized)
+        setHasOpened(storedState.hasOpened)
       }
       setHasHydrated(true)
     }, 0)
@@ -236,7 +246,7 @@ export function useWidgetState(): WidgetState {
         if (isVisible) {
           const now = new Date(Date.now())
           const nextFirstShownAt = firstShownAt ?? now
-          persistWidgetState(window.localStorage, isMinimized, now, nextFirstShownAt, nextLayout)
+          persistWidgetState(window.localStorage, isMinimized, now, nextFirstShownAt, nextLayout, hasOpened)
         }
         return nextLayout
       })
@@ -244,16 +254,17 @@ export function useWidgetState(): WidgetState {
 
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
-  }, [firstShownAt, isMinimized, isVisible])
+  }, [firstShownAt, hasOpened, isMinimized, isVisible])
 
-  const writeState = useCallback((minimized: boolean, initialShownAt?: Date, nextLayout = layout) => {
+  const writeState = useCallback((minimized: boolean, initialShownAt?: Date, nextLayout = layout, nextHasOpened = hasOpened) => {
     const now = new Date(Date.now())
     const nextFirstShownAt = initialShownAt ?? firstShownAt ?? now
-    persistWidgetState(window.localStorage, minimized, now, nextFirstShownAt, nextLayout)
+    persistWidgetState(window.localStorage, minimized, now, nextFirstShownAt, nextLayout, nextHasOpened)
     setFirstShownAt(nextFirstShownAt)
     setIsVisible(true)
     setIsMinimized(minimized)
-  }, [firstShownAt, layout])
+    setHasOpened(nextHasOpened)
+  }, [firstShownAt, hasOpened, layout])
 
   const updateLayout = useCallback((nextLayout: WidgetLayoutState) => {
     const sanitizedLayout = sanitizeWidgetLayout(nextLayout)
@@ -261,19 +272,19 @@ export function useWidgetState(): WidgetState {
     if (isVisible) {
       const now = new Date(Date.now())
       const nextFirstShownAt = firstShownAt ?? now
-      persistWidgetState(window.localStorage, isMinimized, now, nextFirstShownAt, sanitizedLayout)
+      persistWidgetState(window.localStorage, isMinimized, now, nextFirstShownAt, sanitizedLayout, hasOpened)
       setFirstShownAt(nextFirstShownAt)
     }
-  }, [firstShownAt, isMinimized, isVisible])
+  }, [firstShownAt, hasOpened, isMinimized, isVisible])
 
   const showInitial = useCallback(() => {
     if (isVisible) return
-    writeState(false, new Date(Date.now()))
-  }, [isVisible, writeState])
+    writeState(true, new Date(Date.now()), layout, false)
+  }, [isVisible, layout, writeState])
 
   const open = useCallback(() => {
-    writeState(false)
-  }, [writeState])
+    writeState(false, undefined, layout, true)
+  }, [layout, writeState])
 
   const minimize = useCallback(() => {
     writeState(true)
@@ -309,6 +320,7 @@ export function useWidgetState(): WidgetState {
     hasHydrated,
     isVisible,
     isMinimized,
+    shouldShowMinimizedAttention: isVisible && isMinimized && !hasOpened,
     layout,
     showInitial,
     open,

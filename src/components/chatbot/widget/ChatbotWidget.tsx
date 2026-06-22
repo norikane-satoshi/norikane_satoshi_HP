@@ -216,7 +216,7 @@ export function ChatbotWidget() {
       style={asideStyle}
     >
       {!isReady ? null : widgetState.isMinimized ? (
-        <MinimizedBar onOpen={widgetState.open} />
+        <MinimizedBar onOpen={widgetState.open} shouldShowAttention={widgetState.shouldShowMinimizedAttention} />
       ) : (
         <WidgetShell
           displayMode={widgetState.layout.displayMode}

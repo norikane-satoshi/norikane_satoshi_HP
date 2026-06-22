@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
+import { readFileSync } from "node:fs"
 import React from "react"
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { renderToStaticMarkup } from "react-dom/server"
@@ -129,7 +130,7 @@ describe("chatbot widget shell", () => {
     expect(screen.queryByRole("complementary", { name: "AI 相談窓口" })).not.toBeInTheDocument()
   })
 
-  it("opens the chat shell automatically when viewport bottom passes 25 percent of the document", async () => {
+  it("shows the minimized consultation bar when viewport bottom passes 25 percent of the document", async () => {
     render(<ChatbotWidget />)
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
@@ -142,14 +143,45 @@ describe("chatbot widget shell", () => {
     })
 
     expect(screen.getByRole("complementary", { name: "AI 相談窓口" })).toBeInTheDocument()
-    expect(screen.getByText("のりかね映像設計室のご相談窓口")).toBeInTheDocument()
-    expect(screen.getByLabelText("相談内容")).not.toHaveFocus()
+    expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveAttribute("data-attention", "true")
+    expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveClass("chatbot-minimized-attention")
+    expect(screen.queryByText("のりかね映像設計室のご相談窓口")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("相談内容")).not.toBeInTheDocument()
     expect(JSON.parse(window.localStorage.getItem(CHATBOT_WIDGET_STORAGE_KEY) ?? "{}")).toMatchObject({
-      minimized: false,
+      minimized: true,
+      hasOpened: false,
       firstShownAt: "2026-05-26T00:00:00.150Z",
       lastSeenAt: "2026-05-26T00:00:00.150Z",
       expiresAt: "2026-06-25T00:00:00.150Z",
     })
+  })
+
+  it("stops minimized bar attention after the user opens it once", async () => {
+    render(<ChatbotWidget />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    setScrollGeometry({ innerHeight: 800, scrollHeight: 4000, scrollY: 250 })
+    await act(async () => {
+      window.dispatchEvent(new Event("scroll"))
+      await vi.advanceTimersByTimeAsync(SCROLL_TRIGGER_DEBOUNCE_MS)
+    })
+    expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveAttribute("data-attention", "true")
+
+    await act(async () => {
+      screen.getByRole("button", { name: "AI 相談窓口を開く" }).click()
+    })
+    expect(JSON.parse(window.localStorage.getItem(CHATBOT_WIDGET_STORAGE_KEY) ?? "{}")).toMatchObject({
+      minimized: false,
+      hasOpened: true,
+    })
+
+    await act(async () => {
+      screen.getByRole("button", { name: "最小化" }).click()
+    })
+    expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveAttribute("data-attention", "false")
+    expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).not.toHaveClass("chatbot-minimized-attention")
   })
 
   it("opens from the existing header event without requiring a scroll", async () => {
@@ -410,6 +442,7 @@ describe("chatbot widget hooks", () => {
 
     expect(storedState).toMatchObject({
       minimized: false,
+      hasOpened: true,
       displayMode: "side-peek",
       floatingSize: { width: 520, height: 620 },
       floatingPosition: { x: 40, y: 50 },
@@ -428,7 +461,16 @@ describe("chatbot widget hooks", () => {
 
     expect(readStoredWidgetState(window.localStorage, new Date("2026-05-27T00:00:00.000Z"))).toMatchObject({
       minimized: true,
+      hasOpened: true,
     })
+  })
+
+  it("keeps reduced motion users out of minimized attention animation", () => {
+    const css = readFileSync("src/app/globals.css", "utf8")
+
+    expect(css).toContain(".chatbot-minimized-attention")
+    expect(css).toContain("@media (prefers-reduced-motion: reduce)")
+    expect(css).toMatch(/\.chatbot-minimized-attention,[\s\S]*?animation: none;/)
   })
 
   it("clamps invalid restored layout values to the desktop viewport", () => {
