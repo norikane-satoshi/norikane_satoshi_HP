@@ -54,6 +54,18 @@ function child(block: Block, parentId: string): Block {
   }
 }
 
+function notePage(id: string, title: string, slug: string, published: boolean) {
+  return {
+    id,
+    object: "page",
+    properties: {
+      名前: { type: "title", title: richText(title) },
+      slug: { type: "rich_text", rich_text: richText(slug) },
+      HP公開: { type: "checkbox", checkbox: published },
+    },
+  }
+}
+
 function repository(): ChatbotKnowledgeRepository & {
   saved: unknown[]
   errors: unknown[]
@@ -219,7 +231,7 @@ describe("Notion chatbot knowledge sync", () => {
     })
   })
 
-  it("syncs the registered workflow and public note knowledge only", async () => {
+  it("syncs the registered workflow and customer-facing public note knowledge only", async () => {
     const repo = repository()
     const manifestPageId = "3088971f957b481baff8499ff911051b"
     const durationPageId = "830dd59bc735483fae4feea1d6f4fbc7"
@@ -228,6 +240,20 @@ describe("Notion chatbot knowledge sync", () => {
     const filmLookPageId = "cccccccccccccccccccccccccccccccc"
     const rowIds = ["duration-row", "correction-row", "grading-row", "filmlook-row"]
     const client = {
+      pages: {
+        retrieve: vi.fn(async ({ page_id }: { page_id: string }) => {
+          if (page_id === correctionPageId) {
+            return notePage(correctionPageId, "カラーコレクションの因数分解", "correction", true)
+          }
+          if (page_id === gradingPageId) {
+            return notePage(gradingPageId, "カラーグレーディングの因数分解", "grading", false)
+          }
+          if (page_id === filmLookPageId) {
+            return notePage(filmLookPageId, "フィルムルックについてわかっていること", "filmlook", false)
+          }
+          throw new Error(`unexpected page retrieve: ${page_id}`)
+        }),
+      },
       blocks: {
         children: {
           list: vi.fn(async ({ block_id }: { block_id: string }) => {
@@ -307,22 +333,10 @@ describe("Notion chatbot knowledge sync", () => {
               }
             }
             if (block_id === gradingPageId) {
-              return {
-                results: [
-                  heading("grading-public", "公開本文"),
-                  paragraph("grading-body", "カラーグレーディングは、作品の意図を観客の印象に届くルックへ翻訳する工程です。"),
-                ],
-                has_more: false,
-              }
+              throw new Error("unpublished grading page must not be fetched")
             }
             if (block_id === filmLookPageId) {
-              return {
-                results: [
-                  heading("filmlook-public", "公開本文"),
-                  paragraph("filmlook-body", "フィルムルックは単一のLUT名ではなく、階調、色分離、粒状感の関係として扱います。"),
-                ],
-                has_more: false,
-              }
+              throw new Error("unpublished film-look page must not be fetched")
             }
             return { results: [], has_more: false }
           }),
@@ -352,9 +366,15 @@ describe("Notion chatbot knowledge sync", () => {
       "color-grading",
       "film-look",
     ])
+    expect(result.snapshot.noteKnowledge.map((entry) => entry.publicStatus)).toEqual([
+      "public",
+      "unpublished",
+      "unpublished",
+    ])
+    expect(result.snapshot.noteKnowledge.map((entry) => entry.includedInPrompt)).toEqual([true, false, false])
     expect(result.snapshot.noteKnowledge.map((entry) => entry.content).join("\n")).toContain("カラーコレクション")
-    expect(result.snapshot.noteKnowledge.map((entry) => entry.content).join("\n")).toContain("カラーグレーディング")
-    expect(result.snapshot.noteKnowledge.map((entry) => entry.content).join("\n")).toContain("フィルムルック")
+    expect(result.snapshot.noteKnowledge.map((entry) => entry.content).join("\n")).not.toContain("カラーグレーディング")
+    expect(result.snapshot.noteKnowledge.map((entry) => entry.content).join("\n")).not.toContain("フィルムルック")
     expect(result.snapshot.noteKnowledge.map((entry) => entry.content).join("\n")).not.toContain("system:")
     expect(result.snapshot.noteKnowledge.map((entry) => entry.content).join("\n")).not.toContain("非公開")
   })

@@ -570,6 +570,10 @@ describe("handleChatbotMessage user context", () => {
         referenceRange: "公開本文",
         content: "カラーコレクションは素材のばらつきを設計に戻す工程です。",
         source: "notion-sync",
+        publicStatus: "public",
+        publicStatusReason: "hp-public-true-with-slug",
+        slug: "correction",
+        includedInPrompt: true,
       },
       {
         usage: "color-grading",
@@ -578,6 +582,10 @@ describe("handleChatbotMessage user context", () => {
         referenceRange: "公開本文",
         content: "カラーグレーディングは作品の意図を観客の印象へ翻訳する工程です。",
         source: "notion-sync",
+        publicStatus: "public",
+        publicStatusReason: "hp-public-true-with-slug",
+        slug: "grading",
+        includedInPrompt: true,
       },
       {
         usage: "film-look",
@@ -586,6 +594,10 @@ describe("handleChatbotMessage user context", () => {
         referenceRange: "公開本文",
         content: "フィルムルックは階調、色分離、粒状感の関係として扱います。",
         source: "notion-sync",
+        publicStatus: "public",
+        publicStatusReason: "hp-public-true-with-slug",
+        slug: "filmlook",
+        includedInPrompt: true,
       },
     ]
 
@@ -606,6 +618,84 @@ describe("handleChatbotMessage user context", () => {
     expect(prompt).toContain("カラーコレクションは素材のばらつきを設計に戻す工程")
     expect(prompt).toContain("カラーグレーディングは作品の意図を観客の印象へ翻訳")
     expect(prompt).toContain("フィルムルックは階調、色分離、粒状感")
+  })
+
+  it("keeps unpublished note knowledge out of the customer-facing system prompt", async () => {
+    const harness = setup()
+    const snapshot = createStaticChatbotKnowledgeSnapshot("2026-06-22T01:10:34.550Z")
+    snapshot.noteKnowledge = [
+      {
+        usage: "color-correction",
+        pageId: "1510399661d64891aee912320df39b91",
+        pageTitle: "カラーコレクションの因数分解",
+        referenceRange: "公開本文",
+        content: "カラーコレクションは公開済みの記事本文です。",
+        source: "notion-sync",
+        publicStatus: "public",
+        publicStatusReason: "hp-public-true-with-slug",
+        slug: "correction",
+        includedInPrompt: true,
+      },
+      {
+        usage: "color-grading",
+        pageId: "2d61194573e140789602864a9040affe",
+        pageTitle: "カラーグレーディングの因数分解",
+        referenceRange: "公開本文",
+        content: "カラーグレーディングは未公開の記事本文です。",
+        source: "notion-sync",
+        publicStatus: "unpublished",
+        publicStatusReason: "hp-public-false",
+        slug: "grading",
+        includedInPrompt: false,
+      },
+    ]
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "カラーコレクションとグレーディングの記事を教えて" },
+      {
+        ...harness.options,
+        knowledgeSnapshotLoader: vi.fn().mockResolvedValue(snapshot),
+      },
+    )
+
+    const prompt = harness.generate.mock.calls[0]?.[0].systemPrompt
+    expect(prompt).toContain("公開済みの記事として案内できる note だけを使います")
+    expect(prompt).toContain("公開済みとして案内できない note に関する語が含まれます")
+    expect(prompt).toContain("カラーコレクションは公開済みの記事本文")
+    expect(prompt).not.toContain("カラーグレーディングは未公開の記事本文")
+    expect(prompt).not.toContain("カラーグレーディングの因数分解")
+  })
+
+  it("answers safely without LLM generation when a note question only matches unpublished sources", async () => {
+    const harness = setup()
+    const snapshot = createStaticChatbotKnowledgeSnapshot("2026-06-22T01:10:34.550Z")
+    snapshot.noteKnowledge = [
+      {
+        usage: "color-grading",
+        pageId: "2d61194573e140789602864a9040affe",
+        pageTitle: "カラーグレーディングの因数分解",
+        referenceRange: "公開本文",
+        content: "",
+        source: "notion-sync",
+        publicStatus: "unpublished",
+        publicStatusReason: "hp-public-false",
+        slug: "grading",
+        includedInPrompt: false,
+      },
+    ]
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "グレーディングの記事について教えてください" },
+      {
+        ...harness.options,
+        knowledgeSnapshotLoader: vi.fn().mockResolvedValue(snapshot),
+      },
+    )
+
+    expect(result.tier).toBe("local-deterministic")
+    expect(result.assistantMessage.content).toContain("公開済みの記事として案内できるものに限って回答します")
+    expect(result.assistantMessage.content).not.toContain("カラーグレーディング")
+    expect(harness.generate).not.toHaveBeenCalled()
   })
 
   it("accepts short requested durations as consultation candidates without promising availability", async () => {

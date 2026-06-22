@@ -1,6 +1,11 @@
 import type { WorkflowDurationPreset } from "@/lib/chatbot/knowledge/workflow-duration"
 import { workflowDurationPresets } from "@/lib/chatbot/knowledge/workflow-duration"
-import { getNotionClient } from "@/lib/notion/server/client"
+import {
+  getNotionClient,
+  PUBLISHED_PROPERTY,
+  SLUG_PROPERTY,
+  TITLE_PROPERTY,
+} from "@/lib/notion/server/client"
 
 export const defaultChatbotKnowledgeManifestPageId = "3088971f957b481baff8499ff911051b"
 const knowledgeSnapshotKey = "chatbot-notion-knowledge"
@@ -22,6 +27,8 @@ export type SyncedWorkflowDurationPreset = WorkflowDurationPreset & {
   source: "static" | "notion-sync"
 }
 
+export type ChatbotNotePublicStatus = "public" | "unpublished"
+
 export type SyncedNoteKnowledge = {
   usage: Exclude<ChatbotKnowledgeEntryUsage, "workflow-duration">
   pageId: string
@@ -29,6 +36,10 @@ export type SyncedNoteKnowledge = {
   referenceRange: string
   content: string
   source: "notion-sync"
+  slug?: string
+  publicStatus: ChatbotNotePublicStatus
+  publicStatusReason: string
+  includedInPrompt: boolean
 }
 
 export type ChatbotKnowledgeSnapshot = {
@@ -69,6 +80,9 @@ type NotionBlockListClient = {
         next_cursor?: string | null
       }>
     }
+  }
+  pages?: {
+    retrieve(input: { page_id: string }): Promise<unknown>
   }
 }
 
@@ -139,20 +153,32 @@ export async function syncChatbotNotionKnowledge(input: {
     const noteKnowledge: SyncedNoteKnowledge[] = []
 
     for (const entry of sortedEntries) {
-      const sourceBlocks = await listAllChildren(client, entry.pageId)
       if (entry.usage === "workflow-duration") {
+        const sourceBlocks = await listAllChildren(client, entry.pageId)
         workflowPresets = mergeWorkflowDurationPresets(
           workflowPresets,
           extractWorkflowDurationPresets(sourceBlocks, entry.referenceRange),
         )
       } else {
+        const publicStatus = await resolveNotePublicStatus(client, entry)
+        const content =
+          publicStatus.publicStatus === "public"
+            ? extractPublicNoteKnowledge(await listAllChildren(client, entry.pageId), entry.referenceRange)
+            : ""
+        const includedInPrompt = publicStatus.publicStatus === "public" && content.trim().length > 0
         noteKnowledge.push({
           usage: entry.usage,
           pageId: entry.pageId,
-          pageTitle: entry.pageTitle,
+          ...(publicStatus.pageTitle ?? entry.pageTitle
+            ? { pageTitle: publicStatus.pageTitle ?? entry.pageTitle }
+            : {}),
           referenceRange: entry.referenceRange,
-          content: extractPublicNoteKnowledge(sourceBlocks, entry.referenceRange),
+          content,
           source: "notion-sync",
+          ...(publicStatus.slug ? { slug: publicStatus.slug } : {}),
+          publicStatus: publicStatus.publicStatus,
+          publicStatusReason: publicStatus.publicStatusReason,
+          includedInPrompt,
         })
       }
       nextEntries.push({ ...entry, status: "synced", lastSyncedAt: now.toISOString() })
@@ -249,10 +275,89 @@ function parseSnapshotJson(value: string): ChatbotKnowledgeSnapshot | null {
     const parsed = JSON.parse(value) as Partial<ChatbotKnowledgeSnapshot>
     if (parsed.version !== knowledgeSnapshotVersion || !parsed.workflowDurations) return null
     parsed.entries ??= []
-    parsed.noteKnowledge ??= []
+    parsed.noteKnowledge = (parsed.noteKnowledge ?? []).map(normalizeSyncedNoteKnowledge)
     return parsed as ChatbotKnowledgeSnapshot
   } catch {
     return null
+  }
+}
+
+function normalizeSyncedNoteKnowledge(entry: Partial<SyncedNoteKnowledge>): SyncedNoteKnowledge {
+  const publicStatus = entry.publicStatus === "public" ? "public" : "unpublished"
+  const content = typeof entry.content === "string" ? entry.content : ""
+  return {
+    usage: entry.usage ?? "color-correction",
+    pageId: typeof entry.pageId === "string" ? entry.pageId : "",
+    ...(typeof entry.pageTitle === "string" ? { pageTitle: entry.pageTitle } : {}),
+    referenceRange: typeof entry.referenceRange === "string" ? entry.referenceRange : "公開本文",
+    content,
+    source: "notion-sync",
+    ...(typeof entry.slug === "string" ? { slug: entry.slug } : {}),
+    publicStatus,
+    publicStatusReason:
+      typeof entry.publicStatusReason === "string" ? entry.publicStatusReason : "legacy-missing-public-status",
+    includedInPrompt: publicStatus === "public" && entry.includedInPrompt === true && content.trim().length > 0,
+  }
+}
+
+async function resolveNotePublicStatus(
+  client: NotionBlockListClient,
+  entry: ChatbotKnowledgeManifestEntry,
+): Promise<{
+  publicStatus: ChatbotNotePublicStatus
+  publicStatusReason: string
+  pageTitle?: string
+  slug?: string
+}> {
+  if (!client.pages?.retrieve) {
+    return {
+      publicStatus: "unpublished",
+      publicStatusReason: "metadata-client-unavailable",
+      pageTitle: entry.pageTitle,
+    }
+  }
+
+  try {
+    const page = await client.pages.retrieve({ page_id: entry.pageId })
+    const properties = isRecord(page) && isRecord(page.properties) ? page.properties : undefined
+    if (!properties) {
+      return {
+        publicStatus: "unpublished",
+        publicStatusReason: "metadata-missing",
+        pageTitle: entry.pageTitle,
+      }
+    }
+
+    const pageTitle = readPageTitle(properties[TITLE_PROPERTY]) || entry.pageTitle
+    const slug = readRichTextProperty(properties[SLUG_PROPERTY])
+    const isPublished = readCheckboxProperty(properties[PUBLISHED_PROPERTY])
+    if (!isPublished) {
+      return {
+        publicStatus: "unpublished",
+        publicStatusReason: "hp-public-false",
+        pageTitle,
+        slug,
+      }
+    }
+    if (!slug) {
+      return {
+        publicStatus: "unpublished",
+        publicStatusReason: "missing-slug",
+        pageTitle,
+      }
+    }
+    return {
+      publicStatus: "public",
+      publicStatusReason: "hp-public-true-with-slug",
+      pageTitle,
+      slug,
+    }
+  } catch {
+    return {
+      publicStatus: "unpublished",
+      publicStatusReason: "metadata-fetch-failed",
+      pageTitle: entry.pageTitle,
+    }
   }
 }
 
@@ -581,6 +686,28 @@ function blockCells(block: unknown): string[] {
     if (!Array.isArray(cell)) return ""
     return cell.map(richTextPlainText).join("").trim()
   })
+}
+
+function readPageTitle(property: unknown): string | undefined {
+  if (!isRecord(property) || property.type !== "title" || !Array.isArray(property.title)) return undefined
+  const title = property.title.map(richTextPlainText).join("").trim()
+  return title || undefined
+}
+
+function readRichTextProperty(property: unknown): string | undefined {
+  if (!isRecord(property)) return undefined
+  const values = property.type === "rich_text" && Array.isArray(property.rich_text)
+    ? property.rich_text
+    : property.type === "title" && Array.isArray(property.title)
+      ? property.title
+      : undefined
+  if (!values) return undefined
+  const text = values.map(richTextPlainText).join("").trim()
+  return text || undefined
+}
+
+function readCheckboxProperty(property: unknown): boolean {
+  return isRecord(property) && property.type === "checkbox" && property.checkbox === true
 }
 
 function firstPageReference(block: unknown): string | undefined {
