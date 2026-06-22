@@ -110,7 +110,7 @@ describe("chatbot widget shell", () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     delete process.env.NEXT_PUBLIC_ENABLE_CHATBOT
-    delete process.env.NEXT_PUBLIC_BOOKING_ENABLED
+    delete process.env.NEXT_PUBLIC_ENABLE_BOOKING
     window.localStorage.clear()
     window.location.hash = ""
   })
@@ -297,7 +297,7 @@ describe("chatbot widget shell", () => {
   })
 
   it("hides only the booking card when booking is disabled while preserving conversation controls", async () => {
-    delete process.env.NEXT_PUBLIC_BOOKING_ENABLED
+    delete process.env.NEXT_PUBLIC_ENABLE_BOOKING
     storeWidgetShellUi(bookingCardUi)
 
     render(<WidgetShell onMinimize={vi.fn()} />)
@@ -312,7 +312,7 @@ describe("chatbot widget shell", () => {
   })
 
   it("renders the booking card from the same stored UI when booking is enabled", async () => {
-    process.env.NEXT_PUBLIC_BOOKING_ENABLED = "true"
+    process.env.NEXT_PUBLIC_ENABLE_BOOKING = "true"
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({ candidates: [], busyDateKeys: [] }),

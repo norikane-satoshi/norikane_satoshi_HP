@@ -96,7 +96,7 @@ describe("WidgetShell API wiring", () => {
     removeStoredWidgetSession()
     vi.unstubAllGlobals()
     vi.useRealTimers()
-    delete process.env.NEXT_PUBLIC_BOOKING_ENABLED
+    delete process.env.NEXT_PUBLIC_ENABLE_BOOKING
   })
 
   it("posts submitted chat text to /api/chatbot/message", async () => {
@@ -615,7 +615,7 @@ describe("WidgetShell API wiring", () => {
   })
 
   it("renders ChatbotBookingCard for booking-card responses", async () => {
-    process.env.NEXT_PUBLIC_BOOKING_ENABLED = "true"
+    process.env.NEXT_PUBLIC_ENABLE_BOOKING = "true"
     const slot = {
       start: "2026-07-10T01:00:00.000Z",
       end: "2026-07-10T02:00:00.000Z",
@@ -672,7 +672,7 @@ describe("WidgetShell API wiring", () => {
   })
 
   it("persists and restores the booking completion screen", async () => {
-    process.env.NEXT_PUBLIC_BOOKING_ENABLED = "true"
+    process.env.NEXT_PUBLIC_ENABLE_BOOKING = "true"
     const slot = {
       start: "2026-07-10T01:00:00.000Z",
       end: "2026-07-10T02:00:00.000Z",

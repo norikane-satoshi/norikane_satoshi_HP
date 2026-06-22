@@ -11,6 +11,6 @@ function isPublicFeatureEnabled(value: string | undefined) {
   return isLocalDev
 }
 
-export const isBookingEnabled = () => process.env.NEXT_PUBLIC_BOOKING_ENABLED === "true"
+export const isBookingEnabled = () => process.env.NEXT_PUBLIC_ENABLE_BOOKING === "true"
 
 export const isChatbotEnabled = () => isPublicFeatureEnabled(process.env.NEXT_PUBLIC_ENABLE_CHATBOT)
