@@ -94,6 +94,22 @@ export const FEATURED_WORKS: FeaturedWork[] = [
       },
     ],
   },
+  {
+    title: "リラックマと遊園地",
+    client: "NETFLIX",
+    youtubeId: "-X5BMqt0m2c",
+    officialUrl: "https://www.san-x.co.jp/rilakkuma/theme_park_adventure/",
+    links: [
+      {
+        label: "公式HP",
+        url: "https://www.san-x.co.jp/rilakkuma/theme_park_adventure/",
+      },
+      {
+        label: "YouTube",
+        url: "https://www.youtube.com/watch?v=-X5BMqt0m2c",
+      },
+    ],
+  },
 ]
 
 export const LIVE_REEL_VIDEOS = [

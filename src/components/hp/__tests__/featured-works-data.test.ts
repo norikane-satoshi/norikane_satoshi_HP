@@ -12,7 +12,7 @@ import {
 } from "@/components/hp/featured-works-data"
 
 describe("featured works data", () => {
-  it("defines the four official linked works with YouTube ids", () => {
+  it("defines the five official linked works with YouTube ids", () => {
     expect(FEATURED_WORKS).toEqual([
       expect.objectContaining({
         title: "火星の女王",
@@ -67,6 +67,22 @@ describe("featured works data", () => {
           {
             label: "YouTube",
             url: "https://www.youtube.com/watch?v=GiqkQel2CeU",
+          },
+        ],
+      }),
+      expect.objectContaining({
+        title: "リラックマと遊園地",
+        client: "NETFLIX",
+        youtubeId: "-X5BMqt0m2c",
+        officialUrl: "https://www.san-x.co.jp/rilakkuma/theme_park_adventure/",
+        links: [
+          {
+            label: "公式HP",
+            url: "https://www.san-x.co.jp/rilakkuma/theme_park_adventure/",
+          },
+          {
+            label: "YouTube",
+            url: "https://www.youtube.com/watch?v=-X5BMqt0m2c",
           },
         ],
       }),

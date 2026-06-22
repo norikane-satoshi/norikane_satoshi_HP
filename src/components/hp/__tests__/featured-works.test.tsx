@@ -416,7 +416,7 @@ describe("FeaturedWorks", () => {
     )
   })
 
-  it("renders seven cards with live, CM, and MV playlist counts", () => {
+  it("renders eight cards with live, CM, and MV playlist counts", () => {
     const { container } = render(<FeaturedWorks />)
     const primary = getPrimarySegment(container)
     const cards = primary.querySelectorAll("[data-featured-work-card]")
@@ -426,6 +426,7 @@ describe("FeaturedWorks", () => {
       "十角館の殺人 / 時計館の殺人",
       "福山雅治ライブフィルム「言霊の幸わう夏」「月光」",
       "ゲキ×シネシリーズ",
+      "リラックマと遊園地",
       "ライブ映像作品",
       "CM",
       "MV",
