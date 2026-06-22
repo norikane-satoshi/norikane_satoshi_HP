@@ -11,6 +11,7 @@ import { CHATBOT_CONVERSATION_CONTENT_CLASS_NAME } from "@/components/chatbot/wi
 import { FloatingLauncher } from "@/components/chatbot/widget/FloatingLauncher"
 import { MinimizedBar } from "@/components/chatbot/widget/MinimizedBar"
 import { WidgetShell } from "@/components/chatbot/widget/WidgetShell"
+import type { WidgetUi } from "@/components/chatbot/widget/api"
 import {
   hasReachedScrollTrigger,
   SCROLL_TRIGGER_DEBOUNCE_MS,
@@ -51,6 +52,47 @@ function installLocalStorage() {
 }
 
 const conversationContentClasses = CHATBOT_CONVERSATION_CONTENT_CLASS_NAME.split(" ")
+const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v1"
+
+function storeWidgetShellUi(activeUi: WidgetUi) {
+  window.localStorage.setItem(
+    CHATBOT_SESSION_STORAGE_KEY,
+    JSON.stringify({
+      messages: [
+        {
+          role: "assistant",
+          content: "既存の相談応答です。",
+          createdAt: "2026-05-26T00:00:00.000Z",
+        },
+      ],
+      activeUi,
+      expiresAt: "2026-06-26T00:00:00.000Z",
+    }),
+  )
+}
+
+const bookingCardUi = {
+  kind: "booking-card",
+  suggestedSlots: [
+    {
+      start: "2026-06-10T01:00:00.000Z",
+      end: "2026-06-10T02:00:00.000Z",
+      label: "6月10日 午前",
+    },
+  ],
+  jobContext: {
+    jobKind: "cm-30s",
+    finalMedium: "web",
+    workSite: "remote-grading",
+    documentaryAttachment: { kind: "none" },
+    workflowEstimate: {
+      stages: [],
+      totalMinDays: 1,
+      totalMaxDays: 1,
+      riskFlags: [],
+    },
+  },
+} satisfies WidgetUi
 
 describe("chatbot widget shell", () => {
   beforeEach(() => {
@@ -68,6 +110,7 @@ describe("chatbot widget shell", () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     delete process.env.NEXT_PUBLIC_ENABLE_CHATBOT
+    delete process.env.NEXT_PUBLIC_BOOKING_ENABLED
     window.localStorage.clear()
     window.location.hash = ""
   })
@@ -251,6 +294,39 @@ describe("chatbot widget shell", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
 
     expect(screen.getByRole("button", { name: "安全に扱います" })).toBeInTheDocument()
+  })
+
+  it("hides only the booking card when booking is disabled while preserving conversation controls", async () => {
+    delete process.env.NEXT_PUBLIC_BOOKING_ENABLED
+    storeWidgetShellUi(bookingCardUi)
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(screen.getByText("既存の相談応答です。")).toBeInTheDocument()
+    expect(screen.getByLabelText("相談内容")).toBeEnabled()
+    expect(screen.queryByLabelText("チャット内予約")).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "候補日時から予約する" })).not.toBeInTheDocument()
+  })
+
+  it("renders the booking card from the same stored UI when booking is enabled", async () => {
+    process.env.NEXT_PUBLIC_BOOKING_ENABLED = "true"
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ candidates: [], busyDateKeys: [] }),
+    }))
+    storeWidgetShellUi(bookingCardUi)
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(screen.getByText("既存の相談応答です。")).toBeInTheDocument()
+    expect(screen.getByLabelText("チャット内予約")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "候補日時から予約する" })).toBeInTheDocument()
   })
 })
 

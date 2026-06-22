@@ -8,25 +8,25 @@ describe("feature flags", () => {
 
   describe("isBookingEnabled", () => {
     it("returns true only for the literal true string", () => {
-      vi.stubEnv("NEXT_PUBLIC_ENABLE_BOOKING", "true")
+      vi.stubEnv("NEXT_PUBLIC_BOOKING_ENABLED", "true")
 
       expect(isBookingEnabled()).toBe(true)
     })
 
     it("returns false for the literal false string", () => {
-      vi.stubEnv("NEXT_PUBLIC_ENABLE_BOOKING", "false")
+      vi.stubEnv("NEXT_PUBLIC_BOOKING_ENABLED", "false")
 
       expect(isBookingEnabled()).toBe(false)
     })
 
     it("returns false when unset", () => {
-      delete process.env.NEXT_PUBLIC_ENABLE_BOOKING
+      delete process.env.NEXT_PUBLIC_BOOKING_ENABLED
 
       expect(isBookingEnabled()).toBe(false)
     })
 
     it.each(["1", "yes", "TRUE"])("returns false for invalid value %s", (value) => {
-      process.env.NEXT_PUBLIC_ENABLE_BOOKING = value
+      process.env.NEXT_PUBLIC_BOOKING_ENABLED = value
 
       expect(isBookingEnabled()).toBe(false)
     })

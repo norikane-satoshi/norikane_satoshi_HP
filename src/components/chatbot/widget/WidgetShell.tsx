@@ -5,6 +5,7 @@ import { ChevronDown, GripHorizontal, Minus, PanelRightOpen, Sparkles } from "lu
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
+import { isBookingEnabled } from "@/lib/feature-flags"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
 import {
@@ -674,6 +675,8 @@ function ActiveWidgetUi({
   }
 
   if (ui.kind === "booking-card") {
+    if (!isBookingEnabled()) return null
+
     return (
       <ChatbotBookingCard
         conversationId={conversationId}
