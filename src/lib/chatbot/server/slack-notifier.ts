@@ -53,6 +53,7 @@ export async function sendChatbotSlackNotification(
   const body = {
     channel,
     text: buildSlackText(input),
+    unfurl_links: false,
     ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
   }
 

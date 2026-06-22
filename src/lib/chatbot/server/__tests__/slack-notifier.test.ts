@@ -56,6 +56,7 @@ describe("sendChatbotSlackNotification", () => {
 
     expect(result).toEqual({ status: "sent", ts: "1700000000.000100" })
     const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))
+    expect(body.unfurl_links).toBe(false)
     expect(body.thread_ts).toBeUndefined()
     expect(body.text).toContain("requestId: req_1")
     expect(body.text).toContain("user: email [email] phone [phone] token=[secret]")
@@ -78,6 +79,7 @@ describe("sendChatbotSlackNotification", () => {
     )
 
     const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))
+    expect(body.unfurl_links).toBe(false)
     expect(body.thread_ts).toBe("1700000000.000100")
     expect(body.text).toContain("⚠️ Chatbot issue")
   })
