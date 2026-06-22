@@ -85,12 +85,12 @@ describe("HomePage profile press dialog trigger", () => {
     expect(officialLink).toHaveAttribute("href", DAVINCI_RESOLVE_TRAINING_URL)
     expect(officialLink).toHaveAttribute(
       "href",
-      "https://www.blackmagicdesign.com/jp/products/davinciresolve/training#partners",
+      "https://www.blackmagicdesign.com/jp/products/davinciresolve/training#TrainingType",
     )
     expect(new URL(DAVINCI_RESOLVE_TRAINING_URL).search).toBe("")
-    expect(new URL(DAVINCI_RESOLVE_TRAINING_URL).hash).toBe("#partners")
+    expect(new URL(DAVINCI_RESOLVE_TRAINING_URL).hash).toBe("#TrainingType")
     expect(DAVINCI_RESOLVE_TRAINING_URL).not.toContain(":~:text=")
-    expect(DAVINCI_RESOLVE_TRAINING_URL).not.toContain("#TrainingType")
+    expect(DAVINCI_RESOLVE_TRAINING_URL).not.toContain("#partners")
     expect(officialLink).toHaveAttribute("target", "_blank")
     expect(officialLink).toHaveAttribute("rel", "noopener noreferrer")
     expect(screen.queryByRole("dialog", { name: DAVINCI_RESOLVE_TRAINER_TEXT })).not.toBeInTheDocument()
