@@ -6,7 +6,6 @@ import { HeroSection } from "@/components/hp/hero-section"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
-import { isBookingEnabled } from "@/lib/feature-flags"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
@@ -235,7 +234,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {isBookingEnabled() ? <HomeScheduleSection /> : null}
+      <HomeScheduleSection />
     </div>
   )
 }
