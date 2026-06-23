@@ -103,7 +103,7 @@ function buildSlackText(input: ChatbotSlackNotificationInput): string {
   if (input.kind === "issue") {
     const lines = [
       "応答でエラーが出ました",
-      ...(input.requestId ? [`調査ID: ${input.requestId}`] : []),
+      ...formatRequiredOperationLines(input),
       ...formatIssueReasonLines(input.issueReasons),
     ]
     return lines.join("\n")
@@ -121,6 +121,7 @@ function buildSlackText(input: ChatbotSlackNotificationInput): string {
 
   const lines = [
     ...(!isThreadReply ? ["新しいチャット相談", ...formatTrackingLines(input), ...formatConversationStateLines(input)] : []),
+    ...(isThreadReply ? formatRequiredOperationLines(input) : []),
     ...(input.userMessage ? [`ユーザー: ${redactForChatbotLog(input.userMessage)}`] : []),
     ...(input.assistantResponse ? [`AI: ${redactForChatbotLog(input.assistantResponse)}`] : []),
   ]
@@ -131,7 +132,7 @@ function formatTrackingLines(input: ChatbotSlackNotificationInput): string[] {
   return [
     `会話ID: ${input.conversationId}`,
     ...(input.sessionId ? [`セッションID: ${input.sessionId}`] : []),
-    ...(input.requestId ? [`調査ID: ${input.requestId}`] : []),
+    ...formatRequiredOperationLines(input),
   ]
 }
 
@@ -141,6 +142,14 @@ function formatConversationStateLines(input: ChatbotSlackNotificationInput): str
     ...(input.routingDecisionKind ? [`状態: ${formatRoutingDecision(input.routingDecisionKind)}`] : []),
     ...(typeof input.bookingProgress === "boolean" ? [`予約相談: ${input.bookingProgress ? "進行中" : "なし"}`] : []),
     "",
+  ]
+}
+
+function formatRequiredOperationLines(input: ChatbotSlackNotificationInput): string[] {
+  return [
+    ...(input.requestId ? [`requestId: ${input.requestId}`] : []),
+    ...(input.tier ? [`tier: ${input.tier}`] : []),
+    ...(typeof input.bookingProgress === "boolean" ? [`bookingProgress: ${input.bookingProgress}`] : []),
   ]
 }
 

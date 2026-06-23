@@ -52,6 +52,7 @@ describe("sendChatbotSlackNotification", () => {
         sessionId: "session_1",
         tier: "tier-2-hosted-chrome-notion-ai",
         routingDecisionKind: "continue",
+        bookingProgress: true,
         userMessage: "email client@example.com phone 090-1234-5678 token=abc12345",
         assistantResponse: "reply api_key=abc67890",
       },
@@ -65,18 +66,20 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("新しいチャット相談")
     expect(body.text).toContain("会話ID: conv_1")
     expect(body.text).toContain("セッションID: session_1")
-    expect(body.text).toContain("調査ID: req_1")
+    expect(body.text).toContain("requestId: req_1")
+    expect(body.text).toContain("tier: tier-2-hosted-chrome-notion-ai")
+    expect(body.text).toContain("bookingProgress: true")
     expect(body.text).toContain("応答: 通常応答")
     expect(body.text).toContain("状態: 相談継続")
     expect(body.text).toContain("ユーザー: email [email] phone [phone] token=[secret]")
     expect(body.text).not.toMatch(/Chatbot conversation/i)
-    expect(body.text).not.toContain("requestId:")
+    expect(body.text).not.toContain("Chatbot Conversation")
     expect(body.text).not.toContain("client@example.com")
     expect(body.text).not.toContain("abc12345")
     expect(body.text).not.toContain("abc67890")
   })
 
-  it("posts conversation thread replies without repeated tracking ids", async () => {
+  it("posts conversation thread replies with required operation fields but without repeated conversation ids", async () => {
     const fetcher = okFetch("1700000000.000200")
 
     await sendChatbotSlackNotification(
@@ -85,6 +88,8 @@ describe("sendChatbotSlackNotification", () => {
         requestId: "req_2",
         conversationId: "conv_1",
         sessionId: "session_1",
+        tier: "tier-3-ollama-deepseek",
+        bookingProgress: false,
         threadTs: "1700000000.000100",
         userMessage: "2通目です",
         assistantResponse: "返信です",
@@ -94,12 +99,14 @@ describe("sendChatbotSlackNotification", () => {
 
     const body = postedBody(fetcher)
     expect(body.thread_ts).toBe("1700000000.000100")
+    expect(body.text).toContain("requestId: req_2")
+    expect(body.text).toContain("tier: tier-3-ollama-deepseek")
+    expect(body.text).toContain("bookingProgress: false")
     expect(body.text).toContain("ユーザー: 2通目です")
     expect(body.text).toContain("AI: 返信です")
     expect(body.text).not.toMatch(/Chatbot conversation/i)
     expect(body.text).not.toContain("conversationId:")
     expect(body.text).not.toContain("sessionId:")
-    expect(body.text).not.toContain("requestId:")
     expect(body.text).not.toContain("会話ID:")
     expect(body.text).not.toContain("セッションID:")
     expect(body.text).not.toContain("調査ID:")
@@ -114,6 +121,8 @@ describe("sendChatbotSlackNotification", () => {
         requestId: "req_issue",
         conversationId: "conv_1",
         sessionId: "session_1",
+        tier: "tier-4-form-fallback",
+        bookingProgress: true,
         threadTs: "1700000000.000100",
         issueReasons: ["tier4-form-fallback"],
       },
@@ -124,11 +133,12 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.unfurl_links).toBe(false)
     expect(body.thread_ts).toBe("1700000000.000100")
     expect(body.text).toContain("応答でエラーが出ました")
-    expect(body.text).toContain("調査ID: req_issue")
+    expect(body.text).toContain("requestId: req_issue")
+    expect(body.text).toContain("tier: tier-4-form-fallback")
+    expect(body.text).toContain("bookingProgress: true")
     expect(body.text).toContain("内容: AI応答を完了できず、問い合わせフォーム案内へ切り替え")
     expect(body.text).not.toMatch(/Chatbot issue/i)
     expect(body.text).not.toContain("⚠️")
-    expect(body.text).not.toContain("requestId:")
     expect(body.text).not.toContain("reasons:")
     expect(body.text).not.toContain("tier4-form-fallback")
     expect(body.text).not.toContain("conversationId:")
