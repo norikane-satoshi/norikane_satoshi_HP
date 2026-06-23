@@ -127,6 +127,10 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    overflow-x: clip;
+  }
   body {
     background-color: var(--bg-base);
     background-image:
@@ -378,6 +382,12 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.86),
       inset 0 -1px 0 rgba(255, 255, 255, 0.32),
       0 12px 30px rgba(30, 34, 42, 0.09);
+  }
+  .glass-card-sm--hp-note > .hp-heading {
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: normal;
   }
   .glass-badge {
     background: rgba(255, 255, 255, 0.92);

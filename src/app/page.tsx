@@ -194,8 +194,8 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <div className="mt-[var(--hp-space-4)] -mx-6 md:-mx-10 xl:-mx-14 overflow-x-auto">
-          <div className="flex snap-x snap-mandatory gap-4 px-6 pb-4 md:gap-5 md:px-10 xl:px-14">
+        <div className="mt-[var(--hp-space-4)] mx-[calc(var(--hp-section-padding-x)*-1)] overflow-x-auto">
+          <div className="flex snap-x snap-mandatory gap-4 px-[var(--hp-section-padding-x)] pb-4 md:gap-5">
             {notes.map((note, idx) => (
               <Link
                 key={note.id}

@@ -8,7 +8,7 @@ export function HeroSection() {
   return (
     <section
       id="home"
-      className="relative w-full -mt-24 md:-mt-28"
+      className="relative w-full -mt-24 overflow-hidden md:-mt-28"
       style={{ background: HERO_DEEP_SURFACE_BACKGROUND }}
     >
       <div

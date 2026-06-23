@@ -64,7 +64,7 @@ describe("HomePage profile press dialog trigger", () => {
     expect(philosophy?.querySelector(".hp-grid")).toBeInTheDocument()
 
     const notesScroller = philosophy?.querySelector(".overflow-x-auto")
-    expect(notesScroller).toHaveClass("-mx-6", "md:-mx-10", "xl:-mx-14")
+    expect(notesScroller).toHaveClass("mx-[calc(var(--hp-section-padding-x)*-1)]")
 
     const profile = container.querySelector("#profile")
     expect(profile).toHaveClass("hp-section-shell")
