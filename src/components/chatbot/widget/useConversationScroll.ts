@@ -36,17 +36,22 @@ export function useConversationScroll(contentKey: string) {
 
     if (!hasObservedContentRef.current) {
       hasObservedContentRef.current = true
-      scrollToLatest()
+      container.scrollTop = container.scrollHeight
+      wasNearBottomRef.current = true
       return
     }
 
     if (wasNearBottomRef.current) {
-      scrollToLatest()
+      container.scrollTop = container.scrollHeight
+      wasNearBottomRef.current = true
       return
     }
 
-    setHasPendingLatest(true)
-  }, [contentKey, scrollToLatest])
+    const frameId = window.requestAnimationFrame(() => {
+      setHasPendingLatest(true)
+    })
+    return () => window.cancelAnimationFrame(frameId)
+  }, [contentKey])
 
   return {
     containerRef,

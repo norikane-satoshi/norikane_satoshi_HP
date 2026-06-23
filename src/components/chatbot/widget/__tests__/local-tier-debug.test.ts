@@ -13,6 +13,9 @@ describe("local chatbot tier debug helpers", () => {
     expect(formatChatbotTierDebugLabel("tier-2-hosted-chrome-notion-ai")).toBe(
       "Tier 2 Hosted Notion AI (tier-2-hosted-chrome-notion-ai)",
     )
+    expect(formatChatbotTierDebugLabel("tier-3-gemini-flash")).toBe(
+      "Tier 3 Gemini Flash (tier-3-gemini-flash)",
+    )
     expect(formatChatbotTierDebugLabel("tier-3-ollama-deepseek")).toBe(
       "Tier 3 Ollama DeepSeek (tier-3-ollama-deepseek)",
     )

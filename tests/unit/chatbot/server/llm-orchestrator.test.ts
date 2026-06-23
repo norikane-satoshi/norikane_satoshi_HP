@@ -137,16 +137,37 @@ describe("createChatbotLlmTierOrchestrator", () => {
   it("chooses Ollama tier 3 when tiers 1 and 2 are unhealthy", async () => {
     const tier1 = fakeClient("tier-1-chrome-notion-ai", { healthy: false })
     const tier2 = fakeClient("tier-2-hosted-chrome-notion-ai", { healthy: false })
+    const gemini = fakeClient("tier-3-gemini-flash", { healthy: false })
     const tier3 = fakeClient("tier-3-ollama-deepseek", { healthy: true })
     const tier4 = fakeClient("tier-4-form-fallback", { healthy: true })
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, tier3, tier4] })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, gemini, tier3, tier4] })
 
     await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
       llmResponse("tier-3-ollama-deepseek"),
     )
     expect(tier1.generate).not.toHaveBeenCalled()
     expect(tier2.generate).not.toHaveBeenCalled()
+    expect(gemini.generate).not.toHaveBeenCalled()
     expect(tier3.generate).toHaveBeenCalledOnce()
+    expect(tier4.generate).not.toHaveBeenCalled()
+  })
+
+  it("chooses Gemini tier 3 when tiers 1 and 2 fail in production-like routing", async () => {
+    const tier1 = fakeClient("tier-1-chrome-notion-ai", { healthy: false })
+    const tier2 = fakeClient("tier-2-hosted-chrome-notion-ai", {
+      generateError: llmError("tier-2-hosted-chrome-notion-ai", { code: "connection", isRetryable: true }),
+    })
+    const gemini = fakeClient("tier-3-gemini-flash", { healthy: true })
+    const ollama = fakeClient("tier-3-ollama-deepseek", { healthy: true })
+    const tier4 = fakeClient("tier-4-form-fallback", { healthy: true })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, gemini, ollama, tier4] })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
+      llmResponse("tier-3-gemini-flash"),
+    )
+    expect(tier2.generate).toHaveBeenCalledOnce()
+    expect(gemini.generate).toHaveBeenCalledOnce()
+    expect(ollama.generate).not.toHaveBeenCalled()
     expect(tier4.generate).not.toHaveBeenCalled()
   })
 

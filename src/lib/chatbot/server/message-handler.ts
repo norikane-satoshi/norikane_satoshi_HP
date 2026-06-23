@@ -15,6 +15,7 @@ import {
   createConversation,
   createTier1ChromeNotionAiClient,
   createTier2HostedChromeNotionAiClient,
+  createTier3GeminiFlashClient,
   createTier3OllamaDeepSeekClient,
   createTier4FormFallbackClient,
   formatUserChatbotContextForPrompt,
@@ -510,6 +511,7 @@ function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogConte
   const clients: ChatbotLlmClient[] = [
     createTier1ChromeNotionAiClient(),
     createTier2HostedChromeNotionAiClient(),
+    createTier3GeminiFlashClient(),
     createTier3OllamaDeepSeekClient(),
     createTier4FormFallbackClient(),
   ]

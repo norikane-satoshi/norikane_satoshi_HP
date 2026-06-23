@@ -129,6 +129,36 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     )
   })
 
+  it("repairs Chrome and retries once when hosted generate returns a server error", async () => {
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, { ok: false, status: 502 }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ rawText: "復旧しました", latencyMs: 25 }))
+    const client = hostedClient(httpClient)
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      rawText: "復旧しました",
+      tier: "tier-2-hosted-chrome-notion-ai",
+      diagnostics: {
+        repairAttempted: true,
+      },
+    })
+    expect(httpClient).toHaveBeenNthCalledWith(
+      2,
+      "https://worker.example.test/ensure-chrome",
+      expect.objectContaining({
+        method: "POST",
+        headers: { authorization: "Bearer test-token" },
+      }),
+    )
+    expect(httpClient).toHaveBeenNthCalledWith(
+      3,
+      "https://worker.example.test/generate",
+      expect.objectContaining({ method: "POST" }),
+    )
+  })
+
   it("loads worker URL, token, and enabled flag from tier-specific env", async () => {
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_URL", "https://env-worker.example.test/")
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "env-token")

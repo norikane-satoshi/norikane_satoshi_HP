@@ -4,6 +4,7 @@ const tierLabels: Record<ChatbotResponseTier, string> = {
   "local-deterministic": "Local deterministic",
   "tier-1-chrome-notion-ai": "Tier 1 Notion AI",
   "tier-2-hosted-chrome-notion-ai": "Tier 2 Hosted Notion AI",
+  "tier-3-gemini-flash": "Tier 3 Gemini Flash",
   "tier-3-ollama-deepseek": "Tier 3 Ollama DeepSeek",
   "tier-4-form-fallback": "Tier 4 form fallback",
 }

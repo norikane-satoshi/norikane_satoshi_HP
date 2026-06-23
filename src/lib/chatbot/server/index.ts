@@ -75,6 +75,10 @@ export {
   Tier3OllamaDeepSeekClient,
 } from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
 export {
+  createTier3GeminiFlashClient,
+  Tier3GeminiFlashClient,
+} from "@/lib/chatbot/server/llm-clients/tier3-gemini-flash"
+export {
   createTier4FormFallbackClient,
   Tier4FormFallbackClient,
 } from "@/lib/chatbot/server/llm-clients/tier4-form-fallback"

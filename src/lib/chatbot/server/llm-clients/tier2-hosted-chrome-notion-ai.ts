@@ -47,6 +47,7 @@ const tier = "tier-2-hosted-chrome-notion-ai" as const
 const timeoutTag: TimeoutTag = "timeout"
 const healthEndpointPath = "/health"
 const generateEndpointPath = "/generate"
+const ensureChromeEndpointPath = "/ensure-chrome"
 const httpMethodGet = "GET"
 const httpMethodPost = "POST"
 const headerAuthorization = "authorization"
@@ -82,15 +83,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
 
     try {
       this.assertConfigured()
-      const response = await this.requestJson<HostedWorkerGenerateResponse>(
-        generateEndpointPath,
-        {
-          method: httpMethodPost,
-          headers: this.headers({ contentType: true }),
-          body: JSON.stringify(request),
-        },
-        this.config.requestTimeoutMs,
-      )
+      const response = await this.generateWithRepair(request)
       const rawText = getHostedWorkerRawText(response).trim()
 
       if (rawText === emptyText) {
@@ -109,10 +102,53 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
         diagnostics: {
           endpoint: generateEndpointPath,
           workerLatencyMs: numberOrUndefined(response.latencyMs),
+          repairAttempted: response.repairAttempted,
         },
       }
     } catch (error) {
       throw this.mapGenerateError(error)
+    }
+  }
+
+  private async generateWithRepair(
+    request: ChatbotLlmRequest,
+  ): Promise<HostedWorkerGenerateResponse & { repairAttempted?: boolean }> {
+    const init = {
+      method: httpMethodPost,
+      headers: this.headers({ contentType: true }),
+      body: JSON.stringify(request),
+    }
+
+    try {
+      return await this.requestJson<HostedWorkerGenerateResponse>(
+        generateEndpointPath,
+        init,
+        this.config.requestTimeoutMs,
+      )
+    } catch (error) {
+      if (!shouldRepairAndRetry(error)) throw error
+      await this.tryEnsureChrome()
+      const response = await this.requestJson<HostedWorkerGenerateResponse>(
+        generateEndpointPath,
+        init,
+        this.config.requestTimeoutMs,
+      )
+      return { ...response, repairAttempted: true }
+    }
+  }
+
+  private async tryEnsureChrome(): Promise<void> {
+    try {
+      await this.requestJson<unknown>(
+        ensureChromeEndpointPath,
+        {
+          method: httpMethodPost,
+          headers: this.headers(),
+        },
+        this.config.healthCheckTimeoutMs,
+      )
+    } catch {
+      // The original generate error is more useful than a failed repair probe.
     }
   }
 
@@ -303,6 +339,17 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
       cause: input.cause,
     })
   }
+}
+
+function shouldRepairAndRetry(error: unknown): boolean {
+  if (error === timeoutTag) return true
+  if (error instanceof ChatbotLlmError) {
+    return error.code === "connection" || error.code === "timeout"
+  }
+  if (error instanceof HostedWorkerHttpStatusError) {
+    return error.status >= firstServerErrorStatus
+  }
+  return false
 }
 
 export function createTier2HostedChromeNotionAiClient(
