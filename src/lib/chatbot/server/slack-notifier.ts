@@ -104,11 +104,19 @@ function buildSlackText(input: ChatbotSlackNotificationInput): string {
       : input.kind === "booking-completed"
         ? "Chatbot booking completed"
         : "Chatbot conversation"
+  const isThreadReply = Boolean(input.threadTs)
+  const trackingLines = isThreadReply
+    ? input.kind === "issue" && input.requestId
+      ? [`requestId: ${input.requestId}`]
+      : []
+    : [
+        `conversationId: ${input.conversationId}`,
+        ...(input.sessionId ? [`sessionId: ${input.sessionId}`] : []),
+        ...(input.requestId ? [`requestId: ${input.requestId}`] : []),
+      ]
   const lines = [
     header,
-    `conversationId: ${input.conversationId}`,
-    ...(input.sessionId ? [`sessionId: ${input.sessionId}`] : []),
-    ...(input.requestId ? [`requestId: ${input.requestId}`] : []),
+    ...trackingLines,
     ...(input.tier ? [`tier: ${input.tier}`] : []),
     ...(input.routingDecisionKind ? [`routingDecision: ${input.routingDecisionKind}`] : []),
     ...(typeof input.bookingProgress === "boolean" ? [`bookingProgress: ${input.bookingProgress ? "yes" : "no"}`] : []),

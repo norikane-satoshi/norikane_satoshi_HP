@@ -12,6 +12,10 @@ function okFetch(ts = "1700000000.000100") {
   return vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, ts }), { status: 200 }))
 }
 
+function postedBody(fetcher: ReturnType<typeof okFetch>) {
+  return JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))
+}
+
 describe("sendChatbotSlackNotification", () => {
   it("skips when Slack notification is disabled", async () => {
     const fetcher = okFetch()
@@ -55,9 +59,11 @@ describe("sendChatbotSlackNotification", () => {
     )
 
     expect(result).toEqual({ status: "sent", ts: "1700000000.000100" })
-    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))
+    const body = postedBody(fetcher)
     expect(body.unfurl_links).toBe(false)
     expect(body.thread_ts).toBeUndefined()
+    expect(body.text).toContain("conversationId: conv_1")
+    expect(body.text).toContain("sessionId: session_1")
     expect(body.text).toContain("requestId: req_1")
     expect(body.text).toContain("user: email [email] phone [phone] token=[secret]")
     expect(body.text).not.toContain("client@example.com")
@@ -65,23 +71,78 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).not.toContain("abc67890")
   })
 
-  it("posts thread replies with thread_ts", async () => {
+  it("posts conversation thread replies without repeated tracking ids", async () => {
+    const fetcher = okFetch("1700000000.000200")
+
+    await sendChatbotSlackNotification(
+      {
+        kind: "conversation",
+        requestId: "req_2",
+        conversationId: "conv_1",
+        sessionId: "session_1",
+        threadTs: "1700000000.000100",
+        userMessage: "2通目です",
+        assistantResponse: "返信です",
+      },
+      { env: enabledEnv, fetcher },
+    )
+
+    const body = postedBody(fetcher)
+    expect(body.thread_ts).toBe("1700000000.000100")
+    expect(body.text).toContain("Chatbot conversation")
+    expect(body.text).toContain("user: 2通目です")
+    expect(body.text).not.toContain("conversationId:")
+    expect(body.text).not.toContain("sessionId:")
+    expect(body.text).not.toContain("requestId:")
+  })
+
+  it("posts issue thread replies without repeated conversation or session ids", async () => {
     const fetcher = okFetch("1700000000.000200")
 
     await sendChatbotSlackNotification(
       {
         kind: "issue",
+        requestId: "req_issue",
         conversationId: "conv_1",
+        sessionId: "session_1",
         threadTs: "1700000000.000100",
         issueReasons: ["tier4-form-fallback"],
       },
       { env: enabledEnv, fetcher },
     )
 
-    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))
+    const body = postedBody(fetcher)
     expect(body.unfurl_links).toBe(false)
     expect(body.thread_ts).toBe("1700000000.000100")
     expect(body.text).toContain("⚠️ Chatbot issue")
+    expect(body.text).toContain("requestId: req_issue")
+    expect(body.text).toContain("reasons: tier4-form-fallback")
+    expect(body.text).not.toContain("conversationId:")
+    expect(body.text).not.toContain("sessionId:")
+  })
+
+  it("posts booking completion thread replies without repeated conversation or session ids", async () => {
+    const fetcher = okFetch("1700000000.000200")
+
+    await sendChatbotSlackNotification(
+      {
+        kind: "booking-completed",
+        conversationId: "conv_1",
+        sessionId: "session_1",
+        threadTs: "1700000000.000100",
+        bookingGroupId: "booking_1",
+        selectedSlotCount: 2,
+      },
+      { env: enabledEnv, fetcher },
+    )
+
+    const body = postedBody(fetcher)
+    expect(body.thread_ts).toBe("1700000000.000100")
+    expect(body.text).toContain("Chatbot booking completed")
+    expect(body.text).toContain("bookingId: booking_1")
+    expect(body.text).toContain("selectedSlotCount: 2")
+    expect(body.text).not.toContain("conversationId:")
+    expect(body.text).not.toContain("sessionId:")
   })
 
   it("returns failed without throwing when Slack rejects the message", async () => {
