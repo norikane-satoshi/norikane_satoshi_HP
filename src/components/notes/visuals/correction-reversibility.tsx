@@ -835,6 +835,8 @@ function CellPlot({
         )}
         <g style={{ mixBlendMode: "screen" }}>
           <polyline
+            data-correction-reversibility-curve="r"
+            className="correction-reversibility-curve"
             points={polyR}
             fill="none"
             stroke={RGB_R}
@@ -843,6 +845,8 @@ function CellPlot({
             strokeLinejoin="round"
           />
           <polyline
+            data-correction-reversibility-curve="g"
+            className="correction-reversibility-curve"
             points={polyG}
             fill="none"
             stroke={RGB_G}
@@ -851,6 +855,8 @@ function CellPlot({
             strokeLinejoin="round"
           />
           <polyline
+            data-correction-reversibility-curve="b"
+            className="correction-reversibility-curve"
             points={polyB}
             fill="none"
             stroke={RGB_B}
@@ -1268,6 +1274,13 @@ export default function CorrectionReversibility({
           />
         </clipPath>
       </defs>
+      <style>{`
+        @media (max-width: 767px) {
+          .correction-reversibility-curve {
+            stroke-width: 6px;
+          }
+        }
+      `}</style>
 
       <Cell
         cellX={0}
