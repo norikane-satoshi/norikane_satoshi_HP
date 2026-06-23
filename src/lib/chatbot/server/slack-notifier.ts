@@ -120,7 +120,7 @@ function buildSlackText(input: ChatbotSlackNotificationInput): string {
   }
 
   const lines = [
-    ...(!isThreadReply ? ["新しいチャット相談", ...formatTrackingLines(input), ...formatConversationStateLines(input)] : []),
+    ...(!isThreadReply ? ["新しいチャット相談", ...formatTrackingLines(input), ""] : []),
     ...(isThreadReply ? formatRequiredOperationLines(input) : []),
     ...(input.userMessage ? [`ユーザー: ${redactForChatbotLog(input.userMessage)}`] : []),
     ...(input.assistantResponse ? [`AI: ${redactForChatbotLog(input.assistantResponse)}`] : []),
@@ -136,48 +136,12 @@ function formatTrackingLines(input: ChatbotSlackNotificationInput): string[] {
   ]
 }
 
-function formatConversationStateLines(input: ChatbotSlackNotificationInput): string[] {
-  return [
-    ...(input.tier ? [`応答: ${formatTier(input.tier)}`] : []),
-    ...(input.routingDecisionKind ? [`状態: ${formatRoutingDecision(input.routingDecisionKind)}`] : []),
-    ...(typeof input.bookingProgress === "boolean" ? [`予約相談: ${input.bookingProgress ? "進行中" : "なし"}`] : []),
-    "",
-  ]
-}
-
 function formatRequiredOperationLines(input: ChatbotSlackNotificationInput): string[] {
   return [
     ...(input.requestId ? [`requestId: ${input.requestId}`] : []),
     ...(input.tier ? [`tier: ${input.tier}`] : []),
     ...(typeof input.bookingProgress === "boolean" ? [`bookingProgress: ${input.bookingProgress}`] : []),
   ]
-}
-
-function formatTier(tier: ChatbotLlmTier): string {
-  switch (tier) {
-    case "local-deterministic":
-      return "ローカル応答"
-    case "tier-1-chrome-notion-ai":
-    case "tier-2-hosted-chrome-notion-ai":
-      return "通常応答"
-    case "tier-3-ollama-deepseek":
-      return "代替AI応答"
-    case "tier-4-form-fallback":
-      return "問い合わせフォーム案内"
-  }
-}
-
-function formatRoutingDecision(kind: RoutingDecision["kind"]): string {
-  switch (kind) {
-    case "continue":
-      return "相談継続"
-    case "to-booking-inline":
-      return "予約候補を案内"
-    case "to-email":
-      return "問い合わせ案内"
-    case "to-direct-contact":
-      return "直接連絡を案内"
-  }
 }
 
 function formatIssueReasonLines(reasons: string[] | undefined): string[] {

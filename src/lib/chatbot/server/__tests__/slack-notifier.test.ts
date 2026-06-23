@@ -16,6 +16,12 @@ function postedBody(fetcher: ReturnType<typeof okFetch>) {
   return JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))
 }
 
+function expectRemovedLabelsAbsent(text: string) {
+  expect(text).not.toContain("応答:")
+  expect(text).not.toContain("状態:")
+  expect(text).not.toContain("予約相談:")
+}
+
 describe("sendChatbotSlackNotification", () => {
   it("skips when Slack notification is disabled", async () => {
     const fetcher = okFetch()
@@ -69,9 +75,9 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("requestId: req_1")
     expect(body.text).toContain("tier: tier-2-hosted-chrome-notion-ai")
     expect(body.text).toContain("bookingProgress: true")
-    expect(body.text).toContain("応答: 通常応答")
-    expect(body.text).toContain("状態: 相談継続")
     expect(body.text).toContain("ユーザー: email [email] phone [phone] token=[secret]")
+    expect(body.text).toContain("AI: reply api_key=[secret]")
+    expectRemovedLabelsAbsent(body.text)
     expect(body.text).not.toMatch(/Chatbot conversation/i)
     expect(body.text).not.toContain("Chatbot Conversation")
     expect(body.text).not.toContain("client@example.com")
@@ -104,7 +110,11 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("bookingProgress: false")
     expect(body.text).toContain("ユーザー: 2通目です")
     expect(body.text).toContain("AI: 返信です")
+    expectRemovedLabelsAbsent(body.text)
     expect(body.text).not.toMatch(/Chatbot conversation/i)
+    expect(body.text).not.toContain("Chatbot Conversation")
+    expect(body.text).not.toMatch(/Chatbot issue/i)
+    expect(body.text).not.toContain("reasons:")
     expect(body.text).not.toContain("conversationId:")
     expect(body.text).not.toContain("sessionId:")
     expect(body.text).not.toContain("会話ID:")
@@ -137,6 +147,7 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("tier: tier-4-form-fallback")
     expect(body.text).toContain("bookingProgress: true")
     expect(body.text).toContain("内容: AI応答を完了できず、問い合わせフォーム案内へ切り替え")
+    expectRemovedLabelsAbsent(body.text)
     expect(body.text).not.toMatch(/Chatbot issue/i)
     expect(body.text).not.toContain("⚠️")
     expect(body.text).not.toContain("reasons:")
