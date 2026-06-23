@@ -7,8 +7,34 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ChatInput } from "@/components/chatbot/widget/ChatInput"
 import { CHATBOT_CONVERSATION_CONTENT_STYLE } from "@/components/chatbot/widget/conversationTypography"
 
+const originalMatchMedia = window.matchMedia
+
+function mockMatchMedia(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
+
 describe("ChatInput", () => {
-  afterEach(() => cleanup())
+  afterEach(() => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: originalMatchMedia,
+    })
+    cleanup()
+  })
 
   it("renders the custom placeholder", () => {
     render(<ChatInput onSubmit={vi.fn()} placeholder="案件内容を書いてください" />)
@@ -16,12 +42,21 @@ describe("ChatInput", () => {
     expect(screen.getByPlaceholderText("案件内容を書いてください")).toBeInTheDocument()
   })
 
-  it("shows the default multiline and submit shortcut guidance", () => {
+  it("shows the default multiline and submit shortcut guidance on desktop", () => {
+    mockMatchMedia(false)
     render(<ChatInput onSubmit={vi.fn()} />)
 
     expect(
       screen.getByPlaceholderText("案件内容を書く（Enterで改行、Cmd（Ctrl）+ Enterで送信）"),
     ).toBeInTheDocument()
+  })
+
+  it("hides physical keyboard shortcut guidance on mobile", () => {
+    mockMatchMedia(true)
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    expect(screen.getByPlaceholderText("案件内容を書く")).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(/Cmd（Ctrl）/)).not.toBeInTheDocument()
   })
 
   it("uses the same font family as submitted conversation content", () => {

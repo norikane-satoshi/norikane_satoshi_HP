@@ -1,7 +1,7 @@
 "use client"
 
 import { Check, Pencil, X } from "lucide-react"
-import { Fragment, useState, type ReactNode } from "react"
+import { Fragment, useRef, useState, type PointerEvent, type ReactNode } from "react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import {
@@ -22,6 +22,15 @@ const roleLabel: Record<ChatbotMessageRole, string> = {
   user: "お客さま",
   assistant: "AI アシスタント",
   system: "システム",
+}
+
+const LONG_PRESS_EDIT_MS = 600
+const LONG_PRESS_MOVE_TOLERANCE_PX = 10
+
+function isMobileLikePointer(pointerType: string) {
+  if (pointerType !== "mouse") return true
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false
+  return window.matchMedia("(pointer: coarse), (max-width: 767px)").matches
 }
 
 function renderAssistantMarkdown(content: string): ReactNode {
@@ -62,12 +71,59 @@ export function ChatMessage({
   const [isEditing, setIsEditing] = useState(false)
   const [editConfirmPending, setEditConfirmPending] = useState(false)
   const [draft, setDraft] = useState(content)
+  const longPressStateRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    timerId: number
+  } | null>(null)
   const trimmedDraft = draft.trim()
+
+  const startEditing = () => {
+    setEditConfirmPending(false)
+    setDraft(content)
+    setIsEditing(true)
+  }
+
+  const clearLongPressTimer = () => {
+    const longPressState = longPressStateRef.current
+    if (!longPressState) return
+    window.clearTimeout(longPressState.timerId)
+    longPressStateRef.current = null
+  }
 
   const cancelEdit = () => {
     setDraft(content)
     setEditConfirmPending(false)
     setIsEditing(false)
+  }
+
+  const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (!canEdit || isEditing || !isMobileLikePointer(event.pointerType)) return
+    if (event.button !== 0) return
+
+    clearLongPressTimer()
+    const { pointerId, clientX, clientY } = event
+    longPressStateRef.current = {
+      pointerId,
+      startX: clientX,
+      startY: clientY,
+      timerId: window.setTimeout(() => {
+        longPressStateRef.current = null
+        startEditing()
+      }, LONG_PRESS_EDIT_MS),
+    }
+  }
+
+  const handlePointerMove = (event: PointerEvent<HTMLElement>) => {
+    const longPressState = longPressStateRef.current
+    if (!longPressState || longPressState.pointerId !== event.pointerId) return
+
+    const movedX = Math.abs(event.clientX - longPressState.startX)
+    const movedY = Math.abs(event.clientY - longPressState.startY)
+    if (movedX > LONG_PRESS_MOVE_TOLERANCE_PX || movedY > LONG_PRESS_MOVE_TOLERANCE_PX) {
+      clearLongPressTimer()
+    }
   }
 
   const requestSaveEdit = () => {
@@ -90,6 +146,11 @@ export function ChatMessage({
 
   return (
     <article
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={clearLongPressTimer}
+      onPointerCancel={clearLongPressTimer}
+      onPointerLeave={clearLongPressTimer}
       className={[
         "group max-w-[88%] px-4 py-3 text-sm leading-relaxed",
         isUser
@@ -105,11 +166,7 @@ export function ChatMessage({
             <button
               type="button"
               className="glass-btn inline-flex h-8 w-8 items-center justify-center opacity-0 transition-opacity duration-150 hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] group-hover:opacity-100 group-focus-within:opacity-100"
-              onClick={() => {
-                setEditConfirmPending(false)
-                setDraft(content)
-                setIsEditing(true)
-              }}
+              onClick={startEditing}
               aria-label="メッセージを編集"
             >
               <Pencil className="h-3 w-3" aria-hidden="true" />

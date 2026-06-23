@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ChatMessage } from "@/components/chatbot/widget/ChatMessage"
@@ -13,7 +13,10 @@ import {
 const conversationContentClasses = CHATBOT_CONVERSATION_CONTENT_CLASS_NAME.split(" ")
 
 describe("ChatMessage", () => {
-  afterEach(() => cleanup())
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+  })
 
   it("renders assistant content and timestamp", () => {
     render(
@@ -72,6 +75,60 @@ describe("ChatMessage", () => {
     fireEvent.click(screen.getByRole("button", { name: "OK" }))
 
     expect(onEdit).toHaveBeenCalledWith("msg_1", "修正版です。")
+  })
+
+  it("enters edit mode from a mobile long press on user messages", () => {
+    vi.useFakeTimers()
+    render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
+
+    const message = screen.getByText("初稿です。").closest("article")
+    expect(message).not.toBeNull()
+
+    fireEvent.pointerDown(message!, {
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+      clientX: 120,
+      clientY: 80,
+    })
+    act(() => {
+      vi.advanceTimersByTime(600)
+    })
+
+    expect(screen.getByLabelText("編集内容")).toHaveValue("初稿です。")
+  })
+
+  it("does not enter edit mode from a short mobile tap", () => {
+    vi.useFakeTimers()
+    render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
+
+    const message = screen.getByText("初稿です。").closest("article")
+    expect(message).not.toBeNull()
+
+    fireEvent.pointerDown(message!, {
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+      clientX: 120,
+      clientY: 80,
+    })
+    fireEvent.pointerUp(message!, { pointerId: 1, pointerType: "touch" })
+    act(() => {
+      vi.advanceTimersByTime(600)
+    })
+
+    expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
+  })
+
+  it("keeps the desktop edit button path available", () => {
+    render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
+
+    const editButton = screen.getByRole("button", { name: "メッセージを編集" })
+    expect(editButton).toHaveClass("group-hover:opacity-100")
+    expect(editButton).toHaveClass("group-focus-within:opacity-100")
+
+    fireEvent.click(editButton)
+    expect(screen.getByLabelText("編集内容")).toHaveValue("初稿です。")
   })
 
   it("does not expose editing controls for assistant messages", () => {

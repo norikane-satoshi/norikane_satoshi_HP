@@ -15,14 +15,19 @@ type ChatInputProps = {
   placeholder?: string
 }
 
+const DESKTOP_DEFAULT_PLACEHOLDER = "案件内容を書く（Enterで改行、Cmd（Ctrl）+ Enterで送信）"
+const MOBILE_DEFAULT_PLACEHOLDER = "案件内容を書く"
+const MOBILE_HINT_MEDIA_QUERY = "(pointer: coarse), (max-width: 767px)"
+
 export function ChatInput({
   onSubmit,
   onStop,
   disabled = false,
   stoppingEnabled = false,
-  placeholder = "案件内容を書く（Enterで改行、Cmd（Ctrl）+ Enterで送信）",
+  placeholder,
 }: ChatInputProps) {
   const [text, setText] = useState("")
+  const [usesMobilePlaceholder, setUsesMobilePlaceholder] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useLayoutEffect(() => {
@@ -31,6 +36,21 @@ export function ChatInput({
     textarea.style.height = "0px"
     textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`
   }, [text])
+
+  useLayoutEffect(() => {
+    if (placeholder !== undefined) return
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return
+
+    const mediaQuery = window.matchMedia(MOBILE_HINT_MEDIA_QUERY)
+    const syncPlaceholder = () => setUsesMobilePlaceholder(mediaQuery.matches)
+
+    syncPlaceholder()
+    mediaQuery.addEventListener?.("change", syncPlaceholder)
+    return () => mediaQuery.removeEventListener?.("change", syncPlaceholder)
+  }, [placeholder])
+
+  const textareaPlaceholder =
+    placeholder ?? (usesMobilePlaceholder ? MOBILE_DEFAULT_PLACEHOLDER : DESKTOP_DEFAULT_PLACEHOLDER)
 
   const submitCurrentText = () => {
     const trimmedText = text.trim()
@@ -59,7 +79,7 @@ export function ChatInput({
           ref={textareaRef}
           className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} max-h-40 min-h-9 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-2 text-sm leading-5 text-hp outline-none placeholder:text-hp-muted`}
           style={CHATBOT_CONVERSATION_CONTENT_STYLE}
-          placeholder={placeholder}
+          placeholder={textareaPlaceholder}
           aria-label="相談内容"
           value={text}
           disabled={disabled}
