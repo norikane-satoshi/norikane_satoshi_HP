@@ -1896,11 +1896,11 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
       kind: "issue",
       threadTs: "1700000000.000100",
-      issueReasons: ["tier4-form-fallback"],
+      issueReasons: ["below-hosted-tier2-fallback", "tier4-form-fallback"],
     }))
   })
 
-  it("does not post a problem notification for successful tier2 or tier3 responses without explicit fallback evidence", async () => {
+  it("does not post a problem notification for successful tier2 responses", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
@@ -1922,6 +1922,31 @@ describe("handleChatbotMessage user context", () => {
       kind: "conversation",
       tier: "tier-2-hosted-chrome-notion-ai",
       threadTs: "1700000000.000100",
+    }))
+  })
+
+  it("posts a problem notification when a response falls below hosted tier2", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "Gemini fallback response.",
+      tier: "tier-3-gemini-flash",
+    })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "Tier3に落ちるケース" },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      kind: "issue",
+      threadTs: "1700000000.000100",
+      tier: "tier-3-gemini-flash",
+      issueReasons: ["below-hosted-tier2-fallback"],
     }))
   })
 

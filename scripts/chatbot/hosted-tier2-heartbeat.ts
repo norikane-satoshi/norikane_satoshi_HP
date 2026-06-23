@@ -93,10 +93,10 @@ const defaultWorkerUrl = "https://worker.norikane.studio"
 const defaultNotificationTo = "norikane.satoshi@gmail.com"
 const defaultTimeoutMs = 10_000
 const defaultGenerateTimeoutMs = 45_000
-const defaultGenerateIntervalMs = 15 * 60_000
+const defaultGenerateIntervalMs = 2 * 60_000
 const defaultNotificationCooldownMs = 60 * 60_000
-const defaultFailureThreshold = 3
-const transientGenerateWarmupMs = 20 * 60_000
+const defaultFailureThreshold = 1
+const repairCooldownMs = 20 * 60_000
 const stateDir = path.join(homedir(), ".local", "state", "norikane_satoshi_hp")
 const defaultStatePath = path.join(stateDir, "hosted-tier2-heartbeat-state.json")
 const defaultLogPath = path.join(stateDir, "hosted-tier2-heartbeat.jsonl")
@@ -122,14 +122,6 @@ export async function runHeartbeat(
   if (health.ok && shouldRunGenerate(previous, now, config.generateIntervalMs, config.forceGenerate)) {
     generate = await checkGenerate(config, deps.fetch)
     checks.push(generate)
-  }
-
-  if (!generate && shouldHoldTransientWarmup(previous, now)) {
-    checks.push({
-      name: "generate",
-      ok: false,
-      detail: `warming_after_transient:${previous.incidentClass ?? "unknown"}`,
-    })
   }
 
   const primaryFailure = checks.find((check) => !check.ok)
@@ -539,12 +531,7 @@ function buildNextState(input: {
       ? undefined
       : previous.incidentStartedAt
   const incidentStartedAt = existingIncidentStartedAt ?? now.toISOString()
-  const status =
-    transientGenerateFailure && now.getTime() - Date.parse(incidentStartedAt) < transientGenerateWarmupMs
-      ? "suspect"
-      : consecutiveFailures >= threshold
-        ? "unhealthy"
-        : "suspect"
+  const status = consecutiveFailures >= threshold ? "unhealthy" : "suspect"
 
   return {
     ...previous,
@@ -558,19 +545,12 @@ function buildNextState(input: {
   }
 }
 
-function shouldHoldTransientWarmup(previous: HeartbeatState, now: Date): boolean {
-  if (previous.status === "healthy" || !isTransientGenerateIncident(previous.incidentClass)) return false
-  if (!previous.incidentStartedAt) return false
-  const startedAt = Date.parse(previous.incidentStartedAt)
-  return Number.isFinite(startedAt) && now.getTime() - startedAt < transientGenerateWarmupMs
-}
-
 function shouldAttemptRepair(nextState: HeartbeatState, checks: CheckResult[], now: Date): boolean {
   if (isTransientGenerateFailure(checks.find((check) => !check.ok))) return false
 
   if (!nextState.lastRepairAt) return true
   const lastRepairAt = Date.parse(nextState.lastRepairAt)
-  return !Number.isFinite(lastRepairAt) || now.getTime() - lastRepairAt >= transientGenerateWarmupMs
+  return !Number.isFinite(lastRepairAt) || now.getTime() - lastRepairAt >= repairCooldownMs
 }
 
 async function requestJson(
@@ -860,7 +840,7 @@ function classifyFailureOrigin(check: CheckResult | undefined): IncidentClass {
 }
 
 function isTransientGenerateIncident(incidentClass: IncidentClass | undefined): boolean {
-  return incidentClass === "notion_runtime_trust_rule_denied" || incidentClass === "worker_http_502"
+  return incidentClass === "notion_runtime_trust_rule_denied"
 }
 
 function isTransientGenerateFailure(check: CheckResult | undefined): boolean {

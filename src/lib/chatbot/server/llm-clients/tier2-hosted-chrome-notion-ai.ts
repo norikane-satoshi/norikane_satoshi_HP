@@ -119,6 +119,8 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
       body: JSON.stringify(request),
     }
 
+    await this.tryEnsureChrome()
+
     try {
       return await this.requestJson<HostedWorkerGenerateResponse>(
         generateEndpointPath,

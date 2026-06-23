@@ -229,44 +229,27 @@ describe("hosted-tier2-heartbeat", () => {
     expect(slackBody.text).not.toContain("test-slack-token")
   })
 
-  it("keeps Notion trust-rule generate 502 in warmup without unhealthy notification or restart", async () => {
+  it("alerts Notion trust-rule generate 502 immediately without restart looping", async () => {
     const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
       .mockResolvedValueOnce(trustRuleDeniedResponse())
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
     const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
 
-    await runHeartbeat(config(dir, { failureThreshold: 1, repair: true }), {
+    const result = await runHeartbeat(config(dir, { failureThreshold: 1, repair: true }), {
       fetch: fetchMock as typeof fetch,
       now: () => new Date("2026-06-18T03:19:31.000Z"),
       runCommand,
     })
-    await runHeartbeat(config(dir, { failureThreshold: 1, repair: true }), {
-      fetch: fetchMock as typeof fetch,
-      now: () => new Date("2026-06-18T03:22:01.000Z"),
-      runCommand,
-    })
-    const result = await runHeartbeat(config(dir, { failureThreshold: 1, repair: true }), {
-      fetch: fetchMock as typeof fetch,
-      now: () => new Date("2026-06-18T03:24:41.000Z"),
-      runCommand,
-    })
 
-    expect(result.status).toBe("suspect")
-    expect(result.notification).toBeUndefined()
+    expect(result.status).toBe("unhealthy")
+    expect(result.notification).toMatchObject({ kind: "unhealthy", status: "dry-run" })
     expect(result.repairActions).toEqual([])
     expect(runCommand).not.toHaveBeenCalled()
-    expect(result.checks.at(-1)).toMatchObject({
-      name: "generate",
-      ok: false,
-      detail: "warming_after_transient:notion_runtime_trust_rule_denied",
-    })
     expect(readState(dir)).toMatchObject({
-      status: "suspect",
+      status: "unhealthy",
       incidentClass: "notion_runtime_trust_rule_denied",
       lastGenerateAt: "2026-06-18T03:19:31.000Z",
     })

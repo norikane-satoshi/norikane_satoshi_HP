@@ -21,6 +21,8 @@ function conversationRow(overrides = {}) {
     customerEmail: "satoshi@example.com",
     customerPhone: null,
     slackThreadTs: null,
+    slackChannelId: null,
+    slackNotifiedAt: null,
     finalMedium: "cinema",
     jobType: "本編",
     mainDuration: "90",

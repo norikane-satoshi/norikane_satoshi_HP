@@ -151,6 +151,8 @@ function formatIssueReasonLines(reasons: string[] | undefined): string[] {
 
 function formatIssueReason(reason: string): string {
   switch (reason) {
+    case "below-hosted-tier2-fallback":
+      return "Hosted Tier2 以外の下位Tierで応答"
     case "tier4-form-fallback":
       return "AI応答を完了できず、問い合わせフォーム案内へ切り替え"
     case "booking-owner-email-send-failed":

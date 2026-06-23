@@ -134,7 +134,7 @@ describe("sendChatbotSlackNotification", () => {
         tier: "tier-4-form-fallback",
         bookingProgress: true,
         threadTs: "1700000000.000100",
-        issueReasons: ["tier4-form-fallback"],
+        issueReasons: ["below-hosted-tier2-fallback", "tier4-form-fallback"],
       },
       { env: enabledEnv, fetcher },
     )
@@ -146,12 +146,14 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("requestId: req_issue")
     expect(body.text).toContain("tier: tier-4-form-fallback")
     expect(body.text).toContain("bookingProgress: true")
+    expect(body.text).toContain("内容: Hosted Tier2 以外の下位Tierで応答")
     expect(body.text).toContain("内容: AI応答を完了できず、問い合わせフォーム案内へ切り替え")
     expectRemovedLabelsAbsent(body.text)
     expect(body.text).not.toMatch(/Chatbot issue/i)
     expect(body.text).not.toContain("⚠️")
     expect(body.text).not.toContain("reasons:")
     expect(body.text).not.toContain("tier4-form-fallback")
+    expect(body.text).not.toContain("below-hosted-tier2-fallback")
     expect(body.text).not.toContain("conversationId:")
     expect(body.text).not.toContain("sessionId:")
   })

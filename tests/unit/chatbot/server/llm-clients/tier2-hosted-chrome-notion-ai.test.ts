@@ -105,8 +105,11 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     )
   })
 
-  it("posts the current ChatbotLlmRequest body to /generate", async () => {
-    const httpClient = vi.fn(async () => jsonResponse({ rawText: "承知しました", tokensUsed: 12, latencyMs: 34 }))
+  it("ensures Chrome before posting the current ChatbotLlmRequest body to /generate", async () => {
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(jsonResponse({ rawText: "承知しました", tokensUsed: 12, latencyMs: 34 }))
     const client = hostedClient(httpClient)
     const request = llmRequest()
 
@@ -116,7 +119,16 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       tokensUsed: 12,
       diagnostics: { endpoint: "/generate", workerLatencyMs: 34 },
     })
-    expect(httpClient).toHaveBeenCalledWith(
+    expect(httpClient).toHaveBeenNthCalledWith(
+      1,
+      "https://worker.example.test/ensure-chrome",
+      expect.objectContaining({
+        method: "POST",
+        headers: { authorization: "Bearer test-token" },
+      }),
+    )
+    expect(httpClient).toHaveBeenNthCalledWith(
+      2,
       "https://worker.example.test/generate",
       expect.objectContaining({
         method: "POST",
@@ -132,6 +144,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
   it("repairs Chrome and retries once when hosted generate returns a server error", async () => {
     const httpClient = vi
       .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
       .mockResolvedValueOnce(jsonResponse({}, { ok: false, status: 502 }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
       .mockResolvedValueOnce(jsonResponse({ rawText: "復旧しました", latencyMs: 25 }))
@@ -145,7 +158,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       },
     })
     expect(httpClient).toHaveBeenNthCalledWith(
-      2,
+      1,
       "https://worker.example.test/ensure-chrome",
       expect.objectContaining({
         method: "POST",
@@ -154,6 +167,14 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     )
     expect(httpClient).toHaveBeenNthCalledWith(
       3,
+      "https://worker.example.test/ensure-chrome",
+      expect.objectContaining({
+        method: "POST",
+        headers: { authorization: "Bearer test-token" },
+      }),
+    )
+    expect(httpClient).toHaveBeenNthCalledWith(
+      4,
       "https://worker.example.test/generate",
       expect.objectContaining({ method: "POST" }),
     )
@@ -163,7 +184,10 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_URL", "https://env-worker.example.test/")
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "env-token")
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_ENABLED", "true")
-    const httpClient = vi.fn(async () => jsonResponse({ rawText: "OK" }))
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ rawText: "OK" }))
     const client = createTier2HostedChromeNotionAiClient({
       requestTimeoutMs: 20,
       healthCheckTimeoutMs: 20,
@@ -188,7 +212,10 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       ].join("\n"),
     )
     vi.spyOn(process, "cwd").mockReturnValue(tempDir)
-    const httpClient = vi.fn(async () => jsonResponse({ rawText: "OK" }))
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ rawText: "OK" }))
 
     try {
       const client = createTier2HostedChromeNotionAiClient({

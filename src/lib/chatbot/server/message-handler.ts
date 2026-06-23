@@ -354,6 +354,7 @@ export async function handleChatbotMessage(
   })
 
   const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState })
+  const issueReasons = detectChatbotIssueReasons(llmResponse.tier)
   logChatbotLlmFinalResponse({
     requestId: input.requestId,
     conversationId: conversation.id,
@@ -361,6 +362,7 @@ export async function handleChatbotMessage(
     tier: llmResponse.tier,
     routingDecisionKind: routingDecision?.kind,
     uiKind: ui.kind,
+    issueReasons,
   })
   if (routingDecision) {
     try {
@@ -392,6 +394,7 @@ export async function handleChatbotMessage(
     tier: llmResponse.tier,
     routingDecisionKind: routingDecision?.kind,
     bookingProgress: routingDecision?.kind === "to-booking-inline",
+    issueReasons,
   })
 
   return {
@@ -424,6 +427,7 @@ async function notifySlackForChatbotResponse(input: {
   tier: ChatbotLlmResponse["tier"]
   routingDecisionKind?: RoutingDecision["kind"]
   bookingProgress: boolean
+  issueReasons?: string[]
 }): Promise<void> {
   try {
     const threadTs = input.conversation.context.slackThreadTs
@@ -449,7 +453,7 @@ async function notifySlackForChatbotResponse(input: {
       })
     }
 
-    const issueReasons = detectChatbotIssueReasons(input.tier)
+    const issueReasons = input.issueReasons ?? detectChatbotIssueReasons(input.tier)
     if (issueReasons.length > 0 && savedThreadTs) {
       await input.notifier({
         kind: "issue",
@@ -469,8 +473,11 @@ async function notifySlackForChatbotResponse(input: {
 
 function detectChatbotIssueReasons(tier: ChatbotLlmResponse["tier"]): string[] {
   switch (tier) {
+    case "tier-3-gemini-flash":
+    case "tier-3-ollama-deepseek":
+      return ["below-hosted-tier2-fallback"]
     case "tier-4-form-fallback":
-      return ["tier4-form-fallback"]
+      return ["below-hosted-tier2-fallback", "tier4-form-fallback"]
     default:
       return []
   }
@@ -760,6 +767,7 @@ function logChatbotLlmFinalResponse(input: {
   tier: ChatbotLlmTier
   routingDecisionKind?: RoutingDecision["kind"]
   uiKind: ChatbotMessageUi["kind"]
+  issueReasons: string[]
 }): void {
   if (process.env.NODE_ENV === "test") return
 
@@ -772,6 +780,8 @@ function logChatbotLlmFinalResponse(input: {
       tier: input.tier,
       routingDecisionKind: input.routingDecisionKind ?? null,
       uiKind: input.uiKind,
+      incident: input.issueReasons.length > 0,
+      issueReasons: input.issueReasons,
     }),
   )
 }

@@ -6,9 +6,10 @@ Runtime shape:
 
 - `studio.norikane.hosted-tier2-heartbeat.timer` runs every 2 minutes as a systemd user timer.
 - Each run checks `GET /health` with bearer auth.
-- A lightweight `POST /generate` smoke runs at most every 15 minutes by default.
-- Three consecutive failed runs move state to `unhealthy`.
+- A lightweight `POST /generate` smoke runs every 2 minutes by default.
+- One failed run moves state to `unhealthy`; Tier2 generate failure is not treated as a successful lower-tier fallback.
 - On the first unhealthy transition, the script tries one repair sequence: `POST /ensure-chrome`, `systemctl --user restart hosted-notion-ai-worker.service`, then `systemctl --user restart hosted-worker-chrome.service`.
+- Notion trust-rule failures alert immediately but skip restart loops because service restarts do not fix policy denial.
 - Notifications are state-change only: `unhealthy` and `recovered`. Slack is primary when configured; Resend email remains fallback. Same-state alert spam is rate-limited.
 - Logs are JSONL and do not include bearer tokens, raw prompts, raw model output, cookies, or personal request bodies.
 
