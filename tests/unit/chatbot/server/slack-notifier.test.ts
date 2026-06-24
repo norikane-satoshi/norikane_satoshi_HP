@@ -10,9 +10,13 @@ function okSlackResponse(ts = "1710000000.000100"): Response {
   } as unknown as Response
 }
 
+function slackFetcher(ts?: string) {
+  return vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => okSlackResponse(ts))
+}
+
 describe("sendChatbotSlackNotification", () => {
   it("includes safe hosted Tier2 retry diagnostics in conversation Slack text", async () => {
-    const fetcher = vi.fn(async () => okSlackResponse())
+    const fetcher = slackFetcher()
 
     await expect(
       sendChatbotSlackNotification(
@@ -70,7 +74,7 @@ describe("sendChatbotSlackNotification", () => {
   })
 
   it("includes retry diagnostics in issue thread replies", async () => {
-    const fetcher = vi.fn(async () => okSlackResponse())
+    const fetcher = slackFetcher()
 
     await sendChatbotSlackNotification(
       {
