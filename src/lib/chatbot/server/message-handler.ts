@@ -57,6 +57,12 @@ import {
   applyLectureTrainingConversationState,
   isLectureTrainingInquiry,
 } from "@/lib/chatbot/server/lecture-training"
+import {
+  applyBookingFinalConfirmationAnswer,
+  applyBookingFinalConfirmationPolicy,
+  inferChatbotFlowStep,
+  type ChatbotFlowStep,
+} from "@/lib/chatbot/server/flow-policy"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 import {
@@ -268,16 +274,19 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   const jobContext = durationContext.jobContext
-  const conversationState = applyLectureTrainingConversationState({
-    conversation,
+  const conversationState = applyBookingFinalConfirmationAnswer({
     latestUserMessage: input.message,
-    conversationState: buildConversationState({
-      inputConversationState: isEditRequest ? undefined : input.conversationState,
+    conversationState: applyLectureTrainingConversationState({
       conversation,
-      userMessage,
-      activeChoiceConversationState: activeChoiceAnswer?.conversationState,
-      jobContext,
-      durationStatePatch: durationContext.conversationStatePatch,
+      latestUserMessage: input.message,
+      conversationState: buildConversationState({
+        inputConversationState: isEditRequest ? undefined : input.conversationState,
+        conversation,
+        userMessage,
+        activeChoiceConversationState: activeChoiceAnswer?.conversationState,
+        jobContext,
+        durationStatePatch: durationContext.conversationStatePatch,
+      }),
     }),
   })
   const systemPrompt = buildChatbotSystemPrompt(
@@ -326,12 +335,20 @@ export async function handleChatbotMessage(
     candidateWindowFinder,
     knowledgeSnapshot,
   })
-  const routingDecision =
+  const rawRoutingDecision =
     resolvedRoutingDecision ??
     (activeChoiceAnswer || durationContext.hasNewFacts || isLectureTrainingInquiry(conversationState)
       ? fallbackRoutingDecision
       : undefined)
-  const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState })
+  const flowPolicy = applyBookingFinalConfirmationPolicy({
+    routingDecision: rawRoutingDecision,
+    conversationState,
+    jobContext,
+    latestUserMessage: input.message,
+  })
+  const routingDecision = flowPolicy.routingDecision
+  const persistedConversationState = flowPolicy.conversationState
+  const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState: persistedConversationState })
   const assistantDisplay = buildAssistantDisplayContent({
     rawText: llmResponse.rawText,
     routingDecision,
@@ -383,7 +400,7 @@ export async function handleChatbotMessage(
         routingDecision: routingDecision.kind,
         currentQuestion: routingDecision.kind === "continue" ? routingDecision.nextQuestion : null,
         activeChoices: routingDecision.kind === "continue" ? routingDecision.presentChoices ?? null : null,
-        conversationState,
+        conversationState: persistedConversationState,
         jobContext,
       })
     } catch (error) {
@@ -407,6 +424,11 @@ export async function handleChatbotMessage(
     routingDecisionKind: routingDecision?.kind,
     uiKind: ui.kind,
     bookingProgress: routingDecision?.kind === "to-booking-inline",
+    flowStep: inferChatbotFlowStep({
+      routingDecision,
+      uiKind: ui.kind,
+      conversationState: persistedConversationState,
+    }),
     issueReasons,
   })
 
@@ -441,6 +463,7 @@ async function notifySlackForChatbotResponse(input: {
   routingDecisionKind?: RoutingDecision["kind"]
   uiKind: ChatbotMessageUi["kind"]
   bookingProgress: boolean
+  flowStep: ChatbotFlowStep
   issueReasons?: string[]
 }): Promise<void> {
   try {
@@ -453,6 +476,7 @@ async function notifySlackForChatbotResponse(input: {
       tier: input.tier,
       routingDecisionKind: input.routingDecisionKind,
       uiKind: input.uiKind,
+      flowStep: input.flowStep,
       threadTs,
       userMessage: input.userText,
       assistantResponse: input.assistantText,
@@ -559,6 +583,9 @@ function buildChatbotSystemPrompt(
 ): string {
   const lines = [
     "あなたは新規映像案件の相談受付アシスタントです。",
+    "あなたは単なる受付フォームではなく、お客様、則兼、のーちゃんの3人チームでいい作品を作るために伴走する事務担当です。",
+    "事務担当として確認漏れ、不安、伝え忘れを減らし、ユーザーの考える量を増やさず次にすることを1つずつ案内します。",
+    "勝手に予約確定、料金判断、実施可否判断、本人判断が必要な確約はしません。",
     "回答範囲は新規案件の調整、要件整理、予約導線に限定し、技術指導、作品レビュー、標準外要望は担当者確認へ誘導します。",
     "ただし講演会、講習会、セミナー、講師依頼、研修、ワークショップは新規依頼種別として扱い、通常の制作案件に寄せません。",
     "講習依頼では開催場所、DaVinci Resolve Studio / DaVinci Resolve とバージョン、コントロールパネル有無、参加者がGUI操作を大画面で見られる環境、講師側モニター構成、10:00〜18:00を基本にした希望時間を確認します。",
@@ -571,6 +598,8 @@ function buildChatbotSystemPrompt(
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、JSON 出力の説明だけを返しません。",
     '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD","memo":"..."}} を 1 個だけ含めます。',
+    "予約候補カードを出す直前には、これまでの文脈を短く踏まえて、ほかに確認したいこと、伝えておきたいこと、不安な点がないかを1回だけ確認します。その最終確認ターンでは show_booking_card を同時に出さず、1ターン1問いかけにします。",
+    "ユーザーが最終確認に「なし」「大丈夫」「ありません」などと答えた次のターンで、必要情報が揃っていれば show_booking_card に進めます。追加情報や質問が来た場合は補足として取り込み、必要な確認をしてから進めます。",
     "show_booking_card の projectTitle は作品名または短い案件名だけにし、ライブ内容、作業内容、顔ぼかしカット数、素材状況、立ち会い方法、希望条件は memo に分離します。",
     "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。",
     "所要日数は同期済み正本ナレッジを基準値・判断材料として使い、案件種別、尺、媒体、素材状況、追加作業、希望納期を文脈から読んで前提つきの目安を返します。",
@@ -717,7 +746,7 @@ type SingleUserPromptGuardReport =
   | { applied: false }
   | {
       applied: true
-      reason: "choice-panel" | "booking-card" | "summary-form" | "tier4-inquiry-form"
+      reason: "choice-panel" | "booking-final-confirmation" | "booking-card" | "summary-form" | "tier4-inquiry-form"
       uiKind: ChatbotMessageUi["kind"]
       choiceSetId?: string
     }
@@ -737,6 +766,15 @@ function buildSingleUserPromptGuardContent(input: {
       content: `${input.routingDecision.nextQuestion}\n下の選択肢から選んでください。`,
       reason: "choice-panel",
       choiceSetId: input.routingDecision.presentChoices.id,
+    }
+  }
+  if (
+    input.routingDecision?.kind === "continue" &&
+    input.routingDecision.nextQuestion.includes("ほかに確認したいこと")
+  ) {
+    return {
+      content: input.routingDecision.nextQuestion,
+      reason: "booking-final-confirmation",
     }
   }
 

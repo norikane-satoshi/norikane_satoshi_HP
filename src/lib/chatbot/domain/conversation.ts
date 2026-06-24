@@ -1,4 +1,5 @@
 import type { RoutingDecision } from "@/lib/chatbot/domain/routing-decision"
+import type { BookingCardPrefill } from "@/lib/chatbot/domain/routing-decision"
 import type { SurveyChoiceSet } from "@/lib/chatbot/domain/survey-choice"
 import type { JobContext, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
 
@@ -90,6 +91,13 @@ export type ConversationState = {
   companyName?: string
   productionOptions?: Array<"captions" | "telops" | "narration" | "music" | "other">
   otherChoiceComments?: Record<string, string>
+  bookingFinalConfirmation?: {
+    status: "pending" | "confirmed" | "supplemental-received"
+    requestedAtTurn?: number
+    confirmedAtTurn?: number
+    supplementalNote?: string
+    bookingPrefill?: BookingCardPrefill
+  }
   durationContext?: {
     workflowFacts?: Partial<
       Pick<JobContext, "jobKind" | "finalMedium" | "deliveryMedium" | "workSite" | "projectLengthMinutes" | "additionalWork">

@@ -58,6 +58,8 @@ describe("sendChatbotSlackNotification", () => {
         sessionId: "session_1",
         tier: "tier-2-hosted-chrome-notion-ai",
         routingDecisionKind: "continue",
+        uiKind: "none",
+        flowStep: "booking-final-confirmation",
         bookingProgress: true,
         userMessage: "email client@example.com phone 090-1234-5678 token=abc12345",
         assistantResponse: "reply api_key=abc67890",
@@ -74,6 +76,8 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("セッションID: session_1")
     expect(body.text).toContain("requestId: req_1")
     expect(body.text).toContain("tier: tier-2-hosted-chrome-notion-ai")
+    expect(body.text).toContain("ui: none")
+    expect(body.text).toContain("flowStep: booking-final-confirmation")
     expect(body.text).toContain("bookingProgress: true")
     expect(body.text).toContain("ユーザー: email [email] phone [phone] token=[secret]")
     expect(body.text).toContain("AI: reply api_key=[secret]")
@@ -95,6 +99,8 @@ describe("sendChatbotSlackNotification", () => {
         conversationId: "conv_1",
         sessionId: "session_1",
         tier: "tier-3-ollama-deepseek",
+        uiKind: "booking-card",
+        flowStep: "booking-card",
         bookingProgress: false,
         threadTs: "1700000000.000100",
         userMessage: "2通目です",
@@ -107,6 +113,8 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.thread_ts).toBe("1700000000.000100")
     expect(body.text).toContain("requestId: req_2")
     expect(body.text).toContain("tier: tier-3-ollama-deepseek")
+    expect(body.text).toContain("ui: booking-card")
+    expect(body.text).toContain("flowStep: booking-card")
     expect(body.text).toContain("bookingProgress: false")
     expect(body.text).toContain("ユーザー: 2通目です")
     expect(body.text).toContain("AI: 返信です")

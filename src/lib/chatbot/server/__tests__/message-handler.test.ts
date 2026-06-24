@@ -529,6 +529,9 @@ describe("handleChatbotMessage user context", () => {
           documentaryAttachment: { kind: "none" },
           projectLengthMinutes: 150,
         },
+        conversationState: {
+          bookingFinalConfirmation: { status: "confirmed", requestedAtTurn: 2, confirmedAtTurn: 3 },
+        },
       },
       harness.options,
     )
@@ -544,6 +547,189 @@ describe("handleChatbotMessage user context", () => {
         memo: expect.stringContaining("観客の顔ぼかし30カット以上"),
       },
     })
+  })
+
+  it("inserts a final confirmation turn before showing a booking card", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        '候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "CM案件、山田太郎、client@example.com、7月10日納品です",
+        jobContext: {
+          jobKind: "cm-30s",
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: true,
+          hasDesiredSchedule: true,
+          contactEmail: "client@example.com",
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("ほかに確認したいこと"),
+    })
+    expect(result.assistantMessage.content).toContain("ほかに確認したいこと")
+    expect(result.assistantMessage.content).toContain("なし")
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(result.ui).not.toMatchObject({ kind: "booking-card" })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routingDecision: "continue",
+        currentQuestion: expect.stringContaining("ほかに確認したいこと"),
+        activeChoices: null,
+        conversationState: expect.objectContaining({
+          bookingFinalConfirmation: expect.objectContaining({
+            status: "pending",
+            bookingPrefill: expect.objectContaining({
+              projectTitle: "CM案件",
+              contactEmail: "client@example.com",
+            }),
+          }),
+        }),
+      }),
+    )
+    expect(harness.slackNotifier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tier: "tier-2-hosted-chrome-notion-ai",
+        uiKind: "none",
+        flowStep: "booking-final-confirmation",
+        bookingProgress: false,
+      }),
+    )
+  })
+
+  it("moves to the booking card on the turn after a no-additional-concern answer", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingFinalConfirmation: {
+              status: "pending",
+              requestedAtTurn: 4,
+              bookingPrefill: { projectTitle: "CM案件", contactEmail: "client@example.com" },
+            },
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "なし" },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe("候補日を確認しました。\n下の予約カードから選択してください。")
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "CM案件",
+        contactEmail: "client@example.com",
+      },
+    })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routingDecision: "to-booking-inline",
+        conversationState: expect.objectContaining({
+          bookingFinalConfirmation: expect.objectContaining({
+            status: "confirmed",
+          }),
+        }),
+      }),
+    )
+    expect(harness.slackNotifier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uiKind: "booking-card",
+        flowStep: "booking-card",
+        bookingProgress: true,
+      }),
+    )
+  })
+
+  it("records supplemental final-check answers and does not immediately show a booking card", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingFinalConfirmation: {
+              status: "pending",
+              requestedAtTurn: 4,
+              bookingPrefill: { projectTitle: "CM案件", contactEmail: "client@example.com" },
+            },
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        '納品形式も補足に入れます。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactEmail":"client@example.com","dueDate":"2026-07-10"}}',
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "納品はProRes 4444も必要です" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({ kind: "continue" })
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(result.ui).not.toMatchObject({ kind: "booking-card" })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routingDecision: "continue",
+        conversationState: expect.objectContaining({
+          bookingFinalConfirmation: expect.objectContaining({
+            status: "supplemental-received",
+            supplementalNote: "納品はProRes 4444も必要です",
+          }),
+        }),
+      }),
+    )
   })
 
   it("replaces backend identity-only assistant text with the routing question", async () => {
@@ -1885,6 +2071,7 @@ describe("handleChatbotMessage user context", () => {
           customerName: "Stored Customer",
           companyName: "Stored Company",
           contactEmail: "stored@example.com",
+          bookingFinalConfirmation: { status: "confirmed", requestedAtTurn: 2, confirmedAtTurn: 3 },
         },
       },
       harness.options,
@@ -1941,6 +2128,7 @@ describe("handleChatbotMessage user context", () => {
           hasContactEmail: true,
           hasDesiredSchedule: true,
           contactEmail: "stored@example.com",
+          bookingFinalConfirmation: { status: "confirmed", requestedAtTurn: 2, confirmedAtTurn: 3 },
         },
       },
       harness.options,
