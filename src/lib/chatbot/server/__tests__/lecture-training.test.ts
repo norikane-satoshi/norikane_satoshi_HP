@@ -81,7 +81,11 @@ describe("lecture and training inquiry support", () => {
           hasLectureTrainingContent: true,
         }),
       }),
-    ).toMatchObject({ kind: "continue", nextQuestion: expect.stringContaining("開催場所") })
+    ).toMatchObject({
+      kind: "continue",
+      nextQuestion: "開催形式を選んでください。",
+      presentChoices: { id: "lecture-training-format" },
+    })
 
     expect(
       decideLectureTrainingRouting({

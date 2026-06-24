@@ -61,6 +61,7 @@ import {
   applyBookingFinalConfirmationAnswer,
   applyBookingFinalConfirmationPolicy,
   inferChatbotFlowStep,
+  isBookingFinalConfirmationPrompt,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
@@ -338,7 +339,15 @@ export async function handleChatbotMessage(
   })
   const rawRoutingDecision =
     resolvedRoutingDecision ??
-    (activeChoiceAnswer || durationContext.hasNewFacts || isLectureTrainingInquiry(conversationState)
+    (activeChoiceAnswer ||
+    isLectureTrainingInquiry(conversationState) ||
+    shouldUseFallbackRouting({
+      fallbackRoutingDecision,
+      latestUserMessage: input.message,
+      rawAssistantText: llmResponse.rawText,
+      noteAccess,
+      hasNewDurationFacts: durationContext.hasNewFacts,
+    })
       ? fallbackRoutingDecision
       : undefined)
   const flowPolicy = applyBookingFinalConfirmationPolicy({
@@ -452,6 +461,46 @@ export async function handleChatbotMessage(
     tier: llmResponse.tier,
     ui,
   }
+}
+
+function shouldUseFallbackRouting(input: {
+  fallbackRoutingDecision: RoutingDecision
+  latestUserMessage: string
+  rawAssistantText: string
+  noteAccess: CustomerFacingNoteAccess
+  hasNewDurationFacts: boolean
+}): boolean {
+  if (input.fallbackRoutingDecision.kind !== "continue" || !input.fallbackRoutingDecision.presentChoices) {
+    return input.hasNewDurationFacts
+  }
+  if (input.noteAccess.kind !== "none") return false
+  if (isBookingFinalConfirmationPrompt(input.rawAssistantText)) return false
+  if (isDurationAnswerRequest(input.latestUserMessage) || isDurationAnswerRequest(input.rawAssistantText)) return false
+
+  switch (input.fallbackRoutingDecision.presentChoices.id) {
+    case "job-kind":
+      return hasConsultationStartIntent(input.latestUserMessage)
+    case "project-length":
+      return hasProjectLengthFollowupIntent(input.latestUserMessage)
+    default:
+      return true
+  }
+}
+
+function hasConsultationStartIntent(message: string): boolean {
+  const normalized = message.normalize("NFKC").toLowerCase()
+  return /(相談|依頼|案件|お願い|問い合わせ|見積|発注|予約|カラグレ|カラーグレーディング|カラーコレクション|講習|講演|研修|ライブ|cm|mv|映画|ドラマ|縦型)/u.test(
+    normalized,
+  )
+}
+
+function hasProjectLengthFollowupIntent(message: string): boolean {
+  const normalized = message.normalize("NFKC").toLowerCase()
+  return /(尺|分|秒|時間|ライブ|cm|mv|映画|ドラマ|縦型|案件|相談|依頼)/u.test(normalized)
+}
+
+function isDurationAnswerRequest(message: string): boolean {
+  return /(所要|日数|何日|どれくらい|どのくらい|目安|期間|納期)/u.test(message.normalize("NFKC"))
 }
 
 async function notifySlackForChatbotResponse(input: {
@@ -594,6 +643,7 @@ function buildChatbotSystemPrompt(
     "あなたは新規映像案件の相談受付アシスタントです。",
     "あなたは単なる受付フォームではなく、お客様、則兼、のーちゃんの3人チームでいい作品を作るために伴走する事務担当です。",
     "事務担当として確認漏れ、不安、伝え忘れを減らし、ユーザーの考える量を増やさず次にすることを1つずつ案内します。",
+    "案件整理では複数項目を文章で一気に聞かず、選べる項目は choice-panel の1項目ずつで確認します。その他を選んだ自由入力は補足として保持し、勝手に近い既存分類へ潰しません。",
     "勝手に予約確定、料金判断、実施可否判断、本人判断が必要な確約はしません。",
     "回答範囲は新規案件の調整、要件整理、予約導線に限定し、技術指導、作品レビュー、標準外要望は担当者確認へ誘導します。",
     "ただし講演会、講習会、セミナー、講師依頼、研修、ワークショップは新規依頼種別として扱い、通常の制作案件に寄せません。",
@@ -1073,6 +1123,12 @@ function buildChoiceDetailSegments(jobContext: JobContext, conversationState: Co
   const otherComments = conversationState.otherChoiceComments ?? {}
   const segments: string[] = []
 
+  if (!jobContext.jobKind && otherComments["job-kind"]) {
+    segments.push(`案件種別:その他(${otherComments["job-kind"]})`)
+  }
+  if (conversationState.hasProjectLength && typeof jobContext.projectLengthMinutes !== "number" && otherComments["project-length"]) {
+    segments.push(`尺:${otherComments["project-length"]}`)
+  }
   if (jobContext.additionalWork?.length) {
     segments.push(`追加作業:${jobContext.additionalWork.map((item) => labelChoice(item, otherComments["additional-work"])).join("・")}`)
   }
@@ -1241,7 +1297,7 @@ function normalizeBookingCardPrefill(
   conversationState: ConversationState,
 ): BookingCardPrefill {
   const projectTitle = normalizeBookingProjectTitle(prefill.projectTitle, jobContext)
-  const memoParts = [prefill.memo]
+  const memoParts = [prefill.memo, ...buildChoiceDetailSegments(jobContext, conversationState)]
   const contactEmail = isValidContactEmail(prefill.contactEmail) ? prefill.contactEmail : conversationState.contactEmail
 
   if (prefill.projectTitle && projectTitle !== prefill.projectTitle) {

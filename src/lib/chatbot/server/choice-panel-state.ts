@@ -3,6 +3,7 @@ import type {
   DocumentaryAttachment,
   DocumentaryAttachmentItem,
   JobContext,
+  JobKind,
   SurveyChoice,
   SurveyChoiceSet,
   WorkSite,
@@ -26,12 +27,26 @@ export function applyActiveChoiceAnswer(input: {
   const choices = resolveChoices(input.activeChoices, input.message)
   const choice = choices[0]
   if (!input.activeChoices || !choice) return null
+  const activeChoices = input.activeChoices
   const otherCommentPatch = toOtherChoiceCommentPatch(input.activeChoices, choices, input.message)
 
-  switch (input.activeChoices.id) {
+  switch (activeChoices.id) {
+    case "job-kind":
+      return applyJobKindChoice(activeChoices, choice, otherCommentPatch)
+    case "project-length":
+      return {
+        choiceSetId: activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: [choice.id],
+        conversationState: {
+          hasProjectLength: true,
+          ...otherCommentPatch,
+        },
+        jobContext: toProjectLengthJobContext(choice.id),
+      }
     case "final-medium":
       return {
-        choiceSetId: input.activeChoices.id,
+        choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: [choice.id],
         conversationState: { hasFinalMedium: true, ...otherCommentPatch },
@@ -40,7 +55,7 @@ export function applyActiveChoiceAnswer(input: {
     case "additional-work":
       if (choices.some((item) => item.id === "none")) {
         return {
-          choiceSetId: input.activeChoices.id,
+          choiceSetId: activeChoices.id,
           choiceId: "none",
           choiceIds: ["none"],
           conversationState: { hasAdditionalWork: true },
@@ -49,7 +64,7 @@ export function applyActiveChoiceAnswer(input: {
       }
 
       return {
-        choiceSetId: input.activeChoices.id,
+        choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: choices.map((item) => item.id),
         conversationState: { hasAdditionalWork: true, ...otherCommentPatch },
@@ -58,7 +73,7 @@ export function applyActiveChoiceAnswer(input: {
     case "documentary-attachment":
       if (choices.some((item) => item.id === "none")) {
         return {
-          choiceSetId: input.activeChoices.id,
+          choiceSetId: activeChoices.id,
           choiceId: "none",
           choiceIds: ["none"],
           conversationState: { hasDocumentaryAttachments: true },
@@ -67,29 +82,86 @@ export function applyActiveChoiceAnswer(input: {
       }
 
       return {
-        choiceSetId: input.activeChoices.id,
+        choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: choices.map((item) => item.id),
         conversationState: { hasDocumentaryAttachments: true, ...otherCommentPatch },
         jobContext: {
           documentaryAttachment: toDocumentaryAttachment(
             choices.map((item) => item.id),
-            otherCommentPatch.otherChoiceComments?.[input.activeChoices.id],
+            otherCommentPatch.otherChoiceComments?.[activeChoices.id],
           ),
         },
       }
     case "work-site":
       return {
-        choiceSetId: input.activeChoices.id,
+        choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: [choice.id],
         conversationState: { hasWorkSite: true, ...otherCommentPatch },
         jobContext: { workSite: toWorkSite(choice.id) },
       }
+    case "lecture-training-content":
+      return {
+        choiceSetId: activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: choices.map((item) => item.id),
+        conversationState: {
+          requestKind: "lecture-training",
+          hasLectureTrainingIntent: true,
+          hasLectureTrainingContent: true,
+          requiresNorikaneConfirmation: true,
+          lectureTrainingInquiry: {
+            content: choices
+              .map((item) => labelChoice(activeChoices, item.id))
+              .join(" / "),
+          },
+          ...otherCommentPatch,
+        },
+        jobContext: {},
+      }
+    case "lecture-training-format":
+      return {
+        choiceSetId: activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: [choice.id],
+        conversationState: {
+          requestKind: "lecture-training",
+          hasLectureTrainingIntent: true,
+          hasLectureTrainingVenue: true,
+          requiresNorikaneConfirmation: true,
+          lectureTrainingInquiry: {
+            venue: labelChoice(activeChoices, choice.id),
+          },
+          ...otherCommentPatch,
+        },
+        jobContext: {},
+      }
+    case "lecture-training-software":
+      return {
+        choiceSetId: activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: [choice.id],
+        conversationState: {
+          requestKind: "lecture-training",
+          hasLectureTrainingIntent: true,
+          hasLectureTrainingSoftware: true,
+          requiresNorikaneConfirmation: true,
+          lectureTrainingInquiry: {
+            software:
+              choice.id === "davinci-resolve-studio" || choice.id === "davinci-resolve"
+                ? choice.id
+                : undefined,
+            ...(choice.id === "other" ? { unsupportedSoftware: "その他" } : {}),
+          },
+          ...otherCommentPatch,
+        },
+        jobContext: {},
+      }
     case "production-options":
       if (choices.some((item) => item.id === "none")) {
         return {
-          choiceSetId: input.activeChoices.id,
+          choiceSetId: activeChoices.id,
           choiceId: "none",
           choiceIds: ["none"],
           conversationState: { hasProductionOptions: true, productionOptions: [] },
@@ -98,7 +170,7 @@ export function applyActiveChoiceAnswer(input: {
       }
 
       return {
-        choiceSetId: input.activeChoices.id,
+        choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: choices.map((item) => item.id),
         conversationState: {
@@ -118,6 +190,10 @@ export function isSatisfiedChoicePanel(
   conversationState: ConversationState,
 ): boolean {
   switch (choiceSet?.id) {
+    case "job-kind":
+      return conversationState.hasJobKind
+    case "project-length":
+      return Boolean(conversationState.hasProjectLength)
     case "final-medium":
       return conversationState.hasFinalMedium
     case "additional-work":
@@ -126,6 +202,12 @@ export function isSatisfiedChoicePanel(
       return conversationState.hasDocumentaryAttachments
     case "work-site":
       return conversationState.hasWorkSite
+    case "lecture-training-content":
+      return Boolean(conversationState.hasLectureTrainingContent)
+    case "lecture-training-format":
+      return Boolean(conversationState.hasLectureTrainingVenue)
+    case "lecture-training-software":
+      return Boolean(conversationState.hasLectureTrainingSoftware)
     case "production-options":
       return Boolean(conversationState.hasProductionOptions)
     default:
@@ -155,6 +237,73 @@ function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: str
 type AdditionalWork = NonNullable<JobContext["additionalWork"]>[number]
 type ProductionOption = NonNullable<ConversationState["productionOptions"]>[number]
 
+function applyJobKindChoice(
+  choiceSet: SurveyChoiceSet,
+  choice: SurveyChoice,
+  otherCommentPatch: Pick<ConversationState, "otherChoiceComments"> | Record<string, never>,
+): ChoicePanelPatch {
+  if (choice.id === "lecture-training") {
+    return {
+      choiceSetId: choiceSet.id,
+      choiceId: choice.id,
+      choiceIds: [choice.id],
+      conversationState: {
+        hasJobKind: true,
+        requestKind: "lecture-training",
+        hasLectureTrainingIntent: true,
+        requiresNorikaneConfirmation: true,
+      },
+      jobContext: {},
+    }
+  }
+
+  const mappedJobKind = toKnownJobKind(choice.id)
+  return {
+    choiceSetId: choiceSet.id,
+    choiceId: choice.id,
+    choiceIds: [choice.id],
+    conversationState: {
+      hasJobKind: true,
+      ...(mappedJobKind ? {} : { otherChoiceComments: { [choiceSet.id]: labelChoice(choiceSet, choice.id) } }),
+      ...otherCommentPatch,
+    },
+    jobContext: mappedJobKind ? { jobKind: mappedJobKind } : {},
+  }
+}
+
+function toKnownJobKind(choiceId: string): JobKind | undefined {
+  if (
+    choiceId === "cm-30s" ||
+    choiceId === "mv-5m" ||
+    choiceId === "feature-90m" ||
+    choiceId === "drama-first" ||
+    choiceId === "live-60m" ||
+    choiceId === "vertical-60s"
+  ) {
+    return choiceId
+  }
+  return undefined
+}
+
+function toProjectLengthJobContext(choiceId: string): Partial<JobContext> {
+  switch (choiceId) {
+    case "short-under-60s":
+      return { projectLengthMinutes: 1 }
+    case "medium-5m":
+      return { projectLengthMinutes: 5 }
+    case "long-30m":
+      return { projectLengthMinutes: 30 }
+    case "feature-90m":
+      return { projectLengthMinutes: 90 }
+    case "live-60m":
+      return { projectLengthMinutes: 60 }
+    case "live-150m":
+      return { projectLengthMinutes: 150 }
+    default:
+      return {}
+  }
+}
+
 function toDocumentaryAttachment(choiceIds: string[], otherComment?: string): DocumentaryAttachment {
   const attachments = choiceIds.map((choiceId) => toDocumentaryAttachmentItem(choiceId, otherComment))
   if (attachments.length === 1) return attachments[0]
@@ -172,6 +321,10 @@ function toWorkSite(choiceId: string): WorkSite {
   if (choiceId === "satoshi-studio" || choiceId === "remote-grading") return choiceId
   if (choiceId === "client-facility-attended" || choiceId === "on-site-post-production") return "on-site"
   return "remote-grading"
+}
+
+function labelChoice(choiceSet: SurveyChoiceSet, choiceId: string): string {
+  return choiceSet.choices.find((choice) => choice.id === choiceId)?.label ?? choiceId
 }
 
 function normalizeChoiceText(value: string): string {

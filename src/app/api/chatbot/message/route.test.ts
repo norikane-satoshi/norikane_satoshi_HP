@@ -149,8 +149,11 @@ describe("POST /api/chatbot/message", () => {
     })
     await expect(response.json()).resolves.toMatchObject({
       conversationId: "conv_1",
-      assistantMessage: { role: "assistant", content: "最終媒体を教えてください" },
-      ui: { kind: "none" },
+      assistantMessage: {
+        role: "assistant",
+        content: "まず案件種別を選んでください\n下の選択肢から選んでください。",
+      },
+      ui: { kind: "choice-panel", choiceSet: { id: "job-kind" } },
     })
   })
 

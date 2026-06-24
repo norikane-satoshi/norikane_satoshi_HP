@@ -4,6 +4,7 @@ import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
   finalMediumChoices,
+  jobKindChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
@@ -29,6 +30,7 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
   return {
     hasFinalMedium: true,
     hasJobKind: true,
+    hasProjectLength: true,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
@@ -43,6 +45,22 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
 }
 
 describe("chatbot fallback router", () => {
+  it("starts production consultations with job kind choices", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ jobKind: undefined }),
+      conversationState: conversationState({
+        hasJobKind: false,
+        hasContactEmail: false,
+        hasDesiredSchedule: false,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "continue",
+      presentChoices: jobKindChoices,
+    })
+  })
+
   it("continues with final medium choices when final medium is missing", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),

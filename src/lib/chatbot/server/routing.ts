@@ -3,6 +3,8 @@ import {
   additionalWorkChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
+  jobKindChoices,
+  projectLengthChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
@@ -134,18 +136,27 @@ function formatDays(value: number): string {
 }
 
 function continueDecision(conversationState: ConversationState): RoutingDecision {
+  if (!conversationState.hasJobKind) {
+    return {
+      kind: "continue",
+      nextQuestion: "まず案件種別を選んでください",
+      presentChoices: jobKindChoices,
+    }
+  }
+
+  if (!conversationState.hasProjectLength) {
+    return {
+      kind: "continue",
+      nextQuestion: "尺・分量の大枠を選んでください",
+      presentChoices: projectLengthChoices,
+    }
+  }
+
   if (!conversationState.hasFinalMedium) {
     return {
       kind: "continue",
       nextQuestion: "最終媒体は何になりますか？",
       presentChoices: finalMediumChoices,
-    }
-  }
-
-  if (!conversationState.hasJobKind) {
-    return {
-      kind: "continue",
-      nextQuestion: "案件種別と尺を教えてください",
     }
   }
 
@@ -194,7 +205,8 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
 }
 
 function buildSummaryText(jobContext: JobContext, conversationState: ConversationState): string {
-  const jobKind = jobContext.jobKind ?? "案件種別未確認"
+  const otherComments = conversationState.otherChoiceComments ?? {}
+  const jobKind = jobContext.jobKind ?? otherComments["job-kind"] ?? "案件種別未確認"
   const schedule = conversationState.hasDesiredSchedule ? "日程あり" : "日程未定"
   const detailSegments = buildChoiceDetailSegments(jobContext, conversationState)
 
@@ -205,6 +217,12 @@ function buildChoiceDetailSegments(jobContext: JobContext, conversationState: Co
   const otherComments = conversationState.otherChoiceComments ?? {}
   const segments: string[] = []
 
+  if (!jobContext.jobKind && otherComments["job-kind"]) {
+    segments.push(`案件種別:その他(${otherComments["job-kind"]})`)
+  }
+  if (conversationState.hasProjectLength && typeof jobContext.projectLengthMinutes !== "number" && otherComments["project-length"]) {
+    segments.push(`尺:${otherComments["project-length"]}`)
+  }
   if (jobContext.additionalWork?.length) {
     segments.push(
       `追加作業:${jobContext.additionalWork

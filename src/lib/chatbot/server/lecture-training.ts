@@ -1,4 +1,9 @@
 import type { ChatbotConversation, ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
+import {
+  lectureTrainingContentChoices,
+  lectureTrainingFormatChoices,
+  lectureTrainingSoftwareChoices,
+} from "@/lib/chatbot/domain"
 
 const lectureTrainingIntentPattern =
   /(?:講演|講習|セミナー|講師(?:依頼)?|研修|ワークショップ|work\s*shop|workshop|training|lecture|instructor)/iu
@@ -91,16 +96,16 @@ export function decideLectureTrainingRouting(input: {
   const inquiry = conversationState.lectureTrainingInquiry ?? {}
 
   if (!conversationState.hasLectureTrainingContent) {
-    return continueWith("講演・講習・研修の内容を、詰められる範囲で教えてください。")
+    return continueWith("講習・教育で扱いたい内容を選んでください。", lectureTrainingContentChoices)
   }
   if (!conversationState.hasLectureTrainingVenue) {
-    return continueWith("開催場所を教えてください。会場名や地域、オンライン可否が未定なら未定として整理します。")
+    return continueWith("開催形式を選んでください。", lectureTrainingFormatChoices)
   }
   if (!conversationState.hasLectureTrainingSoftware) {
     const prefix = inquiry.unsupportedSoftware
       ? "使用ソフトは DaVinci Resolve Studio または DaVinci Resolve のみ対応前提です。"
       : ""
-    return continueWith(`${prefix}使用ソフトは DaVinci Resolve Studio / DaVinci Resolve のどちらですか？`)
+    return continueWith(`${prefix}使用ソフトを選んでください。`, lectureTrainingSoftwareChoices)
   }
   if (!conversationState.hasResolveVersion) {
     return continueWith("DaVinci Resolve のバージョンを教えてください。")
@@ -174,8 +179,11 @@ function buildLectureTrainingSummary(jobContext: JobContext, conversationState: 
   }
 }
 
-function continueWith(nextQuestion: string): RoutingDecision {
-  return { kind: "continue", nextQuestion }
+function continueWith(
+  nextQuestion: string,
+  presentChoices?: Extract<RoutingDecision, { kind: "continue" }>["presentChoices"],
+): RoutingDecision {
+  return { kind: "continue", nextQuestion, ...(presentChoices ? { presentChoices } : {}) }
 }
 
 function collectUserTexts(conversation: ChatbotConversation, latestUserMessage?: string): string[] {

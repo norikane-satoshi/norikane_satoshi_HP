@@ -7,6 +7,8 @@ import {
   additionalWorkChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
+  jobKindChoices,
+  projectLengthChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
@@ -188,7 +190,13 @@ describe("handleChatbotMessage user context", () => {
       expect.objectContaining({
         conversationId: "conv_1",
         userMessage: expect.objectContaining({ role: "user", content: "相談です" }),
-        assistantMessage: expect.objectContaining({ content: "返信です" }),
+        assistantMessage: expect.objectContaining({
+          content: "まず案件種別を選んでください\n下の選択肢から選んでください。",
+        }),
+        ui: expect.objectContaining({
+          kind: "choice-panel",
+          choiceSet: expect.objectContaining({ id: jobKindChoices.id }),
+        }),
       }),
     )
   })
@@ -245,8 +253,9 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toBe("返信です")
+    expect(result.assistantMessage.content).toBe("まず案件種別を選んでください\n下の選択肢から選んでください。")
     expect(result.assistantMessage.content).not.toContain("のーちゃん")
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: jobKindChoices.id } })
     expect(harness.generate).toHaveBeenCalledOnce()
   })
 
@@ -571,6 +580,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasAdditionalWork: true,
           hasDocumentaryAttachments: true,
           hasWorkSite: true,
@@ -702,6 +712,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasAdditionalWork: true,
           hasDocumentaryAttachments: true,
           hasWorkSite: true,
@@ -845,6 +856,7 @@ describe("handleChatbotMessage user context", () => {
         conversationState: {
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasAdditionalWork: true,
           hasDocumentaryAttachments: true,
           hasWorkSite: true,
@@ -866,12 +878,43 @@ describe("handleChatbotMessage user context", () => {
 
   const choicePanelPromptCases: Array<[string, string, Partial<JobContext>, Partial<ConversationState>, string, string]> = [
     [
+      "job kind",
+      "相談したいです。",
+      {},
+      {
+        hasJobKind: false,
+      },
+      "まず案件種別を選んでください",
+      jobKindChoices.id,
+    ],
+    [
+      "project length",
+      "ライブの相談です。",
+      {
+        jobKind: "live-60m",
+        finalMedium: "live",
+        workSite: "remote-grading",
+        documentaryAttachment: { kind: "none" },
+      },
+      {
+        hasFinalMedium: true,
+        hasJobKind: true,
+        hasProjectLength: false,
+        hasAdditionalWork: true,
+        hasDocumentaryAttachments: true,
+        hasWorkSite: true,
+      },
+      "尺・分量の大枠を選んでください",
+      projectLengthChoices.id,
+    ],
+    [
       "final medium",
       "MV 5分のカラーグレーディング相談です。",
       {},
       {
         hasFinalMedium: false,
         hasJobKind: true,
+        hasProjectLength: true,
         hasAdditionalWork: true,
         hasDocumentaryAttachments: true,
         hasWorkSite: true,
@@ -891,6 +934,7 @@ describe("handleChatbotMessage user context", () => {
       {
         hasFinalMedium: true,
         hasJobKind: true,
+        hasProjectLength: true,
         hasAdditionalWork: false,
         hasDocumentaryAttachments: true,
         hasWorkSite: true,
@@ -910,6 +954,7 @@ describe("handleChatbotMessage user context", () => {
       {
         hasFinalMedium: true,
         hasJobKind: true,
+        hasProjectLength: true,
         hasAdditionalWork: true,
         hasDocumentaryAttachments: false,
         hasWorkSite: true,
@@ -928,6 +973,7 @@ describe("handleChatbotMessage user context", () => {
       {
         hasFinalMedium: true,
         hasJobKind: true,
+        hasProjectLength: true,
         hasAdditionalWork: true,
         hasDocumentaryAttachments: true,
         hasWorkSite: false,
@@ -2125,7 +2171,13 @@ describe("handleChatbotMessage user context", () => {
           userId: "user_a",
           activeChoices: finalMediumChoices,
           currentQuestion: "最終媒体は何になりますか？",
-          conversationState: { hasCustomerIdentity: true, turnCount: 2 },
+          conversationState: {
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasCustomerIdentity: true,
+            turnCount: 2,
+          },
+          jobContext: { jobKind: "live-60m", projectLengthMinutes: 60 },
         },
       }),
     })
@@ -2147,9 +2199,9 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        activeChoices: null,
+        activeChoices: expect.objectContaining({ id: additionalWorkChoices.id }),
         conversationState: expect.objectContaining({ hasFinalMedium: true }),
-        jobContext: expect.objectContaining({ finalMedium: "live" }),
+        jobContext: expect.objectContaining({ finalMedium: "live", jobKind: "live-60m" }),
       }),
     )
   })
@@ -2162,8 +2214,14 @@ describe("handleChatbotMessage user context", () => {
           userId: "user_a",
           activeChoices: additionalWorkChoices,
           currentQuestion: "カラグレ以外の追加作業はありますか？",
-          conversationState: { hasFinalMedium: true, hasCustomerIdentity: true, turnCount: 3 },
-          jobContext: { finalMedium: "web" },
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasCustomerIdentity: true,
+            turnCount: 3,
+          },
+          jobContext: { jobKind: "cm-30s", finalMedium: "web", projectLengthMinutes: 1 },
         },
       }),
     })
@@ -2185,9 +2243,9 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        activeChoices: null,
+        activeChoices: expect.objectContaining({ id: documentaryAttachmentChoices.id }),
         conversationState: expect.objectContaining({ hasAdditionalWork: true }),
-        jobContext: expect.objectContaining({ additionalWork: ["retouch", "skin-retouch"] }),
+        jobContext: expect.objectContaining({ jobKind: "cm-30s", additionalWork: ["retouch", "skin-retouch"] }),
       }),
     )
   })
@@ -2200,8 +2258,14 @@ describe("handleChatbotMessage user context", () => {
           userId: "user_a",
           activeChoices: additionalWorkChoices,
           currentQuestion: "カラグレ以外の追加作業はありますか？",
-          conversationState: { hasFinalMedium: true, hasCustomerIdentity: true, turnCount: 3 },
-          jobContext: { finalMedium: "web" },
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasCustomerIdentity: true,
+            turnCount: 3,
+          },
+          jobContext: { jobKind: "cm-30s", finalMedium: "web", projectLengthMinutes: 1 },
         },
       }),
     })
@@ -2224,12 +2288,12 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        activeChoices: null,
+        activeChoices: expect.objectContaining({ id: documentaryAttachmentChoices.id }),
         conversationState: expect.objectContaining({
           hasAdditionalWork: true,
           otherChoiceComments: { "additional-work": "MA も相談したい" },
         }),
-        jobContext: expect.objectContaining({ additionalWork: ["other"] }),
+        jobContext: expect.objectContaining({ jobKind: "cm-30s", additionalWork: ["other"] }),
       }),
     )
   })
@@ -2357,7 +2421,8 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.candidateWindowFinder).not.toHaveBeenCalled()
     expect(result.routingDecision).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("開催場所"),
+      nextQuestion: "開催形式を選んでください。",
+      presentChoices: { id: "lecture-training-format" },
     })
     expect(result.ui).not.toMatchObject({ kind: "booking-card" })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
@@ -2390,12 +2455,13 @@ describe("handleChatbotMessage user context", () => {
 
     expect(result.routingDecision).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringContaining("開催場所"),
+      nextQuestion: "開催形式を選んでください。",
+      presentChoices: { id: "lecture-training-format" },
     })
-    expect(result.ui).toEqual({ kind: "none" })
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "lecture-training-format" } })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        currentQuestion: expect.stringContaining("開催場所"),
+        currentQuestion: "開催形式を選んでください。",
       }),
     )
   })

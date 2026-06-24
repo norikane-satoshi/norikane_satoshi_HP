@@ -34,10 +34,16 @@ export function buildConversationState(input: {
     ...(inputState.otherChoiceComments ?? {}),
     ...(activeChoiceState.otherChoiceComments ?? {}),
   }
+  const lectureTrainingInquiry = {
+    ...(stored.lectureTrainingInquiry ?? {}),
+    ...(inputState.lectureTrainingInquiry ?? {}),
+    ...(activeChoiceState.lectureTrainingInquiry ?? {}),
+  }
 
   return {
     ...state,
     ...(Object.keys(otherChoiceComments).length > 0 ? { otherChoiceComments } : {}),
+    ...(Object.keys(lectureTrainingInquiry).length > 0 ? { lectureTrainingInquiry } : {}),
     ...(input.jobContext.finalMedium !== "other" ? { hasFinalMedium: true } : {}),
     ...(input.jobContext.jobKind ? { hasJobKind: true } : {}),
     ...(typeof input.jobContext.projectLengthMinutes === "number" ? { hasProjectLength: true } : {}),

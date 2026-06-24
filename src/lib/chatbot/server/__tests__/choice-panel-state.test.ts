@@ -5,6 +5,10 @@ import {
   additionalWorkChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
+  jobKindChoices,
+  lectureTrainingContentChoices,
+  lectureTrainingFormatChoices,
+  projectLengthChoices,
   productionOptionChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
@@ -60,7 +64,11 @@ describe("choice panel state", () => {
       latestUserMessage: "選択: live",
     })
 
-    expect(routingDecision).toMatchObject({ kind: "continue", nextQuestion: "案件種別と尺を教えてください" })
+    expect(routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: "まず案件種別を選んでください",
+      presentChoices: jobKindChoices,
+    })
     expect(routingDecision).not.toMatchObject({ presentChoices: finalMediumChoices })
   })
 
@@ -87,6 +95,17 @@ describe("choice panel state", () => {
   })
 
   it.each([
+    [jobKindChoices, "選択: Web CM / CM", { hasJobKind: true }, { jobKind: "cm-30s" }],
+    [jobKindChoices, "選択: 映画 / 長編 / 本編", { hasJobKind: true }, { jobKind: "feature-90m" }],
+    [jobKindChoices, "選択: ライブ / コンサート / 舞台収録", { hasJobKind: true }, { jobKind: "live-60m" }],
+    [
+      jobKindChoices,
+      "選択: 講演会 / 講習会 / 教育 / 研修 / 講師依頼",
+      { hasJobKind: true, requestKind: "lecture-training", hasLectureTrainingIntent: true },
+      {},
+    ],
+    [projectLengthChoices, "選択: ライブ 150分前後", { hasProjectLength: true }, { projectLengthMinutes: 150 }],
+    [projectLengthChoices, "選択: 未定", { hasProjectLength: true }, {}],
     [finalMediumChoices, "live", { hasFinalMedium: true }, { finalMedium: "live" }],
     [finalMediumChoices, "選択: ライブ", { hasFinalMedium: true }, { finalMedium: "live" }],
     [additionalWorkChoices, "retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch"] }],
@@ -124,6 +143,18 @@ describe("choice panel state", () => {
     [documentaryAttachmentChoices, "なし", { hasDocumentaryAttachments: true }, { documentaryAttachment: { kind: "none" } }],
     [workSiteChoices, "satoshi-studio", { hasWorkSite: true }, { workSite: "satoshi-studio" }],
     [workSiteChoices, "client-facility-attended", { hasWorkSite: true }, { workSite: "on-site" }],
+    [
+      lectureTrainingContentChoices,
+      "選択: カラーグレーディング、DaVinci Resolve 基礎",
+      { requestKind: "lecture-training", hasLectureTrainingContent: true },
+      {},
+    ],
+    [
+      lectureTrainingFormatChoices,
+      "選択: オンライン",
+      { requestKind: "lecture-training", hasLectureTrainingVenue: true },
+      {},
+    ],
   ] as const)(
     "maps %s choice %s to conversation state and job context",
     (choiceSet: SurveyChoiceSet, message, expectedState, expectedJobContext) => {
@@ -135,6 +166,32 @@ describe("choice panel state", () => {
   )
 
   it("keeps other comments in conversation state and maps them to server state", () => {
+    expect(
+      applyActiveChoiceAnswer({
+        activeChoices: jobKindChoices,
+        message: "選択: その他\nその他コメント: 展示用インスタレーション映像",
+      }),
+    ).toMatchObject({
+      conversationState: {
+        hasJobKind: true,
+        otherChoiceComments: { "job-kind": "展示用インスタレーション映像" },
+      },
+      jobContext: {},
+    })
+
+    expect(
+      applyActiveChoiceAnswer({
+        activeChoices: projectLengthChoices,
+        message: "選択: その他\nその他コメント: 12分が3本",
+      }),
+    ).toMatchObject({
+      conversationState: {
+        hasProjectLength: true,
+        otherChoiceComments: { "project-length": "12分が3本" },
+      },
+      jobContext: {},
+    })
+
     expect(
       applyActiveChoiceAnswer({
         activeChoices: additionalWorkChoices,

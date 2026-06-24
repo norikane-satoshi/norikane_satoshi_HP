@@ -60,10 +60,19 @@ export function formatConsultationSummary(input: ConsultationSummaryInput): stri
         : missing
     }`,
     "作業内容:",
-    `- 案件種別: ${conversationState.hasJobKind ? labelJobKind(jobContext.jobKind, fallback.jobKind) : missing}`,
+    `- 案件種別: ${
+      conversationState.hasJobKind
+        ? labelJobKind(jobContext.jobKind, fallback.jobKind, conversationState.otherChoiceComments?.["job-kind"])
+        : missing
+    }`,
     `- 尺: ${
       conversationState.hasProjectLength
-        ? formatValue(formatProjectLength(jobContext.projectLengthMinutes, fallback.projectLength))
+        ? formatValue(
+            formatProjectLength(
+              jobContext.projectLengthMinutes,
+              conversationState.otherChoiceComments?.["project-length"] ?? fallback.projectLength,
+            ),
+          )
         : missing
     }`,
     `- 追加作業: ${
@@ -148,9 +157,13 @@ function labelFinalMedium(value: JobContext["finalMedium"] | undefined, otherCom
 }
 
 
-function labelJobKind(value: JobContext["jobKind"] | undefined, fallback: string | undefined): string {
+function labelJobKind(
+  value: JobContext["jobKind"] | undefined,
+  fallback: string | undefined,
+  otherComment?: string,
+): string {
   if (value) return jobKindLabels[value]
-  return formatValue(fallback)
+  return formatValue(otherComment ?? fallback)
 }
 
 function labelWorkSite(value: JobContext["workSite"] | undefined): string {
