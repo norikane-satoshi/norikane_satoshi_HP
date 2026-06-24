@@ -110,11 +110,11 @@ function directContact(
 function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["workflowEstimate"]): string {
   const baseline =
     workflowEstimate?.estimateStatus === "needs-confirmation"
-      ? `60分ライブの参考基準は${formatDays(
+      ? `ライブ150分超の暫定上限目安は${formatDays(
           workflowEstimate.referenceMinDays ?? workflowEstimate.totalMinDays,
         )}〜${formatDays(
           workflowEstimate.referenceMaxDays ?? workflowEstimate.totalMaxDays,
-        )}日です。今回の尺では素材量・カメラ数・ぼかし箇所・チェック体制を確認して判断します。`
+        )}日です。素材量・カメラ数・ぼかし箇所・チェック体制を確認して判断します。`
       : workflowEstimate
         ? `通常は正本ライン ${formatDays(workflowEstimate.totalMinDays)}〜${formatDays(
             workflowEstimate.totalMaxDays,

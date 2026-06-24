@@ -157,16 +157,21 @@ export function buildWorkflowPromptContext(jobContext: JobContext): string | und
     if (jobContext.workflowEstimate.estimateStatus === "needs-confirmation") {
       const referenceMinDays = jobContext.workflowEstimate.referenceMinDays ?? jobContext.workflowEstimate.totalMinDays
       const referenceMaxDays = jobContext.workflowEstimate.referenceMaxDays ?? jobContext.workflowEstimate.totalMaxDays
-      lines.push(`- 60分ライブ参考基準: ${formatDays(referenceMinDays)}〜${formatDays(referenceMaxDays)}日`)
-      lines.push("- 今回尺の確定日数: 正本未定義（確認待ち）")
-      lines.push("- 禁止: 17〜20日などの正本にない日数レンジ、60分基準の確定見積もり化、尺による線形倍率計算")
-      lines.push("60分基準は参考基準としてのみ扱い、今回の断定日数は出さず、素材量・カメラ数・ぼかし箇所・チェック体制の確認に寄せます。")
+      lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
+      lines.push(`- 今回尺の暫定上限目安: ${formatDays(referenceMinDays)}〜${formatDays(referenceMaxDays)}日`)
+      lines.push("- 今回尺の確定日数: 150分超のため確認待ち")
+      lines.push("- 禁止: 17〜20日などの正本にない日数レンジ、尺による線形倍率計算")
+      lines.push("150分超は素材量・カメラ数・ぼかし箇所・チェック体制の確認を優先し、断定的な新規日数を発明しません。")
     } else {
       lines.push(
         `- 基本工程ライン: ${formatDays(jobContext.workflowEstimate.totalMinDays)}〜${formatDays(
           jobContext.workflowEstimate.totalMaxDays,
         )}日`,
       )
+      if (jobContext.jobKind === "live-60m") {
+        lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
+        lines.push("- 禁止: 17〜20日などの過大見積もり、60分の単純2.5倍で10日とする線形倍率計算")
+      }
       lines.push("このライン日数を正本ナレッジ由来の基準として扱い、追加作業・素材状況・希望納期で前後する説明を添えます。")
     }
   }

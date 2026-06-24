@@ -19,8 +19,13 @@ export const workflowDurationPresets = [
   { id: "drama-first", label: "ドラマ初回", minDays: 6, maxDays: 7 },
   { id: "drama-follow-up", label: "ドラマ 2話目以降", minDays: 5, maxDays: 5 },
   { id: "vertical-60s", label: "縦型 60秒", minDays: 1.5, maxDays: 1.5 },
-  { id: "live-60m", label: "ライブ 60分", minDays: 7, maxDays: 8 },
+  { id: "live-60m", label: "ライブ 60分", minDays: 4, maxDays: 4 },
 ] as const satisfies readonly WorkflowDurationPreset[]
+
+export const liveDurationAnchors = {
+  sixtyMinutes: { minutes: 60, minDays: 4, maxDays: 4 },
+  oneHundredFiftyMinutes: { minutes: 150, minDays: 7, maxDays: 8 },
+} as const
 
 export const workflowDurationJobKindMap = {
   "cm-30s": { presetId: "cm-30s", baselineMinutes: 0.5 },

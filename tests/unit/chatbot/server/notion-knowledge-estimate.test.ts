@@ -15,7 +15,7 @@ function jobContext(overrides: Partial<JobContext>): JobContext {
 }
 
 describe("chatbot duration estimator synced knowledge", () => {
-  it("uses the last successful Notion workflow-duration snapshot when available", () => {
+  it("keeps live anchors fixed even when an old synced snapshot has stale live-60m days", () => {
     const snapshot = createStaticChatbotKnowledgeSnapshot("2026-06-19T00:00:00.000Z")
     snapshot.workflowDurations.presets = snapshot.workflowDurations.presets.map((preset) =>
       preset.id === "live-60m"
@@ -25,14 +25,14 @@ describe("chatbot duration estimator synced knowledge", () => {
 
     const result = estimateWorkflow(jobContext({ projectLengthMinutes: 60 }), { knowledgeSnapshot: snapshot })
 
-    expect(result.totalMinDays).toBe(8)
-    expect(result.totalMaxDays).toBe(9)
+    expect(result.totalMinDays).toBe(4)
+    expect(result.totalMaxDays).toBe(4)
   })
 
-  it("keeps the existing live 60m 7-8 day estimate without a synced snapshot", () => {
+  it("uses the corrected live 60m 4 day estimate without a synced snapshot", () => {
     const result = estimateWorkflow(jobContext({ projectLengthMinutes: 60 }))
 
-    expect(result.totalMinDays).toBe(7)
-    expect(result.totalMaxDays).toBe(8)
+    expect(result.totalMinDays).toBe(4)
+    expect(result.totalMaxDays).toBe(4)
   })
 })

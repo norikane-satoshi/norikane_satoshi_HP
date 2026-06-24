@@ -458,8 +458,8 @@ describe("Notion chatbot knowledge sync", () => {
     expect(result.ok).toBe(false)
     expect(result.usedFallback).toBe(true)
     expect(result.snapshot.workflowDurations.presets.find((preset) => preset.id === "live-60m")).toMatchObject({
-      minDays: 7,
-      maxDays: 8,
+      minDays: 4,
+      maxDays: 4,
     })
     expect(repo.errors).toHaveLength(1)
   })

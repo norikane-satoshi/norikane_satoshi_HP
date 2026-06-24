@@ -17,7 +17,7 @@ describe("normalizeChatbotLlmResponse", () => {
     })
   })
 
-  it("replaces unsupported long live day ranges with confirmation wording", () => {
+  it("replaces overlarge live day ranges with the 150m anchor wording", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: "ライブ2.5時間規模ですと、**17〜20日程度**が通常のラインです。素材状況を確認します。",
@@ -35,23 +35,19 @@ describe("normalizeChatbotLlmResponse", () => {
             totalMinDays: 7,
             totalMaxDays: 8,
             riskFlags: [],
-            estimateStatus: "needs-confirmation",
-            referencePresetId: "live-60m",
-            referenceMinDays: 7,
-            referenceMaxDays: 8,
-            unsupportedReason: "live-duration-outside-baseline",
+            estimateStatus: "authoritative",
           },
         },
       },
     )
 
-    expect(normalized.content).toContain("60分ライブの参考基準は7〜8日")
-    expect(normalized.content).toContain("今回の尺では素材量・カメラ数・ぼかし箇所・チェック体制を確認")
+    expect(normalized.content).toContain("ライブ2時間30分の標準目安は7〜8日程度")
+    expect(normalized.content).toContain("素材量・カメラ数・ぼかし箇所・チェック体制で前後")
     expect(normalized.content).not.toContain("17〜20日")
     expect(normalized.content).not.toContain("通常のラインです")
   })
 
-  it("does not keep invented nearby ranges for unsupported live durations", () => {
+  it("does not keep invented nearby ranges for anchored live durations", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: "ライブ2時間半規模の工程目安は通常7〜9日です。素材状況や追加作業で前後します。",
@@ -69,17 +65,13 @@ describe("normalizeChatbotLlmResponse", () => {
             totalMinDays: 7,
             totalMaxDays: 8,
             riskFlags: [],
-            estimateStatus: "needs-confirmation",
-            referencePresetId: "live-60m",
-            referenceMinDays: 7,
-            referenceMaxDays: 8,
-            unsupportedReason: "live-duration-outside-baseline",
+            estimateStatus: "authoritative",
           },
         },
       },
     )
 
-    expect(normalized.content).toContain("60分ライブの参考基準は7〜8日")
+    expect(normalized.content).toContain("ライブ2時間30分の標準目安は7〜8日程度")
     expect(normalized.content).not.toContain("通常7〜9日")
   })
 
@@ -108,11 +100,7 @@ describe("normalizeChatbotLlmResponse", () => {
             totalMinDays: 7,
             totalMaxDays: 8,
             riskFlags: [],
-            estimateStatus: "needs-confirmation",
-            referencePresetId: "live-60m",
-            referenceMinDays: 7,
-            referenceMaxDays: 8,
-            unsupportedReason: "live-duration-outside-baseline",
+            estimateStatus: "authoritative",
           },
         },
       },
@@ -122,10 +110,10 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(normalized.content).not.toMatch(/17(?:日から|[〜～-])20日/u)
   })
 
-  it("keeps explicitly framed 60m reference baselines for unsupported live durations", () => {
+  it("keeps explicitly framed 150m live baselines", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
-        rawText: "60分ライブの参考基準は7〜8日です。2時間半の場合は素材量を確認します。",
+        rawText: "150分ライブの標準目安は7〜8日です。2時間半の場合は素材量を確認します。",
         tier: "tier-3-ollama-deepseek",
       },
       {
@@ -140,17 +128,13 @@ describe("normalizeChatbotLlmResponse", () => {
             totalMinDays: 7,
             totalMaxDays: 8,
             riskFlags: [],
-            estimateStatus: "needs-confirmation",
-            referencePresetId: "live-60m",
-            referenceMinDays: 7,
-            referenceMaxDays: 8,
-            unsupportedReason: "live-duration-outside-baseline",
+            estimateStatus: "authoritative",
           },
         },
       },
     )
 
-    expect(normalized.content).toBe("60分ライブの参考基準は7〜8日です。2時間半の場合は素材量を確認します。")
+    expect(normalized.content).toBe("150分ライブの標準目安は7〜8日です。2時間半の場合は素材量を確認します。")
   })
 
   it("does not rewrite unrelated price, date, or headcount ranges", () => {

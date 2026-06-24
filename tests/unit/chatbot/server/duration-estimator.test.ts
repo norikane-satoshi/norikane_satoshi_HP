@@ -101,13 +101,13 @@ describe("chatbot duration estimator", () => {
       }),
     )
 
-    expect(result.totalMinDays).toBe(7.5)
-    expect(result.totalMaxDays).toBe(9)
+    expect(result.totalMinDays).toBe(4.5)
+    expect(result.totalMaxDays).toBe(5)
     expect(result.estimateStatus).toBe("authoritative")
     expect(result.riskFlags).toContain("on-site-transfer")
   })
 
-  it("marks non-60m live duration as confirmation-required reference instead of authoritative", () => {
+  it("uses 150m live as an authoritative 7-8 day anchor", () => {
     const result = estimateWorkflow(
       jobContext({
         jobKind: "live-60m",
@@ -119,11 +119,20 @@ describe("chatbot duration estimator", () => {
     expect(result.totalMinDays).toBe(7)
     expect(result.totalMaxDays).toBe(8)
     expect(result).toMatchObject({
-      estimateStatus: "needs-confirmation",
-      referencePresetId: "live-60m",
-      referenceMinDays: 7,
-      referenceMaxDays: 8,
-      unsupportedReason: "live-duration-outside-baseline",
+      estimateStatus: "authoritative",
     })
+  })
+
+  it("keeps live duration growth non-linear between 60m and 150m", () => {
+    const result = estimateWorkflow(
+      jobContext({
+        jobKind: "live-60m",
+        finalMedium: "live",
+        projectLengthMinutes: 120,
+      }),
+    )
+
+    expect(result.totalMinDays).toBe(6.5)
+    expect(result.totalMaxDays).toBe(7.5)
   })
 })

@@ -9,6 +9,7 @@ import type {
 } from "@/lib/chatbot/domain"
 import {
   additionalWorkDurationRules,
+  liveDurationAnchors,
   strictDeliveryMediums,
   workflowDurationJobKindMap,
   workSiteDurationRules,
@@ -140,6 +141,10 @@ export function estimateBaseDuration(
   lengthMinutes?: number,
   options: DurationEstimatorOptions = {},
 ): BaseDurationRange {
+  if (jobKind === "live-60m") {
+    return estimateLiveBaseDuration(lengthMinutes)
+  }
+
   const jobKindRule = workflowDurationJobKindMap[jobKind]
   const workflowDurationPresets = getWorkflowDurationPresetsFromSnapshot(options.knowledgeSnapshot)
   const preset = workflowDurationPresets.find((item) => item.id === jobKindRule.presetId)
@@ -157,6 +162,46 @@ export function estimateBaseDuration(
       ? { note: "尺が基準と異なるため要相談" }
       : {}),
   }
+}
+
+function estimateLiveBaseDuration(lengthMinutes?: number): BaseDurationRange {
+  const length =
+    typeof lengthMinutes === "number" && Number.isFinite(lengthMinutes)
+      ? Math.max(0, lengthMinutes)
+      : liveDurationAnchors.sixtyMinutes.minutes
+  const shortAnchor = liveDurationAnchors.sixtyMinutes
+  const longAnchor = liveDurationAnchors.oneHundredFiftyMinutes
+
+  if (length <= shortAnchor.minutes) {
+    return {
+      minDays: shortAnchor.minDays,
+      maxDays: shortAnchor.maxDays,
+      ...(length !== shortAnchor.minutes ? { note: "60分以下は60分ライブ基準" } : {}),
+    }
+  }
+
+  if (length <= longAnchor.minutes) {
+    const ratio = (length - shortAnchor.minutes) / (longAnchor.minutes - shortAnchor.minutes)
+    const eased = 1 - (1 - ratio) ** 2
+
+    return {
+      minDays: roundToHalf(shortAnchor.minDays + (longAnchor.minDays - shortAnchor.minDays) * eased),
+      maxDays: roundToHalf(shortAnchor.maxDays + (longAnchor.maxDays - shortAnchor.maxDays) * eased),
+      ...(length !== longAnchor.minutes ? { note: "60分/150分アンカー間の緩やかな目安" } : {}),
+    }
+  }
+
+  const extraRatio = Math.min((length - longAnchor.minutes) / longAnchor.minutes, 1)
+
+  return {
+    minDays: longAnchor.minDays,
+    maxDays: roundToHalf(Math.min(9, longAnchor.maxDays + extraRatio)),
+    note: "150分超は素材量・カメラ数・チェック体制の確認優先",
+  }
+}
+
+function roundToHalf(value: number): number {
+  return Math.round(value * 2) / 2
 }
 
 export function applyAdditionalWorkAdjustment(
@@ -247,7 +292,7 @@ function getEstimateStatus(jobContext: JobContext, base: BaseDurationRange): Par
   if (
     jobContext.jobKind === "live-60m" &&
     typeof jobContext.projectLengthMinutes === "number" &&
-    jobContext.projectLengthMinutes !== workflowDurationJobKindMap["live-60m"].baselineMinutes
+    jobContext.projectLengthMinutes > liveDurationAnchors.oneHundredFiftyMinutes.minutes
   ) {
     return {
       estimateStatus: "needs-confirmation",
