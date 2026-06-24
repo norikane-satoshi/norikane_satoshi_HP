@@ -231,11 +231,12 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     })
 
     const promise = client.generate(llmRequest())
+    const rejection = promise.catch((error: unknown) => error)
     await flushMicrotasks()
     expect(httpClient).toHaveBeenCalledTimes(2)
     await vi.advanceTimersByTimeAsync(20)
 
-    await expect(promise).rejects.toMatchObject({
+    await expect(rejection).resolves.toMatchObject({
       code: "timeout",
       isRetryable: true,
       cause: {
