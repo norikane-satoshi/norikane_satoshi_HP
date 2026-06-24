@@ -218,6 +218,7 @@ const defaultCreatedSource = "assistant"
 const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
 const emptyText = ""
+const maxTransientGenerateAttempts = 2
 let tier1GenerateQueue = Promise.resolve()
 
 export const tier1ChromeNotionAiDefaults = {
@@ -277,12 +278,27 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         idFactory: this.idFactory,
       })
       const headers = buildRunInferenceHeaders(effectiveRuntimeContext)
-      const result = await this.evaluate<NotionAiInferenceResult>(
-        session,
-        buildRunInferenceExpression(payload, headers),
-        this.config.requestTimeoutMs,
-      )
+      let result: NotionAiInferenceResult | undefined
+      let inferenceAttempts = 0
 
+      for (let attempt = 1; attempt <= maxTransientGenerateAttempts; attempt += 1) {
+        inferenceAttempts = attempt
+        result = await this.evaluate<NotionAiInferenceResult>(
+          session,
+          buildRunInferenceExpression(payload, headers),
+          this.config.requestTimeoutMs,
+        )
+        if (!this.isTransientEmptyInferenceResult(result) || attempt >= maxTransientGenerateAttempts) break
+        await delay(250)
+      }
+
+      if (!result) {
+        throw this.toLlmError({
+          message: "Notion AI inference did not return a result.",
+          code: "unknown",
+          isRetryable: true,
+        })
+      }
       if (!result.ok) throw this.mapInferenceResult(result)
 
       const rawText = result.rawText.trim()
@@ -307,6 +323,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           ndjsonPartialParsed: result.parsedPartial,
           ndjsonFinalParsed: result.parsedFinal,
           chunkCount: result.chunkCount,
+          inferenceAttempts,
           attachTargetUrl: target.url,
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
         },
@@ -531,12 +548,25 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       cause: input.cause,
     })
   }
+
+  private isTransientEmptyInferenceResult(result: NotionAiInferenceResult): boolean {
+    if (!result.ok) return isTransientEmptyNotionResponse(result.message)
+    return result.rawText.trim() === emptyText || result.chunkCount === 0
+  }
 }
 
 function runTier1GenerateExclusive<T>(operation: () => Promise<T>): Promise<T> {
   const run = tier1GenerateQueue.then(operation, operation)
   tier1GenerateQueue = run.then(() => undefined, () => undefined)
   return run
+}
+
+function isTransientEmptyNotionResponse(message: string): boolean {
+  return message.includes("bytes=0") || message.includes("empty NDJSON stream")
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export function createTier1ChromeNotionAiClient(

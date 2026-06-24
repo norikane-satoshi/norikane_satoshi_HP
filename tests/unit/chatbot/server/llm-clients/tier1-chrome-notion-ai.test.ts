@@ -731,6 +731,44 @@ describe("Tier1ChromeNotionAiClient", () => {
     })
   })
 
+  it("retries transient empty Notion AI responses before falling back", async () => {
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () =>
+        sessionReturning([
+          {
+            spaceId: "space-id",
+            userId: "user-id",
+            selectedModel: "notion-current-model",
+            availableModels: ["apricot-sorbet-high"],
+          },
+          {
+            ok: false,
+            code: "invalid-output",
+            message: "Notion AI response text could not be extracted. bytes=0 preview=",
+          },
+          {
+            ok: true,
+            rawText: "相談内容を整理します。",
+            chunkCount: 1,
+            postDataBytes: 100,
+            responseBytes: 20,
+            responseContentType: "application/x-ndjson",
+            responseHeaders: {},
+            parsedPartial: false,
+            parsedFinal: true,
+          },
+        ]),
+    })
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      rawText: "相談内容を整理します。",
+      diagnostics: {
+        inferenceAttempts: 2,
+      },
+    })
+  })
+
   it("throws invalid-output when the NDJSON stream has no assistant text", async () => {
     const client = new Tier1ChromeNotionAiClient({
       fetchClient: cdpFetch(),
@@ -742,6 +780,7 @@ describe("Tier1ChromeNotionAiClient", () => {
             selectedModel: "notion-current-model",
             availableModels: ["apricot-sorbet-high"],
           },
+          { ok: true, rawText: "", chunkCount: 1 },
           { ok: true, rawText: "", chunkCount: 1 },
         ]),
     })
