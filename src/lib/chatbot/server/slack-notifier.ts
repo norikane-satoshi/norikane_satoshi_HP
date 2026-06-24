@@ -15,6 +15,18 @@ export type ChatbotSlackNotificationResult =
   | { status: "skipped"; reason: "disabled" | "missing-slack-config" }
   | { status: "failed"; reason: "send-failed" }
 
+export type ChatbotRetryDiagnosticsSummary = {
+  attemptCount?: number
+  maxAttempts?: number
+  retryReasons?: string[]
+  repairAttempted?: boolean
+  totalGenerateDurationMs?: number
+  totalGenerateBudgetMs?: number
+  perAttemptTimeoutMs?: number
+  fallbackReason?: string
+  exhausted?: boolean
+}
+
 export type ChatbotSlackNotificationInput = {
   kind: "conversation" | "issue" | "booking-completed"
   requestId?: string
@@ -31,6 +43,7 @@ export type ChatbotSlackNotificationInput = {
   assistantResponse?: string
   bookingProgress?: boolean
   issueReasons?: string[]
+  retryDiagnostics?: ChatbotRetryDiagnosticsSummary | Record<string, unknown>
   bookingGroupId?: string
   selectedSlotCount?: number
 }
@@ -149,7 +162,68 @@ function formatRequiredOperationLines(input: ChatbotSlackNotificationInput): str
     ...(input.flowStep ? [`flowStep: ${input.flowStep}`] : []),
     ...(input.flowStepReason ? [`flowStepReason: ${redactForChatbotLog(input.flowStepReason)}`] : []),
     ...(typeof input.bookingProgress === "boolean" ? [`bookingProgress: ${input.bookingProgress}`] : []),
+    ...formatRetryDiagnosticLines(input.retryDiagnostics),
   ]
+}
+
+function formatRetryDiagnosticLines(
+  diagnostics: ChatbotSlackNotificationInput["retryDiagnostics"],
+): string[] {
+  const summary = coerceRetryDiagnosticsSummary(diagnostics)
+  if (!summary) return []
+
+  return [
+    ...(typeof summary.attemptCount === "number"
+      ? [`retryAttempts: ${summary.attemptCount}${typeof summary.maxAttempts === "number" ? `/${summary.maxAttempts}` : ""}`]
+      : []),
+    ...(summary.retryReasons?.length ? [`retryReasons: ${summary.retryReasons.join(",")}`] : []),
+    ...(typeof summary.repairAttempted === "boolean" ? [`repairAttempted: ${summary.repairAttempted}`] : []),
+    ...(typeof summary.totalGenerateDurationMs === "number"
+      ? [`totalGenerateDurationMs: ${summary.totalGenerateDurationMs}`]
+      : []),
+    ...(typeof summary.totalGenerateBudgetMs === "number" ? [`totalGenerateBudgetMs: ${summary.totalGenerateBudgetMs}`] : []),
+    ...(typeof summary.perAttemptTimeoutMs === "number" ? [`perAttemptTimeoutMs: ${summary.perAttemptTimeoutMs}`] : []),
+    ...(summary.fallbackReason ? [`fallbackReason: ${redactForChatbotLog(summary.fallbackReason)}`] : []),
+    ...(typeof summary.exhausted === "boolean" ? [`retryExhausted: ${summary.exhausted}`] : []),
+  ]
+}
+
+function coerceRetryDiagnosticsSummary(
+  diagnostics: ChatbotSlackNotificationInput["retryDiagnostics"],
+): ChatbotRetryDiagnosticsSummary | undefined {
+  if (!diagnostics || typeof diagnostics !== "object" || Array.isArray(diagnostics)) return undefined
+
+  const summary: ChatbotRetryDiagnosticsSummary = {}
+  const maybeNumber = (key: keyof ChatbotRetryDiagnosticsSummary) => {
+    const value = diagnostics[key]
+    if (typeof value === "number" && Number.isFinite(value)) summary[key] = value as never
+  }
+  const maybeBoolean = (key: keyof ChatbotRetryDiagnosticsSummary) => {
+    const value = diagnostics[key]
+    if (typeof value === "boolean") summary[key] = value as never
+  }
+  const maybeString = (key: keyof ChatbotRetryDiagnosticsSummary) => {
+    const value = diagnostics[key]
+    if (typeof value === "string" && value.trim()) summary[key] = value.trim() as never
+  }
+
+  maybeNumber("attemptCount")
+  maybeNumber("maxAttempts")
+  maybeNumber("totalGenerateDurationMs")
+  maybeNumber("totalGenerateBudgetMs")
+  maybeNumber("perAttemptTimeoutMs")
+  maybeBoolean("repairAttempted")
+  maybeBoolean("exhausted")
+  maybeString("fallbackReason")
+
+  const retryReasons = diagnostics.retryReasons
+  if (Array.isArray(retryReasons)) {
+    summary.retryReasons = retryReasons
+      .filter((reason): reason is string => typeof reason === "string" && reason.trim().length > 0)
+      .map((reason) => redactForChatbotLog(reason.trim()))
+  }
+
+  return Object.keys(summary).length > 0 ? summary : undefined
 }
 
 function formatIssueReasonLines(reasons: string[] | undefined): string[] {

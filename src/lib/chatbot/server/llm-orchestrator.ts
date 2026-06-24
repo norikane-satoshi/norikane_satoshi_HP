@@ -17,6 +17,7 @@ export type TierAttemptEvent = {
   outcome: "healthy" | "unhealthy" | "success" | "error"
   error?: ChatbotLlmError | Error
   latencyMs: number
+  diagnostics?: ChatbotLlmResponse["diagnostics"]
 }
 
 export interface ChatbotLlmTierOrchestrator {
@@ -85,6 +86,7 @@ export function createChatbotLlmTierOrchestrator(
             phase: "generate",
             outcome: "success",
             latencyMs: Date.now() - startedAt,
+            diagnostics: response.diagnostics,
           })
           return response
         } catch (error) {

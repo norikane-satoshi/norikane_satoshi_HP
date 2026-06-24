@@ -9,6 +9,7 @@ type Tier2HostedChromeNotionAiClientConfig = {
   token?: string
   requestTimeoutMs: number
   healthCheckTimeoutMs: number
+  totalGenerateBudgetMs: number
   enabled: boolean
 }
 
@@ -19,6 +20,7 @@ type Tier2HostedChromeNotionAiClientOptions = Partial<Tier2HostedChromeNotionAiC
 type Tier2HostedWorkerHttpClient = (input: string, init?: RequestInit) => Promise<Response>
 
 type TimeoutTag = "timeout"
+type RetryFailureReason = "timeout" | "server-error" | "connection" | "rate-limit" | "auth" | "unknown"
 type HostedWorkerErrorSummary = {
   endpoint: string
   httpStatus: number
@@ -37,6 +39,34 @@ type HostedWorkerGenerateResponse = {
   latencyMs?: unknown
 }
 
+type GenerateAttemptDiagnostic = {
+  attempt: number
+  outcome: "success" | "error"
+  durationMs: number
+  timeoutMs: number
+  reason?: RetryFailureReason
+  httpStatus?: number
+  errorCode?: string
+  retryable?: boolean
+}
+
+type GenerateRetryDiagnostics = {
+  attemptCount: number
+  maxAttempts: number
+  repairAttempted: boolean
+  retryReasons: RetryFailureReason[]
+  totalDurationMs: number
+  totalBudgetMs: number
+  perAttemptTimeoutMs: number
+  exhausted?: boolean
+  fallbackReason?: RetryFailureReason | "budget-exhausted"
+  attempts: GenerateAttemptDiagnostic[]
+}
+
+type HostedWorkerGenerateResponseWithDiagnostics = HostedWorkerGenerateResponse & {
+  retryDiagnostics: GenerateRetryDiagnostics
+}
+
 class HostedWorkerHttpStatusError extends Error {
   constructor(
     readonly status: number,
@@ -50,6 +80,7 @@ class HostedWorkerHttpStatusError extends Error {
 export const tier2HostedChromeNotionAiDefaults = {
   requestTimeoutMs: 55000,
   healthCheckTimeoutMs: 3000,
+  totalGenerateBudgetMs: 65000,
   enabled: true,
 } as const
 
@@ -70,6 +101,7 @@ const httpStatusForbidden = 403
 const httpStatusTooManyRequests = 429
 const firstServerErrorStatus = 500
 const maxGenerateAttempts = 3
+const minRetryAttemptBudgetMs = 5000
 
 export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
   readonly tier = tier
@@ -84,6 +116,8 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
       requestTimeoutMs: options.requestTimeoutMs ?? tier2HostedChromeNotionAiDefaults.requestTimeoutMs,
       healthCheckTimeoutMs:
         options.healthCheckTimeoutMs ?? tier2HostedChromeNotionAiDefaults.healthCheckTimeoutMs,
+      totalGenerateBudgetMs:
+        options.totalGenerateBudgetMs ?? tier2HostedChromeNotionAiDefaults.totalGenerateBudgetMs,
       enabled: options.enabled ?? tier2HostedChromeNotionAiDefaults.enabled,
     }
     this.httpClient = options.httpClient ?? globalFetch
@@ -113,7 +147,14 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
         diagnostics: {
           endpoint: generateEndpointPath,
           workerLatencyMs: numberOrUndefined(response.latencyMs),
-          repairAttempted: response.repairAttempted,
+          repairAttempted: response.retryDiagnostics.repairAttempted,
+          attemptCount: response.retryDiagnostics.attemptCount,
+          maxAttempts: response.retryDiagnostics.maxAttempts,
+          retryReasons: response.retryDiagnostics.retryReasons,
+          totalGenerateDurationMs: response.retryDiagnostics.totalDurationMs,
+          totalGenerateBudgetMs: response.retryDiagnostics.totalBudgetMs,
+          perAttemptTimeoutMs: response.retryDiagnostics.perAttemptTimeoutMs,
+          attempts: response.retryDiagnostics.attempts,
         },
       }
     } catch (error) {
@@ -121,46 +162,95 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
     }
   }
 
-  private async generateWithRepair(
-    request: ChatbotLlmRequest,
-  ): Promise<HostedWorkerGenerateResponse & { repairAttempted?: boolean }> {
+  private async generateWithRepair(request: ChatbotLlmRequest): Promise<HostedWorkerGenerateResponseWithDiagnostics> {
+    const startedAt = Date.now()
     const init = {
       method: httpMethodPost,
       headers: this.headers({ contentType: true }),
       body: JSON.stringify(request),
     }
-    let repairAttempted = false
+    const retryDiagnostics: GenerateRetryDiagnostics = {
+      attemptCount: 0,
+      maxAttempts: maxGenerateAttempts,
+      repairAttempted: false,
+      retryReasons: [],
+      totalDurationMs: 0,
+      totalBudgetMs: this.config.totalGenerateBudgetMs,
+      perAttemptTimeoutMs: this.config.requestTimeoutMs,
+      attempts: [],
+    }
 
-    await this.tryEnsureChrome()
+    await this.tryEnsureChrome(startedAt)
 
     for (let attempt = 1; attempt <= maxGenerateAttempts; attempt += 1) {
+      const remainingBudgetMs = remainingGenerateBudgetMs(startedAt, this.config.totalGenerateBudgetMs)
+      if (remainingBudgetMs <= 0) {
+        throw this.toBudgetExhaustedError(finalizeRetryDiagnostics(retryDiagnostics, startedAt, "budget-exhausted"))
+      }
+
+      const attemptStartedAt = Date.now()
+      const attemptTimeoutMs = Math.min(this.config.requestTimeoutMs, remainingBudgetMs)
+      retryDiagnostics.attemptCount = attempt
+
       try {
         const response = await this.requestJson<HostedWorkerGenerateResponse>(
           generateEndpointPath,
           init,
-          this.config.requestTimeoutMs,
+          attemptTimeoutMs,
         )
-        return repairAttempted ? { ...response, repairAttempted } : response
+        retryDiagnostics.attempts.push({
+          attempt,
+          outcome: "success",
+          durationMs: Date.now() - attemptStartedAt,
+          timeoutMs: attemptTimeoutMs,
+        })
+        return {
+          ...response,
+          retryDiagnostics: finalizeRetryDiagnostics(retryDiagnostics, startedAt),
+        }
       } catch (error) {
-        if (attempt >= maxGenerateAttempts || !shouldRepairAndRetry(error)) throw error
-      }
+        const failure = summarizeGenerateFailure(error)
+        retryDiagnostics.attempts.push({
+          attempt,
+          outcome: "error",
+          durationMs: Date.now() - attemptStartedAt,
+          timeoutMs: attemptTimeoutMs,
+          reason: failure.reason,
+          ...(failure.httpStatus ? { httpStatus: failure.httpStatus } : {}),
+          ...(failure.errorCode ? { errorCode: failure.errorCode } : {}),
+          retryable: failure.retryable,
+        })
 
-      repairAttempted = true
-      await this.tryEnsureChrome()
+        if (!canRetryGenerate({ attempt, failure, startedAt, config: this.config })) {
+          throw this.toGenerateFailureError(
+            error,
+            finalizeRetryDiagnostics(retryDiagnostics, startedAt, failure.reason, true),
+          )
+        }
+
+        retryDiagnostics.retryReasons.push(failure.reason)
+        retryDiagnostics.repairAttempted = true
+        await this.tryEnsureChrome(startedAt)
+      }
     }
 
-    throw new Error("Hosted Notion AI worker generate retry loop exhausted.")
+    throw this.toBudgetExhaustedError(finalizeRetryDiagnostics(retryDiagnostics, startedAt, "budget-exhausted", true))
   }
 
-  private async tryEnsureChrome(): Promise<void> {
+  private async tryEnsureChrome(generateStartedAt?: number): Promise<void> {
     try {
+      const timeoutMs = generateStartedAt
+        ? Math.min(this.config.healthCheckTimeoutMs, remainingGenerateBudgetMs(generateStartedAt, this.config.totalGenerateBudgetMs))
+        : this.config.healthCheckTimeoutMs
+      if (timeoutMs <= 0) return
+
       await this.requestJson<unknown>(
         ensureChromeEndpointPath,
         {
           method: httpMethodPost,
           headers: this.headers(),
         },
-        this.config.healthCheckTimeoutMs,
+        timeoutMs,
       )
     } catch {
       // The original generate error is more useful than a failed repair probe.
@@ -219,11 +309,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
     }
   }
 
-  private async requestJson<T>(
-    path: string,
-    init: RequestInit,
-    timeoutMs: number,
-  ): Promise<T> {
+  private async requestJson<T>(path: string, init: RequestInit, timeoutMs: number): Promise<T> {
     const response = await this.request(path, init, timeoutMs)
 
     if (!response.ok) {
@@ -299,10 +385,27 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
     })
   }
 
-  private mapHttpStatusError(
-    error: unknown,
-    input: { fallbackMessage: string },
-  ): ChatbotLlmError {
+  private toGenerateFailureError(error: unknown, diagnostics: GenerateRetryDiagnostics): ChatbotLlmError {
+    const mapped = this.mapGenerateError(error)
+    return new ChatbotLlmError({
+      message: mapped.message,
+      code: mapped.code,
+      tier: mapped.tier,
+      isRetryable: mapped.isRetryable,
+      cause: mergeCauseWithRetryDiagnostics(mapped.cause, diagnostics),
+    })
+  }
+
+  private toBudgetExhaustedError(diagnostics: GenerateRetryDiagnostics): ChatbotLlmError {
+    return this.toLlmError({
+      message: "Hosted Notion AI worker retry budget was exhausted.",
+      code: "timeout",
+      isRetryable: true,
+      cause: { retryDiagnostics: diagnostics },
+    })
+  }
+
+  private mapHttpStatusError(error: unknown, input: { fallbackMessage: string }): ChatbotLlmError {
     if (error instanceof HostedWorkerHttpStatusError) {
       if (error.status === httpStatusUnauthorized || error.status === httpStatusForbidden) {
         return this.toLlmError({
@@ -356,15 +459,76 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
   }
 }
 
-function shouldRepairAndRetry(error: unknown): boolean {
-  if (error === timeoutTag) return true
-  if (error instanceof ChatbotLlmError) {
-    return error.code === "connection" || error.code === "timeout"
-  }
+function canRetryGenerate(input: {
+  attempt: number
+  failure: ReturnType<typeof summarizeGenerateFailure>
+  startedAt: number
+  config: Tier2HostedChromeNotionAiClientConfig
+}): boolean {
+  if (input.attempt >= maxGenerateAttempts || !input.failure.retryable) return false
+
+  const remainingAfterRepair =
+    remainingGenerateBudgetMs(input.startedAt, input.config.totalGenerateBudgetMs) - input.config.healthCheckTimeoutMs
+  if (remainingAfterRepair <= 0) return false
+
+  if (input.failure.reason === "timeout") return remainingAfterRepair >= minRetryAttemptBudgetMs
+  return true
+}
+
+function summarizeGenerateFailure(error: unknown): {
+  reason: RetryFailureReason
+  retryable: boolean
+  httpStatus?: number
+  errorCode?: string
+} {
+  if (error === timeoutTag) return { reason: "timeout", retryable: true }
+
   if (error instanceof HostedWorkerHttpStatusError) {
-    return error.status >= firstServerErrorStatus
+    if (error.status === httpStatusUnauthorized || error.status === httpStatusForbidden) {
+      return { reason: "auth", retryable: false, httpStatus: error.status, errorCode: error.summary.errorCode }
+    }
+    if (error.status === httpStatusTooManyRequests) {
+      return { reason: "rate-limit", retryable: true, httpStatus: error.status, errorCode: error.summary.errorCode }
+    }
+    if (error.status >= firstServerErrorStatus) {
+      return { reason: "server-error", retryable: true, httpStatus: error.status, errorCode: error.summary.errorCode }
+    }
+    return { reason: "unknown", retryable: false, httpStatus: error.status, errorCode: error.summary.errorCode }
   }
-  return false
+
+  if (error instanceof ChatbotLlmError) {
+    if (error.code === "timeout") return { reason: "timeout", retryable: error.isRetryable, errorCode: error.code }
+    if (error.code === "connection") return { reason: "connection", retryable: error.isRetryable, errorCode: error.code }
+    if (error.code === "rate-limit") return { reason: "rate-limit", retryable: error.isRetryable, errorCode: error.code }
+    if (error.code === "auth") return { reason: "auth", retryable: false, errorCode: error.code }
+    return { reason: "unknown", retryable: error.isRetryable, errorCode: error.code }
+  }
+
+  return { reason: "unknown", retryable: false }
+}
+
+function finalizeRetryDiagnostics(
+  diagnostics: GenerateRetryDiagnostics,
+  startedAt: number,
+  fallbackReason?: GenerateRetryDiagnostics["fallbackReason"],
+  exhausted?: boolean,
+): GenerateRetryDiagnostics {
+  return {
+    ...diagnostics,
+    totalDurationMs: Date.now() - startedAt,
+    ...(fallbackReason ? { fallbackReason } : {}),
+    ...(exhausted ? { exhausted } : {}),
+  }
+}
+
+function mergeCauseWithRetryDiagnostics(cause: unknown, diagnostics: GenerateRetryDiagnostics): Record<string, unknown> {
+  if (isRecord(cause)) return { ...cause, retryDiagnostics: diagnostics }
+  if (cause === undefined) return { retryDiagnostics: diagnostics }
+  return { originalCause: sanitizeLogText(String(cause)), retryDiagnostics: diagnostics }
+}
+
+function remainingGenerateBudgetMs(startedAt: number, totalBudgetMs: number): number {
+  return Math.max(0, totalBudgetMs - (Date.now() - startedAt))
 }
 
 export function createTier2HostedChromeNotionAiClient(
@@ -384,6 +548,10 @@ export function createTier2HostedChromeNotionAiClient(
     healthCheckTimeoutMs: parsePositiveInteger(
       env.CHATBOT_HOSTED_NOTION_AI_HEALTH_TIMEOUT_MS,
       tier2HostedChromeNotionAiDefaults.healthCheckTimeoutMs,
+    ),
+    totalGenerateBudgetMs: parsePositiveInteger(
+      env.CHATBOT_HOSTED_NOTION_AI_TOTAL_BUDGET_MS,
+      tier2HostedChromeNotionAiDefaults.totalGenerateBudgetMs,
     ),
     enabled: parseEnabled(env.CHATBOT_HOSTED_NOTION_AI_ENABLED),
     ...overrides,
@@ -420,6 +588,8 @@ function readHostedNotionAiEnv(): Record<string, string | undefined> {
     CHATBOT_HOSTED_NOTION_AI_HEALTH_TIMEOUT_MS:
       process.env.CHATBOT_HOSTED_NOTION_AI_HEALTH_TIMEOUT_MS ??
       localEnv.CHATBOT_HOSTED_NOTION_AI_HEALTH_TIMEOUT_MS,
+    CHATBOT_HOSTED_NOTION_AI_TOTAL_BUDGET_MS:
+      process.env.CHATBOT_HOSTED_NOTION_AI_TOTAL_BUDGET_MS ?? localEnv.CHATBOT_HOSTED_NOTION_AI_TOTAL_BUDGET_MS,
     CHATBOT_HOSTED_NOTION_AI_ENABLED:
       process.env.CHATBOT_HOSTED_NOTION_AI_ENABLED ?? localEnv.CHATBOT_HOSTED_NOTION_AI_ENABLED,
   }

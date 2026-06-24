@@ -2801,6 +2801,73 @@ describe("handleChatbotMessage user context", () => {
     }))
   })
 
+  it("passes only safe retry diagnostics to Slack conversation notifications", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "通常応答です。",
+      tier: "tier-2-hosted-chrome-notion-ai",
+      diagnostics: {
+        attemptCount: 2,
+        maxAttempts: 3,
+        retryReasons: ["timeout", "502"],
+        repairAttempted: true,
+        totalGenerateDurationMs: 4100,
+        totalGenerateBudgetMs: 45000,
+        perAttemptTimeoutMs: 15000,
+        fallbackReason: "retryable-timeout",
+        exhausted: false,
+        attempts: [{ attempt: 1, requestBody: "raw" }],
+        token: "secret-token",
+        cookie: "secret-cookie",
+        authorization: "Bearer secret",
+        systemPrompt: "secret system prompt",
+        latestUserMessage: "secret user message",
+        rawPrompt: "raw prompt",
+        rawRequest: { body: "raw" },
+        requestBody: { prompt: "raw" },
+        browser: { endpoint: "ws://cdp" },
+      },
+    })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "Tier2 retry diagnostics" },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "conversation",
+      tier: "tier-2-hosted-chrome-notion-ai",
+      retryDiagnostics: {
+        attemptCount: 2,
+        maxAttempts: 3,
+        retryReasons: ["timeout", "502"],
+        repairAttempted: true,
+        totalGenerateDurationMs: 4100,
+        totalGenerateBudgetMs: 45000,
+        perAttemptTimeoutMs: 15000,
+        fallbackReason: "retryable-timeout",
+        exhausted: false,
+      },
+    }))
+    const notification = harness.slackNotifier.mock.calls[0]?.[0]
+    expect(JSON.stringify(notification.retryDiagnostics)).not.toContain("secret")
+    expect(notification.retryDiagnostics).not.toHaveProperty("attempts")
+    expect(notification.retryDiagnostics).not.toHaveProperty("token")
+    expect(notification.retryDiagnostics).not.toHaveProperty("cookie")
+    expect(notification.retryDiagnostics).not.toHaveProperty("authorization")
+    expect(notification.retryDiagnostics).not.toHaveProperty("systemPrompt")
+    expect(notification.retryDiagnostics).not.toHaveProperty("latestUserMessage")
+    expect(notification.retryDiagnostics).not.toHaveProperty("rawPrompt")
+    expect(notification.retryDiagnostics).not.toHaveProperty("rawRequest")
+    expect(notification.retryDiagnostics).not.toHaveProperty("requestBody")
+    expect(notification.retryDiagnostics).not.toHaveProperty("browser")
+  })
+
   it("posts a problem notification when a response falls below hosted tier2", async () => {
     const harness = setup({
       existingConversation: conversation({
@@ -2843,5 +2910,56 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(harness.repository.updateConversationSlackThreadTs).not.toHaveBeenCalled()
     consoleWarn.mockRestore()
+  })
+
+  it("passes the same safe retry diagnostics to tier4 issue notifications", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "フォームで相談内容を送ってください。",
+      tier: "tier-4-form-fallback",
+      diagnostics: {
+        attemptCount: 3,
+        maxAttempts: 3,
+        retryReasons: ["timeout"],
+        totalGenerateDurationMs: 45000,
+        totalGenerateBudgetMs: 45000,
+        exhausted: true,
+        attempts: [{ attempt: 3, requestBody: "raw" }],
+        token: "secret-token",
+        systemPrompt: "secret system prompt",
+      },
+    })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "Tier4 diagnostics" },
+      harness.options,
+    )
+
+    const expectedRetryDiagnostics = {
+      attemptCount: 3,
+      maxAttempts: 3,
+      retryReasons: ["timeout"],
+      totalGenerateDurationMs: 45000,
+      totalGenerateBudgetMs: 45000,
+      exhausted: true,
+    }
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      kind: "conversation",
+      retryDiagnostics: expectedRetryDiagnostics,
+    }))
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      kind: "issue",
+      retryDiagnostics: expectedRetryDiagnostics,
+    }))
+    const issueNotification = harness.slackNotifier.mock.calls[1]?.[0]
+    expect(JSON.stringify(issueNotification.retryDiagnostics)).not.toContain("secret")
+    expect(issueNotification.retryDiagnostics).not.toHaveProperty("attempts")
+    expect(issueNotification.retryDiagnostics).not.toHaveProperty("token")
+    expect(issueNotification.retryDiagnostics).not.toHaveProperty("systemPrompt")
   })
 })

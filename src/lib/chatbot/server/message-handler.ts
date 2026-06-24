@@ -68,6 +68,7 @@ import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 import {
   sendChatbotSlackNotification,
+  type ChatbotRetryDiagnosticsSummary,
   type ChatbotSlackNotificationInput,
 } from "@/lib/chatbot/server/slack-notifier"
 
@@ -326,6 +327,7 @@ export async function handleChatbotMessage(
     temperature: 0.2,
     maxOutputTokens: 900,
   })
+  const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
   const fallbackRoutingDecision = decideRoutingFallback({
     jobContext,
     conversationState,
@@ -408,6 +410,7 @@ export async function handleChatbotMessage(
     choiceSetId: routingDecision?.kind === "continue" ? routingDecision.presentChoices?.id : undefined,
     issueReasons,
     userAgent: input.userAgent,
+    retryDiagnostics,
   })
   if (routingDecision) {
     try {
@@ -448,6 +451,7 @@ export async function handleChatbotMessage(
     }),
     flowStepReason: persistedConversationState.activeIntakeClarification?.reason,
     issueReasons,
+    retryDiagnostics,
   })
 
   return {
@@ -530,6 +534,7 @@ async function notifySlackForChatbotResponse(input: {
   flowStep: ChatbotFlowStep
   flowStepReason?: string
   issueReasons?: string[]
+  retryDiagnostics?: ChatbotRetryDiagnosticsSummary
 }): Promise<void> {
   try {
     const threadTs = input.conversation.context.slackThreadTs
@@ -548,6 +553,7 @@ async function notifySlackForChatbotResponse(input: {
       userMessage: input.userText,
       assistantResponse: input.assistantText,
       bookingProgress: input.bookingProgress,
+      retryDiagnostics: input.retryDiagnostics,
     }
     const result = await input.notifier(baseNotification)
     const savedThreadTs = threadTs ?? (result.status === "sent" ? result.ts : null)
@@ -571,6 +577,7 @@ async function notifySlackForChatbotResponse(input: {
         choiceSetId: input.choiceSetId,
         threadTs: savedThreadTs,
         issueReasons,
+        retryDiagnostics: input.retryDiagnostics,
       })
     }
   } catch (error) {
@@ -989,6 +996,7 @@ function logChatbotLlmTierAttempt(
       phase: event.phase,
       outcome: event.outcome,
       latencyMs: event.latencyMs,
+      retryDiagnostics: summarizeChatbotRetryDiagnostics(event.diagnostics),
       ...(event.error ? { error: serializeTierAttemptError(event.error) } : {}),
     }),
   )
@@ -1004,6 +1012,7 @@ function logChatbotLlmFinalResponse(input: {
   choiceSetId?: string
   issueReasons: string[]
   userAgent?: string
+  retryDiagnostics?: ChatbotRetryDiagnosticsSummary
 }): void {
   if (process.env.NODE_ENV === "test") return
 
@@ -1020,8 +1029,52 @@ function logChatbotLlmFinalResponse(input: {
       choiceSetId: input.choiceSetId,
       incident: input.issueReasons.length > 0,
       issueReasons: input.issueReasons,
+      retryDiagnostics: input.retryDiagnostics,
     }),
   )
+}
+
+function summarizeChatbotRetryDiagnostics(diagnostics: unknown): ChatbotRetryDiagnosticsSummary | undefined {
+  if (!diagnostics || typeof diagnostics !== "object" || Array.isArray(diagnostics)) return undefined
+  const source = diagnostics as Record<string, unknown>
+  const summary: ChatbotRetryDiagnosticsSummary = {}
+
+  assignFiniteNumber(summary, "attemptCount", source.attemptCount)
+  assignFiniteNumber(summary, "maxAttempts", source.maxAttempts)
+  assignFiniteNumber(summary, "totalGenerateDurationMs", source.totalGenerateDurationMs)
+  assignFiniteNumber(summary, "totalGenerateBudgetMs", source.totalGenerateBudgetMs)
+  assignFiniteNumber(summary, "perAttemptTimeoutMs", source.perAttemptTimeoutMs)
+  assignBoolean(summary, "repairAttempted", source.repairAttempted)
+  assignBoolean(summary, "exhausted", source.exhausted)
+
+  if (typeof source.fallbackReason === "string" && source.fallbackReason.trim()) {
+    summary.fallbackReason = redactForChatbotLog(source.fallbackReason.trim())
+  }
+
+  if (Array.isArray(source.retryReasons)) {
+    const retryReasons = source.retryReasons
+      .filter((reason): reason is string => typeof reason === "string" && reason.trim().length > 0)
+      .map((reason) => redactForChatbotLog(reason.trim()))
+    if (retryReasons.length > 0) summary.retryReasons = retryReasons
+  }
+
+  return Object.keys(summary).length > 0 ? summary : undefined
+}
+
+function assignFiniteNumber(
+  target: ChatbotRetryDiagnosticsSummary,
+  key: "attemptCount" | "maxAttempts" | "totalGenerateDurationMs" | "totalGenerateBudgetMs" | "perAttemptTimeoutMs",
+  value: unknown,
+): void {
+  if (typeof value === "number" && Number.isFinite(value)) target[key] = value
+}
+
+function assignBoolean(
+  target: ChatbotRetryDiagnosticsSummary,
+  key: "repairAttempted" | "exhausted",
+  value: unknown,
+): void {
+  if (typeof value === "boolean") target[key] = value
 }
 
 function serializeTierAttemptError(error: Error) {
