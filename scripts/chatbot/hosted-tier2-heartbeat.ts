@@ -144,7 +144,7 @@ export async function runHeartbeat(
     nextState.status === "unhealthy" &&
     previous.status !== "unhealthy" &&
     config.repair &&
-    shouldAttemptRepair(nextState, checks, now)
+    shouldAttemptRepair(previous, nextState, checks, now)
   ) {
     const repaired = await attemptRepair(config, deps, repairActions, checks)
     ok = repaired
@@ -545,8 +545,14 @@ function buildNextState(input: {
   }
 }
 
-function shouldAttemptRepair(nextState: HeartbeatState, checks: CheckResult[], now: Date): boolean {
+function shouldAttemptRepair(
+  previous: HeartbeatState,
+  nextState: HeartbeatState,
+  checks: CheckResult[],
+  now: Date,
+): boolean {
   if (isTransientGenerateFailure(checks.find((check) => !check.ok))) return false
+  if (previous.status === "healthy") return true
 
   if (!nextState.lastRepairAt) return true
   const lastRepairAt = Date.parse(nextState.lastRepairAt)

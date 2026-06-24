@@ -413,4 +413,38 @@ describe("hosted-tier2-heartbeat", () => {
     ])
     expect(runCommand).toHaveBeenCalledTimes(2)
   })
+
+  it("repairs a new unhealthy transition even when a recent repair timestamp exists", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    dirs.push(dir)
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        status: "healthy",
+        consecutiveFailures: 0,
+        lastGenerateAt: "2026-06-24T13:13:31.877Z",
+        lastRepairAt: "2026-06-24T13:13:31.877Z",
+      }),
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: false, error: { code: "connection", retryable: true } }, 502))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: false, error: { code: "connection", retryable: true } }, 502))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ tier: "tier-2-hosted-chrome-notion-ai", rawText: "OK" }))
+    const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
+
+    const result = await runHeartbeat(config(dir, { failureThreshold: 1, repair: true, forceGenerate: true }), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-06-24T13:16:01.805Z"),
+      runCommand,
+    })
+
+    expect(result.status).toBe("healthy")
+    expect(result.repairActions.map((action) => action.action)).toEqual(["ensure-chrome", "restart-worker"])
+    expect(runCommand).toHaveBeenCalledTimes(1)
+  })
 })
