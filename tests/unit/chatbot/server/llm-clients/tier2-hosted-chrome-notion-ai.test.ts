@@ -83,6 +83,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
   it("keeps the tier property fixed to tier 2 hosted Notion AI", () => {
@@ -117,7 +118,13 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       rawText: "承知しました",
       tier: "tier-2-hosted-chrome-notion-ai",
       tokensUsed: 12,
-      diagnostics: { endpoint: "/generate", workerLatencyMs: 34 },
+      diagnostics: {
+        endpoint: "/generate",
+        workerLatencyMs: 34,
+        attemptCount: 1,
+        repairAttempted: false,
+        retryReasons: [],
+      },
     })
     expect(httpClient).toHaveBeenNthCalledWith(
       1,
@@ -141,7 +148,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     )
   })
 
-  it("repairs Chrome and retries once when hosted generate returns a server error", async () => {
+  it("repairs Chrome and retries once when hosted generate returns a fast server error", async () => {
     const httpClient = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
@@ -154,7 +161,9 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       rawText: "復旧しました",
       tier: "tier-2-hosted-chrome-notion-ai",
       diagnostics: {
+        attemptCount: 2,
         repairAttempted: true,
+        retryReasons: ["server-error"],
       },
     })
     expect(httpClient).toHaveBeenNthCalledWith(
@@ -195,7 +204,9 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       rawText: "2回目で復旧しました",
       tier: "tier-2-hosted-chrome-notion-ai",
       diagnostics: {
+        attemptCount: 3,
         repairAttempted: true,
+        retryReasons: ["server-error", "server-error"],
       },
     })
     expect(httpClient).toHaveBeenCalledTimes(6)
@@ -206,9 +217,42 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     )
   })
 
-  it("loads worker URL, token, and enabled flag from tier-specific env", async () => {
+  it("does not allow timeout retries to spend three full per-attempt timeouts", async () => {
+    vi.useFakeTimers()
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockImplementationOnce(() => new Promise<Response>(() => undefined))
+    const client = new Tier2HostedChromeNotionAiClient({
+      ...baseConfig,
+      requestTimeoutMs: 20,
+      healthCheckTimeoutMs: 5,
+      totalGenerateBudgetMs: 30,
+      httpClient,
+    })
+
+    const promise = client.generate(llmRequest())
+    await vi.advanceTimersByTimeAsync(20)
+
+    await expect(promise).rejects.toMatchObject({
+      code: "timeout",
+      isRetryable: true,
+      cause: {
+        retryDiagnostics: {
+          attemptCount: 1,
+          exhausted: true,
+          fallbackReason: "timeout",
+          retryReasons: [],
+        },
+      },
+    })
+    expect(httpClient).toHaveBeenCalledTimes(2)
+  })
+
+  it("loads worker URL, token, enabled flag, and total budget from tier-specific env", async () => {
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_URL", "https://env-worker.example.test/")
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "env-token")
+    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_TOTAL_BUDGET_MS", "12345")
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_ENABLED", "true")
     const httpClient = vi
       .fn()
@@ -220,7 +264,10 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       httpClient,
     })
 
-    await expect(client.generate(llmRequest())).resolves.toMatchObject({ rawText: "OK" })
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      rawText: "OK",
+      diagnostics: { totalGenerateBudgetMs: 12345 },
+    })
     expect(httpClient).toHaveBeenCalledWith(
       "https://env-worker.example.test/generate",
       expect.any(Object),
@@ -276,7 +323,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     })
   })
 
-  it("preserves sanitized hosted worker 502 details on the LLM error cause", async () => {
+  it("preserves sanitized hosted worker 502 details and retry exhaustion diagnostics on the LLM error cause", async () => {
     const httpClient = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
@@ -329,6 +376,12 @@ describe("Tier2HostedChromeNotionAiClient", () => {
         errorCode: "connection",
         retryable: true,
         messagePreview: "Chrome CDP target still missing after second repair.",
+        retryDiagnostics: {
+          attemptCount: 3,
+          exhausted: true,
+          fallbackReason: "server-error",
+          retryReasons: ["server-error", "server-error"],
+        },
       },
     })
   })
