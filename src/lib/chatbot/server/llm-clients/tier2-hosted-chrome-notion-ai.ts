@@ -19,6 +19,13 @@ type Tier2HostedChromeNotionAiClientOptions = Partial<Tier2HostedChromeNotionAiC
 type Tier2HostedWorkerHttpClient = (input: string, init?: RequestInit) => Promise<Response>
 
 type TimeoutTag = "timeout"
+type HostedWorkerErrorSummary = {
+  endpoint: string
+  httpStatus: number
+  errorCode?: string
+  retryable?: boolean
+  messagePreview?: string
+}
 
 type HostedWorkerHealthResponse = {
   ok?: unknown
@@ -31,7 +38,10 @@ type HostedWorkerGenerateResponse = {
 }
 
 class HostedWorkerHttpStatusError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly summary: HostedWorkerErrorSummary,
+  ) {
     super("Hosted Notion AI worker HTTP request failed.")
     this.name = "HostedWorkerHttpStatusError"
   }
@@ -214,7 +224,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
     const response = await this.request(path, init, timeoutMs)
 
     if (!response.ok) {
-      throw new HostedWorkerHttpStatusError(response.status)
+      throw new HostedWorkerHttpStatusError(response.status, await readWorkerErrorSummary(response, path))
     }
 
     try {
@@ -296,7 +306,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
           message: "Hosted Notion AI worker authentication failed.",
           code: "auth",
           isRetryable: false,
-          cause: error,
+          cause: error.summary,
         })
       }
 
@@ -305,7 +315,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
           message: "Hosted Notion AI worker was rate limited.",
           code: "rate-limit",
           isRetryable: true,
-          cause: error,
+          cause: error.summary,
         })
       }
 
@@ -314,7 +324,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
           message: "Hosted Notion AI worker returned a server error.",
           code: "connection",
           isRetryable: true,
-          cause: error,
+          cause: error.summary,
         })
       }
     }
@@ -455,8 +465,34 @@ function getHostedWorkerRawText(response: HostedWorkerGenerateResponse): string 
   return typeof response.rawText === "string" ? response.rawText : emptyText
 }
 
+async function readWorkerErrorSummary(response: Response, endpoint: string): Promise<HostedWorkerErrorSummary> {
+  const body = await response.json().catch(() => undefined)
+  const error = isRecord(body) && isRecord(body.error) ? body.error : undefined
+  return {
+    endpoint,
+    httpStatus: response.status,
+    errorCode: typeof error?.code === "string" ? sanitizeLogText(error.code) : undefined,
+    retryable: typeof error?.retryable === "boolean" ? error.retryable : undefined,
+    messagePreview: typeof error?.message === "string" ? sanitizeLogText(error.message) : undefined,
+  }
+}
+
 function numberOrUndefined(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function sanitizeLogText(value: string): string {
+  const sanitized = value
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+    .replace(/xox[baprs]-[A-Za-z0-9-]+/gi, "[redacted-slack-token]")
+    .replace(/https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]+/gi, "[redacted-slack-webhook]")
+    .replace(/"systemPrompt"\s*:\s*"[^"]*"/gi, '"systemPrompt":"[redacted]"')
+    .replace(/"latestUserMessage"\s*:\s*"[^"]*"/gi, '"latestUserMessage":"[redacted]"')
+  return sanitized.length <= 500 ? sanitized : `${sanitized.slice(0, 500)}...[truncated]`
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, tag: TimeoutTag): Promise<T> {

@@ -12,6 +12,7 @@ Runtime shape:
 - Notion trust-rule failures alert immediately but skip restart loops because service restarts do not fix policy denial.
 - Notifications are state-change only: `unhealthy` and `recovered`. Slack is primary when configured; Resend email remains fallback. Same-state alert spam is rate-limited.
 - Logs are JSONL and do not include bearer tokens, raw prompts, raw model output, cookies, or personal request bodies.
+- When `/health` is ready but `/generate` fails, JSONL and Slack mark `incident_kind: health_ok_generate_failed` with phase, HTTP status, duration, sanitized worker error code/message preview, and repair action summary.
 
 Default VPS files:
 
@@ -48,6 +49,6 @@ systemctl --user daemon-reload
 systemctl --user enable --now studio.norikane.hosted-tier2-heartbeat.timer
 ```
 
-The live VPS worker repo is `/home/chatbot-worker/norikane_satoshi_HP`; do not switch its branch just to install the heartbeat because the worker service also runs from that directory.
+The live VPS worker repo is `/home/chatbot-worker/norikane_satoshi_HP`; do not switch its branch just to install the heartbeat because the worker service also runs from that directory. Reconcile from the approved master commit, then copy only the heartbeat service/timer templates or script when the web app code does not require a Vercel deploy.
 
-Do not commit the env file. Do not deploy this branch to `master` or Production without Satoshi's explicit approval.
+Do not commit the env file.

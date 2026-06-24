@@ -225,6 +225,7 @@ describe("hosted-tier2-heartbeat", () => {
     expect(slackBody.text).toContain("failing_phase: generate")
     expect(slackBody.text).toContain("failure_origin: worker_error:connection")
     expect(slackBody.text).toContain("http_status: 502")
+    expect(slackBody.text).toContain("incident_kind: health_ok_generate_failed")
     expect(slackBody.text).toContain("error:connection")
     expect(slackBody.text).not.toContain("test-slack-token")
   })
@@ -446,5 +447,20 @@ describe("hosted-tier2-heartbeat", () => {
     expect(result.status).toBe("healthy")
     expect(result.repairActions.map((action) => action.action)).toEqual(["ensure-chrome", "restart-worker"])
     expect(runCommand).toHaveBeenCalledTimes(1)
+    const logRecords = readFileSync(join(dir, "heartbeat.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(logRecords.at(-1)).toMatchObject({
+      event: "hosted_tier2_heartbeat",
+      incident: {
+        kind: "health_ok_generate_failed",
+        operation: "hosted-tier2-heartbeat",
+        phase: "generate",
+        httpStatus: 502,
+        failureOrigin: "worker_error:connection",
+        repairAttempted: true,
+      },
+    })
   })
 })

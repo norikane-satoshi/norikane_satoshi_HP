@@ -35,6 +35,7 @@ type CheckResult = {
   ok: boolean
   status?: number
   detail: string
+  durationMs?: number
 }
 
 type RepairAction = {
@@ -169,9 +170,11 @@ export async function runHeartbeat(
   await writeState(config.statePath, nextState)
   await writeLog(config.logPath, {
     ts: now.toISOString(),
+    event: "hosted_tier2_heartbeat",
     tier,
     ok,
     status: nextState.status,
+    incident: buildHeartbeatIncident(checks, repairActions),
     checks,
     repairActions,
     notification,
@@ -275,8 +278,8 @@ async function checkHealth(config: HeartbeatConfig, fetchClient: typeof fetch): 
     timeoutMs: config.timeoutMs,
     fetchClient,
   })
-  if (!response.ok) return { name: "health", ok: false, status: response.status, detail: response.detail }
-  return evaluateHealthResponse(response.status, response.body)
+  if (!response.ok) return { name: "health", ok: false, status: response.status, detail: response.detail, durationMs: response.durationMs }
+  return { ...evaluateHealthResponse(response.status, response.body), durationMs: response.durationMs }
 }
 
 async function checkGenerate(config: HeartbeatConfig, fetchClient: typeof fetch): Promise<CheckResult> {
@@ -286,8 +289,8 @@ async function checkGenerate(config: HeartbeatConfig, fetchClient: typeof fetch)
     fetchClient,
     body: JSON.stringify(buildSmokeRequest()),
   })
-  if (!response.ok) return { name: "generate", ok: false, status: response.status, detail: response.detail }
-  return evaluateGenerateResponse(response.status, response.body)
+  if (!response.ok) return { name: "generate", ok: false, status: response.status, detail: response.detail, durationMs: response.durationMs }
+  return { ...evaluateGenerateResponse(response.status, response.body), durationMs: response.durationMs }
 }
 
 async function attemptRepair(
@@ -406,6 +409,8 @@ function buildNotificationMessage(
     `failure_origin: ${classifyFailureOrigin(primaryFailure)}`,
     `failure_reason: ${primaryFailure ? sanitizePublicText(primaryFailure.detail) : "none"}`,
     `http_status: ${primaryFailure?.status ?? checks[0]?.status ?? "none"}`,
+    `incident_kind: ${buildHeartbeatIncident(checks, repairActions)?.kind ?? "none"}`,
+    `duration_ms: ${primaryFailure?.durationMs ?? "none"}`,
     `checks: ${checks.map((check) => `${check.name}:${check.status ?? 0}:${sanitizePublicText(check.detail)}`).join(", ") || "test"}`,
     `repair_actions: ${repairActions.map((action) => `${action.action}:${action.ok}`).join(", ") || "none"}`,
     `current_state: ${kind}`,
@@ -568,9 +573,13 @@ async function requestJson(
     fetchClient: typeof fetch
     body?: string
   },
-): Promise<{ ok: true; status: number; body: unknown } | { ok: false; status?: number; detail: string }> {
+): Promise<
+  | { ok: true; status: number; body: unknown; durationMs: number }
+  | { ok: false; status?: number; detail: string; durationMs: number }
+> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), input.timeoutMs)
+  const startedAt = Date.now()
   try {
     const response = await input.fetchClient(url, {
       method: input.method,
@@ -582,11 +591,33 @@ async function requestJson(
       body: input.body,
     })
     const body = await response.json().catch(() => undefined)
-    return { ok: true, status: response.status, body }
+    return { ok: true, status: response.status, body, durationMs: Date.now() - startedAt }
   } catch (error) {
-    return { ok: false, detail: publicError(error) }
+    return { ok: false, detail: publicError(error), durationMs: Date.now() - startedAt }
   } finally {
     clearTimeout(timer)
+  }
+}
+
+function buildHeartbeatIncident(
+  checks: CheckResult[],
+  repairActions: RepairAction[],
+): Record<string, unknown> | undefined {
+  const health = checks.find((check) => check.name === "health" && !check.detail.startsWith("post_repair:"))
+  const generate = checks.find((check) => check.name === "generate" && !check.detail.startsWith("post_repair:"))
+  const primaryFailure = checks.find((check) => !check.ok)
+  if (!primaryFailure) return undefined
+
+  return {
+    kind: health?.ok === true && generate?.ok === false ? "health_ok_generate_failed" : "check_failed",
+    operation: "hosted-tier2-heartbeat",
+    phase: primaryFailure.name,
+    httpStatus: primaryFailure.status,
+    failureOrigin: classifyFailureOrigin(primaryFailure),
+    failureReason: sanitizePublicText(primaryFailure.detail),
+    durationMs: primaryFailure.durationMs,
+    repairAttempted: repairActions.length > 0,
+    repairActions: repairActions.map((action) => ({ action: action.action, ok: action.ok })),
   }
 }
 

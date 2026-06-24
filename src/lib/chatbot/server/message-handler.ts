@@ -1021,6 +1021,7 @@ function serializeTierAttemptError(error: Error) {
   const maybeLlmError = error as Error & {
     code?: unknown
     isRetryable?: unknown
+    cause?: unknown
   }
 
   return {
@@ -1028,7 +1029,22 @@ function serializeTierAttemptError(error: Error) {
     ...(typeof maybeLlmError.code === "string" ? { code: maybeLlmError.code } : {}),
     message: error.message,
     ...(typeof maybeLlmError.isRetryable === "boolean" ? { retryable: maybeLlmError.isRetryable } : {}),
+    ...(maybeLlmError.cause !== undefined ? { cause: sanitizeTierAttemptCause(maybeLlmError.cause) } : {}),
   }
+}
+
+function sanitizeTierAttemptCause(cause: unknown): unknown {
+  if (!cause || typeof cause !== "object" || Array.isArray(cause)) return String(cause)
+
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(cause)) {
+    if (/token|secret|cookie|authorization|systemPrompt|latestUserMessage|rawPrompt|rawRequest|requestBody/i.test(key)) {
+      sanitized[key] = "[redacted]"
+      continue
+    }
+    sanitized[key] = typeof value === "string" ? redactForChatbotLog(value) : value
+  }
+  return sanitized
 }
 
 const dayRangePattern = /\d+(?:\.\d+)?\s*(?:日\s*から\s*|[〜～\-ー]\s*)\d+(?:\.\d+)?\s*日/u

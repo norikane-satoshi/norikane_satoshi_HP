@@ -249,4 +249,48 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       isRetryable: false,
     })
   })
+
+  it("preserves sanitized hosted worker 502 details on the LLM error cause", async () => {
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: "connection",
+              message: 'No Notion AI page target was found. "latestUserMessage":"secret client note"',
+              retryable: true,
+            },
+          },
+          { ok: false, status: 502 },
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: "connection",
+              message: "Chrome CDP target still missing after repair.",
+              retryable: true,
+            },
+          },
+          { ok: false, status: 502 },
+        ),
+      )
+    const client = hostedClient(httpClient)
+
+    await expect(client.generate(llmRequest())).rejects.toMatchObject({
+      code: "connection",
+      isRetryable: true,
+      cause: {
+        endpoint: "/generate",
+        httpStatus: 502,
+        errorCode: "connection",
+        retryable: true,
+        messagePreview: "Chrome CDP target still missing after repair.",
+      },
+    })
+  })
 })
