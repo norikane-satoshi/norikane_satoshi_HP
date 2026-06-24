@@ -41,10 +41,43 @@ describe("normalizeChatbotLlmResponse", () => {
       },
     )
 
-    expect(normalized.content).toContain("ライブ2時間30分の標準目安は7〜8日程度")
-    expect(normalized.content).toContain("素材量・カメラ数・ぼかし箇所・チェック体制で前後")
+    expect(normalized.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
+    expect(normalized.content).toContain("顔ぼかしなどの追加作業やディスク納品の条件によっては")
     expect(normalized.content).not.toContain("17〜20日")
     expect(normalized.content).not.toContain("通常のラインです")
+  })
+
+  it("does not include face blur or delivery media in the 150m live baseline", () => {
+    const normalized = normalizeChatbotLlmResponse(
+      {
+        rawText:
+          "ライブ2時間30分・DVD納品・顔ぼかし数カット込みでしたら、7〜8日程度が目安です。素材状況を確認します。",
+        tier: "tier-2-hosted-chrome-notion-ai",
+      },
+      {
+        jobContext: {
+          jobKind: "live-60m",
+          finalMedium: "live",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: 150,
+          workflowEstimate: {
+            stages: [],
+            totalMinDays: 7,
+            totalMaxDays: 8,
+            riskFlags: [],
+            estimateStatus: "authoritative",
+          },
+        },
+      },
+    )
+
+    expect(normalized.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
+    expect(normalized.content).toContain("顔ぼかしなどの追加作業やディスク納品の条件によっては")
+    expect(normalized.content).toContain("納品形式や追加作業量を確認します")
+    expect(normalized.content).not.toContain("DVD")
+    expect(normalized.content).not.toContain("顔ぼかし数カット込み")
+    expect(normalized.content).not.toContain("納品込み")
   })
 
   it("does not keep invented nearby ranges for anchored live durations", () => {
@@ -71,7 +104,7 @@ describe("normalizeChatbotLlmResponse", () => {
       },
     )
 
-    expect(normalized.content).toContain("ライブ2時間30分の標準目安は7〜8日程度")
+    expect(normalized.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
     expect(normalized.content).not.toContain("通常7〜9日")
   })
 

@@ -950,14 +950,14 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("ライブ2時間30分の標準目安は7〜8日程度")
-    expect(result.assistantMessage.content).toContain("素材量・カメラ数・ぼかし箇所・チェック体制で前後")
+    expect(result.assistantMessage.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
+    expect(result.assistantMessage.content).toContain("顔ぼかしなどの追加作業やディスク納品の条件によっては")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(result.assistantMessage.content).not.toContain("通常のラインです")
     expect(harness.repository.appendMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
         role: "assistant",
-        content: expect.stringContaining("ライブ2時間30分の標準目安は7〜8日程度"),
+        content: expect.stringContaining("ライブ2時間30分の基本目安は7〜8日程度"),
       }),
     )
   })
@@ -986,8 +986,8 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("ライブ2時間30分の標準目安は7〜8日程度")
-    expect(result.assistantMessage.content).toContain("素材量・カメラ数・ぼかし箇所・チェック体制で前後")
+    expect(result.assistantMessage.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
+    expect(result.assistantMessage.content).toContain("顔ぼかしなどの追加作業やディスク納品の条件によっては")
     expect(result.assistantMessage.content).not.toContain("通常7〜9日")
   })
 
@@ -1011,13 +1011,17 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "案件の種類はライブで、2時間半ぐらいあります。最終的にDVDにする予定です。顔を少しぼかしたい箇所があります。希望納期は7月いっぱいです。",
+          "案件の種類はライブで、2時間半ぐらいあります。最終的にブルーレイディスクにする予定です。顔を少しぼかしたい箇所があります。希望納期は7月いっぱいです。",
       },
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("ライブ2時間30分の標準目安は7〜8日程度")
-    expect(result.assistantMessage.content).toContain("素材量・カメラ数・ぼかし箇所・チェック体制で前後")
+    expect(result.assistantMessage.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
+    expect(result.assistantMessage.content).toContain("顔ぼかしなどの追加作業やディスク納品の条件によっては")
+    expect(result.assistantMessage.content).toContain("納品形式や追加作業量を確認します")
+    expect(result.assistantMessage.content).not.toContain("DVD")
+    expect(result.assistantMessage.content).not.toContain("顔ぼかし込み")
+    expect(result.assistantMessage.content).not.toContain("ブルーレイディスク納品込み")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(result.assistantMessage.content).not.toContain("17日")
     expect(result.assistantMessage.content).not.toContain("20日")
@@ -1025,6 +1029,8 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("基本工程ライン: 7〜8日")
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("60分は約4日、150分は7〜8日程度")
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("17〜20日などの過大見積もり")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("基本工程ラインに最初から込みと断定する表現")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("DVDという古い媒体名を回答側から新規に出さず")
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).not.toContain("今回尺の確定日数: 正本未定義")
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1165,7 +1171,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("ライブ2時間30分の標準目安は7〜8日程度")
+    expect(result.assistantMessage.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "live",

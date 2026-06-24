@@ -11,7 +11,10 @@ export type ChatbotDurationSafetyReport = {
     statedMaxDays: number
     expectedMinDays: number
     expectedMaxDays: number
-    reason: "clearly-outside-workflow-estimate" | "unsupported-live-duration-estimate"
+    reason:
+      | "clearly-outside-workflow-estimate"
+      | "unsupported-live-duration-estimate"
+      | "included-additional-work-as-baseline"
   }>
 }
 
@@ -119,7 +122,25 @@ function alignUnsupportedLiveDurationText(
 
   const alignedText = rawText.replace(sentenceWithDurationDayPattern, (sentence) => {
     const statedRanges = parseDayMentions(sentence)
-    if (statedRanges.length === 0 || isAllowedLiveReferenceSentence(sentence, statedRanges, estimate)) {
+    if (statedRanges.length === 0) return sentence
+
+    if (includesAddOnOrDeliveryAsBaseline(sentence)) {
+      for (const stated of statedRanges) {
+        report.corrections.push({
+          statedMinDays: stated.minDays,
+          statedMaxDays: stated.maxDays,
+          expectedMinDays: estimate.referenceMinDays ?? estimate.totalMinDays,
+          expectedMaxDays: estimate.referenceMaxDays ?? estimate.totalMaxDays,
+          reason: "included-additional-work-as-baseline",
+        })
+      }
+
+      if (insertedSafeText) return ""
+      insertedSafeText = true
+      return safeText
+    }
+
+    if (isAllowedLiveReferenceSentence(sentence, statedRanges, estimate)) {
       return sentence
     }
 
@@ -152,7 +173,25 @@ function alignLiveDurationText(
 
   const alignedText = rawText.replace(sentenceWithDurationDayPattern, (sentence) => {
     const statedRanges = parseDayMentions(sentence)
-    if (statedRanges.length === 0 || isAllowedLiveEstimateSentence(sentence, statedRanges, estimate)) {
+    if (statedRanges.length === 0) return sentence
+
+    if (includesAddOnOrDeliveryAsBaseline(sentence)) {
+      for (const stated of statedRanges) {
+        report.corrections.push({
+          statedMinDays: stated.minDays,
+          statedMaxDays: stated.maxDays,
+          expectedMinDays: estimate.totalMinDays,
+          expectedMaxDays: estimate.totalMaxDays,
+          reason: "included-additional-work-as-baseline",
+        })
+      }
+
+      if (insertedSafeText) return ""
+      insertedSafeText = true
+      return safeText
+    }
+
+    if (isAllowedLiveEstimateSentence(sentence, statedRanges, estimate)) {
       return sentence
     }
 
@@ -178,11 +217,11 @@ function buildUnsupportedLiveDurationSafeText(estimate: WorkflowEstimate, jobCon
   const referenceMinDays = estimate.referenceMinDays ?? estimate.totalMinDays
   const referenceMaxDays = estimate.referenceMaxDays ?? estimate.totalMaxDays
 
-  return `ライブ${formatProjectLength(jobContext?.projectLengthMinutes)}の暫定上限目安は${formatDayRange(referenceMinDays, referenceMaxDays)}です。素材量・カメラ数・ぼかし箇所・チェック体制を確認して判断します。`
+  return `ライブ${formatProjectLength(jobContext?.projectLengthMinutes)}の暫定上限目安は${formatDayRange(referenceMinDays, referenceMaxDays)}です。顔ぼかしなどの追加作業やディスク納品の条件によっては、基本目安から前後・追加になる可能性があります。納品形式や追加作業量を確認します。`
 }
 
 function buildLiveDurationSafeText(estimate: WorkflowEstimate, jobContext?: JobContext): string {
-  return `ライブ${formatProjectLength(jobContext?.projectLengthMinutes)}の標準目安は${formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)}程度です。素材量・カメラ数・ぼかし箇所・チェック体制で前後します。`
+  return `ライブ${formatProjectLength(jobContext?.projectLengthMinutes)}の基本目安は${formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)}程度です。顔ぼかしなどの追加作業やディスク納品の条件によっては、基本目安から前後・追加になる可能性があります。納品形式や追加作業量を確認します。`
 }
 
 function parseDayMentions(sentence: string): Array<{ minDays: number; maxDays: number }> {
@@ -215,6 +254,15 @@ function isAllowedLiveReferenceSentence(
     describesReference &&
     statedRanges.every(
       (range) => range.minDays === referenceMinDays && range.maxDays === referenceMaxDays,
+    )
+  )
+}
+
+function includesAddOnOrDeliveryAsBaseline(sentence: string): boolean {
+  return (
+    /(?:込み|含め|含んで|でしたら|であれば|込みで|納品込み|作業込み)/u.test(sentence) &&
+    /(?:顔ぼかし|ぼかし|消し物|肌修正|追加作業|付随作業|dvd|DVD|ブルーレイ|ディスク|納品媒体|納品形式|納品)/u.test(
+      sentence,
     )
   )
 }
