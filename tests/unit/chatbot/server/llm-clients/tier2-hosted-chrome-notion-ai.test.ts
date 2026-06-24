@@ -79,6 +79,12 @@ async function expectLlmError(
   })
 }
 
+async function flushMicrotasks(times = 6): Promise<void> {
+  for (let index = 0; index < times; index += 1) {
+    await Promise.resolve()
+  }
+}
+
 describe("Tier2HostedChromeNotionAiClient", () => {
   afterEach(() => {
     vi.unstubAllEnvs()
@@ -211,6 +217,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
 
   it("does not allow timeout retries to spend three full per-attempt timeouts", async () => {
     vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"))
     const httpClient = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
@@ -224,7 +231,9 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     })
 
     const promise = client.generate(llmRequest())
-    await vi.advanceTimersByTimeAsync(30)
+    await flushMicrotasks()
+    expect(httpClient).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(20)
 
     await expect(promise).rejects.toMatchObject({
       code: "timeout",
