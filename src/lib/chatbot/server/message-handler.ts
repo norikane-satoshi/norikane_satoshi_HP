@@ -258,6 +258,7 @@ export async function handleChatbotMessage(
   const activeChoiceAnswer = applyActiveChoiceAnswer({
     activeChoices: conversation.context.activeChoices,
     message: input.message,
+    activeIntakeClarification: conversation.context.conversationState?.activeIntakeClarification,
   })
   const userContext = input.userId
     ? await userContextLoader({
@@ -440,6 +441,7 @@ export async function handleChatbotMessage(
       uiKind: ui.kind,
       conversationState: persistedConversationState,
     }),
+    flowStepReason: persistedConversationState.activeIntakeClarification?.reason,
     issueReasons,
   })
 
@@ -515,6 +517,7 @@ async function notifySlackForChatbotResponse(input: {
   uiKind: ChatbotMessageUi["kind"]
   bookingProgress: boolean
   flowStep: ChatbotFlowStep
+  flowStepReason?: string
   issueReasons?: string[]
 }): Promise<void> {
   try {
@@ -528,6 +531,7 @@ async function notifySlackForChatbotResponse(input: {
       routingDecisionKind: input.routingDecisionKind,
       uiKind: input.uiKind,
       flowStep: input.flowStep,
+      flowStepReason: input.flowStepReason,
       threadTs,
       userMessage: input.userText,
       assistantResponse: input.assistantText,
@@ -644,10 +648,12 @@ function buildChatbotSystemPrompt(
     "あなたは単なる受付フォームではなく、お客様、則兼、のーちゃんの3人チームでいい作品を作るために伴走する事務担当です。",
     "事務担当として確認漏れ、不安、伝え忘れを減らし、ユーザーの考える量を増やさず次にすることを1つずつ案内します。",
     "案件整理では複数項目を文章で一気に聞かず、選べる項目は choice-panel の1項目ずつで確認します。その他を選んだ自由入力は補足として保持し、勝手に近い既存分類へ潰しません。",
+    "現在確認している1項目について、会話文脈、選択済み項目、自由入力、未確認項目から次へ進めるほど明確かを判断します。疑問が残る場合は同じ項目について確認を1問だけ返し、十分明確なら過剰確認せず次へ進みます。",
+    "明確でないが未定として扱える回答は未定として保持し、後段の相談、最終確認、予約可否判断で扱います。",
     "勝手に予約確定、料金判断、実施可否判断、本人判断が必要な確約はしません。",
     "回答範囲は新規案件の調整、要件整理、予約導線に限定し、技術指導、作品レビュー、標準外要望は担当者確認へ誘導します。",
     "ただし講演会、講習会、セミナー、講師依頼、研修、ワークショップは新規依頼種別として扱い、通常の制作案件に寄せません。",
-    "講習依頼では開催場所、DaVinci Resolve Studio / DaVinci Resolve とバージョン、コントロールパネル有無、参加者がGUI操作を大画面で見られる環境、講師側モニター構成、10:00〜18:00を基本にした希望時間を確認します。",
+    "講習依頼では開催形式、使用環境、希望日程など、実施判断に必要な項目を文脈から選び、1つずつ確認します。",
     "講習依頼はその場で予約確定せず、内容を整理したうえで、則兼本人と実施可否・最終内容・日程を相談・確認する案内にします。",
     "講習依頼では show_booking_card を出さず、連絡先メールを添えた問い合わせ・相談に誘導します。",
     "さとしさん本人を日本語で呼ぶ場合は、本人呼称を常に「則兼」と表記します。",

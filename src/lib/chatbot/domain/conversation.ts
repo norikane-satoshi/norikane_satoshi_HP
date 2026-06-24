@@ -98,6 +98,24 @@ export type ConversationState = {
     supplementalNote?: string
     bookingPrefill?: BookingCardPrefill
   }
+  activeIntakeClarification?: {
+    status: "needs-clarification" | "unknown-but-acceptable"
+    choiceSetId?: SurveyChoiceSet["id"]
+    selectedChoiceIds?: SurveyChoiceSet["choices"][number]["id"][]
+    question: string
+    reason: string
+    answerPreview?: string
+    requestedAtTurn?: number
+  }
+  intakeClarifications?: Record<
+    string,
+    {
+      status: "clear" | "needs-clarification" | "unknown-but-acceptable"
+      reason?: string
+      answerPreview?: string
+      updatedAtTurn?: number
+    }
+  >
   durationContext?: {
     workflowFacts?: Partial<
       Pick<JobContext, "jobKind" | "finalMedium" | "deliveryMedium" | "workSite" | "projectLengthMinutes" | "additionalWork">

@@ -19,16 +19,26 @@ type ChoicePanelPatch = {
 
 const choicePrefixPattern = /^\s*選択\s*[:：]\s*/u
 const otherCommentPrefixPattern = /^\s*その他(?:コメント|の内容)?\s*[:：]\s*/u
+const noChoiceIds = new Set(["none"])
+const undecidedChoiceIds = new Set(["undecided"])
 
 export function applyActiveChoiceAnswer(input: {
   activeChoices?: SurveyChoiceSet
   message: string
+  activeIntakeClarification?: ConversationState["activeIntakeClarification"]
 }): ChoicePanelPatch | null {
+  const clarifiedPatch = applyPendingClarificationAnswer(input.activeChoices, input.activeIntakeClarification, input.message)
+  if (clarifiedPatch) return clarifiedPatch
+
   const choices = resolveChoices(input.activeChoices, input.message)
   const choice = choices[0]
-  if (!input.activeChoices || !choice) return null
+  if (!input.activeChoices || !choice) {
+    return buildUnmatchedChoiceClarification(input.activeChoices, input.message)
+  }
   const activeChoices = input.activeChoices
   const otherCommentPatch = toOtherChoiceCommentPatch(input.activeChoices, choices, input.message)
+  const clarification = assessChoiceAnswerClarity(activeChoices, choices, input.message, otherCommentPatch)
+  if (clarification) return clarification
 
   switch (activeChoices.id) {
     case "job-kind":
@@ -41,6 +51,8 @@ export function applyActiveChoiceAnswer(input: {
         conversationState: {
           hasProjectLength: true,
           ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+          ...toUnknownChoicePatch(activeChoices, choices, input.message),
         },
         jobContext: toProjectLengthJobContext(choice.id),
       }
@@ -49,7 +61,11 @@ export function applyActiveChoiceAnswer(input: {
         choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: [choice.id],
-        conversationState: { hasFinalMedium: true, ...otherCommentPatch },
+        conversationState: {
+          hasFinalMedium: true,
+          ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+        },
         jobContext: { finalMedium: choice.id as JobContext["finalMedium"] },
       }
     case "additional-work":
@@ -58,7 +74,10 @@ export function applyActiveChoiceAnswer(input: {
           choiceSetId: activeChoices.id,
           choiceId: "none",
           choiceIds: ["none"],
-          conversationState: { hasAdditionalWork: true },
+          conversationState: {
+            hasAdditionalWork: true,
+            ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+          },
           jobContext: { additionalWork: undefined },
         }
       }
@@ -67,7 +86,11 @@ export function applyActiveChoiceAnswer(input: {
         choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: choices.map((item) => item.id),
-        conversationState: { hasAdditionalWork: true, ...otherCommentPatch },
+        conversationState: {
+          hasAdditionalWork: true,
+          ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+        },
         jobContext: { additionalWork: choices.map((item) => item.id as AdditionalWork) },
       }
     case "documentary-attachment":
@@ -76,7 +99,10 @@ export function applyActiveChoiceAnswer(input: {
           choiceSetId: activeChoices.id,
           choiceId: "none",
           choiceIds: ["none"],
-          conversationState: { hasDocumentaryAttachments: true },
+          conversationState: {
+            hasDocumentaryAttachments: true,
+            ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+          },
           jobContext: { documentaryAttachment: { kind: "none" } },
         }
       }
@@ -85,7 +111,11 @@ export function applyActiveChoiceAnswer(input: {
         choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: choices.map((item) => item.id),
-        conversationState: { hasDocumentaryAttachments: true, ...otherCommentPatch },
+        conversationState: {
+          hasDocumentaryAttachments: true,
+          ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+        },
         jobContext: {
           documentaryAttachment: toDocumentaryAttachment(
             choices.map((item) => item.id),
@@ -98,7 +128,12 @@ export function applyActiveChoiceAnswer(input: {
         choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: [choice.id],
-        conversationState: { hasWorkSite: true, ...otherCommentPatch },
+        conversationState: {
+          hasWorkSite: true,
+          ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+          ...toUnknownChoicePatch(activeChoices, choices, input.message),
+        },
         jobContext: { workSite: toWorkSite(choice.id) },
       }
     case "lecture-training-content":
@@ -117,6 +152,7 @@ export function applyActiveChoiceAnswer(input: {
               .join(" / "),
           },
           ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
         },
         jobContext: {},
       }
@@ -134,6 +170,8 @@ export function applyActiveChoiceAnswer(input: {
             venue: labelChoice(activeChoices, choice.id),
           },
           ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+          ...toUnknownChoicePatch(activeChoices, choices, input.message),
         },
         jobContext: {},
       }
@@ -155,6 +193,7 @@ export function applyActiveChoiceAnswer(input: {
             ...(choice.id === "other" ? { unsupportedSoftware: "その他" } : {}),
           },
           ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
         },
         jobContext: {},
       }
@@ -164,7 +203,11 @@ export function applyActiveChoiceAnswer(input: {
           choiceSetId: activeChoices.id,
           choiceId: "none",
           choiceIds: ["none"],
-          conversationState: { hasProductionOptions: true, productionOptions: [] },
+          conversationState: {
+            hasProductionOptions: true,
+            productionOptions: [],
+            ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+          },
           jobContext: {},
         }
       }
@@ -177,12 +220,224 @@ export function applyActiveChoiceAnswer(input: {
           hasProductionOptions: true,
           productionOptions: choices.map((item) => item.id as ProductionOption),
           ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
         },
         jobContext: {},
       }
     default:
       return null
   }
+}
+
+function assessChoiceAnswerClarity(
+  activeChoices: SurveyChoiceSet,
+  choices: SurveyChoice[],
+  message: string,
+  otherCommentPatch: Pick<ConversationState, "otherChoiceComments"> | Record<string, never>,
+): ChoicePanelPatch | null {
+  if (activeChoices.selectionMode === "multiple" && hasExclusiveChoiceConflict(choices)) {
+    return toClarificationPatch({
+      activeChoices,
+      choices,
+      message,
+      question: "「なし」とほかの選択肢が一緒に選ばれています。どちらで整理しますか？",
+      reason: "exclusive-choice-conflict",
+    })
+  }
+
+  if (choices.some((choice) => choice.id === "other") && !otherCommentPatch.otherChoiceComments?.[activeChoices.id]) {
+    return toClarificationPatch({
+      activeChoices,
+      choices,
+      message,
+      question: "「その他」の内容を1つだけ補足してください。",
+      reason: "other-choice-needs-detail",
+    })
+  }
+
+  return null
+}
+
+function buildUnmatchedChoiceClarification(
+  activeChoices: SurveyChoiceSet | undefined,
+  message: string,
+): ChoicePanelPatch | null {
+  if (!activeChoices) return null
+  if (activeChoices.id === "project-length" && isBareQuantity(message)) {
+    return toClarificationPatch({
+      activeChoices,
+      choices: [],
+      message,
+      question: "その数値の単位を1つだけ教えてください。分、時間、本数など、どれに近いですか？",
+      reason: "quantity-needs-unit",
+    })
+  }
+
+  return null
+}
+
+function applyPendingClarificationAnswer(
+  activeChoices: SurveyChoiceSet | undefined,
+  clarification: ConversationState["activeIntakeClarification"] | undefined,
+  message: string,
+): ChoicePanelPatch | null {
+  if (!activeChoices || clarification?.status !== "needs-clarification") return null
+  if (clarification.choiceSetId !== activeChoices.id) return null
+
+  const choices = resolveChoices(activeChoices, message)
+  if (choices.length > 0) {
+    const otherCommentPatch = toOtherChoiceCommentPatch(activeChoices, choices, message)
+    const nestedClarification = assessChoiceAnswerClarity(activeChoices, choices, message, otherCommentPatch)
+    if (nestedClarification) return nestedClarification
+    return applyActiveChoiceAnswer({ activeChoices, message })
+  }
+
+  if (isExplicitUnknown(message)) {
+    return applyUnknownButAcceptable(activeChoices, clarification, message)
+  }
+
+  if (clarification.selectedChoiceIds?.includes("other")) {
+    const selectedChoices = choicesFromIds(activeChoices, clarification.selectedChoiceIds)
+    if (selectedChoices.length > 0) {
+      return applyActiveChoiceAnswer({
+        activeChoices,
+        message: `選択: ${clarification.selectedChoiceIds.join(",")}\nその他コメント: ${message.trim()}`,
+      })
+    }
+  }
+
+  return null
+}
+
+function applyUnknownButAcceptable(
+  activeChoices: SurveyChoiceSet,
+  clarification: NonNullable<ConversationState["activeIntakeClarification"]>,
+  message: string,
+): ChoicePanelPatch {
+  const selectedChoices = choicesFromIds(activeChoices, clarification.selectedChoiceIds ?? [])
+  const choice = selectedChoices[0] ?? activeChoices.choices.find((item) => undecidedChoiceIds.has(item.id)) ?? activeChoices.choices[0]
+  return {
+    choiceSetId: activeChoices.id,
+    choiceId: choice.id,
+    choiceIds: selectedChoices.length > 0 ? selectedChoices.map((item) => item.id) : [choice.id],
+    conversationState: {
+      ...toSlotSatisfiedPatch(activeChoices.id),
+      ...toIntakeClarityPatch(activeChoices, selectedChoices, "unknown-but-acceptable", "explicitly-undecided", message),
+    },
+    jobContext: {},
+  }
+}
+
+function toClarificationPatch(input: {
+  activeChoices: SurveyChoiceSet
+  choices: SurveyChoice[]
+  message: string
+  question: string
+  reason: string
+}): ChoicePanelPatch {
+  const choice = input.choices[0] ?? input.activeChoices.choices[0]
+  return {
+    choiceSetId: input.activeChoices.id,
+    choiceId: choice.id,
+    choiceIds: input.choices.map((item) => item.id),
+    conversationState: {
+      activeIntakeClarification: {
+        status: "needs-clarification",
+        choiceSetId: input.activeChoices.id,
+        selectedChoiceIds: input.choices.map((item) => item.id),
+        question: input.question,
+        reason: input.reason,
+        answerPreview: preview(input.message),
+      },
+      intakeClarifications: {
+        [input.activeChoices.id]: {
+          status: "needs-clarification",
+          reason: input.reason,
+          answerPreview: preview(input.message),
+        },
+      },
+    },
+    jobContext: {},
+  }
+}
+
+function toIntakeClarityPatch(
+  activeChoices: SurveyChoiceSet,
+  choices: SurveyChoice[],
+  status: "clear" | "unknown-but-acceptable",
+  reason: string,
+  message?: string,
+): Pick<ConversationState, "activeIntakeClarification" | "intakeClarifications"> {
+  return {
+    activeIntakeClarification: undefined,
+    intakeClarifications: {
+      [activeChoices.id]: {
+        status,
+        reason,
+        answerPreview: preview(message ?? choices.map((choice) => choice.label).join(" / ")),
+      },
+    },
+  }
+}
+
+function toUnknownChoicePatch(
+  activeChoices: SurveyChoiceSet,
+  choices: SurveyChoice[],
+  message: string,
+): Partial<ConversationState> {
+  if (!choices.some((choice) => undecidedChoiceIds.has(choice.id)) && !isExplicitUnknown(message)) return {}
+  return toIntakeClarityPatch(activeChoices, choices, "unknown-but-acceptable", "explicitly-undecided", message)
+}
+
+function toSlotSatisfiedPatch(choiceSetId: SurveyChoiceSet["id"]): Partial<ConversationState> {
+  switch (choiceSetId) {
+    case "job-kind":
+      return { hasJobKind: true }
+    case "project-length":
+      return { hasProjectLength: true }
+    case "final-medium":
+      return { hasFinalMedium: true }
+    case "additional-work":
+      return { hasAdditionalWork: true }
+    case "documentary-attachment":
+      return { hasDocumentaryAttachments: true }
+    case "work-site":
+      return { hasWorkSite: true }
+    case "lecture-training-content":
+      return { hasLectureTrainingContent: true }
+    case "lecture-training-format":
+      return { hasLectureTrainingVenue: true }
+    case "lecture-training-software":
+      return { hasLectureTrainingSoftware: true }
+    case "production-options":
+      return { hasProductionOptions: true }
+    default:
+      return {}
+  }
+}
+
+function hasExclusiveChoiceConflict(choices: SurveyChoice[]): boolean {
+  return choices.some((choice) => noChoiceIds.has(choice.id)) && choices.some((choice) => !noChoiceIds.has(choice.id))
+}
+
+function choicesFromIds(choiceSet: SurveyChoiceSet, choiceIds: string[]): SurveyChoice[] {
+  return choiceIds
+    .map((choiceId) => choiceSet.choices.find((choice) => choice.id === choiceId))
+    .filter((choice): choice is SurveyChoice => Boolean(choice))
+}
+
+function isBareQuantity(message: string): boolean {
+  const compact = message.normalize("NFKC").trim()
+  return /^\d+(?:\.\d+)?$/u.test(compact)
+}
+
+function isExplicitUnknown(message: string): boolean {
+  const compact = message.normalize("NFKC").toLowerCase().replace(/[\s　。、,.!！?？「」『』()[\]（）]/g, "")
+  return /^(未定|まだ未定|決まっていない|まだ決まっていない|わからない|分からない|不明)$/u.test(compact)
+}
+
+function preview(message: string): string {
+  return message.trim().slice(0, 120)
 }
 
 export function isSatisfiedChoicePanel(

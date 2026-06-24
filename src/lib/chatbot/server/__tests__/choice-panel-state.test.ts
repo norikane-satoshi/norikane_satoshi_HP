@@ -111,7 +111,6 @@ describe("choice panel state", () => {
     [additionalWorkChoices, "retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch"] }],
     [additionalWorkChoices, "選択: retouch, skin-retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch", "skin-retouch"] }],
     [additionalWorkChoices, "選択: 消し物、肌修正", { hasAdditionalWork: true }, { additionalWork: ["retouch", "skin-retouch"] }],
-    [additionalWorkChoices, "選択: none, retouch", { hasAdditionalWork: true }, { additionalWork: undefined }],
     [additionalWorkChoices, "なし", { hasAdditionalWork: true }, { additionalWork: undefined }],
     [
       productionOptionChoices,
@@ -119,7 +118,6 @@ describe("choice panel state", () => {
       { hasProductionOptions: true, productionOptions: ["captions", "narration"] },
       {},
     ],
-    [productionOptionChoices, "選択: none, music", { hasProductionOptions: true, productionOptions: [] }, {}],
     [
       documentaryAttachmentChoices,
       "選択: digest, interview",
@@ -164,6 +162,40 @@ describe("choice panel state", () => {
       })
     },
   )
+
+  it("marks ambiguous choice answers as clarification state without advancing the slot", () => {
+    expect(
+      applyActiveChoiceAnswer({
+        activeChoices: additionalWorkChoices,
+        message: "選択: none, retouch",
+      }),
+    ).toMatchObject({
+      conversationState: {
+        activeIntakeClarification: {
+          status: "needs-clarification",
+          choiceSetId: "additional-work",
+          reason: "exclusive-choice-conflict",
+        },
+      },
+      jobContext: {},
+    })
+
+    expect(
+      applyActiveChoiceAnswer({
+        activeChoices: projectLengthChoices,
+        message: "2.5",
+      }),
+    ).toMatchObject({
+      conversationState: {
+        activeIntakeClarification: {
+          status: "needs-clarification",
+          choiceSetId: "project-length",
+          reason: "quantity-needs-unit",
+        },
+      },
+      jobContext: {},
+    })
+  })
 
   it("keeps other comments in conversation state and maps them to server state", () => {
     expect(
@@ -231,6 +263,29 @@ describe("choice panel state", () => {
         productionOptions: ["captions", "other"],
         otherChoiceComments: { "production-options": "英語版ナレーション" },
       },
+    })
+  })
+
+  it("uses a pending other-choice clarification answer as the free-text comment", () => {
+    expect(
+      applyActiveChoiceAnswer({
+        activeChoices: additionalWorkChoices,
+        message: "MA も相談したい",
+        activeIntakeClarification: {
+          status: "needs-clarification",
+          choiceSetId: "additional-work",
+          selectedChoiceIds: ["other"],
+          question: "「その他」の内容を1つだけ補足してください。",
+          reason: "other-choice-needs-detail",
+        },
+      }),
+    ).toMatchObject({
+      conversationState: {
+        hasAdditionalWork: true,
+        otherChoiceComments: { "additional-work": "MA も相談したい" },
+        intakeClarifications: { "additional-work": { status: "clear" } },
+      },
+      jobContext: { additionalWork: ["other"] },
     })
   })
 })

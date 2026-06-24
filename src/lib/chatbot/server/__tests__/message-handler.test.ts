@@ -2298,6 +2298,190 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("keeps an empty other choice on the same slot and logs a clarification flow step", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: additionalWorkChoices,
+          currentQuestion: "カラグレ以外の追加作業はありますか？",
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            turnCount: 3,
+          },
+          jobContext: { jobKind: "cm-30s", finalMedium: "web", projectLengthMinutes: 1 },
+        },
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        requestId: "req_clarify_other",
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "選択: その他",
+      },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("その他"),
+    })
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "additional-work" } })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: expect.objectContaining({ id: "additional-work" }),
+        conversationState: expect.objectContaining({
+          hasAdditionalWork: false,
+          activeIntakeClarification: expect.objectContaining({
+            status: "needs-clarification",
+            choiceSetId: "additional-work",
+            reason: "other-choice-needs-detail",
+          }),
+        }),
+        jobContext: expect.objectContaining({ jobKind: "cm-30s" }),
+      }),
+    )
+    expect(harness.slackNotifier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "req_clarify_other",
+        flowStep: "choice-clarification",
+        flowStepReason: "other-choice-needs-detail",
+      }),
+    )
+  })
+
+  it("keeps a bare numeric length answer on the same slot until the unit is clarified", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: projectLengthChoices,
+          currentQuestion: "尺・分量の大枠を選んでください",
+          conversationState: {
+            hasJobKind: true,
+            turnCount: 2,
+          },
+          jobContext: { jobKind: "live-60m" },
+        },
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "2.5",
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentQuestion: expect.stringContaining("単位"),
+        conversationState: expect.objectContaining({
+          activeIntakeClarification: expect.objectContaining({
+            choiceSetId: "project-length",
+            reason: "quantity-needs-unit",
+          }),
+        }),
+        jobContext: expect.not.objectContaining({ projectLengthMinutes: expect.any(Number) }),
+      }),
+    )
+  })
+
+  it("returns to the original flow after an other-choice clarification is answered", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: additionalWorkChoices,
+          currentQuestion: "「その他」の内容を1つだけ補足してください。",
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            turnCount: 4,
+            activeIntakeClarification: {
+              status: "needs-clarification",
+              choiceSetId: "additional-work",
+              selectedChoiceIds: ["other"],
+              question: "「その他」の内容を1つだけ補足してください。",
+              reason: "other-choice-needs-detail",
+            },
+          },
+          jobContext: { jobKind: "cm-30s", finalMedium: "web", projectLengthMinutes: 1 },
+        },
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "MA も相談したい",
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: expect.objectContaining({ id: documentaryAttachmentChoices.id }),
+        conversationState: expect.objectContaining({
+          hasAdditionalWork: true,
+          activeIntakeClarification: undefined,
+          otherChoiceComments: { "additional-work": "MA も相談したい" },
+        }),
+        jobContext: expect.objectContaining({ additionalWork: ["other"] }),
+      }),
+    )
+  })
+
+  it("keeps explicit undecided values without forcing an immediate clarification", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: projectLengthChoices,
+          currentQuestion: "尺・分量の大枠を選んでください",
+          conversationState: {
+            hasJobKind: true,
+            turnCount: 2,
+          },
+          jobContext: { jobKind: "cm-30s" },
+        },
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "選択: 未定",
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: expect.objectContaining({ id: finalMediumChoices.id }),
+        conversationState: expect.objectContaining({
+          hasProjectLength: true,
+          intakeClarifications: {
+            "project-length": expect.objectContaining({ status: "unknown-but-acceptable" }),
+          },
+        }),
+      }),
+    )
+  })
+
   it("turns a show_booking_card tool call into a booking card using only tool args for prefill", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({

@@ -39,11 +39,17 @@ export function buildConversationState(input: {
     ...(inputState.lectureTrainingInquiry ?? {}),
     ...(activeChoiceState.lectureTrainingInquiry ?? {}),
   }
+  const intakeClarifications = {
+    ...(stored.intakeClarifications ?? {}),
+    ...(inputState.intakeClarifications ?? {}),
+    ...(activeChoiceState.intakeClarifications ?? {}),
+  }
 
   return {
     ...state,
     ...(Object.keys(otherChoiceComments).length > 0 ? { otherChoiceComments } : {}),
     ...(Object.keys(lectureTrainingInquiry).length > 0 ? { lectureTrainingInquiry } : {}),
+    ...(Object.keys(intakeClarifications).length > 0 ? { intakeClarifications } : {}),
     ...(input.jobContext.finalMedium !== "other" ? { hasFinalMedium: true } : {}),
     ...(input.jobContext.jobKind ? { hasJobKind: true } : {}),
     ...(typeof input.jobContext.projectLengthMinutes === "number" ? { hasProjectLength: true } : {}),

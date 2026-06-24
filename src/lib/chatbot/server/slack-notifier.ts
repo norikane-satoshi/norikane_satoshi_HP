@@ -24,6 +24,7 @@ export type ChatbotSlackNotificationInput = {
   routingDecisionKind?: RoutingDecision["kind"]
   uiKind?: string
   flowStep?: string
+  flowStepReason?: string
   threadTs?: string | null
   userMessage?: string
   assistantResponse?: string
@@ -144,6 +145,7 @@ function formatRequiredOperationLines(input: ChatbotSlackNotificationInput): str
     ...(input.tier ? [`tier: ${input.tier}`] : []),
     ...(input.uiKind ? [`ui: ${input.uiKind}`] : []),
     ...(input.flowStep ? [`flowStep: ${input.flowStep}`] : []),
+    ...(input.flowStepReason ? [`flowStepReason: ${redactForChatbotLog(input.flowStepReason)}`] : []),
     ...(typeof input.bookingProgress === "boolean" ? [`bookingProgress: ${input.bookingProgress}`] : []),
   ]
 }

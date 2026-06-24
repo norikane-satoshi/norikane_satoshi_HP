@@ -1,4 +1,5 @@
 import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
+import { surveyChoiceSets } from "@/lib/chatbot/domain"
 import { isLectureTrainingInquiry } from "@/lib/chatbot/server/lecture-training"
 
 export type ChatbotFlowStep =
@@ -8,6 +9,7 @@ export type ChatbotFlowStep =
   | "consultation-summary-form"
   | "direct-contact-card"
   | "choice-panel"
+  | "choice-clarification"
   | "tier4-inquiry-form"
 
 export function applyBookingFinalConfirmationAnswer(input: {
@@ -51,6 +53,13 @@ export function applyBookingFinalConfirmationPolicy(input: {
   routingDecision: RoutingDecision | undefined
   conversationState: ConversationState
 } {
+  if (input.conversationState.activeIntakeClarification?.status === "needs-clarification") {
+    return applyIntakeClarificationPolicy({
+      routingDecision: input.routingDecision,
+      conversationState: input.conversationState,
+    })
+  }
+
   if (isLectureTrainingInquiry(input.conversationState)) {
     return { routingDecision: input.routingDecision, conversationState: input.conversationState }
   }
@@ -117,11 +126,36 @@ export function applyBookingFinalConfirmationPolicy(input: {
   }
 }
 
+export function applyIntakeClarificationPolicy(input: {
+  routingDecision: RoutingDecision | undefined
+  conversationState: ConversationState
+}): {
+  routingDecision: RoutingDecision | undefined
+  conversationState: ConversationState
+} {
+  const clarification = input.conversationState.activeIntakeClarification
+  if (clarification?.status !== "needs-clarification") {
+    return { routingDecision: input.routingDecision, conversationState: input.conversationState }
+  }
+
+  return {
+    routingDecision: {
+      kind: "continue",
+      nextQuestion: clarification.question,
+      ...clarificationChoiceSet(clarification.choiceSetId),
+    },
+    conversationState: input.conversationState,
+  }
+}
+
 export function inferChatbotFlowStep(input: {
   routingDecision: RoutingDecision | undefined
   uiKind: string
   conversationState: ConversationState
 }): ChatbotFlowStep {
+  if (input.conversationState.activeIntakeClarification?.status === "needs-clarification") {
+    return "choice-clarification"
+  }
   if (input.conversationState.bookingFinalConfirmation?.status === "pending") {
     return "booking-final-confirmation"
   }
@@ -139,6 +173,14 @@ export function inferChatbotFlowStep(input: {
     default:
       return input.routingDecision?.kind === "to-booking-inline" ? "booking-card" : "conversation"
   }
+}
+
+function clarificationChoiceSet(
+  choiceSetId: string | undefined,
+): Pick<Extract<RoutingDecision, { kind: "continue" }>, "presentChoices"> | Record<string, never> {
+  if (!choiceSetId) return {}
+  const choiceSet = surveyChoiceSets.find((item) => item.id === choiceSetId)
+  return choiceSet ? { presentChoices: choiceSet } : {}
 }
 
 export function isNoAdditionalBookingConcern(message: string): boolean {
