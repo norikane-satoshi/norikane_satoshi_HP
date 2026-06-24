@@ -331,11 +331,13 @@ export async function handleChatbotMessage(
     (activeChoiceAnswer || durationContext.hasNewFacts || isLectureTrainingInquiry(conversationState)
       ? fallbackRoutingDecision
       : undefined)
+  const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState })
   const assistantDisplay = buildAssistantDisplayContent({
     rawText: llmResponse.rawText,
     routingDecision,
     fallbackRoutingDecision,
     jobContext,
+    uiKind: ui.kind,
   })
   const assistantContent = assistantDisplay.content
   logChatbotDurationTrace({
@@ -348,13 +350,22 @@ export async function handleChatbotMessage(
     tier: llmResponse.tier,
     durationTrace: durationContext.traceContext,
   })
+  logSingleUserPromptGuard({
+    requestId: input.requestId,
+    conversation,
+    tier: llmResponse.tier,
+    routingDecision,
+    uiKind: ui.kind,
+    rawText: llmResponse.rawText,
+    finalText: assistantContent,
+    report: assistantDisplay.singleUserPromptGuard,
+  })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
     role: "assistant",
     content: assistantContent,
   })
 
-  const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState })
   const issueReasons = detectChatbotIssueReasons(llmResponse.tier)
   logChatbotLlmFinalResponse({
     requestId: input.requestId,
@@ -394,6 +405,7 @@ export async function handleChatbotMessage(
     assistantText: assistantMessage.content,
     tier: llmResponse.tier,
     routingDecisionKind: routingDecision?.kind,
+    uiKind: ui.kind,
     bookingProgress: routingDecision?.kind === "to-booking-inline",
     issueReasons,
   })
@@ -427,6 +439,7 @@ async function notifySlackForChatbotResponse(input: {
   assistantText: string
   tier: ChatbotLlmResponse["tier"]
   routingDecisionKind?: RoutingDecision["kind"]
+  uiKind: ChatbotMessageUi["kind"]
   bookingProgress: boolean
   issueReasons?: string[]
 }): Promise<void> {
@@ -439,6 +452,7 @@ async function notifySlackForChatbotResponse(input: {
       sessionId: input.conversation.context.sessionId,
       tier: input.tier,
       routingDecisionKind: input.routingDecisionKind,
+      uiKind: input.uiKind,
       threadTs,
       userMessage: input.userText,
       assistantResponse: input.assistantText,
@@ -653,7 +667,12 @@ function buildAssistantDisplayContent(input: {
   routingDecision: RoutingDecision | undefined
   fallbackRoutingDecision: RoutingDecision
   jobContext: JobContext
-}): { content: string; sanitizationReport: ChatbotLlmSanitizationReport } {
+  uiKind: ChatbotMessageUi["kind"]
+}): {
+  content: string
+  sanitizationReport: ChatbotLlmSanitizationReport
+  singleUserPromptGuard: SingleUserPromptGuardReport
+} {
   const text = input.rawText.trim()
   const toolFreeText = stripShowBookingCardToolCall(text).trim()
   const sanitize = (content: string) => {
@@ -663,18 +682,83 @@ function buildAssistantDisplayContent(input: {
     })
     return { content: result.text, sanitizationReport: result.report }
   }
+  const guardedContent = buildSingleUserPromptGuardContent({
+    routingDecision: input.routingDecision,
+    uiKind: input.uiKind,
+  })
+  const withGuardReport = (
+    result: ReturnType<typeof sanitize>,
+    report: SingleUserPromptGuardReport = { applied: false },
+  ) => ({ ...result, singleUserPromptGuard: report })
+
+  if (guardedContent) {
+    return withGuardReport(sanitize(guardedContent.content), {
+      applied: true,
+      reason: guardedContent.reason,
+      uiKind: input.uiKind,
+      ...(guardedContent.choiceSetId ? { choiceSetId: guardedContent.choiceSetId } : {}),
+    })
+  }
 
   if (input.routingDecision?.kind === "to-booking-inline" && toolFreeText.length === 0) {
-    return sanitize("候補日を確認しました。")
+    return withGuardReport(sanitize("候補日を確認しました。"))
   }
-  if (toolFreeText !== text) return sanitize(toolFreeText)
-  if (!isBackendIdentityOnlyResponse(text)) return sanitize(text)
+  if (toolFreeText !== text) return withGuardReport(sanitize(toolFreeText))
+  if (!isBackendIdentityOnlyResponse(text)) return withGuardReport(sanitize(text))
 
   const routingDecision =
     input.routingDecision?.kind === "continue" ? input.routingDecision : input.fallbackRoutingDecision
-  if (routingDecision.kind === "continue") return sanitize(routingDecision.nextQuestion)
+  if (routingDecision.kind === "continue") return withGuardReport(sanitize(routingDecision.nextQuestion))
 
-  return sanitize(text)
+  return withGuardReport(sanitize(text))
+}
+
+type SingleUserPromptGuardReport =
+  | { applied: false }
+  | {
+      applied: true
+      reason: "choice-panel" | "booking-card" | "summary-form" | "tier4-inquiry-form"
+      uiKind: ChatbotMessageUi["kind"]
+      choiceSetId?: string
+    }
+
+function buildSingleUserPromptGuardContent(input: {
+  routingDecision: RoutingDecision | undefined
+  uiKind: ChatbotMessageUi["kind"]
+}):
+  | {
+      content: string
+      reason: Extract<SingleUserPromptGuardReport, { applied: true }>["reason"]
+      choiceSetId?: string
+    }
+  | undefined {
+  if (input.routingDecision?.kind === "continue" && input.routingDecision.presentChoices) {
+    return {
+      content: `${input.routingDecision.nextQuestion}\n下の選択肢から選んでください。`,
+      reason: "choice-panel",
+      choiceSetId: input.routingDecision.presentChoices.id,
+    }
+  }
+
+  switch (input.uiKind) {
+    case "booking-card":
+      return {
+        content: "候補日を確認しました。\n下の予約カードから選択してください。",
+        reason: "booking-card",
+      }
+    case "consultation-summary-form":
+      return {
+        content: "下のフォームで相談内容を確認して送信してください。",
+        reason: "summary-form",
+      }
+    case "tier4-inquiry-form":
+      return {
+        content: "下のフォームからお問い合わせください。",
+        reason: "tier4-inquiry-form",
+      }
+    default:
+      return undefined
+  }
 }
 
 function logChatbotDurationTrace(input: {
@@ -735,6 +819,37 @@ function logChatbotKnowledgeSourceTrace(input: {
         reason: entry.statusReason,
         includedInPrompt: entry.includedInPrompt === true && entry.content.trim().length > 0,
       })),
+    }),
+  )
+}
+
+function logSingleUserPromptGuard(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmResponse["tier"]
+  routingDecision: RoutingDecision | undefined
+  uiKind: ChatbotMessageUi["kind"]
+  rawText: string
+  finalText: string
+  report: SingleUserPromptGuardReport
+}): void {
+  if (process.env.NODE_ENV === "test") return
+  if (!input.report.applied) return
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_single_user_prompt_guard",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      routingDecisionKind: input.routingDecision?.kind ?? null,
+      uiKind: input.uiKind,
+      reason: input.report.reason,
+      choiceSetId: "choiceSetId" in input.report ? input.report.choiceSetId : undefined,
+      rawTextPreview: redactForChatbotLog(input.rawText),
+      finalTextPreview: redactForChatbotLog(input.finalText),
+      normalized: input.rawText !== input.finalText,
     }),
   )
 }

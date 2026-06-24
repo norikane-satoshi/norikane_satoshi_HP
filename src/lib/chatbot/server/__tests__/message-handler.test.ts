@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 
-import type { CandidateWindow, ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
-import { additionalWorkChoices, finalMediumChoices } from "@/lib/chatbot/domain"
+import type { CandidateWindow, ChatbotConversation, ChatbotMessage, ConversationState, JobContext } from "@/lib/chatbot/domain"
+import {
+  additionalWorkChoices,
+  documentaryAttachmentChoices,
+  finalMediumChoices,
+  workSiteChoices,
+} from "@/lib/chatbot/domain"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { createStaticChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
 import type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"
@@ -46,6 +51,22 @@ function userContext(overrides: Partial<UserChatbotContext> = {}): UserChatbotCo
     recentBookings: [],
     knownProfile: { finalMediums: ["web"], jobTypes: ["short movie"], workSites: ["remote-grading"] },
     referenceUrls: ["https://a.example/ref"],
+    ...overrides,
+  }
+}
+
+function baseProductionConversationState(overrides: Partial<ConversationState> = {}): ConversationState {
+  return {
+    hasFinalMedium: true,
+    hasJobKind: true,
+    hasProjectLength: true,
+    hasAdditionalWork: true,
+    hasDocumentaryAttachments: true,
+    hasWorkSite: true,
+    hasReferenceUrls: true,
+    hasContactEmail: false,
+    hasDesiredSchedule: true,
+    turnCount: 1,
     ...overrides,
   }
 }
@@ -559,6 +580,118 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).toBe("ご連絡先メールを教えてください")
   })
 
+  const choicePanelPromptCases: Array<[string, string, Partial<JobContext>, Partial<ConversationState>, string, string]> = [
+    [
+      "final medium",
+      "MV 5分のカラーグレーディング相談です。",
+      {},
+      {
+        hasFinalMedium: false,
+        hasJobKind: true,
+        hasAdditionalWork: true,
+        hasDocumentaryAttachments: true,
+        hasWorkSite: true,
+      },
+      "最終媒体は何になりますか？",
+      finalMediumChoices.id,
+    ],
+    [
+      "additional work",
+      "ライブ2時間半ぐらいあります。",
+      {
+        jobKind: "live-60m",
+        finalMedium: "live",
+        workSite: "remote-grading",
+        documentaryAttachment: { kind: "none" },
+      },
+      {
+        hasFinalMedium: true,
+        hasJobKind: true,
+        hasAdditionalWork: false,
+        hasDocumentaryAttachments: true,
+        hasWorkSite: true,
+      },
+      "カラグレ以外の追加作業はありますか？",
+      additionalWorkChoices.id,
+    ],
+    [
+      "documentary attachment",
+      "ライブ2時間半ぐらいあります。",
+      {
+        jobKind: "live-60m",
+        finalMedium: "live",
+        workSite: "remote-grading",
+        documentaryAttachment: { kind: "none" },
+      },
+      {
+        hasFinalMedium: true,
+        hasJobKind: true,
+        hasAdditionalWork: true,
+        hasDocumentaryAttachments: false,
+        hasWorkSite: true,
+      },
+      "付随する映像はありますか？",
+      documentaryAttachmentChoices.id,
+    ],
+    [
+      "work site",
+      "ライブ2時間半ぐらいあります。",
+      {
+        jobKind: "live-60m",
+        finalMedium: "live",
+        documentaryAttachment: { kind: "none" },
+      },
+      {
+        hasFinalMedium: true,
+        hasJobKind: true,
+        hasAdditionalWork: true,
+        hasDocumentaryAttachments: true,
+        hasWorkSite: false,
+      },
+      "作業場所のご希望はありますか？",
+      workSiteChoices.id,
+    ],
+  ]
+
+  it.each(choicePanelPromptCases)(
+    "forces assistant text to the %s choice-panel prompt",
+    async (_label, messageText, jobContextPatch, statePatch, expectedQuestion, expectedChoiceSetId) => {
+      const harness = setup()
+      harness.generate.mockResolvedValueOnce({
+        rawText:
+          "受付内容の整理：ライブ案件です。納品形式も教えてください。追加で確認したいことがあります。",
+        tier: "tier-3-ollama-deepseek",
+      })
+
+      const result = await handleChatbotMessage(
+        {
+          sessionId: "session_1",
+          userId: "user_a",
+          message: messageText,
+          jobContext: jobContextPatch,
+          conversationState: {
+            ...baseProductionConversationState(),
+            ...statePatch,
+          },
+        },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toBe(`${expectedQuestion}\n下の選択肢から選んでください。`)
+      expect(result.assistantMessage.content).not.toContain("受付内容の整理")
+      expect(result.assistantMessage.content).not.toContain("納品形式も教えてください")
+      expect(result.ui).toMatchObject({
+        kind: "choice-panel",
+        choiceSet: { id: expectedChoiceSetId },
+      })
+      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeChoices: expect.objectContaining({ id: expectedChoiceSetId }),
+        }),
+      )
+    },
+  )
+
   it("ignores non-tier4 proposed routing decisions and keeps talking when there is no tool call", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
@@ -982,6 +1115,17 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message: "ライブ2時間半のカラーグレーディングです。素材はこれから整理します。",
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: false,
+          hasDesiredSchedule: false,
+        },
       },
       harness.options,
     )
@@ -1012,6 +1156,17 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message:
           "案件の種類はライブで、2時間半ぐらいあります。最終的にブルーレイディスクにする予定です。顔を少しぼかしたい箇所があります。希望納期は7月いっぱいです。",
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: false,
+          hasDesiredSchedule: true,
+        },
       },
       harness.options,
     )
@@ -1102,6 +1257,17 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message: prompt,
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: false,
+          hasDesiredSchedule: false,
+        },
       },
       harness.options,
     )
@@ -1167,6 +1333,17 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message:
           "数名だけですけど、同じカメラに映っているカットが結構あるので、カット数で言うと30カット以上はあるんじゃないかなと思います。",
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: false,
+          hasDesiredSchedule: false,
+        },
       },
       harness.options,
     )
@@ -1227,6 +1404,17 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message: "素材はオンラインで渡せます。基本工程はどれくらいですか？",
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: false,
+          hasDesiredSchedule: false,
+        },
       },
       harness.options,
     )
@@ -1331,6 +1519,17 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message: latest,
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: false,
+          hasDesiredSchedule: false,
+        },
       },
       harness.options,
     )
@@ -1696,7 +1895,7 @@ describe("handleChatbotMessage user context", () => {
         desiredDeadline: "2026-07-10",
       }),
     )
-    expect(result.assistantMessage.content).toBe("候補日を確認しました。")
+    expect(result.assistantMessage.content).toBe("候補日を確認しました。\n下の予約カードから選択してください。")
     expect(result.ui).toMatchObject({
       kind: "booking-card",
       bookingPrefill: {

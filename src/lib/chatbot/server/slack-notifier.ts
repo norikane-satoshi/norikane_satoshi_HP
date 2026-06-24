@@ -22,6 +22,7 @@ export type ChatbotSlackNotificationInput = {
   sessionId?: string
   tier?: ChatbotLlmTier
   routingDecisionKind?: RoutingDecision["kind"]
+  uiKind?: string
   threadTs?: string | null
   userMessage?: string
   assistantResponse?: string
@@ -140,6 +141,7 @@ function formatRequiredOperationLines(input: ChatbotSlackNotificationInput): str
   return [
     ...(input.requestId ? [`requestId: ${input.requestId}`] : []),
     ...(input.tier ? [`tier: ${input.tier}`] : []),
+    ...(input.uiKind ? [`ui: ${input.uiKind}`] : []),
     ...(typeof input.bookingProgress === "boolean" ? [`bookingProgress: ${input.bookingProgress}`] : []),
   ]
 }
