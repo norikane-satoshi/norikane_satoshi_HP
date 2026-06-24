@@ -49,6 +49,7 @@ import {
   type ChatbotLlmSanitizationReport,
 } from "@/lib/chatbot/server/llm-response-normalizer"
 import {
+  getWorkflowDurationPresetsFromSnapshot,
   loadLatestChatbotKnowledgeSnapshot,
   type ChatbotKnowledgeSnapshot,
 } from "@/lib/chatbot/server/notion-knowledge-sync"
@@ -618,7 +619,7 @@ function noteEntryKeywords(entry: ChatbotKnowledgeSnapshot["noteKnowledge"][numb
 }
 
 function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnapshot): string {
-  const durationLines = snapshot.workflowDurations.presets.map(
+  const durationLines = getWorkflowDurationPresetsFromSnapshot(snapshot).map(
     (preset) => `- ${preset.label}: ${preset.minDays}〜${preset.maxDays}日`,
   )
   const noteLines = getCustomerFacingNoteKnowledge(snapshot).flatMap((entry) => [

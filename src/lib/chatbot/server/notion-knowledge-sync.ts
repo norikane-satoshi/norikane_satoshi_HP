@@ -207,7 +207,19 @@ export async function syncChatbotNotionKnowledge(input: {
 export function getWorkflowDurationPresetsFromSnapshot(
   snapshot: ChatbotKnowledgeSnapshot | null | undefined,
 ): readonly WorkflowDurationPreset[] {
-  return snapshot?.workflowDurations.presets ?? workflowDurationPresets
+  const presets = snapshot?.workflowDurations.presets ?? workflowDurationPresets
+  const staticLivePreset = workflowDurationPresets.find((preset) => preset.id === "live-60m")
+  if (!staticLivePreset) return presets
+
+  return presets.map((preset) =>
+    preset.id === "live-60m"
+      ? {
+          ...preset,
+          minDays: staticLivePreset.minDays,
+          maxDays: staticLivePreset.maxDays,
+        }
+      : preset,
+  )
 }
 
 function createPrismaChatbotKnowledgeRepository(): ChatbotKnowledgeRepository {

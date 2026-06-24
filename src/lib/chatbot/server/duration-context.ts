@@ -1,6 +1,9 @@
 import type { ChatbotConversation, ConversationState, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
-import type { ChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
+import {
+  getWorkflowDurationPresetsFromSnapshot,
+  type ChatbotKnowledgeSnapshot,
+} from "@/lib/chatbot/server/notion-knowledge-sync"
 
 type WorkflowFactSnapshot = Pick<
   JobContext,
@@ -219,11 +222,11 @@ export function buildDurationTraceContext(input: {
     knowledge: {
       syncedAt: input.knowledgeSnapshot?.syncedAt,
       workflowDurations:
-        input.knowledgeSnapshot?.workflowDurations.presets.map((preset) => ({
+        getWorkflowDurationPresetsFromSnapshot(input.knowledgeSnapshot).map((preset) => ({
           id: preset.id,
           minDays: preset.minDays,
           maxDays: preset.maxDays,
-          source: preset.source,
+          source: "source" in preset && typeof preset.source === "string" ? preset.source : "static",
         })) ?? [],
     },
     jobContext: {
