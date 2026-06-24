@@ -50,10 +50,15 @@ function llmRequest(overrides: Partial<ChatbotLlmRequest> = {}): ChatbotLlmReque
   }
 }
 
-function llmResponse(tier: ChatbotLlmTier, rawText = `${tier} response`): ChatbotLlmResponse {
+function llmResponse(
+  tier: ChatbotLlmTier,
+  rawText = `${tier} response`,
+  diagnostics?: ChatbotLlmResponse["diagnostics"],
+): ChatbotLlmResponse {
   return {
     rawText,
     tier,
+    ...(diagnostics ? { diagnostics } : {}),
   }
 }
 
@@ -271,8 +276,36 @@ describe("createChatbotLlmTierOrchestrator", () => {
         phase: "generate",
         outcome: "success",
         latencyMs: expect.any(Number),
+        diagnostics: undefined,
       },
     ])
+  })
+
+  it("emits retry diagnostics from a successful hosted Tier2 generate event", async () => {
+    const events: TierAttemptEvent[] = []
+    const diagnostics = {
+      endpoint: "/generate",
+      attemptCount: 2,
+      retryReasons: ["server-error"],
+      repairAttempted: true,
+      totalGenerateDurationMs: 312,
+    }
+    const tier2 = fakeClient("tier-2-hosted-chrome-notion-ai", {
+      generateResult: llmResponse("tier-2-hosted-chrome-notion-ai", "復旧しました", diagnostics),
+    })
+    const orchestrator = createChatbotLlmTierOrchestrator({
+      clients: [tier2],
+      onTierAttempt: (event) => events.push(event),
+    })
+
+    await orchestrator.generate(llmRequest())
+
+    expect(events[1]).toMatchObject({
+      tier: "tier-2-hosted-chrome-notion-ai",
+      phase: "generate",
+      outcome: "success",
+      diagnostics,
+    })
   })
 
   it("emits the client health error when a false health check exposes one", async () => {
