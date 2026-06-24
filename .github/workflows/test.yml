@@ -82,6 +82,18 @@ jobs:
               rows.push(`| coverage/coverage-summary.json | unavailable: ${error.message.replace(/\|/g, '\\|')} | n/a | n/a | n/a |`);
             }
 
+            const lines = coverageText.split(/\r?\n/);
+            const interestingIndex = lines.findIndex((line) =>
+              /^(\s*)?(FAIL|Failed Tests|AssertionError|Error:|TypeError:|ReferenceError:|Unhandled|Test Files|Tests\s+)/i.test(line) ||
+              /\b(failed|expected|received)\b/i.test(line),
+            );
+            const excerptStart = interestingIndex >= 0 ? Math.max(0, interestingIndex - 8) : Math.max(0, lines.length - 120);
+            const failureExcerpt = lines
+              .slice(excerptStart, excerptStart + 140)
+              .join('\n')
+              .slice(0, 8000)
+              .trim();
+
             const body = [
               marker,
               `### 📉 Unit / coverage failed at ${shortSha}`,
@@ -93,6 +105,12 @@ jobs:
               '| file | statements % | branches % | functions % | lines % |',
               '| --- | ---: | ---: | ---: | ---: |',
               rows.join('\n'),
+              '',
+              '#### Failure excerpt',
+              '',
+              '```text',
+              failureExcerpt || '(no failure excerpt captured)',
+              '```',
               '',
               `Run: ${runUrl}`,
             ].join('\n');
