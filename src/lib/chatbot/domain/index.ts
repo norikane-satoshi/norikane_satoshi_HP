@@ -24,6 +24,7 @@ export type { SurveyChoice, SurveyChoiceSet } from "@/lib/chatbot/domain/survey-
 export type {
   CandidateWindow,
   ConversationSummary,
+  DeliveryMedium,
   DocumentaryAttachment,
   DocumentaryAttachmentItem,
   FinalMedium,

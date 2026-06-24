@@ -899,9 +899,10 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("通常7〜8日")
+    expect(result.assistantMessage.content).toContain("60分ライブの参考基準は7〜8日")
     expect(result.assistantMessage.content).toContain("3日以内も")
     expect(result.assistantMessage.content).toContain("確約しません")
+    expect(result.assistantMessage.content).not.toContain("通常7〜8日")
     expect(result.assistantMessage.content).not.toContain("受け付けできません")
     expect(result.ui).toMatchObject({
       kind: "direct-contact-card",
@@ -910,7 +911,7 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(result.ui).toMatchObject({
       kind: "direct-contact-card",
-      suggestedMessage: expect.stringContaining("正本ライン 7〜8日"),
+      suggestedMessage: expect.stringContaining("60分ライブの参考基準は7〜8日"),
     })
     expect(result.ui).toMatchObject({
       kind: "direct-contact-card",
@@ -918,7 +919,7 @@ describe("handleChatbotMessage user context", () => {
     })
   })
 
-  it("keeps live workflow estimates consistent in stored assistant content", async () => {
+  it("keeps unsupported live workflow estimates out of stored assistant content", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
@@ -950,17 +951,19 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("工程目安は7〜8日")
+    expect(result.assistantMessage.content).toContain("60分ライブの参考基準は7〜8日")
+    expect(result.assistantMessage.content).toContain("今回の尺では素材量・カメラ数・ぼかし箇所・チェック体制を確認")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
+    expect(result.assistantMessage.content).not.toContain("通常のラインです")
     expect(harness.repository.appendMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
         role: "assistant",
-        content: expect.stringContaining("工程目安は7〜8日"),
+        content: expect.stringContaining("60分ライブの参考基準は7〜8日"),
       }),
     )
   })
 
-  it("keeps LLM-guided duration wording when it stays near the synced knowledge baseline", async () => {
+  it("rejects LLM-guided invented nearby duration wording for unsupported live lengths", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
@@ -984,12 +987,12 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("通常7〜9日")
-    expect(result.assistantMessage.content).toContain("素材状況や追加作業")
-    expect(result.assistantMessage.content).not.toContain("7〜8日が目安")
+    expect(result.assistantMessage.content).toContain("60分ライブの参考基準は7〜8日")
+    expect(result.assistantMessage.content).toContain("今回の尺では素材量・カメラ数・ぼかし箇所・チェック体制を確認")
+    expect(result.assistantMessage.content).not.toContain("通常7〜9日")
   })
 
-  it("infers explicit live duration facts from free text before storing assistant estimate text", async () => {
+  it("infers explicit live duration facts from free text before blocking unsupported live estimate text", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
@@ -1009,19 +1012,34 @@ describe("handleChatbotMessage user context", () => {
         sessionId: "session_1",
         userId: "user_a",
         message:
-          "案件種類はライブで2時間半ぐらいあります。素材搬入は7月1日、納品期限は7月いっぱいです。",
+          "案件の種類はライブで、2時間半ぐらいあります。最終的にDVDにする予定です。顔を少しぼかしたい箇所があります。希望納期は7月いっぱいです。",
       },
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("所要日数の目安は7〜8日")
+    expect(result.assistantMessage.content).toContain("60分ライブの参考基準は7〜8日")
+    expect(result.assistantMessage.content).toContain("今回の尺では素材量・カメラ数・ぼかし箇所・チェック体制を確認")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
+    expect(result.assistantMessage.content).not.toContain("17日")
+    expect(result.assistantMessage.content).not.toContain("20日")
+    expect(result.assistantMessage.content).not.toContain("通常のラインです")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("60分ライブ参考基準: 7〜8日")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("今回尺の確定日数: 正本未定義")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("17〜20日などの正本にない日数レンジ")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).not.toContain("基本工程ライン: 7〜8日")
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         jobContext: expect.objectContaining({
           finalMedium: "live",
+          deliveryMedium: "dvd",
           jobKind: "live-60m",
           projectLengthMinutes: 150,
+          workflowEstimate: expect.objectContaining({
+            estimateStatus: "needs-confirmation",
+            referencePresetId: "live-60m",
+            referenceMinDays: 7,
+            referenceMaxDays: 8,
+          }),
         }),
         conversationState: expect.objectContaining({
           hasFinalMedium: true,
@@ -1151,7 +1169,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("基本工程（7〜8日）")
+    expect(result.assistantMessage.content).toContain("60分ライブの参考基準は7〜8日")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "live",
@@ -1160,6 +1178,7 @@ describe("handleChatbotMessage user context", () => {
       workflowEstimate: expect.objectContaining({
         totalMinDays: 7,
         totalMaxDays: 8,
+        estimateStatus: "needs-confirmation",
       }),
     })
   })

@@ -4,12 +4,22 @@ import type { ChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowl
 
 type WorkflowFactSnapshot = Pick<
   JobContext,
-  "jobKind" | "finalMedium" | "workSite" | "projectLengthMinutes" | "additionalWork"
+  "jobKind" | "finalMedium" | "deliveryMedium" | "workSite" | "projectLengthMinutes" | "additionalWork"
 >
 
 export type DurationConversationState = {
   workflowFacts?: Partial<WorkflowFactSnapshot>
-  workflowEstimate?: Pick<WorkflowEstimate, "totalMinDays" | "totalMaxDays" | "riskFlags">
+  workflowEstimate?: Pick<
+    WorkflowEstimate,
+    | "totalMinDays"
+    | "totalMaxDays"
+    | "riskFlags"
+    | "estimateStatus"
+    | "referencePresetId"
+    | "referenceMinDays"
+    | "referenceMaxDays"
+    | "unsupportedReason"
+  >
   knowledgeSyncedAt?: string
   snapshotStatus: "current" | "missing"
 }
@@ -27,10 +37,11 @@ export type DurationTraceContext = {
   jobContext: {
     jobKind?: JobContext["jobKind"]
     finalMedium: JobContext["finalMedium"]
+    deliveryMedium?: JobContext["deliveryMedium"]
     workSite: JobContext["workSite"]
     projectLengthMinutes?: number
     additionalWork?: JobContext["additionalWork"]
-    workflowEstimate?: Pick<WorkflowEstimate, "totalMinDays" | "totalMaxDays" | "riskFlags">
+    workflowEstimate?: DurationConversationState["workflowEstimate"]
   }
 }
 
@@ -136,16 +147,28 @@ export function buildWorkflowPromptContext(jobContext: JobContext): string | und
     `- 作業場所: ${jobContext.workSite}`,
   ]
 
+  if (jobContext.deliveryMedium !== undefined) {
+    lines.push(`- 納品媒体: ${jobContext.deliveryMedium}`)
+  }
   if (jobContext.projectLengthMinutes !== undefined) {
     lines.push(`- 尺: ${formatMinutes(jobContext.projectLengthMinutes)}`)
   }
   if (jobContext.workflowEstimate) {
-    lines.push(
-      `- 基本工程ライン: ${formatDays(jobContext.workflowEstimate.totalMinDays)}〜${formatDays(
-        jobContext.workflowEstimate.totalMaxDays,
-      )}日`,
-    )
-    lines.push("このライン日数を正本ナレッジ由来の基準として扱い、追加作業・素材状況・希望納期で前後する説明を添えます。")
+    if (jobContext.workflowEstimate.estimateStatus === "needs-confirmation") {
+      const referenceMinDays = jobContext.workflowEstimate.referenceMinDays ?? jobContext.workflowEstimate.totalMinDays
+      const referenceMaxDays = jobContext.workflowEstimate.referenceMaxDays ?? jobContext.workflowEstimate.totalMaxDays
+      lines.push(`- 60分ライブ参考基準: ${formatDays(referenceMinDays)}〜${formatDays(referenceMaxDays)}日`)
+      lines.push("- 今回尺の確定日数: 正本未定義（確認待ち）")
+      lines.push("- 禁止: 17〜20日などの正本にない日数レンジ、60分基準の確定見積もり化、尺による線形倍率計算")
+      lines.push("60分基準は参考基準としてのみ扱い、今回の断定日数は出さず、素材量・カメラ数・ぼかし箇所・チェック体制の確認に寄せます。")
+    } else {
+      lines.push(
+        `- 基本工程ライン: ${formatDays(jobContext.workflowEstimate.totalMinDays)}〜${formatDays(
+          jobContext.workflowEstimate.totalMaxDays,
+        )}日`,
+      )
+      lines.push("このライン日数を正本ナレッジ由来の基準として扱い、追加作業・素材状況・希望納期で前後する説明を添えます。")
+    }
   }
 
   return lines.join("\n")
@@ -159,6 +182,7 @@ export function buildDurationConversationState(
     workflowFacts: {
       jobKind: jobContext.jobKind,
       finalMedium: jobContext.finalMedium,
+      deliveryMedium: jobContext.deliveryMedium,
       workSite: jobContext.workSite,
       projectLengthMinutes: jobContext.projectLengthMinutes,
       additionalWork: jobContext.additionalWork,
@@ -169,6 +193,11 @@ export function buildDurationConversationState(
             totalMinDays: jobContext.workflowEstimate.totalMinDays,
             totalMaxDays: jobContext.workflowEstimate.totalMaxDays,
             riskFlags: jobContext.workflowEstimate.riskFlags,
+            estimateStatus: jobContext.workflowEstimate.estimateStatus,
+            referencePresetId: jobContext.workflowEstimate.referencePresetId,
+            referenceMinDays: jobContext.workflowEstimate.referenceMinDays,
+            referenceMaxDays: jobContext.workflowEstimate.referenceMaxDays,
+            unsupportedReason: jobContext.workflowEstimate.unsupportedReason,
           },
         }
       : {}),
@@ -195,6 +224,7 @@ export function buildDurationTraceContext(input: {
     jobContext: {
       jobKind: input.jobContext.jobKind,
       finalMedium: input.jobContext.finalMedium,
+      deliveryMedium: input.jobContext.deliveryMedium,
       workSite: input.jobContext.workSite,
       projectLengthMinutes: input.jobContext.projectLengthMinutes,
       additionalWork: input.jobContext.additionalWork,
@@ -203,6 +233,11 @@ export function buildDurationTraceContext(input: {
             totalMinDays: input.jobContext.workflowEstimate.totalMinDays,
             totalMaxDays: input.jobContext.workflowEstimate.totalMaxDays,
             riskFlags: input.jobContext.workflowEstimate.riskFlags,
+            estimateStatus: input.jobContext.workflowEstimate.estimateStatus,
+            referencePresetId: input.jobContext.workflowEstimate.referencePresetId,
+            referenceMinDays: input.jobContext.workflowEstimate.referenceMinDays,
+            referenceMaxDays: input.jobContext.workflowEstimate.referenceMaxDays,
+            unsupportedReason: input.jobContext.workflowEstimate.unsupportedReason,
           }
         : undefined,
     },

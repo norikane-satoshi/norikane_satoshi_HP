@@ -1,5 +1,6 @@
 import type {
   DocumentaryAttachment,
+  DeliveryMedium,
   FinalMedium,
   JobContext,
   JobKind,
@@ -61,6 +62,7 @@ export function inferWorkflowJobContextFromText(
     (!current.jobKind || !explicitJobKind || explicitJobKind === current.jobKind)
   const projectLengthMinutes = canInferProjectLength ? explicitProjectLengthMinutes : undefined
   const finalMedium = current.finalMedium === "other" ? inferFinalMedium(normalized, jobKind) : undefined
+  const deliveryMedium = current.deliveryMedium === undefined ? inferDeliveryMedium(normalized) : undefined
   const inferred: Partial<JobContext> = {}
 
   if (!current.jobKind && safeExplicitJobKind) inferred.jobKind = safeExplicitJobKind
@@ -68,6 +70,7 @@ export function inferWorkflowJobContextFromText(
     inferred.projectLengthMinutes = projectLengthMinutes
   }
   if (current.finalMedium === "other" && finalMedium) inferred.finalMedium = finalMedium
+  if (current.deliveryMedium === undefined && deliveryMedium) inferred.deliveryMedium = deliveryMedium
 
   return inferred
 }
@@ -122,6 +125,12 @@ function inferProjectLengthMinutes(text: string): number | undefined {
 
   const seconds = /(\d+(?:\.\d+)?)\s*(?:秒|s(?:ec(?:ond)?s?)?)/u.exec(text)
   if (seconds) return Number(seconds[1]) / 60
+
+  return undefined
+}
+
+function inferDeliveryMedium(text: string): DeliveryMedium | undefined {
+  if (/(?:dvd|blu-?ray|bd|ブルーレイ|ディスク)/u.test(text)) return "dvd"
 
   return undefined
 }
@@ -229,8 +238,27 @@ export function estimateWorkflow(
     totalMinDays: workSiteAdjusted.minDays,
     totalMaxDays: workSiteAdjusted.maxDays,
     riskFlags,
+    ...getEstimateStatus(jobContext, base),
     ...(adjusted.heavyRetouch ? { requiresDirectContact: true } : {}),
   }
+}
+
+function getEstimateStatus(jobContext: JobContext, base: BaseDurationRange): Partial<WorkflowEstimate> {
+  if (
+    jobContext.jobKind === "live-60m" &&
+    typeof jobContext.projectLengthMinutes === "number" &&
+    jobContext.projectLengthMinutes !== workflowDurationJobKindMap["live-60m"].baselineMinutes
+  ) {
+    return {
+      estimateStatus: "needs-confirmation",
+      referencePresetId: "live-60m",
+      referenceMinDays: base.minDays,
+      referenceMaxDays: base.maxDays,
+      unsupportedReason: "live-duration-outside-baseline",
+    }
+  }
+
+  return { estimateStatus: "authoritative" }
 }
 
 function hasRetouchWork(jobContext: JobContext): boolean {

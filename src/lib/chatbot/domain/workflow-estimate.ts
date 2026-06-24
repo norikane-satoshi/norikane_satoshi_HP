@@ -11,6 +11,8 @@ export type JobKind =
 
 export type FinalMedium = "ott" | "cinema" | "tv-broadcast" | "live" | "web" | "vertical-sns" | "other"
 
+export type DeliveryMedium = "dvd"
+
 export type WorkSite = "satoshi-studio" | "remote-grading" | "on-site"
 
 export type DocumentaryAttachmentItem =
@@ -35,6 +37,11 @@ export type WorkflowEstimate = {
   totalMinDays: number
   totalMaxDays: number
   riskFlags: Array<"tight-deadline" | "heavy-retouch" | "strict-delivery" | "on-site-transfer">
+  estimateStatus?: "authoritative" | "needs-confirmation"
+  referencePresetId?: JobKind
+  referenceMinDays?: number
+  referenceMaxDays?: number
+  unsupportedReason?: "live-duration-outside-baseline"
   requiresDirectContact?: boolean
 }
 
@@ -49,6 +56,7 @@ export type CandidateWindow = {
 export type JobContext = {
   jobKind?: JobKind
   finalMedium: FinalMedium
+  deliveryMedium?: DeliveryMedium
   workSite: WorkSite
   documentaryAttachment: DocumentaryAttachment
   retouchCutCount?: number

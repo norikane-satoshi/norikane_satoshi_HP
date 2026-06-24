@@ -92,9 +92,19 @@ export type ConversationState = {
   otherChoiceComments?: Record<string, string>
   durationContext?: {
     workflowFacts?: Partial<
-      Pick<JobContext, "jobKind" | "finalMedium" | "workSite" | "projectLengthMinutes" | "additionalWork">
+      Pick<JobContext, "jobKind" | "finalMedium" | "deliveryMedium" | "workSite" | "projectLengthMinutes" | "additionalWork">
     >
-    workflowEstimate?: Pick<WorkflowEstimate, "totalMinDays" | "totalMaxDays" | "riskFlags">
+    workflowEstimate?: Pick<
+      WorkflowEstimate,
+      | "totalMinDays"
+      | "totalMaxDays"
+      | "riskFlags"
+      | "estimateStatus"
+      | "referencePresetId"
+      | "referenceMinDays"
+      | "referenceMaxDays"
+      | "unsupportedReason"
+    >
     knowledgeSyncedAt?: string
     snapshotStatus: "current" | "missing"
   }

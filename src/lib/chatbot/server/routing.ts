@@ -108,11 +108,18 @@ function directContact(
 }
 
 function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["workflowEstimate"]): string {
-  const baseline = workflowEstimate
-    ? `通常は正本ライン ${formatDays(workflowEstimate.totalMinDays)}〜${formatDays(
-        workflowEstimate.totalMaxDays,
-      )}日が目安です。`
-    : "通常の正本ラインを目安にします。"
+  const baseline =
+    workflowEstimate?.estimateStatus === "needs-confirmation"
+      ? `60分ライブの参考基準は${formatDays(
+          workflowEstimate.referenceMinDays ?? workflowEstimate.totalMinDays,
+        )}〜${formatDays(
+          workflowEstimate.referenceMaxDays ?? workflowEstimate.totalMaxDays,
+        )}日です。今回の尺では素材量・カメラ数・ぼかし箇所・チェック体制を確認して判断します。`
+      : workflowEstimate
+        ? `通常は正本ライン ${formatDays(workflowEstimate.totalMinDays)}〜${formatDays(
+            workflowEstimate.totalMaxDays,
+          )}日が目安です。`
+        : "通常の正本ラインを目安にします。"
 
   return [
     baseline,

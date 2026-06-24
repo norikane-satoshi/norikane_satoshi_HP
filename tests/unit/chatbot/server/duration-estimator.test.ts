@@ -21,7 +21,7 @@ describe("chatbot duration estimator", () => {
     ["ドラマ初回です", { jobKind: "drama-first" }],
     ["ドラマ2話目以降です", { jobKind: "drama-follow-up" }],
     ["縦型動画60秒です", { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 }],
-    ["ライブ2時間半です", { finalMedium: "live", jobKind: "live-60m", projectLengthMinutes: 150 }],
+    ["ライブ2時間半です。最終的にDVDにします", { finalMedium: "live", deliveryMedium: "dvd", jobKind: "live-60m", projectLengthMinutes: 150 }],
   ])("infers workflow facts from explicit free text: %s", (message, expected) => {
     expect(inferWorkflowJobContextFromText(message, jobContext({ jobKind: undefined, finalMedium: "other" }))).toMatchObject(expected)
   })
@@ -103,6 +103,27 @@ describe("chatbot duration estimator", () => {
 
     expect(result.totalMinDays).toBe(7.5)
     expect(result.totalMaxDays).toBe(9)
+    expect(result.estimateStatus).toBe("authoritative")
     expect(result.riskFlags).toContain("on-site-transfer")
+  })
+
+  it("marks non-60m live duration as confirmation-required reference instead of authoritative", () => {
+    const result = estimateWorkflow(
+      jobContext({
+        jobKind: "live-60m",
+        finalMedium: "live",
+        projectLengthMinutes: 150,
+      }),
+    )
+
+    expect(result.totalMinDays).toBe(7)
+    expect(result.totalMaxDays).toBe(8)
+    expect(result).toMatchObject({
+      estimateStatus: "needs-confirmation",
+      referencePresetId: "live-60m",
+      referenceMinDays: 7,
+      referenceMaxDays: 8,
+      unsupportedReason: "live-duration-outside-baseline",
+    })
   })
 })
