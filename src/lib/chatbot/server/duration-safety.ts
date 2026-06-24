@@ -51,8 +51,9 @@ export function evaluateWorkflowDurationSafety(
     }
   }
 
+  const nonLiveAlignedText = alignNonLiveLiveMismatchText(rawText, estimate, report, jobContext)
   const expected = `${formatDays(estimate.totalMinDays)}〜${formatDays(estimate.totalMaxDays)}日`
-  const alignedText = rawText.replace(workflowRangePattern, (match, prefix: string, rawRange: string) => {
+  const alignedText = nonLiveAlignedText.replace(workflowRangePattern, (match, prefix: string, rawRange: string) => {
     const stated = parseDayRange(rawRange)
     if (!stated || !isClearlyOutsideWorkflowEstimate(stated, estimate)) return match
 
@@ -213,6 +214,40 @@ function alignLiveDurationText(
   return alignedText.replace(/\s{2,}/gu, " ").trim()
 }
 
+function alignNonLiveLiveMismatchText(
+  rawText: string,
+  estimate: WorkflowEstimate,
+  report: ChatbotDurationSafetyReport,
+  jobContext?: JobContext,
+): string {
+  if (!jobContext || jobContext.jobKind === "live-60m" || jobContext.finalMedium === "live") return rawText
+  if (!/(?:ライブ|live)\s*(?:60\s*分|案件|素材)?/iu.test(rawText)) return rawText
+
+  const safeText = buildNonLiveDurationSafeText(estimate, jobContext)
+  let insertedSafeText = false
+
+  const alignedText = rawText.replace(sentenceWithDurationDayPattern, (sentence) => {
+    if (!/(?:ライブ|live)\s*(?:60\s*分|案件|素材)?/iu.test(sentence)) return sentence
+
+    const statedRanges = parseDayMentions(sentence)
+    for (const stated of statedRanges) {
+      report.corrections.push({
+        statedMinDays: stated.minDays,
+        statedMaxDays: stated.maxDays,
+        expectedMinDays: estimate.totalMinDays,
+        expectedMaxDays: estimate.totalMaxDays,
+        reason: "clearly-outside-workflow-estimate",
+      })
+    }
+
+    if (insertedSafeText) return ""
+    insertedSafeText = true
+    return safeText
+  })
+
+  return alignedText.replace(/\s{2,}/gu, " ").trim()
+}
+
 function buildUnsupportedLiveDurationSafeText(estimate: WorkflowEstimate, jobContext?: JobContext): string {
   const referenceMinDays = estimate.referenceMinDays ?? estimate.totalMinDays
   const referenceMaxDays = estimate.referenceMaxDays ?? estimate.totalMaxDays
@@ -222,6 +257,10 @@ function buildUnsupportedLiveDurationSafeText(estimate: WorkflowEstimate, jobCon
 
 function buildLiveDurationSafeText(estimate: WorkflowEstimate, jobContext?: JobContext): string {
   return `ライブ${formatProjectLength(jobContext?.projectLengthMinutes)}の基本目安は${formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)}程度です。顔ぼかしなどの追加作業やディスク納品の条件によっては、基本目安から前後・追加になる可能性があります。納品形式や追加作業量を確認します。`
+}
+
+function buildNonLiveDurationSafeText(estimate: WorkflowEstimate, jobContext: JobContext): string {
+  return `${formatNonLiveProjectLabel(jobContext)}の基本目安は${formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)}程度です。追加作業・素材状況・希望納期・納品形式で前後または追加になる可能性があります。`
 }
 
 function parseDayMentions(sentence: string): Array<{ minDays: number; maxDays: number }> {
@@ -315,8 +354,20 @@ function formatDayRange(minDays: number, maxDays: number): string {
 
 function formatProjectLength(value: number | undefined): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return ""
+  if (value > 0 && value < 1) return `${formatDays(value * 60)}秒`
   if (value === 60) return "60分"
   if (value >= 60 && value % 60 === 0) return `${value / 60}時間`
   if (value > 60) return `${Math.floor(value / 60)}時間${value % 60}分`
   return `${value}分`
+}
+
+function formatNonLiveProjectLabel(jobContext: JobContext): string {
+  if (jobContext.jobKind === "cm-30s") return "Web CM 30秒"
+  if (jobContext.jobKind === "mv-5m") return "MV 5分"
+  if (jobContext.jobKind === "drama-first") return "ドラマ初回"
+  if (jobContext.jobKind === "feature-90m") return "本編90分"
+  if (jobContext.jobKind === "vertical-60s") return "縦型動画60秒"
+  if (jobContext.jobKind) return jobContext.jobKind
+  if (jobContext.projectLengthMinutes !== undefined) return `今回の${formatProjectLength(jobContext.projectLengthMinutes)}案件`
+  return "今回の案件"
 }

@@ -1569,6 +1569,54 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("replaces live duration text when the server has non-live job context", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          jobContext: {
+            finalMedium: "web",
+            jobKind: "cm-30s",
+            projectLengthMinutes: 0.5,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            additionalWork: [],
+            preferredStartDate: "2026-07-01",
+          },
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasAdditionalWork: true,
+            hasDocumentaryAttachments: true,
+            hasWorkSite: true,
+            hasReferenceUrls: true,
+            hasContactEmail: false,
+            hasDesiredSchedule: true,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "ライブ60分・追加作業なしのカラーグレーディングでしたら、4日程度が目安です。",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "必要情報は揃っています。予約候補へ進めますか？",
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain("Web CM 30秒の基本目安は1〜2日程度")
+    expect(result.assistantMessage.content).not.toContain("ライブ60分")
+    expect(result.assistantMessage.content).not.toContain("4日程度")
+  })
+
   it("recovers workflow estimate facts from prior user turns when stored job context is missing", async () => {
     const harness = setup({
       existingConversation: conversation({
