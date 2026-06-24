@@ -15,6 +15,15 @@ export type ChatbotSlackNotificationResult =
   | { status: "skipped"; reason: "disabled" | "missing-slack-config" }
   | { status: "failed"; reason: "send-failed" }
 
+export type ChatbotSlackRetryDiagnostics = {
+  attemptCount?: number
+  retryReasons?: string[]
+  repairAttempted?: boolean
+  totalDurationMs?: number
+  totalBudgetMs?: number
+  fallbackReason?: string
+}
+
 export type ChatbotSlackNotificationInput = {
   kind: "conversation" | "issue" | "booking-completed"
   requestId?: string
@@ -31,6 +40,7 @@ export type ChatbotSlackNotificationInput = {
   assistantResponse?: string
   bookingProgress?: boolean
   issueReasons?: string[]
+  retryDiagnostics?: ChatbotSlackRetryDiagnostics
   bookingGroupId?: string
   selectedSlotCount?: number
 }
@@ -149,6 +159,20 @@ function formatRequiredOperationLines(input: ChatbotSlackNotificationInput): str
     ...(input.flowStep ? [`flowStep: ${input.flowStep}`] : []),
     ...(input.flowStepReason ? [`flowStepReason: ${redactForChatbotLog(input.flowStepReason)}`] : []),
     ...(typeof input.bookingProgress === "boolean" ? [`bookingProgress: ${input.bookingProgress}`] : []),
+    ...formatRetryDiagnosticLines(input.retryDiagnostics),
+  ]
+}
+
+function formatRetryDiagnosticLines(diagnostics: ChatbotSlackRetryDiagnostics | undefined): string[] {
+  if (!diagnostics) return []
+
+  return [
+    ...(typeof diagnostics.attemptCount === "number" ? [`retryAttempts: ${diagnostics.attemptCount}`] : []),
+    ...(typeof diagnostics.repairAttempted === "boolean" ? [`repairAttempted: ${diagnostics.repairAttempted}`] : []),
+    ...(diagnostics.retryReasons?.length ? [`retryReasons: ${diagnostics.retryReasons.map(redactForChatbotLog).join(",")}`] : []),
+    ...(typeof diagnostics.totalDurationMs === "number" ? [`retryDurationMs: ${diagnostics.totalDurationMs}`] : []),
+    ...(typeof diagnostics.totalBudgetMs === "number" ? [`retryBudgetMs: ${diagnostics.totalBudgetMs}`] : []),
+    ...(diagnostics.fallbackReason ? [`fallbackReason: ${redactForChatbotLog(diagnostics.fallbackReason)}`] : []),
   ]
 }
 
