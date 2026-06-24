@@ -82,6 +82,7 @@ describe("normalizeChatbotLlmResponse", () => {
     ["所要日数の目安は17〜20日です。"],
     ["スタジオの手配は、所要日数（17〜20日）を踏まえて相談します。"],
     ["ライブ2時間半のカラーグレーディングは、目安として17〜20日です。"],
+    ["ライブ2時間半は60分の2.5倍なので10日程度です。"],
   ])("suppresses clearly hallucinated workflow range notation: %s", (rawText) => {
     const normalized = normalizeChatbotLlmResponse(
       {
@@ -108,6 +109,7 @@ describe("normalizeChatbotLlmResponse", () => {
 
     expect(normalized.content).toContain("7〜8日")
     expect(normalized.content).not.toMatch(/17(?:日から|[〜～-])20日/u)
+    expect(normalized.content).not.toContain("10日程度")
   })
 
   it("keeps explicitly framed 150m live baselines", () => {
