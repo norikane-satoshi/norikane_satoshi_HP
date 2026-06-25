@@ -251,6 +251,37 @@ describe("Tier2HostedChromeNotionAiClient", () => {
     expect(httpClient).toHaveBeenCalledTimes(2)
   })
 
+  it("aborts the hosted worker fetch when the per-attempt timeout elapses", async () => {
+    vi.useFakeTimers()
+    const seenSignals: AbortSignal[] = []
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockImplementationOnce((_input: string, init?: RequestInit) => {
+        if (init?.signal) seenSignals.push(init.signal)
+        return new Promise<Response>(() => undefined)
+      })
+    const client = new Tier2HostedChromeNotionAiClient({
+      ...baseConfig,
+      requestTimeoutMs: 20,
+      healthCheckTimeoutMs: 5,
+      totalGenerateBudgetMs: 24,
+      httpClient,
+    })
+
+    const promise = client.generate(llmRequest()).catch((error: unknown) => error)
+    await flushMicrotasks()
+    expect(seenSignals).toHaveLength(1)
+    expect(seenSignals[0]?.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(20)
+
+    await expect(promise).resolves.toMatchObject({
+      code: "timeout",
+      isRetryable: true,
+    })
+    expect(seenSignals[0]?.aborted).toBe(true)
+  })
+
   it("loads worker URL, token, enabled flag, and total budget from tier-specific env", async () => {
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_URL", "https://env-worker.example.test/")
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "env-token")

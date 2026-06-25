@@ -9,6 +9,7 @@ export type ChatbotLlmTier =
   | "tier-4-form-fallback"
 
 export type ChatbotLlmRequest = {
+  requestId?: string
   systemPrompt: string
   messages: ReadonlyArray<{ role: ChatbotMessageRole; content: string }>
   conversationState: ConversationState
@@ -16,6 +17,10 @@ export type ChatbotLlmRequest = {
   latestUserMessage?: string
   temperature?: number
   maxOutputTokens?: number
+}
+
+export type ChatbotLlmGenerateOptions = {
+  signal?: AbortSignal
 }
 
 export type ChatbotLlmResponse = {
@@ -28,7 +33,7 @@ export type ChatbotLlmResponse = {
 
 export interface ChatbotLlmClient {
   readonly tier: ChatbotLlmTier
-  generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse>
+  generate(request: ChatbotLlmRequest, options?: ChatbotLlmGenerateOptions): Promise<ChatbotLlmResponse>
   isHealthy(): Promise<boolean>
   getLastHealthError?(): ChatbotLlmError | Error | undefined
 }

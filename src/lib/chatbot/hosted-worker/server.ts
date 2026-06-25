@@ -25,8 +25,10 @@ type HostedWorkerHandlerOptions = {
   queue?: HostedWorkerSingleFlightQueue
   health?: typeof getHostedWorkerHealth
   ensureChrome?: typeof ensureHostedWorkerChrome
-  generate?: typeof generateHostedWorkerResponse
+  generate?: HostedWorkerGenerateFunction
 }
+
+type HostedWorkerGenerateFunction = typeof generateHostedWorkerResponse
 
 type HostedWorkerServerOptions = HostedWorkerHandlerOptions & {
   host?: string
@@ -99,12 +101,15 @@ export function createHostedWorkerRequestHandler(options: HostedWorkerHandlerOpt
     }
 
     if (request.method === "POST" && url.pathname === "/generate") {
+      const requestAbort = createRequestAbortController(request, response)
       try {
-        const body = (await readJsonBody(request)) as HostedWorkerGenerateRequest
-        writeJson(response, 200, await generate(body, state, queue))
+        const body = (await readJsonBody(request, requestAbort.signal)) as HostedWorkerGenerateRequest
+        writeJson(response, 200, await generate(body, state, queue, { signal: requestAbort.signal }))
       } catch (error) {
         const normalized = normalizeServerError(error)
         writeJson(response, normalized.status, normalized.body)
+      } finally {
+        requestAbort.cleanup()
       }
       return
     }
@@ -157,11 +162,12 @@ function errorResponse(
   }
 }
 
-async function readJsonBody(request: IncomingMessage): Promise<unknown> {
+async function readJsonBody(request: IncomingMessage, signal?: AbortSignal): Promise<unknown> {
   const chunks: Buffer[] = []
   let totalBytes = 0
 
   for await (const chunk of request) {
+    if (signal?.aborted) throw new Error("Request was aborted.")
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     totalBytes += buffer.length
     if (totalBytes > maxBodyBytes) throw new Error("Request body is too large.")
@@ -174,9 +180,31 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 }
 
 function writeJson(response: ServerResponse, statusCode: number, value: unknown): void {
+  if (response.destroyed || response.writableEnded) return
   response.statusCode = statusCode
   response.setHeader("content-type", contentTypeJson)
   response.end(JSON.stringify(value))
+}
+
+function createRequestAbortController(
+  request: IncomingMessage,
+  response: ServerResponse,
+): AbortController & { cleanup(): void } {
+  const controller = new AbortController() as AbortController & { cleanup(): void }
+  const abort = () => {
+    if (!controller.signal.aborted) controller.abort()
+  }
+  const abortIfResponseClosedBeforeEnd = () => {
+    if (!response.writableEnded) abort()
+  }
+
+  request.once("aborted", abort)
+  response.once("close", abortIfResponseClosedBeforeEnd)
+  controller.cleanup = () => {
+    request.off("aborted", abort)
+    response.off("close", abortIfResponseClosedBeforeEnd)
+  }
+  return controller
 }
 
 function toPublicMessage(error: unknown): string {

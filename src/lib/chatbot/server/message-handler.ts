@@ -340,6 +340,7 @@ export async function handleChatbotMessage(
       userAgent: input.userAgent,
     })
   const llmResponse = await orchestrator.generate({
+    requestId: input.requestId,
     systemPrompt,
     messages: [
       ...conversation.messages.map(({ role, content }) => ({ role, content })),

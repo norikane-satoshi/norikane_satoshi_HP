@@ -1,4 +1,9 @@
-import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
+import type {
+  ChatbotLlmClient,
+  ChatbotLlmGenerateOptions,
+  ChatbotLlmRequest,
+  ChatbotLlmResponse,
+} from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 
@@ -34,6 +39,7 @@ export type NotionAiCdpSession = {
 type NotionAiCdpSessionFactory = (target: NotionAiCdpTarget) => Promise<NotionAiCdpSession>
 
 type TimeoutTag = "timeout"
+type AbortTag = "aborted"
 
 type NotionAiRuntimeContext = {
   spaceId?: string
@@ -209,6 +215,7 @@ type RuntimeEvaluateResult<T> = {
 
 const tier = "tier-1-chrome-notion-ai" as const
 const timeoutTag: TimeoutTag = "timeout"
+const abortTag: AbortTag = "aborted"
 const jsonListPath = "/json/list"
 const jsonVersionPath = "/json/version"
 const httpGet = "GET"
@@ -250,22 +257,25 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     this.idFactory = options.idFactory ?? randomId
   }
 
-  async generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse> {
+  async generate(request: ChatbotLlmRequest, options: ChatbotLlmGenerateOptions = {}): Promise<ChatbotLlmResponse> {
     const startedAt = Date.now()
-    return runTier1GenerateExclusive(() => this.generateUnqueued(request, startedAt))
+    return runTier1GenerateExclusive(() => this.generateUnqueued(request, startedAt, options.signal), options.signal)
   }
 
   private async generateUnqueued(
     request: ChatbotLlmRequest,
     startedAt: number,
+    signal?: AbortSignal,
   ): Promise<ChatbotLlmResponse> {
-    const { session, target } = await this.openTargetSession(this.config.requestTimeoutMs)
+    throwIfAborted(signal)
+    const { session, target } = await this.openTargetSession(this.config.requestTimeoutMs, signal)
 
     try {
       const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
         session,
         runtimeContextExpression,
         this.config.requestTimeoutMs,
+        signal,
       )
       const effectiveRuntimeContext = withConfiguredThreadContext(
         runtimeContext,
@@ -287,9 +297,10 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           session,
           buildRunInferenceExpression(payload, headers),
           this.config.requestTimeoutMs,
+          signal,
         )
         if (!this.isTransientEmptyInferenceResult(result) || attempt >= maxTransientGenerateAttempts) break
-        await delay(250)
+        await delay(250, signal)
       }
 
       if (!result) {
@@ -420,10 +431,12 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
 
   private async openTargetSession(
     timeoutMs: number,
+    signal?: AbortSignal,
   ): Promise<{ session: NotionAiCdpSession; target: NotionAiCdpTarget }> {
     try {
-      await this.requestJson<unknown>(jsonVersionPath, timeoutMs)
-      const targets = await this.requestJson<CdpTargetsResponse>(jsonListPath, timeoutMs)
+      throwIfAborted(signal)
+      await this.requestJson<unknown>(jsonVersionPath, timeoutMs, signal)
+      const targets = await this.requestJson<CdpTargetsResponse>(jsonListPath, timeoutMs, signal)
       const loginTarget = findNotionLoginTarget(targets, this.config.targetUrlIncludes)
       const target = findNotionAiTarget(targets, this.config.targetUrlIncludes)
 
@@ -454,14 +467,14 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       assertNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes)
 
       return {
-        session: await withTimeout(this.sessionFactory(target), timeoutMs, timeoutTag),
+        session: await withTimeout(this.sessionFactory(target), timeoutMs, timeoutTag, signal),
         target,
       }
     } catch (error) {
       if (error instanceof ChatbotLlmError) throw error
-      if (error === timeoutTag) {
+      if (error === timeoutTag || error === abortTag) {
         throw this.toLlmError({
-          message: "Chrome CDP connection timed out.",
+          message: error === abortTag ? "Chrome CDP connection was aborted." : "Chrome CDP connection timed out.",
           code: "timeout",
           isRetryable: true,
         })
@@ -476,11 +489,12 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     }
   }
 
-  private async requestJson<T>(path: string, timeoutMs: number): Promise<T> {
+  private async requestJson<T>(path: string, timeoutMs: number, signal?: AbortSignal): Promise<T> {
     const response = await withTimeout(
-      this.fetchClient(`${this.config.cdpBaseUrl}${path}`, { method: httpGet }),
+      this.fetchClient(`${this.config.cdpBaseUrl}${path}`, { method: httpGet, signal }),
       timeoutMs,
       timeoutTag,
+      signal,
     )
 
     if (!response.ok) {
@@ -498,14 +512,17 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     session: NotionAiCdpSession,
     expression: string,
     timeoutMs: number,
+    signal?: AbortSignal,
   ): Promise<T> {
     try {
-      return await withTimeout(session.evaluate<T>(expression, timeoutMs), timeoutMs, timeoutTag)
+      return await withTimeout(session.evaluate<T>(expression, timeoutMs), timeoutMs, timeoutTag, signal, () => {
+        void session.close()
+      })
     } catch (error) {
       if (error instanceof ChatbotLlmError) throw error
-      if (error === timeoutTag) {
+      if (error === timeoutTag || error === abortTag) {
         throw this.toLlmError({
-          message: "Notion AI page evaluation timed out.",
+          message: error === abortTag ? "Notion AI page evaluation was aborted." : "Notion AI page evaluation timed out.",
           code: "timeout",
           isRetryable: true,
         })
@@ -555,8 +572,14 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
   }
 }
 
-function runTier1GenerateExclusive<T>(operation: () => Promise<T>): Promise<T> {
-  const run = tier1GenerateQueue.then(operation, operation)
+function runTier1GenerateExclusive<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  const run = tier1GenerateQueue.then(() => {
+    throwIfAborted(signal)
+    return operation()
+  }, () => {
+    throwIfAborted(signal)
+    return operation()
+  })
   tier1GenerateQueue = run.then(() => undefined, () => undefined)
   return run
 }
@@ -565,8 +588,21 @@ function isTransientEmptyNotionResponse(message: string): boolean {
   return message.includes("bytes=0") || message.includes("empty NDJSON stream")
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal)
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup()
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      cleanup()
+      reject(abortTag)
+    }
+    const cleanup = () => signal?.removeEventListener("abort", onAbort)
+    signal?.addEventListener("abort", onAbort, { once: true })
+  })
 }
 
 export function createTier1ChromeNotionAiClient(
@@ -1443,17 +1479,44 @@ class DefaultCdpSession implements NotionAiCdpSession {
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, tag: TimeoutTag): Promise<T> {
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (!signal?.aborted) return
+  throw abortTag
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  tag: TimeoutTag,
+  signal?: AbortSignal,
+  onCancel?: () => void,
+): Promise<T> {
+  throwIfAborted(signal)
+
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(tag), timeoutMs)
+    const timer = setTimeout(() => {
+      cleanup()
+      onCancel?.()
+      reject(tag)
+    }, timeoutMs)
+    const cleanup = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", abort)
+    }
+    const abort = () => {
+      cleanup()
+      onCancel?.()
+      reject(abortTag)
+    }
+    signal?.addEventListener("abort", abort, { once: true })
 
     promise.then(
       (value) => {
-        clearTimeout(timer)
+        cleanup()
         resolve(value)
       },
       (error: unknown) => {
-        clearTimeout(timer)
+        cleanup()
         reject(error)
       },
     )

@@ -20,6 +20,7 @@ type Tier2HostedChromeNotionAiClientOptions = Partial<Tier2HostedChromeNotionAiC
 type Tier2HostedWorkerHttpClient = (input: string, init?: RequestInit) => Promise<Response>
 
 type TimeoutTag = "timeout"
+type AbortTag = "aborted"
 type RetryFailureReason = "timeout" | "server-error" | "connection" | "rate-limit" | "auth" | "unknown"
 type HostedWorkerErrorSummary = {
   endpoint: string
@@ -86,6 +87,7 @@ export const tier2HostedChromeNotionAiDefaults = {
 
 const tier = "tier-2-hosted-chrome-notion-ai" as const
 const timeoutTag: TimeoutTag = "timeout"
+const abortTag: AbortTag = "aborted"
 const healthEndpointPath = "/health"
 const generateEndpointPath = "/generate"
 const ensureChromeEndpointPath = "/ensure-chrome"
@@ -330,13 +332,9 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
 
   private async request(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
     try {
-      return await withTimeout(
-        this.httpClient(`${this.config.workerUrl}${path}`, init),
-        timeoutMs,
-        timeoutTag,
-      )
+      return await fetchWithTimeout(this.httpClient, `${this.config.workerUrl}${path}`, init, timeoutMs)
     } catch (error) {
-      if (error === timeoutTag || error instanceof ChatbotLlmError) throw error
+      if (error === timeoutTag || error === abortTag || error instanceof ChatbotLlmError) throw error
       throw this.toLlmError({
         message: "Unable to connect to the Hosted Notion AI worker endpoint.",
         code: "connection",
@@ -356,7 +354,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
   private mapHealthError(error: unknown): ChatbotLlmError {
     if (error instanceof ChatbotLlmError) return error
 
-    if (error === timeoutTag) {
+    if (error === timeoutTag || error === abortTag) {
       return this.toLlmError({
         message: "Hosted Notion AI worker health check timed out.",
         code: "timeout",
@@ -372,7 +370,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
   private mapGenerateError(error: unknown): ChatbotLlmError {
     if (error instanceof ChatbotLlmError) return error
 
-    if (error === timeoutTag) {
+    if (error === timeoutTag || error === abortTag) {
       return this.toLlmError({
         message: "Hosted Notion AI worker request timed out.",
         code: "timeout",
@@ -482,6 +480,7 @@ function summarizeGenerateFailure(error: unknown): {
   errorCode?: string
 } {
   if (error === timeoutTag) return { reason: "timeout", retryable: true }
+  if (error === abortTag) return { reason: "connection", retryable: true, errorCode: "aborted" }
 
   if (error instanceof HostedWorkerHttpStatusError) {
     if (error.status === httpStatusUnauthorized || error.status === httpStatusForbidden) {
@@ -668,19 +667,38 @@ function sanitizeLogText(value: string): string {
   return sanitized.length <= 500 ? sanitized : `${sanitized.slice(0, 500)}...[truncated]`
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, tag: TimeoutTag): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(tag), timeoutMs)
+function fetchWithTimeout(
+  httpClient: Tier2HostedWorkerHttpClient,
+  input: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController()
+  const requestInit = { ...init, signal: controller.signal }
 
-    promise.then(
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      controller.abort()
+      reject(timeoutTag)
+    }, timeoutMs)
+
+    httpClient(input, requestInit).then(
       (value) => {
         clearTimeout(timer)
         resolve(value)
       },
       (error: unknown) => {
         clearTimeout(timer)
+        if (controller.signal.aborted && isAbortError(error)) {
+          reject(abortTag)
+          return
+        }
         reject(error)
       },
     )
   })
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError"
 }
