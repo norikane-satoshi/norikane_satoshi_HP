@@ -58,6 +58,8 @@ function writeStoredWidgetSession(session: {
   conversationId?: string
   activeUi?: unknown
   lastResponseTier?: string
+  pendingRequest?: unknown
+  recoverableRequest?: unknown
 }) {
   window.localStorage.setItem(
     chatbotSessionStorageKey,
@@ -67,6 +69,8 @@ function writeStoredWidgetSession(session: {
       conversationId: session.conversationId,
       activeUi: session.activeUi ?? { kind: "none" },
       lastResponseTier: session.lastResponseTier,
+      pendingRequest: session.pendingRequest,
+      recoverableRequest: session.recoverableRequest,
       expiresAt: "2999-01-01T00:00:00.000Z",
     }),
   )
@@ -256,6 +260,66 @@ describe("WidgetShell API wiring", () => {
     })
   })
 
+  it("restores an expired pending mobile request as a retry action instead of the Tier4 form", async () => {
+    const submittedAt = new Date(Date.now() - 20 * 60 * 1000).toISOString()
+    const pendingRequest = {
+      kind: "message",
+      message: "長い入力の相談です",
+      clientUserMessageId: "client_msg_11111111-1111-4111-8111-111111111111",
+      submittedAt,
+      conversationId: "conv_1",
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        userMessage: {
+          id: "user_recovered",
+          role: "user",
+          content: "長い入力の相談です",
+          createdAt: "2026-05-26T00:00:00.000Z",
+        },
+        assistantMessage: {
+          id: "assistant_recovered",
+          role: "assistant",
+          content: "復旧しました",
+          createdAt: "2026-05-26T00:00:01.000Z",
+        },
+        tier: "tier-3-gemini-flash",
+        ui: { kind: "none" },
+      }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    writeStoredWidgetSession({
+      messages: [
+        {
+          id: pendingRequest.clientUserMessageId,
+          role: "user",
+          content: "長い入力の相談です",
+          createdAt: submittedAt,
+        },
+      ],
+      conversationId: "conv_1",
+      activeUi: { kind: "tier4-inquiry-form" },
+      pendingRequest,
+    })
+
+    render(<WidgetShell onMinimize={vi.fn()} displayMode="full-screen" />)
+
+    expect(await screen.findByText("直前の送信が完了していません。入力内容は保持しています。")).toBeInTheDocument()
+    expect(screen.queryByLabelText("問い合わせフォーム")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "再送する" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      message: "長い入力の相談です",
+      conversationId: "conv_1",
+      recoverClientUserMessageId: pendingRequest.clientUserMessageId,
+      pendingRequestKind: "message",
+    })
+    expect(await screen.findByText("復旧しました")).toBeInTheDocument()
+    expect(screen.queryByLabelText("問い合わせフォーム")).not.toBeInTheDocument()
+  })
+
   it("auto-scrolls to the latest assistant response when the conversation is already at bottom", async () => {
     let resolveFetch: (response: ReturnType<typeof mockJsonResponse>) => void = () => undefined
     const fetchMock = vi.fn(
@@ -350,7 +414,7 @@ describe("WidgetShell API wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "停止" }))
 
     await waitFor(() => expect(screen.queryByText("考え中")).not.toBeInTheDocument())
-    expect(screen.queryByText(/通信に失敗しました/u)).not.toBeInTheDocument()
+    expect(screen.queryByText(/応答が中断しました/u)).not.toBeInTheDocument()
     expect(screen.getByText("停止したい相談です")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "メッセージを編集" })).toBeInTheDocument()
     const fetchInit = fetchMock.mock.calls[0]?.[1]
@@ -947,10 +1011,10 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(screen.queryByText(/通信に失敗しました/u)).not.toBeInTheDocument()
+    expect(screen.queryByText(/応答が中断しました/u)).not.toBeInTheDocument()
   })
 
-  it("falls back to the inquiry form when message retries are exhausted", async () => {
+  it("keeps an exhausted transient message failure retryable before showing the inquiry form", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
@@ -971,10 +1035,14 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage()
 
-    expect(await screen.findByText(/通信に失敗しました/u)).toBeInTheDocument()
-    expect(screen.getByLabelText("問い合わせフォーム")).toBeInTheDocument()
+    expect(await screen.findByText(/応答が中断しました/u)).toBeInTheDocument()
+    expect(screen.getByText("直前の送信が完了していません。入力内容は保持しています。")).toBeInTheDocument()
+    expect(screen.queryByLabelText("問い合わせフォーム")).not.toBeInTheDocument()
     expect(screen.getByText("相談したいです")).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    fireEvent.click(screen.getByRole("button", { name: "フォームに切り替える" }))
+    expect(await screen.findByLabelText("問い合わせフォーム")).toBeInTheDocument()
   })
 
   it("edits a sent user message, truncates later local UI, and persists the edited conversation", async () => {

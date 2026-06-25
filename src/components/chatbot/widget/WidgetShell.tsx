@@ -56,11 +56,13 @@ const initialMessage = {
 
 const noUi = { kind: "none" } satisfies WidgetUi
 const communicationFallbackMessage =
-  "通信に失敗しました。自動再試行後も復旧しないため、下のフォームから連絡できます。入力内容はこのまま残っています。"
+  "応答が中断しました。入力内容は残っています。もう一度送信できます。復旧できない場合だけフォームに切り替えます。"
+const formFallbackMessage =
+  "自動再試行でも応答できませんでした。入力内容は残したまま、必要なら下のフォームから連絡できます。"
 const inquirySentMessage = "送信しました。担当者からの返信をお待ちください。"
 const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v1"
 const CHATBOT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
-const CHATBOT_PENDING_REQUEST_TTL_MS = 2 * 60 * 1000
+const CHATBOT_PENDING_REQUEST_TTL_MS = 15 * 60 * 1000
 const thinkingDelayNoticeMs = 6000
 
 const additionalWorkMemoLabels: Record<NonNullable<JobContext["additionalWork"]>[number], string> = {
@@ -82,6 +84,7 @@ type StoredWidgetSession = {
   activeUi: WidgetUi
   lastResponseTier?: ChatbotResponseTier
   pendingRequest?: StoredPendingRequest
+  recoverableRequest?: StoredPendingRequest
   expiresAt: string
 }
 
@@ -109,7 +112,7 @@ function removeStoredWidgetSession() {
   }
 }
 
-function isFreshStoredPendingRequest(input: unknown, now = Date.now()): input is StoredPendingRequest {
+function isStoredPendingRequest(input: unknown): input is StoredPendingRequest {
   if (!input || typeof input !== "object" || Array.isArray(input)) return false
   const pending = input as Partial<StoredPendingRequest>
   if (pending.kind !== "message" && pending.kind !== "edit") return false
@@ -119,7 +122,13 @@ function isFreshStoredPendingRequest(input: unknown, now = Date.now()): input is
   }
   if (pending.kind === "edit" && typeof pending.editTargetMessageId !== "string") return false
   const submittedAt = typeof pending.submittedAt === "string" ? new Date(pending.submittedAt).getTime() : Number.NaN
-  return Number.isFinite(submittedAt) && now - submittedAt <= CHATBOT_PENDING_REQUEST_TTL_MS
+  return Number.isFinite(submittedAt)
+}
+
+function isFreshStoredPendingRequest(input: unknown, now = Date.now()): input is StoredPendingRequest {
+  if (!isStoredPendingRequest(input)) return false
+  const submittedAt = new Date(input.submittedAt).getTime()
+  return now - submittedAt <= CHATBOT_PENDING_REQUEST_TTL_MS
 }
 
 function persistWidgetSession(input: Omit<StoredWidgetSession, "expiresAt">) {
@@ -150,6 +159,7 @@ function loadStoredWidgetSession(): {
   activeUi: WidgetUi
   lastResponseTier?: ChatbotResponseTier
   pendingRequest?: StoredPendingRequest
+  recoverableRequest?: StoredPendingRequest
 } {
   if (typeof window === "undefined") return getInitialWidgetSession()
 
@@ -164,7 +174,11 @@ function loadStoredWidgetSession(): {
     }
 
     const pendingRequest = isFreshStoredPendingRequest(parsed.pendingRequest) ? parsed.pendingRequest : undefined
-    const hasExpiredPendingRequest = Boolean(parsed.pendingRequest && !pendingRequest)
+    const recoverableRequest = isStoredPendingRequest(parsed.recoverableRequest)
+      ? parsed.recoverableRequest
+      : isStoredPendingRequest(parsed.pendingRequest)
+        ? parsed.pendingRequest
+        : undefined
     const messages = Array.isArray(parsed.messages)
       ? parsed.messages
           .filter((message) => message.role && typeof message.content === "string" && message.createdAt)
@@ -176,21 +190,19 @@ function loadStoredWidgetSession(): {
           }))
       : []
     const restoredMessages = messages.length > 0 ? messages : [initialMessage]
-    const messagesWithExpiredPendingFallback =
-      hasExpiredPendingRequest && restoredMessages[restoredMessages.length - 1]?.role !== "system"
-        ? [
-            ...restoredMessages,
-            { role: "system" as const, content: communicationFallbackMessage, createdAt: new Date() },
-          ]
+    const messagesWithRecoveryNotice =
+      recoverableRequest && !pendingRequest && restoredMessages[restoredMessages.length - 1]?.role !== "system"
+        ? [...restoredMessages, { role: "system" as const, content: communicationFallbackMessage, createdAt: new Date() }]
         : restoredMessages
 
     return {
-      messages: messagesWithExpiredPendingFallback,
+      messages: messagesWithRecoveryNotice,
       clientSessionId: parsed.clientSessionId,
       conversationId: parsed.conversationId,
-      activeUi: hasExpiredPendingRequest ? { kind: "tier4-inquiry-form" } : parsed.activeUi ?? noUi,
+      activeUi: pendingRequest || recoverableRequest ? noUi : parsed.activeUi ?? noUi,
       lastResponseTier: parsed.lastResponseTier,
       pendingRequest,
+      recoverableRequest: pendingRequest ? undefined : recoverableRequest,
     }
   } catch {
     removeStoredWidgetSession()
@@ -268,6 +280,7 @@ export function WidgetShell({
   const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
   const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>(undefined)
   const [pendingRequest, setPendingRequest] = useState<StoredPendingRequest | undefined>(undefined)
+  const [recoverableRequest, setRecoverableRequest] = useState<StoredPendingRequest | undefined>(undefined)
   const [hasRestoredSession, setHasRestoredSession] = useState(false)
   const activeRequestControllerRef = useRef<AbortController | null>(null)
   const pendingRecoveryStartedRef = useRef(false)
@@ -316,6 +329,7 @@ export function WidgetShell({
     setLastResponseTier(storedSession.lastResponseTier)
     restoredPendingRequestRef.current = storedSession.pendingRequest
     setPendingRequest(storedSession.pendingRequest)
+    setRecoverableRequest(storedSession.recoverableRequest)
     setHasRestoredSession(true)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
@@ -330,8 +344,9 @@ export function WidgetShell({
       activeUi,
       lastResponseTier,
       ...(pendingRequest ? { pendingRequest } : {}),
+      ...(recoverableRequest ? { recoverableRequest } : {}),
     })
-  }, [activeUi, clientSessionId, conversationId, hasRestoredSession, lastResponseTier, messages, pendingRequest])
+  }, [activeUi, clientSessionId, conversationId, hasRestoredSession, lastResponseTier, messages, pendingRequest, recoverableRequest])
 
   const recoverPendingRequest = async (pending: StoredPendingRequest, controller: AbortController) => {
     const recoveryClientUserMessageId = createClientUserMessageId()
@@ -400,6 +415,7 @@ export function WidgetShell({
         return nextMessages
       })
       setActiveUi(payload.ui)
+      setRecoverableRequest(undefined)
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) return
       if (isChatbotOperationError(error)) {
@@ -421,7 +437,8 @@ export function WidgetShell({
         content: communicationFallbackMessage,
         createdAt: new Date(),
       })
-      setActiveUi({ kind: "tier4-inquiry-form" })
+      setActiveUi(noUi)
+      setRecoverableRequest(pending)
     } finally {
       finishRequest(controller)
     }
@@ -479,6 +496,7 @@ export function WidgetShell({
       ...(conversationId ? { conversationId } : {}),
     }
     setPendingRequest(nextPendingRequest)
+    setRecoverableRequest(undefined)
     setMessages((currentMessages) => {
       const nextMessages = [
         ...currentMessages,
@@ -541,6 +559,7 @@ export function WidgetShell({
         return nextMessages
       })
       setActiveUi(payload.ui)
+      setRecoverableRequest(undefined)
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) return
       if (isChatbotOperationError(error)) {
@@ -561,7 +580,8 @@ export function WidgetShell({
         content: communicationFallbackMessage,
         createdAt: new Date(),
       })
-      setActiveUi({ kind: "tier4-inquiry-form" })
+      setActiveUi(noUi)
+      setRecoverableRequest(nextPendingRequest)
     } finally {
       finishRequest(controller)
     }
@@ -584,6 +604,7 @@ export function WidgetShell({
       ...(conversationId ? { conversationId } : {}),
     }
     setPendingRequest(nextPendingRequest)
+    setRecoverableRequest(undefined)
 
     setMessages((currentMessages) => {
       const currentTargetIndex = currentMessages.findIndex(
@@ -654,6 +675,7 @@ export function WidgetShell({
         return nextMessages
       })
       setActiveUi(payload.ui)
+      setRecoverableRequest(undefined)
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) return
       if (isChatbotOperationError(error)) {
@@ -672,10 +694,32 @@ export function WidgetShell({
         content: communicationFallbackMessage,
         createdAt: new Date(),
       })
-      setActiveUi({ kind: "tier4-inquiry-form" })
+      setActiveUi(noUi)
+      setRecoverableRequest(nextPendingRequest)
     } finally {
       finishRequest(controller)
     }
+  }
+
+  const handleRecoverableRetry = () => {
+    if (!recoverableRequest || submitting) return
+    setRecoverableRequest(undefined)
+    const controller = new AbortController()
+    activeRequestControllerRef.current = controller
+    setShowThinkingDelayNotice(false)
+    setSubmitting(true)
+    void recoverPendingRequest(recoverableRequest, controller)
+  }
+
+  const handleRecoverableFormFallback = () => {
+    if (!recoverableRequest || submitting) return
+    setRecoverableRequest(undefined)
+    appendMessage({
+      role: "system",
+      content: formFallbackMessage,
+      createdAt: new Date(),
+    })
+    setActiveUi({ kind: "tier4-inquiry-form" })
   }
 
   const handleInquirySubmit = async (input: Omit<SubmitInquiryInput, "conversationId">) => {
@@ -842,6 +886,27 @@ export function WidgetShell({
             ))}
             {submitting ? <ThinkingIndicator showDelayNotice={showThinkingDelayNotice} /> : null}
           </div>
+          {recoverableRequest && !submitting ? (
+            <div className="glass-card-sm space-y-3 px-4 py-3 text-xs leading-relaxed text-hp-muted" role="status">
+              <p>直前の送信が完了していません。入力内容は保持しています。</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleRecoverableRetry}
+                  className="glass-btn px-3 py-2 text-xs font-semibold text-hp"
+                >
+                  再送する
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRecoverableFormFallback}
+                  className="glass-btn px-3 py-2 text-xs font-semibold text-hp-muted"
+                >
+                  フォームに切り替える
+                </button>
+              </div>
+            </div>
+          ) : null}
           <ActiveWidgetUi
             ui={activeUi}
             conversationId={conversationId}
