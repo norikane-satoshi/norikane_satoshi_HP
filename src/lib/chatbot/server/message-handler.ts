@@ -1,4 +1,4 @@
-import { hasRequiredEmailConsultationSlots } from "@/lib/chatbot/domain"
+import { hasRequiredEmailConsultationSlots, surveyChoiceSets } from "@/lib/chatbot/domain"
 import type {
   BookingCardPrefill,
   ChatbotConversation,
@@ -8,6 +8,7 @@ import type {
   DocumentaryAttachmentItem,
   JobContext,
   RoutingDecision,
+  SurveyChoiceSet,
 } from "@/lib/chatbot/domain"
 import {
   appendMessage,
@@ -37,7 +38,7 @@ import {
   findCandidateCalendar,
   type CandidateCalendarResult,
 } from "@/lib/chatbot/server/availability-finder"
-import { applyActiveChoiceAnswer } from "@/lib/chatbot/server/choice-panel-state"
+import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import {
   resolveWorkflowDurationContext,
@@ -247,6 +248,8 @@ export async function handleChatbotMessage(
       })
     }
   }
+
+  conversation = reconcileConversationContextFromHistory(conversation)
 
   const userMessage = await repository.appendMessage({
     ...(input.clientUserMessageId ? { id: input.clientUserMessageId } : {}),
@@ -645,6 +648,200 @@ function findLastAssistantMessageContent(messages: ChatbotMessage[]): string | u
     if (messages[index].role === "assistant") return messages[index].content
   }
   return undefined
+}
+
+function reconcileConversationContextFromHistory(conversation: ChatbotConversation): ChatbotConversation {
+  if (conversation.messages.length === 0) return conversation
+
+  const recovered = recoverChoicePanelContextFromHistory(conversation.messages)
+  const conversationState = mergeRecoveredConversationState(
+    conversation.context.conversationState ?? {},
+    recovered.conversationState,
+  )
+  const jobContext = {
+    ...(conversation.context.jobContext ?? {}),
+    ...recovered.jobContext,
+  }
+  const activeChoices = selectRecoveredActiveChoices({
+    recovered: recovered.activeChoices,
+    stored: conversation.context.activeChoices,
+    conversationState,
+  })
+  const context: ChatbotConversation["context"] = {
+    ...conversation.context,
+    ...(Object.keys(jobContext).length > 0 ? { jobContext } : {}),
+    conversationState,
+  }
+
+  if (activeChoices) {
+    context.activeChoices = activeChoices
+    context.currentQuestion = activeChoices.question
+  } else {
+    delete context.activeChoices
+    delete context.currentQuestion
+  }
+
+  return {
+    ...conversation,
+    context,
+  }
+}
+
+function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[]): {
+  activeChoices?: SurveyChoiceSet
+  conversationState: Partial<ConversationState>
+  jobContext: Partial<JobContext>
+} {
+  let activeChoices: SurveyChoiceSet | undefined
+  let conversationState: Partial<ConversationState> = {}
+  let jobContext: Partial<JobContext> = {}
+
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      const choiceSet = findChoiceSetFromAssistantContent(message.content)
+      if (choiceSet && !isChoicePanelSatisfied(choiceSet, conversationState)) {
+        activeChoices = choiceSet
+      }
+      continue
+    }
+
+    if (message.role !== "user" || !activeChoices) continue
+
+    const patch = applyActiveChoiceAnswer({
+      activeChoices,
+      message: message.content,
+      activeIntakeClarification: conversationState.activeIntakeClarification,
+    })
+    if (!patch) continue
+
+    conversationState = mergeRecoveredConversationState(conversationState, patch.conversationState)
+    jobContext = {
+      ...jobContext,
+      ...patch.jobContext,
+    }
+    activeChoices = undefined
+  }
+
+  return { activeChoices, conversationState, jobContext }
+}
+
+function findChoiceSetFromAssistantContent(content: string): SurveyChoiceSet | undefined {
+  const normalized = content.normalize("NFKC")
+  return surveyChoiceSets.find((choiceSet) => {
+    if (normalized.includes(choiceSet.question.normalize("NFKC"))) return true
+    switch (choiceSet.id) {
+      case "job-kind":
+        return normalized.includes("案件種別")
+      case "project-length":
+        return normalized.includes("尺・分量")
+      case "final-medium":
+        return normalized.includes("最終媒体")
+      case "additional-work":
+        return normalized.includes("カラグレ以外の追加作業")
+      case "documentary-attachment":
+        return normalized.includes("付随する映像")
+      case "work-site":
+        return normalized.includes("作業場所")
+      default:
+        return false
+    }
+  })
+}
+
+function selectRecoveredActiveChoices(input: {
+  recovered?: SurveyChoiceSet
+  stored?: SurveyChoiceSet
+  conversationState: Partial<ConversationState>
+}): SurveyChoiceSet | undefined {
+  if (input.recovered && !isChoicePanelSatisfied(input.recovered, input.conversationState)) return input.recovered
+  if (input.stored && !isChoicePanelSatisfied(input.stored, input.conversationState)) return input.stored
+  return undefined
+}
+
+const booleanConversationSlots = [
+  "hasFinalMedium",
+  "hasJobKind",
+  "hasProjectLength",
+  "hasMaterialHandoff",
+  "hasMaterialDetails",
+  "hasAdditionalWork",
+  "hasDocumentaryAttachments",
+  "hasWorkSite",
+  "hasReferenceUrls",
+  "hasDeliveryFormat",
+  "hasProductionOptions",
+  "hasBudgetRange",
+  "hasContactEmail",
+  "hasDesiredSchedule",
+  "hasCustomerIdentity",
+  "hasLectureTrainingIntent",
+  "hasLectureTrainingContent",
+  "hasLectureTrainingVenue",
+  "hasLectureTrainingSoftware",
+  "hasResolveVersion",
+  "hasControlPanel",
+  "hasAudienceGuiDisplay",
+  "hasInstructorMonitorSetup",
+  "hasPreferredLectureSchedule",
+] as const satisfies readonly (keyof ConversationState)[]
+
+function mergeRecoveredConversationState(
+  stored: Partial<ConversationState>,
+  recovered: Partial<ConversationState>,
+): Partial<ConversationState> {
+  const bookingFinalConfirmation = {
+    ...(stored.bookingFinalConfirmation ?? {}),
+    ...(recovered.bookingFinalConfirmation ?? {}),
+  }
+  const merged: Partial<ConversationState> = {
+    ...stored,
+    ...recovered,
+    otherChoiceComments: {
+      ...(stored.otherChoiceComments ?? {}),
+      ...(recovered.otherChoiceComments ?? {}),
+    },
+    lectureTrainingInquiry: {
+      ...(stored.lectureTrainingInquiry ?? {}),
+      ...(recovered.lectureTrainingInquiry ?? {}),
+    },
+    intakeClarifications: {
+      ...(stored.intakeClarifications ?? {}),
+      ...(recovered.intakeClarifications ?? {}),
+    },
+    ...(bookingFinalConfirmation.status
+      ? { bookingFinalConfirmation: bookingFinalConfirmation as NonNullable<ConversationState["bookingFinalConfirmation"]> }
+      : {}),
+  }
+
+  for (const key of booleanConversationSlots) {
+    if (stored[key] === true || recovered[key] === true) {
+      merged[key] = true
+    }
+  }
+
+  if (!Object.keys(merged.otherChoiceComments ?? {}).length) delete merged.otherChoiceComments
+  if (!Object.keys(merged.lectureTrainingInquiry ?? {}).length) delete merged.lectureTrainingInquiry
+  if (!Object.keys(merged.intakeClarifications ?? {}).length) delete merged.intakeClarifications
+
+  return merged
+}
+
+function isChoicePanelSatisfied(
+  choiceSet: SurveyChoiceSet | undefined,
+  conversationState: Partial<ConversationState>,
+): boolean {
+  return isSatisfiedChoicePanel(choiceSet, {
+    hasFinalMedium: false,
+    hasJobKind: false,
+    hasAdditionalWork: false,
+    hasDocumentaryAttachments: false,
+    hasWorkSite: false,
+    hasReferenceUrls: false,
+    hasContactEmail: false,
+    hasDesiredSchedule: false,
+    turnCount: 0,
+    ...conversationState,
+  })
 }
 
 function resetEditedConversationContext(

@@ -2451,6 +2451,82 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("recovers stale same-thread edit state from stored choice-panel history", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: additionalWorkChoices,
+          currentQuestion: "カラグレ以外の追加作業はありますか？",
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 5,
+          },
+          jobContext: { jobKind: "live-60m", finalMedium: "live", projectLengthMinutes: 150 },
+        },
+        messages: [
+          { id: "user_start", role: "user", content: "お仕事頼みたいです", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_job", role: "assistant", content: "まず案件種別を選んでください\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:01.000Z" },
+          { id: "user_job", role: "user", content: "選択: ライブ / コンサート / 舞台収録", createdAt: "2026-05-26T00:00:02.000Z" },
+          { id: "assistant_length", role: "assistant", content: "尺・分量の大枠を選んでください\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:03.000Z" },
+          { id: "user_length", role: "user", content: "選択: ライブ 150分前後", createdAt: "2026-05-26T00:00:04.000Z" },
+          { id: "assistant_additional", role: "assistant", content: "カラグレ以外の追加作業はありますか？\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:05.000Z" },
+          { id: "user_additional", role: "user", content: "選択: 消し物、肌修正", createdAt: "2026-05-26T00:00:06.000Z" },
+          { id: "assistant_documentary", role: "assistant", content: "付随する映像はありますか？\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:07.000Z" },
+          { id: "user_documentary", role: "user", content: "選択: 特典映像", createdAt: "2026-05-26T00:00:08.000Z" },
+          { id: "assistant_stale", role: "assistant", content: "カラグレ以外の追加作業はありますか？\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:09.000Z" },
+        ],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "選択: 特典映像",
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: false,
+          hasDocumentaryAttachments: false,
+          turnCount: 5,
+        },
+      },
+      harness.options,
+    )
+
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
+      hasAdditionalWork: true,
+      hasDocumentaryAttachments: true,
+    })
+    expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
+      jobKind: "live-60m",
+      finalMedium: "live",
+      projectLengthMinutes: 150,
+      additionalWork: ["retouch", "skin-retouch"],
+      documentaryAttachment: { kind: "bonus", count: 1 },
+    })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: expect.objectContaining({ id: workSiteChoices.id }),
+        conversationState: expect.objectContaining({
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+        }),
+      }),
+    )
+  })
+
   it("keeps an empty other choice on the same slot and logs a clarification flow step", async () => {
     const harness = setup({
       existingConversation: conversation({

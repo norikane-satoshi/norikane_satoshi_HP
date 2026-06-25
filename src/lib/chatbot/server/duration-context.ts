@@ -95,8 +95,8 @@ function buildBaseJobContext(
     workSite: "remote-grading",
     documentaryAttachment: { kind: "none" },
     ...storedDurationFacts,
-    ...stored,
     ...input,
+    ...stored,
     ...activeChoiceJobContext,
   }
 }

@@ -29,6 +29,11 @@ export function buildConversationState(input: {
     ...durationState,
     turnCount: userTurnCount,
   }
+  for (const key of booleanConversationStateKeys) {
+    if (stored[key] === true || inputState[key] === true || activeChoiceState[key] === true || durationState[key] === true) {
+      state[key] = true
+    }
+  }
   const otherChoiceComments = {
     ...(stored.otherChoiceComments ?? {}),
     ...(inputState.otherChoiceComments ?? {}),
@@ -64,6 +69,33 @@ export function buildConversationState(input: {
     ...(typeof input.jobContext.projectLengthMinutes === "number" ? { hasProjectLength: true } : {}),
   }
 }
+
+const booleanConversationStateKeys = [
+  "hasFinalMedium",
+  "hasJobKind",
+  "hasProjectLength",
+  "hasMaterialHandoff",
+  "hasMaterialDetails",
+  "hasAdditionalWork",
+  "hasDocumentaryAttachments",
+  "hasWorkSite",
+  "hasReferenceUrls",
+  "hasDeliveryFormat",
+  "hasProductionOptions",
+  "hasBudgetRange",
+  "hasContactEmail",
+  "hasDesiredSchedule",
+  "hasCustomerIdentity",
+  "hasLectureTrainingIntent",
+  "hasLectureTrainingContent",
+  "hasLectureTrainingVenue",
+  "hasLectureTrainingSoftware",
+  "hasResolveVersion",
+  "hasControlPanel",
+  "hasAudienceGuiDisplay",
+  "hasInstructorMonitorSetup",
+  "hasPreferredLectureSchedule",
+] as const satisfies readonly (keyof ConversationState)[]
 
 export function deriveUserTurnCount(
   history: readonly ChatbotMessage[],
