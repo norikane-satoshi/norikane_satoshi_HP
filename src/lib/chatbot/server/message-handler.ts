@@ -3,7 +3,6 @@ import type {
   BookingCardPrefill,
   ChatbotConversation,
   ChatbotMessage,
-  ConversationSummary,
   ConversationState,
   DocumentaryAttachmentItem,
   JobContext,
@@ -1392,12 +1391,6 @@ function toMessageUi(input: {
   }
 
   if (routingDecision.kind === "to-booking-inline") {
-    if (routingDecision.suggestedSlots.length === 0) {
-      return {
-        kind: "consultation-summary-form",
-        summary: buildConversationSummary(routingDecision.jobContext, input.conversationState),
-      }
-    }
     return {
       kind: "booking-card",
       suggestedSlots: routingDecision.suggestedSlots,
@@ -1424,33 +1417,6 @@ function toMessageUi(input: {
   }
 
   return { kind: "none" }
-}
-
-function buildConversationSummary(jobContext: JobContext, conversationState: ConversationState): ConversationSummary {
-  const detailSegments = buildChoiceDetailSegments(jobContext, conversationState)
-  return {
-    subject: "チャットボット相談",
-    customerEmail: conversationState.contactEmail ?? "",
-    ...(conversationState.customerName ? { customerName: conversationState.customerName } : {}),
-    ...(conversationState.companyName ? { companyName: conversationState.companyName } : {}),
-    jobContext,
-    summaryText: [
-      `${jobContext.jobKind ?? "案件種別未確認"} / ${jobContext.finalMedium} / ${jobContext.workSite} / ${
-        conversationState.hasDesiredSchedule ? "搬入〜納品あり" : "搬入〜納品未定"
-      }`,
-      ...detailSegments,
-    ].join(" / "),
-    openQuestions: [
-      conversationState.hasFinalMedium ? undefined : "最終媒体未確認",
-      conversationState.hasJobKind && conversationState.hasProjectLength ? undefined : "案件種別・尺未確認",
-      conversationState.hasMaterialHandoff ? undefined : "素材受け渡し未確認",
-      conversationState.hasAdditionalWork ? undefined : "追加作業未確認",
-      conversationState.hasDocumentaryAttachments ? undefined : "付随映像未確認",
-      conversationState.hasWorkSite ? undefined : "作業場所未確認",
-      conversationState.hasReferenceUrls ? undefined : "参考URL未確認",
-      conversationState.hasDesiredSchedule ? undefined : "素材搬入〜納品時期未確認",
-    ].filter((item): item is string => Boolean(item)),
-  }
 }
 
 function buildChoiceDetailSegments(jobContext: JobContext, conversationState: ConversationState): string[] {
