@@ -338,6 +338,35 @@ describe("handleChatbotMessage user context", () => {
     ])
   })
 
+  it("falls back to truncating the last stored user message when a stale server edit id is missing", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [
+          { id: "user_last", role: "user", content: "保存済み直近", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_last", role: "assistant", content: "保存済み回答", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "モバイルの古い編集再送",
+        editTargetMessageId: "user_missing_from_stale_local_storage",
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.truncateConversationFromMessage).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      messageId: "user_last",
+    })
+    expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
+      { role: "user", content: "モバイルの古い編集再送" },
+    ])
+  })
+
   it("drops stale routing state when a persisted user message is edited", async () => {
     const harness = setup({
       existingConversation: conversation({

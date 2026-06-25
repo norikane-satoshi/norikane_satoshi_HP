@@ -3,11 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
 
-function request(body: unknown, cookie?: string) {
+function request(body: unknown, cookie?: string, headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/chatbot/message", {
     method: "POST",
     body: JSON.stringify(body),
-    headers: cookie ? { cookie } : undefined,
+    headers: { ...headers, ...(cookie ? { cookie } : {}) },
   })
 }
 
@@ -205,6 +205,38 @@ describe("POST /api/chatbot/message", () => {
     })
   })
 
+  it("recovers a stale mobile edit with an old conversation id and missing server message id", async () => {
+    const route = await loadPost({
+      existingConversation: conversation({
+        id: "conv_current",
+        messages: [
+          { id: "user_last", role: "user", content: "保存済み直近", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_last", role: "assistant", content: "保存済み回答", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+    const clientSessionId = "11111111-1111-4111-8111-111111111111"
+
+    const response = await route.POST(
+      request({
+        message: "モバイルの古い編集再送",
+        conversationId: "conv_old_from_local_storage",
+        clientSessionId,
+        editTargetMessageId: "user_missing_from_stale_local_storage",
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(route.truncateConversationFromMessage).toHaveBeenCalledWith({
+      conversationId: "conv_current",
+      messageId: "user_last",
+    })
+    await expect(response.json()).resolves.toMatchObject({
+      conversationId: "conv_current",
+      userMessage: { role: "user", content: "モバイルの古い編集再送" },
+    })
+  })
+
   it("prefers the client storage session over a stale session cookie", async () => {
     const route = await loadPost()
     const clientSessionId = "11111111-1111-4111-8111-111111111111"
@@ -288,9 +320,11 @@ describe("POST /api/chatbot/message", () => {
         {
           message: "選択: web",
           conversationId: "conv_legacy",
+          editTargetMessageId: "user_missing_from_stale_local_storage",
           clientSessionId: "11111111-1111-4111-8111-111111111111",
         },
         "chatbot_session_id=session_legacy",
+        { "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148" },
       ),
     )
 
@@ -316,6 +350,22 @@ describe("POST /api/chatbot/message", () => {
     expect(consoleError).toHaveBeenCalledWith(
       "[CHATBOT_OPERATION_FAILURE]",
       expect.stringContaining("\"requestId\":\""),
+    )
+    expect(consoleError).toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("\"userAgent\":\"Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148\""),
+    )
+    expect(consoleError).toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("\"hasEditTargetMessageId\":true"),
+    )
+    expect(consoleError).toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("\"editTargetMessageIdKind\":\"server\""),
+    )
+    expect(consoleError).not.toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("user_missing_from_stale_local_storage"),
     )
     consoleError.mockRestore()
   })

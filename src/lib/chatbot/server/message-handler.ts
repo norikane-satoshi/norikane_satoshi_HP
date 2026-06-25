@@ -174,8 +174,6 @@ const defaultRepository: ChatbotMessageRepository = {
   linkConversationToUser,
 }
 
-const clientUserMessageIdPattern =
-  /^client_msg_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const assistantNameAnswer = "のーちゃんです。"
 
 export async function handleChatbotMessage(
@@ -205,9 +203,6 @@ export async function handleChatbotMessage(
   if (input.editTargetMessageId) {
     const targetIndex = conversation.messages.findIndex((message) => message.id === input.editTargetMessageId)
     if (targetIndex === -1) {
-      if (!clientUserMessageIdPattern.test(input.editTargetMessageId)) {
-        throw new Error("chatbot_edit_target_not_found")
-      }
       const fallbackTargetIndex = findLastUserMessageIndex(conversation.messages)
       if (fallbackTargetIndex >= 0) {
         await repository.truncateConversationFromMessage({

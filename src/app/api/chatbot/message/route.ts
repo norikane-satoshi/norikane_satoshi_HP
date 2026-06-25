@@ -18,12 +18,14 @@ export const dynamic = "force-dynamic"
 
 const sessionCookieName = "chatbot_session_id"
 const sessionMaxAgeSeconds = 7 * 24 * 60 * 60
+const clientUserMessageIdPattern =
+  /^client_msg_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 const chatbotMessageRequestSchema = z.object({
   message: z.string().trim().min(1).max(4000),
   conversationId: z.string().trim().min(1).optional(),
   editTargetMessageId: z.string().trim().min(1).optional(),
-  clientUserMessageId: z.string().regex(/^client_msg_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/).optional(),
+  clientUserMessageId: z.string().regex(clientUserMessageIdPattern).optional(),
   clientSessionId: z.string().uuid().optional(),
   jobContext: z.record(z.string(), z.unknown()).optional(),
   conversationState: z.record(z.string(), z.unknown()).optional(),
@@ -105,6 +107,9 @@ export async function POST(request: NextRequest) {
         requestId,
         conversationId: parsed.data.conversationId,
         clientSessionId: parsed.data.clientSessionId,
+        userAgent,
+        hasEditTargetMessageId: Boolean(parsed.data.editTargetMessageId),
+        editTargetMessageIdKind: classifyMessageIdKind(parsed.data.editTargetMessageId),
         hasCookieSession: Boolean(existingSessionId),
         messageLength: parsed.data.message.length,
         isChoicePanelSelection: parsed.data.message.startsWith("選択:"),
@@ -166,6 +171,11 @@ async function loadFailureNotificationConversation(input: {
     console.warn("[chatbot slack notification conversation load failed]", error instanceof Error ? error.message : String(error))
     return null
   }
+}
+
+function classifyMessageIdKind(messageId: string | undefined): "none" | "client" | "server" {
+  if (!messageId) return "none"
+  return clientUserMessageIdPattern.test(messageId) ? "client" : "server"
 }
 
 function classifyMessageFailureStage(error: unknown) {
