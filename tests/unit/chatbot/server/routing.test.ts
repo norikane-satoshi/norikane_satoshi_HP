@@ -101,12 +101,29 @@ describe("chatbot fallback router", () => {
         hasContactEmail: false,
         hasDesiredSchedule: false,
       }),
+      now: new Date("2026-06-25T10:00:00+09:00"),
     })
 
-    expect(result).toMatchObject({
-      kind: "continue",
-      presentChoices: workSiteChoices,
+    expect(result.kind).toBe("continue")
+    if (result.kind !== "continue") return
+    expect(result.presentChoices).toMatchObject({ id: workSiteChoices.id })
+    expect(result.presentChoices?.choices.map((choice) => choice.id)).not.toContain("satoshi-studio")
+  })
+
+  it("can surface studio work site choices from 2026-09-15 JST", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({
+        hasWorkSite: false,
+        hasContactEmail: false,
+        hasDesiredSchedule: false,
+      }),
+      now: new Date("2026-09-15T00:00:00+09:00"),
     })
+
+    expect(result.kind).toBe("continue")
+    if (result.kind !== "continue") return
+    expect(result.presentChoices?.choices.map((choice) => choice.id)).toContain("satoshi-studio")
   })
 
   it("does not pre-route to inline booking when schedule and contact facts are ready", () => {

@@ -54,7 +54,7 @@ describe("findCandidateWindows", () => {
     mocks.getNotionWorkScheduleBusyIntervals.mockReset()
   })
 
-  it("rejects satoshi-studio before 2026-10-01 JST", async () => {
+  it("rejects satoshi-studio before 2026-09-15 JST", async () => {
     await expect(
       findCandidateWindows({
         jobContext: jobContext({ workSite: "satoshi-studio" }),
@@ -64,6 +64,18 @@ describe("findCandidateWindows", () => {
         attendanceConflictResolver: attendance(),
       }),
     ).rejects.toMatchObject({ kind: "studio-not-yet-active" })
+  })
+
+  it("allows satoshi-studio from 2026-09-15 JST", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext({ workSite: "satoshi-studio" }),
+      workflowEstimate: workflowEstimate(1),
+      now: new Date("2026-09-15T10:00:00+09:00"),
+      freeBusyFetcher: freeBusy(),
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(windows[0]?.label).toBe("2026-09-15 単日")
   })
 
   it("rejects an unspecified work site without assigning a default", async () => {

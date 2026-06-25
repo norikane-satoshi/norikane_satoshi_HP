@@ -10,6 +10,8 @@ export type SurveyChoiceSet = {
   selectionMode?: "single" | "multiple"
 }
 
+export const SATOSHI_STUDIO_AVAILABLE_FROM_JST = "2026-09-15T00:00:00+09:00"
+
 export const jobKindChoices = {
   id: "job-kind",
   question: "まず案件種別を選んでください",
@@ -92,11 +94,23 @@ export const workSiteChoices = {
     { id: "client-facility-attended", label: "クライアント施設立ち会い" },
     { id: "remote-grading", label: "リモートグレーディング" },
     { id: "on-site-post-production", label: "出張ポスプロ常駐" },
-    { id: "satoshi-studio", label: "さとしさんのスタジオ※10月以降" },
+    { id: "satoshi-studio", label: "さとしさんのスタジオ" },
     { id: "entrust", label: "お任せ" },
     { id: "other", label: "その他" },
   ],
 } as const satisfies SurveyChoiceSet
+
+export function isSatoshiStudioCustomerFacingAvailable(now: Date = new Date()): boolean {
+  return now.getTime() >= new Date(SATOSHI_STUDIO_AVAILABLE_FROM_JST).getTime()
+}
+
+export function customerFacingWorkSiteChoices(now: Date = new Date()): SurveyChoiceSet {
+  if (isSatoshiStudioCustomerFacingAvailable(now)) return workSiteChoices
+  return {
+    ...workSiteChoices,
+    choices: workSiteChoices.choices.filter((choice) => choice.id !== "satoshi-studio"),
+  }
+}
 
 export const lectureTrainingContentChoices = {
   id: "lecture-training-content",

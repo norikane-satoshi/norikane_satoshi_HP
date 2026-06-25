@@ -1,11 +1,11 @@
 import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
+  customerFacingWorkSiteChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
   jobKindChoices,
   projectLengthChoices,
-  workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
   complexConversationTurnThreshold,
@@ -26,6 +26,7 @@ export type RoutingDecisionInput = {
   conversationState: ConversationState
   latestUserMessage?: string
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
+  now?: Date
 }
 
 export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecision {
@@ -91,7 +92,7 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
     }
   }
 
-  return continueDecision(conversationState)
+  return continueDecision(conversationState, input.now)
 }
 
 function directContact(
@@ -135,7 +136,7 @@ function formatDays(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
 }
 
-function continueDecision(conversationState: ConversationState): RoutingDecision {
+function continueDecision(conversationState: ConversationState, now?: Date): RoutingDecision {
   if (!conversationState.hasJobKind) {
     return {
       kind: "continue",
@@ -180,7 +181,7 @@ function continueDecision(conversationState: ConversationState): RoutingDecision
     return {
       kind: "continue",
       nextQuestion: "作業場所のご希望はありますか？",
-      presentChoices: workSiteChoices,
+      presentChoices: customerFacingWorkSiteChoices(now),
     }
   }
 

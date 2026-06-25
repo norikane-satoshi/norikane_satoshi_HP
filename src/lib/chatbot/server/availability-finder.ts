@@ -1,6 +1,7 @@
 import type { CandidateWindow, JobContext, WorkflowEstimate, WorkSite } from "@/lib/chatbot/domain"
+import { SATOSHI_STUDIO_AVAILABLE_FROM_JST } from "@/lib/chatbot/domain"
 
-export const STUDIO_ACTIVE_FROM = "2026-10-01T00:00:00+09:00"
+export const STUDIO_ACTIVE_FROM = SATOSHI_STUDIO_AVAILABLE_FROM_JST
 
 const DEFAULT_LOOKAHEAD_WEEKS = 8
 const CANDIDATE_LIMIT = 3
@@ -169,7 +170,7 @@ function assertWorkSite(workSite: JobContext["workSite"], now: Date): asserts wo
   if (workSite === "satoshi-studio" && now.getTime() < new Date(STUDIO_ACTIVE_FROM).getTime()) {
     throw new ChatbotAvailabilityError(
       "studio-not-yet-active",
-      "Satoshi studio is not active before 2026-10-01 JST.",
+      "Satoshi studio is not active before 2026-09-15 JST.",
     )
   }
 }

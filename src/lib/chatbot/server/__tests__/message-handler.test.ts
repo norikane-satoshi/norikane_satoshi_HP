@@ -1175,6 +1175,51 @@ describe("handleChatbotMessage user context", () => {
     },
   )
 
+  it("keeps the studio premise internal before 2026-09-15 while hiding it from work-site choices", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-06-25T10:00:00+09:00"))
+    try {
+      const harness = setup()
+      harness.generate.mockResolvedValueOnce({
+        rawText: "スタジオ利用も含めて整理できます。",
+        tier: "tier-3-ollama-deepseek",
+      })
+
+      const result = await handleChatbotMessage(
+        {
+          sessionId: "session_1",
+          userId: "user_a",
+          message: "ライブ2時間半ぐらいあります。",
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            documentaryAttachment: { kind: "none" },
+          },
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasAdditionalWork: true,
+            hasDocumentaryAttachments: true,
+            hasWorkSite: false,
+          },
+        },
+        harness.options,
+      )
+
+      const prompt = harness.generate.mock.calls[0]?.[0].systemPrompt
+      expect(prompt).toContain("2026年9月中旬から稼働し始める予定")
+      expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: workSiteChoices.id } })
+      expect(result.assistantMessage.content).not.toContain("スタジオ利用")
+      expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.id) : []).not.toContain(
+        "satoshi-studio",
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("ignores non-tier4 proposed routing decisions and keeps talking when there is no tool call", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
