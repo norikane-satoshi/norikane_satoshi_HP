@@ -254,6 +254,21 @@ describe("choice panel state", () => {
 
     expect(
       applyActiveChoiceAnswer({
+        activeChoices: documentaryAttachmentChoices,
+        message: "選択: 特典映像だよ",
+      }),
+    ).toMatchObject({
+      conversationState: {
+        hasDocumentaryAttachments: true,
+        otherChoiceComments: { "documentary-attachment": "特典映像だよ" },
+      },
+      jobContext: {
+        documentaryAttachment: { kind: "other", count: 1, note: "特典映像だよ" },
+      },
+    })
+
+    expect(
+      applyActiveChoiceAnswer({
         activeChoices: productionOptionChoices,
         message: "選択: 字幕、その他\nその他コメント: 英語版ナレーション",
       }),
