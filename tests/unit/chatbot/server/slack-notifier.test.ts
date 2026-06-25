@@ -11,7 +11,7 @@ function okSlackResponse(ts = "1710000000.000100"): Response {
 }
 
 function slackFetcher(ts?: string) {
-  return vi.fn(async () => okSlackResponse(ts))
+  return vi.fn<typeof fetch>(async () => okSlackResponse(ts))
 }
 
 describe("sendChatbotSlackNotification", () => {

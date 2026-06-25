@@ -201,19 +201,23 @@ export async function handleChatbotMessage(
     await repository.linkConversationToUser({ conversationId: conversation.id, userId: input.userId })
   }
 
-  const isEditRequest = Boolean(input.editTargetMessageId)
+  let didTruncateForEdit = false
   if (input.editTargetMessageId) {
     const targetIndex = conversation.messages.findIndex((message) => message.id === input.editTargetMessageId)
     if (targetIndex === -1) {
-      const fallbackTargetIndex = findLastUserMessageIndex(conversation.messages)
-      if (fallbackTargetIndex >= 0) {
-        await repository.truncateConversationFromMessage({
-          conversationId: conversation.id,
-          messageId: conversation.messages[fallbackTargetIndex].id,
-        })
-        conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, fallbackTargetIndex))
-      } else {
-        conversation = resetEditedConversationContext(conversation, [])
+      if (!isClientGeneratedMessageId(input.editTargetMessageId)) {
+        const fallbackTargetIndex = findLastUserMessageIndex(conversation.messages)
+        if (fallbackTargetIndex >= 0) {
+          await repository.truncateConversationFromMessage({
+            conversationId: conversation.id,
+            messageId: conversation.messages[fallbackTargetIndex].id,
+          })
+          conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, fallbackTargetIndex))
+          didTruncateForEdit = true
+        } else {
+          conversation = resetEditedConversationContext(conversation, [])
+          didTruncateForEdit = true
+        }
       }
     } else {
       await repository.truncateConversationFromMessage({
@@ -221,6 +225,7 @@ export async function handleChatbotMessage(
         messageId: input.editTargetMessageId,
       })
       conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, targetIndex))
+      didTruncateForEdit = true
     }
   }
 
@@ -287,7 +292,7 @@ export async function handleChatbotMessage(
   const knowledgeSnapshot = await knowledgeSnapshotLoader()
   const noteAccess = evaluateCustomerFacingNoteAccess(input.message, knowledgeSnapshot)
   const durationContext = resolveWorkflowDurationContext({
-    inputJobContext: isEditRequest ? undefined : input.jobContext,
+    inputJobContext: didTruncateForEdit ? undefined : input.jobContext,
     conversation,
     activeChoiceJobContext: activeChoiceAnswer?.jobContext,
     latestUserMessage: input.message,
@@ -301,7 +306,7 @@ export async function handleChatbotMessage(
       conversation,
       latestUserMessage: input.message,
       conversationState: buildConversationState({
-        inputConversationState: isEditRequest ? undefined : input.conversationState,
+        inputConversationState: didTruncateForEdit ? undefined : input.conversationState,
         conversation,
         userMessage,
         activeChoiceConversationState: activeChoiceAnswer?.conversationState,
@@ -629,6 +634,10 @@ function findLastUserMessageIndex(messages: ChatbotMessage[]): number {
     if (messages[index].role === "user") return index
   }
   return -1
+}
+
+function isClientGeneratedMessageId(messageId: string): boolean {
+  return messageId.startsWith("client_msg_")
 }
 
 function findLastAssistantMessageContent(messages: ChatbotMessage[]): string | undefined {

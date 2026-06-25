@@ -382,7 +382,7 @@ describe("handleChatbotMessage user context", () => {
     ])
   })
 
-  it("falls back to truncating the last stored user message when a client edit id was never persisted", async () => {
+  it("keeps the current conversation when a client edit id was never persisted", async () => {
     const harness = setup({
       existingConversation: conversation({
         messages: [
@@ -402,11 +402,10 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(harness.repository.truncateConversationFromMessage).toHaveBeenCalledWith({
-      conversationId: "conv_1",
-      messageId: "user_last",
-    })
+    expect(harness.repository.truncateConversationFromMessage).not.toHaveBeenCalled()
     expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
+      { role: "user", content: "保存済み直近" },
+      { role: "assistant", content: "保存済み回答" },
       { role: "user", content: "キャンセル後の再送" },
     ])
   })
@@ -520,25 +519,39 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.generate.mock.calls[0]?.[0].jobContext.additionalWork).toBeUndefined()
   })
 
-  it("drops stale routing state when a client-only edit id falls back to the last stored user message", async () => {
+  it("preserves current routing state when a client-only edit id never reached the server", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
-          activeChoices: additionalWorkChoices,
-          currentQuestion: "カラグレ以外の追加作業はありますか？",
-          conversationState: { hasFinalMedium: true, hasJobKind: true, hasAdditionalWork: false, turnCount: 3 },
+          activeChoices: documentaryAttachmentChoices,
+          currentQuestion: "付随する映像はありますか？",
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasAdditionalWork: true,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 5,
+          },
           jobContext: {
             jobKind: "live-60m",
             finalMedium: "live",
             workSite: "remote-grading",
             projectLengthMinutes: 150,
+            additionalWork: ["retouch", "skin-retouch"],
           },
         },
         messages: [
-          { id: "user_last", role: "user", content: "ライブ2.5hの相談です", createdAt: "2026-05-26T00:00:00.000Z" },
-          { id: "assistant_last", role: "assistant", content: "カラグレ以外の追加作業はありますか？", createdAt: "2026-05-26T00:00:01.000Z" },
+          { id: "user_kind", role: "user", content: "ライブ2.5hの相談です", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_additional", role: "assistant", content: "カラグレ以外の追加作業はありますか？", createdAt: "2026-05-26T00:00:01.000Z" },
+          { id: "user_additional", role: "user", content: "選択: 消し物、肌修正", createdAt: "2026-05-26T00:00:02.000Z" },
+          { id: "assistant_attachment", role: "assistant", content: "付随する映像はありますか？", createdAt: "2026-05-26T00:00:03.000Z" },
         ],
       }),
     })
@@ -547,27 +560,39 @@ describe("handleChatbotMessage user context", () => {
       {
         sessionId: "session_1",
         userId: "user_a",
-        message: "グレーディングについて教えてください",
+        message: "選択: 特典映像だよ",
         editTargetMessageId: "client_msg_22222222-2222-4222-8222-222222222222",
-        conversationState: { hasFinalMedium: true, hasJobKind: true, hasAdditionalWork: false, turnCount: 3 },
       },
       harness.options,
     )
 
-    expect(harness.repository.truncateConversationFromMessage).toHaveBeenCalledWith({
-      conversationId: "conv_1",
-      messageId: "user_last",
-    })
+    expect(harness.repository.truncateConversationFromMessage).not.toHaveBeenCalled()
     expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
-      { role: "user", content: "グレーディングについて教えてください" },
+      { role: "user", content: "ライブ2.5hの相談です" },
+      { role: "assistant", content: "カラグレ以外の追加作業はありますか？" },
+      { role: "user", content: "選択: 消し物、肌修正" },
+      { role: "assistant", content: "付随する映像はありますか？" },
+      { role: "user", content: "選択: 特典映像だよ" },
     ])
     expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
-      hasFinalMedium: false,
-      hasJobKind: false,
-      hasAdditionalWork: false,
-      turnCount: 1,
+      hasFinalMedium: true,
+      hasJobKind: true,
+      hasAdditionalWork: true,
+      hasDocumentaryAttachments: false,
+      turnCount: 3,
     })
-    expect(harness.generate.mock.calls[0]?.[0].jobContext.jobKind).toBeUndefined()
+    expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
+      jobKind: "live-60m",
+      finalMedium: "live",
+      workSite: "remote-grading",
+      projectLengthMinutes: 150,
+      additionalWork: ["retouch", "skin-retouch"],
+    })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: expect.objectContaining({ id: "documentary-attachment" }),
+      }),
+    )
   })
 
   it("isolates a previous user's conversation when the authenticated user changes", async () => {
