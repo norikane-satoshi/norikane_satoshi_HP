@@ -98,6 +98,27 @@ function removeStoredWidgetSession() {
   }
 }
 
+function persistWidgetSession(input: Omit<StoredWidgetSession, "expiresAt">) {
+  try {
+    const stored: StoredWidgetSession = {
+      ...input,
+      expiresAt: new Date(Date.now() + CHATBOT_SESSION_TTL_MS).toISOString(),
+    }
+    window.localStorage.setItem(CHATBOT_SESSION_STORAGE_KEY, JSON.stringify(stored))
+  } catch {
+    // localStorage may be unavailable in private or restricted contexts.
+  }
+}
+
+function serializeWidgetMessages(messages: WidgetMessage[]): StoredWidgetSession["messages"] {
+  return messages.map((message) => ({
+    ...(message.id ? { id: message.id } : {}),
+    role: message.role,
+    content: message.content,
+    createdAt: message.createdAt.toISOString(),
+  }))
+}
+
 function loadStoredWidgetSession(): {
   messages: WidgetMessage[]
   clientSessionId?: string
@@ -261,24 +282,13 @@ export function WidgetShell({
   useEffect(() => {
     if (!hasRestoredSession) return
 
-    try {
-      const stored: StoredWidgetSession = {
-        messages: messages.map((message) => ({
-          ...(message.id ? { id: message.id } : {}),
-          role: message.role,
-          content: message.content,
-          createdAt: message.createdAt.toISOString(),
-        })),
-        clientSessionId,
-        conversationId,
-        activeUi,
-        lastResponseTier,
-        expiresAt: new Date(Date.now() + CHATBOT_SESSION_TTL_MS).toISOString(),
-      }
-      window.localStorage.setItem(CHATBOT_SESSION_STORAGE_KEY, JSON.stringify(stored))
-    } catch {
-      // localStorage may be unavailable in private or restricted contexts.
-    }
+    persistWidgetSession({
+      messages: serializeWidgetMessages(messages),
+      clientSessionId,
+      conversationId,
+      activeUi,
+      lastResponseTier,
+    })
   }, [activeUi, clientSessionId, conversationId, hasRestoredSession, lastResponseTier, messages])
 
   useEffect(() => {
@@ -340,11 +350,24 @@ export function WidgetShell({
           ),
         )
       }
-      appendMessage({
-        id: payload.assistantMessage.id,
-        role: payload.assistantMessage.role,
-        content: payload.assistantMessage.content,
-        createdAt: new Date(payload.assistantMessage.createdAt),
+      setMessages((currentMessages) => {
+        const nextMessages = [
+          ...currentMessages,
+          {
+            id: payload.assistantMessage.id,
+            role: payload.assistantMessage.role,
+            content: payload.assistantMessage.content,
+            createdAt: new Date(payload.assistantMessage.createdAt),
+          },
+        ]
+        persistWidgetSession({
+          messages: serializeWidgetMessages(nextMessages),
+          clientSessionId,
+          conversationId: payload.conversationId,
+          activeUi: payload.ui,
+          lastResponseTier: payload.tier,
+        })
+        return nextMessages
       })
       setActiveUi(payload.ui)
     } catch (error) {
@@ -416,7 +439,7 @@ export function WidgetShell({
             (message.id === messageId || message.id === userMessage.id),
         )
         const truncateIndex = currentTargetIndex === -1 ? Math.min(targetIndex, currentMessages.length) : currentTargetIndex
-        return [
+        const nextMessages = [
           ...currentMessages.slice(0, truncateIndex),
           {
             id: userMessage.id,
@@ -431,6 +454,14 @@ export function WidgetShell({
             createdAt: new Date(payload.assistantMessage.createdAt),
           },
         ]
+        persistWidgetSession({
+          messages: serializeWidgetMessages(nextMessages),
+          clientSessionId,
+          conversationId: payload.conversationId,
+          activeUi: payload.ui,
+          lastResponseTier: payload.tier,
+        })
+        return nextMessages
       })
       setActiveUi(payload.ui)
     } catch (error) {
