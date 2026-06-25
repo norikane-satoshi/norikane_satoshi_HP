@@ -541,6 +541,9 @@
     color: var(--text-muted);
     opacity: 0.70;
   }
+  .chatbot-widget-shell :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+    font-size: max(16px, 1rem);
+  }
   .glass-inset {
     background: rgba(54, 111, 204, 0.07);
     border: 1px solid rgba(54, 111, 204, 0.18);

@@ -744,7 +744,7 @@ export function WidgetShell({
 
   return (
     <section
-      className={`glass-card glass-card--chat-frost pointer-events-auto relative flex animate-in fade-in slide-in-from-bottom-2 flex-col overflow-hidden duration-300 ${shellSizeClassName}`}
+      className={`chatbot-widget-shell glass-card glass-card--chat-frost pointer-events-auto relative flex animate-in fade-in slide-in-from-bottom-2 flex-col overflow-hidden duration-300 ${shellSizeClassName}`}
       style={{
         background: "rgba(255, 255, 255, 0.72)",
         backdropFilter: "blur(32px) saturate(130%)",
