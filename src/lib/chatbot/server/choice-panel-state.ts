@@ -293,6 +293,13 @@ function buildUnmatchedChoiceClarification(
   message: string,
 ): ChoicePanelPatch | null {
   if (!activeChoices) return null
+  const unmatchedChoiceText = extractUnmatchedChoiceText(message)
+  if (unmatchedChoiceText && activeChoices.choices.some((choice) => choice.id === "other")) {
+    return applyActiveChoiceAnswer({
+      activeChoices,
+      message: `選択: other\nその他コメント: ${unmatchedChoiceText}`,
+    })
+  }
   if (activeChoices.id === "project-length" && isBareQuantity(message)) {
     return toClarificationPatch({
       activeChoices,
@@ -630,6 +637,13 @@ function extractOtherComment(message: string): string | undefined {
     .map((line) => line.replace(otherCommentPrefixPattern, "").trim())
     .find((line, index) => otherCommentPrefixPattern.test(message.split(/\r?\n/u)[index]) && line.length > 0)
   return comment
+}
+
+function extractUnmatchedChoiceText(message: string): string | undefined {
+  const firstLine = message.split(/\r?\n/u)[0] ?? ""
+  if (!choicePrefixPattern.test(firstLine)) return undefined
+  const text = firstLine.replace(choicePrefixPattern, "").trim()
+  return text.length > 0 && !isExplicitUnknown(text) ? text : undefined
 }
 
 function toOtherChoiceCommentPatch(

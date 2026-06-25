@@ -578,7 +578,8 @@ describe("handleChatbotMessage user context", () => {
       hasFinalMedium: true,
       hasJobKind: true,
       hasAdditionalWork: true,
-      hasDocumentaryAttachments: false,
+      hasDocumentaryAttachments: true,
+      otherChoiceComments: { "documentary-attachment": "特典映像だよ" },
       turnCount: 3,
     })
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
@@ -587,10 +588,11 @@ describe("handleChatbotMessage user context", () => {
       workSite: "remote-grading",
       projectLengthMinutes: 150,
       additionalWork: ["retouch", "skin-retouch"],
+      documentaryAttachment: { kind: "other", count: 1, note: "特典映像だよ" },
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        activeChoices: expect.objectContaining({ id: "documentary-attachment" }),
+        activeChoices: expect.objectContaining({ id: "work-site" }),
       }),
     )
   })
