@@ -26,6 +26,7 @@ import {
   updateConversationRouting,
   updateConversationSlackThreadTs,
   type ChatbotLlmClient,
+  type ChatbotLlmRequest,
   type ChatbotLlmResponse,
   type ChatbotLlmTierOrchestrator,
   type ChatbotLlmTier,
@@ -177,6 +178,9 @@ const defaultRepository: ChatbotMessageRepository = {
 }
 
 const assistantNameAnswer = "のーちゃんです。"
+const llmHistoryMaxMessages = 24
+const llmHistoryMaxCharacters = 16_000
+const llmHistoryMaxCharactersPerMessage = 4_000
 
 export async function handleChatbotMessage(
   input: HandleChatbotMessageInput,
@@ -341,10 +345,7 @@ export async function handleChatbotMessage(
   const llmResponse = await orchestrator.generate({
     requestId: input.requestId,
     systemPrompt,
-    messages: [
-      ...conversation.messages.map(({ role, content }) => ({ role, content })),
-      { role: userMessage.role, content: userMessage.content },
-    ],
+    messages: buildLlmMessages(conversation.messages, userMessage),
     conversationState,
     jobContext,
     latestUserMessage: input.message,
@@ -1470,7 +1471,22 @@ async function resolveRoutingDecision(input: {
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
 }): Promise<RoutingDecision | undefined> {
   if (input.llmResponse.tier === "tier-4-form-fallback") return input.fallbackRoutingDecision
-  if (input.fallbackRoutingDecision.kind === "to-direct-contact") return input.fallbackRoutingDecision
+  if (input.fallbackRoutingDecision.kind === "to-direct-contact") {
+    if (
+      input.fallbackRoutingDecision.reason === "complex" &&
+      input.conversationState.bookingFinalConfirmation?.status === "confirmed" &&
+      input.jobContext.jobKind
+    ) {
+      return buildBookingInlineRoutingDecision({
+        jobContext: input.jobContext,
+        conversationState: input.conversationState,
+        bookingPrefill: input.conversationState.bookingFinalConfirmation.bookingPrefill ?? {},
+        candidateWindowFinder: input.candidateWindowFinder,
+        knowledgeSnapshot: input.knowledgeSnapshot,
+      })
+    }
+    return input.fallbackRoutingDecision
+  }
   if (input.fallbackRoutingDecision.kind === "to-email") return input.fallbackRoutingDecision
   if (isLectureTrainingInquiry(input.conversationState)) return input.fallbackRoutingDecision
 
@@ -1530,6 +1546,36 @@ async function buildBookingInlineRoutingDecision(input: {
     if (error instanceof ChatbotAvailabilityError) return undefined
     throw error
   }
+}
+
+function buildLlmMessages(
+  history: readonly ChatbotMessage[],
+  userMessage: Pick<ChatbotMessage, "role" | "content">,
+): ChatbotLlmRequest["messages"] {
+  return [...selectRecentLlmHistory(history), { role: userMessage.role, content: userMessage.content }]
+}
+
+function selectRecentLlmHistory(history: readonly ChatbotMessage[]): ChatbotLlmRequest["messages"] {
+  const selected: Array<{ role: ChatbotMessage["role"]; content: string }> = []
+  let selectedCharacters = 0
+
+  for (const message of [...history].reverse()) {
+    if (selected.length >= llmHistoryMaxMessages) break
+
+    const content = truncateLlmHistoryContent(message.content)
+    const nextCharacters = selectedCharacters + content.length
+    if (selected.length > 0 && nextCharacters > llmHistoryMaxCharacters) break
+
+    selected.push({ role: message.role, content })
+    selectedCharacters = nextCharacters
+  }
+
+  return selected.reverse()
+}
+
+function truncateLlmHistoryContent(content: string): string {
+  if (content.length <= llmHistoryMaxCharactersPerMessage) return content
+  return `${content.slice(0, llmHistoryMaxCharactersPerMessage)}\n[...truncated...]`
 }
 
 function normalizeCandidateCalendarResult(

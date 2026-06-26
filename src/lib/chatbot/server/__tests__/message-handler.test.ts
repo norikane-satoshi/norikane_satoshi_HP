@@ -901,6 +901,78 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.candidateWindowFinder).toHaveBeenCalled()
   })
 
+  it("keeps confirmed final confirmation on booking-card even when the thread is otherwise complex", async () => {
+    const longHistory = Array.from({ length: 18 }, (_, index): ChatbotMessage => {
+      return message(index % 2 === 0 ? "user" : "assistant", `過去の相談 ${index + 1}`)
+    })
+    const harness = setup({
+      existingConversation: conversation({
+        messages: longHistory,
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingFinalConfirmation: {
+              status: "pending",
+              requestedAtTurn: 4,
+              bookingPrefill: { projectTitle: "CM案件", contactEmail: "client@example.com" },
+            },
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        "承知いたしました。これまでのご相談内容をもとに、予約候補カードを作成します。",
+      tier: "tier-3-gemini-flash",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "選択: なし、このまま進める！" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({ kind: "booking-card" })
+    expect(harness.slackNotifier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uiKind: "booking-card",
+        flowStep: "booking-card",
+        bookingProgress: true,
+      }),
+    )
+  })
+
+  it("caps persisted history before sending the LLM request", async () => {
+    const longHistory = Array.from({ length: 40 }, (_, index): ChatbotMessage => {
+      return message(index % 2 === 0 ? "user" : "assistant", `履歴 ${index + 1} ${"x".repeat(1000)}`)
+    })
+    const harness = setup({
+      existingConversation: conversation({ messages: longHistory }),
+    })
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "相談です" },
+      harness.options,
+    )
+
+    const request = harness.generate.mock.calls[0]?.[0]
+    expect(request?.messages.length).toBeLessThanOrEqual(25)
+    expect(request?.messages.some((item: { content: string }) => item.content.includes("履歴 1"))).toBe(false)
+    expect(request?.messages.some((item: { content: string }) => item.content.includes("履歴 40"))).toBe(true)
+    expect(request?.messages.at(-1)).toMatchObject({ role: "user", content: "相談です" })
+    expect(JSON.stringify(request?.messages).length).toBeLessThan(17_500)
+  })
+
   it("keeps the booking card when no candidate slots are available", async () => {
     const harness = setup({
       existingConversation: conversation({
