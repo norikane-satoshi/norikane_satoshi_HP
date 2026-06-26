@@ -98,6 +98,11 @@ export type ConversationState = {
     supplementalNote?: string
     bookingPrefill?: BookingCardPrefill
   }
+  bookingSubmission?: {
+    status: "submitted"
+    reservationNumber: string
+    submittedAt?: string
+  }
   activeIntakeClarification?: {
     status: "needs-clarification" | "unknown-but-acceptable"
     choiceSetId?: SurveyChoiceSet["id"]

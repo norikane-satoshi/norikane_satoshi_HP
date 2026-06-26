@@ -160,6 +160,7 @@ export async function truncateConversationFromMessage(input: {
       where: { id: input.conversationId },
       data: {
         routingDecision: "continue",
+        bookingId: null,
         finalMedium: null,
         jobType: null,
         mainDuration: null,
@@ -270,6 +271,20 @@ export async function linkChatToBookingGroup(input: {
   bookingGroupId: string
 }): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    const [contextFields] = await tx.$queryRaw<RepositoryContextFields[]>`
+      SELECT "currentQuestion", "activeChoices", "conversationState"
+      FROM "ChatbotConversation"
+      WHERE "id" = ${input.conversationId}
+      LIMIT 1
+    `
+    const submittedAt = new Date()
+    const conversationState = serializeConversationState(
+      withSubmittedBookingState(toConversationState(contextFields?.conversationState) ?? {}, {
+        reservationNumber: input.bookingGroupId,
+        submittedAt: submittedAt.toISOString(),
+      }),
+    )
+
     await tx.bookingGroup.update({
       where: { id: input.bookingGroupId },
       data: {
@@ -285,6 +300,12 @@ export async function linkChatToBookingGroup(input: {
         routingDecision: "to-booking-inline",
       },
     })
+    await updateRepositoryContextFields(tx, {
+      conversationId: input.conversationId,
+      currentQuestion: contextFields?.currentQuestion ?? null,
+      activeChoices: contextFields?.activeChoices ?? null,
+      conversationState,
+    })
   })
 }
 
@@ -292,7 +313,11 @@ function toDomainConversation(row: ChatbotConversationRow): ChatbotConversation 
   const routingDecisionKind = toRoutingDecisionKind(row.routingDecision)
   const jobContext = toJobContext(row)
   const activeChoices = toSurveyChoiceSet(row.activeChoices)
-  const conversationState = toConversationState(row.conversationState)
+  const conversationState = row.bookingId
+    ? withSubmittedBookingState(toConversationState(row.conversationState) ?? {}, {
+        reservationNumber: row.bookingId,
+      })
+    : toConversationState(row.conversationState)
   const context: ChatbotConversationContext = {
     sessionId: row.sessionId,
     ...(row.userId ? { userId: row.userId } : {}),
@@ -553,7 +578,7 @@ function serializeActiveChoices(value: SurveyChoiceSet | null): string | null {
   return value ? JSON.stringify(value) : null
 }
 
-function serializeConversationState(value: ConversationState | null): string | null {
+function serializeConversationState(value: Partial<ConversationState> | null): string | null {
   return value ? JSON.stringify(value) : null
 }
 
@@ -564,6 +589,22 @@ function toConversationState(value: string | null | undefined): Partial<Conversa
     throw new Error("Invalid chatbot conversation state JSON")
   }
   return parsed as Partial<ConversationState>
+}
+
+function withSubmittedBookingState(
+  state: Partial<ConversationState>,
+  input: { reservationNumber: string; submittedAt?: string },
+): Partial<ConversationState> {
+  const rest = { ...state }
+  delete rest.bookingFinalConfirmation
+  return {
+    ...rest,
+    bookingSubmission: {
+      status: "submitted",
+      reservationNumber: input.reservationNumber,
+      ...(input.submittedAt ? { submittedAt: input.submittedAt } : {}),
+    },
+  }
 }
 
 function toStringArray(value: string | null): string[] | undefined {
@@ -628,6 +669,7 @@ export const __chatbotRepositoryTestUtils = {
   toInquiryCreateData,
   serializeActiveChoices,
   serializeConversationState,
+  withSubmittedBookingState,
   normalizeSurveyChoiceSet,
   withDefaultRepositoryContextFields,
 }

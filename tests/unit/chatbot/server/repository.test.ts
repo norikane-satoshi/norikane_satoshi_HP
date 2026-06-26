@@ -122,6 +122,39 @@ describe("chatbot repository mapping helpers", () => {
     expect(result.context.slackThreadTs).toBe("1700000000.000100")
   })
 
+  it("restores a submitted booking terminal state from bookingId without keeping sticky final confirmation", () => {
+    const result = __chatbotRepositoryTestUtils.toDomainConversation(
+      conversationRow({
+        routingDecision: "to-booking-inline",
+        bookingId: "booking_1",
+        conversationState: JSON.stringify({
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasAdditionalWork: false,
+          hasDocumentaryAttachments: false,
+          hasWorkSite: false,
+          hasReferenceUrls: false,
+          hasContactEmail: true,
+          hasDesiredSchedule: false,
+          turnCount: 8,
+          bookingFinalConfirmation: {
+            status: "confirmed",
+            confirmedAtTurn: 7,
+            bookingPrefill: { projectTitle: "案件T", contactEmail: "client@example.com" },
+          },
+        }),
+      }),
+    )
+
+    expect(result.context.conversationState).toMatchObject({
+      bookingSubmission: {
+        status: "submitted",
+        reservationNumber: "booking_1",
+      },
+    })
+    expect(result.context.conversationState).not.toHaveProperty("bookingFinalConfirmation")
+  })
+
   it("normalizes legacy active choices without selectionMode as single-select", () => {
     const result = __chatbotRepositoryTestUtils.toDomainConversation(
       conversationRow({

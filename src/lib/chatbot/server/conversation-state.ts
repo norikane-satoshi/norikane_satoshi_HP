@@ -54,9 +54,18 @@ export function buildConversationState(input: {
     ...(inputState.bookingFinalConfirmation ?? {}),
     ...(activeChoiceState.bookingFinalConfirmation ?? {}),
   }
+  const bookingSubmission = {
+    ...(stored.bookingSubmission ?? {}),
+    ...(inputState.bookingSubmission ?? {}),
+    ...(activeChoiceState.bookingSubmission ?? {}),
+  }
   const mergedBookingFinalConfirmation = bookingFinalConfirmation.status
     ? { bookingFinalConfirmation: bookingFinalConfirmation as NonNullable<ConversationState["bookingFinalConfirmation"]> }
     : {}
+  const mergedBookingSubmission =
+    bookingSubmission.status === "submitted" && bookingSubmission.reservationNumber
+      ? { bookingSubmission: bookingSubmission as NonNullable<ConversationState["bookingSubmission"]> }
+      : {}
 
   return {
     ...state,
@@ -64,6 +73,7 @@ export function buildConversationState(input: {
     ...(Object.keys(lectureTrainingInquiry).length > 0 ? { lectureTrainingInquiry } : {}),
     ...(Object.keys(intakeClarifications).length > 0 ? { intakeClarifications } : {}),
     ...mergedBookingFinalConfirmation,
+    ...mergedBookingSubmission,
     ...(input.jobContext.finalMedium !== "other" ? { hasFinalMedium: true } : {}),
     ...(input.jobContext.jobKind ? { hasJobKind: true } : {}),
     ...(typeof input.jobContext.projectLengthMinutes === "number" ? { hasProjectLength: true } : {}),

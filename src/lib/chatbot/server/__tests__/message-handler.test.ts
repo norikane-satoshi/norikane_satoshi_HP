@@ -1199,6 +1199,63 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("does not reissue a booking card after the booking submission terminal state is persisted", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingFinalConfirmation: {
+              status: "confirmed",
+              confirmedAtTurn: 8,
+              bookingPrefill: { projectTitle: "案件T", contactEmail: "client@example.com" },
+            },
+            bookingSubmission: {
+              status: "submitted",
+              reservationNumber: "booking_1",
+              submittedAt: "2026-06-26T07:37:23.000Z",
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 150,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        '{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"山田太郎","contactEmail":"client@example.com"}}',
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "ありがとう" },
+      harness.options,
+    )
+
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("booking_1"),
+    })
+    expect(harness.candidateWindowFinder).not.toHaveBeenCalled()
+    expect(harness.slackNotifier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uiKind: "none",
+        flowStep: "conversation",
+        bookingProgress: false,
+      }),
+    )
+  })
+
   it("caps persisted history before sending the LLM request", async () => {
     const longHistory = Array.from({ length: 40 }, (_, index): ChatbotMessage => {
       return message(index % 2 === 0 ? "user" : "assistant", `履歴 ${index + 1} ${"x".repeat(1000)}`)
