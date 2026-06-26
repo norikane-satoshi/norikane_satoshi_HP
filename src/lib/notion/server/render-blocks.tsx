@@ -269,7 +269,7 @@ function renderBlock(
     return (
       <h2
         key={key}
-        className="mt-10 mb-5 text-xl font-semibold text-hp md:text-2xl"
+        className="mt-10 mb-5 text-2xl font-semibold text-hp md:text-3xl"
       >
         {renderRichText(block.heading_1.rich_text, key, slugIndex)}
       </h2>
@@ -279,7 +279,7 @@ function renderBlock(
     return (
       <h3
         key={key}
-        className="mt-8 mb-4 text-lg font-semibold text-hp md:text-xl"
+        className="mt-8 mb-4 text-xl font-semibold text-hp md:text-2xl"
       >
         {renderRichText(block.heading_2.rich_text, key, slugIndex)}
       </h3>
