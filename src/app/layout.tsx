@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Serif_JP, Inter, Geist_Mono } from "next/font/google";
+import { Noto_Serif_JP, Noto_Sans_JP, Inter, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import "@/components/booking/booking-calendar.css";
@@ -12,6 +12,13 @@ const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
   variable: "--font-mincho",
   weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const notoSansJP = Noto_Sans_JP({
+  subsets: ["latin"],
+  variable: "--font-gothic",
+  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -49,7 +56,7 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${notoSerifJP.variable} ${inter.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${notoSerifJP.variable} ${notoSansJP.variable} ${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <NavHeader />
