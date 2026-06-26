@@ -81,7 +81,10 @@ export async function POST(request: NextRequest) {
       jobContext: parsed.data.jobContext,
       conversationState: parsed.data.conversationState,
     })
-    const response = NextResponse.json(result)
+    const response = NextResponse.json({
+      ...result,
+      clientBuildId: process.env.NEXT_PUBLIC_CHATBOT_BUILD_ID ?? "local",
+    })
 
     if (existingSessionId !== sessionId) {
       response.cookies.set(sessionCookieName, sessionId, {

@@ -22,8 +22,17 @@ const noStoreHeaders = [
   },
 ];
 
+const chatbotBuildId =
+  process.env.NEXT_PUBLIC_CHATBOT_BUILD_ID ??
+  process.env.VERCEL_GIT_COMMIT_SHA ??
+  process.env.VERCEL_DEPLOYMENT_ID ??
+  "local";
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  env: {
+    NEXT_PUBLIC_CHATBOT_BUILD_ID: chatbotBuildId,
+  },
   turbopack: {
     root: __dirname,
   },

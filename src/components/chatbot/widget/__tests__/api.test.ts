@@ -4,6 +4,7 @@ import {
   ChatbotRequestCancelledError,
   isChatbotOperationError,
   isChatbotRequestCancelledError,
+  scheduleChatbotReloadForStaleClient,
   submitChatbotMessage,
 } from "@/components/chatbot/widget/api"
 
@@ -60,5 +61,25 @@ describe("submitChatbotMessage", () => {
       expect(error.retryable).toBe(true)
       expect(error.fallback).toBe("tier4-inquiry-form")
     }
+  })
+
+  it("schedules a reload when the server response was produced by a newer client build", () => {
+    const reload = vi.fn()
+    const setTimeoutFn = vi.fn()
+
+    expect(
+      scheduleChatbotReloadForStaleClient(
+        { clientBuildId: "new-build" },
+        { currentBuildId: "old-build", reload, setTimeoutFn: setTimeoutFn as unknown as typeof window.setTimeout },
+      ),
+    ).toBe(true)
+
+    expect(setTimeoutFn).toHaveBeenCalledWith(reload, 250)
+  })
+
+  it("does not reload for local or matching chatbot builds", () => {
+    expect(scheduleChatbotReloadForStaleClient({ clientBuildId: "same" }, { currentBuildId: "same" })).toBe(false)
+    expect(scheduleChatbotReloadForStaleClient({ clientBuildId: "new" }, { currentBuildId: "local" })).toBe(false)
+    expect(scheduleChatbotReloadForStaleClient({ clientBuildId: "local" }, { currentBuildId: "old" })).toBe(false)
   })
 })

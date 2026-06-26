@@ -61,6 +61,7 @@ export type ChatbotMessageResponse = {
   routingDecision?: RoutingDecision
   tier: ChatbotResponseTier
   ui: WidgetUi
+  clientBuildId?: string
 }
 
 export type SubmitChatbotMessageInput = {
@@ -157,6 +158,35 @@ async function parseJsonResponse(response: Response): Promise<unknown> {
   }
 }
 
+const chatbotClientBuildId = process.env.NEXT_PUBLIC_CHATBOT_BUILD_ID ?? "local"
+const chatbotReloadDelayMs = 250
+
+function readResponseBuildId(body: unknown): string | undefined {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return undefined
+  const value = (body as { clientBuildId?: unknown }).clientBuildId
+  return typeof value === "string" && value.trim() ? value : undefined
+}
+
+export function scheduleChatbotReloadForStaleClient(
+  body: unknown,
+  options: {
+    currentBuildId?: string
+    reload?: () => void
+    setTimeoutFn?: typeof window.setTimeout
+  } = {},
+): boolean {
+  const responseBuildId = readResponseBuildId(body)
+  const currentBuildId = options.currentBuildId ?? chatbotClientBuildId
+  if (!responseBuildId || responseBuildId === currentBuildId) return false
+  if (responseBuildId === "local" || currentBuildId === "local") return false
+  if (typeof window === "undefined" && (!options.reload || !options.setTimeoutFn)) return false
+
+  const reload = options.reload ?? (() => window.location.reload())
+  const setTimeoutFn = options.setTimeoutFn ?? window.setTimeout.bind(window)
+  setTimeoutFn(reload, chatbotReloadDelayMs)
+  return true
+}
+
 function operationErrorFromResponse(
   operation: ChatbotOperationError["operation"],
   response: Response,
@@ -201,7 +231,10 @@ export async function postChatbotJson<T>(
         signal: options.signal,
       })
       const body = await parseJsonResponse(response)
-      if (response.ok) return body as T
+      if (response.ok) {
+        scheduleChatbotReloadForStaleClient(body)
+        return body as T
+      }
       throw operationErrorFromResponse(operation, response, body)
     } catch (error) {
       if (isAbortError(error)) throw new ChatbotRequestCancelledError()
