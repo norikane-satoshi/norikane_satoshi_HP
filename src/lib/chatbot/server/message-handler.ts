@@ -1761,18 +1761,31 @@ function normalizeBookingCardPrefill(
   jobContext: JobContext,
   conversationState: ConversationState,
 ): BookingCardPrefill {
-  const projectTitle = normalizeBookingProjectTitle(prefill.projectTitle, jobContext)
+  const statePrefill = conversationState.bookingFinalConfirmation?.bookingPrefill ?? {}
+  const stateContactEmail =
+    conversationState.hasContactEmail && isValidContactEmail(conversationState.contactEmail)
+      ? conversationState.contactEmail
+      : undefined
+  const statePrefillEmail = isValidContactEmail(statePrefill.contactEmail) ? statePrefill.contactEmail : undefined
+  const toolContactEmail = isValidContactEmail(prefill.contactEmail) ? prefill.contactEmail : undefined
+  const toolPrefillLooksStale = Boolean(stateContactEmail && toolContactEmail && stateContactEmail !== toolContactEmail)
+  const trustedToolPrefill = toolPrefillLooksStale ? {} : prefill
+  const projectTitle = normalizeBookingProjectTitle(statePrefill.projectTitle ?? trustedToolPrefill.projectTitle, jobContext)
   const memoParts = [
-    normalizeSupplementalMemo(prefill.memo),
+    normalizeSupplementalMemo(statePrefill.memo),
+    normalizeSupplementalMemo(trustedToolPrefill.memo),
     normalizeSupplementalBookingFinalNote(conversationState.bookingFinalConfirmation?.supplementalNote),
     ...buildChoiceDetailSegments(jobContext, conversationState),
   ]
-  const contactName = prefill.contactName ?? conversationState.customerName
-  const contactEmail = isValidContactEmail(prefill.contactEmail) ? prefill.contactEmail : conversationState.contactEmail
-  const companyName = prefill.companyName ?? conversationState.companyName
+  const stateCustomerName = conversationState.hasCustomerIdentity ? conversationState.customerName : undefined
+  const stateCompanyName = conversationState.hasCustomerIdentity ? conversationState.companyName : undefined
+  const contactName = stateCustomerName ?? statePrefill.contactName ?? trustedToolPrefill.contactName
+  const contactEmail = stateContactEmail ?? statePrefillEmail ?? (isValidContactEmail(trustedToolPrefill.contactEmail) ? trustedToolPrefill.contactEmail : undefined)
+  const companyName = stateCompanyName ?? statePrefill.companyName ?? trustedToolPrefill.companyName
+  const dueDate = statePrefill.dueDate ?? trustedToolPrefill.dueDate
 
-  if (prefill.projectTitle && projectTitle !== prefill.projectTitle) {
-    memoParts.push(prefill.projectTitle)
+  if (trustedToolPrefill.projectTitle && projectTitle !== trustedToolPrefill.projectTitle) {
+    memoParts.push(trustedToolPrefill.projectTitle)
   }
 
   return {
@@ -1780,7 +1793,7 @@ function normalizeBookingCardPrefill(
     ...(contactName ? { contactName } : {}),
     ...(isValidContactEmail(contactEmail) ? { contactEmail } : {}),
     ...(companyName ? { companyName } : {}),
-    ...(prefill.dueDate ? { dueDate: prefill.dueDate } : {}),
+    ...(dueDate ? { dueDate } : {}),
     ...mergeMemoParts(memoParts),
   }
 }

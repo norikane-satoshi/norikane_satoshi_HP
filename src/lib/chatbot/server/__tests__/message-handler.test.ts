@@ -975,6 +975,59 @@ describe("handleChatbotMessage user context", () => {
     expect(memo).not.toContain("live-60m")
   })
 
+  it("does not let stale hosted tool args override confirmed session identity", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            hasCustomerIdentity: true,
+            customerName: "Smoke User",
+            contactEmail: "smoke-booking-prefill@example.invalid",
+            bookingFinalConfirmation: {
+              status: "pending",
+              requestedAtTurn: 4,
+              bookingPrefill: { projectTitle: "Smoke案件" },
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            projectLengthMinutes: 150,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "other", count: 1, note: "付随素材その他特典映像です" },
+            additionalWork: ["retouch", "skin-retouch"],
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        '{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"Old User","contactEmail":"old@example.com","memo":"案件種別: ライブ / 最終媒体: ライブ"}}',
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "選択: なし、このまま進める！" },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "Smoke案件",
+        contactName: "Smoke User",
+        contactEmail: "smoke-booking-prefill@example.invalid",
+      },
+    })
+    expect(JSON.stringify(result.ui)).not.toContain("old@example.com")
+    expect(JSON.stringify(result.ui)).not.toContain("案件種別:")
+    expect(JSON.stringify(result.ui)).not.toContain("最終媒体:")
+  })
+
   it("keeps confirmed final confirmation on booking-card even when the thread is otherwise complex", async () => {
     const longHistory = Array.from({ length: 18 }, (_, index): ChatbotMessage => {
       return message(index % 2 === 0 ? "user" : "assistant", `過去の相談 ${index + 1}`)
