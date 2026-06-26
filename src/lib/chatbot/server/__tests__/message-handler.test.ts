@@ -842,6 +842,65 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("moves to the booking card when the final confirmation choice label is submitted", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingFinalConfirmation: {
+              status: "pending",
+              requestedAtTurn: 4,
+              bookingPrefill: { projectTitle: "ライブ案件", contactEmail: "client@example.com" },
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            projectLengthMinutes: 150,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "other", count: 1, note: "特典映像" },
+            additionalWork: ["retouch", "skin-retouch"],
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        "承知いたしました。これまでのご相談内容をもとに、則兼との相談・確認に進むための予約候補カードを作成します。",
+      tier: "tier-3-gemini-flash",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "選択: なし、このまま進める！" },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      suggestedSlots: expect.any(Array),
+      bookingPrefill: {
+        projectTitle: "ライブ案件",
+        contactEmail: "client@example.com",
+      },
+    })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routingDecision: "to-booking-inline",
+        conversationState: expect.objectContaining({
+          bookingFinalConfirmation: expect.objectContaining({
+            status: "confirmed",
+          }),
+        }),
+      }),
+    )
+    expect(harness.candidateWindowFinder).toHaveBeenCalled()
+  })
+
   it("keeps the booking card when no candidate slots are available", async () => {
     const harness = setup({
       existingConversation: conversation({

@@ -1475,9 +1475,34 @@ async function resolveRoutingDecision(input: {
   if (isLectureTrainingInquiry(input.conversationState)) return input.fallbackRoutingDecision
 
   const toolCall = parseShowBookingCardToolCall(input.llmResponse.rawText)
-  if (!toolCall) return undefined
   if (!input.jobContext.jobKind) return undefined
+  if (!toolCall) {
+    if (input.conversationState.bookingFinalConfirmation?.status !== "confirmed") return undefined
+    return buildBookingInlineRoutingDecision({
+      jobContext: input.jobContext,
+      conversationState: input.conversationState,
+      bookingPrefill: input.conversationState.bookingFinalConfirmation.bookingPrefill ?? {},
+      candidateWindowFinder: input.candidateWindowFinder,
+      knowledgeSnapshot: input.knowledgeSnapshot,
+    })
+  }
 
+  return buildBookingInlineRoutingDecision({
+    jobContext: input.jobContext,
+    conversationState: input.conversationState,
+    bookingPrefill: toolCall.args,
+    candidateWindowFinder: input.candidateWindowFinder,
+    knowledgeSnapshot: input.knowledgeSnapshot,
+  })
+}
+
+async function buildBookingInlineRoutingDecision(input: {
+  jobContext: JobContext
+  conversationState: ConversationState
+  bookingPrefill: BookingCardPrefill
+  candidateWindowFinder: CandidateWindowFinder
+  knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
+}): Promise<Extract<RoutingDecision, { kind: "to-booking-inline" }> | undefined> {
   const workflowEstimate = estimateWorkflow(input.jobContext, { knowledgeSnapshot: input.knowledgeSnapshot })
   const jobContext = {
     ...input.jobContext,
@@ -1488,7 +1513,7 @@ async function resolveRoutingDecision(input: {
     const calendar = normalizeCandidateCalendarResult(await input.candidateWindowFinder({
       jobContext,
       workflowEstimate,
-      desiredDeadline: toolCall.args.dueDate,
+      desiredDeadline: input.bookingPrefill.dueDate,
       notBefore: input.jobContext.preferredStartDate,
       candidateLimit: 31,
       busyMode: "block",
@@ -1499,7 +1524,7 @@ async function resolveRoutingDecision(input: {
       suggestedSlots: calendar.candidates,
       busyDateKeys: calendar.busyDateKeys,
       jobContext,
-      bookingPrefill: normalizeBookingCardPrefill(toolCall.args, jobContext, input.conversationState),
+      bookingPrefill: normalizeBookingCardPrefill(input.bookingPrefill, jobContext, input.conversationState),
     }
   } catch (error) {
     if (error instanceof ChatbotAvailabilityError) return undefined

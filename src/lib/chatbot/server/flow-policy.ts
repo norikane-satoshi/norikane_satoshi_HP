@@ -189,8 +189,9 @@ export function isNoAdditionalBookingConcern(message: string): boolean {
   const compact = message
     .normalize("NFKC")
     .toLowerCase()
+    .replace(/^\s*選択\s*[:：]\s*/u, "")
     .replace(/[\s　。、,.!！?？「」『』()[\]（）]/g, "")
-  return /^(なし|無し|ない|ありません|大丈夫|だいじょうぶ|問題ありません|問題ない|ok|okay|okです|以上です|特にありません)$/.test(
+  return /^(なし|無し|ない|ありません|大丈夫|だいじょうぶ|問題ありません|問題ない|ok|okay|okです|以上です|特にありません)(このまま進める|このまますすめる)?$/.test(
     compact,
   )
 }
