@@ -59,13 +59,17 @@ export function buildConversationState(input: {
     ...(inputState.bookingSubmission ?? {}),
     ...(activeChoiceState.bookingSubmission ?? {}),
   }
-  const mergedBookingFinalConfirmation = bookingFinalConfirmation.status
+  const hasSubmittedBooking = bookingSubmission.status === "submitted" && bookingSubmission.reservationNumber
+  const mergedBookingFinalConfirmation = !hasSubmittedBooking && bookingFinalConfirmation.status
     ? { bookingFinalConfirmation: bookingFinalConfirmation as NonNullable<ConversationState["bookingFinalConfirmation"]> }
     : {}
   const mergedBookingSubmission =
-    bookingSubmission.status === "submitted" && bookingSubmission.reservationNumber
+    hasSubmittedBooking
       ? { bookingSubmission: bookingSubmission as NonNullable<ConversationState["bookingSubmission"]> }
       : {}
+  if (hasSubmittedBooking) {
+    delete state.bookingFinalConfirmation
+  }
 
   return {
     ...state,

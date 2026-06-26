@@ -1247,6 +1247,13 @@ describe("handleChatbotMessage user context", () => {
       nextQuestion: expect.stringContaining("booking_1"),
     })
     expect(harness.candidateWindowFinder).not.toHaveBeenCalled()
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationState: expect.not.objectContaining({
+          bookingFinalConfirmation: expect.anything(),
+        }),
+      }),
+    )
     expect(harness.slackNotifier).toHaveBeenCalledWith(
       expect.objectContaining({
         uiKind: "none",

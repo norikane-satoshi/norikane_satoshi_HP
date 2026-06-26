@@ -926,6 +926,11 @@ function mergeRecoveredConversationState(
   stored: Partial<ConversationState>,
   recovered: Partial<ConversationState>,
 ): Partial<ConversationState> {
+  const bookingSubmission = {
+    ...(stored.bookingSubmission ?? {}),
+    ...(recovered.bookingSubmission ?? {}),
+  }
+  const hasSubmittedBooking = bookingSubmission.status === "submitted" && bookingSubmission.reservationNumber
   const bookingFinalConfirmation = {
     ...(stored.bookingFinalConfirmation ?? {}),
     ...(recovered.bookingFinalConfirmation ?? {}),
@@ -945,7 +950,10 @@ function mergeRecoveredConversationState(
       ...(stored.intakeClarifications ?? {}),
       ...(recovered.intakeClarifications ?? {}),
     },
-    ...(bookingFinalConfirmation.status
+    ...(hasSubmittedBooking
+      ? { bookingSubmission: bookingSubmission as NonNullable<ConversationState["bookingSubmission"]> }
+      : {}),
+    ...(!hasSubmittedBooking && bookingFinalConfirmation.status
       ? { bookingFinalConfirmation: bookingFinalConfirmation as NonNullable<ConversationState["bookingFinalConfirmation"]> }
       : {}),
   }
@@ -955,6 +963,7 @@ function mergeRecoveredConversationState(
       merged[key] = true
     }
   }
+  if (hasSubmittedBooking) delete merged.bookingFinalConfirmation
 
   if (!Object.keys(merged.otherChoiceComments ?? {}).length) delete merged.otherChoiceComments
   if (!Object.keys(merged.lectureTrainingInquiry ?? {}).length) delete merged.lectureTrainingInquiry

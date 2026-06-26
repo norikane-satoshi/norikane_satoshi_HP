@@ -17,6 +17,9 @@ export function applyBookingFinalConfirmationAnswer(input: {
   latestUserMessage: string
   previousAssistantMessage?: string
 }): ConversationState {
+  if (input.conversationState.bookingSubmission?.status === "submitted") {
+    return input.conversationState
+  }
   const current = input.conversationState.bookingFinalConfirmation
   if (current?.status === "supplemental-received" && isNoAdditionalBookingConcern(input.latestUserMessage)) {
     return {
@@ -63,6 +66,10 @@ export function applyBookingFinalConfirmationPolicy(input: {
   routingDecision: RoutingDecision | undefined
   conversationState: ConversationState
 } {
+  if (input.conversationState.bookingSubmission?.status === "submitted") {
+    return { routingDecision: input.routingDecision, conversationState: input.conversationState }
+  }
+
   if (input.conversationState.activeIntakeClarification?.status === "needs-clarification") {
     return applyIntakeClarificationPolicy({
       routingDecision: input.routingDecision,
