@@ -208,13 +208,52 @@ export function isBookingFinalConfirmationPrompt(message: string | undefined): b
 
 function buildBookingFinalConfirmationQuestion(jobContext: JobContext): string {
   const summary = [
-    jobContext.jobKind ? `案件種別は${jobContext.jobKind}` : undefined,
-    jobContext.finalMedium && jobContext.finalMedium !== "other" ? `最終媒体は${jobContext.finalMedium}` : undefined,
+    labelRequestCategory(jobContext),
+    labelDeliveryUse(jobContext),
     typeof jobContext.projectLengthMinutes === "number" ? `尺は${formatMinutes(jobContext.projectLengthMinutes)}` : undefined,
   ].filter((item): item is string => Boolean(item))
   const prefix = summary.length > 0 ? `${summary.join("、")}として整理しています。` : "ここまでの内容で整理しています。"
 
   return `${prefix}ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？なければ「なし」で進めます。`
+}
+
+function labelRequestCategory(jobContext: JobContext): string | undefined {
+  switch (jobContext.jobKind) {
+    case "live-60m":
+      return "依頼内容はライブ"
+    case "cm-30s":
+      return "依頼内容はWeb CM / CM"
+    case "mv-5m":
+      return "依頼内容はMV"
+    case "feature-90m":
+      return "依頼内容は映画 / 長編"
+    case "drama-first":
+    case "drama-follow-up":
+      return "依頼内容はドラマ"
+    case "vertical-60s":
+      return "依頼内容は縦型動画 / SNS動画"
+    default:
+      return undefined
+  }
+}
+
+function labelDeliveryUse(jobContext: JobContext): string | undefined {
+  switch (jobContext.finalMedium) {
+    case "ott":
+      return "納品・使用先は配信"
+    case "cinema":
+      return "納品・使用先は映画 / 劇場"
+    case "tv-broadcast":
+      return "納品・使用先は放送"
+    case "live":
+      return "納品・使用先はライブ / イベント"
+    case "web":
+      return "納品・使用先はWeb / CM"
+    case "vertical-sns":
+      return "納品・使用先は縦型SNS"
+    default:
+      return undefined
+  }
 }
 
 function formatMinutes(minutes: number): string {

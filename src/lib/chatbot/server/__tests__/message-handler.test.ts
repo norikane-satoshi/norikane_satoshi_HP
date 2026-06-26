@@ -901,6 +901,80 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.candidateWindowFinder).toHaveBeenCalled()
   })
 
+  it("recovers customer-facing booking prefill from the same session history", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [
+          message("assistant", "次に案件名を教えてください。決まっていなければ仮の呼び名でも構いません。"),
+          message("user", "案件Tで"),
+          message("assistant", "案件名「案件T」として承知しました。次にご担当者のお名前を教えてください。"),
+          message("user", "テスト。ユーザーです。"),
+          message("assistant", "ご担当者「テスト ユーザー」様として承知しました。次にご連絡先メールアドレスを教えてください。"),
+          message("user", "qj9n9not6bov@yahoo.co.j"),
+          message("assistant", "メールアドレスの末尾は「.jp」でお間違いないでしょうか？"),
+          message("user", ".jpでした"),
+          message("assistant", "ご連絡先メールアドレス「qj9n9not6bov@yahoo.co.jp」として承知いたしました。"),
+          message("assistant", "ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？なければ「なし」で進めます。"),
+        ],
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: false,
+            contactEmail: undefined,
+            bookingFinalConfirmation: {
+              status: "pending",
+              requestedAtTurn: 14,
+            },
+            otherChoiceComments: {
+              "documentary-attachment": "付随素材その他特典映像です",
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            projectLengthMinutes: 150,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "other", count: 1, note: "付随素材その他特典映像です" },
+            additionalWork: ["retouch", "skin-retouch"],
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "候補を確認します。",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "選択: なし、このまま進める！" },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "案件T",
+        contactName: "テスト ユーザー",
+        contactEmail: "qj9n9not6bov@yahoo.co.jp",
+        memo: expect.stringContaining("依頼内容: ライブ"),
+      },
+    })
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        memo: expect.stringContaining("納品・使用先: ライブ / イベント"),
+      },
+    })
+    expect(JSON.stringify(result.ui)).toContain("付随素材として、特典映像が含まれる可能性があります。")
+    expect(JSON.stringify(result.ui)).not.toContain("なし、このまま進める")
+    const memo = result.ui.kind === "booking-card" ? result.ui.bookingPrefill?.memo ?? "" : ""
+    expect(memo).not.toContain("案件種別:")
+    expect(memo).not.toContain("最終媒体:")
+    expect(memo).not.toContain("live-60m")
+  })
+
   it("keeps confirmed final confirmation on booking-card even when the thread is otherwise complex", async () => {
     const longHistory = Array.from({ length: 18 }, (_, index): ChatbotMessage => {
       return message(index % 2 === 0 ? "user" : "assistant", `過去の相談 ${index + 1}`)

@@ -63,6 +63,7 @@ import {
   applyBookingFinalConfirmationPolicy,
   inferChatbotFlowStep,
   isBookingFinalConfirmationPrompt,
+  isNoAdditionalBookingConcern,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
@@ -655,9 +656,10 @@ function reconcileConversationContextFromHistory(conversation: ChatbotConversati
   if (conversation.messages.length === 0) return conversation
 
   const recovered = recoverChoicePanelContextFromHistory(conversation.messages)
-  const conversationState = mergeRecoveredConversationState(
-    conversation.context.conversationState ?? {},
-    recovered.conversationState,
+  const recoveredBooking = recoverBookingContextFromHistory(conversation.messages)
+  const conversationState = mergeRecoveredBookingContext(
+    mergeRecoveredConversationState(conversation.context.conversationState ?? {}, recovered.conversationState),
+    recoveredBooking,
   )
   const jobContext = {
     ...(conversation.context.jobContext ?? {}),
@@ -724,6 +726,140 @@ function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[]): {
   }
 
   return { activeChoices, conversationState, jobContext }
+}
+
+function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
+  conversationState: Partial<ConversationState>
+  bookingPrefill: BookingCardPrefill
+} {
+  let pendingField: "projectTitle" | "contactName" | "contactEmail" | undefined
+  const bookingPrefill: BookingCardPrefill = {}
+  const conversationState: Partial<ConversationState> = {}
+
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      const confirmedProjectTitle = extractQuotedValue(message.content, /案件名[「『"]([^」』"]{1,120})[」』"]/u)
+      if (confirmedProjectTitle) bookingPrefill.projectTitle = confirmedProjectTitle
+
+      const confirmedContactName = extractQuotedValue(
+        message.content,
+        /(?:ご担当者|担当者|お名前)[「『"]([^」』"]{1,80})[」』"]/u,
+      )
+      if (confirmedContactName) {
+        bookingPrefill.contactName = confirmedContactName
+        conversationState.customerName = confirmedContactName
+        conversationState.hasCustomerIdentity = true
+      }
+
+      const confirmedEmail = findContactEmailInText(message.content)
+      if (confirmedEmail) {
+        bookingPrefill.contactEmail = confirmedEmail
+        conversationState.contactEmail = confirmedEmail
+        conversationState.hasContactEmail = true
+      }
+
+      pendingField = inferPendingBookingField(message.content)
+      continue
+    }
+
+    if (message.role !== "user" || !pendingField) continue
+
+    if (pendingField === "projectTitle" && !bookingPrefill.projectTitle) {
+      bookingPrefill.projectTitle = normalizeFreeTextBookingValue(message.content, 120)
+    } else if (pendingField === "contactName" && !bookingPrefill.contactName) {
+      const contactName = normalizeContactNameValue(message.content)
+      if (contactName) {
+        bookingPrefill.contactName = contactName
+        conversationState.customerName = contactName
+        conversationState.hasCustomerIdentity = true
+      }
+    } else if (pendingField === "contactEmail" && !bookingPrefill.contactEmail) {
+      const contactEmail = findContactEmailInText(message.content)
+      if (contactEmail) {
+        bookingPrefill.contactEmail = contactEmail
+        conversationState.contactEmail = contactEmail
+        conversationState.hasContactEmail = true
+      }
+    }
+
+    pendingField = undefined
+  }
+
+  return { conversationState, bookingPrefill }
+}
+
+function mergeRecoveredBookingContext(
+  stored: Partial<ConversationState>,
+  recovered: ReturnType<typeof recoverBookingContextFromHistory>,
+): Partial<ConversationState> {
+  const recoveredPrefill = recovered.bookingPrefill
+  const storedBookingFinalConfirmation = stored.bookingFinalConfirmation
+  const storedPrefill = storedBookingFinalConfirmation?.bookingPrefill ?? {}
+  const bookingPrefill = compactBookingPrefill({
+    projectTitle: storedPrefill.projectTitle ?? recoveredPrefill.projectTitle,
+    contactName: storedPrefill.contactName ?? recoveredPrefill.contactName,
+    contactEmail: storedPrefill.contactEmail ?? recoveredPrefill.contactEmail,
+    companyName: storedPrefill.companyName ?? recoveredPrefill.companyName,
+    dueDate: storedPrefill.dueDate ?? recoveredPrefill.dueDate,
+    memo: storedPrefill.memo ?? recoveredPrefill.memo,
+  })
+
+  return {
+    ...stored,
+    ...recovered.conversationState,
+    ...(storedBookingFinalConfirmation || Object.keys(bookingPrefill).length > 0
+      ? {
+          bookingFinalConfirmation: {
+            ...(storedBookingFinalConfirmation ?? { status: "pending" as const }),
+            ...(Object.keys(bookingPrefill).length > 0 ? { bookingPrefill } : {}),
+          },
+        }
+      : {}),
+  }
+}
+
+function compactBookingPrefill(input: BookingCardPrefill): BookingCardPrefill {
+  return Object.fromEntries(
+    Object.entries(input).filter((entry): entry is [keyof BookingCardPrefill, string] => (
+      typeof entry[1] === "string" && entry[1].trim().length > 0
+    )),
+  )
+}
+
+function inferPendingBookingField(content: string): "projectTitle" | "contactName" | "contactEmail" | undefined {
+  const normalized = content.normalize("NFKC")
+  if (/(案件名|作品名).{0,40}(教えて|入力|ください|伺)/u.test(normalized)) return "projectTitle"
+  if (/(担当者|お名前|氏名).{0,40}(教えて|入力|ください|伺)/u.test(normalized)) return "contactName"
+  if (/(メール|mail|email|連絡先).{0,40}(教えて|入力|ください|伺)/iu.test(normalized)) return "contactEmail"
+  return undefined
+}
+
+function extractQuotedValue(content: string, pattern: RegExp): string | undefined {
+  const match = pattern.exec(content)
+  return normalizeFreeTextBookingValue(match?.[1], 120)
+}
+
+function normalizeFreeTextBookingValue(value: string | undefined, maxLength: number): string | undefined {
+  const normalized = value
+    ?.normalize("NFKC")
+    .replace(/^\s*選択\s*[:：]\s*/u, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .replace(/[。.!！?？]+$/u, "")
+  return normalized ? normalized.slice(0, maxLength) : undefined
+}
+
+function normalizeContactNameValue(value: string): string | undefined {
+  return normalizeFreeTextBookingValue(
+    value
+      .replace(/[。．.]/gu, " ")
+      .replace(/(?:です|でございます|になります)$/u, ""),
+    80,
+  )
+}
+
+function findContactEmailInText(value: string): string | undefined {
+  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu.exec(value)?.[0]
 }
 
 function findChoiceSetFromAssistantContent(content: string): SurveyChoiceSet | undefined {
@@ -1420,48 +1556,6 @@ function toMessageUi(input: {
   return { kind: "none" }
 }
 
-function buildChoiceDetailSegments(jobContext: JobContext, conversationState: ConversationState): string[] {
-  const otherComments = conversationState.otherChoiceComments ?? {}
-  const segments: string[] = []
-
-  if (!jobContext.jobKind && otherComments["job-kind"]) {
-    segments.push(`案件種別:その他(${otherComments["job-kind"]})`)
-  }
-  if (conversationState.hasProjectLength && typeof jobContext.projectLengthMinutes !== "number" && otherComments["project-length"]) {
-    segments.push(`尺:${otherComments["project-length"]}`)
-  }
-  if (jobContext.additionalWork?.length) {
-    segments.push(`追加作業:${jobContext.additionalWork.map((item) => labelChoice(item, otherComments["additional-work"])).join("・")}`)
-  }
-  const attachment = labelDocumentaryAttachmentSummary(jobContext.documentaryAttachment)
-  if (attachment) {
-    segments.push(`付随素材:${attachment}`)
-  }
-  if (conversationState.productionOptions?.length) {
-    segments.push(
-      `制作オプション:${conversationState.productionOptions
-        .map((item) => labelChoice(item, otherComments["production-options"]))
-        .join("・")}`,
-    )
-  }
-
-  return segments
-}
-
-function labelChoice(value: string, otherComment?: string): string {
-  return value === "other" && otherComment ? `その他(${otherComment})` : value
-}
-
-function labelDocumentaryAttachmentSummary(value: JobContext["documentaryAttachment"] | undefined): string | undefined {
-  if (!value || value.kind === "none") return undefined
-  if (value.kind === "mixed") return value.items.map(labelDocumentaryAttachmentItemSummary).join("・")
-  return labelDocumentaryAttachmentItemSummary(value)
-}
-
-function labelDocumentaryAttachmentItemSummary(value: DocumentaryAttachmentItem): string {
-  return value.kind === "other" && "note" in value && value.note.trim() ? `その他(${value.note.trim()})` : value.kind
-}
-
 async function resolveRoutingDecision(input: {
   llmResponse: ChatbotLlmResponse
   jobContext: JobContext
@@ -1668,8 +1762,14 @@ function normalizeBookingCardPrefill(
   conversationState: ConversationState,
 ): BookingCardPrefill {
   const projectTitle = normalizeBookingProjectTitle(prefill.projectTitle, jobContext)
-  const memoParts = [prefill.memo, ...buildChoiceDetailSegments(jobContext, conversationState)]
+  const memoParts = [
+    normalizeSupplementalMemo(prefill.memo),
+    normalizeSupplementalBookingFinalNote(conversationState.bookingFinalConfirmation?.supplementalNote),
+    ...buildChoiceDetailSegments(jobContext, conversationState),
+  ]
+  const contactName = prefill.contactName ?? conversationState.customerName
   const contactEmail = isValidContactEmail(prefill.contactEmail) ? prefill.contactEmail : conversationState.contactEmail
+  const companyName = prefill.companyName ?? conversationState.companyName
 
   if (prefill.projectTitle && projectTitle !== prefill.projectTitle) {
     memoParts.push(prefill.projectTitle)
@@ -1677,9 +1777,9 @@ function normalizeBookingCardPrefill(
 
   return {
     ...(projectTitle ? { projectTitle } : {}),
-    ...(prefill.contactName ? { contactName: prefill.contactName } : {}),
+    ...(contactName ? { contactName } : {}),
     ...(isValidContactEmail(contactEmail) ? { contactEmail } : {}),
-    ...(prefill.companyName ? { companyName: prefill.companyName } : {}),
+    ...(companyName ? { companyName } : {}),
     ...(prefill.dueDate ? { dueDate: prefill.dueDate } : {}),
     ...mergeMemoParts(memoParts),
   }
@@ -1709,6 +1809,134 @@ function defaultProjectTitleForJob(jobContext: JobContext): string | undefined {
   if (jobContext.jobKind?.startsWith("feature-")) return "長編案件"
   if (jobContext.jobKind?.startsWith("vertical-")) return "縦型動画案件"
   return undefined
+}
+
+function buildChoiceDetailSegments(jobContext: JobContext, conversationState: ConversationState): string[] {
+  const segments: string[] = []
+  const requestCategory = labelRequestCategory(jobContext, conversationState)
+  const deliveryUse = labelDeliveryUse(jobContext, conversationState)
+
+  if (requestCategory) segments.push(`依頼内容: ${requestCategory}`)
+  if (deliveryUse) segments.push(`納品・使用先: ${deliveryUse}`)
+  if (jobContext.deliveryMedium) segments.push(`納品形式: ${labelDeliveryMedium(jobContext.deliveryMedium)}`)
+  if (jobContext.additionalWork?.length) {
+    segments.push(`追加作業: ${jobContext.additionalWork.map((item) => labelAdditionalWork(item)).join(" / ")}`)
+  }
+  const attachment = buildDocumentaryAttachmentMemo(jobContext.documentaryAttachment)
+  if (attachment) segments.push(attachment)
+  if (conversationState.productionOptions?.length) {
+    segments.push(
+      `制作オプション: ${conversationState.productionOptions
+        .map((item) => labelProductionOption(item, conversationState.otherChoiceComments?.["production-options"]))
+        .join(" / ")}`,
+    )
+  }
+
+  return segments
+}
+
+function labelRequestCategory(jobContext: JobContext, conversationState: ConversationState): string | undefined {
+  if (jobContext.jobKind === "live-60m") return "ライブ"
+  if (jobContext.jobKind === "cm-30s") return "Web CM / CM"
+  if (jobContext.jobKind === "mv-5m") return "MV"
+  if (jobContext.jobKind === "feature-90m") return "映画 / 長編"
+  if (jobContext.jobKind === "drama-first" || jobContext.jobKind === "drama-follow-up") return "ドラマ"
+  if (jobContext.jobKind === "vertical-60s") return "縦型動画 / SNS動画"
+  return normalizeSupplementalMemo(conversationState.otherChoiceComments?.["job-kind"])
+}
+
+function labelDeliveryUse(jobContext: JobContext, conversationState: ConversationState): string | undefined {
+  if (jobContext.finalMedium === "ott") return "配信"
+  if (jobContext.finalMedium === "cinema") return "映画 / 劇場"
+  if (jobContext.finalMedium === "tv-broadcast") return "放送"
+  if (jobContext.finalMedium === "live") return "ライブ / イベント"
+  if (jobContext.finalMedium === "web") return "Web / CM"
+  if (jobContext.finalMedium === "vertical-sns") return "縦型SNS"
+  return normalizeSupplementalMemo(conversationState.otherChoiceComments?.["final-medium"])
+}
+
+function labelDeliveryMedium(value: NonNullable<JobContext["deliveryMedium"]>): string {
+  switch (value) {
+    case "dvd":
+      return "ディスク納品"
+  }
+}
+
+function labelAdditionalWork(value: NonNullable<JobContext["additionalWork"]>[number]): string {
+  switch (value) {
+    case "retouch":
+      return "消し物/レタッチ"
+    case "skin-retouch":
+      return "肌修正"
+    case "other":
+      return "その他追加作業"
+  }
+}
+
+function labelProductionOption(value: NonNullable<ConversationState["productionOptions"]>[number], otherComment?: string): string {
+  switch (value) {
+    case "captions":
+      return "字幕"
+    case "telops":
+      return "テロップ"
+    case "narration":
+      return "ナレーション"
+    case "music":
+      return "音楽"
+    case "other":
+      return normalizeSupplementalMemo(otherComment) ?? "その他"
+  }
+}
+
+function buildDocumentaryAttachmentMemo(value: JobContext["documentaryAttachment"] | undefined): string | undefined {
+  if (!value || value.kind === "none") return undefined
+  const labels =
+    value.kind === "mixed"
+      ? value.items.map(labelDocumentaryAttachmentItem)
+      : [labelDocumentaryAttachmentItem(value)]
+  const text = labels.filter(Boolean).join(" / ")
+  return text ? `付随素材として、${text}が含まれる可能性があります。` : undefined
+}
+
+function labelDocumentaryAttachmentItem(value: DocumentaryAttachmentItem): string {
+  switch (value.kind) {
+    case "digest":
+      return withCount("ダイジェスト", value.count)
+    case "interview":
+      return withCount("インタビュー", value.count)
+    case "bonus":
+      return withCount("特典映像", value.count)
+    case "making":
+      return withCount("メイキング", value.count)
+    case "other":
+      return normalizeSupplementalMemo(value.note) ?? "その他素材"
+  }
+}
+
+function withCount(label: string, count: number): string {
+  return count > 1 ? `${label}${count}本` : label
+}
+
+function normalizeSupplementalMemo(value: string | undefined): string | undefined {
+  const text = value
+    ?.normalize("NFKC")
+    .replace(/^\s*選択\s*[:：]\s*/u, "")
+    .replace(/^\s*その他(?:コメント|の内容)?\s*[:：]\s*/u, "")
+    .replace(/付随素材として[、,]?\s*/u, "")
+    .replace(/付随素材(?:その他)?/u, "")
+    .replace(/含まれる可能性があります[。.]?$/u, "")
+    .replace(/[。.!！?？ー〜~]+$/u, "")
+    .replace(/(?:です|でございます|になります)$/u, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+  if (!text) return undefined
+  if (/特典映像/u.test(text) && text.length <= 20) return text
+  return text
+}
+
+function normalizeSupplementalBookingFinalNote(value: string | undefined): string | undefined {
+  if (!value || isNoAdditionalBookingConcern(value)) return undefined
+  return normalizeSupplementalMemo(value)
 }
 
 function mergeMemoParts(parts: Array<string | undefined>): Pick<BookingCardPrefill, "memo"> | Record<string, never> {
