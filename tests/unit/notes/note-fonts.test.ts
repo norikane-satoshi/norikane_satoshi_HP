@@ -23,7 +23,7 @@ describe("note page typography scope", () => {
       "article.glass-card--hp-note-page > div :where(p, li, blockquote)"
     )
     expect(globals).toMatch(
-      /article\.glass-card--hp-note-page > div :where\(p, li, blockquote\)\s*\{\s*font-family: var\(--font-gothic\), sans-serif;\s*font-weight: 300;/
+      /article\.glass-card--hp-note-page > div :where\(p, li, blockquote\)\s*\{\s*font-family: var\(--font-gothic\), sans-serif;\s*font-weight: 400;/
     )
     expect(layout).toMatch(/Noto_Sans_JP\(\{[\s\S]*weight: \["300", "400", "500", "600", "700"\]/)
     expect(renderBlocks).toContain('className="font-semibold text-hp"')
