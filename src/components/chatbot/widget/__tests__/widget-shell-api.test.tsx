@@ -150,10 +150,22 @@ describe("WidgetShell API wiring", () => {
 
     fireEvent.pointerDown(shell, { pointerId: 1, pointerType: "mouse", button: 0 })
     fireEvent.pointerMove(shell, { pointerId: 1, pointerType: "mouse", clientX: 20, clientY: 20 })
-    fireEvent.touchMove(conversation, {
+    Object.defineProperty(conversation, "clientHeight", { configurable: true, value: 300 })
+    Object.defineProperty(conversation, "scrollHeight", { configurable: true, value: 900 })
+    conversation.scrollTop = 600
+
+    fireEvent.touchStart(conversation, {
+      touches: [touchPoint(1, 120, 180)],
+      changedTouches: [touchPoint(1, 120, 180)],
+    })
+    const boundaryTouchMove = createEvent.touchMove(conversation, {
       touches: [touchPoint(1, 120, 160)],
       changedTouches: [touchPoint(1, 120, 160)],
     })
+    const preventBoundaryTouchDefault = vi.spyOn(boundaryTouchMove, "preventDefault")
+    fireEvent(conversation, boundaryTouchMove)
+    expect(preventBoundaryTouchDefault).toHaveBeenCalled()
+
     const boundaryWheel = createEvent.wheel(conversation, { deltaY: 120, cancelable: true })
     const preventBoundaryWheelDefault = vi.spyOn(boundaryWheel, "preventDefault")
     fireEvent(conversation, boundaryWheel)
@@ -165,7 +177,7 @@ describe("WidgetShell API wiring", () => {
     expect(onWheel).not.toHaveBeenCalled()
   })
 
-  it("keeps chatbot conversation wheel scrolling available inside the shell", () => {
+  it("keeps chatbot conversation native scroll available inside the shell", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
 
     const conversation = screen.getByLabelText("チャット本文")
@@ -173,11 +185,35 @@ describe("WidgetShell API wiring", () => {
     Object.defineProperty(conversation, "scrollHeight", { configurable: true, value: 900 })
     conversation.scrollTop = 100
 
+    fireEvent.touchStart(conversation, {
+      touches: [touchPoint(1, 120, 180)],
+      changedTouches: [touchPoint(1, 120, 180)],
+    })
+    const innerTouchMove = createEvent.touchMove(conversation, {
+      touches: [touchPoint(1, 120, 120)],
+      changedTouches: [touchPoint(1, 120, 120)],
+    })
+    const preventInnerTouchDefault = vi.spyOn(innerTouchMove, "preventDefault")
+    fireEvent(conversation, innerTouchMove)
+    expect(preventInnerTouchDefault).not.toHaveBeenCalled()
+    expect(conversation.scrollTop).toBe(100)
+
     const innerWheel = createEvent.wheel(conversation, { deltaY: 120, cancelable: true })
     const preventInnerWheelDefault = vi.spyOn(innerWheel, "preventDefault")
     fireEvent(conversation, innerWheel)
-    expect(preventInnerWheelDefault).toHaveBeenCalled()
-    expect(conversation.scrollTop).toBe(220)
+    expect(preventInnerWheelDefault).not.toHaveBeenCalled()
+    expect(conversation.scrollTop).toBe(100)
+  })
+
+  it("marks chatbot conversation scrolling for mobile momentum", () => {
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = screen.getByLabelText("チャット本文")
+    expect(conversation).toHaveClass("chatbot-conversation-scroll")
+    expect(conversation).toHaveStyle({
+      overscrollBehaviorY: "contain",
+      touchAction: "pan-y",
+    })
   })
 
   it("posts submitted chat text to /api/chatbot/message", async () => {

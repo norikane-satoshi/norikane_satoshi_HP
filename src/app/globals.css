@@ -602,6 +602,12 @@
     overscroll-behavior: contain;
     touch-action: manipulation;
   }
+  .chatbot-conversation-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+  }
   .chatbot-widget-shell :is([aria-label="チャット本文"], form, textarea, input, select) {
     overscroll-behavior: contain;
   }
@@ -834,12 +840,6 @@
 }
 
 body.chatbot-mobile-fullscreen-active {
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-
-html.chatbot-panel-interaction-active,
-body.chatbot-panel-interaction-active {
   overflow: hidden;
   overscroll-behavior: none;
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -70,7 +71,6 @@ const CHATBOT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const CHATBOT_PENDING_REQUEST_TTL_MS = 15 * 60 * 1000
 const thinkingDelayNoticeMs = 6000
 const SCROLL_BOUNDARY_EPSILON_PX = 1
-const PANEL_INTERACTION_BODY_LOCK_MS = 520
 
 const additionalWorkMemoLabels: Record<NonNullable<JobContext["additionalWork"]>[number], string> = {
   retouch: "消し物/レタッチ",
@@ -180,28 +180,18 @@ function findScrollableElementInsideShell(target: EventTarget, shell: HTMLElemen
   return null
 }
 
-function scrollInsideShell(target: EventTarget, shell: HTMLElement, deltaY: number) {
+function getScrollableElementForDelta(target: EventTarget, shell: HTMLElement, deltaY: number) {
   const scrollableElement = findScrollableElementInsideShell(target, shell)
-  if (!scrollableElement || deltaY === 0) return false
-  const previousScrollTop = scrollableElement.scrollTop
-  scrollableElement.scrollTop += deltaY
-  return Math.abs(scrollableElement.scrollTop - previousScrollTop) > SCROLL_BOUNDARY_EPSILON_PX
-}
-
-function restoreWindowScroll(scrollX: number, scrollY: number) {
-  const restore = () => {
-    if (window.scrollX !== scrollX || window.scrollY !== scrollY) {
-      window.scrollTo(scrollX, scrollY)
-    }
+  if (!scrollableElement || deltaY === 0) return null
+  if (deltaY < 0 && scrollableElement.scrollTop > SCROLL_BOUNDARY_EPSILON_PX) return scrollableElement
+  if (
+    deltaY > 0 &&
+    scrollableElement.scrollTop + scrollableElement.clientHeight <
+      scrollableElement.scrollHeight - SCROLL_BOUNDARY_EPSILON_PX
+  ) {
+    return scrollableElement
   }
-  window.requestAnimationFrame(() => {
-    restore()
-    window.setTimeout(restore, 0)
-    window.setTimeout(restore, 50)
-    window.setTimeout(restore, 120)
-    window.setTimeout(restore, 240)
-    window.setTimeout(restore, 400)
-  })
+  return null
 }
 
 function getFirstTouch(touches: TouchList) {
@@ -373,8 +363,6 @@ export function WidgetShell({
   const restoredPendingRequestRef = useRef<StoredPendingRequest | undefined>(undefined)
   const shellRef = useRef<HTMLElement | null>(null)
   const shellTouchYRef = useRef<number | null>(null)
-  const bodyInteractionUnlockTimerRef = useRef<number | null>(null)
-  const lockedWindowScrollRef = useRef<{ x: number; y: number } | null>(null)
   const showLocalTierDebug =
     typeof window !== "undefined" && isLocalChatbotTierDebugLocation(window.location.hostname, window.location.port)
   const conversationContentKey = [
@@ -905,39 +893,13 @@ export function WidgetShell({
     const shell = shellRef.current
     if (!shell) return undefined
 
-    const lockBodyInteraction = () => {
-      if (bodyInteractionUnlockTimerRef.current !== null) {
-        window.clearTimeout(bodyInteractionUnlockTimerRef.current)
-        bodyInteractionUnlockTimerRef.current = null
-      }
-      lockedWindowScrollRef.current ??= { x: window.scrollX, y: window.scrollY }
-      document.body.classList.add("chatbot-panel-interaction-active")
-      document.documentElement.classList.add("chatbot-panel-interaction-active")
-    }
-    const scheduleBodyInteractionUnlock = () => {
-      if (bodyInteractionUnlockTimerRef.current !== null) {
-        window.clearTimeout(bodyInteractionUnlockTimerRef.current)
-      }
-      bodyInteractionUnlockTimerRef.current = window.setTimeout(() => {
-        bodyInteractionUnlockTimerRef.current = null
-        lockedWindowScrollRef.current = null
-        document.body.classList.remove("chatbot-panel-interaction-active")
-        document.documentElement.classList.remove("chatbot-panel-interaction-active")
-      }, PANEL_INTERACTION_BODY_LOCK_MS)
-    }
     const handleWheel = (event: WheelEvent) => {
-      lockBodyInteraction()
-      const lockedScroll = lockedWindowScrollRef.current ?? { x: window.scrollX, y: window.scrollY }
       event.stopPropagation()
-      event.preventDefault()
-      scrollInsideShell(event.target ?? shell, shell, event.deltaY)
-      restoreWindowScroll(lockedScroll.x, lockedScroll.y)
-      scheduleBodyInteractionUnlock()
+      if (!getScrollableElementForDelta(event.target ?? shell, shell, event.deltaY)) {
+        event.preventDefault()
+      }
     }
-    const handlePointerEnter = () => lockBodyInteraction()
-    const handlePointerLeave = () => scheduleBodyInteractionUnlock()
     const handleTouchStart = (event: TouchEvent) => {
-      lockBodyInteraction()
       event.stopPropagation()
       shellTouchYRef.current = getFirstTouch(event.touches)?.clientY ?? null
     }
@@ -949,34 +911,21 @@ export function WidgetShell({
       if (currentY === null || previousY === null) return
 
       const deltaY = previousY - currentY
-      const lockedScroll = lockedWindowScrollRef.current ?? { x: window.scrollX, y: window.scrollY }
-      event.preventDefault()
-      scrollInsideShell(event.target ?? shell, shell, deltaY)
-      restoreWindowScroll(lockedScroll.x, lockedScroll.y)
+      if (!getScrollableElementForDelta(event.target ?? shell, shell, deltaY)) {
+        event.preventDefault()
+      }
     }
     const handleTouchEnd = (event: TouchEvent) => {
       event.stopPropagation()
       shellTouchYRef.current = null
-      scheduleBodyInteractionUnlock()
     }
 
-    shell.addEventListener("pointerenter", handlePointerEnter)
-    shell.addEventListener("pointerleave", handlePointerLeave)
     shell.addEventListener("wheel", handleWheel, { passive: false })
     shell.addEventListener("touchstart", handleTouchStart, { passive: true })
     shell.addEventListener("touchmove", handleTouchMove, { passive: false })
     shell.addEventListener("touchend", handleTouchEnd, { passive: true })
     shell.addEventListener("touchcancel", handleTouchEnd, { passive: true })
     return () => {
-      if (bodyInteractionUnlockTimerRef.current !== null) {
-        window.clearTimeout(bodyInteractionUnlockTimerRef.current)
-        bodyInteractionUnlockTimerRef.current = null
-      }
-      lockedWindowScrollRef.current = null
-      document.body.classList.remove("chatbot-panel-interaction-active")
-      document.documentElement.classList.remove("chatbot-panel-interaction-active")
-      shell.removeEventListener("pointerenter", handlePointerEnter)
-      shell.removeEventListener("pointerleave", handlePointerLeave)
       shell.removeEventListener("wheel", handleWheel)
       shell.removeEventListener("touchstart", handleTouchStart)
       shell.removeEventListener("touchmove", handleTouchMove)
@@ -1072,7 +1021,14 @@ export function WidgetShell({
         <div
           ref={conversationScrollRef}
           onScroll={handleConversationScroll}
-          className="h-full space-y-4 overflow-y-auto px-5 py-5"
+          className="chatbot-conversation-scroll h-full space-y-4 overflow-y-auto px-5 py-5"
+          style={
+            {
+              WebkitOverflowScrolling: "touch",
+              overscrollBehaviorY: "contain",
+              touchAction: "pan-y",
+            } as CSSProperties
+          }
           aria-label="チャット本文"
         >
           <SecurityNote defaultOpen={false} />
