@@ -624,20 +624,46 @@
     overflow: hidden;
     position: relative;
   }
+  .chatbot-message-liquid::before,
+  .chatbot-message-liquid::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    z-index: -1;
+  }
   .chatbot-message-liquid::before {
-    animation: chatbot-message-liquid-flow 7.2s ease-in-out infinite;
     background:
       radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.72), transparent 30%),
       radial-gradient(circle at 82% 18%, rgba(107, 181, 255, 0.22), transparent 34%),
       linear-gradient(115deg, transparent 12%, rgba(139, 127, 255, 0.15) 42%, rgba(232, 121, 168, 0.13) 56%, transparent 78%);
-    content: "";
     inset: -34% -22%;
-    opacity: 0.62;
-    pointer-events: none;
-    position: absolute;
+    opacity: 0;
     transform: translate3d(-8%, 0, 0) rotate(0.001deg);
+    transition: opacity 180ms ease, transform 240ms ease;
+  }
+  .chatbot-message-liquid::after {
+    background:
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.42), transparent 28%),
+      radial-gradient(circle at 50% 50%, rgba(139, 127, 255, 0.24), transparent 54%),
+      radial-gradient(circle at 50% 50%, rgba(121, 199, 199, 0.20), transparent 68%);
+    inset: -18%;
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  .chatbot-message-liquid[data-chatbot-touch-state="active"]::before {
+    animation:
+      chatbot-message-liquid-enter 240ms ease-out both,
+      chatbot-message-liquid-flow 7.2s ease-in-out 240ms infinite;
+    opacity: 0.62;
     will-change: transform;
-    z-index: -1;
+  }
+  .chatbot-message-liquid[data-chatbot-touch-state="release"]::before {
+    animation: chatbot-message-liquid-release 420ms ease-out both;
+    opacity: 0;
+  }
+  .chatbot-message-liquid[data-chatbot-touch-state="release"]::after {
+    animation: chatbot-message-liquid-ripple 420ms ease-out both;
+    will-change: transform, opacity;
   }
   .glass-flat {
     background: transparent;
@@ -699,6 +725,7 @@
     .glass-badge,
     .chatbot-minimized-attention,
     .chatbot-message-liquid::before,
+    .chatbot-message-liquid::after,
     .glass-btn--profile-social,
     .hp-nav-link,
     .hp-nav-dot {
@@ -708,10 +735,16 @@
     .glass-btn:active,
     .chatbot-minimized-attention,
     .chatbot-message-liquid::before,
+    .chatbot-message-liquid::after,
     .glass-btn--profile-social:hover,
     .glass-btn--profile-social:active {
       transform: none;
       will-change: auto;
+    }
+    .chatbot-message-liquid[data-chatbot-touch-state="active"]::before,
+    .chatbot-message-liquid[data-chatbot-touch-state="release"]::before,
+    .chatbot-message-liquid[data-chatbot-touch-state="release"]::after {
+      opacity: 0.18;
     }
     .featured-work-transparent-card:hover {
       animation: none;
@@ -801,6 +834,17 @@ body.chatbot-mobile-fullscreen-active {
   }
 }
 
+@keyframes chatbot-message-liquid-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(-12%, 2%, 0) scale(0.98) rotate(0.001deg);
+  }
+  100% {
+    opacity: 0.62;
+    transform: translate3d(-8%, 0, 0) scale(1) rotate(0.001deg);
+  }
+}
+
 @keyframes chatbot-message-liquid-flow {
   0%,
   100% {
@@ -808,6 +852,31 @@ body.chatbot-mobile-fullscreen-active {
   }
   50% {
     transform: translate3d(8%, 4%, 0) scale(1.04) rotate(0.001deg);
+  }
+}
+
+@keyframes chatbot-message-liquid-release {
+  0% {
+    opacity: 0.52;
+    transform: translate3d(3%, 2%, 0) scale(1.02) rotate(0.001deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1.08) rotate(0.001deg);
+  }
+}
+
+@keyframes chatbot-message-liquid-ripple {
+  0% {
+    opacity: 0.28;
+    transform: scale(0.78);
+  }
+  65% {
+    opacity: 0.2;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.16);
   }
 }
 

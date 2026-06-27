@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
+import { readFileSync } from "node:fs"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -122,6 +123,7 @@ describe("ChatMessage", () => {
       vi.advanceTimersByTime(600)
     })
 
+    expect(screen.queryByText("長押しで編集")).not.toBeInTheDocument()
     expect(screen.queryByText("長押しで編集できます")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
   })
@@ -141,7 +143,8 @@ describe("ChatMessage", () => {
       clientY: 80,
     })
 
-    expect(screen.getByText("長押しで編集できます")).toBeInTheDocument()
+    expect(screen.getByText("長押しで編集")).toBeInTheDocument()
+    expect(screen.queryByText("長押しで編集できます")).not.toBeInTheDocument()
 
     fireEvent.pointerMove(message!, {
       pointerId: 1,
@@ -149,23 +152,90 @@ describe("ChatMessage", () => {
       clientX: 124,
       clientY: 84,
     })
-    expect(screen.getByText("長押しで編集できます")).toBeInTheDocument()
+    expect(screen.getByText("長押しで編集")).toBeInTheDocument()
 
     fireEvent.pointerUp(message!, { pointerId: 1, pointerType: "touch" })
-    expect(screen.queryByText("長押しで編集できます")).not.toBeInTheDocument()
+    expect(screen.queryByText("長押しで編集")).not.toBeInTheDocument()
   })
 
-  it("marks only user messages with liquid animation affordance attributes", () => {
+  it("keeps the touch affordance visible while swipe movement cancels only the long press timer", () => {
+    vi.useFakeTimers()
+    render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
+
+    const message = screen.getByText("初稿です。").closest("article")
+    expect(message).not.toBeNull()
+
+    fireEvent.pointerDown(message!, {
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+      clientX: 120,
+      clientY: 80,
+    })
+    fireEvent.pointerMove(message!, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 120,
+      clientY: 120,
+    })
+    act(() => {
+      vi.advanceTimersByTime(600)
+    })
+
+    expect(screen.getByText("長押しで編集")).toBeInTheDocument()
+    expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
+    expect(message).toHaveClass("chatbot-message-liquid")
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+
+    fireEvent.pointerUp(message!, { pointerId: 1, pointerType: "touch" })
+    expect(screen.queryByText("長押しで編集")).not.toBeInTheDocument()
+  })
+
+  it("applies liquid animation state only to touched user messages", () => {
+    vi.useFakeTimers()
     const userRender = render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
     const userMessage = screen.getByText("初稿です。").closest("article")
-    expect(userMessage).toHaveClass("chatbot-message-liquid")
+    expect(userMessage).not.toHaveClass("chatbot-message-liquid")
     expect(userMessage).toHaveAttribute("data-chatbot-user-message", "true")
+    expect(userMessage).not.toHaveAttribute("data-chatbot-touch-state")
+
+    fireEvent.pointerDown(userMessage!, {
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+      clientX: 120,
+      clientY: 80,
+    })
+    expect(userMessage).toHaveClass("chatbot-message-liquid")
+    expect(userMessage).toHaveAttribute("data-chatbot-touch-state", "active")
+
+    fireEvent.pointerUp(userMessage!, { pointerId: 1, pointerType: "touch" })
+    expect(userMessage).toHaveClass("chatbot-message-liquid")
+    expect(userMessage).toHaveAttribute("data-chatbot-touch-state", "release")
+
+    act(() => {
+      vi.advanceTimersByTime(420)
+    })
+    expect(userMessage).not.toHaveClass("chatbot-message-liquid")
+    expect(userMessage).not.toHaveAttribute("data-chatbot-touch-state")
 
     userRender.unmount()
     render(<ChatMessage id="msg_2" role="assistant" content="回答です。" onEdit={vi.fn()} />)
     const assistantMessage = screen.getByText("回答です。").closest("article")
     expect(assistantMessage).not.toHaveClass("chatbot-message-liquid")
     expect(assistantMessage).not.toHaveAttribute("data-chatbot-user-message")
+  })
+
+  it("keeps chatbot liquid feedback disabled or static for reduced motion users", () => {
+    const css = readFileSync("src/app/globals.css", "utf8")
+
+    expect(css).toContain(".chatbot-message-liquid[data-chatbot-touch-state=\"active\"]::before")
+    expect(css).toContain(".chatbot-message-liquid[data-chatbot-touch-state=\"release\"]::after")
+    expect(css).toContain("@media (prefers-reduced-motion: reduce)")
+    expect(css).toMatch(/\.chatbot-message-liquid::before,[\s\S]*?\.chatbot-message-liquid::after,[\s\S]*?animation: none;/)
+    expect(css).toMatch(
+      /\.chatbot-message-liquid\[data-chatbot-touch-state="active"\]::before,[\s\S]*?\.chatbot-message-liquid\[data-chatbot-touch-state="release"\]::after[\s\S]*?opacity: 0\.18;/,
+    )
   })
 
   it("enters edit mode from a mobile long press on user messages", () => {

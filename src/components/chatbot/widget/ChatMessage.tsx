@@ -28,6 +28,9 @@ const roleLabel: Record<ChatbotMessageRole, string> = {
 const LONG_PRESS_EDIT_MS = 600
 const LONG_PRESS_MOVE_TOLERANCE_PX = 10
 const LONG_PRESS_VIBRATION_MS = 10
+const TOUCH_RELEASE_RIPPLE_MS = 420
+
+type TouchFeedbackState = "idle" | "active" | "release"
 
 function isMobileLikePointer(pointerType: string) {
   if (pointerType !== "mouse") return true
@@ -74,6 +77,7 @@ export function ChatMessage({
   const [isEditing, setIsEditing] = useState(false)
   const [editConfirmPending, setEditConfirmPending] = useState(false)
   const [showTouchEditAffordance, setShowTouchEditAffordance] = useState(false)
+  const [touchFeedbackState, setTouchFeedbackState] = useState<TouchFeedbackState>("idle")
   const [draft, setDraft] = useState(content)
   const longPressStateRef = useRef<{
     pointerId: number
@@ -81,12 +85,35 @@ export function ChatMessage({
     startY: number
     timerId: number
   } | null>(null)
+  const touchReleaseTimerRef = useRef<number | null>(null)
   const trimmedDraft = draft.trim()
   const normalizedDisplayName = displayName?.trim()
   const resolvedRoleLabel = normalizedDisplayName || roleLabel[role]
 
   const hideMobileEditHint = () => {
     setShowTouchEditAffordance(false)
+  }
+
+  const clearTouchReleaseTimer = () => {
+    if (touchReleaseTimerRef.current === null) return
+    window.clearTimeout(touchReleaseTimerRef.current)
+    touchReleaseTimerRef.current = null
+  }
+
+  const showActiveTouchFeedback = () => {
+    clearTouchReleaseTimer()
+    setTouchFeedbackState("active")
+    setShowTouchEditAffordance(true)
+  }
+
+  const endTouchFeedback = () => {
+    hideMobileEditHint()
+    setTouchFeedbackState((currentState) => (currentState === "active" ? "release" : currentState))
+    clearTouchReleaseTimer()
+    touchReleaseTimerRef.current = window.setTimeout(() => {
+      touchReleaseTimerRef.current = null
+      setTouchFeedbackState("idle")
+    }, TOUCH_RELEASE_RIPPLE_MS)
   }
 
   const vibrateOnLongPress = () => {
@@ -99,6 +126,8 @@ export function ChatMessage({
 
   const startEditing = () => {
     hideMobileEditHint()
+    clearTouchReleaseTimer()
+    setTouchFeedbackState("idle")
     setEditConfirmPending(false)
     setDraft(content)
     setIsEditing(true)
@@ -123,7 +152,7 @@ export function ChatMessage({
 
     hideMobileEditHint()
     clearLongPressTimer()
-    setShowTouchEditAffordance(true)
+    showActiveTouchFeedback()
     const { pointerId, clientX, clientY } = event
     longPressStateRef.current = {
       pointerId,
@@ -155,7 +184,7 @@ export function ChatMessage({
     }
 
     if (canEdit && isMobileLikePointer(event.pointerType)) {
-      hideMobileEditHint()
+      endTouchFeedback()
     }
   }
 
@@ -190,17 +219,22 @@ export function ChatMessage({
       onPointerUp={handlePointerUp}
       onPointerCancel={() => {
         clearLongPressTimer()
-        hideMobileEditHint()
+        if (canEdit) {
+          endTouchFeedback()
+        }
       }}
       onPointerLeave={() => {
         clearLongPressTimer()
-        hideMobileEditHint()
+        if (canEdit) {
+          endTouchFeedback()
+        }
       }}
       data-chatbot-user-message={isUser ? "true" : undefined}
+      data-chatbot-touch-state={isUser && touchFeedbackState !== "idle" ? touchFeedbackState : undefined}
       className={[
         "group max-w-[88%] px-4 py-3 text-sm leading-relaxed",
         isUser
-          ? "chatbot-message-liquid glass-flat ml-auto border border-[var(--accent-primary)]/40 text-hp"
+          ? `${touchFeedbackState !== "idle" ? "chatbot-message-liquid " : ""}glass-flat ml-auto border border-[var(--accent-primary)]/40 text-hp`
           : "glass-inset mr-auto text-hp",
         isSystem ? "mx-auto max-w-full text-xs text-hp-muted" : "",
       ].join(" ")}
@@ -302,7 +336,7 @@ export function ChatMessage({
       )}
       {!isEditing && showTouchEditAffordance ? (
         <p className="mt-2 text-right text-[11px] font-medium text-hp-muted" role="status">
-          長押しで編集できます
+          長押しで編集
         </p>
       ) : null}
     </article>
