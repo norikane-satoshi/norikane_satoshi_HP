@@ -1,7 +1,15 @@
 "use client"
 
 import { Check, Pencil, X } from "lucide-react"
-import { Fragment, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react"
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import {
@@ -29,6 +37,7 @@ const LONG_PRESS_EDIT_MS = 600
 const LONG_PRESS_MOVE_TOLERANCE_PX = 10
 const LONG_PRESS_VIBRATION_MS = 10
 const TOUCH_RELEASE_RIPPLE_MS = 420
+const TOUCH_CANCEL_FALLBACK_MS = 900
 
 type TouchFeedbackState = "idle" | "active" | "release"
 
@@ -85,7 +94,11 @@ export function ChatMessage({
     startY: number
     timerId: number
   } | null>(null)
+  const activeTouchFeedbackRef = useRef(false)
   const touchReleaseTimerRef = useRef<number | null>(null)
+  const touchCancelFallbackTimerRef = useRef<number | null>(null)
+  const endTouchFeedbackRef = useRef<() => void>(() => {})
+  const scheduleTouchCancelFallbackRef = useRef<() => void>(() => {})
   const trimmedDraft = draft.trim()
   const normalizedDisplayName = displayName?.trim()
   const resolvedRoleLabel = normalizedDisplayName || roleLabel[role]
@@ -94,27 +107,47 @@ export function ChatMessage({
     setShowTouchEditAffordance(false)
   }
 
-  const clearTouchReleaseTimer = () => {
+  const clearTouchReleaseTimer = useCallback(() => {
     if (touchReleaseTimerRef.current === null) return
     window.clearTimeout(touchReleaseTimerRef.current)
     touchReleaseTimerRef.current = null
-  }
+  }, [])
+
+  const clearTouchCancelFallbackTimer = useCallback(() => {
+    if (touchCancelFallbackTimerRef.current === null) return
+    window.clearTimeout(touchCancelFallbackTimerRef.current)
+    touchCancelFallbackTimerRef.current = null
+  }, [])
 
   const showActiveTouchFeedback = () => {
     clearTouchReleaseTimer()
+    clearTouchCancelFallbackTimer()
+    activeTouchFeedbackRef.current = true
     setTouchFeedbackState("active")
     setShowTouchEditAffordance(true)
   }
 
-  const endTouchFeedback = () => {
-    hideMobileEditHint()
+  const endTouchFeedback = useCallback(() => {
+    if (!activeTouchFeedbackRef.current) return
+    activeTouchFeedbackRef.current = false
+    clearTouchCancelFallbackTimer()
+    setShowTouchEditAffordance(false)
     setTouchFeedbackState((currentState) => (currentState === "active" ? "release" : currentState))
     clearTouchReleaseTimer()
     touchReleaseTimerRef.current = window.setTimeout(() => {
       touchReleaseTimerRef.current = null
       setTouchFeedbackState("idle")
     }, TOUCH_RELEASE_RIPPLE_MS)
-  }
+  }, [clearTouchCancelFallbackTimer, clearTouchReleaseTimer])
+
+  const scheduleTouchCancelFallback = useCallback(() => {
+    if (!activeTouchFeedbackRef.current) return
+    clearTouchCancelFallbackTimer()
+    touchCancelFallbackTimerRef.current = window.setTimeout(() => {
+      touchCancelFallbackTimerRef.current = null
+      endTouchFeedbackRef.current()
+    }, TOUCH_CANCEL_FALLBACK_MS)
+  }, [clearTouchCancelFallbackTimer])
 
   const vibrateOnLongPress = () => {
     if (typeof navigator === "undefined") return
@@ -125,8 +158,10 @@ export function ChatMessage({
   }
 
   const startEditing = () => {
+    activeTouchFeedbackRef.current = false
     hideMobileEditHint()
     clearTouchReleaseTimer()
+    clearTouchCancelFallbackTimer()
     setTouchFeedbackState("idle")
     setEditConfirmPending(false)
     setDraft(content)
@@ -146,7 +181,7 @@ export function ChatMessage({
     setIsEditing(false)
   }
 
-  const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
+  const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (!canEdit || isEditing || !isMobileLikePointer(event.pointerType)) return
     if (event.button !== 0) return
 
@@ -166,7 +201,7 @@ export function ChatMessage({
     }
   }
 
-  const handlePointerMove = (event: PointerEvent<HTMLElement>) => {
+  const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     const longPressState = longPressStateRef.current
     if (!longPressState || longPressState.pointerId !== event.pointerId) return
 
@@ -177,7 +212,7 @@ export function ChatMessage({
     }
   }
 
-  const handlePointerUp = (event: PointerEvent<HTMLElement>) => {
+  const handlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
     const longPressState = longPressStateRef.current
     if (longPressState && longPressState.pointerId === event.pointerId) {
       clearLongPressTimer()
@@ -186,6 +221,30 @@ export function ChatMessage({
     if (canEdit && isMobileLikePointer(event.pointerType)) {
       endTouchFeedback()
     }
+  }
+
+  const handlePointerCancel = (event: ReactPointerEvent<HTMLElement>) => {
+    clearLongPressTimer()
+    if (canEdit && isMobileLikePointer(event.pointerType)) {
+      scheduleTouchCancelFallback()
+    }
+  }
+
+  const handlePointerLeave = (event: ReactPointerEvent<HTMLElement>) => {
+    clearLongPressTimer()
+    if (canEdit && isMobileLikePointer(event.pointerType)) {
+      scheduleTouchCancelFallback()
+    }
+  }
+
+  const handleTouchEnd = () => {
+    clearLongPressTimer()
+    endTouchFeedback()
+  }
+
+  const handleTouchCancel = () => {
+    clearLongPressTimer()
+    scheduleTouchCancelFallback()
   }
 
   const requestSaveEdit = () => {
@@ -207,28 +266,46 @@ export function ChatMessage({
   }
 
   useEffect(() => {
+    endTouchFeedbackRef.current = endTouchFeedback
+    scheduleTouchCancelFallbackRef.current = scheduleTouchCancelFallback
+  }, [endTouchFeedback, scheduleTouchCancelFallback])
+
+  useEffect(() => {
+    const handleWindowTouchEnd = () => {
+      endTouchFeedbackRef.current()
+    }
+    const handleWindowTouchCancel = () => {
+      scheduleTouchCancelFallbackRef.current()
+    }
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      if (isMobileLikePointer(event.pointerType)) {
+        endTouchFeedbackRef.current()
+      }
+    }
+
+    window.addEventListener("touchend", handleWindowTouchEnd, { passive: true })
+    window.addEventListener("touchcancel", handleWindowTouchCancel, { passive: true })
+    window.addEventListener("pointerup", handleWindowPointerUp)
+
     return () => {
       clearLongPressTimer()
+      clearTouchReleaseTimer()
+      clearTouchCancelFallbackTimer()
+      window.removeEventListener("touchend", handleWindowTouchEnd)
+      window.removeEventListener("touchcancel", handleWindowTouchCancel)
+      window.removeEventListener("pointerup", handleWindowPointerUp)
     }
-  }, [])
+  }, [clearTouchCancelFallbackTimer, clearTouchReleaseTimer])
 
   return (
     <article
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={() => {
-        clearLongPressTimer()
-        if (canEdit) {
-          endTouchFeedback()
-        }
-      }}
-      onPointerLeave={() => {
-        clearLongPressTimer()
-        if (canEdit) {
-          endTouchFeedback()
-        }
-      }}
+      onPointerCancel={handlePointerCancel}
+      onPointerLeave={handlePointerLeave}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
       data-chatbot-user-message={isUser ? "true" : undefined}
       data-chatbot-touch-state={isUser && touchFeedbackState !== "idle" ? touchFeedbackState : undefined}
       className={[

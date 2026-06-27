@@ -191,6 +191,76 @@ describe("ChatMessage", () => {
     expect(screen.queryByText("長押しで編集")).not.toBeInTheDocument()
   })
 
+  it("keeps the touch affordance and active liquid state after browser pointer cancel during swipe", () => {
+    vi.useFakeTimers()
+    render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
+
+    const message = screen.getByText("初稿です。").closest("article")
+    expect(message).not.toBeNull()
+
+    fireEvent.pointerDown(message!, {
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+      clientX: 120,
+      clientY: 80,
+    })
+    fireEvent.pointerCancel(message!, { pointerId: 1, pointerType: "touch" })
+
+    expect(screen.getByText("長押しで編集")).toBeInTheDocument()
+    expect(message).toHaveClass("chatbot-message-liquid")
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+
+    act(() => {
+      vi.advanceTimersByTime(899)
+    })
+    expect(screen.getByText("長押しで編集")).toBeInTheDocument()
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.queryByText("長押しで編集")).not.toBeInTheDocument()
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "release")
+
+    act(() => {
+      vi.advanceTimersByTime(420)
+    })
+    expect(message).not.toHaveClass("chatbot-message-liquid")
+    expect(message).not.toHaveAttribute("data-chatbot-touch-state")
+  })
+
+  it("keeps the touch affordance and active liquid state after pointer leave until touch end", () => {
+    vi.useFakeTimers()
+    render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
+
+    const message = screen.getByText("初稿です。").closest("article")
+    expect(message).not.toBeNull()
+
+    fireEvent.pointerDown(message!, {
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+      clientX: 120,
+      clientY: 80,
+    })
+    fireEvent.pointerLeave(message!, { pointerId: 1, pointerType: "touch" })
+
+    expect(screen.getByText("長押しで編集")).toBeInTheDocument()
+    expect(message).toHaveClass("chatbot-message-liquid")
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+
+    fireEvent.touchEnd(window)
+    expect(screen.queryByText("長押しで編集")).not.toBeInTheDocument()
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "release")
+
+    act(() => {
+      vi.advanceTimersByTime(420)
+    })
+    expect(message).not.toHaveClass("chatbot-message-liquid")
+    expect(message).not.toHaveAttribute("data-chatbot-touch-state")
+  })
+
   it("applies liquid animation state only to touched user messages", () => {
     vi.useFakeTimers()
     const userRender = render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
