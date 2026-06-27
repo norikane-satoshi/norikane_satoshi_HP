@@ -57,6 +57,18 @@ describe("createCalendarEvent", () => {
     expect(args.requestBody.extendedProperties.private.customer_company).toBeUndefined()
   })
 
+  it("passes an explicit Notion task type marker without adding customer PII", async () => {
+    mocks.insert.mockResolvedValue({ data: { id: "evt-1" } })
+
+    await createCalendarEvent({ ...baseInput, notionTaskType: "仮押さえ" })
+
+    const args = mocks.insert.mock.calls[0][0]
+    expect(args.requestBody.extendedProperties.private).toEqual({
+      source: "hp-booking",
+      notion_task_type: "仮押さえ",
+    })
+  })
+
   it("preserves summary, description, colorId, start, end (regression)", async () => {
     mocks.insert.mockResolvedValue({ data: { id: "evt-2" } })
 

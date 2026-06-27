@@ -11,6 +11,7 @@ import {
   CALENDAR_TOKEN_USER_ID,
   createCalendarEvent,
   refreshCalendarAccessToken,
+  type CalendarEventWriteInput,
 } from "@/lib/google-calendar/server"
 import { prisma } from "@/lib/prisma"
 
@@ -22,6 +23,7 @@ export type CreateBookingResult = {
 
 type CreateBookingFromApiInputArgs = {
   input: BookingApiInput
+  notionTaskType?: CalendarEventWriteInput["notionTaskType"]
   userId: string
   userEmail: string
 }
@@ -105,6 +107,7 @@ function wait(ms: number) {
 
 export async function createBookingFromApiInput({
   input,
+  notionTaskType,
   userId,
   userEmail,
 }: CreateBookingFromApiInputArgs): Promise<CreateBookingResult> {
@@ -243,6 +246,7 @@ export async function createBookingFromApiInput({
       colorId: "9",
       accessToken,
       eventId,
+      notionTaskType,
     })
     let event
     try {

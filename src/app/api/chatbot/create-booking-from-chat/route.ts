@@ -275,7 +275,12 @@ export async function POST(request: NextRequest) {
   try {
     const userId = await getPublicChatbotBookingUserId()
     const userEmail = parsed.data.contactEmail
-    const result = await createBookingFromApiInput({ input, userId, userEmail })
+    const result = await createBookingFromApiInput({
+      input,
+      notionTaskType: "仮押さえ",
+      userId,
+      userEmail,
+    })
     const bookingGroupId = bookingGroupIdFromBody(result.body)
     const selectedSlotCount = normalizeSelectedSlots(parsed.data).length
     let responseBody = result.body

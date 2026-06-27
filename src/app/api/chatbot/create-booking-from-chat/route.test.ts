@@ -104,6 +104,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       input: expect.objectContaining({
         sessionEmail: "client@example.com",
       }),
+      notionTaskType: "仮押さえ",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
@@ -161,6 +162,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
           },
         ],
       }),
+      notionTaskType: "仮押さえ",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
@@ -206,6 +208,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
           },
         ],
       }),
+      notionTaskType: "仮押さえ",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
@@ -227,6 +230,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
         sessionEmail: "client@example.com",
         selectedSlots: [],
       }),
+      notionTaskType: "仮押さえ",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })

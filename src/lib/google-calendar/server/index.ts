@@ -36,6 +36,7 @@ export type CalendarEventWriteInput = {
   colorId: string
   accessToken: string
   eventId?: string
+  notionTaskType?: "仮押さえ" | "本予約"
 }
 
 export type CalendarEventUpdateInput = {
@@ -276,6 +277,7 @@ export async function createCalendarEvent(input: CalendarEventWriteInput): Promi
         extendedProperties: {
           private: {
             source: "hp-booking",
+            ...(input.notionTaskType ? { notion_task_type: input.notionTaskType } : {}),
           },
         },
       },

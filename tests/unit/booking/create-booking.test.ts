@@ -111,6 +111,28 @@ describe("createBookingFromApiInput", () => {
     }))
   })
 
+  it("passes chatbot Notion task type to the Google Calendar event for reverse sync only when requested", async () => {
+    const service = await loadCreateBooking()
+
+    await service.createBookingFromApiInput({
+      input: bookingInput({
+        selectedSlots: [
+          {
+            start: "2026-06-10T01:00:00.000Z",
+            end: "2026-06-10T03:00:00.000Z",
+          },
+        ],
+      }),
+      notionTaskType: "仮押さえ",
+      userId: "public_chatbot_user_1",
+      userEmail: "client@example.com",
+    })
+
+    expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
+      notionTaskType: "仮押さえ",
+    }))
+  })
+
   it("persists zero selected slots as an unscheduled chatbot booking request without creating a calendar event", async () => {
     const service = await loadCreateBooking()
 
