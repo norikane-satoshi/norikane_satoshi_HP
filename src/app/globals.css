@@ -315,13 +315,30 @@
     container-type: inline-size;
   }
   article.glass-card--hp-note-page > div :where(p, li, blockquote) {
-    font-family: var(--font-gothic), sans-serif;
+    font-family: var(--font-mincho), serif;
     font-weight: 400;
+    font-size: 1.0625rem;
+    line-height: 1.76;
+  }
+  article.glass-card--hp-note-page :where(.hp-note-title, h2, h3, h4) {
+    font-family: var(--font-gothic), sans-serif;
+    line-height: 1.28;
   }
   article.glass-card--hp-note-page .hp-note-title {
+    font-size: 2rem;
+    line-height: 1.22;
     max-width: 100%;
     overflow-wrap: anywhere;
     word-break: normal;
+  }
+  article.glass-card--hp-note-page > div h2 {
+    font-size: 1.75rem;
+  }
+  article.glass-card--hp-note-page > div h3 {
+    font-size: 1.5rem;
+  }
+  article.glass-card--hp-note-page > div h4 {
+    font-size: 1.25rem;
   }
   @media (max-width: 767px) {
     article.glass-card--hp-note-page {
@@ -345,6 +362,39 @@
       border-left: 0;
       border-right: 0;
       border-radius: 0;
+    }
+  }
+  @media (min-width: 768px) {
+    article.glass-card--hp-note-page > div :where(p, li, blockquote) {
+      font-size: 1.125rem;
+      line-height: 1.72;
+    }
+    article.glass-card--hp-note-page .hp-note-title {
+      font-size: 2.25rem;
+    }
+    article.glass-card--hp-note-page > div h2 {
+      font-size: 2rem;
+    }
+    article.glass-card--hp-note-page > div h3 {
+      font-size: 1.625rem;
+    }
+    article.glass-card--hp-note-page > div h4 {
+      font-size: 1.375rem;
+    }
+  }
+  @media (min-width: 1280px) {
+    article.glass-card--hp-note-page > div :where(p, li, blockquote) {
+      font-size: 1.1875rem;
+      line-height: 1.68;
+    }
+    article.glass-card--hp-note-page .hp-note-title {
+      font-size: 2.625rem;
+    }
+    article.glass-card--hp-note-page > div h2 {
+      font-size: 2.125rem;
+    }
+    article.glass-card--hp-note-page > div h3 {
+      font-size: 1.75rem;
     }
   }
   .glass-card--chat-frost {
@@ -691,12 +741,12 @@
   }
 }
 
-@container profile (min-width: 680px) {
+@container profile (min-width: 760px) {
   .hp-profile-sidebar {
-    grid-column: 1 / span 3;
+    grid-column: 1 / span 4;
   }
   .hp-profile-main {
-    grid-column: 4 / -1;
+    grid-column: 5 / -1;
   }
 }
 
