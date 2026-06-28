@@ -46,6 +46,17 @@ describe("ChatMessage", () => {
     expect(screen.getByText("劇場公開作品です。")).toBeInTheDocument()
   })
 
+  it("keeps the user comment surface at a readable white glass opacity", () => {
+    const css = readFileSync("src/app/globals.css", "utf8")
+
+    render(<ChatMessage role="user" content="劇場公開作品です。" />)
+
+    const message = screen.getByText("劇場公開作品です。").closest("article")
+    expect(message).toHaveAttribute("data-chatbot-user-message", "true")
+    expect(css).toContain('.glass-flat[data-chatbot-user-message="true"]')
+    expect(css).toContain("background: rgba(255, 255, 255, 0.50);")
+  })
+
   it("renders a user display name only when it is known", () => {
     render(<ChatMessage role="user" content="劇場公開作品です。" displayName="田中" />)
 
@@ -90,6 +101,70 @@ describe("ChatMessage", () => {
     fireEvent.click(screen.getByRole("button", { name: "OK" }))
 
     expect(onEdit).toHaveBeenCalledWith("msg_1", "修正版です。")
+  })
+
+  it("cancels editing from an outside pointer without saving or truncating", () => {
+    const onEdit = vi.fn()
+    render(
+      <div>
+        <ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={onEdit} />
+        <button type="button">外側</button>
+      </div>,
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
+    fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "保存しない修正です。" } })
+    fireEvent.pointerDown(screen.getByRole("button", { name: "外側" }), { pointerType: "mouse", button: 0 })
+
+    expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
+    expect(screen.getByText("初稿です。")).toBeInTheDocument()
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it("keeps editing open for textarea and edit action controls", () => {
+    const onEdit = vi.fn()
+    render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={onEdit} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
+    const editor = screen.getByLabelText("編集内容")
+    fireEvent.pointerDown(editor, { pointerType: "mouse", button: 0 })
+    expect(screen.getByLabelText("編集内容")).toBeInTheDocument()
+
+    fireEvent.change(editor, { target: { value: "修正版です。" } })
+    const saveButton = screen.getByRole("button", { name: "保存" })
+    fireEvent.pointerDown(saveButton, { pointerType: "mouse", button: 0 })
+    fireEvent.click(saveButton)
+
+    expect(screen.getByText("この後の会話を削除します")).toBeInTheDocument()
+    expect(onEdit).not.toHaveBeenCalled()
+
+    const cancelConfirmButton = screen.getByRole("button", { name: "キャンセル" })
+    fireEvent.pointerDown(cancelConfirmButton, { pointerType: "mouse", button: 0 })
+    fireEvent.click(cancelConfirmButton)
+
+    expect(screen.getByLabelText("編集内容")).toBeInTheDocument()
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it("cancels editing from an outside touch without saving", () => {
+    const onEdit = vi.fn()
+    render(
+      <div>
+        <ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={onEdit} />
+        <button type="button">外側</button>
+      </div>,
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
+    fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "保存しない修正です。" } })
+    fireEvent.touchStart(screen.getByRole("button", { name: "外側" }), {
+      touches: [touchPoint(1, 20, 20)],
+      changedTouches: [touchPoint(1, 20, 20)],
+    })
+
+    expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
+    expect(screen.getByText("初稿です。")).toBeInTheDocument()
+    expect(onEdit).not.toHaveBeenCalled()
   })
 
   it("marks the edit truncation confirmation as destructive on the desktop edit path", () => {

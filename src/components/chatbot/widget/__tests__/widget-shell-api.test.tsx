@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
+import { readFileSync } from "node:fs"
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { hydrateRoot } from "react-dom/client"
 import { renderToString } from "react-dom/server"
@@ -220,6 +221,17 @@ describe("WidgetShell API wiring", () => {
       overscrollBehaviorY: "contain",
       touchAction: "pan-y",
     })
+  })
+
+  it("hides the native conversation scrollbar while keeping native scrolling", () => {
+    const css = readFileSync("src/app/globals.css", "utf8")
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = screen.getByLabelText("チャット本文")
+    expect(conversation).toHaveClass("chatbot-conversation-scroll")
+    expect(conversation).toHaveClass("overflow-y-auto")
+    expect(css).toMatch(/\.chatbot-conversation-scroll\s*{[\s\S]*?scrollbar-width:\s*none;/)
+    expect(css).toMatch(/\.chatbot-conversation-scroll::-webkit-scrollbar\s*{[\s\S]*?display:\s*none;/)
   })
 
   it("shows a passive right-side scroll indicator while the mobile conversation scrolls", async () => {

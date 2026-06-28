@@ -604,9 +604,16 @@
   }
   .chatbot-conversation-scroll {
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     overflow-y: auto;
     overscroll-behavior-y: contain;
     touch-action: pan-y;
+  }
+  .chatbot-conversation-scroll::-webkit-scrollbar {
+    display: none;
+    height: 0;
+    width: 0;
   }
   .chatbot-scroll-indicator {
     pointer-events: none;
@@ -713,6 +720,9 @@
   .glass-flat {
     background: transparent;
     border-radius: var(--hp-radius-sm);
+  }
+  .glass-flat[data-chatbot-user-message="true"] {
+    background: rgba(255, 255, 255, 0.50);
   }
   .featured-work-transparent-card {
     background: transparent;
