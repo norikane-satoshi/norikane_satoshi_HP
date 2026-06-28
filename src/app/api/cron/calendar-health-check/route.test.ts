@@ -72,7 +72,7 @@ describe("GET /api/cron/calendar-health-check", () => {
     expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
       to: "admin@example.com",
       subject: "[norikane.studio] Calendar OAuth refresh token revoked",
-      html: expect.stringContaining("https://norikane.studio/api/calendar/auth"),
+      html: expect.stringContaining("https://norikane.studio/login?callbackUrl=%2Fapi%2Fcalendar%2Fauth"),
     }))
   })
 

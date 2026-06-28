@@ -12,7 +12,7 @@ import {
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-const RECONNECT_URL = "https://norikane.studio/api/calendar/auth"
+const RECONNECT_URL = "https://norikane.studio/login?callbackUrl=%2Fapi%2Fcalendar%2Fauth"
 const DEFAULT_FROM_EMAIL = "noreply@norikane.studio"
 
 async function sendCalendarHealthAlert(args: {
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (error instanceof CalendarTokenRevokedError) {
       await notifyCalendarIssue("[norikane.studio] Calendar OAuth refresh token revoked", [
-        `${RECONNECT_URL} で再接続が必要です。`,
+        `${RECONNECT_URL} からログイン後にGoogleカレンダー再接続へ進んでください。`,
         `検出時刻 ISO: ${detectedAt}`,
         "次の自動チェックは翌 09:00 JST です。",
       ])

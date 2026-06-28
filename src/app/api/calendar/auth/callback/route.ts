@@ -13,6 +13,12 @@ export const dynamic = "force-dynamic"
 
 const STATE_COOKIE_NAME = "calendar_oauth_state"
 
+function redirectToLogin(request: NextRequest) {
+  const loginUrl = new URL("/login", request.nextUrl.origin)
+  loginUrl.searchParams.set("callbackUrl", `${request.nextUrl.pathname}${request.nextUrl.search}`)
+  return NextResponse.redirect(loginUrl, 302)
+}
+
 export async function GET(request: NextRequest) {
   const adminEmail = getBookingCalendarAdminEmail()
   if (!adminEmail) {
@@ -23,8 +29,17 @@ export async function GET(request: NextRequest) {
   }
 
   const session = await auth()
+  if (!session?.user) {
+    return redirectToLogin(request)
+  }
   if (!isAdmin(session?.user?.email)) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 })
+    return NextResponse.json(
+      {
+        error: "forbidden",
+        message: "Google Calendar reconnection requires the configured admin account.",
+      },
+      { status: 403 },
+    )
   }
 
   const code = request.nextUrl.searchParams.get("code")

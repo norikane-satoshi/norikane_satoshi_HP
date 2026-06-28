@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto"
 import { cookies } from "next/headers"
+import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 import { auth } from "@/auth"
@@ -12,8 +13,15 @@ export const dynamic = "force-dynamic"
 
 const CALENDAR_OAUTH_STATE_COOKIE = "calendar_oauth_state"
 const STATE_COOKIE_MAX_AGE_SEC = 600
+const CALENDAR_AUTH_PATH = "/api/calendar/auth"
 
-export async function GET() {
+function redirectToLogin(request: NextRequest) {
+  const loginUrl = new URL("/login", request.nextUrl.origin)
+  loginUrl.searchParams.set("callbackUrl", CALENDAR_AUTH_PATH)
+  return NextResponse.redirect(loginUrl, 302)
+}
+
+export async function GET(request: NextRequest) {
   const adminEmail = getBookingCalendarAdminEmail()
   if (!adminEmail) {
     return NextResponse.json(
@@ -23,8 +31,17 @@ export async function GET() {
   }
 
   const session = await auth()
+  if (!session?.user) {
+    return redirectToLogin(request)
+  }
   if (!isAdmin(session?.user?.email)) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 })
+    return NextResponse.json(
+      {
+        error: "forbidden",
+        message: "Google Calendar reconnection requires the configured admin account.",
+      },
+      { status: 403 },
+    )
   }
 
   try {
