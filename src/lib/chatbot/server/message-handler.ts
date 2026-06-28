@@ -518,7 +518,13 @@ function shouldUseFallbackRouting(input: {
   }
   if (input.noteAccess.kind !== "none") return false
   if (isBookingFinalConfirmationPrompt(input.rawAssistantText)) return false
-  if (isDurationAnswerRequest(input.latestUserMessage) || isDurationAnswerRequest(input.rawAssistantText)) return false
+  if (isDurationAnswerRequest(input.latestUserMessage)) return false
+  if (
+    input.fallbackRoutingDecision.presentChoices.id !== "project-length" &&
+    isDurationAnswerRequest(input.rawAssistantText)
+  ) {
+    return false
+  }
 
   switch (input.fallbackRoutingDecision.presentChoices.id) {
     case "job-kind":

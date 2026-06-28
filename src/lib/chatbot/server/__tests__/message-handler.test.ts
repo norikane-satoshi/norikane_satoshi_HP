@@ -1758,6 +1758,52 @@ describe("handleChatbotMessage user context", () => {
     },
   )
 
+  it("forces contextual project length choices when Tier2 asks the duration as free text", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "まず、1話あたりの尺はどのくらいを想定されていますか？",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "ドラマシリーズの尺を相談したいです。",
+        jobContext: {
+          jobKind: "drama-first",
+          finalMedium: "ott",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: false,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: {
+        id: "project-length",
+        question: "ドラマ / シリーズの尺・話数を選んでください",
+      },
+    })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(
+      expect.arrayContaining(["1話30分前後", "話数・全体尺を相談したい"]),
+    )
+    expect(result.assistantMessage.content).toBe(
+      "ドラマ / シリーズの尺・話数を選んでください\n下の選択肢から選んでください。",
+    )
+  })
+
   it("keeps the studio premise internal before 2026-09-15 while hiding it from work-site choices", async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-06-25T10:00:00+09:00"))
