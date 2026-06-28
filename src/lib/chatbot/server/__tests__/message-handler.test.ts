@@ -962,6 +962,56 @@ describe("handleChatbotMessage user context", () => {
     })
   })
 
+  it("recovers a booking card when a mobile final approval gets a cardless acceptance response", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState({ hasDesiredSchedule: false }),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 150,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        "ありがとうございます。それでは、このまま受付完了として進めます。則兼からご登録のメールアドレス宛にご連絡いたしますので、今しばらくお待ちください。",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "良いです！" },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe("候補日を確認しました。\n下の予約カードから選択してください。")
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: expect.objectContaining({
+        projectTitle: "ライブ案件",
+        contactEmail: "client@example.com",
+      }),
+    })
+    expect(harness.slackNotifier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uiKind: "booking-card",
+        flowStep: "booking-card",
+        bookingProgress: true,
+      }),
+    )
+  })
+
   it("moves to the booking card when the final confirmation choice label is submitted", async () => {
     const harness = setup({
       existingConversation: conversation({

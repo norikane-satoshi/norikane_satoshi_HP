@@ -365,6 +365,7 @@ export async function handleChatbotMessage(
     llmResponse,
     jobContext,
     conversationState,
+    latestUserMessage: input.message,
     fallbackRoutingDecision,
     candidateWindowFinder,
     knowledgeSnapshot,
@@ -1569,6 +1570,7 @@ async function resolveRoutingDecision(input: {
   llmResponse: ChatbotLlmResponse
   jobContext: JobContext
   conversationState: ConversationState
+  latestUserMessage: string
   fallbackRoutingDecision: RoutingDecision
   candidateWindowFinder: CandidateWindowFinder
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
@@ -1627,6 +1629,15 @@ async function resolveRoutingDecision(input: {
   if (!input.jobContext.jobKind) return undefined
   if (!toolCall) {
     if (submittedBooking) return undefined
+    if (shouldRecoverBookingCardFromAcceptanceText(input)) {
+      return buildBookingInlineRoutingDecision({
+        jobContext: input.jobContext,
+        conversationState: input.conversationState,
+        bookingPrefill: input.conversationState.bookingFinalConfirmation?.bookingPrefill ?? {},
+        candidateWindowFinder: input.candidateWindowFinder,
+        knowledgeSnapshot: input.knowledgeSnapshot,
+      })
+    }
     if (input.conversationState.bookingFinalConfirmation?.status !== "confirmed") return undefined
     return buildBookingInlineRoutingDecision({
       jobContext: input.jobContext,
@@ -1644,6 +1655,26 @@ async function resolveRoutingDecision(input: {
     candidateWindowFinder: input.candidateWindowFinder,
     knowledgeSnapshot: input.knowledgeSnapshot,
   })
+}
+
+function shouldRecoverBookingCardFromAcceptanceText(input: {
+  latestUserMessage: string
+  llmResponse: ChatbotLlmResponse
+  conversationState: ConversationState
+  jobContext: JobContext
+  fallbackRoutingDecision: RoutingDecision
+}): boolean {
+  if (!isNoAdditionalBookingConcern(input.latestUserMessage)) return false
+  if (input.conversationState.bookingSubmission?.status === "submitted") return false
+  if (!input.jobContext.jobKind || !input.conversationState.hasContactEmail) return false
+  if (input.fallbackRoutingDecision.kind === "to-direct-contact") return false
+  if (input.conversationState.bookingFinalConfirmation?.status === "supplemental-received") return false
+
+  const normalized = input.llmResponse.rawText.normalize("NFKC").toLowerCase()
+  return (
+    /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized) &&
+    !parseShowBookingCardToolCall(input.llmResponse.rawText)
+  )
 }
 
 function getSubmittedBooking(

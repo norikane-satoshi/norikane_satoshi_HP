@@ -118,6 +118,25 @@ export function applyBookingFinalConfirmationPolicy(input: {
     return { routingDecision: input.routingDecision, conversationState: input.conversationState }
   }
 
+  if (
+    input.conversationState.bookingFinalConfirmation?.status !== "confirmed" &&
+    isNoAdditionalBookingConcern(input.latestUserMessage) &&
+    isBookingCardlessAcceptanceText(input.assistantText)
+  ) {
+    return {
+      routingDecision: input.routingDecision,
+      conversationState: {
+        ...input.conversationState,
+        bookingFinalConfirmation: {
+          ...(input.conversationState.bookingFinalConfirmation ?? {}),
+          status: "confirmed",
+          confirmedAtTurn: input.conversationState.turnCount,
+          bookingPrefill: input.routingDecision.bookingPrefill,
+        },
+      },
+    }
+  }
+
   if (input.conversationState.bookingFinalConfirmation?.status === "confirmed") {
     return { routingDecision: input.routingDecision, conversationState: input.conversationState }
   }
@@ -215,6 +234,12 @@ export function isBookingFinalConfirmationPrompt(message: string | undefined): b
     /なし/u.test(normalized) &&
     /(予約|候補|カード|進め)/u.test(normalized)
   )
+}
+
+function isBookingCardlessAcceptanceText(message: string | undefined): boolean {
+  if (!message) return false
+  const normalized = message.normalize("NFKC").toLowerCase()
+  return /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized)
 }
 
 function buildBookingFinalConfirmationQuestion(jobContext: JobContext): string {
