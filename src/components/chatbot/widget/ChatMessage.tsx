@@ -41,7 +41,7 @@ const LONG_PRESS_VIBRATION_MS = 10
 const TOUCH_RELEASE_RIPPLE_MS = 420
 const TOUCH_CANCEL_FALLBACK_MS = 900
 const TOUCH_EDIT_HINT_LABEL = "長押しして編集"
-const EDIT_TRUNCATION_WARNING = "この後の会話を削除します"
+const EDIT_TRUNCATION_WARNING = "下の会話は削除されます"
 const PENDING_TOUCH_IDENTIFIER = -1
 const CHATBOT_MESSAGE_EDITING_STARTED_EVENT = "chatbot-message-editing-started"
 

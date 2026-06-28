@@ -94,7 +94,7 @@ describe("ChatMessage", () => {
     fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "修正版です。" } })
     fireEvent.click(screen.getByRole("button", { name: "保存" }))
 
-    expect(screen.getByText("この後の会話を削除します")).toBeInTheDocument()
+    expect(screen.getByText("下の会話は削除されます")).toBeInTheDocument()
     expect(screen.queryByText("保存すると、これより後のやり取りは削除されます。")).not.toBeInTheDocument()
     expect(onEdit).not.toHaveBeenCalled()
 
@@ -135,7 +135,7 @@ describe("ChatMessage", () => {
     fireEvent.pointerDown(saveButton, { pointerType: "mouse", button: 0 })
     fireEvent.click(saveButton)
 
-    expect(screen.getByText("この後の会話を削除します")).toBeInTheDocument()
+    expect(screen.getByText("下の会話は削除されます")).toBeInTheDocument()
     expect(onEdit).not.toHaveBeenCalled()
 
     const cancelConfirmButton = screen.getByRole("button", { name: "キャンセル" })
@@ -174,7 +174,7 @@ describe("ChatMessage", () => {
     fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "修正版です。" } })
     fireEvent.click(screen.getByRole("button", { name: "保存" }))
 
-    const warning = screen.getByText("この後の会話を削除します")
+    const warning = screen.getByText("下の会話は削除されます")
     const confirmRegion = warning.closest("[data-edit-confirm-pending='true']")
     const okButton = screen.getByRole("button", { name: "OK" })
 
