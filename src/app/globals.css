@@ -608,6 +608,24 @@
     overscroll-behavior-y: contain;
     touch-action: pan-y;
   }
+  .chatbot-scroll-indicator {
+    pointer-events: none;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--glass-border) 56%, transparent);
+    opacity: 0;
+    transition: opacity 180ms ease;
+  }
+  .chatbot-scroll-indicator[data-scrolling="true"] {
+    opacity: 1;
+  }
+  .chatbot-scroll-indicator__thumb {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--accent-primary) 68%, transparent);
+    box-shadow: var(--glass-shadow);
+  }
   .chatbot-widget-shell :is([aria-label="チャット本文"], form, textarea, input, select) {
     overscroll-behavior: contain;
   }
@@ -753,6 +771,7 @@
     .chatbot-minimized-attention,
     .chatbot-message-liquid::before,
     .chatbot-message-liquid::after,
+    .chatbot-scroll-indicator,
     .glass-btn--profile-social,
     .hp-nav-link,
     .hp-nav-dot {

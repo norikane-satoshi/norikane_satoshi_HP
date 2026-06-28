@@ -4,6 +4,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -71,6 +72,25 @@ const CHATBOT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const CHATBOT_PENDING_REQUEST_TTL_MS = 15 * 60 * 1000
 const thinkingDelayNoticeMs = 6000
 const SCROLL_BOUNDARY_EPSILON_PX = 1
+const SCROLL_INDICATOR_FADE_DELAY_MS = 560
+const SCROLL_INDICATOR_MIN_THUMB_PX = 28
+const SCROLL_INDICATOR_VERTICAL_INSET_PX = 12
+
+type ScrollIndicatorState = {
+  isScrollable: boolean
+  isScrolling: boolean
+  trackHeight: number
+  thumbHeight: number
+  thumbTop: number
+}
+
+const hiddenScrollIndicatorState: ScrollIndicatorState = {
+  isScrollable: false,
+  isScrolling: false,
+  trackHeight: 0,
+  thumbHeight: 0,
+  thumbTop: 0,
+}
 
 const additionalWorkMemoLabels: Record<NonNullable<JobContext["additionalWork"]>[number], string> = {
   retouch: "消し物/レタッチ",
@@ -196,6 +216,30 @@ function getScrollableElementForDelta(target: EventTarget, shell: HTMLElement, d
 
 function getFirstTouch(touches: TouchList) {
   return typeof touches.item === "function" ? touches.item(0) : (touches[0] ?? null)
+}
+
+function getConversationScrollIndicatorState(container: HTMLElement, isScrolling: boolean): ScrollIndicatorState {
+  const { clientHeight, scrollHeight, scrollTop } = container
+  if (clientHeight <= 0 || scrollHeight <= clientHeight + SCROLL_BOUNDARY_EPSILON_PX) {
+    return hiddenScrollIndicatorState
+  }
+
+  const trackHeight = Math.max(0, clientHeight - SCROLL_INDICATOR_VERTICAL_INSET_PX * 2)
+  if (trackHeight <= 0) return hiddenScrollIndicatorState
+
+  const rawThumbHeight = (clientHeight / scrollHeight) * trackHeight
+  const thumbHeight = Math.min(trackHeight, Math.max(SCROLL_INDICATOR_MIN_THUMB_PX, Math.round(rawThumbHeight)))
+  const maxScrollTop = Math.max(1, scrollHeight - clientHeight)
+  const maxThumbTop = Math.max(0, trackHeight - thumbHeight)
+  const thumbTop = Math.min(maxThumbTop, Math.max(0, Math.round((scrollTop / maxScrollTop) * maxThumbTop)))
+
+  return {
+    isScrollable: true,
+    isScrolling,
+    trackHeight,
+    thumbHeight,
+    thumbTop,
+  }
 }
 
 function getCustomerDisplayNameFromUi(ui: WidgetUi): string | undefined {
@@ -363,6 +407,9 @@ export function WidgetShell({
   const restoredPendingRequestRef = useRef<StoredPendingRequest | undefined>(undefined)
   const shellRef = useRef<HTMLElement | null>(null)
   const shellTouchYRef = useRef<number | null>(null)
+  const scrollIndicatorFrameRef = useRef<number | null>(null)
+  const scrollIndicatorFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [scrollIndicator, setScrollIndicator] = useState<ScrollIndicatorState>(hiddenScrollIndicatorState)
   const showLocalTierDebug =
     typeof window !== "undefined" && isLocalChatbotTierDebugLocation(window.location.hostname, window.location.port)
   const conversationContentKey = [
@@ -380,6 +427,50 @@ export function WidgetShell({
     shouldShowLatestButton,
     scrollToLatest,
   } = useConversationScroll(conversationContentKey)
+
+  const updateScrollIndicator = useCallback(
+    (isScrolling: boolean) => {
+      const container = conversationScrollRef.current
+      if (!container) {
+        setScrollIndicator(hiddenScrollIndicatorState)
+        return
+      }
+      setScrollIndicator(getConversationScrollIndicatorState(container, isScrolling))
+    },
+    [conversationScrollRef],
+  )
+
+  const scheduleScrollIndicatorUpdate = useCallback(
+    (isScrolling: boolean) => {
+      if (scrollIndicatorFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollIndicatorFrameRef.current)
+      }
+      scrollIndicatorFrameRef.current = window.requestAnimationFrame(() => {
+        scrollIndicatorFrameRef.current = null
+        updateScrollIndicator(isScrolling)
+      })
+    },
+    [updateScrollIndicator],
+  )
+
+  const showScrollIndicatorDuringScroll = useCallback(() => {
+    if (scrollIndicatorFadeTimerRef.current !== null) {
+      clearTimeout(scrollIndicatorFadeTimerRef.current)
+    }
+    scheduleScrollIndicatorUpdate(true)
+    scrollIndicatorFadeTimerRef.current = setTimeout(() => {
+      scrollIndicatorFadeTimerRef.current = null
+      scheduleScrollIndicatorUpdate(false)
+    }, SCROLL_INDICATOR_FADE_DELAY_MS)
+  }, [scheduleScrollIndicatorUpdate])
+
+  const handleConversationScrollWithIndicator = useCallback(
+    () => {
+      handleConversationScroll()
+      showScrollIndicatorDuringScroll()
+    },
+    [handleConversationScroll, showScrollIndicatorDuringScroll],
+  )
 
   const appendMessage = (message: WidgetMessage) => {
     setMessages((currentMessages) => [...currentMessages, message])
@@ -934,6 +1025,20 @@ export function WidgetShell({
     }
   }, [])
 
+  useEffect(() => {
+    scheduleScrollIndicatorUpdate(false)
+    return () => {
+      if (scrollIndicatorFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollIndicatorFrameRef.current)
+        scrollIndicatorFrameRef.current = null
+      }
+      if (scrollIndicatorFadeTimerRef.current !== null) {
+        clearTimeout(scrollIndicatorFadeTimerRef.current)
+        scrollIndicatorFadeTimerRef.current = null
+      }
+    }
+  }, [conversationContentKey, displayMode, scheduleScrollIndicatorUpdate])
+
   return (
     <section
       ref={shellRef}
@@ -1020,7 +1125,7 @@ export function WidgetShell({
       <div className="relative min-h-0 flex-1">
         <div
           ref={conversationScrollRef}
-          onScroll={handleConversationScroll}
+          onScroll={handleConversationScrollWithIndicator}
           className="chatbot-conversation-scroll h-full space-y-4 overflow-y-auto px-5 py-5"
           style={
             {
@@ -1082,6 +1187,28 @@ export function WidgetShell({
             onBookingCompleted={handleBookingCompleted}
           />
         </div>
+        {scrollIndicator.isScrollable ? (
+          <div
+            className="chatbot-scroll-indicator absolute right-2 z-10 w-1.5"
+            data-testid="chatbot-scroll-indicator"
+            data-scrolling={scrollIndicator.isScrolling ? "true" : "false"}
+            aria-hidden="true"
+            style={{
+              top: SCROLL_INDICATOR_VERTICAL_INSET_PX,
+              height: scrollIndicator.trackHeight,
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              className="chatbot-scroll-indicator__thumb"
+              data-testid="chatbot-scroll-indicator-thumb"
+              style={{
+                height: scrollIndicator.thumbHeight,
+                top: scrollIndicator.thumbTop,
+              }}
+            />
+          </div>
+        ) : null}
         {shouldShowLatestButton ? (
           <button
             type="button"

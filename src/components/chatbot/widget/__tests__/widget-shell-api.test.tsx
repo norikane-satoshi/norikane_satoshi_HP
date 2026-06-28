@@ -95,6 +95,12 @@ function setConversationScrollGeometry(input: { scrollTop: number; clientHeight:
   return container
 }
 
+async function flushScrollIndicatorFrame() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(20)
+  })
+}
+
 describe("WidgetShell API wiring", () => {
   beforeEach(() => {
     installLocalStorage()
@@ -214,6 +220,52 @@ describe("WidgetShell API wiring", () => {
       overscrollBehaviorY: "contain",
       touchAction: "pan-y",
     })
+  })
+
+  it("shows a passive right-side scroll indicator while the mobile conversation scrolls", async () => {
+    vi.useFakeTimers()
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = setConversationScrollGeometry({ scrollTop: 100, clientHeight: 400, scrollHeight: 1200 })
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+
+    const indicator = screen.getByTestId("chatbot-scroll-indicator")
+    const thumb = screen.getByTestId("chatbot-scroll-indicator-thumb")
+    expect(indicator).toHaveAttribute("data-scrolling", "true")
+    expect(indicator).toHaveStyle({
+      pointerEvents: "none",
+      top: "12px",
+      height: "376px",
+    })
+    expect(thumb).toHaveStyle({ height: "125px" })
+
+    const initialThumbTop = Number.parseFloat(thumb.style.top)
+    conversation.scrollTop = 600
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+    expect(Number.parseFloat(thumb.style.top)).toBeGreaterThan(initialThumbTop)
+
+    Object.defineProperty(conversation, "scrollHeight", { configurable: true, value: 2000 })
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+    expect(Number.parseFloat(thumb.style.height)).toBeLessThan(125)
+  })
+
+  it("fades the mobile scroll indicator after scrolling stops", async () => {
+    vi.useFakeTimers()
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = setConversationScrollGeometry({ scrollTop: 120, clientHeight: 400, scrollHeight: 1200 })
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+    expect(screen.getByTestId("chatbot-scroll-indicator")).toHaveAttribute("data-scrolling", "true")
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700)
+    })
+    await flushScrollIndicatorFrame()
+    expect(screen.getByTestId("chatbot-scroll-indicator")).toHaveAttribute("data-scrolling", "false")
   })
 
   it("posts submitted chat text to /api/chatbot/message", async () => {
