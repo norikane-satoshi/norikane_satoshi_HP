@@ -25,6 +25,7 @@ import {
   persistWidgetState,
   readStoredWidgetState,
   sanitizeWidgetLayout,
+  useWidgetState,
 } from "@/components/chatbot/widget/useWidgetState"
 
 function setScrollGeometry({ innerHeight, scrollHeight, scrollY }: {
@@ -264,6 +265,38 @@ describe("chatbot widget shell", () => {
 
     expect(document.body).not.toHaveClass("chatbot-mobile-fullscreen-active")
     expect(screen.getByRole("button", { name: "全画面表示に切り替え" })).toBeInTheDocument()
+  })
+
+  it("toggles desktop floating and side-peek display in both directions", async () => {
+    setViewportWidth(1024)
+    render(<ChatbotWidget />)
+    await vi.runOnlyPendingTimersAsync()
+
+    await act(async () => {
+      window.dispatchEvent(new Event("hp-chatbot:open"))
+    })
+
+    await act(async () => {
+      screen.getByRole("button", { name: "サイドピーク表示に切り替え" }).click()
+    })
+
+    expect(document.body).toHaveClass("chatbot-side-peek-active")
+    expect(screen.getByRole("button", { name: "フローティング表示に切り替え" })).toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem(CHATBOT_WIDGET_STORAGE_KEY) ?? "{}")).toMatchObject({
+      minimized: false,
+      displayMode: "side-peek",
+    })
+
+    await act(async () => {
+      screen.getByRole("button", { name: "フローティング表示に切り替え" }).click()
+    })
+
+    expect(document.body).not.toHaveClass("chatbot-side-peek-active")
+    expect(screen.getByRole("button", { name: "サイドピーク表示に切り替え" })).toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem(CHATBOT_WIDGET_STORAGE_KEY) ?? "{}")).toMatchObject({
+      minimized: false,
+      displayMode: "floating",
+    })
   })
 
   it("restores a minimized widget from localStorage and reopens it from the minimized bar", async () => {
@@ -550,6 +583,35 @@ describe("chatbot widget hooks", () => {
       floatingSize: { width: 1080, height: 400 },
       floatingPosition: { x: 120, y: 0 },
       sidePeekWidth: 384,
+    })
+  })
+
+  it("preserves display mode when another layout update lands before rerender", async () => {
+    const { result } = renderHook(() => useWidgetState())
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    await act(async () => {
+      result.current.open()
+    })
+
+    await act(async () => {
+      result.current.setDisplayMode("side-peek")
+      result.current.setFloatingPosition({ x: 24, y: 40 })
+      result.current.setFloatingSize({ width: 520 })
+    })
+
+    expect(result.current.layout).toMatchObject({
+      displayMode: "side-peek",
+      floatingPosition: { x: 24, y: 40 },
+      floatingSize: { width: 520 },
+    })
+    expect(JSON.parse(window.localStorage.getItem(CHATBOT_WIDGET_STORAGE_KEY) ?? "{}")).toMatchObject({
+      minimized: false,
+      displayMode: "side-peek",
+      floatingPosition: { x: 24, y: 40 },
+      floatingSize: { width: 520 },
     })
   })
 
