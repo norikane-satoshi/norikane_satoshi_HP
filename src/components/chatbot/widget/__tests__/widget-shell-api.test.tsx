@@ -250,6 +250,7 @@ describe("WidgetShell API wiring", () => {
       pointerEvents: "auto",
       top: "12px",
       height: "376px",
+      width: "16px",
     })
     expect(thumb).toHaveStyle({ height: "125px" })
 
@@ -289,6 +290,27 @@ describe("WidgetShell API wiring", () => {
     await flushScrollIndicatorFrame()
     expect(conversation.scrollTop).toBe(releasedScrollTop)
     expect(indicator).toHaveAttribute("data-dragging", "false")
+  })
+
+  it("starts custom conversation scrollbar dragging from the expanded track hit target", async () => {
+    vi.useFakeTimers()
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = setConversationScrollGeometry({ scrollTop: 0, clientHeight: 400, scrollHeight: 1200 })
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+
+    const indicator = screen.getByTestId("chatbot-scroll-indicator")
+    fireEvent.pointerDown(indicator, { pointerId: 44, pointerType: "mouse", button: 0, clientX: 2, clientY: 20 })
+    fireEvent.pointerMove(window, { pointerId: 44, pointerType: "mouse", clientX: 2, clientY: 114 })
+    await flushScrollIndicatorFrame()
+    expect(conversation.scrollTop).toBeGreaterThan(250)
+
+    fireEvent.pointerUp(window, { pointerId: 44, pointerType: "mouse", clientX: 2, clientY: 114 })
+    const releasedScrollTop = conversation.scrollTop
+    fireEvent.pointerMove(window, { pointerId: 44, pointerType: "mouse", clientX: 2, clientY: 260 })
+    await flushScrollIndicatorFrame()
+    expect(conversation.scrollTop).toBe(releasedScrollTop)
   })
 
   it("drags the custom conversation scrollbar thumb with touch pointer input and cleans up on cancel and blur", async () => {
@@ -333,6 +355,29 @@ describe("WidgetShell API wiring", () => {
     })
     await flushScrollIndicatorFrame()
     expect(screen.getByTestId("chatbot-scroll-indicator")).toHaveAttribute("data-scrolling", "false")
+  })
+
+  it("keeps the desktop scroll indicator visible for twice the mobile fade delay", async () => {
+    vi.useFakeTimers()
+    render(<WidgetShell onMinimize={vi.fn()} isDesktopLayout />)
+
+    const conversation = setConversationScrollGeometry({ scrollTop: 120, clientHeight: 400, scrollHeight: 1200 })
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+    const indicator = screen.getByTestId("chatbot-scroll-indicator")
+    expect(indicator).toHaveAttribute("data-scrolling", "true")
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700)
+    })
+    await flushScrollIndicatorFrame()
+    expect(indicator).toHaveAttribute("data-scrolling", "true")
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(520)
+    })
+    await flushScrollIndicatorFrame()
+    expect(indicator).toHaveAttribute("data-scrolling", "false")
   })
 
   it("posts submitted chat text to /api/chatbot/message", async () => {

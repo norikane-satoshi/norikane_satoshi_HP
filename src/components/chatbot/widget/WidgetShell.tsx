@@ -73,6 +73,8 @@ const CHATBOT_PENDING_REQUEST_TTL_MS = 15 * 60 * 1000
 const thinkingDelayNoticeMs = 6000
 const SCROLL_BOUNDARY_EPSILON_PX = 1
 const SCROLL_INDICATOR_FADE_DELAY_MS = 560
+const SCROLL_INDICATOR_DESKTOP_FADE_DELAY_MS = SCROLL_INDICATOR_FADE_DELAY_MS * 2
+const SCROLL_INDICATOR_HIT_TARGET_PX = 16
 const SCROLL_INDICATOR_MIN_THUMB_PX = 28
 const SCROLL_INDICATOR_VERTICAL_INSET_PX = 12
 
@@ -467,8 +469,8 @@ export function WidgetShell({
     scrollIndicatorFadeTimerRef.current = setTimeout(() => {
       scrollIndicatorFadeTimerRef.current = null
       scheduleScrollIndicatorUpdate(false)
-    }, SCROLL_INDICATOR_FADE_DELAY_MS)
-  }, [scheduleScrollIndicatorUpdate])
+    }, isDesktopLayout ? SCROLL_INDICATOR_DESKTOP_FADE_DELAY_MS : SCROLL_INDICATOR_FADE_DELAY_MS)
+  }, [isDesktopLayout, scheduleScrollIndicatorUpdate])
 
   const handleConversationScrollWithIndicator = useCallback(
     () => {
@@ -1292,21 +1294,22 @@ export function WidgetShell({
         </div>
         {scrollIndicator.isScrollable ? (
           <div
-            className="chatbot-scroll-indicator absolute right-2 z-10 w-1.5"
+            className="chatbot-scroll-indicator absolute right-1 z-10"
             data-testid="chatbot-scroll-indicator"
             data-scrolling={scrollIndicator.isScrolling ? "true" : "false"}
             aria-hidden="true"
             data-dragging={isScrollThumbDragging ? "true" : "false"}
+            onPointerDown={handleScrollIndicatorPointerDown}
             style={{
               top: SCROLL_INDICATOR_VERTICAL_INSET_PX,
               height: scrollIndicator.trackHeight,
+              width: SCROLL_INDICATOR_HIT_TARGET_PX,
               pointerEvents: scrollIndicator.isScrolling || isScrollThumbDragging ? "auto" : "none",
             }}
           >
             <div
               className="chatbot-scroll-indicator__thumb"
               data-testid="chatbot-scroll-indicator-thumb"
-              onPointerDown={handleScrollIndicatorPointerDown}
               style={{
                 height: scrollIndicator.thumbHeight,
                 top: scrollIndicator.thumbTop,
