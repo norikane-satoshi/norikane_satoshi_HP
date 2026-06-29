@@ -369,7 +369,9 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   const resolvedRoutingDecision = await resolveRoutingDecision({
+    requestId: input.requestId,
     llmResponse,
+    conversation,
     jobContext,
     conversationState,
     latestUserMessage: input.message,
@@ -1329,6 +1331,7 @@ function buildChatbotSystemPrompt(
     "事務担当として確認漏れ、不安、伝え忘れを減らし、ユーザーの考える量を増やさず次にすることを1つずつ案内します。",
     "案件整理では複数項目を文章で一気に聞かず、選べる項目は choice-panel の1項目ずつで確認します。その他を選んだ自由入力は補足として保持し、勝手に近い既存分類へ潰しません。",
     'choice-panel を出す時は、本文に {"tool":"show_choice_panel","args":{"id":"project-length","question":"...","selectionMode":"single","allowFreeText":true,"choices":[{"id":"...","label":"..."}]}} を1個だけ含めます。',
+    "選択させる候補は本文の箇条書きや「選択肢: A/B/C」だけで出さず、必ず show_choice_panel に入れます。候補を選ばせる意図がある本文だけの回答は禁止です。",
     "choice-panel の id は job-kind / project-length / final-medium / additional-work / documentary-attachment / work-site / production-options のいずれかを使います。",
     "案件種別ごとの候補表は例と安全網です。最終的な質問文、選択肢粒度、複数選択可否、自由入力有無は、会話全体、確定済み facts、未確定 facts、ユーザーの言い方から自然に判断します。",
     "ドラマ / シリーズ、ライブ、Web CM、MV の尺確認では、固定順や固定候補表に縛られず、会話に合う粒度を選びます。ただし別文脈の選択肢を混ぜません。",
@@ -1918,7 +1921,9 @@ function toMessageUi(input: {
 }
 
 async function resolveRoutingDecision(input: {
+  requestId?: string
   llmResponse: ChatbotLlmResponse
+  conversation: ChatbotConversation
   jobContext: JobContext
   conversationState: ConversationState
   latestUserMessage: string
@@ -1981,6 +1986,24 @@ async function resolveRoutingDecision(input: {
   if (choicePanelToolCall) {
     return resolveLlmChoicePanelRoutingDecision({
       toolCall: choicePanelToolCall,
+      fallbackRoutingDecision: input.fallbackRoutingDecision,
+      conversationState: input.conversationState,
+      jobContext: input.jobContext,
+    })
+  }
+  const textChoicePanelToolCall = parseTextChoicePanelToolCall(
+    input.llmResponse.rawText,
+    input.fallbackRoutingDecision,
+  )
+  if (textChoicePanelToolCall) {
+    logChoicePanelTextFallbackDetected({
+      requestId: input.requestId,
+      conversation: input.conversation,
+      tier: input.llmResponse.tier,
+      choiceSet: textChoicePanelToolCall.args,
+    })
+    return resolveLlmChoicePanelRoutingDecision({
+      toolCall: textChoicePanelToolCall,
       fallbackRoutingDecision: input.fallbackRoutingDecision,
       conversationState: input.conversationState,
       jobContext: input.jobContext,
@@ -2173,6 +2196,164 @@ function parseShowChoicePanelToolCall(text: string): ShowChoicePanelToolCall | u
 
   const looseChoiceSet = parseLooseShowChoicePanelChoiceSet(text)
   return looseChoiceSet ? { tool: "show_choice_panel", args: looseChoiceSet } : undefined
+}
+
+function parseTextChoicePanelToolCall(
+  text: string,
+  fallbackRoutingDecision: RoutingDecision,
+): ShowChoicePanelToolCall | undefined {
+  if (fallbackRoutingDecision.kind !== "continue" || !fallbackRoutingDecision.presentChoices) return undefined
+  if (!looksLikePlainTextChoicePanel(text)) return undefined
+
+  const choices = extractPlainTextChoices(text)
+  if (choices.length < 2) return undefined
+
+  const question = extractPlainTextChoiceQuestion(text) ?? fallbackRoutingDecision.nextQuestion
+  const choiceSet = normalizeLlmChoiceSet({
+    id: fallbackRoutingDecision.presentChoices.id,
+    question,
+    choices,
+    selectionMode: fallbackRoutingDecision.presentChoices.selectionMode,
+    allowFreeText: fallbackRoutingDecision.presentChoices.allowFreeText ?? true,
+  })
+  return choiceSet ? { tool: "show_choice_panel", args: choiceSet } : undefined
+}
+
+function looksLikePlainTextChoicePanel(text: string): boolean {
+  const normalized = text.normalize("NFKC")
+  if (/(選択肢|候補|下記|以下)/u.test(normalized) && /(?:^|\n)\s*(?:[-*•・]|\d+[.)．、])/um.test(normalized)) return true
+  if (/(選択肢|候補|下記|以下).{0,24}(選|教えて|ください|近い|どちら|どれ)/u.test(normalized)) return true
+  if (/(選んで|選択して|どれに近い|どちらですか)[\s\S]*(?:^|\n)\s*(?:[-*•・]|\d+[.)．、])/um.test(normalized)) {
+    return true
+  }
+  return false
+}
+
+function extractPlainTextChoiceQuestion(text: string): string | undefined {
+  const lines = text
+    .split(/\r?\n/u)
+    .map((line) => cleanPlainTextChoiceLine(line))
+    .filter(Boolean)
+  const markerIndex = lines.findIndex((line) => /(選択肢|候補|下記|以下)/u.test(line))
+  const candidate = markerIndex > 0 ? lines[markerIndex - 1] : lines.find((line) => /[?？]$|どちら|どれ|教えて|選んで/u.test(line))
+  return candidate && candidate.length <= 140 ? candidate : undefined
+}
+
+function extractPlainTextChoices(text: string): SurveyChoiceSet["choices"] {
+  const lines = text.split(/\r?\n/u)
+  const choices: SurveyChoiceSet["choices"] = []
+  const seenLabels = new Set<string>()
+  let afterMarker = false
+
+  for (const line of lines) {
+    if (/(選択肢|候補|以下|下記)/u.test(line)) {
+      afterMarker = true
+      const inlineChoices = extractInlinePlainTextChoices(line)
+      for (const label of inlineChoices) pushPlainTextChoice(choices, seenLabels, label)
+      continue
+    }
+
+    const bullet = /^\s*(?:[-*•・]|\d+[.)．、])\s*(.+?)\s*$/u.exec(line)?.[1]
+    if (bullet) {
+      pushPlainTextChoice(choices, seenLabels, bullet)
+      continue
+    }
+
+    if (afterMarker) {
+      for (const label of extractInlinePlainTextChoices(line)) pushPlainTextChoice(choices, seenLabels, label)
+    }
+  }
+
+  return choices.slice(0, 10)
+}
+
+function extractInlinePlainTextChoices(line: string): string[] {
+  const afterMarker = line.split(/選択肢|候補/u).at(-1) ?? line
+  const source = afterMarker
+    .replace(/^[\s:：\-—–]+/u, "")
+  if (/^は?(?:以下|下記)です[。.!！?？]?\s*$/u.test(source)) return []
+  const separator = /[、,，]|\s+(?:or|または)\s+/iu.test(source)
+    ? /[、,，]|\s+(?:or|または)\s+/iu
+    : source.split("/").length >= 3
+      ? /\//u
+      : /[、,，]/u
+  return source
+    .split(separator)
+    .map(cleanPlainTextChoiceLine)
+    .filter((label) => label.length > 0)
+}
+
+function pushPlainTextChoice(
+  choices: SurveyChoiceSet["choices"],
+  seenLabels: Set<string>,
+  value: string,
+): void {
+  const label = cleanPlainTextChoiceLine(value)
+  if (!isValidPlainTextChoiceLabel(label)) return
+  const key = label.normalize("NFKC").toLowerCase()
+  if (seenLabels.has(key)) return
+  const choice = normalizeLlmChoice({
+    id: toLlmChoiceId(label, choices.length),
+    label,
+  })
+  if (!choice) return
+  seenLabels.add(key)
+  choices.push(choice)
+}
+
+function cleanPlainTextChoiceLine(value: string): string {
+  return value
+    .replace(/^\s*(?:[-*•・]|\d+[.)．、])\s*/u, "")
+    .replace(/\s+/gu, " ")
+    .replace(/[。.!！?？]+$/u, "")
+    .trim()
+    .slice(0, 80)
+}
+
+function isValidPlainTextChoiceLabel(label: string): boolean {
+  if (label.length < 2 || label.length > 80) return false
+  if (/[{}[\]]/u.test(label)) return false
+  if (/^(選択肢|候補|以下|下記)$/u.test(label)) return false
+  return true
+}
+
+function toLlmChoiceId(label: string, index: number): string {
+  const normalized = label.normalize("NFKC").toLowerCase()
+  const known =
+    /地上波|放送|テレビ|tv|bs|cs|broadcast/u.test(normalized)
+      ? "tv-broadcast"
+      : /配信|stream|ott|vod|netflix|prime|hulu/u.test(normalized)
+        ? "ott"
+        : /劇場|映画館|上映|cinema|theater/u.test(normalized)
+          ? "cinema"
+          : /web|ウェブ|youtube|vimeo/u.test(normalized)
+            ? "web"
+            : /未定|相談|決まって/u.test(normalized)
+              ? "undecided"
+              : /その他|other/u.test(normalized)
+                ? "other"
+                : undefined
+  return known ?? `llm-choice-${index + 1}`
+}
+
+function logChoicePanelTextFallbackDetected(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmTier
+  choiceSet: SurveyChoiceSet
+}): void {
+  console.info(
+    JSON.stringify({
+      event: "choice_panel_text_fallback_detected",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      choiceSetId: input.choiceSet.id,
+      question: redactForChatbotLog(input.choiceSet.question),
+      choiceLabels: input.choiceSet.choices.map((choice) => redactForChatbotLog(choice.label)),
+    }),
+  )
 }
 
 function normalizeLlmChoiceSet(value: Record<string, unknown>): SurveyChoiceSet | undefined {

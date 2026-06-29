@@ -657,6 +657,108 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("converts production-style plain text final-medium choices after drama episode length into a choice panel", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: dramaProjectLengthChoices,
+          currentQuestion: dramaProjectLengthChoices.question,
+          conversationState: {
+            hasFinalMedium: false,
+            hasJobKind: true,
+            hasProjectLength: false,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 2,
+          },
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "other",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+    })
+    const question = "ドラマ / シリーズとして整理しています。想定している公開先・納品先を1つ教えてください"
+    harness.generate.mockResolvedValueOnce({
+      rawText: [
+        `${question}。`,
+        "候補は以下です。",
+        "- 地上波・BS／CS放送",
+        "- 配信プラットフォーム",
+        "- Web公開",
+        "- 劇場・イベント上映",
+        "- 未定・相談したい",
+      ].join("\n"),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    try {
+      const result = await handleChatbotMessage(
+        {
+          requestId: "req_text_final_media",
+          sessionId: "session_1",
+          userId: "user_a",
+          message: "選択: 1話45〜60分ですー",
+        },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toBe(`${question}\n下の選択肢から選んでください。`)
+      expect(result.ui).toMatchObject({
+        kind: "choice-panel",
+        choiceSet: {
+          id: "final-medium",
+          question,
+          allowFreeText: true,
+        },
+      })
+      expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual([
+        "地上波・BS／CS放送",
+        "配信プラットフォーム",
+        "Web公開",
+        "劇場・イベント上映",
+        "未定・相談したい",
+      ])
+      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentQuestion: question,
+          activeChoices: expect.objectContaining({
+            id: "final-medium",
+            choices: expect.arrayContaining([
+              { id: "tv-broadcast", label: "地上波・BS／CS放送" },
+              { id: "ott", label: "配信プラットフォーム" },
+              { id: "web", label: "Web公開" },
+              { id: "cinema", label: "劇場・イベント上映" },
+            ]),
+          }),
+          conversationState: expect.objectContaining({
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasFinalMedium: false,
+          }),
+          jobContext: expect.objectContaining({
+            jobKind: "drama-first",
+            projectLengthMinutes: 60,
+          }),
+        }),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"choice_panel_text_fallback_detected"'),
+      )
+    } finally {
+      consoleInfo.mockRestore()
+    }
+  })
+
   it("does not show the fixed final-medium fallback for drama context", async () => {
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup()
@@ -864,6 +966,75 @@ describe("handleChatbotMessage user context", () => {
 
     expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "final-medium", question } })
     expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+  })
+
+  it.each([
+    ["live-60m", "ライブ / 舞台収録として整理しています。想定している公開先・納品先を選んでください", ["配信", "会場上映", "パッケージ納品", "未定"]],
+    ["cm-30s", "Web CM / CM として整理しています。想定している使用先を選んでください", ["Web広告", "SNS", "テレビ放送", "店頭・イベント"]],
+    ["mv-5m", "MV / 音楽映像として整理しています。想定している公開先を選んでください", ["YouTube", "SNS", "配信プラットフォーム", "ライブ会場上映"]],
+  ] as const)("converts plain text final-medium choices into a panel for %s", async (jobKind, question, labels) => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: [`${question}。`, "選択肢:", ...labels.map((label) => `- ${label}`)].join("\n"),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "公開先を相談したいです",
+        jobContext: {
+          jobKind,
+          finalMedium: "other",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: jobKind === "cm-30s" ? 0.5 : 60,
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasFinalMedium: false,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "final-medium", question } })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+  })
+
+  it("does not turn explanatory bullet text into a choice panel when no choice slot is pending", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: [
+        "ライブ60分の進め方は以下です。",
+        "- 素材量を確認します。",
+        "- 追加作業の有無で日数が変わります。",
+      ].join("\n"),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "ライブ60分の進め方だけ教えてください",
+        jobContext: {
+          jobKind: "live-60m",
+          finalMedium: "live",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: 60,
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(result.assistantMessage.content).toContain("ライブ60分の進め方")
   })
 
   it("preserves a production-style final-medium tool call embedded in assistant text", async () => {
