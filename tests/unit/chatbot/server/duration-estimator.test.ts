@@ -18,6 +18,7 @@ describe("chatbot duration estimator", () => {
     ["Web CM 30秒です", { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 }],
     ["MV 5分の相談です", { jobKind: "mv-5m", projectLengthMinutes: 5 }],
     ["OTT向け本編90分です", { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 }],
+    ["ドラマシリーズです", { jobKind: "drama-first" }],
     ["ドラマ初回です", { jobKind: "drama-first" }],
     ["ドラマ2話目以降です", { jobKind: "drama-follow-up" }],
     ["縦型動画60秒です", { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 }],

@@ -88,7 +88,7 @@ function inferJobKind(text: string): JobKind | undefined {
       return "drama-follow-up"
     }
     if (/(?:初回|第?1話|1話目|一話目)/u.test(text)) return "drama-first"
-    return undefined
+    return "drama-first"
   }
   if (/(?:本編|長編|feature)/u.test(text)) return "feature-90m"
   if (/(?:ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(text)) return "mv-5m"

@@ -6,9 +6,13 @@ import type { CandidateWindow, ChatbotConversation, ChatbotMessage, Conversation
 import {
   additionalWorkChoices,
   bookingFinalConfirmationChoices,
+  cmProjectLengthChoices,
   documentaryAttachmentChoices,
+  dramaProjectLengthChoices,
   finalMediumChoices,
   jobKindChoices,
+  liveProjectLengthChoices,
+  mvProjectLengthChoices,
   projectLengthChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
@@ -229,6 +233,162 @@ describe("handleChatbotMessage user context", () => {
       kind: "choice-panel",
       choiceSet: { id: jobKindChoices.id },
     })
+  })
+
+  it("keeps production-log drama series wording on the drama project-length contract", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: jobKindChoices,
+          currentQuestion: "まず案件種別を選んでください",
+          conversationState: {
+            hasFinalMedium: false,
+            hasJobKind: false,
+            hasProjectLength: false,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 1,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: "ライブ配信の尺を選んでください。",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    try {
+      const result = await handleChatbotMessage(
+        {
+          requestId: "req_drama_log",
+          sessionId: "session_1",
+          userId: "user_a",
+          message: "選択: ドラマ / シリーズです",
+        },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toContain("ドラマ / シリーズの尺・話数")
+      expect(result.assistantMessage.content).not.toContain("ライブ")
+      expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "project-length" } })
+      expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).not.toContain("ライブ 60分前後")
+      expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({ jobKind: "drama-first" })
+      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentQuestion: dramaProjectLengthChoices.question,
+          activeChoices: dramaProjectLengthChoices,
+          conversationState: expect.objectContaining({ hasJobKind: true, hasProjectLength: false }),
+          jobContext: expect.objectContaining({ jobKind: "drama-first" }),
+        }),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"project_type_choice_mismatch"'),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"reason":"raw-assistant-text-mismatch"'),
+      )
+    } finally {
+      consoleInfo.mockRestore()
+    }
+  })
+
+  it("recontextualizes stale generic project-length choices after reload before accepting answers", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: projectLengthChoices,
+          currentQuestion: "尺・分量の大枠を選んでください",
+          conversationState: {
+            hasFinalMedium: false,
+            hasJobKind: true,
+            hasProjectLength: false,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            otherChoiceComments: { "job-kind": "ドラマ / シリーズです" },
+            turnCount: 2,
+          },
+        },
+        messages: [
+          message("user", "お仕事頼みたいです"),
+          message("assistant", "まず案件種別を選んでください\n下の選択肢から選んでください。"),
+          message("user", "選択: ドラマ / シリーズです"),
+          message("assistant", "尺・分量の大枠を選んでください\n下の選択肢から選んでください。"),
+        ],
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "選択: ライブ 60分前後",
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain("尺・分量は下の選択肢から選ぶ")
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "project-length" } })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toContain("1話30分前後")
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).not.toContain("ライブ 60分前後")
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: dramaProjectLengthChoices,
+        conversationState: expect.objectContaining({
+          hasProjectLength: false,
+          activeIntakeClarification: expect.objectContaining({
+            choiceSetId: "project-length",
+            reason: "project-length-choice-mismatch",
+          }),
+        }),
+        jobContext: expect.objectContaining({ jobKind: "drama-first" }),
+      }),
+    )
+  })
+
+  it.each([
+    ["選択: ライブ / コンサート / 舞台収録", liveProjectLengthChoices],
+    ["選択: Web CMです", cmProjectLengthChoices],
+    ["選択: MVです", mvProjectLengthChoices],
+  ] as const)("keeps contextual project-length choices for %s", async (messageText, expectedChoices) => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: jobKindChoices,
+          currentQuestion: "まず案件種別を選んでください",
+        },
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: messageText,
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentQuestion: expectedChoices.question,
+        activeChoices: expectedChoices,
+      }),
+    )
   })
 
   it("uses client user message ids for optimistic cancelled messages", async () => {

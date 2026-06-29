@@ -100,8 +100,12 @@ describe("choice panel state", () => {
 
   it.each([
     [jobKindChoices, "選択: Web CM / CM", { hasJobKind: true }, { jobKind: "cm-30s" }],
+    [jobKindChoices, "選択: Web CMです", { hasJobKind: true }, { jobKind: "cm-30s" }],
     [jobKindChoices, "選択: 映画 / 長編 / 本編", { hasJobKind: true }, { jobKind: "feature-90m" }],
+    [jobKindChoices, "選択: ドラマ / シリーズです", { hasJobKind: true }, { jobKind: "drama-first" }],
+    [jobKindChoices, "選択: ドラマシリーズ", { hasJobKind: true }, { jobKind: "drama-first" }],
     [jobKindChoices, "選択: ライブ / コンサート / 舞台収録", { hasJobKind: true }, { jobKind: "live-60m" }],
+    [jobKindChoices, "選択: MVです", { hasJobKind: true }, { jobKind: "mv-5m" }],
     [
       jobKindChoices,
       "選択: 講演会 / 講習会 / 教育 / 研修 / 講師依頼",
@@ -200,6 +204,22 @@ describe("choice panel state", () => {
           status: "needs-clarification",
           choiceSetId: "project-length",
           reason: "quantity-needs-unit",
+        },
+      },
+      jobContext: {},
+    })
+
+    expect(
+      applyActiveChoiceAnswer({
+        activeChoices: dramaProjectLengthChoices,
+        message: "選択: ライブ 60分前後",
+      }),
+    ).toMatchObject({
+      conversationState: {
+        activeIntakeClarification: {
+          status: "needs-clarification",
+          choiceSetId: "project-length",
+          reason: "project-length-choice-mismatch",
         },
       },
       jobContext: {},

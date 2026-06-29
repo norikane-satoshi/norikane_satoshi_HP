@@ -1,4 +1,9 @@
-import { hasRequiredEmailConsultationSlots, projectLengthChoices, surveyChoiceSets } from "@/lib/chatbot/domain"
+import {
+  hasRequiredEmailConsultationSlots,
+  projectLengthChoices,
+  projectLengthChoicesForJobKind,
+  surveyChoiceSets,
+} from "@/lib/chatbot/domain"
 import type {
   BookingCardPrefill,
   ChatbotConversation,
@@ -44,7 +49,7 @@ import {
   resolveWorkflowDurationContext,
   type DurationTraceContext,
 } from "@/lib/chatbot/server/duration-context"
-import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
+import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
   sanitizeChatbotLlmTextWithReport,
   type ChatbotLlmSanitizationReport,
@@ -285,8 +290,9 @@ export async function handleChatbotMessage(
       ui: { kind: "none" },
     }
   }
+  const activeChoices = contextualizeStoredActiveChoices(conversation)
   const activeChoiceAnswer = applyActiveChoiceAnswer({
-    activeChoices: conversation.context.activeChoices,
+    activeChoices,
     message: input.message,
     activeIntakeClarification: conversation.context.conversationState?.activeIntakeClarification,
   })
@@ -383,8 +389,16 @@ export async function handleChatbotMessage(
     })
       ? fallbackRoutingDecision
       : undefined)
-  const flowPolicy = applyBookingFinalConfirmationPolicy({
+  const contractRoutingDecision = enforceProjectTypeChoiceContract({
+    requestId: input.requestId,
+    conversation,
+    tier: llmResponse.tier,
     routingDecision: rawRoutingDecision,
+    rawAssistantText: llmResponse.rawText,
+    jobContext,
+  })
+  const flowPolicy = applyBookingFinalConfirmationPolicy({
+    routingDecision: contractRoutingDecision,
     conversationState,
     jobContext,
     latestUserMessage: input.message,
@@ -530,10 +544,149 @@ function shouldUseFallbackRouting(input: {
     case "job-kind":
       return hasConsultationStartIntent(input.latestUserMessage) || looksLikeChoiceListQuestion(input.rawAssistantText)
     case "project-length":
-      return hasProjectLengthFollowupIntent(input.latestUserMessage)
+      return true
     default:
       return true
   }
+}
+
+function enforceProjectTypeChoiceContract(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmTier
+  routingDecision: RoutingDecision | undefined
+  rawAssistantText: string
+  jobContext: JobContext
+}): RoutingDecision | undefined {
+  const routingDecision = input.routingDecision
+  const jobKind = input.jobContext.jobKind
+  if (!jobKind || routingDecision?.kind !== "continue" || routingDecision.presentChoices?.id !== "project-length") {
+    return routingDecision
+  }
+
+  const expectedChoices = projectLengthChoicesForJobKind(jobKind)
+  const hasRawTextMismatch = hasProjectTypeTextMismatch(input.rawAssistantText, jobKind)
+  if (isSameChoiceSetContract(routingDecision.presentChoices, expectedChoices) && routingDecision.nextQuestion === expectedChoices.question) {
+    if (hasRawTextMismatch) {
+      logProjectTypeChoiceMismatch({
+        requestId: input.requestId,
+        conversation: input.conversation,
+        tier: input.tier,
+        jobKind,
+        reason: "raw-assistant-text-mismatch",
+        receivedQuestion: input.rawAssistantText,
+        correctedQuestion: expectedChoices.question,
+        receivedChoiceLabels: routingDecision.presentChoices.choices.map((choice) => choice.label),
+        correctedChoiceLabels: expectedChoices.choices.map((choice) => choice.label),
+      })
+    }
+    return routingDecision
+  }
+
+  logProjectTypeChoiceMismatch({
+    requestId: input.requestId,
+    conversation: input.conversation,
+    tier: input.tier,
+    jobKind,
+    reason: "choice-set-mismatch",
+    receivedQuestion: routingDecision.nextQuestion,
+    correctedQuestion: expectedChoices.question,
+    receivedChoiceLabels: routingDecision.presentChoices.choices.map((choice) => choice.label),
+    correctedChoiceLabels: expectedChoices.choices.map((choice) => choice.label),
+  })
+
+  return {
+    ...routingDecision,
+    nextQuestion: expectedChoices.question,
+    presentChoices: expectedChoices,
+  }
+}
+
+function hasProjectTypeTextMismatch(text: string, jobKind: NonNullable<JobContext["jobKind"]>): boolean {
+  const normalized = text.normalize("NFKC").toLowerCase()
+  const mentions = {
+    drama: /(ドラマ|シリーズ|1話|話数|episode)/u.test(normalized),
+    live: /(ライブ|コンサート|舞台収録|live)/u.test(normalized),
+    cm: /(web\s*cm|ウェブ\s*cm|コマーシャル|(?:^|[^a-z0-9])cm(?:$|[^a-z0-9]))/u.test(normalized),
+    mv: /(ミュージックビデオ|音楽映像|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(normalized),
+  }
+
+  switch (jobKind) {
+    case "drama-first":
+    case "drama-follow-up":
+      return mentions.live || mentions.cm || mentions.mv
+    case "live-60m":
+      return mentions.drama || mentions.cm || mentions.mv
+    case "cm-30s":
+      return mentions.drama || mentions.live || mentions.mv
+    case "mv-5m":
+      return mentions.drama || mentions.live || mentions.cm
+    default:
+      return false
+  }
+}
+
+function contextualizeStoredActiveChoices(conversation: ChatbotConversation): SurveyChoiceSet | undefined {
+  const activeChoices = conversation.context.activeChoices
+  if (activeChoices?.id !== "project-length") return activeChoices
+
+  const jobKind = resolveStoredOrHistoricalJobKind(conversation)
+  if (!jobKind) return activeChoices
+  return projectLengthChoicesForJobKind(jobKind)
+}
+
+function resolveStoredOrHistoricalJobKind(conversation: ChatbotConversation): JobContext["jobKind"] | undefined {
+  const storedJobKind =
+    conversation.context.jobContext?.jobKind ??
+    conversation.context.conversationState?.durationContext?.workflowFacts?.jobKind
+  if (storedJobKind) return storedJobKind
+
+  const base: JobContext = {
+    finalMedium: "other",
+    workSite: "remote-grading",
+    documentaryAttachment: { kind: "none" },
+  }
+
+  return conversation.messages
+    .filter((message) => message.role === "user")
+    .reduce((current, message) => ({ ...current, ...inferWorkflowJobContextFromText(message.content, current) }), base)
+    .jobKind
+}
+
+function isSameChoiceSetContract(left: SurveyChoiceSet, right: SurveyChoiceSet): boolean {
+  if (left.id !== right.id || left.question !== right.question || left.choices.length !== right.choices.length) return false
+  return left.choices.every((choice, index) => {
+    const other = right.choices[index]
+    return choice.id === other?.id && choice.label === other.label
+  })
+}
+
+function logProjectTypeChoiceMismatch(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmTier
+  jobKind: JobContext["jobKind"]
+  reason: "choice-set-mismatch" | "raw-assistant-text-mismatch"
+  receivedQuestion: string
+  correctedQuestion: string
+  receivedChoiceLabels: string[]
+  correctedChoiceLabels: string[]
+}): void {
+  console.info(
+    JSON.stringify({
+      event: "project_type_choice_mismatch",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      jobKind: input.jobKind,
+      reason: input.reason,
+      receivedQuestion: redactForChatbotLog(input.receivedQuestion),
+      correctedQuestion: redactForChatbotLog(input.correctedQuestion),
+      receivedChoiceLabels: input.receivedChoiceLabels.map(redactForChatbotLog),
+      correctedChoiceLabels: input.correctedChoiceLabels.map(redactForChatbotLog),
+    }),
+  )
 }
 
 function hasConsultationStartIntent(message: string): boolean {
@@ -546,11 +699,6 @@ function hasConsultationStartIntent(message: string): boolean {
 function looksLikeChoiceListQuestion(message: string): boolean {
   const normalized = message.normalize("NFKC").toLowerCase()
   return /(下の選択肢|選んで|選択して|どれに近い|種別)[\s\S]*(cm|mv|ライブ|講習|その他)/u.test(normalized)
-}
-
-function hasProjectLengthFollowupIntent(message: string): boolean {
-  const normalized = message.normalize("NFKC").toLowerCase()
-  return /(尺|分|秒|時間|ライブ|cm|mv|映画|ドラマ|縦型|案件|相談|依頼)/u.test(normalized)
 }
 
 function isDurationAnswerRequest(message: string): boolean {

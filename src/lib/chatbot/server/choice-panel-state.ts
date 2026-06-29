@@ -294,12 +294,6 @@ function buildUnmatchedChoiceClarification(
 ): ChoicePanelPatch | null {
   if (!activeChoices) return null
   const unmatchedChoiceText = extractUnmatchedChoiceText(message)
-  if (unmatchedChoiceText && activeChoices.choices.some((choice) => choice.id === "other")) {
-    return applyActiveChoiceAnswer({
-      activeChoices,
-      message: `選択: other\nその他コメント: ${unmatchedChoiceText}`,
-    })
-  }
   if (activeChoices.id === "project-length" && isBareQuantity(message)) {
     return toClarificationPatch({
       activeChoices,
@@ -307,6 +301,21 @@ function buildUnmatchedChoiceClarification(
       message,
       question: "その数値の単位を1つだけ教えてください。分、時間、本数など、どれに近いですか？",
       reason: "quantity-needs-unit",
+    })
+  }
+  if (activeChoices.id === "project-length" && unmatchedChoiceText) {
+    return toClarificationPatch({
+      activeChoices,
+      choices: [],
+      message,
+      question: "尺・分量は下の選択肢から選ぶか、「その他」の内容を1つだけ補足してください。",
+      reason: "project-length-choice-mismatch",
+    })
+  }
+  if (unmatchedChoiceText && activeChoices.choices.some((choice) => choice.id === "other")) {
+    return applyActiveChoiceAnswer({
+      activeChoices,
+      message: `選択: other\nその他コメント: ${unmatchedChoiceText}`,
     })
   }
 
@@ -523,6 +532,7 @@ function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: str
     .map((normalizedMessage) =>
       activeChoices.choices.find((choice) => normalizeChoiceText(choice.id) === normalizedMessage) ??
       activeChoices.choices.find((choice) => normalizeChoiceText(choice.label) === normalizedMessage) ??
+      activeChoices.choices.find((choice) => choiceTextMatches(activeChoices, choice, normalizedMessage)) ??
       null,
     )
     .filter((choice): choice is SurveyChoice => Boolean(choice))
@@ -661,6 +671,31 @@ function labelChoice(choiceSet: SurveyChoiceSet, choiceId: string): string {
 
 function normalizeChoiceText(value: string): string {
   return value.normalize("NFKC").trim().toLowerCase().replace(/\s+/gu, " ")
+}
+
+function choiceTextMatches(choiceSet: SurveyChoiceSet, choice: SurveyChoice, normalizedMessage: string): boolean {
+  const messageKey = normalizeChoiceComparableText(normalizedMessage)
+  if (!messageKey) return false
+  return [choice.id, choice.label]
+    .map(normalizeChoiceComparableText)
+    .some((candidate) => candidate === messageKey || containsComparableChoiceText(choiceSet, candidate, messageKey))
+}
+
+function normalizeChoiceComparableText(value: string): string {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(choicePrefixPattern, "")
+    .replace(/[。.!！?？]+$/gu, "")
+    .replace(/(?:でお願いします|をお願いします|お願いします|にします|です)$/u, "")
+    .replace(/[\s　/／|｜・:：-]+/gu, "")
+}
+
+function containsComparableChoiceText(choiceSet: SurveyChoiceSet, candidate: string, messageKey: string): boolean {
+  if (choiceSet.id !== "job-kind" && choiceSet.id !== "project-length") return false
+  if (messageKey.length < 2) return false
+  return candidate.includes(messageKey) || messageKey.includes(candidate)
 }
 
 function extractSelectedChoiceText(message: string): string {

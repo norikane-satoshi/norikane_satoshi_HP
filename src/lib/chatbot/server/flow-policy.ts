@@ -1,5 +1,5 @@
 import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
-import { bookingFinalConfirmationChoices, projectLengthChoices, surveyChoiceSets } from "@/lib/chatbot/domain"
+import { bookingFinalConfirmationChoices, projectLengthChoicesForJobKind, surveyChoiceSets } from "@/lib/chatbot/domain"
 import { isLectureTrainingInquiry } from "@/lib/chatbot/server/lecture-training"
 
 export type ChatbotFlowStep =
@@ -74,6 +74,7 @@ export function applyBookingFinalConfirmationPolicy(input: {
     return applyIntakeClarificationPolicy({
       routingDecision: input.routingDecision,
       conversationState: input.conversationState,
+      jobContext: input.jobContext,
     })
   }
 
@@ -161,6 +162,7 @@ export function applyBookingFinalConfirmationPolicy(input: {
 export function applyIntakeClarificationPolicy(input: {
   routingDecision: RoutingDecision | undefined
   conversationState: ConversationState
+  jobContext: JobContext
 }): {
   routingDecision: RoutingDecision | undefined
   conversationState: ConversationState
@@ -174,7 +176,7 @@ export function applyIntakeClarificationPolicy(input: {
     routingDecision: {
       kind: "continue",
       nextQuestion: clarification.question,
-      ...clarificationChoiceSet(clarification.choiceSetId),
+      ...clarificationChoiceSet(clarification.choiceSetId, input.jobContext),
     },
     conversationState: input.conversationState,
   }
@@ -209,9 +211,10 @@ export function inferChatbotFlowStep(input: {
 
 function clarificationChoiceSet(
   choiceSetId: string | undefined,
+  jobContext: JobContext,
 ): Pick<Extract<RoutingDecision, { kind: "continue" }>, "presentChoices"> | Record<string, never> {
   if (!choiceSetId) return {}
-  if (choiceSetId === "project-length") return { presentChoices: projectLengthChoices }
+  if (choiceSetId === "project-length") return { presentChoices: projectLengthChoicesForJobKind(jobContext.jobKind) }
   const choiceSet = surveyChoiceSets.find((item) => item.id === choiceSetId)
   return choiceSet ? { presentChoices: choiceSet } : {}
 }
