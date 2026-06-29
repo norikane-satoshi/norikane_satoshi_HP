@@ -62,7 +62,10 @@ export function inferWorkflowJobContextFromText(
     Boolean(jobKind) &&
     (!current.jobKind || !explicitJobKind || explicitJobKind === current.jobKind)
   const projectLengthMinutes = canInferProjectLength ? explicitProjectLengthMinutes : undefined
-  const finalMedium = current.finalMedium === "other" ? inferFinalMedium(normalized) : undefined
+  const finalMedium =
+    current.finalMedium === "other" && !looksLikeJobKindChoiceOnly(normalized)
+      ? inferFinalMedium(normalized)
+      : undefined
   const deliveryMedium = current.deliveryMedium === undefined ? inferDeliveryMedium(normalized) : undefined
   const inferred: Partial<JobContext> = {}
 
@@ -78,6 +81,12 @@ export function inferWorkflowJobContextFromText(
 
 function canInferExplicitJobKind(jobKind: JobKind, projectLengthMinutes: number | undefined): boolean {
   return workflowDurationJobKindMap[jobKind].baselineMinutes === undefined || projectLengthMinutes !== undefined
+}
+
+function looksLikeJobKindChoiceOnly(text: string): boolean {
+  if (!/^\s*選択\s*[：:]/u.test(text)) return false
+  if (!inferJobKind(text)) return false
+  return !/(?:公開|納品|使用先|放送|配信|劇場|上映|web公開|youtube|sns|ott|プラットフォーム)/u.test(text)
 }
 
 function inferJobKind(text: string): JobKind | undefined {

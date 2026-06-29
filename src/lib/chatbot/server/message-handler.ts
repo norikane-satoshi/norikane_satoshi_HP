@@ -2126,7 +2126,8 @@ function parseShowChoicePanelToolCall(text: string): ShowChoicePanelToolCall | u
     }
   }
 
-  return undefined
+  const looseChoiceSet = parseLooseShowChoicePanelChoiceSet(text)
+  return looseChoiceSet ? { tool: "show_choice_panel", args: looseChoiceSet } : undefined
 }
 
 function normalizeLlmChoiceSet(value: Record<string, unknown>): SurveyChoiceSet | undefined {
@@ -2142,7 +2143,7 @@ function normalizeLlmChoiceSet(value: Record<string, unknown>): SurveyChoiceSet 
 
   if (!id || !llmChoicePanelIds.has(id)) return undefined
   if (!question || question.length > 140) return undefined
-  if (choices.length < 2 || choices.length > 8) return undefined
+  if (choices.length < 2 || choices.length > 10) return undefined
 
   return {
     id,
@@ -2161,6 +2162,46 @@ function normalizeLlmChoice(value: unknown): SurveyChoiceSet["choices"][number] 
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(id)) return undefined
   if (label.length > 80) return undefined
   return { id, label }
+}
+
+function parseLooseShowChoicePanelChoiceSet(text: string): SurveyChoiceSet | undefined {
+  if (!/"tool"\s*:\s*"show_choice_panel"/u.test(text)) return undefined
+
+  const argsMatch = /"args"\s*:\s*\{([\s\S]*)/u.exec(text)
+  const source = argsMatch?.[1] ?? text
+  const id = parseLooseJsonStringMatch(/"id"\s*:\s*"((?:\\.|[^"\\]){1,80})"/u.exec(source)?.[1])
+  const question = parseLooseJsonStringMatch(/"question"\s*:\s*"((?:\\.|[^"\\]){1,180})"/u.exec(source)?.[1])
+  const choicesStart = source.indexOf('"choices"')
+  const choiceSource = choicesStart >= 0 ? source.slice(choicesStart) : source
+  const choices: Array<SurveyChoiceSet["choices"][number]> = []
+  const seenChoiceIds = new Set<string>()
+  const choicePattern =
+    /\{\s*"id"\s*:\s*"((?:\\.|[^"\\]){1,80})"\s*,\s*"label"\s*:\s*"((?:\\.|[^"\\]){1,120})"/gu
+  let match: RegExpExecArray | null
+
+  while ((match = choicePattern.exec(choiceSource)) && choices.length < 10) {
+    const choice = normalizeLlmChoice({
+      id: parseLooseJsonStringMatch(match[1]),
+      label: parseLooseJsonStringMatch(match[2]),
+    })
+    if (!choice || seenChoiceIds.has(choice.id)) continue
+    seenChoiceIds.add(choice.id)
+    choices.push(choice)
+  }
+
+  return normalizeLlmChoiceSet({
+    id,
+    question,
+    choices,
+    selectionMode: /"selectionMode"\s*:\s*"multiple"/u.test(source) ? "multiple" : undefined,
+    allowFreeText: /"allowFreeText"\s*:\s*true/u.test(source),
+  })
+}
+
+function parseLooseJsonStringMatch(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const parsed = parseJson(`"${value}"`)
+  return typeof parsed === "string" ? parsed : value
 }
 
 type ShowBookingCardToolCall = {

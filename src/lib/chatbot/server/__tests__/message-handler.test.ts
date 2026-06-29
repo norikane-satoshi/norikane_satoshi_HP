@@ -866,6 +866,50 @@ describe("handleChatbotMessage user context", () => {
     expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
   })
 
+  it("preserves a production-style final-medium tool call embedded in assistant text", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        '公開先の相談ですね。{"tool":"show_choice_panel","args":{"id":"final-medium","question":"想定している公開先を教えてください","selectionMode":"single","allowFreeText":true,"choices":[{"id":"tv-broadcast","label":"地上波・BS／CS放送"},{"id":"streaming-drama","label":"配信プラットフォーム"},{"id":"web-public","label":"Web公開"},{"id":"theater-event","label":"劇場・イベント上映"}',
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "公開先を相談したいです",
+        jobContext: {
+          jobKind: "drama-first",
+          finalMedium: "other",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: 60,
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasFinalMedium: false,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: {
+        id: "final-medium",
+        question: "想定している公開先を教えてください",
+        allowFreeText: true,
+      },
+    })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual([
+      "地上波・BS／CS放送",
+      "配信プラットフォーム",
+      "Web公開",
+      "劇場・イベント上映",
+    ])
+  })
+
   it("uses client user message ids for optimistic cancelled messages", async () => {
     const harness = setup()
 

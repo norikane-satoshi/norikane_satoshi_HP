@@ -36,6 +36,15 @@ describe("chatbot duration estimator", () => {
     ).toEqual({})
   })
 
+  it("does not treat a job-kind choice label as final-medium confirmation", () => {
+    expect(
+      inferWorkflowJobContextFromText(
+        "選択: ライブ / コンサート / 舞台収録",
+        jobContext({ jobKind: "live-60m", finalMedium: "other" }),
+      ),
+    ).toEqual({})
+  })
+
   it("estimates CM 30s without additional work at satoshi-studio", () => {
     const result = estimateWorkflow(jobContext({ projectLengthMinutes: 0.5 }))
 
