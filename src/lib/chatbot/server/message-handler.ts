@@ -135,6 +135,12 @@ type ChatbotMessageRepository = {
   linkConversationToUser: typeof linkConversationToUser
 }
 
+type ChatbotEditSlackEvent = {
+  previousSummary?: string
+  nextMessage: string
+  truncatedFollowingMessages: number
+}
+
 type CandidateWindowFinder =
   | typeof findCandidateCalendar
   | ((args: Parameters<typeof findCandidateCalendar>[0]) => Promise<CandidateCalendarResult | Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]>)
@@ -213,12 +219,18 @@ export async function handleChatbotMessage(
   }
 
   let didTruncateForEdit = false
+  let editSlackEvent: ChatbotEditSlackEvent | undefined
   if (input.editTargetMessageId) {
     const targetIndex = conversation.messages.findIndex((message) => message.id === input.editTargetMessageId)
     if (targetIndex === -1) {
       if (!isClientGeneratedMessageId(input.editTargetMessageId)) {
         const fallbackTargetIndex = findLastUserMessageIndex(conversation.messages)
         if (fallbackTargetIndex >= 0) {
+          editSlackEvent = buildEditSlackEvent({
+            messages: conversation.messages,
+            targetIndex: fallbackTargetIndex,
+            nextMessage: input.message,
+          })
           await repository.truncateConversationFromMessage({
             conversationId: conversation.id,
             messageId: conversation.messages[fallbackTargetIndex].id,
@@ -226,11 +238,20 @@ export async function handleChatbotMessage(
           conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, fallbackTargetIndex))
           didTruncateForEdit = true
         } else {
+          editSlackEvent = {
+            nextMessage: input.message,
+            truncatedFollowingMessages: conversation.messages.length,
+          }
           conversation = resetEditedConversationContext(conversation, [])
           didTruncateForEdit = true
         }
       }
     } else {
+      editSlackEvent = buildEditSlackEvent({
+        messages: conversation.messages,
+        targetIndex,
+        nextMessage: input.message,
+      })
       await repository.truncateConversationFromMessage({
         conversationId: conversation.id,
         messageId: input.editTargetMessageId,
@@ -267,6 +288,14 @@ export async function handleChatbotMessage(
     role: "user",
     content: input.message,
   })
+  if (editSlackEvent) {
+    await notifySlackForChatbotEdit({
+      notifier: slackNotifier,
+      requestId: input.requestId,
+      conversation,
+      edit: editSlackEvent,
+    })
+  }
   if (isAssistantNameQuestion(input.message)) {
     const assistantMessage = await repository.appendMessage({
       conversationId: conversation.id,
@@ -959,6 +988,34 @@ async function notifySlackForChatbotResponse(input: {
   }
 }
 
+async function notifySlackForChatbotEdit(input: {
+  notifier: typeof sendChatbotSlackNotification
+  requestId?: string
+  conversation: ChatbotConversation
+  edit: ChatbotEditSlackEvent
+}): Promise<void> {
+  const threadTs = input.conversation.context.slackThreadTs
+  if (!threadTs) return
+
+  try {
+    await input.notifier({
+      kind: "message-edit",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      threadTs,
+      editedMessage: {
+        ...(input.edit.previousSummary ? { previousSummary: input.edit.previousSummary } : {}),
+        nextMessage: input.edit.nextMessage,
+        truncatedFollowingMessages: input.edit.truncatedFollowingMessages,
+      },
+      pendingRequestKind: "edit",
+    })
+  } catch (error) {
+    console.warn("[chatbot slack edit notification failed]", error instanceof Error ? error.message : String(error))
+  }
+}
+
 function detectChatbotIssueReasons(tier: ChatbotLlmResponse["tier"]): string[] {
   switch (tier) {
     case "tier-3-gemini-flash":
@@ -976,6 +1033,25 @@ function findLastUserMessageIndex(messages: ChatbotMessage[]): number {
     if (messages[index].role === "user") return index
   }
   return -1
+}
+
+function buildEditSlackEvent(input: {
+  messages: ChatbotMessage[]
+  targetIndex: number
+  nextMessage: string
+}): ChatbotEditSlackEvent {
+  const targetMessage = input.messages[input.targetIndex]
+  return {
+    ...(targetMessage?.content ? { previousSummary: summarizeEditedMessageForSlack(targetMessage.content) } : {}),
+    nextMessage: input.nextMessage,
+    truncatedFollowingMessages: Math.max(0, input.messages.length - input.targetIndex - 1),
+  }
+}
+
+function summarizeEditedMessageForSlack(content: string): string {
+  const normalized = content.replace(/\s+/gu, " ").trim()
+  if (normalized.length <= 180) return normalized
+  return `${normalized.slice(0, 180)}...`
 }
 
 function isClientGeneratedMessageId(messageId: string): boolean {
@@ -1334,6 +1410,7 @@ function resetEditedConversationContext(
       sessionId: conversation.context.sessionId,
       ...(conversation.context.userId ? { userId: conversation.context.userId } : {}),
       ...(conversation.context.customerEmail ? { customerEmail: conversation.context.customerEmail } : {}),
+      ...(conversation.context.slackThreadTs ? { slackThreadTs: conversation.context.slackThreadTs } : {}),
     },
     messages,
   }

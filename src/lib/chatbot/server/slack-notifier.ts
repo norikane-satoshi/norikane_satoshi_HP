@@ -40,7 +40,7 @@ type ChatbotRetryAttemptSummary = {
 }
 
 export type ChatbotSlackNotificationInput = {
-  kind: "conversation" | "issue" | "booking-completed"
+  kind: "conversation" | "issue" | "booking-completed" | "message-edit"
   requestId?: string
   conversationId: string
   sessionId?: string
@@ -60,6 +60,11 @@ export type ChatbotSlackNotificationInput = {
   pendingRequestKind?: "message" | "edit"
   bookingGroupId?: string
   selectedSlotCount?: number
+  editedMessage?: {
+    previousSummary?: string
+    nextMessage: string
+    truncatedFollowingMessages: number
+  }
 }
 
 type SlackPostMessageResponse = {
@@ -146,6 +151,24 @@ function buildSlackText(input: ChatbotSlackNotificationInput): string {
       ...(input.bookingGroupId ? [`予約ID: ${input.bookingGroupId}`] : []),
       ...(typeof input.selectedSlotCount === "number" ? [`候補数: ${input.selectedSlotCount}件`] : []),
       ...(!isThreadReply ? formatTrackingLines(input) : []),
+    ]
+    return lines.join("\n")
+  }
+
+  if (input.kind === "message-edit") {
+    const lines = [
+      "ユーザーメッセージが編集されました",
+      ...(isThreadReply ? formatRequiredOperationLines(input) : formatTrackingLines(input)),
+      ...(input.editedMessage?.previousSummary
+        ? [`編集前の安全な要約: ${redactForChatbotLog(input.editedMessage.previousSummary)}`]
+        : []),
+      ...(input.editedMessage?.nextMessage
+        ? [`編集後メッセージ: ${redactForChatbotLog(input.editedMessage.nextMessage)}`]
+        : []),
+      ...(typeof input.editedMessage?.truncatedFollowingMessages === "number"
+        ? [`編集により切り捨てられた後続件数: ${input.editedMessage.truncatedFollowingMessages}`]
+        : []),
+      "ここから再生成",
     ]
     return lines.join("\n")
   }

@@ -1255,6 +1255,136 @@ describe("handleChatbotMessage user context", () => {
     ])
   })
 
+  it("posts an edit event and regenerated response into the stored Slack thread", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+        messages: [
+          { id: "user_1", role: "user", content: "古い相談 email client@example.com", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_1", role: "assistant", content: "古い回答", createdAt: "2026-05-26T00:00:01.000Z" },
+          { id: "user_2", role: "user", content: "後続相談", createdAt: "2026-05-26T00:00:02.000Z" },
+        ],
+      }),
+    })
+    harness.generate.mockResolvedValue({ rawText: "再生成後の返信です", tier: "tier-2-hosted-chrome-notion-ai" })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      {
+        requestId: "req_edit",
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "編集後の相談",
+        editTargetMessageId: "user_1",
+      },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      kind: "message-edit",
+      requestId: "req_edit",
+      conversationId: "conv_1",
+      sessionId: "session_1",
+      threadTs: "1700000000.000100",
+      pendingRequestKind: "edit",
+      editedMessage: {
+        previousSummary: "古い相談 email client@example.com",
+        nextMessage: "編集後の相談",
+        truncatedFollowingMessages: 2,
+      },
+    }))
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      kind: "conversation",
+      requestId: "req_edit",
+      conversationId: "conv_1",
+      sessionId: "session_1",
+      threadTs: "1700000000.000100",
+      userMessage: "編集後の相談",
+      assistantResponse: expect.any(String),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    }))
+    expect(harness.repository.updateConversationSlackThreadTs).not.toHaveBeenCalled()
+  })
+
+  it("keeps edited regeneration in the same Slack thread after stale server edit fallback", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+        messages: [
+          { id: "user_last", role: "user", content: "保存済み直近", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_last", role: "assistant", content: "保存済み回答", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+    harness.generate.mockResolvedValue({ rawText: "復元後の返信です", tier: "tier-2-hosted-chrome-notion-ai" })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "モバイルの古い編集再送",
+        editTargetMessageId: "user_missing_from_stale_local_storage",
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.truncateConversationFromMessage).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      messageId: "user_last",
+    })
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      kind: "message-edit",
+      threadTs: "1700000000.000100",
+      editedMessage: expect.objectContaining({
+        previousSummary: "保存済み直近",
+        nextMessage: "モバイルの古い編集再送",
+        truncatedFollowingMessages: 1,
+      }),
+    }))
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      kind: "conversation",
+      threadTs: "1700000000.000100",
+      userMessage: "モバイルの古い編集再送",
+      assistantResponse: "復元後の返信です",
+    }))
+  })
+
+  it("does not create a Slack parent post only for an edit event before a thread exists", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [
+          { id: "user_1", role: "user", content: "古い相談", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_1", role: "assistant", content: "古い回答", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+    harness.generate.mockResolvedValue({ rawText: "再生成後の返信です", tier: "tier-2-hosted-chrome-notion-ai" })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000100" })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "編集後の相談",
+        editTargetMessageId: "user_1",
+      },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenCalledTimes(1)
+    expect(harness.slackNotifier).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "conversation",
+      threadTs: undefined,
+      userMessage: "編集後の相談",
+      assistantResponse: expect.any(String),
+    }))
+    expect(harness.repository.updateConversationSlackThreadTs).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      slackThreadTs: "1700000000.000100",
+    })
+  })
+
   it("keeps the current conversation when a client edit id was never persisted", async () => {
     const harness = setup({
       existingConversation: conversation({
