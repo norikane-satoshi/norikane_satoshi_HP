@@ -275,15 +275,14 @@ describe("handleChatbotMessage user context", () => {
         harness.options,
       )
 
-      expect(result.assistantMessage.content).toContain("ドラマ / シリーズの尺・話数")
+      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
       expect(result.assistantMessage.content).not.toContain("ライブ")
-      expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "project-length" } })
-      expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).not.toContain("ライブ 60分前後")
+      expect(result.ui).toEqual({ kind: "none" })
       expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({ jobKind: "drama-first" })
       expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
         expect.objectContaining({
-          currentQuestion: dramaProjectLengthChoices.question,
-          activeChoices: dramaProjectLengthChoices,
+          currentQuestion: expect.stringContaining("ドラマ / シリーズとして整理しています"),
+          activeChoices: null,
           conversationState: expect.objectContaining({ hasJobKind: true, hasProjectLength: false }),
           jobContext: expect.objectContaining({ jobKind: "drama-first" }),
         }),
@@ -292,7 +291,7 @@ describe("handleChatbotMessage user context", () => {
         expect.stringContaining('"event":"project_type_choice_mismatch"'),
       )
       expect(consoleInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"reason":"raw-assistant-text-mismatch"'),
+        expect.stringContaining('"reason":"choice-set-context-mismatch"'),
       )
     } finally {
       consoleInfo.mockRestore()
@@ -389,6 +388,178 @@ describe("handleChatbotMessage user context", () => {
         activeChoices: expectedChoices,
       }),
     )
+  })
+
+  it.each([
+    [
+      "drama-first",
+      "ドラマ / シリーズでは、先にどの粒度を整理しますか？",
+      ["1話ごとの尺", "話数", "全体尺", "未定・相談したい"],
+    ],
+    [
+      "drama-first",
+      "シリーズ全体の規模感として、今わかる範囲を選んでください。",
+      ["1話尺だけ決まっている", "話数だけ決まっている", "全体尺が決まっている", "これから相談"],
+    ],
+  ] as const)("respects LLM-authored drama project-length panel: %s", async (jobKind, question, labels) => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "project-length",
+          question,
+          selectionMode: "single",
+          allowFreeText: true,
+          choices: labels.map((label, index) => ({ id: `drama-natural-${index + 1}`, label })),
+        },
+      }),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "ドラマ / シリーズです",
+        jobContext: {
+          jobKind,
+          finalMedium: "ott",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasJobKind: true,
+          hasProjectLength: false,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe(`${question}\n下の選択肢から選んでください。`)
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: {
+        id: "project-length",
+        question,
+        allowFreeText: true,
+      },
+    })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentQuestion: question,
+        activeChoices: expect.objectContaining({
+          id: "project-length",
+          question,
+          allowFreeText: true,
+        }),
+      }),
+    )
+  })
+
+  it.each([
+    ["live-60m", "ライブ全体の尺感はどれに近いですか？", ["60分前後", "90分前後", "2時間以上", "未定"]],
+    ["cm-30s", "CMは1本あたりの尺と本数、どちらが先に決まっていますか？", ["15秒", "30秒", "複数本", "未定"]],
+    ["mv-5m", "MVの尺やバージョン数はどれに近いですか？", ["3〜5分", "5〜10分", "複数バージョン", "未定"]],
+  ] as const)("respects LLM-authored project-length granularity for %s", async (jobKind, question, labels) => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "project-length",
+          question,
+          choices: labels.map((label, index) => ({ id: `${jobKind.replace(/[^a-z0-9]/g, "-")}-${index + 1}`, label })),
+        },
+      }),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "尺を相談したいです",
+        jobContext: {
+          jobKind,
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasJobKind: true,
+          hasProjectLength: false,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "project-length", question } })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+  })
+
+  it("does not silently replace an LLM-authored cross-context project-length panel", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "project-length",
+          question: "ライブ / 舞台収録の尺を選んでください",
+          choices: [
+            { id: "live-length-60m", label: "60分" },
+            { id: "live-length-90m", label: "90分" },
+            { id: "live-length-over-120m", label: "2時間以上" },
+          ],
+        },
+      }),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    try {
+      const result = await handleChatbotMessage(
+        {
+          requestId: "req_choice_mismatch",
+          sessionId: "session_1",
+          userId: "user_a",
+          message: "ドラマ / シリーズです",
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "ott",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasJobKind: true,
+            hasProjectLength: false,
+          },
+        },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
+      expect(result.assistantMessage.content).not.toContain("ライブ")
+      expect(result.ui).toEqual({ kind: "none" })
+      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeChoices: null,
+          currentQuestion: expect.stringContaining("ドラマ / シリーズとして整理しています"),
+        }),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"project_type_choice_mismatch"'),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"reason":"choice-set-context-mismatch"'),
+      )
+    } finally {
+      consoleInfo.mockRestore()
+    }
   })
 
   it("uses client user message ids for optimistic cancelled messages", async () => {

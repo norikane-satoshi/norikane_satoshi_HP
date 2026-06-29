@@ -641,9 +641,11 @@ function normalizeSurveyChoiceSet(value: unknown): SurveyChoiceSet | null {
   const question = candidate.question
   const choices = candidate.choices
   const selectionMode = candidate.selectionMode ?? "single"
+  const allowFreeText = candidate.allowFreeText
   const isValid =
     typeof id === "string" &&
     typeof question === "string" &&
+    (allowFreeText === undefined || typeof allowFreeText === "boolean") &&
     (selectionMode === "single" || selectionMode === "multiple") &&
     Array.isArray(choices) &&
     choices.every(
@@ -659,6 +661,7 @@ function normalizeSurveyChoiceSet(value: unknown): SurveyChoiceSet | null {
     id,
     question,
     selectionMode,
+    ...(allowFreeText === true ? { allowFreeText } : {}),
     choices,
   }
 }

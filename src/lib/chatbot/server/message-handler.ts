@@ -564,22 +564,8 @@ function enforceProjectTypeChoiceContract(input: {
     return routingDecision
   }
 
-  const expectedChoices = projectLengthChoicesForJobKind(jobKind)
   const hasRawTextMismatch = hasProjectTypeTextMismatch(input.rawAssistantText, jobKind)
-  if (isSameChoiceSetContract(routingDecision.presentChoices, expectedChoices) && routingDecision.nextQuestion === expectedChoices.question) {
-    if (hasRawTextMismatch) {
-      logProjectTypeChoiceMismatch({
-        requestId: input.requestId,
-        conversation: input.conversation,
-        tier: input.tier,
-        jobKind,
-        reason: "raw-assistant-text-mismatch",
-        receivedQuestion: input.rawAssistantText,
-        correctedQuestion: expectedChoices.question,
-        receivedChoiceLabels: routingDecision.presentChoices.choices.map((choice) => choice.label),
-        correctedChoiceLabels: expectedChoices.choices.map((choice) => choice.label),
-      })
-    }
+  if (!hasRawTextMismatch) {
     return routingDecision
   }
 
@@ -588,17 +574,32 @@ function enforceProjectTypeChoiceContract(input: {
     conversation: input.conversation,
     tier: input.tier,
     jobKind,
-    reason: "choice-set-mismatch",
+    reason: "choice-set-context-mismatch",
     receivedQuestion: routingDecision.nextQuestion,
-    correctedQuestion: expectedChoices.question,
+    correctedQuestion: buildProjectLengthRejudgmentQuestion(jobKind),
     receivedChoiceLabels: routingDecision.presentChoices.choices.map((choice) => choice.label),
-    correctedChoiceLabels: expectedChoices.choices.map((choice) => choice.label),
+    correctedChoiceLabels: [],
   })
 
   return {
-    ...routingDecision,
-    nextQuestion: expectedChoices.question,
-    presentChoices: expectedChoices,
+    kind: "continue",
+    nextQuestion: buildProjectLengthRejudgmentQuestion(jobKind),
+  }
+}
+
+function buildProjectLengthRejudgmentQuestion(jobKind: NonNullable<JobContext["jobKind"]>): string {
+  switch (jobKind) {
+    case "drama-first":
+    case "drama-follow-up":
+      return "ドラマ / シリーズとして整理しています。1話の尺、話数、全体尺のどれから確認するのが近いですか？"
+    case "live-60m":
+      return "ライブ / 舞台収録として整理しています。収録全体の尺か、曲数・パート数のどちらから確認するのが近いですか？"
+    case "cm-30s":
+      return "Web CM / CM として整理しています。1本あたりの尺か、本数・バリエーションのどちらから確認するのが近いですか？"
+    case "mv-5m":
+      return "MV / 音楽映像として整理しています。楽曲尺か、複数バージョンの有無のどちらから確認するのが近いですか？"
+    default:
+      return "案件内容に合わせて、次に確認すべき尺・分量の粒度をもう少し教えてください。"
   }
 }
 
@@ -653,20 +654,12 @@ function resolveStoredOrHistoricalJobKind(conversation: ChatbotConversation): Jo
     .jobKind
 }
 
-function isSameChoiceSetContract(left: SurveyChoiceSet, right: SurveyChoiceSet): boolean {
-  if (left.id !== right.id || left.question !== right.question || left.choices.length !== right.choices.length) return false
-  return left.choices.every((choice, index) => {
-    const other = right.choices[index]
-    return choice.id === other?.id && choice.label === other.label
-  })
-}
-
 function logProjectTypeChoiceMismatch(input: {
   requestId?: string
   conversation: ChatbotConversation
   tier: ChatbotLlmTier
   jobKind: JobContext["jobKind"]
-  reason: "choice-set-mismatch" | "raw-assistant-text-mismatch"
+  reason: "choice-set-context-mismatch"
   receivedQuestion: string
   correctedQuestion: string
   receivedChoiceLabels: string[]
@@ -1199,6 +1192,10 @@ function buildChatbotSystemPrompt(
     "あなたは単なる受付フォームではなく、お客様、則兼、のーちゃんの3人チームでいい作品を作るために伴走する事務担当です。",
     "事務担当として確認漏れ、不安、伝え忘れを減らし、ユーザーの考える量を増やさず次にすることを1つずつ案内します。",
     "案件整理では複数項目を文章で一気に聞かず、選べる項目は choice-panel の1項目ずつで確認します。その他を選んだ自由入力は補足として保持し、勝手に近い既存分類へ潰しません。",
+    'choice-panel を出す時は、本文に {"tool":"show_choice_panel","args":{"id":"project-length","question":"...","selectionMode":"single","allowFreeText":true,"choices":[{"id":"...","label":"..."}]}} を1個だけ含めます。',
+    "choice-panel の id は job-kind / project-length / final-medium / additional-work / documentary-attachment / work-site / production-options のいずれかを使います。",
+    "案件種別ごとの候補表は例と安全網です。最終的な質問文、選択肢粒度、複数選択可否、自由入力有無は、会話全体、確定済み facts、未確定 facts、ユーザーの言い方から自然に判断します。",
+    "ドラマ / シリーズ、ライブ、Web CM、MV の尺確認では、固定順や固定候補表に縛られず、会話に合う粒度を選びます。ただし別文脈の選択肢を混ぜません。",
     "現在確認している1項目について、会話文脈、選択済み項目、自由入力、未確認項目から次へ進めるほど明確かを判断します。疑問が残る場合は同じ項目について確認を1問だけ返し、十分明確なら過剰確認せず次へ進みます。",
     "明確でないが未定として扱える回答は未定として保持し、後段の相談、最終確認、予約可否判断で扱います。",
     "勝手に予約確定、料金判断、実施可否判断、本人判断が必要な確約はしません。",
@@ -1321,7 +1318,7 @@ function buildAssistantDisplayContent(input: {
   singleUserPromptGuard: SingleUserPromptGuardReport
 } {
   const text = input.rawText.trim()
-  const toolFreeText = stripShowBookingCardToolCall(text).trim()
+  const toolFreeText = stripStructuredToolCalls(text).trim()
   const sanitize = (content: string) => {
     const result = sanitizeChatbotLlmTextWithReport(content, {
       routingDecision: input.routingDecision,
@@ -1349,6 +1346,17 @@ function buildAssistantDisplayContent(input: {
 
   if (input.routingDecision?.kind === "to-booking-inline" && toolFreeText.length === 0) {
     return withGuardReport(sanitize("候補日を確認しました。"))
+  }
+  if (input.routingDecision?.kind === "continue" && toolFreeText.length === 0) {
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion))
+  }
+  if (
+    input.routingDecision?.kind === "continue" &&
+    !input.routingDecision.presentChoices &&
+    input.jobContext.jobKind &&
+    hasProjectTypeTextMismatch(text, input.jobContext.jobKind)
+  ) {
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion))
   }
   if (toolFreeText !== text) return withGuardReport(sanitize(toolFreeText))
   if (!isBackendIdentityOnlyResponse(text)) return withGuardReport(sanitize(text))
@@ -1727,6 +1735,7 @@ async function resolveRoutingDecision(input: {
 }): Promise<RoutingDecision | undefined> {
   if (input.llmResponse.tier === "tier-4-form-fallback") return input.fallbackRoutingDecision
   const toolCall = parseShowBookingCardToolCall(input.llmResponse.rawText)
+  const choicePanelToolCall = parseShowChoicePanelToolCall(input.llmResponse.rawText)
   const submittedBooking = getSubmittedBooking(input.conversationState)
   if (submittedBooking && (toolCall || input.fallbackRoutingDecision.kind !== "continue")) {
     return {
@@ -1775,6 +1784,15 @@ async function resolveRoutingDecision(input: {
     return input.fallbackRoutingDecision
   }
   if (isLectureTrainingInquiry(input.conversationState)) return input.fallbackRoutingDecision
+
+  if (choicePanelToolCall) {
+    return resolveLlmChoicePanelRoutingDecision({
+      toolCall: choicePanelToolCall,
+      fallbackRoutingDecision: input.fallbackRoutingDecision,
+      conversationState: input.conversationState,
+      jobContext: input.jobContext,
+    })
+  }
 
   if (!input.jobContext.jobKind) return undefined
   if (!toolCall) {
@@ -1911,6 +1929,92 @@ function normalizeCandidateCalendarResult(
   return Array.isArray(result) ? { candidates: result, busyDateKeys: [] } : result
 }
 
+type ShowChoicePanelToolCall = {
+  tool: "show_choice_panel"
+  args: SurveyChoiceSet
+}
+
+const llmChoicePanelIds = new Set([
+  "job-kind",
+  "project-length",
+  "final-medium",
+  "additional-work",
+  "documentary-attachment",
+  "work-site",
+  "production-options",
+])
+
+function resolveLlmChoicePanelRoutingDecision(input: {
+  toolCall: ShowChoicePanelToolCall
+  fallbackRoutingDecision: RoutingDecision
+  conversationState: ConversationState
+  jobContext: JobContext
+}): RoutingDecision | undefined {
+  const fallback = input.fallbackRoutingDecision
+  if (fallback.kind !== "continue") return undefined
+
+  const choiceSet = input.toolCall.args
+  const fallbackChoiceSetId = fallback.presentChoices?.id
+  if (fallbackChoiceSetId && choiceSet.id !== fallbackChoiceSetId) return undefined
+  if (isSatisfiedChoicePanel(choiceSet, input.conversationState)) return undefined
+
+  return {
+    kind: "continue",
+    nextQuestion: choiceSet.question,
+    presentChoices: choiceSet,
+  }
+}
+
+function parseShowChoicePanelToolCall(text: string): ShowChoicePanelToolCall | undefined {
+  for (const candidate of extractJsonObjectCandidates(text)) {
+    const parsed = parseJson(candidate)
+    if (!isRecord(parsed) || parsed.tool !== "show_choice_panel" || !isRecord(parsed.args)) continue
+
+    const choiceSet = normalizeLlmChoiceSet(parsed.args)
+    if (!choiceSet) continue
+    return {
+      tool: "show_choice_panel",
+      args: choiceSet,
+    }
+  }
+
+  return undefined
+}
+
+function normalizeLlmChoiceSet(value: Record<string, unknown>): SurveyChoiceSet | undefined {
+  const id = optionalString(value.id)
+  const question = optionalString(value.question)
+  const choices = Array.isArray(value.choices)
+    ? value.choices
+        .map(normalizeLlmChoice)
+        .filter((choice): choice is NonNullable<ReturnType<typeof normalizeLlmChoice>> => Boolean(choice))
+    : []
+  const selectionMode = optionalString(value.selectionMode)
+  const allowFreeText = value.allowFreeText
+
+  if (!id || !llmChoicePanelIds.has(id)) return undefined
+  if (!question || question.length > 140) return undefined
+  if (choices.length < 2 || choices.length > 8) return undefined
+
+  return {
+    id,
+    question,
+    choices,
+    ...(selectionMode === "multiple" ? { selectionMode: "multiple" } : {}),
+    ...(allowFreeText === true ? { allowFreeText: true } : {}),
+  }
+}
+
+function normalizeLlmChoice(value: unknown): SurveyChoiceSet["choices"][number] | undefined {
+  if (!isRecord(value)) return undefined
+  const id = optionalString(value.id)
+  const label = optionalString(value.label)
+  if (!id || !label) return undefined
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(id)) return undefined
+  if (label.length > 80) return undefined
+  return { id, label }
+}
+
 type ShowBookingCardToolCall = {
   tool: "show_booking_card"
   args: BookingCardPrefill
@@ -1937,10 +2041,10 @@ function parseShowBookingCardToolCall(text: string): ShowBookingCardToolCall | u
   return undefined
 }
 
-function stripShowBookingCardToolCall(text: string): string {
+function stripStructuredToolCalls(text: string): string {
   let next = text
   for (const candidate of extractJsonObjectCandidates(text)) {
-    if (parseShowBookingCardToolCall(candidate)) {
+    if (parseShowBookingCardToolCall(candidate) || parseShowChoicePanelToolCall(candidate)) {
       next = next.replace(candidate, "")
     }
   }

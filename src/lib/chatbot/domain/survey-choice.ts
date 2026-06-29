@@ -10,6 +10,7 @@ export type SurveyChoiceSet = {
   question: string
   choices: SurveyChoice[]
   selectionMode?: "single" | "multiple"
+  allowFreeText?: boolean
 }
 
 export const SATOSHI_STUDIO_AVAILABLE_FROM_JST = "2026-09-15T00:00:00+09:00"
