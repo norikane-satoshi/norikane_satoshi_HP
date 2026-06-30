@@ -118,6 +118,16 @@ export function LiffBookingEntry({ monthSkeleton, isCalendarAdmin }: LiffBooking
             LINE 連携を確認しています
           </div>
         ) : null}
+        {state.status === "skipped" ? (
+          <div className="glass-inset mb-6 p-4 text-sm text-hp-muted" role="status">
+            LINE LIFF ID が未設定のため、ローカル確認用の表示で開いています。
+          </div>
+        ) : null}
+        {state.status === "ready" && !state.inClient ? (
+          <div className="glass-inset mb-6 p-4 text-sm text-hp-muted" role="status">
+            LINE アプリ外の確認表示です。通常ログイン画面へ自動遷移せず、この画面で表示を確認できます。
+          </div>
+        ) : null}
         {state.status === "error" ? (
           <div className="glass-inset mb-6 p-4 text-sm text-hp-muted" role="status">
             LINE 連携を確認できませんでした。予約カレンダーは通常表示で続行できます。
@@ -128,6 +138,7 @@ export function LiffBookingEntry({ monthSkeleton, isCalendarAdmin }: LiffBooking
           entryPoint="line_liff"
           isCalendarAdmin={isCalendarAdmin}
           monthSkeleton={monthSkeleton}
+          redirectUnauthenticated={false}
         />
       </div>
     </section>
