@@ -9,6 +9,7 @@ const slotSchema = z.object({
 
 export const bookingApiSchema = bookingFormSchema
   .extend({
+    entryPoint: z.enum(["web", "line_liff"]).optional(),
     teamId: z.string().min(1).nullable().optional(),
     selectedSlots: z.array(slotSchema).min(1, "予約日時を選択してください"),
   })

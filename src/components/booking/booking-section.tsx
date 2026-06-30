@@ -29,6 +29,7 @@ type BookingSectionProps = {
   initialBookings?: CalendarBookingFromApi[]
   initialRange?: { start: string; end: string }
   monthSkeleton?: ReactNode
+  entryPoint?: "web" | "line_liff"
 }
 
 type TeamOption = {
@@ -92,6 +93,7 @@ export function BookingSection({
   initialBookings = [],
   initialRange,
   monthSkeleton,
+  entryPoint = "web",
 }: BookingSectionProps) {
   const defaultFormData = useMemo(() => createDefaultBookingFormData(userEmail), [userEmail])
   const [step, setStep] = useState<BookingStep>("calendar")
@@ -247,6 +249,7 @@ export function BookingSection({
         },
         body: JSON.stringify({
           ...formData,
+          entryPoint,
           teamId: selectedTeamId,
           selectedSlots,
         }),

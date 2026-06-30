@@ -10,6 +10,7 @@ import { z } from "zod"
 import authConfig from "@/auth.config"
 import { MAGIC_LINK_PROVIDER_ID } from "@/lib/auth/provider-ids"
 import { sendMagicLinkEmail } from "@/lib/auth/server/email"
+import { getLineLoginChannelId, getLineLoginChannelSecret } from "@/lib/line/env"
 import { prisma } from "@/lib/prisma"
 import { getTokenVersion } from "@/lib/auth/server/token-version-cache"
 
@@ -83,8 +84,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.AUTH_TWITTER_SECRET!,
     }),
     Line({
-      clientId: process.env.AUTH_LINE_ID!,
-      clientSecret: process.env.AUTH_LINE_SECRET!,
+      clientId: getLineLoginChannelId(),
+      clientSecret: getLineLoginChannelSecret(),
       authorization: { params: { scope: "profile openid" } },
     }),
     Resend({

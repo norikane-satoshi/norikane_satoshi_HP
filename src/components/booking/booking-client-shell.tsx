@@ -14,9 +14,22 @@ type SessionPayload = {
 type BookingClientShellProps = {
   monthSkeleton: ReactNode
   isCalendarAdmin: boolean
+  callbackUrl?: string
+  entryPoint?: "web" | "line_liff"
+  redirectUnauthenticated?: boolean
 }
 
-export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingClientShellProps) {
+export function shouldRedirectUnauthenticated(loaded: boolean, userId: string | undefined, redirectUnauthenticated: boolean) {
+  return loaded && !userId && redirectUnauthenticated
+}
+
+export function BookingClientShell({
+  monthSkeleton,
+  isCalendarAdmin,
+  callbackUrl = "/booking",
+  entryPoint = "web",
+  redirectUnauthenticated = true,
+}: BookingClientShellProps) {
   const [session, setSession] = useState<SessionPayload | null>(null)
   const [loaded, setLoaded] = useState(false)
 
@@ -42,10 +55,10 @@ export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingCl
   const userId = session?.user?.id
 
   useEffect(() => {
-    if (loaded && !userId) {
-      window.location.href = "/login?callbackUrl=/booking"
+    if (shouldRedirectUnauthenticated(loaded, userId, redirectUnauthenticated)) {
+      window.location.href = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
     }
-  }, [loaded, userId])
+  }, [callbackUrl, loaded, redirectUnauthenticated, userId])
 
   if (!loaded) return monthSkeleton
 
@@ -58,6 +71,7 @@ export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingCl
       userId={userId}
       userEmail={session.user?.email ?? ""}
       isCalendarAdmin={isCalendarAdmin}
+      entryPoint={entryPoint}
       monthSkeleton={monthSkeleton}
     />
   )
