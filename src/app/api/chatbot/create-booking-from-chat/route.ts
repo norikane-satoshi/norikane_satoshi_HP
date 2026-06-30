@@ -278,6 +278,7 @@ export async function POST(request: NextRequest) {
     const result = await createBookingFromApiInput({
       input,
       notionTaskType: "仮押さえ",
+      originatedFrom: "chatbot",
       userId,
       userEmail,
     })

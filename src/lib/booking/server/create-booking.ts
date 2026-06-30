@@ -24,6 +24,7 @@ export type CreateBookingResult = {
 type CreateBookingFromApiInputArgs = {
   input: BookingApiInput
   notionTaskType?: CalendarEventWriteInput["notionTaskType"]
+  originatedFrom?: "web" | "line_liff" | "chatbot"
   userId: string
   userEmail: string
 }
@@ -108,6 +109,7 @@ function wait(ms: number) {
 export async function createBookingFromApiInput({
   input,
   notionTaskType,
+  originatedFrom,
   userId,
   userEmail,
 }: CreateBookingFromApiInputArgs): Promise<CreateBookingResult> {
@@ -162,6 +164,7 @@ export async function createBookingFromApiInput({
         customerEmail: userEmail,
         phone: nullable(input.phone),
         dueDate: nullable(input.dueDate),
+        originatedFrom: originatedFrom ?? input.entryPoint ?? "web",
         timeSlots: {
           create: slots.map((slot) => ({
             startTime: new Date(slot.start),

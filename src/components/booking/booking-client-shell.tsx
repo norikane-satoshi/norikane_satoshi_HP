@@ -14,9 +14,16 @@ type SessionPayload = {
 type BookingClientShellProps = {
   monthSkeleton: ReactNode
   isCalendarAdmin: boolean
+  callbackUrl?: string
+  entryPoint?: "web" | "line_liff"
 }
 
-export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingClientShellProps) {
+export function BookingClientShell({
+  monthSkeleton,
+  isCalendarAdmin,
+  callbackUrl = "/booking",
+  entryPoint = "web",
+}: BookingClientShellProps) {
   const [session, setSession] = useState<SessionPayload | null>(null)
   const [loaded, setLoaded] = useState(false)
 
@@ -43,9 +50,9 @@ export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingCl
 
   useEffect(() => {
     if (loaded && !userId) {
-      window.location.href = "/login?callbackUrl=/booking"
+      window.location.href = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
     }
-  }, [loaded, userId])
+  }, [callbackUrl, loaded, userId])
 
   if (!loaded) return monthSkeleton
 
@@ -58,6 +65,7 @@ export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingCl
       userId={userId}
       userEmail={session.user?.email ?? ""}
       isCalendarAdmin={isCalendarAdmin}
+      entryPoint={entryPoint}
       monthSkeleton={monthSkeleton}
     />
   )
