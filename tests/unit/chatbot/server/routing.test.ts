@@ -63,6 +63,11 @@ describe("chatbot fallback router", () => {
       kind: "continue",
       presentChoices: jobKindChoices,
     })
+    expect(result.kind).toBe("continue")
+    if (result.kind !== "continue") return
+    const labels = result.presentChoices?.choices.map((choice) => choice.label) ?? []
+    expect(labels).not.toContain("カラーグレーディング相談")
+    expect(labels).not.toContain("カラーコレクション相談")
   })
 
   it("continues with final medium choices when final medium is missing", () => {

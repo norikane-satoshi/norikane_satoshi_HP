@@ -140,18 +140,19 @@ export function applyActiveChoiceAnswer(input: {
         jobContext: { workSite: toWorkSite(choice.id) },
       }
     case "lecture-training-content":
+      const normalizedLectureTrainingChoices = normalizeLectureTrainingContentChoices(choices)
       return {
         choiceSetId: activeChoices.id,
-        choiceId: choice.id,
-        choiceIds: choices.map((item) => item.id),
+        choiceId: normalizedLectureTrainingChoices[0]?.id ?? choice.id,
+        choiceIds: normalizedLectureTrainingChoices.map((item) => item.id),
         conversationState: {
           requestKind: "lecture-training",
           hasLectureTrainingIntent: true,
           hasLectureTrainingContent: true,
           requiresNorikaneConfirmation: true,
           lectureTrainingInquiry: {
-            content: choices
-              .map((item) => labelChoice(activeChoices, item.id))
+            content: normalizedLectureTrainingChoices
+              .map((item) => item.label)
               .join(" / "),
           },
           ...otherCommentPatch,
@@ -598,6 +599,23 @@ function applyJobKindChoice(
   choice: SurveyChoice,
   otherCommentPatch: Pick<ConversationState, "otherChoiceComments"> | Record<string, never>,
 ): ChoicePanelPatch {
+  if (choice.id === "grading-consultation" || choice.id === "correction-consultation") {
+    return {
+      choiceSetId: choiceSet.id,
+      choiceId: "grading-consultation",
+      choiceIds: ["grading-consultation"],
+      conversationState: {
+        hasJobKind: true,
+        ...otherCommentPatch,
+        otherChoiceComments: {
+          ...otherCommentPatch.otherChoiceComments,
+          [choiceSet.id]: "カラーグレーディング相談",
+        },
+      },
+      jobContext: {},
+    }
+  }
+
   if (choice.id === "lecture-training") {
     return {
       choiceSetId: choiceSet.id,
@@ -639,6 +657,15 @@ function toKnownJobKind(choiceId: string): JobKind | undefined {
     return choiceId
   }
   return undefined
+}
+
+function normalizeLectureTrainingContentChoices(choices: SurveyChoice[]): SurveyChoice[] {
+  const normalizedChoices = choices.map((choice) =>
+    choice.id === "correction" ? { id: "grading", label: "カラーグレーディング" } : choice,
+  )
+  return normalizedChoices.filter(
+    (choice, index, items) => items.findIndex((item) => item.id === choice.id) === index,
+  )
 }
 
 function toProjectLengthJobContext(choiceId: string): Partial<JobContext> {

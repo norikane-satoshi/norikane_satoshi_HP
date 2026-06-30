@@ -2487,11 +2487,12 @@ function logChoicePanelTextFallbackDetected(input: {
 function normalizeLlmChoiceSet(value: Record<string, unknown>): SurveyChoiceSet | undefined {
   const id = optionalString(value.id)
   const question = optionalString(value.question)
-  const choices = Array.isArray(value.choices)
+  const rawChoices = Array.isArray(value.choices)
     ? value.choices
         .map(normalizeLlmChoice)
         .filter((choice): choice is NonNullable<ReturnType<typeof normalizeLlmChoice>> => Boolean(choice))
     : []
+  const choices = normalizeCustomerFacingLlmChoices(id, rawChoices)
   const selectionMode = optionalString(value.selectionMode)
   const allowFreeText = value.allowFreeText
 
@@ -2506,6 +2507,22 @@ function normalizeLlmChoiceSet(value: Record<string, unknown>): SurveyChoiceSet 
     ...(selectionMode === "multiple" ? { selectionMode: "multiple" } : {}),
     ...(allowFreeText === true ? { allowFreeText: true } : {}),
   }
+}
+
+function normalizeCustomerFacingLlmChoices(
+  choiceSetId: string | undefined,
+  choices: SurveyChoiceSet["choices"],
+): SurveyChoiceSet["choices"] {
+  if (choiceSetId !== "job-kind") return choices
+  return choices.filter((choice) => !isCustomerFacingColorWorkClassification(choice))
+}
+
+function isCustomerFacingColorWorkClassification(choice: SurveyChoiceSet["choices"][number]): boolean {
+  const id = choice.id.normalize("NFKC").toLowerCase()
+  const label = choice.label.normalize("NFKC")
+  if (id === "grading-consultation" || id === "correction-consultation") return true
+  if (label === "カラーグレーディング相談" || label === "カラーコレクション相談") return true
+  return false
 }
 
 function normalizeLlmChoice(value: unknown): SurveyChoiceSet["choices"][number] | undefined {

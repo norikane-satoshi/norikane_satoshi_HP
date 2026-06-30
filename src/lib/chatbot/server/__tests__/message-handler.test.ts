@@ -1226,6 +1226,40 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.generate).toHaveBeenCalledOnce()
   })
 
+  it("falls back to the intake contract when the LLM returns split color work job-kind choices", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "job-kind",
+          question: "作業内容を選んでください",
+          choices: [
+            { id: "grading-consultation", label: "カラーグレーディング相談" },
+            { id: "correction-consultation", label: "カラーコレクション相談" },
+          ],
+        },
+      }),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "カラーまわりの相談です" },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe("まず案件種別を選んでください\n下の選択肢から選んでください。")
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: jobKindChoices.id } })
+    const labels = result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []
+    expect(labels).not.toContain("カラーグレーディング相談")
+    expect(labels).not.toContain("カラーコレクション相談")
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: expect.objectContaining({ id: "job-kind" }),
+      }),
+    )
+  })
+
   it("truncates an edited server-side user message before regenerating the reply", async () => {
     const harness = setup({
       existingConversation: conversation({
