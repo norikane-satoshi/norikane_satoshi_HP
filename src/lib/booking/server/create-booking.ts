@@ -1,5 +1,6 @@
 import type { BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { resolveConflictForFinalSubmit } from "@/lib/booking/domain/conflicts"
+import { formatBookingDateRange } from "@/lib/booking/domain/form-schema"
 import { invalidateCalendarFreeBusyCacheForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
 import { findConflictingBookings } from "@/lib/booking/server/conflicts"
 import { BookingConflictError } from "@/lib/booking/server/errors"
@@ -36,7 +37,7 @@ function nullable(value: string): string | null {
 
 function createDescription(input: BookingApiInput): string {
   return [
-    ["候補日", input.selectedSlots.length > 0 ? input.selectedSlots.map((slot) => `${slot.start} - ${slot.end}`).join(" / ") : "候補日未選択"],
+    ["候補日", getScheduleLabel(input)],
     ["案件名", input.projectTitle],
     ["納期", input.dueDate],
     ["会社名", input.companyName],
@@ -58,11 +59,19 @@ function createBookingEmailArgs(input: BookingApiInput, to: string, bookingGroup
     to,
     projectTitle: input.projectTitle,
     selectedSlots: input.selectedSlots,
+    requestedDateRange: input.requestedDateRange,
     bookingGroupId,
     workScopes: [],
     otherWorkDetail: input.memo,
     estimatedDuration: "consult",
   }
+}
+
+function getScheduleLabel(input: BookingApiInput): string {
+  if (input.selectedSlots.length > 0) {
+    return input.selectedSlots.map((slot) => `${slot.start} - ${slot.end}`).join(" / ")
+  }
+  return input.requestedDateRange ? formatBookingDateRange(input.requestedDateRange) : "候補日未選択"
 }
 
 async function warnOnEmailFailure(task: Promise<unknown>, tag: string, to: string) {
@@ -116,9 +125,10 @@ export async function createBookingFromApiInput({
   const slots = input.selectedSlots
   const primarySlot = slots[0]
   const hasSelectedSlots = slots.length > 0
+  const scheduleLabel = getScheduleLabel(input)
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   const teamId = input.teamId ?? null
-  const storedMemo = [input.memo, hasSelectedSlots ? undefined : "候補日未選択"]
+  const storedMemo = [input.memo, hasSelectedSlots ? undefined : `相談希望日: ${scheduleLabel}`]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
     .join("\n")
@@ -192,7 +202,7 @@ export async function createBookingFromApiInput({
         bookingIds,
         bookingStatus: "NEEDS_SCHEDULE",
         scheduleStatus: "unscheduled",
-        scheduleLabel: "候補日未選択",
+        scheduleLabel,
       },
       status: 200,
     }

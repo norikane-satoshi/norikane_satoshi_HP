@@ -31,7 +31,7 @@ import { signOut } from "next-auth/react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
 import { getHolidayName } from "@/lib/booking/domain/holidays"
-import type { BookingSlot } from "@/lib/booking/domain/form-schema"
+import { formatBookingDateRange, getBookingDateRangeDayCount, type BookingDateRange, type BookingSlot } from "@/lib/booking/domain/form-schema"
 
 type TeamOption = {
   id: string
@@ -553,61 +553,13 @@ type BookingCalendarProps = {
   resetRequestKey?: number
   remoteRefreshRequestKey?: number
   focusSlot?: BookingSlot | null
+  initialDateRange?: BookingDateRange | null
   teams?: TeamOption[]
   selectedTeamId?: string | null
   onSelectedTeamIdChange?: (teamId: string | null) => void
   monthSkeleton?: ReactNode
-  onCommit: (slots: { start: string; end: string }[]) => void
+  onCommit: (input: { slots: { start: string; end: string }[]; requestedDateRange?: BookingDateRange | null }) => void
   onCodeChange?: (code: string | null) => void
-}
-
-type MonthSlotCandidate = {
-  start: string
-  end: string
-  label: string
-  reason: string | null
-}
-
-type BlockingSnapshot = {
-  busy: BusySlot[]
-  bookings: BookingFromApi[]
-}
-
-function getBlockedRangeReasonFromSnapshot(
-  start: Date,
-  end: Date,
-  snapshot: BlockingSnapshot,
-): string | null {
-  if (!hasMinimumSelectionDuration(start, end)) {
-    return "30分以上の空き時間を選んでください。"
-  }
-  for (const slot of snapshot.busy) {
-    if (rangesOverlap(start, end, slot.start, slot.end)) {
-      return "この時間は既存予定があるため選べません。"
-    }
-  }
-  for (const booking of snapshot.bookings) {
-    if (rangesOverlap(start, end, booking.start, booking.end)) {
-      return "この時間は既存予定があるため選べません。"
-    }
-  }
-  for (const slot of snapshot.busy) {
-    const { before, after } = resolveBusyBufferHours(slot)
-    const bufferStart = new Date(new Date(slot.start).getTime() - toBufferMs(before)).toISOString()
-    const bufferEnd = new Date(new Date(slot.end).getTime() + toBufferMs(after)).toISOString()
-    if (rangesOverlap(start, end, bufferStart, bufferEnd)) {
-      return "この時間は予約前後の保護時間のため選べません。"
-    }
-  }
-  for (const booking of snapshot.bookings) {
-    if (booking.status !== "CONFIRMED") continue
-    const bufferStart = new Date(new Date(booking.start).getTime() - toBufferMs(booking.bufferBeforeHours)).toISOString()
-    const bufferEnd = new Date(new Date(booking.end).getTime() + toBufferMs(booking.bufferAfterHours)).toISOString()
-    if (rangesOverlap(start, end, bufferStart, bufferEnd)) {
-      return "この時間は予約前後の保護時間のため選べません。"
-    }
-  }
-  return null
 }
 
 export function BookingCalendar({
@@ -624,6 +576,7 @@ export function BookingCalendar({
   resetRequestKey = 0,
   remoteRefreshRequestKey = 0,
   focusSlot = null,
+  initialDateRange = null,
   teams = [],
   selectedTeamId = null,
   onSelectedTeamIdChange,
@@ -636,13 +589,11 @@ export function BookingCalendar({
   const [isMonthSkeletonMounted, setIsMonthSkeletonMounted] = useState(() => Boolean(monthSkeleton))
   const [isMonthSkeletonFading, setIsMonthSkeletonFading] = useState(false)
   const [selectedMonthDate, setSelectedMonthDate] = useState<string | null>(() => {
+    if (initialDateRange) return initialDateRange.startDate
     const firstSlot = initialSlots[0]
     return firstSlot ? toDateKey(new Date(firstSlot.start)) : null
   })
-  const [monthBlockingSnapshot, setMonthBlockingSnapshot] = useState<BlockingSnapshot>({
-    busy: initialBusy,
-    bookings: initialBookings,
-  })
+  const [selectedDateRange, setSelectedDateRange] = useState<BookingDateRange | null>(initialDateRange)
   const [modeKind, setModeKind] = useState<ModeKind>("normal")
   const [adjustingGroupId, setAdjustingGroupId] = useState<string | null>(null)
   const [adjustingTitle, setAdjustingTitle] = useState<string | null>(null)
@@ -1035,7 +986,6 @@ export function BookingCalendar({
     }
     fullCalendarEventsSettledRef.current = true
     markFullCalendarReadyIfSettled()
-    setMonthBlockingSnapshot({ busy: data.busy ?? [], bookings: data.bookings ?? [] })
     return [...busyEvents, ...bookingEvents, ...bufferEvents]
   }, [
     adjustingGroupId,
@@ -1510,54 +1460,22 @@ export function BookingCalendar({
     )
   }, [overlapsBlockedEvent, overlapsConfirmedBufferZone])
 
-  const monthSlotCandidates = useMemo<MonthSlotCandidate[]>(() => {
-    if (!selectedMonthDate) return []
-    const candidates: MonthSlotCandidate[] = []
-    const stepMinutes = MIN_SELECTION_MS / 60000
-
-    for (let minutes = BASE_SLOT_MIN_MINUTES; minutes + stepMinutes <= BASE_SLOT_MAX_MINUTES; minutes += stepMinutes) {
-      const start = parseDateTimeSlot(selectedMonthDate, formatTimeMinutes(minutes))
-      if (!start) continue
-      const end = new Date(start.getTime() + MIN_SELECTION_MS)
-      const reason = getBlockedRangeReasonFromSnapshot(start, end, monthBlockingSnapshot)
-      candidates.push({
-        start: start.toISOString(),
-        end: end.toISOString(),
-        label: `${format(start, "HH:mm")} - ${format(end, "HH:mm")}`,
-        reason,
-      })
-    }
-
-    return candidates
-  }, [monthBlockingSnapshot, selectedMonthDate])
-
-  const selectedMonthLabel = useMemo(() => {
-    if (!selectedMonthDate) return null
-    const date = parseDateTimeSlot(selectedMonthDate, "00:00:00")
-    return date ? format(date, "M月d日") : selectedMonthDate
-  }, [selectedMonthDate])
+  const selectedDateRangeLabel = selectedDateRange ? formatBookingDateRange(selectedDateRange) : null
 
   const selectMonthDate = useCallback((date: Date) => {
     const dateKey = toDateKey(date)
     selectedViewRef.current = "dayGridMonth"
     setView("dayGridMonth")
     setSelectedMonthDate(dateKey)
+    setSelectedDateRange((current) => {
+      if (!current || current.startDate !== current.endDate) return { startDate: dateKey, endDate: dateKey }
+      const [startDate, endDate] = [current.startDate, dateKey].sort()
+      return { startDate, endDate }
+    })
     setActionError(null)
     setActionPanelPosition(null)
     calendarRef.current?.getApi().changeView("dayGridMonth", dateKey)
   }, [])
-
-  const createDraftFromMonthCandidate = useCallback((candidate: MonthSlotCandidate) => {
-    if (candidate.reason) {
-      setActionError(candidate.reason)
-      return
-    }
-    const start = new Date(candidate.start)
-    const end = new Date(candidate.end)
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
-    setSelectedMonthDate(toDateKey(start))
-    createDraftFromRange(start, end)
-  }, [createDraftFromRange])
 
   const handleEventAllow = useCallback<AllowFunc>((span, movingEvent) => {
     const props = movingEvent?.extendedProps as AnyEventProps | undefined
@@ -1804,6 +1722,14 @@ export function BookingCalendar({
     if (day === 0 || day === 6) classes.push("booking-calendar__weekend")
     if (getHolidayName(arg.date)) classes.push("booking-calendar__holiday")
     if (selectedMonthDate === toDateKey(arg.date)) classes.push("booking-calendar__selected-day")
+    if (selectedDateRange) {
+      const dateKey = toDateKey(arg.date)
+      if (dateKey >= selectedDateRange.startDate && dateKey <= selectedDateRange.endDate) {
+        classes.push("booking-calendar__selected-range")
+      }
+      if (dateKey === selectedDateRange.startDate) classes.push("booking-calendar__selected-range-start")
+      if (dateKey === selectedDateRange.endDate) classes.push("booking-calendar__selected-range-end")
+    }
     return classes
   }
 
@@ -1964,7 +1890,7 @@ export function BookingCalendar({
           setActionError(verdict.message)
           return
         }
-        onCommit(slots)
+        onCommit({ slots, requestedDateRange: null })
       } catch (error) {
         const message = error instanceof Error ? error.message : "予約の重なり確認に失敗しました"
         setActionError(message)
@@ -1974,6 +1900,12 @@ export function BookingCalendar({
     },
     [activeDraft, drafts, onCommit, preflighting, runPreflight],
   )
+
+  const startDateRequestCommit = useCallback(() => {
+    if (!selectedDateRange || preflighting) return
+    setActionError(null)
+    onCommit({ slots: [], requestedDateRange: selectedDateRange })
+  }, [onCommit, preflighting, selectedDateRange])
 
   const executeMove = useCallback(
     async () => {
@@ -2248,66 +2180,47 @@ export function BookingCalendar({
             </div>
           </div>
         </div>
-        {selectedMonthDate ? (
-          <div className="booking-calendar__month-slots glass-flat" data-testid="booking-month-slots">
-            <div className="booking-calendar__month-slots-head">
-              <h2 className="booking-calendar__month-slots-title">
-                {selectedMonthLabel}の空き時間
-              </h2>
-              <p className="booking-calendar__month-slots-note">
-                候補を選んでから本予約へ進んでください。
-              </p>
-            </div>
-            <div className="booking-calendar__month-slot-grid" aria-label={`${selectedMonthLabel ?? "選択日"}の候補時間`}>
-              {monthSlotCandidates.map((candidate) => (
-                <button
-                  key={candidate.start}
-                  type="button"
-                  className={`booking-calendar__month-slot ${candidate.reason ? "booking-calendar__month-slot--blocked" : "booking-calendar__month-slot--available"}`}
-                  data-testid="booking-month-slot-option"
-                  disabled={Boolean(candidate.reason)}
-                  onClick={() => createDraftFromMonthCandidate(candidate)}
-                >
-                  <span className="booking-calendar__month-slot-time">{candidate.label}</span>
-                  <span className="booking-calendar__month-slot-status">
-                    {candidate.reason ? candidate.reason : "選択できます"}
-                  </span>
-                </button>
-              ))}
-            </div>
-            {activePanelDraft && view === "dayGridMonth" ? (
-              <div
-                ref={actionPanelRef}
-                className="booking-calendar__action-panel booking-calendar__action-panel--month glass-flat"
-                data-testid="booking-action-panel"
-              >
-                <div className="booking-calendar__action-panel-info">
-                  <span className="booking-calendar__action-panel-range">
-                    {formatRange(activePanelDraft.start, activePanelDraft.end)}
-                  </span>
-                </div>
-                <div className="booking-calendar__action-panel-buttons">
-                  <button
-                    type="button"
-                    className="booking-calendar__action-button booking-calendar__action-button--primary"
-                    onClick={() => startCommit()}
-                    disabled={preflighting}
-                  >
-                    {preflighting ? "確認中…" : "本予約"}
-                  </button>
-                  <button
-                    type="button"
-                    className="booking-calendar__action-button booking-calendar__action-button--ghost"
-                    onClick={cancelActiveDraft}
-                    disabled={preflighting}
-                  >
-                    キャンセル
-                  </button>
-                </div>
-              </div>
+        <div className="booking-calendar__date-request glass-flat" data-testid="booking-date-request-panel">
+          <div className="booking-calendar__date-request-head">
+            <h2 className="booking-calendar__date-request-title">相談希望日</h2>
+            <p className="booking-calendar__date-request-note">
+              日付をタップして開始日と終了日を選んでください。
+            </p>
+          </div>
+          <div className="booking-calendar__date-request-summary" aria-live="polite">
+            <span className="booking-calendar__date-request-label">選択中</span>
+            <strong data-testid="booking-date-request-summary">
+              {selectedDateRangeLabel ?? "未選択"}
+            </strong>
+            {selectedDateRange ? (
+              <span className="booking-calendar__date-request-days">
+                {getBookingDateRangeDayCount(selectedDateRange)}日間
+              </span>
             ) : null}
           </div>
-        ) : null}
+          <div className="booking-calendar__date-request-actions">
+            <button
+              type="button"
+              className="booking-calendar__action-button booking-calendar__action-button--primary"
+              onClick={startDateRequestCommit}
+              disabled={!selectedDateRange || preflighting}
+            >
+              この日程で相談する
+            </button>
+            <button
+              type="button"
+              className="booking-calendar__action-button booking-calendar__action-button--ghost"
+              onClick={() => {
+                setSelectedDateRange(null)
+                setSelectedMonthDate(null)
+                setActionError(null)
+              }}
+              disabled={!selectedDateRange || preflighting}
+            >
+              選択をクリア
+            </button>
+          </div>
+        </div>
       </div>
       {adminMoveConfirm ? (
         <div

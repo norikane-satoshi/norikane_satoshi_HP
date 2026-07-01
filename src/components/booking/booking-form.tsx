@@ -5,9 +5,11 @@ import { useEffect } from "react"
 import { useForm } from "react-hook-form"
 
 import {
+  formatBookingDateRange,
   bookingFormSchema,
   formatDurationMinutes,
   getTotalDurationMinutes,
+  type BookingDateRange,
   type BookingFormData,
   type BookingSlot,
 } from "@/lib/booking/domain/form-schema"
@@ -16,6 +18,7 @@ import {
 type BookingFormProps = {
   formData: BookingFormData
   selectedSlots: BookingSlot[]
+  requestedDateRange?: BookingDateRange | null
   onChange: (data: Partial<BookingFormData>) => void
   onValidityChange: (isValid: boolean) => void
   onReselectDate: (slot?: BookingSlot) => void
@@ -39,6 +42,7 @@ function formatSlot(slot: BookingSlot): string {
 export function BookingForm({
   formData,
   selectedSlots,
+  requestedDateRange = null,
   onChange,
   onValidityChange,
   onReselectDate,
@@ -69,8 +73,17 @@ export function BookingForm({
     <div className="booking-form">
       <div className="booking-form__slot-row">
         <div className="booking-form__slot-list">
-          {selectedSlots.length === 0 ? (
-            <span className="glass-badge booking-form__slot-pill">日時未選択</span>
+          {requestedDateRange ? (
+            <button
+              type="button"
+              className="glass-badge booking-form__slot-pill"
+              onClick={() => onReselectDate()}
+              aria-label={`${formatBookingDateRange(requestedDateRange)} の相談希望日に戻って調整`}
+            >
+              {formatBookingDateRange(requestedDateRange)}
+            </button>
+          ) : selectedSlots.length === 0 ? (
+            <span className="glass-badge booking-form__slot-pill">相談希望日未選択</span>
           ) : (
             selectedSlots.map((slot, index) => (
               <button
@@ -86,16 +99,18 @@ export function BookingForm({
           )}
         </div>
         <button className="booking-form__text-link" type="button" onClick={() => onReselectDate()}>
-          選択日時
+          相談希望日
         </button>
       </div>
-      <div className="booking-form__duration-total glass-inset">
-        <span className="booking-form__label">想定作業時間合計</span>
-        <strong>{formatDurationMinutes(getTotalDurationMinutes(selectedSlots))}</strong>
-      </div>
+      {selectedSlots.length > 0 ? (
+        <div className="booking-form__duration-total glass-inset">
+          <span className="booking-form__label">想定作業時間合計</span>
+          <strong>{formatDurationMinutes(getTotalDurationMinutes(selectedSlots))}</strong>
+        </div>
+      ) : null}
 
       <p className="booking-form__callout glass-flat">
-        本予約はお申し込み時点では確定ではありません。内容を確認のうえ、確定のご連絡を別途お送りします。確定までしばらくお時間をいただきます
+        送信時点では確定予約ではありません。相談希望日として内容をお預かりし、確認後に直接ご連絡します。
       </p>
 
       <label className="booking-form__group">

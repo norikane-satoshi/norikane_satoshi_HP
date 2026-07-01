@@ -10,6 +10,11 @@ function addDays(date: Date, days: number) {
   return new Date(date.getTime() + days * 24 * 60 * 60 * 1000)
 }
 
+function addDaysToDateKey(dateKey: string, days: number) {
+  const [year, month, day] = dateKey.split("-").map(Number)
+  return isoDate(new Date(Date.UTC(year, month - 1, day + days)))
+}
+
 function buildDailyBusySlots(startIso: string, endIso: string) {
   const start = new Date(startIso)
   const end = new Date(endIso)
@@ -67,7 +72,7 @@ test.describe("booking calendar mobile layout and selection", () => {
     hasTouch: true,
   })
 
-  test("uses month-only mobile flow without Japanese day suffix and creates a draft slot from candidate chips", async ({ page }) => {
+  test("uses month-only mobile flow without Japanese day suffix and selects a continuous date request", async ({ page }) => {
     await openAuthenticatedBooking(page, { dailyBusy: true })
 
     await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
@@ -81,26 +86,23 @@ test.describe("booking calendar mobile layout and selection", () => {
 
     const targetDay = page.locator(".fc-daygrid-day:not(.fc-day-other)").first()
     const targetDate = await targetDay.getAttribute("data-date")
-    expect(targetDate).toBeTruthy()
+    if (!targetDate) throw new Error("target date was not available")
     await targetDay.locator(".fc-daygrid-day-number").click()
 
     await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
-    await expect(page.getByTestId("booking-month-slots")).toBeVisible()
-    const blockedSlot = page.getByTestId("booking-month-slot-option").filter({ hasText: "13:00 - 13:30" })
-    await expect(blockedSlot).toBeDisabled()
-    await expect(blockedSlot).toContainText("既存予定")
+    await expect(page.getByTestId("booking-date-request-panel")).toBeVisible()
+    await expect(page.getByTestId("booking-month-slot-option")).toHaveCount(0)
     await expect(page.getByTestId("booking-action-panel")).toHaveCount(0)
 
-    await page.getByTestId("booking-month-slot-option").filter({ hasText: "14:00 - 14:30" }).click()
+    const nextDay = page.locator(`.fc-daygrid-day[data-date="${addDaysToDateKey(targetDate, 2)}"]`)
+    await nextDay.locator(".fc-daygrid-day-number").click()
 
-    const actionPanel = page.getByTestId("booking-action-panel")
-    await expect(actionPanel).toBeVisible()
-    const actionPanelBox = await actionPanel.boundingBox()
-    expect(actionPanelBox).not.toBeNull()
-    if (!actionPanelBox) throw new Error("mobile sticky action panel was not visible")
-    expect(actionPanelBox.y).toBeGreaterThanOrEqual(0)
-    expect(actionPanelBox.y + actionPanelBox.height).toBeLessThanOrEqual(844)
-    await page.getByRole("button", { name: "本予約" }).click()
+    await expect(page.getByTestId("booking-date-request-summary")).toContainText("3日間")
+    await expect(page.locator(".booking-calendar__selected-range")).toHaveCount(3)
+    const panelBox = await page.getByTestId("booking-date-request-panel").boundingBox()
+    expect(panelBox).not.toBeNull()
+    expect(panelBox!.width).toBeGreaterThanOrEqual(374)
+    await page.getByRole("button", { name: "この日程で相談する" }).click()
     await expect(page.getByLabel("案件名")).toBeVisible()
   })
 })
@@ -113,9 +115,13 @@ test("booking calendar desktop hides view tabs and reaches the booking form from
   const targetDay = page.locator(".fc-daygrid-day:not(.fc-day-other)").first()
   await targetDay.locator(".fc-daygrid-day-number").click()
   await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
-  await expect(page.getByTestId("booking-month-slots")).toBeVisible()
-  await page.getByTestId("booking-month-slot-option").filter({ hasText: "14:00 - 14:30" }).click()
-  await page.getByRole("button", { name: "本予約" }).click()
+  await expect(page.getByTestId("booking-date-request-panel")).toBeVisible()
+  await expect(page.getByTestId("booking-month-slot-option")).toHaveCount(0)
+  const targetDate = await targetDay.getAttribute("data-date")
+  if (!targetDate) throw new Error("target date was not available")
+  await page.locator(`.fc-daygrid-day[data-date="${addDaysToDateKey(targetDate, 1)}"] .fc-daygrid-day-number`).click()
+  await expect(page.getByTestId("booking-date-request-summary")).toContainText("2日間")
+  await page.getByRole("button", { name: "この日程で相談する" }).click()
   await expect(page.getByLabel("案件名")).toBeVisible()
 })
 
@@ -126,18 +132,12 @@ test("LINE LIFF booking entry uses the same month-only candidate flow", async ({
   await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
   await page.locator(".fc-daygrid-day:not(.fc-day-other)").first().locator(".fc-daygrid-day-number").click()
   await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
-  await expect(page.getByTestId("booking-month-slots")).toBeVisible()
+  await expect(page.getByTestId("booking-date-request-panel")).toBeVisible()
+  await expect(page.getByTestId("booking-month-slot-option")).toHaveCount(0)
   const calendarSurfaceBox = await page.locator(".booking-calendar__surface").boundingBox()
   expect(calendarSurfaceBox).not.toBeNull()
   expect(calendarSurfaceBox!.width).toBeGreaterThanOrEqual(374)
-  await expect(page.getByTestId("booking-month-slot-option").filter({ hasText: "13:00 - 13:30" })).toBeDisabled()
-  await page.getByTestId("booking-month-slot-option").filter({ hasText: "14:00 - 14:30" }).click()
-  const actionPanel = page.getByTestId("booking-action-panel")
-  await expect(actionPanel).toBeVisible()
-  const actionPanelBox = await actionPanel.boundingBox()
-  expect(actionPanelBox).not.toBeNull()
-  if (!actionPanelBox) throw new Error("LINE LIFF sticky action panel was not visible")
-  expect(actionPanelBox.y + actionPanelBox.height).toBeLessThanOrEqual(844)
-  await page.getByRole("button", { name: "本予約" }).click()
+  await expect(page.getByTestId("booking-date-request-summary")).toContainText("1日間")
+  await page.getByRole("button", { name: "この日程で相談する" }).click()
   await expect(page.getByLabel("案件名")).toBeVisible()
 })

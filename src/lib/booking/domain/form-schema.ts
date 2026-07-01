@@ -7,6 +7,52 @@ export type BookingSlot = {
   end: string
 }
 
+export type BookingDateRange = {
+  startDate: string
+  endDate: string
+}
+
+const dateKeyPattern = /^\d{4}-\d{2}-\d{2}$/
+
+function toLocalDate(value: string): Date | null {
+  if (!dateKeyPattern.test(value)) return null
+  const [year, month, day] = value.split("-").map(Number)
+  const date = new Date(year, month - 1, day, 0, 0, 0, 0)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null
+  return date
+}
+
+export function isValidBookingDateRange(range: BookingDateRange): boolean {
+  const start = toLocalDate(range.startDate)
+  const end = toLocalDate(range.endDate)
+  return Boolean(start && end && start.getTime() <= end.getTime())
+}
+
+export function getBookingDateRangeDayCount(range: BookingDateRange): number {
+  const start = toLocalDate(range.startDate)
+  const end = toLocalDate(range.endDate)
+  if (!start || !end || start.getTime() > end.getTime()) return 0
+  return Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1
+}
+
+function formatDateKey(value: string): string {
+  const date = toLocalDate(value)
+  if (!date) return value
+  return date.toLocaleDateString("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  })
+}
+
+export function formatBookingDateRange(range: BookingDateRange): string {
+  const dayCount = getBookingDateRangeDayCount(range)
+  const dateLabel = range.startDate === range.endDate
+    ? formatDateKey(range.startDate)
+    : `${formatDateKey(range.startDate)}〜${formatDateKey(range.endDate)}`
+  return dayCount > 0 ? `${dateLabel}、${dayCount}日間` : dateLabel
+}
+
 export const bookingFormSchema = z.object({
   projectTitle: z.string().trim().min(1, "案件名を入力してください").max(200, "200 字以内で入力してください"),
   dueDate: z.string(),

@@ -1,4 +1,4 @@
-import type { BookingFormData, BookingSlot, BookingStep } from "@/lib/booking/domain/form-schema"
+import type { BookingDateRange, BookingFormData, BookingSlot, BookingStep } from "@/lib/booking/domain/form-schema"
 
 const SESSION_DRAFT_KEY = "booking-draft-session"
 const LOCAL_DRAFT_KEY_PREFIX = "booking-draft-"
@@ -7,6 +7,7 @@ const DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 export type BookingDraft = {
   formData: BookingFormData
   selectedSlots: BookingSlot[]
+  requestedDateRange?: BookingDateRange | null
   step: BookingStep
   savedAt: number
 }
@@ -35,6 +36,7 @@ function migrateDraft(draft: Partial<LegacyBookingDraft>): BookingDraft | null {
   return {
     formData: draft.formData,
     selectedSlots,
+    requestedDateRange: draft.requestedDateRange ?? null,
     step: draft.step as BookingStep,
     savedAt: draft.savedAt,
   }

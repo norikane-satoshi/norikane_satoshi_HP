@@ -333,6 +333,71 @@
   color: var(--text-primary);
 }
 
+.booking-calendar__date-request {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--hp-radius-lg);
+  background: var(--glass-bg);
+  padding: 16px;
+  color: var(--text-primary);
+}
+
+.booking-calendar__date-request-head {
+  display: grid;
+  gap: 4px;
+}
+
+.booking-calendar__date-request-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.booking-calendar__date-request-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.booking-calendar__date-request-summary {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--hp-radius-sm);
+  background: rgba(255, 255, 255, 0.35);
+  padding: 14px;
+}
+
+.booking-calendar__date-request-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.booking-calendar__date-request-summary strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.booking-calendar__date-request-days {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.booking-calendar__date-request-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
 .booking-calendar__month-slots-head {
   display: grid;
   gap: 4px;
@@ -605,6 +670,17 @@
 .booking-calendar .booking-calendar__selected-day .fc-daygrid-day-frame {
   border-color: var(--accent-primary);
   background: color-mix(in srgb, var(--accent-primary) 12%, var(--glass-bg));
+}
+
+.booking-calendar .booking-calendar__selected-range .fc-daygrid-day-frame {
+  border-color: color-mix(in srgb, var(--accent-primary) 58%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-primary) 16%, var(--glass-bg));
+}
+
+.booking-calendar .booking-calendar__selected-range-start .fc-daygrid-day-frame,
+.booking-calendar .booking-calendar__selected-range-end .fc-daygrid-day-frame {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 24%, var(--glass-bg));
 }
 
 .booking-calendar__day-cell {
@@ -1027,6 +1103,17 @@
     margin-inline: calc(50% - 50vw + 8px);
     border-radius: var(--hp-radius);
     padding: 12px;
+  }
+
+  .booking-calendar__date-request {
+    width: calc(100vw - 16px);
+    margin-inline: calc(50% - 50vw + 8px);
+    border-radius: var(--hp-radius);
+    padding: 12px;
+  }
+
+  .booking-calendar__date-request-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .booking-calendar__action-panel {

@@ -158,7 +158,7 @@ describe("createBookingFromApiInput", () => {
         data: expect.objectContaining({
           status: "NEEDS_SCHEDULE",
           pendingExpiresAt: null,
-          memo: "候補日未選択",
+          memo: "相談希望日: 候補日未選択",
           timeSlots: { create: [] },
         }),
       }),
@@ -167,6 +167,49 @@ describe("createBookingFromApiInput", () => {
     expect(service.invalidateCalendarFreeBusyCacheForUser).not.toHaveBeenCalled()
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({
       bookingGroupId: "group_1",
+      selectedSlots: [],
+    }))
+  })
+
+  it("persists requested date ranges as schedule consultations without creating a calendar event", async () => {
+    const service = await loadCreateBooking()
+
+    const result = await service.createBookingFromApiInput({
+      input: bookingInput({
+        selectedSlots: [],
+        requestedDateRange: { startDate: "2026-07-10", endDate: "2026-07-12" },
+      }),
+      userId: "user_1",
+      userEmail: "satoshi@example.com",
+    })
+
+    expect(result).toMatchObject({
+      status: 200,
+      body: {
+        status: "schedule_unselected",
+        bookingGroupId: "group_1",
+        bookingIds: [],
+        bookingStatus: "NEEDS_SCHEDULE",
+        scheduleStatus: "unscheduled",
+      },
+    })
+    expect(result.body).toMatchObject({
+      scheduleLabel: expect.stringContaining("3日間"),
+    })
+    expect(service.prisma.bookingGroup.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "NEEDS_SCHEDULE",
+          pendingExpiresAt: null,
+          memo: expect.stringContaining("相談希望日:"),
+          timeSlots: { create: [] },
+        }),
+      }),
+    )
+    expect(service.createCalendarEvent).not.toHaveBeenCalled()
+    expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({
+      bookingGroupId: "group_1",
+      requestedDateRange: { startDate: "2026-07-10", endDate: "2026-07-12" },
       selectedSlots: [],
     }))
   })

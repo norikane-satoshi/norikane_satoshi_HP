@@ -8,7 +8,6 @@ import { BookingConfirm } from "@/components/booking/booking-confirm"
 import { BookingDone } from "@/components/booking/booking-done"
 import { BookingFooter } from "@/components/booking/booking-footer"
 import { BookingForm } from "@/components/booking/booking-form"
-import { BookingProgressBar } from "@/components/booking/booking-progress-bar"
 import { mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 import type { CalendarBookingFromApi } from "@/lib/booking/server/calendar-free-busy/bookings-repository"
 import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar/server"
@@ -16,6 +15,7 @@ import { clearDraft, hasDraft, loadDraft, saveDraft } from "@/lib/booking/client
 import {
   createDefaultBookingFormData,
   mergeBookingFormData,
+  type BookingDateRange,
   type BookingFormData,
   type BookingSlot,
   type BookingStep,
@@ -62,10 +62,16 @@ function getPreviousStep(step: BookingStep): BookingStep {
   return "calendar"
 }
 
-function hasDraftContent(formData: BookingFormData, selectedSlots: BookingSlot[], step: BookingStep): boolean {
+function hasDraftContent(
+  formData: BookingFormData,
+  selectedSlots: BookingSlot[],
+  requestedDateRange: BookingDateRange | null,
+  step: BookingStep,
+): boolean {
   return (
     step !== "calendar" ||
     selectedSlots.length > 0 ||
+    Boolean(requestedDateRange) ||
     formData.projectTitle.trim() !== "" ||
     formData.contactName.trim() !== "" ||
     formData.memo.trim() !== ""
@@ -99,6 +105,7 @@ export function BookingSection({
   const [step, setStep] = useState<BookingStep>("calendar")
   const [formData, setFormData] = useState<BookingFormData>(defaultFormData)
   const [selectedSlots, setSelectedSlots] = useState<BookingSlot[]>([])
+  const [requestedDateRange, setRequestedDateRange] = useState<BookingDateRange | null>(null)
   const [formValid, setFormValid] = useState(false)
   const [localDraftAvailable, setLocalDraftAvailable] = useState(false)
   const [draftHydrated, setDraftHydrated] = useState(false)
@@ -144,6 +151,7 @@ export function BookingSection({
         sessionEmail: sessionEmailReadOnly ? userEmail : draft.formData.sessionEmail,
       })
       if (restoreSlots) setSelectedSlots(draft.selectedSlots)
+      setRequestedDateRange(draft.requestedDateRange ?? null)
       if (restoreStep && draft.step !== "done") setStep(draft.step)
     },
     [defaultFormData, sessionEmailReadOnly, userEmail],
@@ -176,14 +184,14 @@ export function BookingSection({
       return
     }
 
-    if (!hasDraftContent(formData, selectedSlots, step)) return
+    if (!hasDraftContent(formData, selectedSlots, requestedDateRange, step)) return
 
     const timeout = window.setTimeout(() => {
-      saveDraft(userId, { formData, selectedSlots, step })
+      saveDraft(userId, { formData, selectedSlots, requestedDateRange, step })
     }, 500)
 
     return () => window.clearTimeout(timeout)
-  }, [draftHydrated, formData, selectedSlots, step, userId])
+  }, [draftHydrated, formData, requestedDateRange, selectedSlots, step, userId])
 
   const goToStep = useCallback((nextStep: BookingStep) => {
     setSubmitError(null)
@@ -200,6 +208,7 @@ export function BookingSection({
     clearDraft(userId)
     setFormData(defaultFormData)
     setSelectedSlots([])
+    setRequestedDateRange(null)
     setFocusSlot(null)
     setLocalDraftAvailable(false)
     setCalendarResetRequestKey((value) => value + 1)
@@ -207,9 +216,10 @@ export function BookingSection({
   }
 
   const handleCommitSlot = useCallback(
-    (slots: { start: string; end: string }[]) => {
+    (input: { slots: { start: string; end: string }[]; requestedDateRange?: BookingDateRange | null }) => {
       setSubmitError(null)
-      setSelectedSlots(slots.map((slot) => ({ start: slot.start, end: slot.end })))
+      setSelectedSlots(input.slots.map((slot) => ({ start: slot.start, end: slot.end })))
+      setRequestedDateRange(input.requestedDateRange ?? null)
       goToStep("form")
     },
     [goToStep],
@@ -225,6 +235,7 @@ export function BookingSection({
     clearDraft(userId)
     setFormData(defaultFormData)
     setSelectedSlots([])
+    setRequestedDateRange(null)
     setFocusSlot(null)
     setFormValid(false)
     setSubmitError(null)
@@ -240,7 +251,7 @@ export function BookingSection({
   }, [sessionEmailReadOnly, userEmail])
 
   const handleSubmitBooking = async () => {
-    if (selectedSlots.length === 0 || submitting) return
+    if ((selectedSlots.length === 0 && !requestedDateRange) || submitting) return
 
     setSubmitting(true)
     setSubmitError(null)
@@ -256,6 +267,7 @@ export function BookingSection({
           entryPoint,
           teamId: selectedTeamId,
           selectedSlots,
+          requestedDateRange,
         }),
       })
       const payload = (await response.json().catch(() => ({}))) as { error?: string }
@@ -277,7 +289,8 @@ export function BookingSection({
     }
   }
 
-  const canGoNext = (step === "form" && selectedSlots.length > 0 && formValid) || step === "confirm"
+  const hasScheduleRequest = selectedSlots.length > 0 || Boolean(requestedDateRange)
+  const canGoNext = (step === "form" && hasScheduleRequest && formValid) || step === "confirm"
 
   const body = (
     <>
@@ -288,6 +301,7 @@ export function BookingSection({
           isCalendarAdmin={isCalendarAdmin}
           teamMemberUserIds={teamMemberUserIds}
           initialSlots={selectedSlots}
+          initialDateRange={requestedDateRange}
           projectTitle={formData.projectTitle}
           adjustRequestKey={adjustRequestKey}
           resetRequestKey={calendarResetRequestKey}
@@ -308,6 +322,7 @@ export function BookingSection({
         <BookingForm
           formData={formData}
           selectedSlots={selectedSlots}
+          requestedDateRange={requestedDateRange}
           onChange={handleFormChange}
           onValidityChange={setFormValid}
           onReselectDate={handleReselectDate}
@@ -318,13 +333,14 @@ export function BookingSection({
         <BookingConfirm
           formData={formData}
           selectedSlots={selectedSlots}
+          requestedDateRange={requestedDateRange}
           submitError={submitError}
           onDismissSubmitError={() => setSubmitError(null)}
           onReselectDate={handleReselectDate}
         />
       </div>
       <div className={step === "done" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>
-        <BookingDone selectedSlots={selectedSlots} />
+        <BookingDone selectedSlots={selectedSlots} requestedDateRange={requestedDateRange} />
       </div>
     </>
   )
@@ -332,7 +348,6 @@ export function BookingSection({
   return (
     <div className="booking-section">
       <AdminReconnectBanner isCalendarAdmin={isCalendarAdmin} code={calendarCode} />
-      <BookingProgressBar currentStep={step} />
       {localDraftAvailable && step !== "done" ? (
         <div className="booking-section__draft-banner glass-inset">
           <span>入力途中の予約申込があります（24 時間以内）</span>
