@@ -22,4 +22,20 @@ describe("BookingForm email fields", () => {
     expect(markup).toContain('readOnly=""')
     expect(markup).toContain('name="sessionEmail"')
   })
+
+  it("allows the LINE LIFF entry to edit the contact email when the provider has no email", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(BookingForm, {
+        formData: createDefaultBookingFormData(""),
+        selectedSlots: [],
+        onChange: vi.fn(),
+        onValidityChange: vi.fn(),
+        onReselectDate: vi.fn(),
+        sessionEmailReadOnly: false,
+      }),
+    )
+
+    expect(markup).toContain('name="sessionEmail"')
+    expect(markup).not.toContain('readOnly=""')
+  })
 })

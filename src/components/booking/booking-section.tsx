@@ -111,6 +111,7 @@ export function BookingSection({
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [remoteRefreshRequestKey, setRemoteRefreshRequestKey] = useState(getInitialRemoteRefreshRequestKey)
   const [calendarCode, setCalendarCode] = useState<string | null>(null)
+  const sessionEmailReadOnly = entryPoint !== "line_liff" || userEmail.trim() !== ""
   const teamMemberUserIds = useMemo(() => {
     return teams.find((team) => team.id === selectedTeamId)?.members.map((member) => member.userId) ?? [userId]
   }, [selectedTeamId, teams, userId])
@@ -140,12 +141,12 @@ export function BookingSection({
       setFormData({
         ...defaultFormData,
         ...draft.formData,
-        sessionEmail: userEmail,
+        sessionEmail: sessionEmailReadOnly ? userEmail : draft.formData.sessionEmail,
       })
       if (restoreSlots) setSelectedSlots(draft.selectedSlots)
       if (restoreStep && draft.step !== "done") setStep(draft.step)
     },
-    [defaultFormData, userEmail],
+    [defaultFormData, sessionEmailReadOnly, userEmail],
   )
 
   useEffect(() => {
@@ -232,8 +233,11 @@ export function BookingSection({
   }
 
   const handleFormChange = useCallback((next: Partial<BookingFormData>) => {
-    setFormData((current) => mergeBookingFormData(current, next, userEmail))
-  }, [userEmail])
+    setFormData((current) => {
+      const sessionEmail = sessionEmailReadOnly ? userEmail : next.sessionEmail ?? current.sessionEmail
+      return mergeBookingFormData(current, next, sessionEmail)
+    })
+  }, [sessionEmailReadOnly, userEmail])
 
   const handleSubmitBooking = async () => {
     if (selectedSlots.length === 0 || submitting) return
@@ -307,6 +311,7 @@ export function BookingSection({
           onChange={handleFormChange}
           onValidityChange={setFormValid}
           onReselectDate={handleReselectDate}
+          sessionEmailReadOnly={sessionEmailReadOnly}
         />
       </div>
       <div className={step === "confirm" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   const userId = session?.user?.id
   const userEmail = session?.user?.email
 
-  if (!userId || !userEmail) {
+  if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
@@ -46,8 +46,10 @@ export async function POST(request: NextRequest) {
   }
 
   const input = parsed.data
+  const isLineLiffEntry = input.entryPoint === "line_liff"
+  const bookingContactEmail = isLineLiffEntry && !userEmail ? input.sessionEmail : userEmail
 
-  if (userEmail !== input.sessionEmail) {
+  if (!bookingContactEmail || bookingContactEmail !== input.sessionEmail) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await createBookingFromApiInput({ input, userId, userEmail })
+    const result = await createBookingFromApiInput({ input, userId, userEmail: bookingContactEmail })
     return NextResponse.json(result.body, { status: result.status, headers: result.headers })
   } catch (error) {
     if (error instanceof BookingConflictError) {

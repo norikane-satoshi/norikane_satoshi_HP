@@ -238,6 +238,61 @@ describe("POST /api/booking", () => {
     await expect(response.json()).resolves.toEqual({ error: "unauthorized" })
   })
 
+  it("allows LINE LIFF bookings with a session user id and contact email input when the provider has no email", async () => {
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "line_user_1", email: null },
+    })
+
+    const response = await POST(request(validBooking({
+      entryPoint: "line_liff",
+      sessionEmail: "client@example.com",
+    })))
+
+    expect(response.status).toBe(200)
+    expect(mocks.prisma.bookingGroup.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          customerEmail: "client@example.com",
+          originatedFrom: "line_liff",
+        }),
+      }),
+    )
+    expect(mocks.sendBookingConfirmedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "client@example.com" }),
+    )
+    expect(mocks.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("line_user_1", null)
+  })
+
+  it("keeps normal web bookings blocked when the authenticated session has no email", async () => {
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "line_user_1", email: null },
+    })
+
+    const response = await POST(request(validBooking()))
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({ error: "unauthorized" })
+    expect(mocks.prisma.bookingGroup.create).not.toHaveBeenCalled()
+  })
+
+  it("does not let LINE LIFF override an existing authenticated email", async () => {
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "user_1", email: "session@example.com" },
+    })
+
+    const response = await POST(request(validBooking({
+      entryPoint: "line_liff",
+      sessionEmail: "client@example.com",
+    })))
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({ error: "unauthorized" })
+    expect(mocks.prisma.bookingGroup.create).not.toHaveBeenCalled()
+  })
+
   it("creates the booking and returns 207 when GOOGLE_CALENDAR_BUSY_SOURCE_ID is missing", async () => {
     mockHappyPath()
     delete process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID

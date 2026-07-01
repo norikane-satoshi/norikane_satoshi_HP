@@ -19,6 +19,7 @@ type BookingFormProps = {
   onChange: (data: Partial<BookingFormData>) => void
   onValidityChange: (isValid: boolean) => void
   onReselectDate: (slot?: BookingSlot) => void
+  sessionEmailReadOnly?: boolean
 }
 
 function formatSlot(slot: BookingSlot): string {
@@ -41,6 +42,7 @@ export function BookingForm({
   onChange,
   onValidityChange,
   onReselectDate,
+  sessionEmailReadOnly = true,
 }: BookingFormProps) {
   const {
     formState: { errors, isValid },
@@ -121,7 +123,12 @@ export function BookingForm({
         </label>
         <label className="booking-form__group">
           <span className="booking-form__label">メールアドレス</span>
-          <input className="glass-input booking-form__control booking-form__control--readonly" readOnly {...register("sessionEmail")} />
+          <input
+            className={`glass-input booking-form__control${sessionEmailReadOnly ? " booking-form__control--readonly" : ""}`}
+            readOnly={sessionEmailReadOnly}
+            {...register("sessionEmail")}
+          />
+          {errors.sessionEmail ? <span className="booking-form__error">{errors.sessionEmail.message}</span> : null}
         </label>
       </div>
 

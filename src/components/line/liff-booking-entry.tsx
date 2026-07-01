@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { ExternalLink, MessageCircle } from "lucide-react"
+import { signIn } from "next-auth/react"
 
 import { BookingClientShell } from "@/components/booking/booking-client-shell"
 
@@ -21,13 +22,38 @@ type LiffBookingEntryProps = {
   isCalendarAdmin: boolean
 }
 
+type SessionPayload = {
+  user?: {
+    id?: string
+  } | null
+}
+
 const LINE_OFFICIAL_ACCOUNT_URL = "https://line.me/R/ti/p/@044ucnym"
 const LIFF_ID = process.env.NEXT_PUBLIC_LINE_LIFF_ID ?? ""
+
+export function shouldStartLineProviderSignIn({
+  authStarted,
+  hpSessionLoaded,
+  inClient,
+  liffReady,
+  userId,
+}: {
+  authStarted: boolean
+  hpSessionLoaded: boolean
+  inClient: boolean
+  liffReady: boolean
+  userId?: string
+}) {
+  return liffReady && inClient && hpSessionLoaded && !userId && !authStarted
+}
 
 export function LiffBookingEntry({ monthSkeleton, isCalendarAdmin }: LiffBookingEntryProps) {
   const [state, setState] = useState<LiffState>(
     LIFF_ID ? { status: "loading" } : { status: "skipped", reason: "missing_liff_id" },
   )
+  const [hpSession, setHpSession] = useState<SessionPayload | null>(null)
+  const [hpSessionLoaded, setHpSessionLoaded] = useState(false)
+  const authStartedRef = useRef(false)
 
   useEffect(() => {
     if (!LIFF_ID) return
@@ -69,6 +95,42 @@ export function LiffBookingEntry({ monthSkeleton, isCalendarAdmin }: LiffBooking
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (state.status === "loading") return
+
+    let cancelled = false
+
+    async function loadHpSession() {
+      try {
+        const response = await fetch("/api/auth/session", { cache: "no-store" })
+        const payload = response.ok ? ((await response.json()) as SessionPayload) : null
+        if (!cancelled) setHpSession(payload)
+      } finally {
+        if (!cancelled) setHpSessionLoaded(true)
+      }
+    }
+
+    void loadHpSession()
+    return () => {
+      cancelled = true
+    }
+  }, [state.status])
+
+  useEffect(() => {
+    if (
+      shouldStartLineProviderSignIn({
+        authStarted: authStartedRef.current,
+        hpSessionLoaded,
+        inClient: state.status === "ready" && state.inClient,
+        liffReady: state.status === "ready",
+        userId: hpSession?.user?.id,
+      })
+    ) {
+      authStartedRef.current = true
+      void signIn("line", { callbackUrl: "/line/booking" })
+    }
+  }, [hpSession?.user?.id, hpSessionLoaded, state])
 
   const openFriendAdd = async () => {
     try {
