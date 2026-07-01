@@ -8,7 +8,7 @@ Runtime shape:
 - Each heartbeat run checks the VPS loopback worker (`http://127.0.0.1:8787` by default) with bearer auth, so worker JSON error codes stay visible instead of being flattened by the public tunnel.
 - Production chatbot preflight uses quick `GET /health?mode=quick` so an active Notion AI generation or CDP runtime inspection spike does not skip Tier2 before `/generate`.
 - If the hosted Tier2 health probe times out or returns a retryable connection failure, Production still attempts `/generate`; fallback to Tier3 starts only after Tier2 generate exhausts its own repair/retry budget.
-- A lightweight `POST /generate` smoke runs every 2 minutes by default.
+- A lightweight `POST /generate` smoke runs every 10 minutes by default; the 2-minute timer still performs the cheap health check.
 - One failed health/connection run moves state to `unhealthy`; transient hosted Notion AI `invalid-output` generate misses stay `suspect` until `CHATBOT_HOSTED_TIER2_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD` consecutive misses.
 - Tier2 generate failure is not treated as a successful lower-tier fallback.
 - On the first unhealthy transition, the script tries one repair sequence: `POST /ensure-chrome`, `systemctl --user restart hosted-notion-ai-worker.service`, then `systemctl --user restart hosted-worker-chrome.service`.
