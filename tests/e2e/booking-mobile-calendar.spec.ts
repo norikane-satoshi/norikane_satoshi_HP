@@ -48,14 +48,14 @@ async function stubBookingCalendarApis(page: Page, options: { dailyBusy?: boolea
   })
 }
 
-async function openAuthenticatedBooking(page: Page, options: { dailyBusy?: boolean } = {}) {
+async function openAuthenticatedBooking(page: Page, options: { dailyBusy?: boolean; path?: string } = {}) {
   await stubBookingCalendarApis(page, options)
   const prisma = prismaForE2E()
   await upsertUser(prisma, testUserEmail, "E2E Satoshi")
   await prisma.$disconnect()
   const authResponse = await page.goto("/api/dev/auth-bypass")
   expect(authResponse?.status()).toBe(200)
-  await page.goto("/booking")
+  await page.goto(options.path ?? "/booking")
   await expect(page.getByTestId("booking-month-skeleton")).toHaveCount(0)
   await expect(page.locator(".fc-daygrid-day-number").first()).toBeVisible()
 }
@@ -67,54 +67,31 @@ test.describe("booking calendar mobile layout and selection", () => {
     hasTouch: true,
   })
 
-  test("uses mobile day flow without Japanese day suffix and creates a draft slot by touch", async ({ page }) => {
+  test("uses month-only mobile flow without Japanese day suffix and creates a draft slot from candidate chips", async ({ page }) => {
     await openAuthenticatedBooking(page, { dailyBusy: true })
 
     await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
     const dayNumberTexts = await page.locator(".fc-daygrid-day-number").allTextContents()
     expect(dayNumberTexts.length).toBeGreaterThan(0)
     expect(dayNumberTexts.every((text) => !text.includes("日"))).toBe(true)
+    const calendarSurfaceBox = await page.locator(".booking-calendar__surface").boundingBox()
+    expect(calendarSurfaceBox).not.toBeNull()
+    expect(calendarSurfaceBox!.width).toBeGreaterThanOrEqual(374)
 
     const targetDay = page.locator(".fc-daygrid-day:not(.fc-day-other)").first()
     const targetDate = await targetDay.getAttribute("data-date")
     expect(targetDate).toBeTruthy()
     await targetDay.locator(".fc-daygrid-day-number").click()
 
-    await expect(page.getByRole("button", { name: "日", exact: true })).toHaveAttribute("aria-pressed", "true")
-    await expect(page.locator(".fc-timeGridDay-view")).toBeVisible()
-
-    const timeGridBody = page.locator(".fc-timeGridDay-view .fc-timegrid-body").first()
-    await expect(timeGridBody).toBeVisible()
-    const timeGridBox = await timeGridBody.boundingBox()
-    expect(timeGridBox).not.toBeNull()
-    expect(timeGridBox!.height).toBeLessThanOrEqual(520)
-
-    const dayColumn = page.locator(`.fc-timegrid-col[data-date="${targetDate}"]`).first()
-    const blockedSlotLane = page.locator('.fc-timeGridDay-view .fc-timegrid-slot-lane[data-time="13:00:00"]').first()
-    await dayColumn.waitFor()
-    await blockedSlotLane.waitFor()
-    await blockedSlotLane.scrollIntoViewIfNeeded()
-    const blockedSlotBox = await blockedSlotLane.boundingBox()
-    const blockedDayBox = await dayColumn.boundingBox()
-    expect(blockedDayBox).not.toBeNull()
-    expect(blockedSlotBox).not.toBeNull()
-    if (!blockedDayBox || !blockedSlotBox) throw new Error("mobile blocked slot target was not available")
-
-    await page.touchscreen.tap(blockedDayBox.x + blockedDayBox.width / 2, blockedSlotBox.y + Math.min(blockedSlotBox.height / 2, 12))
-    await expect(page.locator(".booking-calendar__busy")).toBeVisible()
+    await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
+    await expect(page.getByTestId("booking-month-slots")).toBeVisible()
+    const blockedSlot = page.getByTestId("booking-month-slot-option").filter({ hasText: "13:00 - 13:30" })
+    await expect(blockedSlot).toBeDisabled()
+    await expect(blockedSlot).toContainText("既存予定")
     await expect(page.getByTestId("booking-action-panel")).toHaveCount(0)
 
-    const slotLane = page.locator('.fc-timeGridDay-view .fc-timegrid-slot-lane[data-time="14:00:00"]').first()
-    await dayColumn.waitFor()
-    await slotLane.waitFor()
-    await slotLane.scrollIntoViewIfNeeded()
-    const dayBox = await dayColumn.boundingBox()
-    const slotBox = await slotLane.boundingBox()
-    expect(dayBox).not.toBeNull()
-    expect(slotBox).not.toBeNull()
-    if (!dayBox || !slotBox) throw new Error("mobile day slot target was not available")
-
-    await page.touchscreen.tap(dayBox.x + dayBox.width / 2, slotBox.y + Math.min(slotBox.height / 2, 12))
+    await page.getByTestId("booking-month-slot-option").filter({ hasText: "14:00 - 14:30" }).click()
 
     const actionPanel = page.getByTestId("booking-action-panel")
     await expect(actionPanel).toBeVisible()
@@ -128,8 +105,39 @@ test.describe("booking calendar mobile layout and selection", () => {
   })
 })
 
-test("booking calendar desktop keeps the week view tab", async ({ page }) => {
+test("booking calendar desktop hides view tabs and reaches the booking form from month candidates", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await openAuthenticatedBooking(page)
-  await expect(page.getByRole("button", { name: "週" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
+  const targetDay = page.locator(".fc-daygrid-day:not(.fc-day-other)").first()
+  await targetDay.locator(".fc-daygrid-day-number").click()
+  await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
+  await expect(page.getByTestId("booking-month-slots")).toBeVisible()
+  await page.getByTestId("booking-month-slot-option").filter({ hasText: "14:00 - 14:30" }).click()
+  await page.getByRole("button", { name: "本予約" }).click()
+  await expect(page.getByLabel("案件名")).toBeVisible()
+})
+
+test("LINE LIFF booking entry uses the same month-only candidate flow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openAuthenticatedBooking(page, { dailyBusy: true, path: "/line/booking" })
+  await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
+  await page.locator(".fc-daygrid-day:not(.fc-day-other)").first().locator(".fc-daygrid-day-number").click()
+  await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
+  await expect(page.getByTestId("booking-month-slots")).toBeVisible()
+  const calendarSurfaceBox = await page.locator(".booking-calendar__surface").boundingBox()
+  expect(calendarSurfaceBox).not.toBeNull()
+  expect(calendarSurfaceBox!.width).toBeGreaterThanOrEqual(374)
+  await expect(page.getByTestId("booking-month-slot-option").filter({ hasText: "13:00 - 13:30" })).toBeDisabled()
+  await page.getByTestId("booking-month-slot-option").filter({ hasText: "14:00 - 14:30" }).click()
+  const actionPanel = page.getByTestId("booking-action-panel")
+  await expect(actionPanel).toBeVisible()
+  const actionPanelBox = await actionPanel.boundingBox()
+  expect(actionPanelBox).not.toBeNull()
+  if (!actionPanelBox) throw new Error("LINE LIFF sticky action panel was not visible")
+  expect(actionPanelBox.y + actionPanelBox.height).toBeLessThanOrEqual(844)
+  await page.getByRole("button", { name: "本予約" }).click()
+  await expect(page.getByLabel("案件名")).toBeVisible()
 })

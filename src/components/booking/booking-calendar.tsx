@@ -179,19 +179,12 @@ type TouchTapTarget = {
   y: number
 }
 
-const VIEW_OPTIONS: { label: string; value: CalendarView }[] = [
-  { label: "月", value: "dayGridMonth" },
-  { label: "週", value: "timeGridWeek" },
-  { label: "日", value: "timeGridDay" },
-]
-
 const MIN_SELECTION_MS = 30 * 60 * 1000
 const BOOKING_BUFFER_HOURS = 1
 const BASE_SLOT_MIN_MINUTES = 10 * 60
 const BASE_SLOT_MAX_MINUTES = 19 * 60
 const TIME_RANGE_EXPAND_STEP_MINUTES = 30
 const TIME_RANGE_EXPAND_THROTTLE_MS = 200
-const MOBILE_CALENDAR_MEDIA_QUERY = "(max-width: 767px)"
 
 function toDateKey(date: Date): string {
   const year = date.getFullYear()
@@ -474,10 +467,6 @@ function isSelectableView(viewType: string): boolean {
   return viewType === "timeGridWeek" || viewType === "timeGridDay"
 }
 
-function getSelectionView(isMobileCalendar: boolean): CalendarView {
-  return isMobileCalendar ? "timeGridDay" : "timeGridWeek"
-}
-
 function hasMinimumSelectionDuration(start: Date, end: Date): boolean {
   return end.getTime() - start.getTime() >= MIN_SELECTION_MS
 }
@@ -572,6 +561,55 @@ type BookingCalendarProps = {
   onCodeChange?: (code: string | null) => void
 }
 
+type MonthSlotCandidate = {
+  start: string
+  end: string
+  label: string
+  reason: string | null
+}
+
+type BlockingSnapshot = {
+  busy: BusySlot[]
+  bookings: BookingFromApi[]
+}
+
+function getBlockedRangeReasonFromSnapshot(
+  start: Date,
+  end: Date,
+  snapshot: BlockingSnapshot,
+): string | null {
+  if (!hasMinimumSelectionDuration(start, end)) {
+    return "30分以上の空き時間を選んでください。"
+  }
+  for (const slot of snapshot.busy) {
+    if (rangesOverlap(start, end, slot.start, slot.end)) {
+      return "この時間は既存予定があるため選べません。"
+    }
+  }
+  for (const booking of snapshot.bookings) {
+    if (rangesOverlap(start, end, booking.start, booking.end)) {
+      return "この時間は既存予定があるため選べません。"
+    }
+  }
+  for (const slot of snapshot.busy) {
+    const { before, after } = resolveBusyBufferHours(slot)
+    const bufferStart = new Date(new Date(slot.start).getTime() - toBufferMs(before)).toISOString()
+    const bufferEnd = new Date(new Date(slot.end).getTime() + toBufferMs(after)).toISOString()
+    if (rangesOverlap(start, end, bufferStart, bufferEnd)) {
+      return "この時間は予約前後の保護時間のため選べません。"
+    }
+  }
+  for (const booking of snapshot.bookings) {
+    if (booking.status !== "CONFIRMED") continue
+    const bufferStart = new Date(new Date(booking.start).getTime() - toBufferMs(booking.bufferBeforeHours)).toISOString()
+    const bufferEnd = new Date(new Date(booking.end).getTime() + toBufferMs(booking.bufferAfterHours)).toISOString()
+    if (rangesOverlap(start, end, bufferStart, bufferEnd)) {
+      return "この時間は予約前後の保護時間のため選べません。"
+    }
+  }
+  return null
+}
+
 export function BookingCalendar({
   viewerUserId,
   viewerEmail,
@@ -594,10 +632,17 @@ export function BookingCalendar({
   onCodeChange,
 }: BookingCalendarProps) {
   const [view, setView] = useState<CalendarView>("dayGridMonth")
-  const [isMobileCalendar, setIsMobileCalendar] = useState(false)
   const [isFullCalendarReady, setIsFullCalendarReady] = useState(false)
   const [isMonthSkeletonMounted, setIsMonthSkeletonMounted] = useState(() => Boolean(monthSkeleton))
   const [isMonthSkeletonFading, setIsMonthSkeletonFading] = useState(false)
+  const [selectedMonthDate, setSelectedMonthDate] = useState<string | null>(() => {
+    const firstSlot = initialSlots[0]
+    return firstSlot ? toDateKey(new Date(firstSlot.start)) : null
+  })
+  const [monthBlockingSnapshot, setMonthBlockingSnapshot] = useState<BlockingSnapshot>({
+    busy: initialBusy,
+    bookings: initialBookings,
+  })
   const [modeKind, setModeKind] = useState<ModeKind>("normal")
   const [adjustingGroupId, setAdjustingGroupId] = useState<string | null>(null)
   const [adjustingTitle, setAdjustingTitle] = useState<string | null>(null)
@@ -655,10 +700,6 @@ export function BookingCalendar({
     [drafts, activeDraftId],
   )
   const activePanelDraft = draftPreview?.id === activeDraftId ? draftPreview : activeDraft
-  const visibleViewOptions = useMemo(
-    () => isMobileCalendar ? VIEW_OPTIONS.filter((option) => option.value !== "timeGridWeek") : VIEW_OPTIONS,
-    [isMobileCalendar],
-  )
 
   const markFullCalendarReadyIfSettled = useCallback(() => {
     if (
@@ -682,15 +723,6 @@ export function BookingCalendar({
         window.cancelAnimationFrame(fullCalendarReadyFrameRef.current)
       }
     }
-  }, [])
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(MOBILE_CALENDAR_MEDIA_QUERY)
-    const syncMobileCalendar = () => setIsMobileCalendar(mediaQuery.matches)
-
-    syncMobileCalendar()
-    mediaQuery.addEventListener("change", syncMobileCalendar)
-    return () => mediaQuery.removeEventListener("change", syncMobileCalendar)
   }, [])
 
   useEffect(() => {
@@ -756,14 +788,6 @@ export function BookingCalendar({
       calendarApi.changeView(nextView, dateStr)
     }
   }, [])
-
-  useEffect(() => {
-    if (isMobileCalendar && view === "timeGridWeek") {
-      const frame = window.requestAnimationFrame(() => changeCalendarView("timeGridDay"))
-      return () => window.cancelAnimationFrame(frame)
-    }
-    return undefined
-  }, [changeCalendarView, isMobileCalendar, view])
 
   const getReservationTimeRangeSlots = useCallback((extraSlots: { start: string; end: string }[] = []) => {
     const remoteBookings = fetchedRef.current.flatMap((entry) =>
@@ -857,7 +881,9 @@ export function BookingCalendar({
     const firstSlot = focusSlot ?? drafts[0] ?? initialSlots[0]
     const frame = window.requestAnimationFrame(() => {
       if (firstSlot) {
-        changeCalendarView(getSelectionView(isMobileCalendar), firstSlot.start)
+        const firstSlotDate = toDateKey(new Date(firstSlot.start))
+        setSelectedMonthDate(firstSlotDate)
+        changeCalendarView("dayGridMonth", firstSlotDate)
         if (focusSlot) {
           const start = new Date(focusSlot.start)
           const end = new Date(focusSlot.end)
@@ -877,13 +903,13 @@ export function BookingCalendar({
           })
         }
       } else {
-        changeCalendarView(getSelectionView(isMobileCalendar))
+        changeCalendarView("dayGridMonth")
       }
     })
     return () => {
       window.cancelAnimationFrame(frame)
     }
-  }, [adjustRequestKey, changeCalendarView, drafts, focusSlot, initialSlots, isMobileCalendar])
+  }, [adjustRequestKey, changeCalendarView, drafts, focusSlot, initialSlots])
 
   const fetchEvents = useCallback(async (arg: EventSourceFuncArg): Promise<EventInput[]> => {
     const startMs = arg.start.getTime()
@@ -1009,6 +1035,7 @@ export function BookingCalendar({
     }
     fullCalendarEventsSettledRef.current = true
     markFullCalendarReadyIfSettled()
+    setMonthBlockingSnapshot({ busy: data.busy ?? [], bookings: data.bookings ?? [] })
     return [...busyEvents, ...bookingEvents, ...bufferEvents]
   }, [
     adjustingGroupId,
@@ -1483,6 +1510,55 @@ export function BookingCalendar({
     )
   }, [overlapsBlockedEvent, overlapsConfirmedBufferZone])
 
+  const monthSlotCandidates = useMemo<MonthSlotCandidate[]>(() => {
+    if (!selectedMonthDate) return []
+    const candidates: MonthSlotCandidate[] = []
+    const stepMinutes = MIN_SELECTION_MS / 60000
+
+    for (let minutes = BASE_SLOT_MIN_MINUTES; minutes + stepMinutes <= BASE_SLOT_MAX_MINUTES; minutes += stepMinutes) {
+      const start = parseDateTimeSlot(selectedMonthDate, formatTimeMinutes(minutes))
+      if (!start) continue
+      const end = new Date(start.getTime() + MIN_SELECTION_MS)
+      const reason = getBlockedRangeReasonFromSnapshot(start, end, monthBlockingSnapshot)
+      candidates.push({
+        start: start.toISOString(),
+        end: end.toISOString(),
+        label: `${format(start, "HH:mm")} - ${format(end, "HH:mm")}`,
+        reason,
+      })
+    }
+
+    return candidates
+  }, [monthBlockingSnapshot, selectedMonthDate])
+
+  const selectedMonthLabel = useMemo(() => {
+    if (!selectedMonthDate) return null
+    const date = parseDateTimeSlot(selectedMonthDate, "00:00:00")
+    return date ? format(date, "M月d日") : selectedMonthDate
+  }, [selectedMonthDate])
+
+  const selectMonthDate = useCallback((date: Date) => {
+    const dateKey = toDateKey(date)
+    selectedViewRef.current = "dayGridMonth"
+    setView("dayGridMonth")
+    setSelectedMonthDate(dateKey)
+    setActionError(null)
+    setActionPanelPosition(null)
+    calendarRef.current?.getApi().changeView("dayGridMonth", dateKey)
+  }, [])
+
+  const createDraftFromMonthCandidate = useCallback((candidate: MonthSlotCandidate) => {
+    if (candidate.reason) {
+      setActionError(candidate.reason)
+      return
+    }
+    const start = new Date(candidate.start)
+    const end = new Date(candidate.end)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
+    setSelectedMonthDate(toDateKey(start))
+    createDraftFromRange(start, end)
+  }, [createDraftFromRange])
+
   const handleEventAllow = useCallback<AllowFunc>((span, movingEvent) => {
     const props = movingEvent?.extendedProps as AnyEventProps | undefined
     if (props?.kind === "buffer") return shouldAllowBufferEdge(props, span, isCalendarAdmin)
@@ -1512,14 +1588,14 @@ export function BookingCalendar({
   const handleDateClick = useCallback(
     (arg: DateClickArg) => {
       if (arg.view.type === "dayGridMonth") {
-        changeCalendarView(getSelectionView(isMobileCalendar), arg.dateStr)
+        selectMonthDate(arg.date)
         return
       }
       if (arg.view.type === "timeGridDay") {
         createDraftFromRange(arg.date, new Date(arg.date.getTime() + MIN_SELECTION_MS))
       }
     },
-    [changeCalendarView, createDraftFromRange, isMobileCalendar],
+    [createDraftFromRange, selectMonthDate],
   )
 
   const handleLogoutConfirm = useCallback(async () => {
@@ -1727,6 +1803,7 @@ export function BookingCalendar({
     const day = arg.date.getDay()
     if (day === 0 || day === 6) classes.push("booking-calendar__weekend")
     if (getHolidayName(arg.date)) classes.push("booking-calendar__holiday")
+    if (selectedMonthDate === toDateKey(arg.date)) classes.push("booking-calendar__selected-day")
     return classes
   }
 
@@ -1993,23 +2070,6 @@ export function BookingCalendar({
       onTouchEndCapture={handleCalendarTouchEndCapture}
     >
       <div className="booking-calendar__view-row">
-        <div className="booking-calendar__tabs" aria-label="カレンダー表示切替">
-          {visibleViewOptions.map((option) => {
-            const isActive = view === option.value
-            return (
-              <button
-                key={option.value}
-                type="button"
-                data-view={option.value === "dayGridMonth" ? "month" : option.value === "timeGridWeek" ? "week" : "day"}
-                className={`booking-calendar__tab ${isActive ? "glass-inset text-hp" : "glass-flat text-hp-muted"}`}
-                aria-pressed={isActive}
-                onClick={() => changeCalendarView(option.value)}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
         <div className="booking-calendar__view-row-end">
           {modeKind === "adjust" ? (
             <div className="booking-calendar__adjust-badge glass-inset">
@@ -2120,73 +2180,134 @@ export function BookingCalendar({
           {actionError}
         </div>
       ) : null}
-      <div className="booking-calendar__surface glass-flat">
-        <div className="booking-calendar__stack">
-          {isMonthSkeletonMounted ? (
-            <div
-              className={`booking-calendar__month-skeleton-layer ${isMonthSkeletonFading ? "booking-calendar__month-skeleton-layer--fading" : ""}`}
-            >
-              {monthSkeleton}
+      <div className="booking-calendar__month-layout">
+        <div className="booking-calendar__surface glass-flat">
+          <div className="booking-calendar__stack">
+            {isMonthSkeletonMounted ? (
+              <div
+                className={`booking-calendar__month-skeleton-layer ${isMonthSkeletonFading ? "booking-calendar__month-skeleton-layer--fading" : ""}`}
+              >
+                {monthSkeleton}
+              </div>
+            ) : null}
+            <div className={`booking-calendar__fullcalendar-layer ${hideFullCalendarForMonthSkeleton ? "booking-calendar__fullcalendar-layer--hidden" : ""}`}>
+              <FullCalendar
+                ref={calendarRef}
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                initialView="dayGridMonth"
+                locale={jaLocale}
+                firstDay={0}
+                headerToolbar={{
+                  left: "prev,next today",
+                  center: "title",
+                  right: "",
+                }}
+                buttonText={{
+                  today: "今日",
+                }}
+                height="auto"
+                selectable={isSelectableView(view)}
+                selectAllow={handleSelectAllow}
+                selectOverlap={false}
+                eventAllow={handleEventAllow}
+                selectMinDistance={16}
+                selectMirror
+                unselectAuto={false}
+                editable={false}
+                eventStartEditable
+                eventDurationEditable
+                eventResizableFromStart
+                nowIndicator
+                slotMinTime={slotMinTime}
+                slotMaxTime={slotMaxTime}
+                slotDuration="00:30:00"
+                snapDuration="00:30:00"
+                allDaySlot={false}
+                navLinks={false}
+                eventSources={eventSources}
+                lazyFetching
+                loading={handleFullCalendarLoading}
+                datesSet={() => applyDynamicTimeRangeBounds()}
+                viewDidMount={handleFullCalendarViewDidMount}
+                eventContent={renderEventContent}
+                eventDidMount={handleEventDidMount}
+                dayCellClassNames={dayCellClassNames}
+                dayCellContent={renderDayCellContent}
+                dayCellDidMount={handleDayCellDidMount}
+                dateClick={handleDateClick}
+                select={handleSelect}
+                unselect={handleUnselect}
+                eventClick={handleEventClick}
+                eventDragStart={handleEventDragStart}
+                eventDragStop={handleEventDragStop}
+                eventDrop={handleEventDrop}
+                eventResizeStart={handleEventResizeStart}
+                eventResizeStop={handleEventResizeStop}
+                eventResize={handleEventResize}
+              />
             </div>
-          ) : null}
-          <div className={`booking-calendar__fullcalendar-layer ${hideFullCalendarForMonthSkeleton ? "booking-calendar__fullcalendar-layer--hidden" : ""}`}>
-            <FullCalendar
-              ref={calendarRef}
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              initialView="dayGridMonth"
-              locale={jaLocale}
-              firstDay={0}
-              headerToolbar={{
-                left: "prev,next today",
-                center: "title",
-                right: "",
-              }}
-              buttonText={{
-                today: "今日",
-              }}
-              height="auto"
-              selectable={isSelectableView(view)}
-              selectAllow={handleSelectAllow}
-              selectOverlap={false}
-              eventAllow={handleEventAllow}
-              selectMinDistance={16}
-              selectMirror
-              unselectAuto={false}
-              editable={false}
-              eventStartEditable
-              eventDurationEditable
-              eventResizableFromStart
-              nowIndicator
-              slotMinTime={slotMinTime}
-              slotMaxTime={slotMaxTime}
-              slotDuration="00:30:00"
-              snapDuration="00:30:00"
-              allDaySlot={false}
-              navLinks
-              navLinkDayClick={(date) => changeCalendarView("timeGridDay", toDateKey(date))}
-              eventSources={eventSources}
-              lazyFetching
-              loading={handleFullCalendarLoading}
-              datesSet={() => applyDynamicTimeRangeBounds()}
-              viewDidMount={handleFullCalendarViewDidMount}
-              eventContent={renderEventContent}
-              eventDidMount={handleEventDidMount}
-              dayCellClassNames={dayCellClassNames}
-              dayCellContent={renderDayCellContent}
-              dayCellDidMount={handleDayCellDidMount}
-              dateClick={handleDateClick}
-              select={handleSelect}
-              unselect={handleUnselect}
-              eventClick={handleEventClick}
-              eventDragStart={handleEventDragStart}
-              eventDragStop={handleEventDragStop}
-              eventDrop={handleEventDrop}
-              eventResizeStart={handleEventResizeStart}
-              eventResizeStop={handleEventResizeStop}
-              eventResize={handleEventResize}
-            />
           </div>
         </div>
+        {selectedMonthDate ? (
+          <div className="booking-calendar__month-slots glass-flat" data-testid="booking-month-slots">
+            <div className="booking-calendar__month-slots-head">
+              <h2 className="booking-calendar__month-slots-title">
+                {selectedMonthLabel}の空き時間
+              </h2>
+              <p className="booking-calendar__month-slots-note">
+                候補を選んでから本予約へ進んでください。
+              </p>
+            </div>
+            <div className="booking-calendar__month-slot-grid" aria-label={`${selectedMonthLabel ?? "選択日"}の候補時間`}>
+              {monthSlotCandidates.map((candidate) => (
+                <button
+                  key={candidate.start}
+                  type="button"
+                  className={`booking-calendar__month-slot ${candidate.reason ? "booking-calendar__month-slot--blocked" : "booking-calendar__month-slot--available"}`}
+                  data-testid="booking-month-slot-option"
+                  disabled={Boolean(candidate.reason)}
+                  onClick={() => createDraftFromMonthCandidate(candidate)}
+                >
+                  <span className="booking-calendar__month-slot-time">{candidate.label}</span>
+                  <span className="booking-calendar__month-slot-status">
+                    {candidate.reason ? candidate.reason : "選択できます"}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {activePanelDraft && view === "dayGridMonth" ? (
+              <div
+                ref={actionPanelRef}
+                className="booking-calendar__action-panel booking-calendar__action-panel--month glass-flat"
+                data-testid="booking-action-panel"
+              >
+                <div className="booking-calendar__action-panel-info">
+                  <span className="booking-calendar__action-panel-range">
+                    {formatRange(activePanelDraft.start, activePanelDraft.end)}
+                  </span>
+                </div>
+                <div className="booking-calendar__action-panel-buttons">
+                  <button
+                    type="button"
+                    className="booking-calendar__action-button booking-calendar__action-button--primary"
+                    onClick={() => startCommit()}
+                    disabled={preflighting}
+                  >
+                    {preflighting ? "確認中…" : "本予約"}
+                  </button>
+                  <button
+                    type="button"
+                    className="booking-calendar__action-button booking-calendar__action-button--ghost"
+                    onClick={cancelActiveDraft}
+                    disabled={preflighting}
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       {adminMoveConfirm ? (
         <div
