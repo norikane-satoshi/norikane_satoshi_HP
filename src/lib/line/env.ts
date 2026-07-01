@@ -15,5 +15,5 @@ export function getLineMessagingChannelAccessToken(): string {
 }
 
 export function getLineBookingLiffUrl(): string {
-  return process.env.NEXT_PUBLIC_LINE_LIFF_URL ?? "https://liff.line.me/2010558388-rbD4nFIK"
+  return process.env.NEXT_PUBLIC_LINE_LIFF_URL ?? "https://liff.line.me/2010558388-b4OhcjYE"
 }
