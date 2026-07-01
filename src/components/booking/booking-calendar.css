@@ -891,6 +891,10 @@
     padding: 10px;
   }
 
+  .booking-calendar__tab[data-view="week"] {
+    display: none;
+  }
+
   .booking-calendar .fc .fc-toolbar {
     align-items: flex-start;
     flex-direction: column;
@@ -907,6 +911,22 @@
 
   .booking-calendar .fc-daygrid-day-frame {
     min-height: 88px;
+  }
+
+  .booking-calendar .fc-timeGridDay-view .fc-timegrid-slot {
+    height: 24px !important;
+  }
+
+  .booking-calendar .fc-timeGridDay-view .fc-timegrid-cols,
+  .booking-calendar .fc-timeGridDay-view .fc-timegrid-col,
+  .booking-calendar .fc-timeGridDay-view .fc-timegrid-slot,
+  .booking-calendar .fc-timeGridDay-view .fc-timegrid-slot-lane {
+    touch-action: manipulation;
+  }
+
+  .booking-calendar .fc-timeGridDay-view .fc-event .fc-event-resizer-start,
+  .booking-calendar .fc-timeGridDay-view .fc-event .fc-event-resizer-end {
+    height: 18px;
   }
 
   .booking-month-skeleton__toolbar {

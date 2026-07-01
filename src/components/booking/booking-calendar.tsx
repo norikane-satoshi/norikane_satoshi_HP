@@ -26,7 +26,7 @@ import type {
   EventSourceFuncArg,
 } from "@fullcalendar/core"
 import { format } from "date-fns"
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from "react"
 import { signOut } from "next-auth/react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
@@ -172,6 +172,13 @@ type AdminMoveConfirmState = {
 
 type InteractionType = "drag" | "resize" | "select" | null
 
+type TouchTapTarget = {
+  date: string
+  time: string
+  x: number
+  y: number
+}
+
 const VIEW_OPTIONS: { label: string; value: CalendarView }[] = [
   { label: "月", value: "dayGridMonth" },
   { label: "週", value: "timeGridWeek" },
@@ -184,12 +191,20 @@ const BASE_SLOT_MIN_MINUTES = 10 * 60
 const BASE_SLOT_MAX_MINUTES = 19 * 60
 const TIME_RANGE_EXPAND_STEP_MINUTES = 30
 const TIME_RANGE_EXPAND_THROTTLE_MS = 200
+const MOBILE_CALENDAR_MEDIA_QUERY = "(max-width: 767px)"
 
 function toDateKey(date: Date): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const day = String(date.getDate()).padStart(2, "0")
   return `${year}-${month}-${day}`
+}
+
+function parseDateTimeSlot(date: string, time: string): Date | null {
+  const [year, month, day] = date.split("-").map(Number)
+  const [hours, minutes, seconds = 0] = time.split(":").map(Number)
+  if (!year || !month || !day || Number.isNaN(hours) || Number.isNaN(minutes)) return null
+  return new Date(year, month - 1, day, hours, minutes, seconds, 0)
 }
 
 function hasTimePart(value: string): boolean {
@@ -456,7 +471,11 @@ function formatRange(start: string, end: string): string {
 }
 
 function isSelectableView(viewType: string): boolean {
-  return viewType === "timeGridWeek"
+  return viewType === "timeGridWeek" || viewType === "timeGridDay"
+}
+
+function getSelectionView(isMobileCalendar: boolean): CalendarView {
+  return isMobileCalendar ? "timeGridDay" : "timeGridWeek"
 }
 
 function hasMinimumSelectionDuration(start: Date, end: Date): boolean {
@@ -575,6 +594,7 @@ export function BookingCalendar({
   onCodeChange,
 }: BookingCalendarProps) {
   const [view, setView] = useState<CalendarView>("dayGridMonth")
+  const [isMobileCalendar, setIsMobileCalendar] = useState(false)
   const [isFullCalendarReady, setIsFullCalendarReady] = useState(false)
   const [isMonthSkeletonMounted, setIsMonthSkeletonMounted] = useState(() => Boolean(monthSkeleton))
   const [isMonthSkeletonFading, setIsMonthSkeletonFading] = useState(false)
@@ -597,6 +617,8 @@ export function BookingCalendar({
   const lastTopExpandAtRef = useRef<number | null>(null)
   const lastBottomExpandAtRef = useRef<number | null>(null)
   const draftPreviewRef = useRef<DraftEvent | null>(null)
+  const touchTapTargetRef = useRef<TouchTapTarget | null>(null)
+  const lastTapDraftRef = useRef<{ date: string; time: string; createdAt: number } | null>(null)
   const fullCalendarViewMountedRef = useRef(false)
   const fullCalendarEventsSettledRef = useRef(false)
   const fullCalendarReadyFrameRef = useRef<number | null>(null)
@@ -633,6 +655,10 @@ export function BookingCalendar({
     [drafts, activeDraftId],
   )
   const activePanelDraft = draftPreview?.id === activeDraftId ? draftPreview : activeDraft
+  const visibleViewOptions = useMemo(
+    () => isMobileCalendar ? VIEW_OPTIONS.filter((option) => option.value !== "timeGridWeek") : VIEW_OPTIONS,
+    [isMobileCalendar],
+  )
 
   const markFullCalendarReadyIfSettled = useCallback(() => {
     if (
@@ -656,6 +682,15 @@ export function BookingCalendar({
         window.cancelAnimationFrame(fullCalendarReadyFrameRef.current)
       }
     }
+  }, [])
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_CALENDAR_MEDIA_QUERY)
+    const syncMobileCalendar = () => setIsMobileCalendar(mediaQuery.matches)
+
+    syncMobileCalendar()
+    mediaQuery.addEventListener("change", syncMobileCalendar)
+    return () => mediaQuery.removeEventListener("change", syncMobileCalendar)
   }, [])
 
   useEffect(() => {
@@ -721,6 +756,14 @@ export function BookingCalendar({
       calendarApi.changeView(nextView, dateStr)
     }
   }, [])
+
+  useEffect(() => {
+    if (isMobileCalendar && view === "timeGridWeek") {
+      const frame = window.requestAnimationFrame(() => changeCalendarView("timeGridDay"))
+      return () => window.cancelAnimationFrame(frame)
+    }
+    return undefined
+  }, [changeCalendarView, isMobileCalendar, view])
 
   const getReservationTimeRangeSlots = useCallback((extraSlots: { start: string; end: string }[] = []) => {
     const remoteBookings = fetchedRef.current.flatMap((entry) =>
@@ -814,7 +857,7 @@ export function BookingCalendar({
     const firstSlot = focusSlot ?? drafts[0] ?? initialSlots[0]
     const frame = window.requestAnimationFrame(() => {
       if (firstSlot) {
-        changeCalendarView("timeGridWeek", firstSlot.start)
+        changeCalendarView(getSelectionView(isMobileCalendar), firstSlot.start)
         if (focusSlot) {
           const start = new Date(focusSlot.start)
           const end = new Date(focusSlot.end)
@@ -834,13 +877,13 @@ export function BookingCalendar({
           })
         }
       } else {
-        changeCalendarView("timeGridWeek")
+        changeCalendarView(getSelectionView(isMobileCalendar))
       }
     })
     return () => {
       window.cancelAnimationFrame(frame)
     }
-  }, [adjustRequestKey, changeCalendarView, drafts, focusSlot, initialSlots])
+  }, [adjustRequestKey, changeCalendarView, drafts, focusSlot, initialSlots, isMobileCalendar])
 
   const fetchEvents = useCallback(async (arg: EventSourceFuncArg): Promise<EventInput[]> => {
     const startMs = arg.start.getTime()
@@ -1118,7 +1161,7 @@ export function BookingCalendar({
   }, [activeDraftId, removeDraft])
 
   const updateActionPanelPosition = useCallback(() => {
-    if (!activeDraftId || view !== "timeGridWeek") {
+    if (!activeDraftId || !isSelectableView(view)) {
       setActionPanelPosition(null)
       return
     }
@@ -1148,7 +1191,7 @@ export function BookingCalendar({
   }, [activeDraftId, view])
 
   useEffect(() => {
-    if (!activeDraftId || view !== "timeGridWeek") {
+    if (!activeDraftId || !isSelectableView(view)) {
       // The floating action panel is DOM-positioned and must be cleared when its anchor disappears.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setActionPanelPosition(null)
@@ -1162,7 +1205,7 @@ export function BookingCalendar({
   }, [activeDraftId, activePanelDraft?.start, activePanelDraft?.end, updateActionPanelPosition])
 
   useEffect(() => {
-    if (!activePanelDraft || view !== "timeGridWeek" || !actionPanelPosition || !actionPanelRef.current) return
+    if (!activePanelDraft || !isSelectableView(view) || !actionPanelPosition || !actionPanelRef.current) return
     const frame = window.requestAnimationFrame(updateActionPanelPosition)
     return () => window.cancelAnimationFrame(frame)
   }, [activePanelDraft, actionPanelPosition, updateActionPanelPosition, view])
@@ -1263,6 +1306,42 @@ export function BookingCalendar({
     expandTimeRangeAtClientY(event.clientY)
   }, [expandTimeRangeAtClientY])
 
+  const getTouchTapTarget = useCallback((target: EventTarget | null, clientX: number, clientY: number): TouchTapTarget | null => {
+    if (selectedViewRef.current !== "timeGridDay") return null
+    const element = target instanceof Element ? target : null
+    if (!element) return null
+    if (element.closest(".fc-event, button, a, input, textarea, select")) return null
+
+    const root = rootRef.current
+    const slot =
+      element.closest<HTMLElement>(".fc-timegrid-slot-lane[data-time], .fc-timegrid-slot[data-time]") ??
+      [...(root?.querySelectorAll<HTMLElement>(".fc-timegrid-slot-lane[data-time]") ?? [])].find((candidate) => {
+        const rect = candidate.getBoundingClientRect()
+        return clientY >= rect.top && clientY <= rect.bottom
+      })
+    const dayColumn =
+      [...(root?.querySelectorAll<HTMLElement>(".fc-timegrid-col[data-date]") ?? [])].find((candidate) => {
+        const rect = candidate.getBoundingClientRect()
+        return clientX >= rect.left && clientX <= rect.right
+      }) ?? root?.querySelector<HTMLElement>(".fc-timegrid-col[data-date]")
+    const date = dayColumn?.dataset.date
+    const time = slot?.dataset.time
+    if (!date || !time) return null
+
+    return { date, time, x: clientX, y: clientY }
+  }, [])
+
+  const handleCalendarPointerDownCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") return
+    touchTapTargetRef.current = getTouchTapTarget(event.target, event.clientX, event.clientY)
+  }, [getTouchTapTarget])
+
+  const handleCalendarTouchStartCapture = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    const touch = event.changedTouches[0]
+    if (!touch) return
+    touchTapTargetRef.current = getTouchTapTarget(event.target, touch.clientX, touch.clientY)
+  }, [getTouchTapTarget])
+
   useEffect(() => {
     function expandTimeRange(event: MouseEvent) {
       if (selectedViewRef.current === "dayGridMonth" || !interactionInProgressRef.current) {
@@ -1293,27 +1372,92 @@ export function BookingCalendar({
     }
   }, [finishInteraction])
 
-  const handleSelect = useCallback((arg: DateSelectArg) => {
+  const createDraftFromRange = useCallback((start: Date, end: Date) => {
     const calendarApi = calendarRef.current?.getApi()
     if (
-      !isSelectableView(arg.view.type) ||
-      !hasMinimumSelectionDuration(arg.start, arg.end) ||
-      overlapsBlockedEvent(arg.start, arg.end) ||
-      overlapsConfirmedBufferZone(arg.start, arg.end)
+      !hasMinimumSelectionDuration(start, end) ||
+      overlapsBlockedEvent(start, end) ||
+      overlapsConfirmedBufferZone(start, end)
     ) {
       finishInteraction()
       calendarApi?.unselect()
-      return
+      return false
     }
     const draft: DraftEvent = {
       id: makeDraftId(),
-      start: arg.start.toISOString(),
-      end: arg.end.toISOString(),
+      start: start.toISOString(),
+      end: end.toISOString(),
     }
     finishInteraction([{ start: draft.start, end: draft.end }])
     upsertDraft(draft, true)
     calendarApi?.unselect()
+    return true
   }, [finishInteraction, overlapsBlockedEvent, overlapsConfirmedBufferZone, upsertDraft])
+
+  const handleSelect = useCallback((arg: DateSelectArg) => {
+    if (!isSelectableView(arg.view.type)) {
+      finishInteraction()
+      calendarRef.current?.getApi().unselect()
+      return
+    }
+    createDraftFromRange(arg.start, arg.end)
+  }, [createDraftFromRange, finishInteraction])
+
+  const createDraftFromTapTarget = useCallback((target: TouchTapTarget) => {
+    const recent = lastTapDraftRef.current
+    if (recent && recent.date === target.date && recent.time === target.time && Date.now() - recent.createdAt < 500) {
+      return false
+    }
+    const start = parseDateTimeSlot(target.date, target.time)
+    if (!start) return false
+    const created = createDraftFromRange(start, new Date(start.getTime() + MIN_SELECTION_MS))
+    if (created) {
+      lastTapDraftRef.current = { date: target.date, time: target.time, createdAt: Date.now() }
+    }
+    return created
+  }, [createDraftFromRange])
+
+  const handleCalendarPointerUpCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") return
+    const startTarget = touchTapTargetRef.current
+    touchTapTargetRef.current = null
+    if (!startTarget) return
+
+    const endTarget = getTouchTapTarget(event.target, event.clientX, event.clientY)
+    if (!endTarget || endTarget.date !== startTarget.date || endTarget.time !== startTarget.time) return
+    if (Math.hypot(event.clientX - startTarget.x, event.clientY - startTarget.y) > 10) return
+
+    if (createDraftFromTapTarget(endTarget)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [createDraftFromTapTarget, getTouchTapTarget])
+
+  const handleCalendarTouchEndCapture = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    const startTarget = touchTapTargetRef.current
+    touchTapTargetRef.current = null
+    if (!startTarget) return
+
+    const touch = event.changedTouches[0]
+    if (!touch) return
+    const endTarget = getTouchTapTarget(event.target, touch.clientX, touch.clientY)
+    if (!endTarget || endTarget.date !== startTarget.date || endTarget.time !== startTarget.time) return
+    if (Math.hypot(touch.clientX - startTarget.x, touch.clientY - startTarget.y) > 10) return
+
+    if (createDraftFromTapTarget(endTarget)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [createDraftFromTapTarget, getTouchTapTarget])
+
+  const handleCalendarClickCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    const tapTarget = getTouchTapTarget(event.target, event.clientX, event.clientY)
+    if (!tapTarget) return
+    if (createDraftFromTapTarget(tapTarget)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [createDraftFromTapTarget, getTouchTapTarget])
 
   const handleUnselect = useCallback(() => {
     finishInteraction()
@@ -1357,10 +1501,14 @@ export function BookingCalendar({
   const handleDateClick = useCallback(
     (arg: DateClickArg) => {
       if (arg.view.type === "dayGridMonth") {
-        changeCalendarView("timeGridWeek", arg.dateStr)
+        changeCalendarView(getSelectionView(isMobileCalendar), arg.dateStr)
+        return
+      }
+      if (arg.view.type === "timeGridDay") {
+        createDraftFromRange(arg.date, new Date(arg.date.getTime() + MIN_SELECTION_MS))
       }
     },
-    [changeCalendarView],
+    [changeCalendarView, createDraftFromRange, isMobileCalendar],
   )
 
   const handleLogoutConfirm = useCallback(async () => {
@@ -1589,6 +1737,11 @@ export function BookingCalendar({
     }
   }
 
+  const renderDayCellContent = (arg: DayCellContentArg) => {
+    if (arg.view.type !== "dayGridMonth") return undefined
+    return <span>{arg.date.getDate()}</span>
+  }
+
   const removeExistingSlot = useCallback(
     async (bookingId: string) => {
       const response = await fetch(`/api/booking/${bookingId}`, { method: "DELETE" })
@@ -1607,7 +1760,7 @@ export function BookingCalendar({
     if (props.kind === "draft") {
       arg.el.setAttribute("data-active-draft", props.draftId === activeDraftId ? "true" : "false")
       if (props.draftId) arg.el.setAttribute("data-draft-id", props.draftId)
-      if (props.draftId === activeDraftId && arg.view.type === "timeGridWeek") {
+      if (props.draftId === activeDraftId && isSelectableView(arg.view.type)) {
         updateActionPanelPosition()
       }
       if (props.draftId) {
@@ -1822,10 +1975,15 @@ export function BookingCalendar({
       ref={rootRef}
       onMouseDownCapture={handleCalendarMouseDownCapture}
       onMouseMoveCapture={handleCalendarMouseMoveCapture}
+      onClickCapture={handleCalendarClickCapture}
+      onPointerDownCapture={handleCalendarPointerDownCapture}
+      onPointerUpCapture={handleCalendarPointerUpCapture}
+      onTouchStartCapture={handleCalendarTouchStartCapture}
+      onTouchEndCapture={handleCalendarTouchEndCapture}
     >
       <div className="booking-calendar__view-row">
         <div className="booking-calendar__tabs" aria-label="カレンダー表示切替">
-          {VIEW_OPTIONS.map((option) => {
+          {visibleViewOptions.map((option) => {
             const isActive = view === option.value
             return (
               <button
@@ -1914,7 +2072,7 @@ export function BookingCalendar({
           </div>
         </div>
       ) : null}
-      {activePanelDraft && view === "timeGridWeek" && actionPanelPosition ? (
+      {activePanelDraft && isSelectableView(view) && actionPanelPosition ? (
         <div
           ref={actionPanelRef}
           className="booking-calendar__action-panel glass-flat"
@@ -1976,7 +2134,7 @@ export function BookingCalendar({
                 today: "今日",
               }}
               height="auto"
-              selectable={view === "timeGridWeek"}
+              selectable={isSelectableView(view)}
               selectAllow={handleSelectAllow}
               selectOverlap={false}
               eventAllow={handleEventAllow}
@@ -2003,6 +2161,7 @@ export function BookingCalendar({
               eventContent={renderEventContent}
               eventDidMount={handleEventDidMount}
               dayCellClassNames={dayCellClassNames}
+              dayCellContent={renderDayCellContent}
               dayCellDidMount={handleDayCellDidMount}
               dateClick={handleDateClick}
               select={handleSelect}
