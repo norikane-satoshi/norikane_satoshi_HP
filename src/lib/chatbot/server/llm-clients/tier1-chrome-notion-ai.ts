@@ -1355,9 +1355,14 @@ async function runInferenceInPage(input: {
       chunkCount += 1
     }
 
+    const isRateLimitResponse = (text: string) =>
+      text.includes("UserRateLimitResponse") ||
+      text.includes("fairUseAIRateLimit") ||
+      text.includes('"message":"Please try again later."')
+
     const rawText = finalText || partialText
     if (!rawText) {
-      if (isNotionAiRateLimitResponse(responseText)) {
+      if (isRateLimitResponse(responseText)) {
         return {
           ok: false,
           code: "rate-limit",
