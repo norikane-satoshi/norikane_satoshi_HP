@@ -891,6 +891,35 @@
     padding: 10px;
   }
 
+  .booking-calendar__action-panel {
+    position: fixed;
+    top: auto !important;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: max(12px, env(safe-area-inset-left)) !important;
+    z-index: 45;
+    width: auto;
+    align-items: stretch;
+    border-radius: var(--hp-radius);
+    padding: 12px;
+    box-shadow: var(--glass-shadow);
+  }
+
+  .booking-calendar__action-panel-info,
+  .booking-calendar__action-panel-buttons,
+  .booking-calendar__action-button {
+    width: 100%;
+  }
+
+  .booking-calendar__action-panel-buttons {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .booking-calendar__action-button {
+    min-height: 44px;
+  }
+
   .booking-calendar__tab[data-view="week"] {
     display: none;
   }

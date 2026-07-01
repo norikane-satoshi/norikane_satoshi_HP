@@ -1372,13 +1372,24 @@ export function BookingCalendar({
     }
   }, [finishInteraction])
 
+  const getBlockedRangeReason = useCallback((start: Date, end: Date) => {
+    if (!hasMinimumSelectionDuration(start, end)) {
+      return "30分以上の空き時間を選んでください。"
+    }
+    if (overlapsBlockedEvent(start, end)) {
+      return "この時間は既存予定があるため選べません。"
+    }
+    if (overlapsConfirmedBufferZone(start, end)) {
+      return "この時間は予約前後の保護時間のため選べません。"
+    }
+    return null
+  }, [overlapsBlockedEvent, overlapsConfirmedBufferZone])
+
   const createDraftFromRange = useCallback((start: Date, end: Date) => {
     const calendarApi = calendarRef.current?.getApi()
-    if (
-      !hasMinimumSelectionDuration(start, end) ||
-      overlapsBlockedEvent(start, end) ||
-      overlapsConfirmedBufferZone(start, end)
-    ) {
+    const blockedReason = getBlockedRangeReason(start, end)
+    if (blockedReason) {
+      setActionError(blockedReason)
       finishInteraction()
       calendarApi?.unselect()
       return false
@@ -1392,7 +1403,7 @@ export function BookingCalendar({
     upsertDraft(draft, true)
     calendarApi?.unselect()
     return true
-  }, [finishInteraction, overlapsBlockedEvent, overlapsConfirmedBufferZone, upsertDraft])
+  }, [finishInteraction, getBlockedRangeReason, upsertDraft])
 
   const handleSelect = useCallback((arg: DateSelectArg) => {
     if (!isSelectableView(arg.view.type)) {
