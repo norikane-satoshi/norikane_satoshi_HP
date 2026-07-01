@@ -22,6 +22,10 @@ function addDaysToDateKey(dateKey: string, days: number) {
   return isoDate(new Date(Date.UTC(year, month - 1, day + days)))
 }
 
+function currentDateKey() {
+  return localDateKey(new Date())
+}
+
 function displayDateKey(dateKey: string) {
   const [, month, day] = dateKey.split("-").map(Number)
   return `${month}/${day}`
@@ -44,13 +48,37 @@ function buildDailyBusySlots(startIso: string, endIso: string) {
   return busy
 }
 
-async function stubBookingCalendarApis(page: Page, options: { dailyBusy?: boolean; notionWorkBusyDateKeys?: string[] } = {}) {
+async function stubBookingCalendarApis(
+  page: Page,
+  options: {
+    dailyBusy?: boolean
+    googleBusyDateKeys?: string[]
+    notionWorkBusyDateKeys?: string[]
+    dateOnlyBusyDateKeys?: string[]
+  } = {},
+) {
   await page.route("**/api/calendar/free-busy**", async (route) => {
     const url = new URL(route.request().url())
+    const googleBusy = (options.googleBusyDateKeys ?? []).map((date) => ({
+      start: `${date}T10:00:00+09:00`,
+      end: `${date}T10:30:00+09:00`,
+      summary: "Google busy",
+      source: "google_calendar",
+      bufferBeforeHours: 0,
+      bufferAfterHours: 0,
+    }))
     const notionWorkBusy = (options.notionWorkBusyDateKeys ?? []).map((date) => ({
       start: `${date}T13:00:00+09:00`,
       end: `${date}T13:30:00+09:00`,
       summary: "IB_仕事",
+      source: "notion_work",
+      bufferBeforeHours: 0,
+      bufferAfterHours: 0,
+    }))
+    const dateOnlyBusy = (options.dateOnlyBusyDateKeys ?? []).map((date) => ({
+      start: date,
+      end: addDaysToDateKey(date, 1),
+      summary: "Date-only schedule",
       source: "notion_work",
       bufferBeforeHours: 0,
       bufferAfterHours: 0,
@@ -61,7 +89,9 @@ async function stubBookingCalendarApis(page: Page, options: { dailyBusy?: boolea
       body: JSON.stringify({
         busy: [
           ...(options.dailyBusy ? buildDailyBusySlots(url.searchParams.get("start") ?? "", url.searchParams.get("end") ?? "") : []),
+          ...googleBusy,
           ...notionWorkBusy,
+          ...dateOnlyBusy,
         ],
         bookings: [],
       }),
@@ -76,7 +106,16 @@ async function stubBookingCalendarApis(page: Page, options: { dailyBusy?: boolea
   })
 }
 
-async function openAuthenticatedBooking(page: Page, options: { dailyBusy?: boolean; notionWorkBusyDateKeys?: string[]; path?: string } = {}) {
+async function openAuthenticatedBooking(
+  page: Page,
+  options: {
+    dailyBusy?: boolean
+    googleBusyDateKeys?: string[]
+    notionWorkBusyDateKeys?: string[]
+    dateOnlyBusyDateKeys?: string[]
+    path?: string
+  } = {},
+) {
   await stubBookingCalendarApis(page, options)
   const prisma = prismaForE2E()
   await upsertUser(prisma, testUserEmail, "E2E Satoshi")
@@ -96,7 +135,7 @@ test.describe("booking calendar mobile layout and selection", () => {
   })
 
   test("uses month-only mobile flow and toggles non-contiguous date requests", async ({ page }) => {
-    await openAuthenticatedBooking(page, { dailyBusy: true })
+    await openAuthenticatedBooking(page)
 
     await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
     await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
@@ -107,9 +146,8 @@ test.describe("booking calendar mobile layout and selection", () => {
     expect(calendarSurfaceBox).not.toBeNull()
     expect(calendarSurfaceBox!.width).toBeGreaterThanOrEqual(374)
 
-    const targetDay = page.locator(".fc-daygrid-day:not(.fc-day-other)").first()
-    const targetDate = await targetDay.getAttribute("data-date")
-    if (!targetDate) throw new Error("target date was not available")
+    const targetDate = addDaysToDateKey(currentDateKey(), 1)
+    const targetDay = page.locator(`.fc-daygrid-day[data-date="${targetDate}"]`)
     await targetDay.locator(".fc-daygrid-day-number").click()
 
     await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
@@ -118,7 +156,7 @@ test.describe("booking calendar mobile layout and selection", () => {
     await expect(page.getByTestId("booking-action-panel")).toHaveCount(0)
 
     const skippedDate = addDaysToDateKey(targetDate, 1)
-    const laterDate = addDaysToDateKey(targetDate, 2)
+    const laterDate = addDaysToDateKey(targetDate, 7)
     await page.locator(`.fc-daygrid-day[data-date="${laterDate}"] .fc-daygrid-day-number`).click()
 
     await expect(page.getByTestId("booking-date-request-summary")).toContainText("2日間")
@@ -146,13 +184,12 @@ test("booking calendar desktop hides view tabs and reaches the booking form from
   await openAuthenticatedBooking(page)
   await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
-  const targetDay = page.locator(".fc-daygrid-day:not(.fc-day-other)").first()
+  const targetDate = addDaysToDateKey(currentDateKey(), 1)
+  const targetDay = page.locator(`.fc-daygrid-day[data-date="${targetDate}"]`)
   await targetDay.locator(".fc-daygrid-day-number").click()
   await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
   await expect(page.getByTestId("booking-date-request-panel")).toBeVisible()
   await expect(page.getByTestId("booking-month-slot-option")).toHaveCount(0)
-  const targetDate = await targetDay.getAttribute("data-date")
-  if (!targetDate) throw new Error("target date was not available")
   await page.locator(`.fc-daygrid-day[data-date="${addDaysToDateKey(targetDate, 1)}"] .fc-daygrid-day-number`).click()
   await expect(page.getByTestId("booking-date-request-summary")).toContainText("2日間")
   await expect(page.locator(".booking-calendar__selected-date")).toHaveCount(2)
@@ -162,8 +199,10 @@ test("booking calendar desktop hides view tabs and reaches the booking form from
 
 test("booking calendar locks timed IB work dates without blocking date-only schedule days", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
-  const lockedDate = localDateKey(new Date())
-  const dateOnlyScheduleDate = addDaysToDateKey(lockedDate, 1)
+  const todayDate = currentDateKey()
+  const pastDate = addDaysToDateKey(todayDate, -1)
+  const lockedDate = addDaysToDateKey(todayDate, 2)
+  const dateOnlyScheduleDate = addDaysToDateKey(todayDate, 3)
   const submittedBodies: unknown[] = []
   await page.route("**/api/booking", async (route) => {
     if (route.request().method() !== "POST") {
@@ -177,18 +216,36 @@ test("booking calendar locks timed IB work dates without blocking date-only sche
       body: JSON.stringify({ bookingGroupId: "booking_e2e_lock" }),
     })
   })
-  await openAuthenticatedBooking(page, { notionWorkBusyDateKeys: [lockedDate, lockedDate] })
+  await openAuthenticatedBooking(page, {
+    googleBusyDateKeys: [lockedDate, lockedDate],
+    notionWorkBusyDateKeys: [lockedDate, lockedDate],
+    dateOnlyBusyDateKeys: [dateOnlyScheduleDate],
+  })
 
   const lockedCell = page.locator(`.fc-daygrid-day[data-date="${lockedDate}"]`)
   await expect(lockedCell).toHaveClass(/booking-calendar__locked-date/)
   await expect(lockedCell).toHaveAttribute("aria-disabled", "true")
   await expect(lockedCell.locator(".booking-calendar__date-lock")).toHaveCount(1)
+  await expect(lockedCell.locator(".fc-event.booking-calendar__busy:not(.booking-calendar__date-lock)")).toHaveCount(0)
   await lockedCell.locator(".fc-daygrid-day-number").click()
   await expect(page.locator(`.fc-daygrid-day[data-date="${lockedDate}"].booking-calendar__selected-date`)).toHaveCount(0)
   await expect(page.getByTestId("booking-date-request-summary")).toContainText("未選択")
 
+  const todayCell = page.locator(`.fc-daygrid-day[data-date="${todayDate}"]`)
+  await expect(todayCell).toHaveClass(/booking-calendar__past-or-today-date/)
+  await expect(todayCell).toHaveAttribute("aria-disabled", "true")
+  await todayCell.locator(".fc-daygrid-day-number").click()
+  await expect(page.locator(`.fc-daygrid-day[data-date="${todayDate}"].booking-calendar__selected-date`)).toHaveCount(0)
+
+  const pastCell = page.locator(`.fc-daygrid-day[data-date="${pastDate}"]`)
+  await expect(pastCell).toHaveClass(/booking-calendar__past-or-today-date/)
+  await expect(pastCell).toHaveAttribute("aria-disabled", "true")
+  await pastCell.locator(".fc-daygrid-day-number").click()
+  await expect(page.locator(`.fc-daygrid-day[data-date="${pastDate}"].booking-calendar__selected-date`)).toHaveCount(0)
+
   await page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"] .fc-daygrid-day-number`).click()
   await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"].booking-calendar__selected-date`)).toHaveCount(1)
+  await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"].booking-calendar__locked-date`)).toHaveCount(0)
   await expect(page.getByTestId("booking-date-request-summary")).toContainText(displayDateKey(dateOnlyScheduleDate))
   await expect(page.getByTestId("booking-date-request-chips")).toHaveCount(0)
   await page.getByRole("button", { name: "この日程で相談する" }).click()
@@ -209,14 +266,16 @@ test("booking calendar locks timed IB work dates without blocking date-only sche
     selectedSlots: [],
   })
   expect(JSON.stringify(submittedBodies[0])).not.toContain(lockedDate)
+  expect(JSON.stringify(submittedBodies[0])).not.toContain(todayDate)
+  expect(JSON.stringify(submittedBodies[0])).not.toContain(pastDate)
 })
 
 test("LINE LIFF booking entry uses the same month-only candidate flow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await openAuthenticatedBooking(page, { dailyBusy: true, path: "/line/booking" })
+  await openAuthenticatedBooking(page, { path: "/line/booking" })
   await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
-  await page.locator(".fc-daygrid-day:not(.fc-day-other)").first().locator(".fc-daygrid-day-number").click()
+  await page.locator(`.fc-daygrid-day[data-date="${addDaysToDateKey(currentDateKey(), 1)}"] .fc-daygrid-day-number`).click()
   await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
   await expect(page.getByTestId("booking-date-request-panel")).toBeVisible()
   await expect(page.getByTestId("booking-month-slot-option")).toHaveCount(0)

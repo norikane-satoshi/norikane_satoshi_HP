@@ -37,7 +37,7 @@ vi.mock("@fullcalendar/timegrid", () => ({ default: {} }))
 vi.mock("@fullcalendar/core/locales/ja", () => ({ default: {} }))
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }))
 
-import { BookingCalendar, shouldConfirmAdminMove } from "@/components/booking/booking-calendar"
+import { BookingCalendar, isDateKeyTodayOrPast, shouldConfirmAdminMove } from "@/components/booking/booking-calendar"
 
 function renderCalendar() {
   fullCalendar.props = null
@@ -206,5 +206,13 @@ describe("BookingCalendar admin move confirmation", () => {
     const props = renderCalendar()
 
     expect(props.eventResizableFromStart).toBe(true)
+  })
+})
+
+describe("BookingCalendar date request guards", () => {
+  it("treats today and past dates as unavailable using the provided date key", () => {
+    expect(isDateKeyTodayOrPast("2026-07-01", "2026-07-01")).toBe(true)
+    expect(isDateKeyTodayOrPast("2026-06-30", "2026-07-01")).toBe(true)
+    expect(isDateKeyTodayOrPast("2026-07-02", "2026-07-01")).toBe(false)
   })
 })

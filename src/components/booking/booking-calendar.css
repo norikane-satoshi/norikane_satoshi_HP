@@ -703,6 +703,17 @@
   cursor: not-allowed;
 }
 
+.booking-calendar .booking-calendar__past-or-today-date .fc-daygrid-day-frame {
+  border-color: color-mix(in srgb, var(--text-muted) 28%, var(--glass-border));
+  background: color-mix(in srgb, var(--text-muted) 14%, var(--glass-bg));
+  cursor: not-allowed;
+}
+
+.booking-calendar .booking-calendar__past-or-today-date .booking-calendar__day-number {
+  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+  text-decoration-line: none;
+}
+
 .booking-calendar .booking-calendar__locked-date .booking-calendar__day-number {
   color: var(--text-muted);
 }
@@ -797,7 +808,29 @@
 }
 
 .booking-calendar .fc-event.booking-calendar__date-lock {
+  margin: 2px 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
   cursor: not-allowed;
+  pointer-events: none;
+}
+
+.booking-calendar .fc-event.booking-calendar__date-lock .fc-event-main {
+  color: var(--text-muted);
+}
+
+.booking-calendar .fc-event.booking-calendar__date-lock .booking-calendar__busy-pill-content {
+  display: inline-flex;
+  min-height: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .booking-calendar .fc-event.booking-calendar__busy .fc-event-main,

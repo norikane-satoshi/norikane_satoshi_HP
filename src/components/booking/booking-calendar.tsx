@@ -205,6 +205,26 @@ function toDateKey(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+const tokyoDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+
+function toTokyoDateKey(date = new Date()): string {
+  const parts = tokyoDateFormatter.formatToParts(date)
+  const year = parts.find((part) => part.type === "year")?.value
+  const month = parts.find((part) => part.type === "month")?.value
+  const day = parts.find((part) => part.type === "day")?.value
+  if (!year || !month || !day) return toDateKey(date)
+  return `${year}-${month}-${day}`
+}
+
+export function isDateKeyTodayOrPast(dateKey: string, todayDateKey = toTokyoDateKey()): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateKey) && dateKey <= todayDateKey
+}
+
 function parseDateTimeSlot(date: string, time: string): Date | null {
   const [year, month, day] = date.split("-").map(Number)
   const [hours, minutes, seconds = 0] = time.split(":").map(Number)
@@ -283,8 +303,8 @@ function toBusyEvent(slot: BusySlot, isCalendarAdmin: boolean): EventInput {
   }
 }
 
-function isNotionWorkBusySlot(slot: BusySlot): boolean {
-  return slot.source === "notion_work" && !isFullDayBusySlot(slot)
+function isDateLockBusySlot(slot: BusySlot): boolean {
+  return !isFullDayBusySlot(slot)
 }
 
 function dateKeysForBusySlot(slot: BusySlot): string[] {
@@ -306,7 +326,7 @@ function dateKeysForBusySlot(slot: BusySlot): string[] {
 function getLockedDateKeys(data: FreeBusyResponse): string[] {
   const keys = new Set<string>()
   for (const slot of data.busy ?? []) {
-    if (!isNotionWorkBusySlot(slot)) continue
+    if (!isDateLockBusySlot(slot)) continue
     for (const dateKey of dateKeysForBusySlot(slot)) {
       keys.add(dateKey)
     }
@@ -987,7 +1007,7 @@ export function BookingCalendar({
     setLockedDateKeys(nextLockedDateKeys)
     const isMonthView = selectedViewRef.current === "dayGridMonth"
     const busyEvents = (data.busy ?? [])
-      .filter((slot) => !(isMonthView && isNotionWorkBusySlot(slot)))
+      .filter((slot) => !(isMonthView && isDateLockBusySlot(slot)))
       .map((slot) => toBusyEvent(slot, isCalendarAdmin))
     const lockedDateEvents = isMonthView ? nextLockedDateKeys.map(toLockedDateEvent) : []
     const bookingEvents = (data.bookings ?? []).map((booking) =>
@@ -1561,9 +1581,18 @@ export function BookingCalendar({
 
   const selectedDateSelectionLabel = selectedDateSelection ? formatBookingDateSelection(selectedDateSelection) : null
   const lockedDateKeySet = useMemo(() => new Set(lockedDateKeys), [lockedDateKeys])
+  const todayDateKey = toTokyoDateKey()
+
+  const isSelectableMonthDateKey = useCallback((dateKey: string) => {
+    return !isDateKeyTodayOrPast(dateKey, todayDateKey) && !lockedDateKeySet.has(dateKey)
+  }, [lockedDateKeySet, todayDateKey])
 
   const selectMonthDate = useCallback((date: Date) => {
     const dateKey = toDateKey(date)
+    if (isDateKeyTodayOrPast(dateKey, todayDateKey)) {
+      setActionError("今日以前の日付は選べません。")
+      return
+    }
     if (lockedDateKeySet.has(dateKey)) {
       setActionError("この日は既存予定があるため選べません。")
       return
@@ -1582,7 +1611,7 @@ export function BookingCalendar({
     setActionError(null)
     setActionPanelPosition(null)
     calendarRef.current?.getApi().changeView("dayGridMonth", dateKey)
-  }, [lockedDateKeySet])
+  }, [lockedDateKeySet, todayDateKey])
 
   const handleEventAllow = useCallback<AllowFunc>((span, movingEvent) => {
     const props = movingEvent?.extendedProps as AnyEventProps | undefined
@@ -1830,9 +1859,11 @@ export function BookingCalendar({
     if (getHolidayName(arg.date)) classes.push("booking-calendar__holiday")
     const dateKey = toDateKey(arg.date)
     const selectedDates = selectedDateSelection?.dates ?? []
+    const unavailable = !isSelectableMonthDateKey(dateKey)
+    if (isDateKeyTodayOrPast(dateKey, todayDateKey)) classes.push("booking-calendar__past-or-today-date")
     if (lockedDateKeySet.has(dateKey)) classes.push("booking-calendar__locked-date")
-    if (selectedMonthDate === dateKey && selectedDates.includes(dateKey)) classes.push("booking-calendar__selected-day")
-    if (selectedDates.includes(dateKey)) {
+    if (selectedMonthDate === dateKey && selectedDates.includes(dateKey) && !unavailable) classes.push("booking-calendar__selected-day")
+    if (selectedDates.includes(dateKey) && !unavailable) {
       classes.push("booking-calendar__selected-date")
     }
     return classes
@@ -1860,12 +1891,16 @@ export function BookingCalendar({
     const root = rootRef.current
     if (!root) return
     root.querySelectorAll<HTMLElement>(".fc-daygrid-day[data-date]").forEach((cell) => {
-      const locked = Boolean(cell.dataset.date && lockedDateKeySet.has(cell.dataset.date))
-      cell.setAttribute("aria-disabled", locked ? "true" : "false")
+      const dateKey = cell.dataset.date
+      const locked = Boolean(dateKey && lockedDateKeySet.has(dateKey))
+      const unavailable = Boolean(dateKey && !isSelectableMonthDateKey(dateKey))
+      cell.setAttribute("aria-disabled", unavailable ? "true" : "false")
       if (locked) cell.setAttribute("data-booking-locked", "true")
       else cell.removeAttribute("data-booking-locked")
+      if (dateKey && isDateKeyTodayOrPast(dateKey, todayDateKey)) cell.setAttribute("data-booking-past-or-today", "true")
+      else cell.removeAttribute("data-booking-past-or-today")
     })
-  }, [lockedDateKeySet])
+  }, [isSelectableMonthDateKey, lockedDateKeySet, todayDateKey])
 
   const renderDayCellContent = (arg: DayCellContentArg) => {
     if (arg.view.type !== "dayGridMonth") return undefined
@@ -2024,8 +2059,13 @@ export function BookingCalendar({
   const startDateRequestCommit = useCallback(() => {
     if (!selectedDateSelection || preflighting) return
     setActionError(null)
-    onCommit({ slots: [], requestedDateSelection: selectedDateSelection })
-  }, [onCommit, preflighting, selectedDateSelection])
+    const dates = normalizeBookingDateKeys(selectedDateSelection.dates.filter(isSelectableMonthDateKey))
+    if (dates.length === 0) {
+      setActionError("相談希望日を 1 日以上選択してください。")
+      return
+    }
+    onCommit({ slots: [], requestedDateSelection: { dates } })
+  }, [isSelectableMonthDateKey, onCommit, preflighting, selectedDateSelection])
 
   const executeMove = useCallback(
     async () => {
