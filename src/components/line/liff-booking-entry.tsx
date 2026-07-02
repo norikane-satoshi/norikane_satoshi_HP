@@ -188,6 +188,7 @@ export function LiffBookingEntry({
           initialBusy={initialBusy}
           initialBookings={initialBookings}
           initialRange={initialRange}
+          lineUserId={state.status === "ready" ? state.profile?.userId : undefined}
           monthSkeleton={monthSkeleton}
           redirectUnauthenticated={false}
         />

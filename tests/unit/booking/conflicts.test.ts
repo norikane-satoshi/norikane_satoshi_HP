@@ -49,6 +49,7 @@ function conflict(overrides: Partial<ConflictBooking> = {}): ConflictBooking {
       gcalEventId: null,
       notionPageId: null,
       originatedFrom: null,
+      lineUserId: null,
       chatConversationId: null,
       createdAt: now,
       updatedAt: now,

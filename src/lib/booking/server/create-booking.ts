@@ -14,6 +14,7 @@ import {
   refreshCalendarAccessToken,
   type CalendarEventWriteInput,
 } from "@/lib/google-calendar/server"
+import { sendLineBookingReceipt } from "@/lib/line/messaging"
 import { prisma } from "@/lib/prisma"
 
 export type CreateBookingResult = {
@@ -97,6 +98,29 @@ async function sendTentativeHoldEmail(input: BookingApiInput, to: string | null,
     "tentative_hold",
     to,
   )
+}
+
+async function sendCustomerReceipt(input: BookingApiInput, to: string | null, bookingGroupId: string, scheduleLabel: string) {
+  if (input.entryPoint === "line_liff" && input.lineUserId) {
+    const result = await sendLineBookingReceipt({
+      bookingGroupId,
+      lineUserId: input.lineUserId,
+      replyToken: input.lineReplyToken,
+      projectTitle: input.projectTitle,
+      scheduleLabel,
+    })
+    if (!result.ok) {
+      console.warn("LINE booking receipt failed", {
+        bookingGroupId,
+        method: result.method,
+        status: result.status,
+        error: result.error,
+      })
+    }
+    return
+  }
+
+  await sendTentativeHoldEmail(input, to, bookingGroupId)
 }
 
 async function refreshStoredCalendarToken() {
@@ -191,6 +215,7 @@ export async function createBookingFromApiInput({
         phone: nullable(input.phone),
         dueDate: nullable(input.dueDate),
         originatedFrom: originatedFrom ?? input.entryPoint ?? "web",
+        lineUserId: input.entryPoint === "line_liff" ? input.lineUserId ?? null : null,
         timeSlots: {
           create: slots.map((slot) => ({
             startTime: new Date(slot.start),
@@ -206,7 +231,7 @@ export async function createBookingFromApiInput({
   const bookingIds = bookingGroup.timeSlots.map((slot) => slot.id)
 
   if (!hasSelectedSlots) {
-    await sendTentativeHoldEmail(input, userEmail, bookingGroup.id)
+    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
     return {
       body: {
         status: "schedule_unselected",
@@ -238,7 +263,7 @@ export async function createBookingFromApiInput({
   if (!calendarId) {
     await confirmBooking(null)
     invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-    await sendTentativeHoldEmail(input, userEmail, bookingGroup.id)
+    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
     console.warn("Booking created without Google Calendar event: GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set")
     return {
       body: {
@@ -334,7 +359,7 @@ export async function createBookingFromApiInput({
   }
 
   invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-  await sendTentativeHoldEmail(input, userEmail, bookingGroup.id)
+  await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
 
   return {
     body: {

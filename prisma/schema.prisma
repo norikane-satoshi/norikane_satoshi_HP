@@ -156,6 +156,7 @@ model BookingGroup {
   // Notion IB_仕事 ページ ID（タスク種別 = スケジュール 自動セット済み）
   notionPageId String?
   originatedFrom String?
+  lineUserId String?
   chatConversationId String?
 
   customer  Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -167,6 +168,7 @@ model BookingGroup {
 
   @@index([status])
   @@index([teamId])
+  @@index([lineUserId])
 }
 
 model BookingTimeSlot {

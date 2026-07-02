@@ -84,7 +84,7 @@ test.describe("booking personal smoke", () => {
     await page.getByLabel("氏名", { exact: true }).fill("E2E Satoshi")
     await expect(page.getByLabel("メール", { exact: true })).toHaveValue(testUserEmail)
     await page.getByLabel("TEL(任意)").fill("09000000000")
-    await page.getByLabel("補足", { exact: true }).fill(`e2e smoke https://example.com/${"very-long-url-segment".repeat(10)}`)
+    await page.getByLabel(/補足/).fill(`e2e smoke https://example.com/${"very-long-url-segment".repeat(10)}`)
     await page.getByRole("checkbox").check()
 
     await page.getByRole("button", { name: "相談内容を確認" }).click()

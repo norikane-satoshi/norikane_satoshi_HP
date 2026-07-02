@@ -16,6 +16,8 @@ const requestedDatesSchema = z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).de
 export const bookingApiSchema = bookingFormSchema
   .extend({
     entryPoint: z.enum(["web", "line_liff"]).optional(),
+    lineUserId: z.string().trim().min(1).max(128).optional(),
+    lineReplyToken: z.string().trim().min(1).max(512).optional(),
     teamId: z.string().min(1).nullable().optional(),
     selectedSlots: z.array(slotSchema).default([]),
     requestedDates: requestedDatesSchema,
