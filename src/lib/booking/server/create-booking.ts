@@ -27,7 +27,7 @@ type CreateBookingFromApiInputArgs = {
   notionTaskType?: CalendarEventWriteInput["notionTaskType"]
   originatedFrom?: "web" | "line_liff" | "chatbot"
   userId: string
-  userEmail: string
+  userEmail: string | null
 }
 
 function nullable(value: string): string | null {
@@ -88,6 +88,15 @@ async function warnOnEmailFailure(task: Promise<unknown>, tag: string, to: strin
     const message = error instanceof Error ? error.message : "email send failed"
     console.warn(`[email failed] tag=${tag} to=${to}`, message)
   }
+}
+
+async function sendTentativeHoldEmail(input: BookingApiInput, to: string | null, bookingGroupId: string) {
+  if (!to) return
+  await warnOnEmailFailure(
+    sendBookingConfirmedEmail(createBookingEmailArgs(input, to, bookingGroupId)),
+    "tentative_hold",
+    to,
+  )
 }
 
 async function refreshStoredCalendarToken() {
@@ -197,11 +206,7 @@ export async function createBookingFromApiInput({
   const bookingIds = bookingGroup.timeSlots.map((slot) => slot.id)
 
   if (!hasSelectedSlots) {
-    await warnOnEmailFailure(
-      sendBookingConfirmedEmail(createBookingEmailArgs(input, userEmail, bookingGroup.id)),
-      "tentative_hold",
-      userEmail,
-    )
+    await sendTentativeHoldEmail(input, userEmail, bookingGroup.id)
     return {
       body: {
         status: "schedule_unselected",
@@ -233,11 +238,7 @@ export async function createBookingFromApiInput({
   if (!calendarId) {
     await confirmBooking(null)
     invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-    await warnOnEmailFailure(
-      sendBookingConfirmedEmail(createBookingEmailArgs(input, userEmail, bookingGroup.id)),
-      "tentative_hold",
-      userEmail,
-    )
+    await sendTentativeHoldEmail(input, userEmail, bookingGroup.id)
     console.warn("Booking created without Google Calendar event: GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set")
     return {
       body: {
@@ -312,7 +313,7 @@ export async function createBookingFromApiInput({
     try {
       await prisma.adminActionLog.create({
         data: {
-          actorEmail: userEmail,
+          actorEmail: userEmail ?? "line_liff",
           action: "GCAL_OK_DB_CONFIRM_FAILED",
           payload: JSON.stringify({
             bookingGroupId: bookingGroup.id,
@@ -333,11 +334,7 @@ export async function createBookingFromApiInput({
   }
 
   invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-  await warnOnEmailFailure(
-    sendBookingConfirmedEmail(createBookingEmailArgs(input, userEmail, bookingGroup.id)),
-    "tentative_hold",
-    userEmail,
-  )
+  await sendTentativeHoldEmail(input, userEmail, bookingGroup.id)
 
   return {
     body: {

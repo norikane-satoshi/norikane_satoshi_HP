@@ -32,10 +32,15 @@ describe("BookingForm email fields", () => {
         onValidityChange: vi.fn(),
         onReselectDate: vi.fn(),
         sessionEmailReadOnly: false,
+        sessionEmailOptional: true,
       }),
     )
 
     expect(markup).toContain('name="sessionEmail"')
     expect(markup).not.toContain('readOnly=""')
+    expect(markup).toContain("メール")
+    expect(markup).toContain("(任意)")
+    expect(markup).toContain('href="/terms"')
+    expect(markup).toContain('href="/privacy"')
   })
 })

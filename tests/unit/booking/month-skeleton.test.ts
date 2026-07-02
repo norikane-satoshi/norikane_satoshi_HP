@@ -52,6 +52,25 @@ describe("BookingMonthSkeleton", () => {
     ])
   })
 
+  it("does not render date-only busy slots as lock markers", () => {
+    const days = buildBookingMonthSkeletonDays({
+      initialBusy: [
+        {
+          start: "2026-05-22",
+          end: "2026-05-23",
+          bufferHours: 1,
+          bufferBeforeHours: null,
+          bufferAfterHours: null,
+          summary: "Date-only schedule",
+        },
+      ],
+      initialBookings: [],
+      now: "2026-05-12T12:00:00.000Z",
+    })
+
+    expect(days.find((day) => day.date === "2026-05-22")?.items).toEqual([])
+  })
+
   it("server-renders the static month grid with event markers", () => {
     const html = renderToStaticMarkup(createElement(BookingMonthSkeleton, {
       initialBusy: busy,

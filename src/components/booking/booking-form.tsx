@@ -23,6 +23,7 @@ type BookingFormProps = {
   onValidityChange: (isValid: boolean) => void
   onReselectDate: (slot?: BookingSlot) => void
   sessionEmailReadOnly?: boolean
+  sessionEmailOptional?: boolean
 }
 
 function formatSlot(slot: BookingSlot): string {
@@ -47,6 +48,7 @@ export function BookingForm({
   onValidityChange,
   onReselectDate,
   sessionEmailReadOnly = true,
+  sessionEmailOptional = false,
 }: BookingFormProps) {
   const {
     formState: { errors, isValid },
@@ -121,7 +123,10 @@ export function BookingForm({
 
       <div className="booking-form__grid">
         <label className="booking-form__group">
-          <span className="booking-form__label">納期</span>
+          <span className="booking-form__label">
+            納期
+            <span className="booking-form__label-optional">(任意)</span>
+          </span>
           <input className="glass-input booking-form__control" type="date" {...register("dueDate")} />
         </label>
         <label className="booking-form__group">
@@ -137,10 +142,14 @@ export function BookingForm({
           {errors.contactName ? <span className="booking-form__error">{errors.contactName.message}</span> : null}
         </label>
         <label className="booking-form__group">
-          <span className="booking-form__label">メール</span>
+          <span className="booking-form__label">
+            メール
+            {sessionEmailOptional ? <span className="booking-form__label-optional">(任意)</span> : null}
+          </span>
           <input
             className={`glass-input booking-form__control${sessionEmailReadOnly ? " booking-form__control--readonly" : ""}`}
             readOnly={sessionEmailReadOnly}
+            type="email"
             {...register("sessionEmail")}
           />
           {errors.sessionEmail ? <span className="booking-form__error">{errors.sessionEmail.message}</span> : null}
@@ -158,7 +167,10 @@ export function BookingForm({
       </div>
 
       <label className="booking-form__group">
-        <span className="booking-form__label">補足</span>
+        <span className="booking-form__label">
+          補足
+          <span className="booking-form__label-optional">(任意)</span>
+        </span>
         <textarea className="glass-input booking-form__control" maxLength={1000} rows={5} {...register("memo")} />
         {errors.memo ? <span className="booking-form__error">{errors.memo.message}</span> : null}
       </label>
@@ -166,10 +178,14 @@ export function BookingForm({
       <label className="booking-choice booking-choice--terms glass-flat">
         <input type="checkbox" {...register("agreed")} />
         <span>
-          <a href="#" onClick={(event) => event.preventDefault()}>
+          <a href="/terms" aria-label="利用規約を開く">
             利用規約
           </a>
           に同意します
+          <span className="booking-choice__legal-separator" aria-hidden="true"> / </span>
+          <a href="/privacy" aria-label="プライバシーポリシーを開く">
+            プライバシーポリシー
+          </a>
         </span>
       </label>
       {errors.agreed ? <span className="booking-form__error">{errors.agreed.message}</span> : null}

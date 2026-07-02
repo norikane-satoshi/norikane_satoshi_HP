@@ -14,6 +14,7 @@ type BookingConfirmProps = {
   submitError?: string | null
   onDismissSubmitError?: () => void
   onReselectDate?: (slot?: BookingSlot) => void
+  sessionEmailOptional?: boolean
 }
 
 function formatSlot(slot: BookingSlot): string {
@@ -49,17 +50,18 @@ export function BookingConfirm({
   submitError,
   onDismissSubmitError,
   onReselectDate,
+  sessionEmailOptional = false,
 }: BookingConfirmProps) {
   const rows = [
     ["案件名", formData.projectTitle],
     ["希望日", formatSlots(selectedSlots, requestedDateSelection)],
     ...(selectedSlots.length > 0 ? [["想定作業時間合計", formatDurationMinutes(getTotalDurationMinutes(selectedSlots))] as const] : []),
-    ["納期", formData.dueDate],
+    ["納期(任意)", formData.dueDate],
     ["会社名", formData.companyName],
     ["氏名", formData.contactName],
-    ["メール", formData.sessionEmail],
+    [sessionEmailOptional ? "メール(任意)" : "メール", formData.sessionEmail],
     ["TEL", formData.phone],
-    ["補足", formData.memo],
+    ["補足(任意)", formData.memo],
   ] as const
 
   return (

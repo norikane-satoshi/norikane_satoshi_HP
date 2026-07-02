@@ -1,5 +1,5 @@
 .booking-section {
-  --booking-card-min-height: 920px;
+  --booking-card-min-height: 760px;
   display: flex;
   min-height: var(--booking-card-min-height);
   flex-direction: column;
@@ -321,7 +321,7 @@
 }
 
 .booking-section__pane > .booking-calendar .fc-daygrid-day-frame {
-  min-height: 112px;
+  min-height: clamp(76px, 6.5vw, 88px);
 }
 
 .booking-section__pane > .booking-calendar .fc-timegrid-slot {
@@ -577,7 +577,7 @@ button.booking-form__slot-pill:focus-visible {
 
 @media (max-width: 1024px) {
   .booking-section {
-    --booking-card-min-height: 840px;
+    --booking-card-min-height: 700px;
   }
 
   .booking-settings__grid {
@@ -585,7 +585,7 @@ button.booking-form__slot-pill:focus-visible {
   }
 
   .booking-section__pane > .booking-calendar .fc-daygrid-day-frame {
-    min-height: 80px;
+    min-height: clamp(64px, 7.5vw, 76px);
   }
 }
 
@@ -610,7 +610,7 @@ button.booking-form__slot-pill:focus-visible {
   }
 
   .booking-section__pane > .booking-calendar .fc-daygrid-day-frame {
-    min-height: 56px;
+    min-height: clamp(40px, 10.5vw, 52px);
   }
 
   .booking-form__grid,

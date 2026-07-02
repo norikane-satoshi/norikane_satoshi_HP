@@ -29,7 +29,6 @@ import { format } from "date-fns"
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from "react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
-import { getHolidayName } from "@/lib/booking/domain/holidays"
 import {
   bookingDateRangeToSelection,
   formatBookingDateSelection,
@@ -343,7 +342,7 @@ function getLockedDateKeys(data: FreeBusyResponse): string[] {
 function toLockedDateEvent(dateKey: string): EventInput {
   return {
     id: `notion-work-lock-${dateKey}`,
-    title: "予約不可",
+    title: "",
     start: dateKey,
     allDay: true,
     display: "block",
@@ -353,7 +352,7 @@ function toLockedDateEvent(dateKey: string): EventInput {
     durationEditable: false,
     extendedProps: {
       kind: "busy",
-      label: "予約不可",
+      label: "",
       canEdit: false,
       lockedDate: true,
       source: "notion_work",
@@ -737,15 +736,20 @@ export function BookingCalendar({
   const refreshingRangesRef = useRef<Set<string>>(new Set())
   const lastEmittedCodeRef = useRef<string | null>(null)
 
-  useEffect(() => {
-    if (lockVisibleMeasuredRef.current || lockedDateKeys.length === 0) return
+  const markLockVisible = useCallback(() => {
+    if (lockVisibleMeasuredRef.current) return
     lockVisibleMeasuredRef.current = true
     const value = Math.round(performance.now())
     performance.mark("booking-lock-visible")
     window.__bookingTimeToLockVisibleMs = value
     rootRef.current?.setAttribute("data-lock-visible-ms", String(value))
     console.info(`[booking] time-to-lock-visible=${value}ms`)
-  }, [lockedDateKeys.length])
+  }, [])
+
+  useEffect(() => {
+    if (lockedDateKeys.length === 0) return
+    markLockVisible()
+  }, [lockedDateKeys.length, markLockVisible])
 
   const initialDrafts = useMemo<DraftEvent[]>(() => {
     return initialSlots.map((slot) => ({ id: makeDraftId(), start: slot.start, end: slot.end }))
@@ -1079,7 +1083,7 @@ export function BookingCalendar({
     setLockedDateKeys(nextLockedDateKeys)
     const isMonthView = selectedViewRef.current === "dayGridMonth"
     const busyEvents = (data.busy ?? [])
-      .filter((slot) => !(isMonthView && isDateLockBusySlot(slot)))
+      .filter((slot) => !(isMonthView && (isDateLockBusySlot(slot) || isFullDayBusySlot(slot))))
       .map((slot) => toBusyEvent(slot, isCalendarAdmin))
     const lockedDateEvents = isMonthView ? nextLockedDateKeys.map(toLockedDateEvent) : []
     const bookingEvents = (data.bookings ?? []).map((booking) =>
@@ -1926,7 +1930,6 @@ export function BookingCalendar({
     const classes: string[] = []
     const day = arg.date.getDay()
     if (day === 0 || day === 6) classes.push("booking-calendar__weekend")
-    if (getHolidayName(arg.date)) classes.push("booking-calendar__holiday")
     const dateKey = toDateKey(arg.date)
     const selectedDates = selectedDateSelection?.dates ?? []
     const unavailable = !isSelectableMonthDateKey(dateKey)
@@ -1942,19 +1945,11 @@ export function BookingCalendar({
   const handleDayCellDidMount = (arg: DayCellMountArg) => {
     if (arg.view.type !== "dayGridMonth") return
 
-    const holidayName = getHolidayName(arg.date)
     const cellTop = arg.el.querySelector<HTMLElement>(".fc-daygrid-day-top")
     const dayNumber = arg.el.querySelector<HTMLElement>(".fc-daygrid-day-number")
 
     cellTop?.classList.add("booking-calendar__day-cell")
     dayNumber?.classList.add("booking-calendar__day-number")
-
-    if (holidayName && cellTop && !cellTop.querySelector(".booking-calendar__holiday-label")) {
-      const holidayLabel = document.createElement("span")
-      holidayLabel.className = "booking-calendar__holiday-label"
-      holidayLabel.textContent = holidayName
-      cellTop.appendChild(holidayLabel)
-    }
   }
 
   useEffect(() => {
@@ -2016,6 +2011,13 @@ export function BookingCalendar({
       return
     }
     if (props.kind !== "busy") return
+    if (props.lockedDate) {
+      markLockVisible()
+      arg.el.removeAttribute("title")
+      arg.el.querySelectorAll<HTMLElement>(".fc-event-title, .fc-event-time").forEach((element) => {
+        element.textContent = ""
+      })
+    }
     if (props.bookingId && props.bookingGroupId === adjustingGroupId) {
       const removeButton = document.createElement("button")
       removeButton.type = "button"
@@ -2056,7 +2058,7 @@ export function BookingCalendar({
       const monthTimeLabel = arg.event.allDay ? "終日" : arg.event.start ? format(arg.event.start, "HH:mm") : rangeLabel
       const title = props.projectTitle?.trim()
       const text = props.lockedDate
-        ? "予約不可"
+        ? ""
         : (() => {
             const canShowTitle = props.status === "CONFIRMED" && props.canView && title
             const baseText = canShowTitle
@@ -2076,8 +2078,7 @@ export function BookingCalendar({
         return (
           <span
             className="booking-calendar__busy-pill-content booking-calendar__busy-pill-content--lock-only"
-            aria-label="予約不可"
-            title="予約不可"
+            aria-label="locked"
           >
             {lockIcon}
           </span>

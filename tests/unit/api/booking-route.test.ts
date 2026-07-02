@@ -264,6 +264,41 @@ describe("POST /api/booking", () => {
     expect(mocks.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("line_user_1", null)
   })
 
+  it("allows LINE LIFF date requests without email when the LINE session has a user id", async () => {
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "line_user_1", email: null },
+    })
+    mocks.prisma.bookingGroup.create.mockResolvedValue({
+      id: "group_1",
+      timeSlots: [],
+    })
+
+    const response = await POST(request(validBooking({
+      entryPoint: "line_liff",
+      sessionEmail: "",
+      selectedSlots: [],
+      requestedDates: ["2099-06-10"],
+    })))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      bookingStatus: "NEEDS_SCHEDULE",
+      scheduleStatus: "unscheduled",
+    })
+    expect(mocks.prisma.bookingGroup.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          customerEmail: null,
+          originatedFrom: "line_liff",
+          status: "NEEDS_SCHEDULE",
+        }),
+      }),
+    )
+    expect(mocks.sendBookingConfirmedEmail).not.toHaveBeenCalled()
+    expect(mocks.invalidateCalendarFreeBusyCacheForUser).not.toHaveBeenCalled()
+  })
+
   it("keeps normal web bookings blocked when the authenticated session has no email", async () => {
     mockHappyPath()
     mocks.auth.mockResolvedValue({

@@ -119,6 +119,7 @@ export function BookingSection({
   const [remoteRefreshRequestKey, setRemoteRefreshRequestKey] = useState(getInitialRemoteRefreshRequestKey)
   const [calendarCode, setCalendarCode] = useState<string | null>(null)
   const sessionEmailReadOnly = entryPoint !== "line_liff" || userEmail.trim() !== ""
+  const sessionEmailOptional = entryPoint === "line_liff" && userEmail.trim() === ""
   const teamMemberUserIds = useMemo(() => {
     return teams.find((team) => team.id === selectedTeamId)?.members.map((member) => member.userId) ?? [userId]
   }, [selectedTeamId, teams, userId])
@@ -327,6 +328,7 @@ export function BookingSection({
           onValidityChange={setFormValid}
           onReselectDate={handleReselectDate}
           sessionEmailReadOnly={sessionEmailReadOnly}
+          sessionEmailOptional={sessionEmailOptional}
         />
       </div>
       <div className={step === "confirm" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>
@@ -337,6 +339,7 @@ export function BookingSection({
           submitError={submitError}
           onDismissSubmitError={() => setSubmitError(null)}
           onReselectDate={handleReselectDate}
+          sessionEmailOptional={sessionEmailOptional}
         />
       </div>
       <div className={step === "done" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>

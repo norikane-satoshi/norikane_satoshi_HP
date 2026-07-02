@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
   const session = await auth()
   const userId = session?.user?.id
-  const userEmail = session?.user?.email
+  const userEmail = session?.user?.email ?? null
 
   if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
@@ -47,9 +47,14 @@ export async function POST(request: NextRequest) {
 
   const input = parsed.data
   const isLineLiffEntry = input.entryPoint === "line_liff"
-  const bookingContactEmail = isLineLiffEntry && !userEmail ? input.sessionEmail : userEmail
+  const inputEmail = input.sessionEmail.trim()
+  const bookingContactEmail = isLineLiffEntry && !userEmail ? inputEmail || null : userEmail
 
-  if (!bookingContactEmail || bookingContactEmail !== input.sessionEmail) {
+  if (!isLineLiffEntry && (!bookingContactEmail || bookingContactEmail !== inputEmail)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  if (isLineLiffEntry && userEmail && userEmail !== inputEmail) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 

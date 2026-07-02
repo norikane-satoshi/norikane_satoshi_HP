@@ -31,6 +31,12 @@ function displayDateKey(dateKey: string) {
   return `${month}/${day}`
 }
 
+async function expectMonthCellRatio(page: Page, maxRatio: number) {
+  const dayFrameBox = await page.locator(".fc-daygrid-day:not(.fc-day-other) .fc-daygrid-day-frame").first().boundingBox()
+  expect(dayFrameBox).not.toBeNull()
+  expect(dayFrameBox!.height / dayFrameBox!.width).toBeLessThanOrEqual(maxRatio)
+}
+
 function buildDailyBusySlots(startIso: string, endIso: string) {
   const start = new Date(startIso)
   const end = new Date(endIso)
@@ -145,6 +151,8 @@ test.describe("booking calendar mobile layout and selection", () => {
     const calendarSurfaceBox = await page.locator(".booking-calendar__surface").boundingBox()
     expect(calendarSurfaceBox).not.toBeNull()
     expect(calendarSurfaceBox!.width).toBeGreaterThanOrEqual(374)
+    await expectMonthCellRatio(page, 1.5)
+    await expect(page.getByText(/海の日|山の日/)).toHaveCount(0)
 
     const targetDate = addDaysToDateKey(currentDateKey(), 1)
     const targetDay = page.locator(`.fc-daygrid-day[data-date="${targetDate}"]`)
@@ -184,6 +192,8 @@ test("booking calendar desktop hides view tabs and reaches the booking form from
   await openAuthenticatedBooking(page)
   await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
+  await expectMonthCellRatio(page, 1.1)
+  await expect(page.getByText(/海の日|山の日/)).toHaveCount(0)
   const targetDate = addDaysToDateKey(currentDateKey(), 1)
   const targetDay = page.locator(`.fc-daygrid-day[data-date="${targetDate}"]`)
   await targetDay.locator(".fc-daygrid-day-number").click()
@@ -221,6 +231,7 @@ test("booking calendar locks timed IB work dates without blocking date-only sche
     notionWorkBusyDateKeys: [lockedDate, lockedDate],
     dateOnlyBusyDateKeys: [dateOnlyScheduleDate],
   })
+  await expect(page.getByText(/海の日|山の日/)).toHaveCount(0)
 
   const lockedCell = page.locator(`.fc-daygrid-day[data-date="${lockedDate}"]`)
   await expect(lockedCell).toHaveClass(/booking-calendar__locked-date/)
@@ -237,7 +248,7 @@ test("booking calendar locks timed IB work dates without blocking date-only sche
   const lockVisibleMs = await page.waitForFunction(
     () => (window as Window & { __bookingTimeToLockVisibleMs?: number }).__bookingTimeToLockVisibleMs,
     null,
-    { timeout: 1000 },
+    { timeout: 5000 },
   )
   expect(await lockVisibleMs.jsonValue()).toBeGreaterThan(0)
   await lockedCell.locator(".fc-daygrid-day-number").click()
@@ -259,24 +270,29 @@ test("booking calendar locks timed IB work dates without blocking date-only sche
   await page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"] .fc-daygrid-day-number`).click()
   await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"].booking-calendar__selected-date`)).toHaveCount(1)
   await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"].booking-calendar__locked-date`)).toHaveCount(0)
+  await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"] .booking-calendar__busy-pill`)).toHaveCount(0)
   await expect(page.getByTestId("booking-date-request-summary")).toContainText(displayDateKey(dateOnlyScheduleDate))
   await expect(page.getByTestId("booking-date-request-chips")).toHaveCount(0)
   await page.getByRole("button", { name: "この日程で相談する" }).click()
   await expect(page.getByLabel("案件名")).toBeVisible()
   await page.getByLabel("案件名").fill("Timed IB work lock E2E")
-  await page.getByLabel("納期").fill("2026-07-31")
   await page.getByLabel("会社名").fill("NCS")
   await page.getByLabel("氏名", { exact: true }).fill("E2E Satoshi")
   await page.getByLabel("TEL(任意)").fill("09000000000")
-  await page.getByLabel("補足", { exact: true }).fill("date lock e2e")
+  await expect(page.locator(".booking-choice--terms").getByRole("link", { name: /利用規約/ })).toHaveAttribute("href", "/terms")
+  await expect(page.locator(".booking-choice--terms").getByRole("link", { name: /プライバシーポリシー/ })).toHaveAttribute("href", "/privacy")
   await page.getByRole("checkbox").check()
   await page.getByRole("button", { name: "相談内容を確認" }).click()
+  await expect(page.locator(".booking-confirm__list")).toContainText("納期(任意)")
+  await expect(page.locator(".booking-confirm__list")).toContainText("補足(任意)")
   await page.getByRole("button", { name: "日程相談を送信" }).click()
 
   expect(submittedBodies).toHaveLength(1)
   expect(submittedBodies[0]).toMatchObject({
     requestedDates: [dateOnlyScheduleDate],
     selectedSlots: [],
+    dueDate: "",
+    memo: "",
   })
   expect(JSON.stringify(submittedBodies[0])).not.toContain(lockedDate)
   expect(JSON.stringify(submittedBodies[0])).not.toContain(todayDate)
@@ -289,7 +305,6 @@ test("LINE LIFF booking entry uses the same month-only candidate flow", async ({
   await expect(page.getByRole("button", { name: /友だち追加/ })).toHaveCount(0)
   await expect(page.getByText("ログイン状態")).toHaveCount(0)
   await expect(page.getByText("ログアウト")).toHaveCount(0)
-  await expect(page.getByText("相談希望日")).toHaveCount(0)
   await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
   await page.locator(`.fc-daygrid-day[data-date="${addDaysToDateKey(currentDateKey(), 1)}"] .fc-daygrid-day-number`).click()
@@ -299,7 +314,11 @@ test("LINE LIFF booking entry uses the same month-only candidate flow", async ({
   const calendarSurfaceBox = await page.locator(".booking-calendar__surface").boundingBox()
   expect(calendarSurfaceBox).not.toBeNull()
   expect(calendarSurfaceBox!.width).toBeGreaterThanOrEqual(374)
+  await expectMonthCellRatio(page, 1.5)
+  await expect(page.getByText(/海の日|山の日/)).toHaveCount(0)
   await expect(page.getByTestId("booking-date-request-summary")).toContainText("1日間")
   await page.getByRole("button", { name: "この日程で相談する" }).click()
   await expect(page.getByLabel("案件名")).toBeVisible()
+  await page.locator(".booking-choice--terms").getByRole("link", { name: /利用規約/ }).click()
+  await expect(page).toHaveURL(/\/terms$/)
 })

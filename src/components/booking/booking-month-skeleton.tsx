@@ -1,4 +1,3 @@
-import { getHolidayName } from "@/lib/booking/domain/holidays"
 import type { CalendarBookingFromApi } from "@/lib/booking/server/calendar-free-busy/bookings-repository"
 import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar/server"
 
@@ -15,7 +14,6 @@ export type MonthSkeletonDay = {
   dayNumber: number
   isCurrentMonth: boolean
   isToday: boolean
-  holidayName: string | null
   items: MonthSkeletonItem[]
   hiddenItemCount: number
 }
@@ -66,6 +64,14 @@ function toBufferMs(hours: number): number {
   return Math.max(0, hours) * 60 * 60 * 1000
 }
 
+function hasTimePart(value: string): boolean {
+  return /T\d{2}:\d{2}/.test(value)
+}
+
+function isTimedBusySlot(slot: CalendarBusyEventWithBuffer): boolean {
+  return hasTimePart(slot.start) && hasTimePart(slot.end)
+}
+
 function bufferItemsForDay(
   dayStartMs: number,
   dayEndMs: number,
@@ -75,6 +81,7 @@ function bufferItemsForDay(
   const items: MonthSkeletonItem[] = []
 
   for (const slot of busy) {
+    if (!isTimedBusySlot(slot)) continue
     const hours = slot.bufferHours ?? BOOKING_BUFFER_HOURS
     const bufferMs = toBufferMs(hours)
     const startMs = new Date(slot.start).getTime()
@@ -146,6 +153,7 @@ export function buildBookingMonthSkeletonDays(input: {
     const dayItems = [
       ...bufferItemsForDay(dayStartMs, dayEndMs, input.initialBusy, input.initialBookings),
       ...input.initialBusy
+        .filter(isTimedBusySlot)
         .filter((slot) => rangeOverlaps(new Date(slot.start).getTime(), new Date(slot.end).getTime(), dayStartMs, dayEndMs))
         .map((slot) => ({
           id: `busy-${slot.start}-${slot.end}`,
@@ -178,7 +186,6 @@ export function buildBookingMonthSkeletonDays(input: {
       dayNumber: date.getDate(),
       isCurrentMonth: date.getMonth() === current.getMonth(),
       isToday: toDateKey(date) === todayKey,
-      holidayName: getHolidayName(date),
       items: visibleItems,
       hiddenItemCount: 0,
     })
@@ -233,13 +240,11 @@ export function BookingMonthSkeleton({
               "booking-month-skeleton__day",
               day.isCurrentMonth ? "" : "booking-month-skeleton__day--muted",
               day.isToday ? "booking-month-skeleton__day--today" : "",
-              day.holidayName ? "booking-month-skeleton__day--holiday" : "",
             ].filter(Boolean).join(" ")}
             data-date={day.date}
           >
             <div className="booking-month-skeleton__day-head">
               <span className="booking-month-skeleton__day-number">{day.dayNumber}</span>
-              {day.holidayName ? <span className="booking-month-skeleton__holiday-label">{day.holidayName}</span> : null}
             </div>
             <div className="booking-month-skeleton__events">
               {day.items.map((item) => (

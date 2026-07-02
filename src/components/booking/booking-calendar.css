@@ -645,7 +645,9 @@
 }
 
 .booking-calendar .fc-daygrid-day-frame {
-  min-height: 112px;
+  min-height: clamp(72px, 6.2vw, 88px);
+  height: clamp(72px, 6.2vw, 88px);
+  overflow: hidden;
   border: 1px solid var(--glass-border);
   border-radius: var(--hp-radius-sm);
 }
@@ -678,9 +680,7 @@
 }
 
 .booking-calendar .booking-calendar__weekend .fc-daygrid-day-frame,
-.booking-calendar .booking-calendar__weekend.fc-timegrid-col,
-.booking-calendar .booking-calendar__holiday .fc-daygrid-day-frame,
-.booking-calendar .booking-calendar__holiday.fc-timegrid-col {
+.booking-calendar .booking-calendar__weekend.fc-timegrid-col {
   background: color-mix(in srgb, var(--accent-primary) 6%, var(--glass-bg));
 }
 
@@ -736,13 +736,13 @@
   font-weight: 700;
 }
 
-.booking-calendar__holiday-label {
-  display: block;
-  color: var(--accent-primary);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  line-height: 1.25;
-  text-align: left;
+.booking-calendar .fc-daygrid-day-events {
+  min-height: 0;
+  margin: 0;
+}
+
+.booking-calendar .fc-daygrid-day-bottom {
+  margin: 0;
 }
 
 .booking-calendar .fc-event {
@@ -1031,7 +1031,9 @@
 .booking-month-skeleton__day {
   display: grid;
   align-content: start;
-  min-height: 112px;
+  min-height: clamp(72px, 6.2vw, 88px);
+  height: clamp(72px, 6.2vw, 88px);
+  overflow: hidden;
   margin: 6px;
   border: 1px solid var(--glass-border);
   border-radius: var(--hp-radius-sm);
@@ -1047,7 +1049,6 @@
   opacity: 0.52;
 }
 
-.booking-month-skeleton__day--holiday,
 .booking-month-skeleton__day:nth-child(7n + 1),
 .booking-month-skeleton__day:nth-child(7n) {
   background: color-mix(in srgb, var(--accent-primary) 6%, var(--glass-bg));
@@ -1072,15 +1073,6 @@
   text-decoration-color: var(--accent-primary);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
-}
-
-.booking-month-skeleton__holiday-label {
-  min-width: 0;
-  color: var(--accent-primary);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  line-height: 1.25;
-  text-align: left;
 }
 
 .booking-month-skeleton__events {
@@ -1238,8 +1230,22 @@
     justify-content: flex-start;
   }
 
-  .booking-calendar .fc-daygrid-day-frame {
-    min-height: 88px;
+  .booking-calendar .fc-daygrid-day-frame,
+  .booking-month-skeleton__day {
+    min-height: clamp(42px, 10.5vw, 52px);
+    height: clamp(42px, 10.5vw, 52px);
+  }
+
+  .booking-calendar__day-cell {
+    padding: 4px 6px 2px;
+  }
+
+  .booking-calendar__day-number {
+    padding: 0;
+  }
+
+  .booking-month-skeleton__day {
+    padding: 7px;
   }
 
   .booking-calendar__month-slot-grid {
