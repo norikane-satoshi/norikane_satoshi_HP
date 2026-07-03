@@ -145,9 +145,8 @@ describe("Tier1ChromeNotionAiClient", () => {
         notionClientVersion: "23.13.20260523.0626",
         contextPageId: "context-page-id",
         threadId: "thread-id",
-        selectedModel: "ignored-page-model",
-        availableModels: ["apricot-sorbet-high"],
-        modelFromUser: true,
+        selectedModel: "diagnostic-page-model",
+        availableModels: ["diagnostic-page-model"],
       },
       idFactory: () => ids.shift() ?? "extra-id",
     })
@@ -189,10 +188,10 @@ describe("Tier1ChromeNotionAiClient", () => {
       type: "config",
       value: {
         type: "workflow",
-        model: "apricot-sorbet-high",
-        modelFromUser: true,
       },
     })
+    expect(payload.transcript[0]).not.toHaveProperty("value.model")
+    expect(payload.transcript[0]).not.toHaveProperty("value.modelFromUser")
     expect(payload.transcript[1]).toMatchObject({
       id: "context-id",
       type: "context",
@@ -290,8 +289,6 @@ describe("Tier1ChromeNotionAiClient", () => {
               "isHipaa": false,
               "isMobile": false,
               "isOnboardingAgent": false,
-              "model": "apricot-sorbet-high",
-              "modelFromUser": true,
               "searchScopes": [
                 {
                   "type": "everything",
@@ -357,14 +354,10 @@ describe("Tier1ChromeNotionAiClient", () => {
   })
 
   it("keeps every observed workflow.value field in the config item", () => {
-    const workflowValue = buildWorkflowValue({
-      model: "notion-current-model",
-      modelFromUser: true,
-    })
+    const workflowValue = buildWorkflowValue()
 
     expect(Object.keys(workflowValue)).toEqual([
       "type",
-      "model",
       "isHipaa",
       "isMobile",
       "yoloMode",
@@ -372,7 +365,6 @@ describe("Tier1ChromeNotionAiClient", () => {
       "searchScopes",
       "useWebSearch",
       "isCustomAgent",
-      "modelFromUser",
       "enableComputer",
       "enableQueryMail",
       "useReadOnlyMode",
@@ -427,14 +419,13 @@ describe("Tier1ChromeNotionAiClient", () => {
     ])
   })
 
-  it("uses the observed Notion AI model codename in the browser request", async () => {
+  it("does not serialize an explicit Notion AI model in the browser request", async () => {
     const session = sessionReturning([
       {
         spaceId: "space-id",
         userId: "user-id",
         selectedModel: "notion-current-model",
-        availableModels: ["apricot-sorbet-high"],
-        modelFromUser: true,
+        availableModels: ["notion-current-model"],
       },
       { ok: true, rawText: "候補日を確認しました。", chunkCount: 1 },
     ])
@@ -452,7 +443,8 @@ describe("Tier1ChromeNotionAiClient", () => {
     const evaluate = vi.mocked(session.evaluate)
     expect(evaluate).toHaveBeenCalledTimes(2)
     expect(evaluate.mock.calls[1][0]).toContain("/api/v3/runInferenceTranscript")
-    expect(evaluate.mock.calls[1][0]).toContain("apricot-sorbet-high")
+    expect(evaluate.mock.calls[1][0]).not.toContain('"model"')
+    expect(evaluate.mock.calls[1][0]).not.toContain("modelFromUser")
   })
 
   it("serializes concurrent generate calls against the shared Chrome target", async () => {
@@ -461,13 +453,12 @@ describe("Tier1ChromeNotionAiClient", () => {
     const sessionFactory = vi.fn(async (): Promise<NotionAiCdpSession> => {
       const evaluate = vi.fn(async <T,>(expression: string): Promise<T> => {
         if (!expression.includes("runInferenceTranscript")) {
-          return {
-            spaceId: "space-id",
-            userId: "user-id",
-            selectedModel: "notion-current-model",
-            availableModels: ["apricot-sorbet-high"],
-            modelFromUser: true,
-          } as T
+        return {
+          spaceId: "space-id",
+          userId: "user-id",
+          selectedModel: "notion-current-model",
+          availableModels: ["notion-current-model"],
+        } as T
         }
 
         activeRunInference += 1
@@ -509,7 +500,7 @@ describe("Tier1ChromeNotionAiClient", () => {
         spaceId: "space-id",
         userId: "user-id",
         selectedModel: "notion-current-model",
-        availableModels: ["apricot-sorbet-high"],
+        availableModels: ["notion-current-model"],
       },
     ])
     const missingTargetClient = new Tier1ChromeNotionAiClient({
@@ -519,7 +510,6 @@ describe("Tier1ChromeNotionAiClient", () => {
     const healthyClient = new Tier1ChromeNotionAiClient({
       fetchClient: cdpFetch(),
       sessionFactory: async () => healthySession,
-      preferredModel: "apricot-sorbet-high",
     })
 
     await expect(healthyClient.isHealthy()).resolves.toBe(true)
@@ -618,7 +608,7 @@ describe("Tier1ChromeNotionAiClient", () => {
           spaceId: "space-id",
           userId: "user-id",
           selectedModel: "notion-current-model",
-          availableModels: ["apricot-sorbet-high", "notion-current-model"],
+          availableModels: ["notion-current-model"],
         } as T
       }
 
@@ -711,24 +701,51 @@ describe("Tier1ChromeNotionAiClient", () => {
     })
   })
 
-  it("throws a retryable fallback error when preferred model is unavailable", async () => {
+  it("strips model selection from the page workflow value before inference", async () => {
+    let evaluationCount = 0
+    const evaluate = vi.fn(async <T,>(expression: string): Promise<T> => {
+      evaluationCount += 1
+      if (evaluationCount === 1) {
+        return {
+          spaceId: "space-id",
+          userId: "user-id",
+          selectedModel: "page-diagnostic-model",
+          availableModels: ["page-diagnostic-model"],
+          workflowValue: {
+            model: "page-diagnostic-model",
+            modelFromUser: true,
+            useWebSearch: false,
+          },
+        } as T
+      }
+
+      expect(expression).not.toContain('"model"')
+      expect(expression).not.toContain("modelFromUser")
+      expect(expression).toContain('"useWebSearch":false')
+      return {
+        ok: true,
+        rawText: "相談内容を整理します。",
+        chunkCount: 1,
+        postDataBytes: 100,
+        responseBytes: 20,
+        responseContentType: "application/x-ndjson",
+        responseHeaders: {},
+        parsedPartial: false,
+        parsedFinal: true,
+      } as T
+    }) as unknown as NotionAiCdpSession["evaluate"]
+    const session: NotionAiCdpSession = {
+      evaluate,
+      close: vi.fn(async () => undefined),
+    }
     const client = new Tier1ChromeNotionAiClient({
       fetchClient: cdpFetch(),
-      sessionFactory: async () =>
-        sessionReturning([
-          {
-            spaceId: "space-id",
-            userId: "user-id",
-            selectedModel: "notion-current-model",
-            availableModels: ["apricot-sorbet-high"],
-          },
-        ]),
-      preferredModel: "preferred-policy-model",
+      sessionFactory: async () => session,
     })
 
-    await expectLlmError(client.generate(llmRequest()), {
-      code: "connection",
-      isRetryable: true,
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      tier: "tier-1-chrome-notion-ai",
+      rawText: "相談内容を整理します。",
     })
   })
 
@@ -741,7 +758,7 @@ describe("Tier1ChromeNotionAiClient", () => {
             spaceId: "space-id",
             userId: "user-id",
             selectedModel: "notion-current-model",
-            availableModels: ["apricot-sorbet-high"],
+            availableModels: ["notion-current-model"],
           },
           {
             ok: false,
@@ -779,7 +796,7 @@ describe("Tier1ChromeNotionAiClient", () => {
             spaceId: "space-id",
             userId: "user-id",
             selectedModel: "notion-current-model",
-            availableModels: ["apricot-sorbet-high"],
+            availableModels: ["notion-current-model"],
           },
           { ok: true, rawText: "", chunkCount: 1 },
           { ok: true, rawText: "", chunkCount: 1 },
@@ -818,7 +835,7 @@ describe("Tier1ChromeNotionAiClient", () => {
             spaceId: "space-id",
             userId: "user-id",
             selectedModel: "notion-current-model",
-            availableModels: ["apricot-sorbet-high"],
+            availableModels: ["notion-current-model"],
           },
           {
             ok: false,

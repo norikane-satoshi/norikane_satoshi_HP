@@ -62,7 +62,6 @@ export type {
 } from "@/lib/chatbot/server/llm-orchestrator"
 export {
   createTier1ChromeNotionAiClient,
-  tier1ObservedNotionAiModel,
   Tier1ChromeNotionAiClient,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 export { runTier1HealthCheck } from "@/lib/chatbot/server/llm-clients/tier1-health-check"

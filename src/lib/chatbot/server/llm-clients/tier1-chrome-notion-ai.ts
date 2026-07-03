@@ -12,7 +12,6 @@ type Tier1ChromeNotionAiClientConfig = {
   targetUrlIncludes: string
   requestTimeoutMs: number
   healthCheckTimeoutMs: number
-  preferredModel?: string
 }
 
 type Tier1ChromeNotionAiClientOptions = Partial<Tier1ChromeNotionAiClientConfig> & {
@@ -50,7 +49,6 @@ type NotionAiRuntimeContext = {
   selectedModel?: string
   finalModelName?: string
   availableModels?: string[]
-  modelFromUser?: boolean
   workflowValue?: Partial<NotionAiWorkflowValue>
 }
 
@@ -59,12 +57,10 @@ export type NotionAiRuntimeInspection = {
   selectedModel?: string
   finalModelName?: string
   availableModels?: string[]
-  preferredModelAvailable: boolean
 }
 
 type NotionAiWorkflowValue = {
   type: "workflow"
-  model: string
   isHipaa: boolean
   isMobile: boolean
   yoloMode: boolean
@@ -72,7 +68,6 @@ type NotionAiWorkflowValue = {
   searchScopes: unknown[]
   useWebSearch: boolean
   isCustomAgent: boolean
-  modelFromUser: boolean
   enableComputer: boolean
   enableQueryMail: boolean
   useReadOnlyMode: boolean
@@ -220,7 +215,6 @@ const jsonListPath = "/json/list"
 const jsonVersionPath = "/json/version"
 const httpGet = "GET"
 const targetTypePage = "page"
-export const tier1ObservedNotionAiModel = "apricot-sorbet-high"
 const defaultCreatedSource = "assistant"
 const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
@@ -250,7 +244,6 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       requestTimeoutMs: options.requestTimeoutMs ?? tier1ChromeNotionAiDefaults.requestTimeoutMs,
       healthCheckTimeoutMs:
         options.healthCheckTimeoutMs ?? tier1ChromeNotionAiDefaults.healthCheckTimeoutMs,
-      preferredModel: options.preferredModel,
     }
     this.fetchClient = options.fetchClient ?? globalFetch
     this.sessionFactory = options.sessionFactory ?? createDefaultCdpSession
@@ -284,7 +277,6 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       const payload = buildRunInferencePayload({
         request,
         runtimeContext: effectiveRuntimeContext,
-        preferredModel: this.config.preferredModel,
         idFactory: this.idFactory,
       })
       const headers = buildRunInferenceHeaders(effectiveRuntimeContext)
@@ -371,20 +363,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         })
         return false
       }
-      if (!this.config.preferredModel) return true
-
-      const preferredModelAvailable = modelIsAvailable(
-        this.config.preferredModel,
-        effectiveRuntimeContext.availableModels,
-      )
-      if (!preferredModelAvailable) {
-        this.lastHealthError = this.toLlmError({
-          message: "Preferred Notion AI model is unavailable.",
-          code: "connection",
-          isRetryable: true,
-        })
-      }
-      return preferredModelAvailable
+      return true
     } catch (error) {
       this.lastHealthError = error instanceof Error ? error : this.toLlmError({
         message: "Notion AI Chrome CDP health check failed.",
@@ -415,14 +394,11 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContext,
         this.config.targetUrlIncludes,
       )
-      const preferredModel = this.config.preferredModel ?? tier1ObservedNotionAiModel
-
       return {
         targetUrl: target.url,
         selectedModel: effectiveRuntimeContext.selectedModel,
         finalModelName: effectiveRuntimeContext.finalModelName,
         availableModels: effectiveRuntimeContext.availableModels,
-        preferredModelAvailable: modelIsAvailable(preferredModel, effectiveRuntimeContext.availableModels),
       }
     } finally {
       await session.close()
@@ -614,7 +590,6 @@ export function createTier1ChromeNotionAiClient(
 export function buildRunInferencePayload(input: {
   request: ChatbotLlmRequest
   runtimeContext: NotionAiRuntimeContext
-  preferredModel?: string
   idFactory: IdFactory
   contextPageId?: string
 }): RunInferencePayload {
@@ -632,10 +607,7 @@ export function buildRunInferencePayload(input: {
     })
   }
 
-  const model = resolveModel(input.runtimeContext, input.preferredModel)
   const workflowValue = buildWorkflowValue({
-    model,
-    modelFromUser: input.runtimeContext.modelFromUser ?? Boolean(input.runtimeContext.selectedModel),
     workflowValue: input.runtimeContext.workflowValue,
   })
 
@@ -722,13 +694,10 @@ export function buildRunInferenceHeaders(runtimeContext: NotionAiRuntimeContext)
 }
 
 export function buildWorkflowValue(input: {
-  model: string
-  modelFromUser: boolean
   workflowValue?: Partial<NotionAiWorkflowValue>
-}): NotionAiWorkflowValue {
+} = {}): NotionAiWorkflowValue {
   const workflowValue: NotionAiWorkflowValue = {
     type: "workflow",
-    model: input.model,
     isHipaa: false,
     isMobile: false,
     yoloMode: false,
@@ -736,7 +705,6 @@ export function buildWorkflowValue(input: {
     searchScopes: [{ type: "everything" }],
     useWebSearch: true,
     isCustomAgent: false,
-    modelFromUser: input.modelFromUser,
     enableComputer: false,
     enableQueryMail: false,
     useReadOnlyMode: false,
@@ -790,13 +758,27 @@ export function buildWorkflowValue(input: {
     enableScriptAgentSearchConnectorsInCustomAgent: false,
   }
 
+  const sanitizedWorkflowValue = stripModelSelection(input.workflowValue)
+
   return {
     ...workflowValue,
-    ...input.workflowValue,
+    ...sanitizedWorkflowValue,
     type: "workflow",
-    model: input.model,
-    modelFromUser: input.modelFromUser,
   }
+}
+
+function stripModelSelection(
+  workflowValue: Partial<NotionAiWorkflowValue> | undefined,
+): Partial<NotionAiWorkflowValue> | undefined {
+  if (!workflowValue) return undefined
+
+  const withoutModelSelection: Partial<NotionAiWorkflowValue> & {
+    model?: unknown
+    modelFromUser?: unknown
+  } = { ...workflowValue }
+  delete withoutModelSelection.model
+  delete withoutModelSelection.modelFromUser
+  return withoutModelSelection
 }
 
 export function extractAssistantTextFromNdjson(ndjson: string): string {
@@ -840,33 +822,6 @@ export function parseInferenceNdjsonStream(ndjson: string): ParsedInferenceNdjso
     assistantText,
     chunkCount: chunks.length,
   }
-}
-
-function resolveModel(runtimeContext: NotionAiRuntimeContext, preferredModel?: string): string {
-  const availableModels = runtimeContext.availableModels
-  const selectedModel = preferredModel ?? tier1ObservedNotionAiModel
-
-  if (availableModels && !modelIsAvailable(selectedModel, availableModels)) {
-    throw new ChatbotLlmError({
-      message: "Preferred Notion AI model is not available in the current page context.",
-      code: "connection",
-      tier,
-      isRetryable: true,
-    })
-  }
-
-  if (selectedModel) return selectedModel
-
-  throw new ChatbotLlmError({
-    message: "Notion AI page did not expose a current model selection.",
-    code: "connection",
-    tier,
-    isRetryable: true,
-  })
-}
-
-function modelIsAvailable(model: string, availableModels?: string[]): boolean {
-  return !availableModels || availableModels.includes(model)
 }
 
 function buildUserPrompt(request: ChatbotLlmRequest): string {
@@ -1194,10 +1149,9 @@ const runtimeContextExpression = `(() => (async () => {
     notionClientVersion: root.__notionClientVersion || buildId || readMeta("notion-client-version"),
     contextPageId: root.__notionAiContextPageId || readNotionAiContextPageId(),
     threadId,
-    selectedModel: root.__notionAiSelectedModel || "${tier1ObservedNotionAiModel}",
+    selectedModel: root.__notionAiSelectedModel,
     finalModelName: root.__notionAiFinalModelName,
     availableModels: Array.isArray(root.__notionAiAvailableModels) ? root.__notionAiAvailableModels : undefined,
-    modelFromUser: true,
     workflowValue: root.__notionAiWorkflowValue,
   };
 })())()`

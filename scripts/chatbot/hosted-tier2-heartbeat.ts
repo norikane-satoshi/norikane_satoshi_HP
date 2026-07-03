@@ -10,7 +10,6 @@ type NotificationKind = "unhealthy" | "recovered" | "test"
 type IncidentClass =
   | "none"
   | "chrome_cdp"
-  | "notion_model"
   | "notion_runtime_trust_rule_denied"
   | "worker_error:auth"
   | "worker_error:connection"
@@ -204,17 +203,16 @@ export function evaluateHealthResponse(status: number, body: unknown): CheckResu
 
   const ok = body.ok === true
   const ready = body.status === "ready"
-  const modelAvailable = readModelAvailable(body)
-  if (!ok || !ready || modelAvailable !== true) {
+  if (!ok || !ready) {
     return {
       name: "health",
       ok: false,
       status,
-      detail: `ok:${String(body.ok)};status:${String(body.status)};model_available:${String(modelAvailable)}`,
+      detail: `ok:${String(body.ok)};status:${String(body.status)}`,
     }
   }
 
-  return { name: "health", ok: true, status, detail: "ok:true;status:ready;model_available:true" }
+  return { name: "health", ok: true, status, detail: "ok:true;status:ready" }
 }
 
 export function evaluateGenerateResponse(status: number, body: unknown): CheckResult {
@@ -804,13 +802,6 @@ function parseEnvFile(raw: string): Record<string, string> {
   return env
 }
 
-function readModelAvailable(body: Record<string, unknown>): boolean | undefined {
-  if (typeof body.modelAvailable === "boolean") return body.modelAvailable
-  const preferredModel = body.preferredModel
-  if (isRecord(preferredModel) && typeof preferredModel.available === "boolean") return preferredModel.available
-  return undefined
-}
-
 function canNotify(lastNotificationAt: string | undefined, now: Date, cooldownMs: number): boolean {
   if (!lastNotificationAt) return true
   const parsed = Date.parse(lastNotificationAt)
@@ -843,7 +834,6 @@ function isIncidentClass(value: unknown): value is IncidentClass {
   return (
     value === "none" ||
     value === "chrome_cdp" ||
-    value === "notion_model" ||
     value === "notion_runtime_trust_rule_denied" ||
     value === "worker_error:auth" ||
     value === "worker_error:connection" ||
@@ -897,7 +887,6 @@ function classifyFailureOrigin(check: CheckResult | undefined): IncidentClass {
   if (check.detail.includes("error:auth")) return "worker_error:auth"
   if (check.detail.includes("error:invalid-output")) return "worker_error:invalid-output"
   if (check.detail.includes("cdp_")) return "chrome_cdp"
-  if (check.detail.includes("model_available:false")) return "notion_model"
   if (check.detail.includes("timeout")) return "timeout"
   if (check.detail.includes("worker_http_502")) return "worker_http_502"
   if (check.status === 502) return "worker_http_502"

@@ -91,20 +91,17 @@ describe("hosted-tier2-heartbeat", () => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
   })
 
-  it("requires health ok, ready status, and available model", () => {
+  it("requires health ok and ready status", () => {
     expect(
       evaluateHealthResponse(200, {
         ok: true,
         status: "ready",
-        preferredModel: { available: true },
       }),
     ).toMatchObject({ ok: true })
-    expect(evaluateHealthResponse(200, { ok: true, status: "ready" })).toMatchObject({ ok: false })
     expect(
       evaluateHealthResponse(200, {
         ok: true,
-        status: "model_unavailable",
-        preferredModel: { available: false },
+        status: "target_missing",
       }),
     ).toMatchObject({ ok: false })
   })
@@ -192,7 +189,7 @@ describe("hosted-tier2-heartbeat", () => {
     expect(slackBody.channel).toBe("D0AB0UMUFNZ")
     expect(slackBody.text).toContain("tier: tier-2-hosted-chrome-notion-ai")
     expect(slackBody.text).toContain("state: unhealthy")
-    expect(slackBody.text).toContain("failure_reason: ok:false;status:cdp_connection_refused;model_available:undefined")
+    expect(slackBody.text).toContain("failure_reason: ok:false;status:cdp_connection_refused")
     expect(slackBody.text).not.toContain("secret-token")
     expect(slackBody.text).not.toContain("test-slack-token")
     expect(slackBody.text).not.toContain("resend-secret")
@@ -203,7 +200,7 @@ describe("hosted-tier2-heartbeat", () => {
     dirs.push(dir)
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }, 200))
       .mockResolvedValueOnce(
         jsonResponse(
           {
@@ -251,7 +248,7 @@ describe("hosted-tier2-heartbeat", () => {
     dirs.push(dir)
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
       .mockResolvedValueOnce(trustRuleDeniedResponse())
     const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
 
@@ -287,7 +284,7 @@ describe("hosted-tier2-heartbeat", () => {
     )
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
       .mockResolvedValueOnce(jsonResponse({ tier: "tier-2-hosted-chrome-notion-ai", rawText: "OK" }))
 
     const result = await runHeartbeat(config(dir), {
@@ -324,7 +321,7 @@ describe("hosted-tier2-heartbeat", () => {
     )
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
       .mockResolvedValueOnce(trustRuleDeniedResponse())
     const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
 
@@ -405,7 +402,7 @@ describe("hosted-tier2-heartbeat", () => {
       }),
     )
     const fetchMock = vi.fn(async () =>
-      jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }, 200),
+      jsonResponse({ ok: true, status: "ready" }, 200),
     )
 
     const result = await runHeartbeat(config(dir), {
@@ -433,7 +430,7 @@ describe("hosted-tier2-heartbeat", () => {
     )
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }, 200))
+      .mockResolvedValue(jsonResponse({ ok: true, status: "ready" }, 200))
 
     const recovered = await runHeartbeat(config(dir), {
       fetch: fetchMock as typeof fetch,
@@ -465,7 +462,7 @@ describe("hosted-tier2-heartbeat", () => {
       }),
     )
     const fetchMock = vi.fn(async () =>
-      jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }, 200),
+      jsonResponse({ ok: true, status: "ready" }, 200),
     )
 
     const result = await runHeartbeat(config(dir), {
@@ -483,7 +480,7 @@ describe("hosted-tier2-heartbeat", () => {
     dirs.push(dir)
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
       .mockResolvedValueOnce(invalidOutputResponse())
     const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
 
@@ -509,7 +506,7 @@ describe("hosted-tier2-heartbeat", () => {
     dirs.push(dir)
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }, 200))
       .mockResolvedValueOnce(jsonResponse("bad gateway", 502))
 
     const result = await runHeartbeat(config(dir, { failureThreshold: 1, forceGenerate: true }), {
@@ -574,12 +571,12 @@ describe("hosted-tier2-heartbeat", () => {
     )
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
       .mockResolvedValueOnce(jsonResponse({ ok: false, error: { code: "connection", retryable: true } }, 502))
       .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
       .mockResolvedValueOnce(jsonResponse({ ok: false, error: { code: "connection", retryable: true } }, 502))
-      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready", preferredModel: { available: true } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
       .mockResolvedValueOnce(jsonResponse({ tier: "tier-2-hosted-chrome-notion-ai", rawText: "OK" }))
     const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
 

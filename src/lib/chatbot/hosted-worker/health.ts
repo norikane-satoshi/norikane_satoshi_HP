@@ -54,10 +54,7 @@ export function getHostedWorkerQuickHealth(
       loginRedirect: false,
       targetUrlMatches: false,
     },
-    preferredModel: cached?.preferredModel ?? {
-      name: process.env.CHATBOT_HOSTED_WORKER_PREFERRED_MODEL ?? "unknown",
-      available: undefined,
-    },
+    notionAiModelSelection: cached?.notionAiModelSelection,
     targetCount: cached?.targetCount,
     tier: hostedWorkerTier,
     queue: { ...state.queue },

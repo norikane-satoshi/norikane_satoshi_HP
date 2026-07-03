@@ -1,5 +1,5 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
-import { createTier1ChromeNotionAiClient, tier1ObservedNotionAiModel } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
+import { createTier1ChromeNotionAiClient } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 import { runTier1HealthCheck } from "@/lib/chatbot/server/llm-clients/tier1-health-check"
 import { createTier3OllamaDeepSeekClient } from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
 import { createChatbotLlmTierOrchestrator } from "@/lib/chatbot/server/llm-orchestrator"
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
 }
 
 async function runGate1(logClient: ReturnType<typeof createLocalPrismaClient>) {
-  const client = createTier1ChromeNotionAiClient({ preferredModel: tier1ObservedNotionAiModel })
+  const client = createTier1ChromeNotionAiClient()
   const details: unknown[] = []
   let passed = 0
   let failed = 0
@@ -95,23 +95,19 @@ async function runGate1(logClient: ReturnType<typeof createLocalPrismaClient>) {
 }
 
 async function runGate2(logClient: ReturnType<typeof createLocalPrismaClient>) {
-  const client = createTier1ChromeNotionAiClient({ preferredModel: tier1ObservedNotionAiModel })
+  const client = createTier1ChromeNotionAiClient()
   const details: unknown[] = []
   let passed = 0
   let failed = 0
 
   for (let iteration = 1; iteration <= gateIterations; iteration += 1) {
     const inspection = await client.inspectRuntimeContext()
-    const response = await client.generate(buildRequest(`Gate2 model selector probe ${iteration}`))
-    const iterationPassed =
-      inspection.preferredModelAvailable &&
-      (inspection.selectedModel === tier1ObservedNotionAiModel ||
-        inspection.availableModels?.includes(tier1ObservedNotionAiModel) === true)
+    const response = await client.generate(buildRequest(`Gate2 runtime context probe ${iteration}`))
+    const iterationPassed = Boolean(inspection.targetUrl) && response.tier === "tier-1-chrome-notion-ai"
     const detail = {
       iteration,
       selectedModel: inspection.selectedModel,
       finalModelName: inspection.finalModelName,
-      preferredModelAvailable: inspection.preferredModelAvailable,
       responseTier: response.tier,
       responseBytes: response.diagnostics?.responseBytes,
     }
@@ -132,7 +128,7 @@ async function runGate2(logClient: ReturnType<typeof createLocalPrismaClient>) {
 }
 
 async function runGate3(logClient: ReturnType<typeof createLocalPrismaClient>) {
-  const tier1 = createTier1ChromeNotionAiClient({ preferredModel: tier1ObservedNotionAiModel })
+  const tier1 = createTier1ChromeNotionAiClient()
   const tier3 = createTier3OllamaDeepSeekClient()
   const cases = [
     {
@@ -255,7 +251,7 @@ async function runGate4(logClient: ReturnType<typeof createLocalPrismaClient>) {
       ok: result.ok,
       rateLimitRemaining: result.rateLimitRemaining,
       rateLimitRemainingRatio: result.rateLimitRemainingRatio,
-      modelSelectorPresent: result.modelSelectorPresent,
+      runtimeContextPresent: result.runtimeContextPresent,
       responseSuccess: result.responseSuccess,
       consecutiveFailures: result.consecutiveFailures,
       alertSent: result.alertSent,

@@ -15,7 +15,6 @@ function logClient(previous: Array<{ responseSuccess: boolean }> = []) {
 }
 
 function healthClient(overrides: {
-  preferredModelAvailable?: boolean
   responseHeaders?: Record<string, string>
   generateError?: Error
   generateErrors?: Error[]
@@ -24,9 +23,8 @@ function healthClient(overrides: {
   return {
     inspectRuntimeContext: vi.fn(async () => ({
       targetUrl: "https://www.notion.so/chat?t=36b13ee3141a8073885d00a99ebb676c&wfv=chat",
-      selectedModel: "apricot-sorbet-high",
-      availableModels: ["apricot-sorbet-high"],
-      preferredModelAvailable: overrides.preferredModelAvailable ?? true,
+      selectedModel: "diagnostic-model",
+      availableModels: ["diagnostic-model"],
     })),
     generate: vi.fn(async () => {
       const generateError = generateErrors.shift()
@@ -58,7 +56,7 @@ describe("runTier1HealthCheck", () => {
     ).resolves.toMatchObject({
       ok: true,
       probeAt: "2026-05-25T10:00:00.000Z",
-      modelSelectorPresent: true,
+      runtimeContextPresent: true,
       responseSuccess: true,
       alertSent: false,
     })

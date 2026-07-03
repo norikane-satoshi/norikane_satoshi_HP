@@ -3,7 +3,6 @@ import { getResendClient } from "@/lib/booking/server/email"
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import {
   createTier1ChromeNotionAiClient,
-  tier1ObservedNotionAiModel,
   type NotionAiRuntimeInspection,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 import {
@@ -17,7 +16,7 @@ export type Tier1HealthCheckResult = {
   probeAt: string
   rateLimitRemaining: number | null
   rateLimitRemainingRatio: number | null
-  modelSelectorPresent: boolean
+  runtimeContextPresent: boolean
   responseSuccess: boolean
   consecutiveFailures: number
   alertSent: boolean
@@ -49,11 +48,7 @@ export async function runTier1HealthCheck(
   options: Tier1HealthCheckOptions,
 ): Promise<Tier1HealthCheckResult> {
   const probeAt = options.now?.() ?? new Date()
-  const client =
-    options.client ??
-    createTier1ChromeNotionAiClient({
-      preferredModel: tier1ObservedNotionAiModel,
-    })
+  const client = options.client ?? createTier1ChromeNotionAiClient()
   const details: Record<string, unknown> = {}
   let inspection: NotionAiRuntimeInspection | undefined
   let responseSuccess = false
@@ -77,12 +72,12 @@ export async function runTier1HealthCheck(
     details.error = errorMessage
   }
 
-  const modelSelectorPresent = Boolean(inspection?.preferredModelAvailable)
+  const runtimeContextPresent = Boolean(inspection)
   await recordChatbotHealthCheck({
     client: options.logClient,
     probeAt,
     rateLimitRemaining,
-    modelSelectorPresent,
+    modelSelectorPresent: runtimeContextPresent,
     responseSuccess,
     details,
   })
@@ -93,17 +88,17 @@ export async function runTier1HealthCheck(
   })
   const shouldAlert =
     (typeof rateLimitRemainingRatio === "number" && rateLimitRemainingRatio < lowRateLimitRatio) ||
-    !modelSelectorPresent ||
+    !runtimeContextPresent ||
     consecutiveFailures >= failureWindowSize
   const alertSent = shouldAlert
     ? await (options.sendAlert ?? sendTier1HealthAlert)({
-        subject: buildAlertSubject({ modelSelectorPresent, responseSuccess, rateLimitRemainingRatio }),
+        subject: buildAlertSubject({ runtimeContextPresent, responseSuccess, rateLimitRemainingRatio }),
         text: JSON.stringify(
           {
             probeAt: probeAt.toISOString(),
             rateLimitRemaining,
             rateLimitRemainingRatio,
-            modelSelectorPresent,
+            runtimeContextPresent,
             responseSuccess,
             consecutiveFailures,
             error: errorMessage,
@@ -115,11 +110,11 @@ export async function runTier1HealthCheck(
     : false
 
   return {
-    ok: responseSuccess && modelSelectorPresent && consecutiveFailures === 0,
+    ok: responseSuccess && runtimeContextPresent && consecutiveFailures === 0,
     probeAt: probeAt.toISOString(),
     rateLimitRemaining,
     rateLimitRemainingRatio,
-    modelSelectorPresent,
+    runtimeContextPresent,
     responseSuccess,
     consecutiveFailures,
     alertSent,
@@ -227,11 +222,11 @@ function firstHeaderNumber(headers: Record<string, unknown>, names: string[]): n
 }
 
 function buildAlertSubject(input: {
-  modelSelectorPresent: boolean
+  runtimeContextPresent: boolean
   responseSuccess: boolean
   rateLimitRemainingRatio: number | null
 }): string {
-  if (!input.modelSelectorPresent) return `${alertSubjectPrefix}: model selector missing`
+  if (!input.runtimeContextPresent) return `${alertSubjectPrefix}: runtime context missing`
   if (!input.responseSuccess) return `${alertSubjectPrefix}: response failed`
   if (
     typeof input.rateLimitRemainingRatio === "number" &&

@@ -47,10 +47,8 @@ describe("hosted worker health", () => {
           url: "https://www.notion.so/chat",
         },
       },
-      preferredModel: {
-        name: "test-model",
-        available: true,
-        selectedModel: "test-model",
+      notionAiModelSelection: {
+        selectedModel: "diagnostic-model",
       },
       targetCount: 3,
       tier: "tier-2-hosted-chrome-notion-ai",
@@ -65,7 +63,7 @@ describe("hosted worker health", () => {
       healthMode: "quick",
       cdp: { browser: "Chrome/test" },
       notionTarget: { found: true, targetUrlMatches: true },
-      preferredModel: { name: "test-model", available: true },
+      notionAiModelSelection: { selectedModel: "diagnostic-model" },
       targetCount: 3,
     })
   })
