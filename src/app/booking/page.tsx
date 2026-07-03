@@ -3,7 +3,7 @@ import { BookingClientShell } from "@/components/booking/booking-client-shell"
 import { BookingMonthSkeleton } from "@/components/booking/booking-month-skeleton"
 import { isAdmin } from "@/lib/auth/server/is-admin"
 import { getCalendarFreeBusyForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
-import { Menu } from "lucide-react"
+import { History, Menu } from "lucide-react"
 import type { Metadata } from "next"
 import Link from "next/link"
 
@@ -64,14 +64,23 @@ export default async function BookingPage() {
               予約カレンダー
             </h1>
           </div>
-          <Link
-            href="/booking/settings"
-            className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
-            aria-label="予約カレンダー設定"
-          >
-            <Menu aria-hidden="true" size={18} />
-            <span>設定</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/booking/history"
+              className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
+            >
+              <History aria-hidden="true" size={18} />
+              <span>予約履歴</span>
+            </Link>
+            <Link
+              href="/booking/settings"
+              className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
+              aria-label="予約カレンダー設定"
+            >
+              <Menu aria-hidden="true" size={18} />
+              <span>設定</span>
+            </Link>
+          </div>
         </div>
         <div className="mt-8">
           <BookingClientShell

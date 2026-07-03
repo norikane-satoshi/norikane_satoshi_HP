@@ -1,5 +1,7 @@
 "use client"
 
+import { History } from "lucide-react"
+import Link from "next/link"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { signIn } from "next-auth/react"
 
@@ -158,6 +160,13 @@ export function LiffBookingEntry({
               </p>
             ) : null}
           </div>
+          <Link
+            href="/booking/history"
+            className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
+          >
+            <History aria-hidden="true" size={18} />
+            <span>予約履歴</span>
+          </Link>
         </div>
 
         {state.status === "loading" ? (
