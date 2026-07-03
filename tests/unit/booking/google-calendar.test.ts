@@ -132,6 +132,7 @@ describe("google-calendar helpers", () => {
       {
         start: "2026-06-10T01:00:00.000Z",
         end: "2026-06-10T02:00:00.000Z",
+        source: "google_calendar",
         bufferHours: null,
         bufferBeforeHours: null,
         bufferAfterHours: null,
@@ -140,6 +141,7 @@ describe("google-calendar helpers", () => {
       {
         start: "2026-06-11",
         end: "2026-06-12",
+        source: "google_calendar",
         bufferHours: null,
         bufferBeforeHours: null,
         bufferAfterHours: null,
