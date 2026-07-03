@@ -99,7 +99,8 @@ describe("createBookingFromApiInput", () => {
     })
 
     expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
-      summary: "【仮キープ】Color grading",
+      summary: "【仮キープ】Color grading / Satoshi",
+      notionTaskType: "仮押さえ",
     }))
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({
       bookingGroupId: "group_1",
@@ -134,7 +135,7 @@ describe("createBookingFromApiInput", () => {
     }))
   })
 
-  it("persists zero selected slots as an unscheduled chatbot booking request without creating a calendar event", async () => {
+  it("persists zero selected slots as an unscheduled chatbot booking request without creating a calendar event when no candidate date exists", async () => {
     const service = await loadCreateBooking()
 
     const result = await service.createBookingFromApiInput({
@@ -172,7 +173,7 @@ describe("createBookingFromApiInput", () => {
     }))
   })
 
-  it("persists requested date arrays as schedule consultations without creating a calendar event", async () => {
+  it("creates a transparent all-day tentative hold for requested date arrays", async () => {
     const service = await loadCreateBooking()
 
     const result = await service.createBookingFromApiInput({
@@ -210,7 +211,20 @@ describe("createBookingFromApiInput", () => {
         }),
       }),
     )
-    expect(service.createCalendarEvent).not.toHaveBeenCalled()
+    expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
+      summary: "【仮キープ】Color grading / Satoshi",
+      start: "2026-07-10",
+      end: "2026-07-11",
+      colorId: "4",
+      eventId: "group1",
+      notionTaskType: "仮押さえ",
+      dateOnly: true,
+      transparency: "transparent",
+    }))
+    expect(service.prisma.bookingGroup.update).toHaveBeenCalledWith({
+      where: { id: "group_1" },
+      data: { gcalEventId: "gcal_1" },
+    })
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({
       bookingGroupId: "group_1",
       requestedDates: ["2026-07-10", "2026-07-12", "2026-07-15"],

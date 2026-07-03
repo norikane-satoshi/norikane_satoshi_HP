@@ -168,7 +168,7 @@ describe("POST /api/booking Saga", () => {
     expect(route.prisma.bookingGroup.create).not.toHaveBeenCalled()
   })
 
-  it("accepts requested date arrays without creating Google Calendar events", async () => {
+  it("accepts requested date arrays and creates a transparent all-day Google Calendar hold", async () => {
     const route = await loadPost()
     route.prisma.bookingGroup.create.mockResolvedValueOnce({
       id: "clwxyz123abc",
@@ -188,7 +188,20 @@ describe("POST /api/booking Saga", () => {
       bookingStatus: "NEEDS_SCHEDULE",
       scheduleStatus: "unscheduled",
     })
-    expect(route.createCalendarEvent).not.toHaveBeenCalled()
+    expect(route.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventId: "cl123abc",
+      summary: "【仮キープ】Color grading / Satoshi",
+      start: "2026-07-10",
+      end: "2026-07-11",
+      colorId: "4",
+      notionTaskType: "仮押さえ",
+      dateOnly: true,
+      transparency: "transparent",
+    }))
+    expect(route.prisma.bookingGroup.update).toHaveBeenCalledWith({
+      where: { id: "clwxyz123abc" },
+      data: { gcalEventId: "gcal_1" },
+    })
     expect(route.prisma.bookingGroup.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
