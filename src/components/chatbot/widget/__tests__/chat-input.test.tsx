@@ -8,6 +8,7 @@ import { ChatInput } from "@/components/chatbot/widget/ChatInput"
 import { CHATBOT_CONVERSATION_CONTENT_STYLE } from "@/components/chatbot/widget/conversationTypography"
 
 const originalMatchMedia = window.matchMedia
+const originalNavigatorPlatform = window.navigator.platform
 
 function mockMatchMedia(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -26,6 +27,13 @@ function mockMatchMedia(matches: boolean) {
   })
 }
 
+function mockNavigatorPlatform(platform: string) {
+  Object.defineProperty(window.navigator, "platform", {
+    configurable: true,
+    value: platform,
+  })
+}
+
 describe("ChatInput", () => {
   afterEach(() => {
     Object.defineProperty(window, "matchMedia", {
@@ -33,6 +41,7 @@ describe("ChatInput", () => {
       writable: true,
       value: originalMatchMedia,
     })
+    mockNavigatorPlatform(originalNavigatorPlatform)
     cleanup()
   })
 
@@ -44,19 +53,33 @@ describe("ChatInput", () => {
 
   it("shows the default multiline and submit shortcut guidance on desktop", () => {
     mockMatchMedia(false)
+    mockNavigatorPlatform("MacIntel")
     render(<ChatInput onSubmit={vi.fn()} />)
 
-    expect(
-      screen.getByPlaceholderText("案件内容を書く（Enterで改行、Cmd（Ctrl）+ Enterで送信）"),
-    ).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("案件内容やその他質問")).toBeInTheDocument()
+    expect(screen.getByText("案件内容やその他質問")).toBeInTheDocument()
+    expect(screen.getByText("改行")).toBeInTheDocument()
+    expect(screen.getByText("送信")).toBeInTheDocument()
+    expect(document.querySelector('[data-chat-input-key="command"]')).toBeInTheDocument()
+    expect(screen.queryByText(/Enter|Cmd|Windows|Linux/)).not.toBeInTheDocument()
+  })
+
+  it("switches the submit modifier hint to a Ctrl keycap outside macOS", () => {
+    mockMatchMedia(false)
+    mockNavigatorPlatform("Win32")
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    expect(screen.getByText("Ctrl")).toBeInTheDocument()
+    expect(document.querySelector('[data-chat-input-key="command"]')).not.toBeInTheDocument()
   })
 
   it("hides physical keyboard shortcut guidance on mobile", () => {
     mockMatchMedia(true)
     render(<ChatInput onSubmit={vi.fn()} />)
 
-    expect(screen.getByPlaceholderText("案件内容を書く")).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText(/Cmd（Ctrl）/)).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText("案件内容やその他質問")).toBeInTheDocument()
+    expect(screen.queryByText("改行")).not.toBeInTheDocument()
+    expect(screen.queryByText("Ctrl")).not.toBeInTheDocument()
   })
 
   it("uses the same font family as submitted conversation content", () => {
