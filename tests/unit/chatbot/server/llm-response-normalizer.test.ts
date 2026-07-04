@@ -32,6 +32,84 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(normalized.content).not.toMatch(/[A-Za-z0-9+/=_-]{80,}/u)
   })
 
+  it("removes readable first-person / user-narration monologue prepended to the reply", () => {
+    // Real 41238 leak: readable English+Japanese internal monologue concatenated in
+    // front of the customer reply, with no base64 / thinking-signature blob.
+    const normalized = normalizeChatbotLlmResponse({
+      rawText:
+        'user said "特にないですー" (no particular preferences) regarding delivery format/distribution. I need to check what\'s still missing before show_booking_card. 案件名と担当者名が最も重要なので、まずこれらを聞こう。\n承りました。納品形式はお任せとして進めます。ほかに気になる点がなければ、作品名を教えていただけますか？',
+      tier: "tier-1-chrome-notion-ai",
+    })
+
+    expect(normalized.content).toBe(
+      "承りました。納品形式はお任せとして進めます。ほかに気になる点がなければ、作品名を教えていただけますか？",
+    )
+    expect(normalized.content).not.toContain("user said")
+    expect(normalized.content).not.toContain("show_booking_card")
+    expect(normalized.content).not.toContain("聞こう")
+    expect(normalized.content).not.toContain("I need")
+  })
+
+  it.each([
+    [
+      "The user said \"特にないです\" (nothing in particular) regarding delivery format/distribution. I need to check what's still missing before show_booking_card. 承知しました。参考URLがあれば教えてください。",
+      "承知しました。参考URLがあれば教えてください。",
+    ],
+    [
+      "The user selected \"お任せで！\" for work-site. Now I need to check what A items remain. Confirmed facts: 案件種別 live.\n作業場所はお任せで承りました。次に納品形式を教えてください。",
+      "作業場所はお任せで承りました。次に納品形式を教えてください。",
+    ],
+    [
+      "ユーザーが案件名を持っていないと答えたので、show_booking_cardに必須のprojectTitleを埋めるために、仮の呼び名を提案する必要がある。\n事前に把握しておきたい参考URLがあれば教えてください。",
+      "事前に把握しておきたい参考URLがあれば教えてください。",
+    ],
+    [
+      "ユーザーが最終確認で「大丈夫」と答えたので、show_booking_cardに進める条件をチェックしている。ただし案件名がまだ未確定なので必要情報が揃っていない。案件名を改めて聞き返す必要がある。\n作品名を教えていただけますか？",
+      "作品名を教えていただけますか？",
+    ],
+  ])("strips readable internal monologue variants and keeps only the customer reply", (rawText, expected) => {
+    const normalized = normalizeChatbotLlmResponse({
+      rawText,
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    expect(normalized.content).toBe(expected)
+    expect(normalized.content).not.toMatch(/user\s+(?:said|selected)/i)
+    expect(normalized.content).not.toContain("ユーザー")
+    expect(normalized.content).not.toContain("show_booking_card")
+    expect(normalized.content).not.toContain("projectTitle")
+  })
+
+  it("keeps a legitimate reply that mentions Latin project terms and a URL", () => {
+    const normalized = normalizeChatbotLlmResponse({
+      rawText:
+        "Web CMのご相談、承りました。参考として https://norikane.studio/notes/color-grading もご覧いただけます。まず尺を教えてください。",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    expect(normalized.content).toBe(
+      "Web CMのご相談、承りました。参考として https://norikane.studio/notes/color-grading もご覧いただけます。まず尺を教えてください。",
+    )
+  })
+
+  it("falls back to the routing question when the entire output is readable monologue", () => {
+    const normalized = normalizeChatbotLlmResponse(
+      {
+        rawText:
+          "The user said nothing in particular. I need to check what's still missing before show_booking_card, so I should ask for the project title next.",
+        tier: "tier-1-chrome-notion-ai",
+      },
+      {
+        routingDecision: {
+          kind: "continue",
+          nextQuestion: "作品名を教えていただけますでしょうか？",
+        },
+      },
+    )
+
+    expect(normalized.content).toBe("作品名を教えていただけますでしょうか？")
+  })
+
   it("falls back to the routing question when only opaque internal output remains", () => {
     const normalized = normalizeChatbotLlmResponse(
       {

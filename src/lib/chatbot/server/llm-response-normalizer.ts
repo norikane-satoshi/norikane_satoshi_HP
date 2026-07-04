@@ -75,23 +75,100 @@ export function sanitizeChatbotLlmTextWithReport(
 const opaqueTokenPattern = /(?:[A-Za-z0-9+/=_-]{80,})/gu
 const thinkingSignatureMarkerPattern =
   /\b(?:thinking|signature|encrypted[_ -]?thinking|reasoning[_ -]?(?:content|signature)?|claude[-_\w]*sonnet)\b/iu
-const internalReasoningLinePattern =
-  /^\s*(?:i\s+(?:need|should|will|have to|must|think|can)|we\s+(?:need|should|will|have to|must|can)|let(?:'|’)s|the\s+(?:user|customer)\b|案件名を設けないといけない)/iu
 const internalModelCodenamePattern =
   /\b[a-z][a-z0-9]*-[a-z][a-z0-9]*-(?:low|medium|high|fast|thinking|reasoning)\b/giu
 const langPrimaryWrapperPattern = /<lang\s+primary=["']?/iu
 const xmlLikeTagPattern = /<\/?[a-z][a-z0-9_-]*(?:\s+[^<>]*)?>/giu
 
+// The customer-facing reply is always Japanese, addressed to the user in polite
+// register. Any segment that (a) narrates the user/conversation, (b) plans the
+// assistant's own next action in first person or plain-form volitional, (c) names
+// internal tools/fields/state, or (d) is English reasoning prose is internal
+// monologue that must never reach the customer. These detectors classify segments
+// structurally rather than matching one known leaked string, so novel monologue
+// phrasings are caught by the same boundary.
+const internalReasoningEnglishPattern =
+  /\b(?:i|we)\s+(?:need|should|will|would|have|must|think|can|am|could|'ll|'m|'ve)\b|\blet(?:'|’)?s\b|\blet\s+(?:me|us)\b|\bi'?ll\b|\b(?:the\s+)?(?:user|customer)\s+(?:said|says|selected|asked|answered|chose|wants?|mentioned|indicated|responded|is|has|gave|provided|replied)\b|\blooking at the (?:conversation|context)\b|\bconfirmed facts?\b|\bwhat'?s\s+(?:still\s+)?missing\b|\bstill\s+missing\b|\bno particular preferences?\b|\bnow i\b/iu
+const internalMachineIdentifierPattern =
+  /\b(?:show_booking_card|show_choice_panel|projectTitle|contactName|contactEmail|companyName|dueDate|selectionMode|allowFreeText|choiceSetId|projectLengthMinutes|jobKind|finalMedium)\b/u
+const japaneseInternalMonologuePattern =
+  /ユーザー(?:は|が|さん|の|に)|(?:確定済み|未確定)\s*facts|メモリのルール|A項目|Aアイテム|必須の[A-Za-z]|(?:必要がある|べきだ|べきです|べきだろう|聞き返す|聞き返そう|進める条件|埋めるために|留めるべき|留める必要|チェックしている|確認している|把握している|判断している|提案する必要|勧めるべき|しないといけない|進めるべき|埋めるべき|確認する必要)|(?:聞こう|確認しよう|進めよう|提案しよう|勧めよう|埋めよう|しよう|返そう|尋ねよう|整理しよう)[。、]/u
+
+// A segment is English reasoning prose when Latin words dominate over Japanese
+// characters. Customer replies are Japanese, so a Latin-dominant segment is never
+// a real reply, even without a known reasoning phrase.
+function isEnglishReasoningProse(segment: string): boolean {
+  const latinWords = (segment.match(/[A-Za-z][A-Za-z'’]+/gu) ?? []).length
+  const japaneseChars = (segment.match(/[぀-ヿ㐀-鿿]/gu) ?? []).length
+  if (japaneseChars === 0 && latinWords >= 2) return true
+  return latinWords >= 4 && latinWords > japaneseChars
+}
+
+// Customer replies are always in polite register (です/ます/ください) or a direct
+// question to the user. A substantive Japanese sentence that is in plain/dictionary
+// form and is neither is the assistant thinking aloud about internal state, so it is
+// dropped by register rather than by matching a specific leaked phrase.
+const politeRegisterPattern =
+  /(?:です|でし|ます|まし|ませ|くださ|ましょ|でしょ|ございま|いたし|お願い|存じ|申し上げ|承り|伺い|頂け|いただけ)/u
+const finitePlainPredicatePattern =
+  /(?:ない|なかった|だ|である|いる|ている|てる|した|する|なる|べき|だろう|はず|ので|から|けど|けれど|だが|よう)[。、]?$/u
+const listOrLabelPrefixPattern = /^[\s・\-*•:：<>\p{Pd}]/u
+function isPlainFormJapaneseMonologue(segment: string): boolean {
+  const trimmed = segment.trim()
+  const japaneseChars = (trimmed.match(/[぀-ヿ㐀-鿹]/gu) ?? []).length
+  if (japaneseChars < 6) return false
+  if (politeRegisterPattern.test(trimmed)) return false
+  if (/[?？]\s*$/u.test(trimmed)) return false
+  if (listOrLabelPrefixPattern.test(trimmed)) return false
+  return finitePlainPredicatePattern.test(trimmed)
+}
+
+function isInternalReasoningSegment(segment: string): boolean {
+  const trimmed = segment.trim()
+  if (trimmed.length === 0) return false
+  return (
+    internalReasoningEnglishPattern.test(trimmed) ||
+    internalMachineIdentifierPattern.test(trimmed) ||
+    japaneseInternalMonologuePattern.test(trimmed) ||
+    isEnglishReasoningProse(trimmed) ||
+    isPlainFormJapaneseMonologue(trimmed)
+  )
+}
+
+// Drop internal-reasoning sentences while keeping any customer-facing sentence that
+// shares the same line, so a leading monologue does not take the real reply with it.
+function stripInternalReasoningSentences(line: string, reasons: Set<StripReason>): string {
+  // Split on Japanese terminators and on an ASCII period that ends a sentence
+  // (followed by whitespace or a Japanese character), so English monologue glued in
+  // front of a Japanese reply separates. URLs and decimals have no space/CJK after
+  // the dot, so they stay intact.
+  const sentences = line.split(/(?<=[。！？!?])|(?<=\.)(?=\s|[぀-ヿ㐀-鿹])/u)
+  let removed = false
+  const kept = sentences.filter((sentence) => {
+    if (sentence.trim().length === 0) return false
+    if (isInternalReasoningSegment(sentence)) {
+      removed = true
+      return false
+    }
+    return true
+  })
+  if (removed) reasons.add("internal-reasoning-line")
+  return kept.join("")
+}
+
+type StripReason =
+  | "opaque-token"
+  | "thinking-signature-marker"
+  | "internal-reasoning-line"
+  | "internal-model-codename"
+  | "internal-markup"
+
 function stripUnsafeCustomerFacingArtifacts(rawText: string): {
   text: string
   detected: boolean
-  reasons: Array<
-    "opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename" | "internal-markup"
-  >
+  reasons: Array<StripReason>
 } {
-  const reasons = new Set<
-    "opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename" | "internal-markup"
-  >()
+  const reasons = new Set<StripReason>()
   let text = rawText
   const langPrimaryMatch = text.match(langPrimaryWrapperPattern)
   if (langPrimaryMatch?.index !== undefined) {
@@ -105,19 +182,20 @@ function stripUnsafeCustomerFacingArtifacts(rawText: string): {
       const opaqueMatches = [...line.matchAll(opaqueTokenPattern)]
       opaqueTokenPattern.lastIndex = 0
       const hasMarker = thinkingSignatureMarkerPattern.test(line)
-      const looksInternal = internalReasoningLinePattern.test(line)
+      const looksInternal = isInternalReasoningSegment(line)
 
       if (opaqueMatches.length > 0) reasons.add("opaque-token")
       if (hasMarker) reasons.add("thinking-signature-marker")
-      if (looksInternal) reasons.add("internal-reasoning-line")
 
+      // When an opaque thinking blob sits between leading reasoning and a trailing
+      // reply, keep only the text after the last blob (the blob carried the marker,
+      // so what remains is stripped sentence-by-sentence below).
       if (opaqueMatches.length > 0 && (hasMarker || looksInternal)) {
         const lastMatch = opaqueMatches.at(-1)
         const tailStart = (lastMatch?.index ?? 0) + (lastMatch?.[0].length ?? 0)
-        return line.slice(tailStart)
+        line = line.slice(tailStart)
       }
-      if (hasMarker || looksInternal) return ""
-      return line
+      return stripInternalReasoningSentences(line, reasons)
     })
     .filter((line) => line.trim().length > 0)
     .join("\n")
