@@ -595,6 +595,10 @@
     color: var(--text-muted);
     opacity: 0.70;
   }
+  .auto-resize-textarea {
+    overflow-y: hidden;
+    resize: none;
+  }
   .chatbot-widget-shell :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
     font-size: max(16px, 1rem);
   }
