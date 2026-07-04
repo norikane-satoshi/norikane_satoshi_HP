@@ -80,6 +80,52 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(normalized.content).not.toContain("projectTitle")
   })
 
+  it.each([
+    [
+      "最も重要なのでまずこれらを聞こう\n承りました。作品名を教えていただけますか？",
+      "承りました。作品名を教えていただけますか？",
+    ],
+    [
+      "案件名と担当者名が最も重要なので、まずこれらを聞こう\n納品形式はお任せとして進めます。ほかに気になる点はありますか？",
+      "納品形式はお任せとして進めます。ほかに気になる点はありますか？",
+    ],
+    [
+      "先に案件種別を確認しよう\nまず案件の種類を教えていただけますか？",
+      "まず案件の種類を教えていただけますか？",
+    ],
+    [
+      "残りの必須項目を埋めるため、次は納品先を尋ねよう\n納品先はどちらになりますか？",
+      "納品先はどちらになりますか？",
+    ],
+    [
+      "候補日はあとで送ろう\nご希望の時期を教えていただけますか？",
+      "ご希望の時期を教えていただけますか？",
+    ],
+  ])(
+    "strips plain-form volitional monologue that ends a line without a trailing 句点",
+    (rawText, expected) => {
+      const normalized = normalizeChatbotLlmResponse({
+        rawText,
+        tier: "tier-1-chrome-notion-ai",
+      })
+
+      expect(normalized.content).toBe(expected)
+      expect(normalized.content).not.toMatch(/(?:聞こう|確認しよう|尋ねよう|送ろう)/u)
+    },
+  )
+
+  it("keeps a polite suggestion (〜しましょう) and a thanks line intact", () => {
+    const normalized = normalizeChatbotLlmResponse({
+      rawText:
+        "ありがとうございます。まずは方向性を一緒に整理しましょう。ご希望の納期はいつ頃でしょうか？",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    expect(normalized.content).toBe(
+      "ありがとうございます。まずは方向性を一緒に整理しましょう。ご希望の納期はいつ頃でしょうか？",
+    )
+  })
+
   it("keeps a legitimate reply that mentions Latin project terms and a URL", () => {
     const normalized = normalizeChatbotLlmResponse({
       rawText:

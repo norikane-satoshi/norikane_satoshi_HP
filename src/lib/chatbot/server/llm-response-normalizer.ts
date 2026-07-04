@@ -92,7 +92,7 @@ const internalReasoningEnglishPattern =
 const internalMachineIdentifierPattern =
   /\b(?:show_booking_card|show_choice_panel|projectTitle|contactName|contactEmail|companyName|dueDate|selectionMode|allowFreeText|choiceSetId|projectLengthMinutes|jobKind|finalMedium)\b/u
 const japaneseInternalMonologuePattern =
-  /ユーザー(?:は|が|さん|の|に)|(?:確定済み|未確定)\s*facts|メモリのルール|A項目|Aアイテム|必須の[A-Za-z]|(?:必要がある|べきだ|べきです|べきだろう|聞き返す|聞き返そう|進める条件|埋めるために|留めるべき|留める必要|チェックしている|確認している|把握している|判断している|提案する必要|勧めるべき|しないといけない|進めるべき|埋めるべき|確認する必要)|(?:聞こう|確認しよう|進めよう|提案しよう|勧めよう|埋めよう|しよう|返そう|尋ねよう|整理しよう)[。、]/u
+  /ユーザー(?:は|が|さん|の|に)|(?:確定済み|未確定)\s*facts|メモリのルール|A項目|Aアイテム|必須の[A-Za-z]|(?:必要がある|べきだ|べきです|べきだろう|聞き返す|聞き返そう|進める条件|埋めるために|留めるべき|留める必要|チェックしている|確認している|把握している|判断している|提案する必要|勧めるべき|しないといけない|進めるべき|埋めるべき|確認する必要)|(?:聞こう|確認しよう|進めよう|提案しよう|勧めよう|埋めよう|しよう|返そう|尋ねよう|整理しよう|始めよう|まとめよう|決めよう|考えよう|見よう|出そう|送ろう|続けよう|把握しよう|質問しよう)(?:[。、]|\n|$)/u
 
 // A segment is English reasoning prose when Latin words dominate over Japanese
 // characters. Customer replies are Japanese, so a Latin-dominant segment is never
@@ -107,11 +107,16 @@ function isEnglishReasoningProse(segment: string): boolean {
 // Customer replies are always in polite register (です/ます/ください) or a direct
 // question to the user. A substantive Japanese sentence that is in plain/dictionary
 // form and is neither is the assistant thinking aloud about internal state, so it is
-// dropped by register rather than by matching a specific leaked phrase.
+// dropped by register rather than by matching a specific leaked phrase. Plain-form
+// volitional (意志形) endings — 聞こう / 話そう / 送ろう / 〜しよう / 〜よう — are the
+// assistant planning its own next move; the polite customer form would be 〜しましょう,
+// so a bare volitional ending at clause end (with or without a trailing 句点) is a leak.
+// The godan volitional set requires a preceding kanji stem so greetings like ありがとう
+// (hiragana が before とう) are not misread as monologue.
 const politeRegisterPattern =
   /(?:です|でし|ます|まし|ませ|くださ|ましょ|でしょ|ございま|いたし|お願い|存じ|申し上げ|承り|伺い|頂け|いただけ)/u
 const finitePlainPredicatePattern =
-  /(?:ない|なかった|だ|である|いる|ている|てる|した|する|なる|べき|だろう|はず|ので|から|けど|けれど|だが|よう)[。、]?$/u
+  /(?:ない|なかった|だ|である|いる|ている|てる|した|する|なる|べき|だろう|はず|ので|から|けど|けれど|だが|よう|しよう|[一-龠](?:こう|そう|とう|ろう|おう|もう|ぼう|ごう|のう|ぞう|どう|ぽう))[。、]?$/u
 const listOrLabelPrefixPattern = /^[\s・\-*•:：<>\p{Pd}]/u
 function isPlainFormJapaneseMonologue(segment: string): boolean {
   const trimmed = segment.trim()
