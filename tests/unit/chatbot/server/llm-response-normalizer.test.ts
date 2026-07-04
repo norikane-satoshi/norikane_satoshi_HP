@@ -49,6 +49,15 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(normalized.content).toBe("案件名を教えていただけますでしょうか？")
   })
 
+  it("removes trailing internal model codenames from customer-facing text", () => {
+    const normalized = normalizeChatbotLlmResponse({
+      rawText: "まず尺を教えてください。\nalmond-croissant-low",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    expect(normalized.content).toBe("まず尺を教えてください。")
+  })
+
   it("replaces overlarge live day ranges with the 150m anchor wording", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
