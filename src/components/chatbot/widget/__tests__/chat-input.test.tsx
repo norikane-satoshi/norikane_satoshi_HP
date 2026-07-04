@@ -58,8 +58,8 @@ describe("ChatInput", () => {
 
     expect(screen.getByPlaceholderText("案件内容やその他質問")).toBeInTheDocument()
     expect(screen.getByText("案件内容やその他質問")).toBeInTheDocument()
-    expect(screen.getByText("改行")).toBeInTheDocument()
-    expect(screen.getByText("送信")).toBeInTheDocument()
+    expect(screen.getByText("で改行")).toBeInTheDocument()
+    expect(screen.getByText("で送信")).toBeInTheDocument()
     expect(document.querySelector('[data-chat-input-key="command"]')).toBeInTheDocument()
     expect(screen.queryByText(/Enter|Cmd|Windows|Linux/)).not.toBeInTheDocument()
   })
@@ -70,9 +70,9 @@ describe("ChatInput", () => {
     render(<ChatInput onSubmit={vi.fn()} />)
 
     expect(screen.getByText("案件内容やその他質問").parentElement).toHaveClass("gap-x-4")
-    expect(screen.getByText("改行").parentElement).toHaveClass("gap-1")
-    expect(screen.getByText("送信").parentElement).toHaveClass("gap-1")
-    expect(screen.getByText("+").parentElement).toHaveClass("gap-0.5")
+    expect(screen.getByText("で改行").parentElement).toHaveClass("gap-1")
+    expect(screen.getByText("で送信").parentElement).toHaveClass("gap-1")
+    expect(screen.getByText("+").parentElement).toHaveClass("gap-px")
   })
 
   it("switches the submit modifier hint to a Ctrl keycap outside macOS", () => {
@@ -89,7 +89,7 @@ describe("ChatInput", () => {
     render(<ChatInput onSubmit={vi.fn()} />)
 
     expect(screen.getByPlaceholderText("案件内容やその他質問")).toBeInTheDocument()
-    expect(screen.queryByText("改行")).not.toBeInTheDocument()
+    expect(screen.queryByText("で改行")).not.toBeInTheDocument()
     expect(screen.queryByText("Ctrl")).not.toBeInTheDocument()
   })
 

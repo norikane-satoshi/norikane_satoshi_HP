@@ -104,10 +104,10 @@ export function ChatInput({
                 <ShortcutKeycap>
                   <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" />
                 </ShortcutKeycap>
-                <span>改行</span>
+                <span>で改行</span>
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="inline-flex items-center gap-0.5">
+                <span className="inline-flex items-center gap-px">
                   <ShortcutKeycap>
                     {usesMacShortcut ? (
                       <Command className="h-3.5 w-3.5" aria-hidden="true" data-chat-input-key="command" />
@@ -120,7 +120,7 @@ export function ChatInput({
                     <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" />
                   </ShortcutKeycap>
                 </span>
-                <span>送信</span>
+                <span>で送信</span>
               </span>
             </div>
           ) : null}
