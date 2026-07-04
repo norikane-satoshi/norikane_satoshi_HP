@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
+import { readFileSync } from "node:fs"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ComponentProps } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -120,6 +121,17 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByLabelText("案件名")).toBeRequired()
     expect(screen.getByLabelText("氏名")).toBeRequired()
     expect(screen.getByLabelText("メール")).toBeRequired()
+  })
+
+  it("keeps booking order typography scoped to chatbot sans-serif", () => {
+    const css = readFileSync("src/app/globals.css", "utf8")
+    const shellRule = css.match(/\.chatbot-widget-shell\s*\{[\s\S]*?\n  \}/)?.[0] ?? ""
+    const descendantRule =
+      css.match(/\.chatbot-widget-shell :is\(h1, h2, h3, h4, h5, h6, p, label, legend, button, input, textarea, select, dt, dd, span, a\)\s*\{[\s\S]*?\n  \}/)?.[0] ?? ""
+
+    expect(shellRule).toContain('font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;')
+    expect(descendantRule).toContain("font-family: inherit;")
+    expect(descendantRule).toContain("letter-spacing: 0;")
   })
 
   it("renders calendar date cells with numeric day text only", () => {
