@@ -914,4 +914,29 @@ describe("Tier1ChromeNotionAiClient", () => {
       chunkCount: 3,
     })
   })
+
+  it("does not collect thinking signatures from generic NDJSON fields", () => {
+    const parsed = parseInferenceNdjsonStream(
+      [
+        JSON.stringify({
+          type: "record-map",
+          response: {
+            message: {
+              type: "thinking",
+              content: "I need to ask for a project name.",
+              signature: "claude-sonnet-thinking-signature-" + "a".repeat(120),
+            },
+            value: {
+              type: "text",
+              content: "承知しました。案件名を教えていただけますでしょうか？",
+            },
+          },
+        }),
+      ].join("\n"),
+    )
+
+    expect(parsed.assistantText).toBe("承知しました。案件名を教えていただけますでしょうか？")
+    expect(parsed.assistantText).not.toContain("thinking")
+    expect(parsed.assistantText).not.toMatch(/[A-Za-z0-9+/=_-]{80,}/u)
+  })
 })

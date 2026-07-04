@@ -955,26 +955,36 @@ function collectText(value: unknown): string {
   }
 
   const record = value as Record<string, unknown>
+  if (isNonDisplayInferenceRecord(record)) return emptyText
   const agentInferenceText = collectAgentInferenceText(record)
   if (agentInferenceText) return agentInferenceText
 
   const directText = record.text ?? record.content ?? record.plainText ?? record.markdown ?? record.delta
   if (typeof directText === "string") return directText
 
-  return [
-    record.v,
-    record.message,
-    record.value,
-    record.result,
-    record.output,
-    record.assistant,
-    record.response,
-    record.data,
-    record.recordMap,
-    record.step,
-  ]
-    .map((entry) => collectText(entry))
+  return collectDisplayCandidateValues(record)
+    .map((entry) => collectText(entry.value))
     .join(emptyText)
+}
+
+function isNonDisplayInferenceRecord(record: Record<string, unknown>): boolean {
+  return isNonDisplayInferenceType(record.type)
+}
+
+function isNonDisplayInferenceType(value: unknown): boolean {
+  if (typeof value !== "string") return false
+  return /(?:thinking|reasoning|signature|encrypted|redacted)/iu.test(value)
+}
+
+function isNonDisplayInferenceKey(key: string): boolean {
+  return /(?:thinking|reasoning|signature|encrypted|redacted|cipher|blob)/iu.test(key)
+}
+
+function collectDisplayCandidateValues(record: Record<string, unknown>): Array<{ key: string; value: unknown }> {
+  const keys = ["v", "message", "value", "result", "output", "assistant", "response", "data", "recordMap", "step"]
+  return keys
+    .filter((key) => !isNonDisplayInferenceKey(key))
+    .map((key) => ({ key, value: record[key] }))
 }
 
 function isPartialInferenceChunk(value: unknown): boolean {
@@ -991,6 +1001,7 @@ function collectAgentInferenceText(value: unknown): string {
   }
 
   const record = value as Record<string, unknown>
+  if (isNonDisplayInferenceRecord(record)) return emptyText
   if (record.type === "agent-inference" && Array.isArray(record.value)) {
     return record.value
       .map((entry) => {
@@ -1001,8 +1012,9 @@ function collectAgentInferenceText(value: unknown): string {
       .join(emptyText)
   }
 
-  return Object.values(record)
-    .map((entry) => collectAgentInferenceText(entry))
+  return Object.entries(record)
+    .filter(([key]) => !isNonDisplayInferenceKey(key))
+    .map(([, entry]) => collectAgentInferenceText(entry))
     .join(emptyText)
 }
 
@@ -1170,6 +1182,7 @@ async function runInferenceInPage(input: {
     }
 
     const record = value as Record<string, unknown>
+    if (isNonDisplayInferenceRecordInPage(record)) return ""
     if (record.type === "agent-inference" && Array.isArray(record.value)) {
       return record.value
         .map((entry) => {
@@ -1180,8 +1193,9 @@ async function runInferenceInPage(input: {
         .join("")
     }
 
-    return Object.values(record)
-      .map((entry) => collectAgentInferenceTextInPage(entry))
+    return Object.entries(record)
+      .filter(([key]) => !isNonDisplayInferenceKeyInPage(key))
+      .map(([, entry]) => collectAgentInferenceTextInPage(entry))
       .join("")
   }
   const collectTextInPage = (value: unknown): string => {
@@ -1193,26 +1207,32 @@ async function runInferenceInPage(input: {
     }
 
     const record = value as Record<string, unknown>
+    if (isNonDisplayInferenceRecordInPage(record)) return ""
     const agentInferenceText = collectAgentInferenceTextInPage(record)
     if (agentInferenceText) return agentInferenceText
 
     const directText = record.text ?? record.content ?? record.plainText ?? record.markdown ?? record.delta
     if (typeof directText === "string") return directText
 
-    return [
-      record.v,
-      record.message,
-      record.value,
-      record.result,
-      record.output,
-      record.assistant,
-      record.response,
-      record.data,
-      record.recordMap,
-      record.step,
-    ]
-      .map((entry) => collectTextInPage(entry))
+    return collectDisplayCandidateValuesInPage(record)
+      .map((entry) => collectTextInPage(entry.value))
       .join("")
+  }
+  const isNonDisplayInferenceTypeInPage = (value: unknown): boolean => {
+    if (typeof value !== "string") return false
+    return /(?:thinking|reasoning|signature|encrypted|redacted)/iu.test(value)
+  }
+  const isNonDisplayInferenceRecordInPage = (record: Record<string, unknown>): boolean => {
+    return isNonDisplayInferenceTypeInPage(record.type)
+  }
+  const isNonDisplayInferenceKeyInPage = (key: string): boolean => {
+    return /(?:thinking|reasoning|signature|encrypted|redacted|cipher|blob)/iu.test(key)
+  }
+  const collectDisplayCandidateValuesInPage = (record: Record<string, unknown>): Array<{ key: string; value: unknown }> => {
+    const keys = ["v", "message", "value", "result", "output", "assistant", "response", "data", "recordMap", "step"]
+    return keys
+      .filter((key) => !isNonDisplayInferenceKeyInPage(key))
+      .map((key) => ({ key, value: record[key] }))
   }
   const extractResponseTextInPage = (value: unknown): string => {
     const chunks: string[] = []

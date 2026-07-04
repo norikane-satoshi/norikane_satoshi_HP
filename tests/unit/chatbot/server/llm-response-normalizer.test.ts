@@ -17,6 +17,38 @@ describe("normalizeChatbotLlmResponse", () => {
     })
   })
 
+  it("removes internal thinking signature blobs before the customer-facing text", () => {
+    const opaqueBlob = "claude-sonnet-4-5-thinking-signature-" + "a".repeat(120)
+    const normalized = normalizeChatbotLlmResponse({
+      rawText: `I need to ask for a project name one by one. ${opaqueBlob} 承知しました。納品形式は特になし、として整理します。最後にもう1点だけ確認させてください。案件名を教えていただけますでしょうか？`,
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    expect(normalized.content).toBe(
+      "承知しました。納品形式は特になし、として整理します。最後にもう1点だけ確認させてください。案件名を教えていただけますでしょうか？",
+    )
+    expect(normalized.content).not.toContain("thinking")
+    expect(normalized.content).not.toContain("claude-sonnet")
+    expect(normalized.content).not.toMatch(/[A-Za-z0-9+/=_-]{80,}/u)
+  })
+
+  it("falls back to the routing question when only opaque internal output remains", () => {
+    const normalized = normalizeChatbotLlmResponse(
+      {
+        rawText: `thinking signature ${"A".repeat(140)}`,
+        tier: "tier-1-chrome-notion-ai",
+      },
+      {
+        routingDecision: {
+          kind: "continue",
+          nextQuestion: "案件名を教えていただけますでしょうか？",
+        },
+      },
+    )
+
+    expect(normalized.content).toBe("案件名を教えていただけますでしょうか？")
+  })
+
   it("replaces overlarge live day ranges with the 150m anchor wording", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
