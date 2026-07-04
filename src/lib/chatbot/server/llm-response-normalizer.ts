@@ -16,7 +16,9 @@ export type ChatbotLlmSanitizationReport = ChatbotDurationSafetyReport & {
   unsafeArtifacts?: {
     detected: true
     fallbackApplied: boolean
-    reasons: Array<"opaque-token" | "thinking-signature-marker" | "internal-reasoning-line">
+    reasons: Array<
+      "opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename"
+    >
   }
 }
 
@@ -71,13 +73,17 @@ const thinkingSignatureMarkerPattern =
   /\b(?:thinking|signature|encrypted[_ -]?thinking|reasoning[_ -]?(?:content|signature)?|claude[-_\w]*sonnet)\b/iu
 const internalReasoningLinePattern =
   /^\s*(?:i\s+(?:need|should|will|have to|must|think|can)|we\s+(?:need|should|will|have to|must|can)|let(?:'|’)s|the\s+(?:user|customer)\b|案件名を設けないといけない)/iu
+const internalModelCodenamePattern =
+  /\b[a-z][a-z0-9]*-[a-z][a-z0-9]*-(?:low|medium|high|fast|thinking|reasoning)\b/giu
 
 function stripUnsafeCustomerFacingArtifacts(rawText: string): {
   text: string
   detected: boolean
-  reasons: Array<"opaque-token" | "thinking-signature-marker" | "internal-reasoning-line">
+  reasons: Array<"opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename">
 } {
-  const reasons = new Set<"opaque-token" | "thinking-signature-marker" | "internal-reasoning-line">()
+  const reasons = new Set<
+    "opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename"
+  >()
   let text = rawText
 
   text = text
@@ -105,6 +111,10 @@ function stripUnsafeCustomerFacingArtifacts(rawText: string): {
 
   text = text.replace(opaqueTokenPattern, () => {
     reasons.add("opaque-token")
+    return ""
+  })
+  text = text.replace(internalModelCodenamePattern, () => {
+    reasons.add("internal-model-codename")
     return ""
   })
 

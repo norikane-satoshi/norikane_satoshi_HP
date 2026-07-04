@@ -977,7 +977,7 @@ function isNonDisplayInferenceType(value: unknown): boolean {
 }
 
 function isNonDisplayInferenceKey(key: string): boolean {
-  return /(?:thinking|reasoning|signature|encrypted|redacted|cipher|blob)/iu.test(key)
+  return /(?:thinking|reasoning|signature|encrypted|redacted|cipher|blob|model)/iu.test(key)
 }
 
 function collectDisplayCandidateValues(record: Record<string, unknown>): Array<{ key: string; value: unknown }> {
@@ -1226,7 +1226,7 @@ async function runInferenceInPage(input: {
     return isNonDisplayInferenceTypeInPage(record.type)
   }
   const isNonDisplayInferenceKeyInPage = (key: string): boolean => {
-    return /(?:thinking|reasoning|signature|encrypted|redacted|cipher|blob)/iu.test(key)
+    return /(?:thinking|reasoning|signature|encrypted|redacted|cipher|blob|model)/iu.test(key)
   }
   const collectDisplayCandidateValuesInPage = (record: Record<string, unknown>): Array<{ key: string; value: unknown }> => {
     const keys = ["v", "message", "value", "result", "output", "assistant", "response", "data", "recordMap", "step"]
