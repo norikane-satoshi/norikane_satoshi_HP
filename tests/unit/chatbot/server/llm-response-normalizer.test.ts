@@ -58,6 +58,16 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(normalized.content).toBe("まず尺を教えてください。")
   })
 
+  it("unwraps internal language markup fragments", () => {
+    const normalized = normalizeChatbotLlmResponse({
+      rawText:
+        "Web CM案件。次は尺を確認。<lang primary=\"Web CMのご相談、承りました。\nまず尺を教えてください。</lang>",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    expect(normalized.content).toBe("Web CMのご相談、承りました。\nまず尺を教えてください。")
+  })
+
   it("replaces overlarge live day ranges with the 150m anchor wording", () => {
     const normalized = normalizeChatbotLlmResponse(
       {

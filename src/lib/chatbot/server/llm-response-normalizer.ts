@@ -17,7 +17,11 @@ export type ChatbotLlmSanitizationReport = ChatbotDurationSafetyReport & {
     detected: true
     fallbackApplied: boolean
     reasons: Array<
-      "opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename"
+      | "opaque-token"
+      | "thinking-signature-marker"
+      | "internal-reasoning-line"
+      | "internal-model-codename"
+      | "internal-markup"
     >
   }
 }
@@ -75,16 +79,25 @@ const internalReasoningLinePattern =
   /^\s*(?:i\s+(?:need|should|will|have to|must|think|can)|we\s+(?:need|should|will|have to|must|can)|let(?:'|’)s|the\s+(?:user|customer)\b|案件名を設けないといけない)/iu
 const internalModelCodenamePattern =
   /\b[a-z][a-z0-9]*-[a-z][a-z0-9]*-(?:low|medium|high|fast|thinking|reasoning)\b/giu
+const langPrimaryWrapperPattern = /<lang\s+primary=["']?/iu
+const xmlLikeTagPattern = /<\/?[a-z][a-z0-9_-]*(?:\s+[^<>]*)?>/giu
 
 function stripUnsafeCustomerFacingArtifacts(rawText: string): {
   text: string
   detected: boolean
-  reasons: Array<"opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename">
+  reasons: Array<
+    "opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename" | "internal-markup"
+  >
 } {
   const reasons = new Set<
-    "opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename"
+    "opaque-token" | "thinking-signature-marker" | "internal-reasoning-line" | "internal-model-codename" | "internal-markup"
   >()
   let text = rawText
+  const langPrimaryMatch = text.match(langPrimaryWrapperPattern)
+  if (langPrimaryMatch?.index !== undefined) {
+    reasons.add("internal-markup")
+    text = text.slice(langPrimaryMatch.index + langPrimaryMatch[0].length)
+  }
 
   text = text
     .split(/\r?\n/u)
@@ -115,6 +128,10 @@ function stripUnsafeCustomerFacingArtifacts(rawText: string): {
   })
   text = text.replace(internalModelCodenamePattern, () => {
     reasons.add("internal-model-codename")
+    return ""
+  })
+  text = text.replace(xmlLikeTagPattern, () => {
+    reasons.add("internal-markup")
     return ""
   })
 
