@@ -704,18 +704,18 @@ describe("ChatbotBookingCard", () => {
     expect(field).toHaveValue(longTitle)
     expect(field).toHaveClass("auto-resize-textarea")
     expect(field).not.toHaveClass("overflow-y-auto")
+    expect(field).toHaveStyle({ overflowY: "hidden" })
   })
 
-  it("expands the supplemental note textarea instead of trapping scroll", () => {
-    renderCard()
+  it("caps supplemental notes so wheel scrolling remains available after autogrow stops", () => {
+    renderCard({ defaultMemo: "補足メモ\n".repeat(30) })
 
     const field = screen.getByLabelText("補足")
-    Object.defineProperty(field, "scrollHeight", { configurable: true, value: 188 })
-
-    fireEvent.change(field, { target: { value: "長い補足\n".repeat(12) } })
+    Object.defineProperty(field, "scrollHeight", { configurable: true, value: 520 })
+    fireEvent.change(field, { target: { value: "補足メモ\n".repeat(31) } })
 
     expect(field).toHaveClass("auto-resize-textarea")
-    expect(field).toHaveStyle({ height: "188px" })
+    expect(field).toHaveStyle({ overflowY: "auto" })
   })
 
   it("posts the selected candidate and required fields to the chatbot booking API", async () => {

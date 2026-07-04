@@ -212,6 +212,49 @@ describe("WidgetShell API wiring", () => {
     expect(conversation.scrollTop).toBe(100)
   })
 
+  it("does not trap wheel events on a scrollable booking supplemental textarea", () => {
+    writeStoredWidgetSession({
+      conversationId: "conv_booking",
+      messages: [{ id: "assistant_booking", role: "assistant", content: "候補日時から予約できます", createdAt: "2026-05-26T00:00:00.000Z" }],
+      activeUi: {
+        kind: "booking-card",
+        suggestedSlots: [
+          {
+            start: "2026-07-10T01:00:00.000Z",
+            end: "2026-07-10T02:00:00.000Z",
+            label: "7月10日 午前",
+          },
+        ],
+        jobContext: {
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          workflowEstimate: { stages: [], totalMinDays: 2, totalMaxDays: 3, riskFlags: [] },
+        },
+        bookingPrefill: {
+          projectTitle: "ライブ案件",
+          contactEmail: "client@example.jp",
+          memo: "補足メモ\n".repeat(30),
+        },
+      },
+    })
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = setConversationScrollGeometry({ scrollTop: 900, clientHeight: 300, scrollHeight: 1200 })
+    const memo = screen.getByLabelText("補足")
+    Object.defineProperty(memo, "clientHeight", { configurable: true, value: 120 })
+    Object.defineProperty(memo, "scrollHeight", { configurable: true, value: 520 })
+    memo.scrollTop = 20
+    memo.style.overflowY = "auto"
+
+    const innerWheel = createEvent.wheel(memo, { deltaY: 120, cancelable: true })
+    const preventInnerWheelDefault = vi.spyOn(innerWheel, "preventDefault")
+    fireEvent(memo, innerWheel)
+
+    expect(preventInnerWheelDefault).not.toHaveBeenCalled()
+    expect(conversation.scrollTop).toBe(900)
+  })
+
   it("marks chatbot conversation scrolling for mobile momentum", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
 

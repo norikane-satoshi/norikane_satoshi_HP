@@ -597,7 +597,7 @@
   }
   .auto-resize-textarea {
     field-sizing: content;
-    overflow: hidden;
+    overflow-y: hidden;
     resize: none;
   }
   .chatbot-widget-shell :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {

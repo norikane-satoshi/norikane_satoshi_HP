@@ -220,6 +220,13 @@ function getScrollableElementForDelta(target: EventTarget, shell: HTMLElement, d
   return null
 }
 
+function scrollParentForTextareaWheel(target: EventTarget, scrollableElement: HTMLElement, deltaY: number) {
+  if (!(target instanceof HTMLTextAreaElement) || target === scrollableElement) return false
+  const before = scrollableElement.scrollTop
+  scrollableElement.scrollTop += deltaY
+  return scrollableElement.scrollTop !== before
+}
+
 function getFirstTouch(touches: TouchList) {
   return typeof touches.item === "function" ? touches.item(0) : (touches[0] ?? null)
 }
@@ -1090,7 +1097,14 @@ export function WidgetShell({
 
     const handleWheel = (event: WheelEvent) => {
       event.stopPropagation()
-      if (!getScrollableElementForDelta(event.target ?? shell, shell, event.deltaY)) {
+      const scrollableElement = getScrollableElementForDelta(event.target ?? shell, shell, event.deltaY)
+      if (scrollableElement) {
+        if (scrollParentForTextareaWheel(event.target ?? shell, scrollableElement, event.deltaY)) {
+          event.preventDefault()
+        }
+        return
+      }
+      if (!scrollableElement) {
         event.preventDefault()
       }
     }

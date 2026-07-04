@@ -617,6 +617,7 @@ export function ChatbotBookingCard({
               value={projectTitle}
               onChange={(event) => setProjectTitle(event.target.value)}
               className="glass-input mt-2 min-h-12 w-full px-4 py-3 text-sm leading-relaxed"
+              maxRows={5}
               placeholder="作品名または案件名（イニシャル表記も可）"
               aria-label="案件名"
               required
@@ -689,6 +690,7 @@ export function ChatbotBookingCard({
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
               className="glass-input mt-2 min-h-24 w-full px-4 py-3 text-sm"
+              maxRows={12}
               placeholder="入力欄に入りきらない共有事項"
               aria-label="補足"
             />
