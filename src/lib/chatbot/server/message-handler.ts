@@ -1178,7 +1178,7 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
   conversationState: Partial<ConversationState>
   bookingPrefill: BookingCardPrefill
 } {
-  let pendingField: "projectTitle" | "contactName" | "contactEmail" | undefined
+  let pendingField: "projectTitle" | "contactName" | "contactEmail" | "companyName" | undefined
   const bookingPrefill: BookingCardPrefill = {}
   const conversationState: Partial<ConversationState> = {}
 
@@ -1194,6 +1194,16 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
       if (confirmedContactName) {
         bookingPrefill.contactName = confirmedContactName
         conversationState.customerName = confirmedContactName
+        conversationState.hasCustomerIdentity = true
+      }
+
+      const confirmedCompanyName = extractQuotedValue(
+        message.content,
+        /(?:会社名|会社|法人名|御社名|貴社名)[「『"]([^」』"]{1,100})[」』"]/u,
+      )
+      if (confirmedCompanyName) {
+        bookingPrefill.companyName = confirmedCompanyName
+        conversationState.companyName = confirmedCompanyName
         conversationState.hasCustomerIdentity = true
       }
 
@@ -1225,6 +1235,13 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
         bookingPrefill.contactEmail = contactEmail
         conversationState.contactEmail = contactEmail
         conversationState.hasContactEmail = true
+      }
+    } else if (pendingField === "companyName" && !bookingPrefill.companyName) {
+      const companyName = normalizeFreeTextBookingValue(message.content, 100)
+      if (companyName) {
+        bookingPrefill.companyName = companyName
+        conversationState.companyName = companyName
+        conversationState.hasCustomerIdentity = true
       }
     }
 
@@ -1272,10 +1289,11 @@ function compactBookingPrefill(input: BookingCardPrefill): BookingCardPrefill {
   )
 }
 
-function inferPendingBookingField(content: string): "projectTitle" | "contactName" | "contactEmail" | undefined {
+function inferPendingBookingField(content: string): "projectTitle" | "contactName" | "contactEmail" | "companyName" | undefined {
   const normalized = content.normalize("NFKC")
   if (/(案件名|作品名).{0,40}(教えて|入力|ください|伺)/u.test(normalized)) return "projectTitle"
   if (/(担当者|お名前|氏名).{0,40}(教えて|入力|ください|伺)/u.test(normalized)) return "contactName"
+  if (/(会社名|会社|法人名|御社名|貴社名).{0,40}(教えて|入力|ください|伺)/u.test(normalized)) return "companyName"
   if (/(メール|mail|email|連絡先).{0,40}(教えて|入力|ください|伺)/iu.test(normalized)) return "contactEmail"
   return undefined
 }
@@ -1558,7 +1576,8 @@ function buildChatbotSystemPrompt(
     "予約候補カードを出す直前には、これまでの文脈を短く踏まえて、ほかに確認したいこと、伝えておきたいこと、不安な点がないかを1回だけ確認します。その最終確認ターンでは show_booking_card を同時に出さず、1ターン1問いかけにします。",
     "ユーザーが最終確認に「なし」「大丈夫」「ありません」などと答えた次のターンで、必要情報が揃っていれば show_booking_card に進めます。追加情報や質問が来た場合は補足として取り込み、必要な確認をしてから進めます。",
     "show_booking_card の projectTitle は作品名または短い案件名だけにし、ライブ内容、作業内容、顔ぼかしカット数、素材状況、立ち会い方法、希望条件は memo に分離します。",
-    "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。",
+    "Booking Order の自動入力では、メール、氏名、会社名、案件名、補足を必ず対応する専用フィールドに一対一で入れ、別フィールドや memo へ混ぜません。example.com などのプレースホルダーは実データとして扱いません。",
+    "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。案件名が未確定なら projectTitle を空にし、ライブ案件 / CM案件などの種別名で推測補完しません。",
     "所要日数は同期済み正本ナレッジを基準値・判断材料として使い、案件種別、尺、媒体、素材状況、追加作業、希望納期を文脈から読んで前提つきの目安を返します。",
     "工程別日数テーブルを単純な固定回答として扱わず、迷う場合は通常範囲と変動要因を短く添え、正本から大きく外れる断定は避けます。",
     "希望日数が正本ラインより短い場合も即時に不可と断定せず、内容・素材状況・空き状況によって希望日数内で調整できる可能性を示し、確定には空き状況・内容確認・本人確認が必要だと伝えます。",
@@ -2913,29 +2932,48 @@ function normalizeBookingCardPrefill(
   conversationState: ConversationState,
 ): BookingCardPrefill {
   const statePrefill = conversationState.bookingFinalConfirmation?.bookingPrefill ?? {}
+  const confirmedStateCustomerName = conversationState.hasCustomerIdentity
+    ? normalizeBookingIdentityField(conversationState.customerName, 80)
+    : undefined
+  const confirmedStateCompanyName = conversationState.hasCustomerIdentity
+    ? normalizeBookingIdentityField(conversationState.companyName, 100)
+    : undefined
+  const fallbackStateCustomerName = normalizeBookingIdentityField(conversationState.customerName, 80)
+  const fallbackStateCompanyName = normalizeBookingIdentityField(conversationState.companyName, 100)
   const stateContactEmail =
     conversationState.hasContactEmail && isValidContactEmail(conversationState.contactEmail)
       ? conversationState.contactEmail
       : undefined
   const statePrefillEmail = isValidContactEmail(statePrefill.contactEmail) ? statePrefill.contactEmail : undefined
-  const toolContactEmail = isValidContactEmail(prefill.contactEmail) ? prefill.contactEmail : undefined
+  const toolContactEmail = extractBookingPrefillEmail(prefill)
+  const prefillEmailFromMemo = extractBookingPrefillEmail(statePrefill)
   const toolPrefillLooksStale = Boolean(stateContactEmail && toolContactEmail && stateContactEmail !== toolContactEmail)
   const trustedToolPrefill = toolPrefillLooksStale ? {} : prefill
   const projectTitle = normalizeBookingProjectTitle(statePrefill.projectTitle ?? trustedToolPrefill.projectTitle, jobContext)
+  const contactEmail = stateContactEmail ?? statePrefillEmail ?? prefillEmailFromMemo ?? toolContactEmail
   const memoParts = [
-    normalizeSupplementalMemo(statePrefill.memo),
-    normalizeSupplementalMemo(trustedToolPrefill.memo),
+    normalizeBookingSupplementalMemo(statePrefill.memo, contactEmail),
+    normalizeBookingSupplementalMemo(trustedToolPrefill.memo, contactEmail),
     normalizeSupplementalBookingFinalNote(conversationState.bookingFinalConfirmation?.supplementalNote),
     ...buildChoiceDetailSegments(jobContext, conversationState),
   ]
-  const stateCustomerName = conversationState.hasCustomerIdentity ? conversationState.customerName : undefined
-  const stateCompanyName = conversationState.hasCustomerIdentity ? conversationState.companyName : undefined
-  const contactName = stateCustomerName ?? statePrefill.contactName ?? trustedToolPrefill.contactName
-  const contactEmail = stateContactEmail ?? statePrefillEmail ?? (isValidContactEmail(trustedToolPrefill.contactEmail) ? trustedToolPrefill.contactEmail : undefined)
-  const companyName = stateCompanyName ?? statePrefill.companyName ?? trustedToolPrefill.companyName
+  const contactName =
+    confirmedStateCustomerName ??
+    normalizeBookingIdentityField(statePrefill.contactName, 80) ??
+    normalizeBookingIdentityField(trustedToolPrefill.contactName, 80) ??
+    fallbackStateCustomerName
+  const companyName =
+    confirmedStateCompanyName ??
+    normalizeBookingIdentityField(statePrefill.companyName, 100) ??
+    normalizeBookingIdentityField(trustedToolPrefill.companyName, 100) ??
+    fallbackStateCompanyName
   const dueDate = statePrefill.dueDate ?? trustedToolPrefill.dueDate
 
-  if (trustedToolPrefill.projectTitle && projectTitle !== trustedToolPrefill.projectTitle) {
+  if (
+    trustedToolPrefill.projectTitle &&
+    projectTitle !== trustedToolPrefill.projectTitle &&
+    shouldKeepRejectedProjectTitleInMemo(trustedToolPrefill.projectTitle, jobContext)
+  ) {
     memoParts.push(trustedToolPrefill.projectTitle)
   }
 
@@ -2950,11 +2988,32 @@ function normalizeBookingCardPrefill(
 }
 
 function normalizeBookingProjectTitle(value: string | undefined, jobContext: JobContext): string | undefined {
-  if (!value) return defaultProjectTitleForJob(jobContext)
+  if (!value) return undefined
   const title = value.trim()
-  if (!title) return defaultProjectTitleForJob(jobContext)
-  if (isLikelyProjectDetail(title)) return defaultProjectTitleForJob(jobContext)
+  if (!title) return undefined
+  if (isGenericBookingProjectTitle(title, jobContext)) return undefined
+  if (isLikelyProjectDetail(title)) return undefined
   return title.slice(0, 80)
+}
+
+function shouldKeepRejectedProjectTitleInMemo(value: string, jobContext: JobContext): boolean {
+  const title = value.trim()
+  return Boolean(title && !isGenericBookingProjectTitle(title, jobContext) && isLikelyProjectDetail(title))
+}
+
+function isGenericBookingProjectTitle(value: string, jobContext: JobContext): boolean {
+  const normalized = value.normalize("NFKC").replace(/\s+/g, "")
+  const genericTitles = [
+    "ライブ案件",
+    "CM案件",
+    "MV案件",
+    "ドラマ案件",
+    "長編案件",
+    "縦型動画案件",
+    defaultProjectTitleForJob(jobContext),
+  ].filter((item): item is string => Boolean(item))
+
+  return genericTitles.some((title) => normalized === title.normalize("NFKC").replace(/\s+/g, ""))
 }
 
 function isLikelyProjectDetail(value: string): boolean {
@@ -3098,6 +3157,33 @@ function normalizeSupplementalMemo(value: string | undefined): string | undefine
   return text
 }
 
+function normalizeBookingSupplementalMemo(value: string | undefined, contactEmail?: string): string | undefined {
+  const rawLines = value?.split(/\n+/u) ?? []
+  const scrubbed = rawLines
+    .map((line) => normalizeSupplementalMemo(line))
+    .map((line) => scrubBookingSupplementalIdentityLine(line ?? "", contactEmail))
+    .filter((line): line is string => Boolean(line?.trim()))
+    .join("\n")
+    .trim()
+
+  return scrubbed || undefined
+}
+
+function scrubBookingSupplementalIdentityLine(line: string, contactEmail?: string): string | undefined {
+  let next = line
+    .replace(/[^\s@]+@[^\s@]+\.[^\s@]+/gu, "")
+    .replace(/\bexample\.com\b/giu, "")
+    .replace(contactEmail ? new RegExp(escapeRegExp(contactEmail), "giu") : /$a/u, "")
+    .trim()
+
+  if (/^[-\s]*(?:メール|mail|email|連絡先|氏名|お名前|名前|担当者|ご担当者|会社名|会社|法人名|御社名|貴社名)\s*[:：]/iu.test(next)) {
+    return undefined
+  }
+
+  next = next.replace(/^(?:メール|mail|email|連絡先|氏名|お名前|名前|担当者|ご担当者|会社名|会社|法人名|御社名|貴社名)\s*$/iu, "")
+  return next.trim() || undefined
+}
+
 function normalizeSupplementalBookingFinalNote(value: string | undefined): string | undefined {
   if (!value || isNoAdditionalBookingConcern(value)) return undefined
   return normalizeSupplementalMemo(value)
@@ -3113,4 +3199,22 @@ function mergeMemoParts(parts: Array<string | undefined>): Pick<BookingCardPrefi
 
 function isValidContactEmail(value: string | undefined): value is string {
   return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+}
+
+function extractBookingPrefillEmail(prefill: BookingCardPrefill): string | undefined {
+  return [
+    prefill.contactEmail,
+    prefill.memo,
+  ].map((value) => findContactEmailInText(value ?? "")).find((value): value is string => isValidContactEmail(value))
+}
+
+function normalizeBookingIdentityField(value: string | undefined, maxLength: number): string | undefined {
+  const normalized = normalizeFreeTextBookingValue(value, maxLength)
+  if (!normalized || /^example\.com$/iu.test(normalized)) return undefined
+  if (isValidContactEmail(normalized)) return undefined
+  return normalized
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
