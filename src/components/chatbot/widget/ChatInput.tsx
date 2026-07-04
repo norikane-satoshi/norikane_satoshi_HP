@@ -95,7 +95,7 @@ export function ChatInput({
         <div className={`relative min-w-0 flex-1 ${showsShortcutOverlay ? "min-h-[4.75rem]" : ""}`}>
           {showsShortcutOverlay ? (
             <div
-              className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 flex-wrap items-center gap-x-1.5 gap-y-1 py-2 text-sm leading-5 text-hp-muted`}
+              className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 flex-wrap items-center gap-x-4 gap-y-1.5 py-2 text-sm leading-5 text-hp-muted`}
               style={CHATBOT_CONVERSATION_CONTENT_STYLE}
               aria-hidden="true"
             >
@@ -107,17 +107,19 @@ export function ChatInput({
                 <span>改行</span>
               </span>
               <span className="inline-flex items-center gap-1">
-                <ShortcutKeycap>
-                  {usesMacShortcut ? (
-                    <Command className="h-3.5 w-3.5" aria-hidden="true" data-chat-input-key="command" />
-                  ) : (
-                    <span data-chat-input-key="control">Ctrl</span>
-                  )}
-                </ShortcutKeycap>
-                <span className="text-hp-muted/70">+</span>
-                <ShortcutKeycap>
-                  <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                </ShortcutKeycap>
+                <span className="inline-flex items-center gap-0.5">
+                  <ShortcutKeycap>
+                    {usesMacShortcut ? (
+                      <Command className="h-3.5 w-3.5" aria-hidden="true" data-chat-input-key="command" />
+                    ) : (
+                      <span data-chat-input-key="control">Ctrl</span>
+                    )}
+                  </ShortcutKeycap>
+                  <span className="text-hp-muted/70">+</span>
+                  <ShortcutKeycap>
+                    <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                  </ShortcutKeycap>
+                </span>
                 <span>送信</span>
               </span>
             </div>

@@ -64,6 +64,17 @@ describe("ChatInput", () => {
     expect(screen.queryByText(/Enter|Cmd|Windows|Linux/)).not.toBeInTheDocument()
   })
 
+  it("keeps shortcut spacing grouped by operation", () => {
+    mockMatchMedia(false)
+    mockNavigatorPlatform("MacIntel")
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    expect(screen.getByText("案件内容やその他質問").parentElement).toHaveClass("gap-x-4")
+    expect(screen.getByText("改行").parentElement).toHaveClass("gap-1")
+    expect(screen.getByText("送信").parentElement).toHaveClass("gap-1")
+    expect(screen.getByText("+").parentElement).toHaveClass("gap-0.5")
+  })
+
   it("switches the submit modifier hint to a Ctrl keycap outside macOS", () => {
     mockMatchMedia(false)
     mockNavigatorPlatform("Win32")
