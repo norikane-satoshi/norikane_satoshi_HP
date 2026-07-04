@@ -21,6 +21,16 @@ function syncTextareaHeight(textarea: HTMLTextAreaElement | null) {
   textarea.style.height = `${textarea.scrollHeight}px`
 }
 
+function keepTextareaCaretVisible(textarea: HTMLTextAreaElement) {
+  if (typeof textarea.scrollIntoView !== "function") return
+
+  const caretAtEnd = textarea.selectionEnd >= textarea.value.length
+  textarea.scrollIntoView({
+    block: caretAtEnd ? "end" : "nearest",
+    inline: "nearest",
+  })
+}
+
 function assignRef(ref: ForwardedRef<HTMLTextAreaElement>, value: HTMLTextAreaElement | null) {
   if (typeof ref === "function") {
     ref(value)
@@ -53,11 +63,13 @@ export const AutoResizeTextarea = forwardRef<HTMLTextAreaElement, AutoResizeText
     const handleInput = (event: InputEvent<HTMLTextAreaElement>) => {
       onInput?.(event)
       syncTextareaHeight(event.currentTarget)
+      keepTextareaCaretVisible(event.currentTarget)
     }
 
     const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
       onChange?.(event)
       syncTextareaHeight(event.currentTarget)
+      keepTextareaCaretVisible(event.currentTarget)
     }
 
     return (
