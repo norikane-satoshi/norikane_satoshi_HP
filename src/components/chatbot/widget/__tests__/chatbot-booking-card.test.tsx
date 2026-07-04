@@ -622,7 +622,9 @@ describe("ChatbotBookingCard", () => {
       defaultMemo: "ライブ2.5h\nプロンプター消し物・顔アップ肌修正",
     })
 
-    expect(screen.getByLabelText("補足")).toHaveValue("ライブ2.5h\nプロンプター消し物・顔アップ肌修正")
+    const memoField = screen.getByLabelText("補足")
+    expect(memoField).toHaveValue("ライブ2.5h\nプロンプター消し物・顔アップ肌修正")
+    expect(memoField).toHaveClass("auto-resize-textarea")
     expect(screen.getByLabelText("会社名")).toHaveValue("株式会社サンプル")
     expect(screen.getByLabelText("氏名")).toHaveValue("田中")
     expect(screen.getByLabelText("案件名")).toHaveValue("")
@@ -700,8 +702,20 @@ describe("ChatbotBookingCard", () => {
     const field = screen.getByLabelText("案件名")
     expect(field.tagName).toBe("TEXTAREA")
     expect(field).toHaveValue(longTitle)
-    expect(field).toHaveClass("resize-none")
-    expect(field).toHaveClass("overflow-hidden")
+    expect(field).toHaveClass("auto-resize-textarea")
+    expect(field).not.toHaveClass("overflow-y-auto")
+  })
+
+  it("expands the supplemental note textarea instead of trapping scroll", () => {
+    renderCard()
+
+    const field = screen.getByLabelText("補足")
+    Object.defineProperty(field, "scrollHeight", { configurable: true, value: 188 })
+
+    fireEvent.change(field, { target: { value: "長い補足\n".repeat(12) } })
+
+    expect(field).toHaveClass("auto-resize-textarea")
+    expect(field).toHaveStyle({ height: "188px" })
   })
 
   it("posts the selected candidate and required fields to the chatbot booking API", async () => {

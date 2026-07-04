@@ -21,6 +21,7 @@ describe("BookingForm email fields", () => {
     expect(markup).toContain("メール")
     expect(markup).toContain('readOnly=""')
     expect(markup).toContain('name="sessionEmail"')
+    expect(markup).toContain("auto-resize-textarea")
   })
 
   it("allows the LINE LIFF entry to edit the contact email when the provider has no email", () => {

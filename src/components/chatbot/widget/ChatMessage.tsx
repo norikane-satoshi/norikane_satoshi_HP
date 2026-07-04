@@ -12,6 +12,7 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from "react"
 
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import {
   CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
@@ -607,8 +608,8 @@ export function ChatMessage({
       </div>
       {isEditing ? (
         <div className="space-y-2">
-          <textarea
-            className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} glass-input min-h-24 w-full resize-y px-3 py-2 text-sm text-hp`}
+          <AutoResizeTextarea
+            className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} glass-input min-h-24 w-full px-3 py-2 text-sm text-hp`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
             value={draft}
             onChange={(event) => {

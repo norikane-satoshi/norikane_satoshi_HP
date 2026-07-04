@@ -85,8 +85,20 @@ describe("ChatInput", () => {
     const input = screen.getByLabelText("相談内容")
     expect(input.tagName).toBe("TEXTAREA")
     expect(input).toHaveAttribute("rows", "1")
-    expect(input).toHaveClass("max-h-40")
-    expect(input).toHaveClass("overflow-y-auto")
+    expect(input).toHaveClass("auto-resize-textarea")
+    expect(input).not.toHaveClass("max-h-40")
+    expect(input).not.toHaveClass("overflow-y-auto")
+  })
+
+  it("expands the textarea height to its content", () => {
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    const input = screen.getByLabelText("相談内容")
+    Object.defineProperty(input, "scrollHeight", { configurable: true, value: 144 })
+
+    fireEvent.change(input, { target: { value: "1行目\n2行目\n3行目" } })
+
+    expect(input).toHaveStyle({ height: "144px" })
   })
 
   it("keeps Enter as a newline and submits with Cmd or Ctrl Enter", async () => {

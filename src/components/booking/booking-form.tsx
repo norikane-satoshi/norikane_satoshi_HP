@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useEffect } from "react"
 import { useForm } from "react-hook-form"
 
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import {
   formatBookingDateSelection,
   bookingFormSchema,
@@ -171,7 +172,7 @@ export function BookingForm({
           補足
           <span className="booking-form__label-optional">(任意)</span>
         </span>
-        <textarea className="glass-input booking-form__control" maxLength={1000} rows={5} {...register("memo")} />
+        <AutoResizeTextarea className="glass-input booking-form__control" maxLength={1000} rows={5} {...register("memo")} />
         {errors.memo ? <span className="booking-form__error">{errors.memo.message}</span> : null}
       </label>
 

@@ -1,7 +1,8 @@
 "use client"
 
-import { FormEvent, KeyboardEvent, useLayoutEffect, useRef, useState } from "react"
+import { FormEvent, KeyboardEvent, useLayoutEffect, useState } from "react"
 import { Send, Square } from "lucide-react"
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import {
   CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
   CHATBOT_CONVERSATION_CONTENT_STYLE,
@@ -28,14 +29,6 @@ export function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState("")
   const [usesMobilePlaceholder, setUsesMobilePlaceholder] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    textarea.style.height = "0px"
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`
-  }, [text])
 
   useLayoutEffect(() => {
     if (placeholder !== undefined) return
@@ -75,9 +68,8 @@ export function ChatInput({
   return (
     <form className="border-t border-[var(--glass-border)] p-4" onSubmit={handleSubmit}>
       <div className="glass-card-sm flex items-end gap-2 px-3 py-2 focus-within:border-[var(--accent-primary)]">
-        <textarea
-          ref={textareaRef}
-          className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} max-h-40 min-h-9 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-2 text-sm leading-5 text-hp outline-none placeholder:text-hp-muted`}
+        <AutoResizeTextarea
+          className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} min-h-9 min-w-0 flex-1 bg-transparent py-2 text-sm leading-5 text-hp outline-none placeholder:text-hp-muted`}
           style={CHATBOT_CONVERSATION_CONTENT_STYLE}
           placeholder={textareaPlaceholder}
           aria-label="相談内容"

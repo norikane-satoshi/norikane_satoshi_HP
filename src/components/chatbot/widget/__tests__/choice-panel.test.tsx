@@ -85,6 +85,7 @@ describe("ChoicePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "その他" }))
 
     expect(screen.getByLabelText("その他の内容")).toBeInTheDocument()
+    expect(screen.getByLabelText("その他の内容")).toHaveClass("auto-resize-textarea")
     fireEvent.change(screen.getByLabelText("その他の内容"), { target: { value: "MA も相談したい" } })
     fireEvent.click(screen.getByRole("button", { name: "選択を送信" }))
 

@@ -2,6 +2,8 @@
 
 import { FormEvent, useState } from "react"
 
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
+
 type InquiryFormInput = {
   name: string
   email: string
@@ -150,7 +152,7 @@ export function InquiryForm({
           自由記述
           <span className="glass-badge px-2 py-0.5 text-[10px]">任意</span>
         </span>
-        <textarea
+        <AutoResizeTextarea
           className="glass-input min-h-24 w-full px-3 py-2 text-sm"
           value={input.freeText}
           onChange={(event) => updateInput("freeText", event.target.value)}
