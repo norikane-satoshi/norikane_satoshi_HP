@@ -71,9 +71,11 @@ import {
 import {
   applyBookingFinalConfirmationAnswer,
   applyBookingFinalConfirmationPolicy,
+  getMissingBookingReadinessSlots,
   inferChatbotFlowStep,
   isBookingFinalConfirmationPrompt,
   isNoAdditionalBookingConcern,
+  wasBookingFinalQuestionOffered,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
@@ -447,6 +449,7 @@ export async function handleChatbotMessage(
   })
   const flowPolicy = applyBookingFinalConfirmationPolicy({
     routingDecision: finalMediumRoutingDecision,
+    fallbackRoutingDecision,
     conversationState,
     jobContext,
     latestUserMessage: input.message,
@@ -454,6 +457,15 @@ export async function handleChatbotMessage(
   })
   const routingDecision = flowPolicy.routingDecision
   const persistedConversationState = flowPolicy.conversationState
+  logChatbotBookingReadinessBoundary({
+    requestId: input.requestId,
+    conversation,
+    beforeState: conversationState,
+    afterState: persistedConversationState,
+    jobContext,
+    fallbackRoutingDecision,
+    routingDecision,
+  })
   const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState: persistedConversationState })
   const assistantDisplay = buildAssistantDisplayContent({
     requestId: input.requestId,
@@ -1364,6 +1376,10 @@ function mergeRecoveredConversationState(
     ...(stored.bookingFinalConfirmation ?? {}),
     ...(recovered.bookingFinalConfirmation ?? {}),
   }
+  const bookingReadiness = {
+    ...(stored.bookingReadiness ?? {}),
+    ...(recovered.bookingReadiness ?? {}),
+  }
   const merged: Partial<ConversationState> = {
     ...stored,
     ...recovered,
@@ -1384,6 +1400,9 @@ function mergeRecoveredConversationState(
       : {}),
     ...(!hasSubmittedBooking && bookingFinalConfirmation.status
       ? { bookingFinalConfirmation: bookingFinalConfirmation as NonNullable<ConversationState["bookingFinalConfirmation"]> }
+      : {}),
+    ...(Object.keys(bookingReadiness).length > 0
+      ? { bookingReadiness: bookingReadiness as NonNullable<ConversationState["bookingReadiness"]> }
       : {}),
   }
 
@@ -1677,6 +1696,9 @@ function buildAssistantDisplayContent(input: {
   if (input.routingDecision?.kind === "continue" && toolFreeText.length === 0) {
     return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
+  if (input.routingDecision?.kind === "continue" && parseShowBookingCardToolCall(text)) {
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
+  }
   if (
     input.routingDecision?.kind === "continue" &&
     !input.routingDecision.presentChoices &&
@@ -1886,6 +1908,92 @@ function logChatbotDisplayBoundary(input: {
       normalized: input.rawText !== input.finalText,
     }),
   )
+}
+
+function logChatbotBookingReadinessBoundary(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  beforeState: ConversationState
+  afterState: ConversationState
+  jobContext: JobContext
+  fallbackRoutingDecision: RoutingDecision
+  routingDecision: RoutingDecision | undefined
+}): void {
+  if (process.env.NODE_ENV === "test") return
+
+  const bookingPrefill =
+    input.routingDecision?.kind === "to-booking-inline" ? input.routingDecision.bookingPrefill : undefined
+  const beforeMissing = getMissingBookingReadinessSlots(input.beforeState, {
+    jobContext: input.jobContext,
+    bookingPrefill,
+  })
+  const afterMissing = getMissingBookingReadinessSlots(input.afterState, {
+    jobContext: input.jobContext,
+    bookingPrefill,
+  })
+  const beforeFinal = input.beforeState.bookingFinalConfirmation
+  const afterFinal = input.afterState.bookingFinalConfirmation
+  const beforeReadiness = input.beforeState.bookingReadiness
+  const afterReadiness = input.afterState.bookingReadiness
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_booking_readiness_boundary",
+      requestId: input.requestId,
+      buildSha: getChatbotBuildSha(),
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      boundary: "booking-readiness",
+      input: {
+        missingSlots: beforeMissing,
+        finalQuestionOffered: Boolean(beforeReadiness?.finalQuestionOffered || beforeFinal?.status),
+        finalConfirmationStatus: beforeFinal?.status ?? null,
+        additionalConcernStatus: beforeReadiness?.additionalConcernStatus ?? null,
+      },
+      output: {
+        missingSlots: afterMissing,
+        finalQuestionOffered: Boolean(afterReadiness?.finalQuestionOffered || afterFinal?.status),
+        finalConfirmationStatus: afterFinal?.status ?? null,
+        additionalConcernStatus: afterReadiness?.additionalConcernStatus ?? null,
+        additionalConcernSource: afterReadiness?.additionalConcernSource ?? null,
+      },
+      decision: input.routingDecision?.kind ?? null,
+      reason: summarizeBookingReadinessReason({
+        beforeMissing,
+        afterMissing,
+        beforeState: input.beforeState,
+        afterState: input.afterState,
+        fallbackRoutingDecision: input.fallbackRoutingDecision,
+        routingDecision: input.routingDecision,
+      }),
+    }),
+  )
+}
+
+function summarizeBookingReadinessReason(input: {
+  beforeMissing: ReturnType<typeof getMissingBookingReadinessSlots>
+  afterMissing: ReturnType<typeof getMissingBookingReadinessSlots>
+  beforeState: ConversationState
+  afterState: ConversationState
+  fallbackRoutingDecision: RoutingDecision
+  routingDecision: RoutingDecision | undefined
+}): string {
+  if (input.afterMissing.length > 0) return `missing-required:${input.afterMissing[0]}`
+  if (
+    input.beforeState.bookingFinalConfirmation?.status !== "confirmed" &&
+    input.afterState.bookingFinalConfirmation?.status === "confirmed"
+  ) {
+    return `additional-concern-cleared:${input.afterState.bookingReadiness?.additionalConcernSource ?? "unknown"}`
+  }
+  if (
+    !input.beforeState.bookingReadiness?.finalQuestionOffered &&
+    input.afterState.bookingReadiness?.finalQuestionOffered
+  ) {
+    return "final-question-offered"
+  }
+  if (input.routingDecision?.kind === "to-booking-inline") return "booking-ready"
+  if (input.fallbackRoutingDecision.kind === "continue") return "fallback-continue"
+  return "unchanged"
 }
 
 function logChatbotLlmTierAttempt(
@@ -2272,18 +2380,18 @@ function shouldRecoverBookingCardFromAcceptanceText(input: {
   jobContext: JobContext
   fallbackRoutingDecision: RoutingDecision
 }): boolean {
-  if (!isNoAdditionalBookingConcern(input.latestUserMessage)) return false
+  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
+  const normalized = rawDisplayText.normalize("NFKC").toLowerCase()
+  const hasCardlessAcceptanceText =
+    /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized) &&
+    !parseShowBookingCardToolCall(rawDisplayText)
+  if (!wasBookingFinalQuestionOffered(input.conversationState) && !hasCardlessAcceptanceText) return false
   if (input.conversationState.bookingSubmission?.status === "submitted") return false
   if (!input.jobContext.jobKind || !input.conversationState.hasContactEmail) return false
   if (input.fallbackRoutingDecision.kind === "to-direct-contact") return false
   if (input.conversationState.bookingFinalConfirmation?.status === "supplemental-received") return false
 
-  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
-  const normalized = rawDisplayText.normalize("NFKC").toLowerCase()
-  return (
-    /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized) &&
-    !parseShowBookingCardToolCall(rawDisplayText)
-  )
+  return hasCardlessAcceptanceText
 }
 
 function getSubmittedBooking(

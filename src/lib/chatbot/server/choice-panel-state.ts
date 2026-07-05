@@ -237,6 +237,11 @@ export function applyActiveChoiceAnswer(input: {
             bookingFinalConfirmation: {
               status: "confirmed",
             },
+            bookingReadiness: {
+              finalQuestionOffered: true,
+              additionalConcernStatus: "none",
+              additionalConcernSource: "choice-panel",
+            },
             ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
           },
           jobContext: {},
@@ -251,6 +256,11 @@ export function applyActiveChoiceAnswer(input: {
           bookingFinalConfirmation: {
             status: "supplemental-received",
             supplementalNote: otherCommentPatch.otherChoiceComments?.[activeChoices.id] ?? labelChoice(activeChoices, choice.id),
+          },
+          bookingReadiness: {
+            finalQuestionOffered: true,
+            additionalConcernStatus: "has-concern",
+            additionalConcernSource: "choice-panel",
           },
           ...otherCommentPatch,
           ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),

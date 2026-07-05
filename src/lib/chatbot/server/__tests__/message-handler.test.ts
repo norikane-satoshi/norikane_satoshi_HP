@@ -1860,6 +1860,109 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("uses the structured booking-card tool signal for a colloquial no-additional-concern answer", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState({ hasDesiredSchedule: false }),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingReadiness: {
+              finalQuestionOffered: true,
+              finalQuestionOfferedAtTurn: 4,
+            },
+            bookingFinalConfirmation: {
+              status: "pending",
+              requestedAtTurn: 4,
+              bookingPrefill: { projectTitle: "CM案件", contactEmail: "client@example.com" },
+            },
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 30,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "特にないですー" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "CM案件",
+        contactEmail: "client@example.com",
+      },
+    })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routingDecision: "to-booking-inline",
+        conversationState: expect.objectContaining({
+          bookingReadiness: expect.objectContaining({
+            additionalConcernStatus: "none",
+            additionalConcernSource: "llm-booking-card",
+          }),
+          bookingFinalConfirmation: expect.objectContaining({ status: "confirmed" }),
+        }),
+      }),
+    )
+  })
+
+  it("blocks a premature booking card when required booking readiness facts are missing", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState({ hasDesiredSchedule: false }),
+            hasContactEmail: false,
+            contactEmail: undefined,
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 30,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-10"}}'),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "この内容でお願いします" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: "ご連絡先メールを教えてください",
+    })
+    expect(result.ui).toMatchObject({ kind: "none" })
+    expect(result.assistantMessage.content).toBe("ご連絡先メールを教えてください")
+  })
+
   it("keeps a confirmed booking card ahead of settled to-email fallback", async () => {
     const harness = setup({
       existingConversation: conversation({
@@ -3964,7 +4067,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("shows a consultation summary form when a settled no-schedule consultation can be emailed", async () => {
+  it("moves a settled no-schedule consultation to final booking confirmation instead of email fallback", async () => {
     const harness = setup({
       existingConversation: conversation({
         messages: Array.from({ length: 7 }, (_, index) =>
@@ -4009,21 +4112,10 @@ describe("handleChatbotMessage user context", () => {
     )
 
     expect(result.routingDecision).toMatchObject({
-      kind: "to-email",
+      kind: "continue",
+      presentChoices: { id: bookingFinalConfirmationChoices.id },
     })
-    expect(result.ui).toMatchObject({
-      kind: "consultation-summary-form",
-      summary: {
-        customerEmail: "client@example.com",
-        summaryText: expect.stringContaining("live-60m"),
-      },
-    })
-    expect(result.ui).toMatchObject({
-      kind: "consultation-summary-form",
-      summary: {
-        summaryText: expect.stringContaining("追加作業:その他(MA も相談したい)"),
-      },
-    })
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: bookingFinalConfirmationChoices.id } })
   })
 
   it("consumes stored final medium choice and advances to the next slot", async () => {

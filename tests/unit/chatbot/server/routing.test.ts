@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
+  bookingFinalConfirmationChoices,
   cmProjectLengthChoices,
   dramaProjectLengthChoices,
   finalMediumChoices,
@@ -165,20 +166,17 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("routes to email when contact email is collected and schedule is undecided", () => {
+  it("does not require a desired schedule before final booking confirmation", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
         hasDesiredSchedule: false,
-        turnCount: settledConversationTurnThreshold + 2,
       }),
     })
 
     expect(result).toMatchObject({
-      kind: "to-email",
-      summary: {
-        customerEmail: "client@example.com",
-      },
+      kind: "continue",
+      presentChoices: bookingFinalConfirmationChoices,
     })
   })
 

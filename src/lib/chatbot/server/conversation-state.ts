@@ -54,6 +54,11 @@ export function buildConversationState(input: {
     ...(inputState.bookingFinalConfirmation ?? {}),
     ...(activeChoiceState.bookingFinalConfirmation ?? {}),
   }
+  const bookingReadiness = {
+    ...(stored.bookingReadiness ?? {}),
+    ...(inputState.bookingReadiness ?? {}),
+    ...(activeChoiceState.bookingReadiness ?? {}),
+  }
   const bookingSubmission = {
     ...(stored.bookingSubmission ?? {}),
     ...(inputState.bookingSubmission ?? {}),
@@ -78,6 +83,7 @@ export function buildConversationState(input: {
     ...(Object.keys(intakeClarifications).length > 0 ? { intakeClarifications } : {}),
     ...mergedBookingFinalConfirmation,
     ...mergedBookingSubmission,
+    ...(Object.keys(bookingReadiness).length > 0 ? { bookingReadiness } : {}),
     ...(input.jobContext.finalMedium !== "other" ? { hasFinalMedium: true } : {}),
     ...(input.jobContext.jobKind ? { hasJobKind: true } : {}),
     ...(typeof input.jobContext.projectLengthMinutes === "number" ? { hasProjectLength: true } : {}),
