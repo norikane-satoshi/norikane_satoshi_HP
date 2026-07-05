@@ -11,6 +11,7 @@ import {
   chatbotNotionAiModelPolicy,
   createTier1ChromeNotionAiClient,
   extractAssistantTextFromNdjson,
+  isDeniedChatbotNotionAiModel,
   isNotionAiRateLimitResponse,
   isNotionAiChatbotTargetUrl,
   parseInferenceNdjsonStream,
@@ -191,11 +192,8 @@ describe("Tier1ChromeNotionAiClient", () => {
         type: "workflow",
       },
     })
-    expect(payload.transcript[0]).toHaveProperty(
-      "value.model",
-      chatbotNotionAiModelPolicy.notionModel,
-    )
-    expect(payload.transcript[0]).toHaveProperty("value.modelFromUser", true)
+    expect(payload.transcript[0]).not.toHaveProperty("value.model")
+    expect(payload.transcript[0]).not.toHaveProperty("value.modelFromUser")
     expect(payload.transcript[1]).toMatchObject({
       id: "context-id",
       type: "context",
@@ -293,8 +291,6 @@ describe("Tier1ChromeNotionAiClient", () => {
               "isHipaa": false,
               "isMobile": false,
               "isOnboardingAgent": false,
-              "model": "angel-cake-high",
-              "modelFromUser": true,
               "searchScopes": [
                 {
                   "type": "everything",
@@ -364,7 +360,6 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     expect(Object.keys(workflowValue)).toEqual([
       "type",
-      "model",
       "isHipaa",
       "isMobile",
       "yoloMode",
@@ -372,7 +367,6 @@ describe("Tier1ChromeNotionAiClient", () => {
       "searchScopes",
       "useWebSearch",
       "isCustomAgent",
-      "modelFromUser",
       "enableComputer",
       "enableQueryMail",
       "useReadOnlyMode",
@@ -427,7 +421,7 @@ describe("Tier1ChromeNotionAiClient", () => {
     ])
   })
 
-  it("serializes the policy Notion AI model in the browser request", async () => {
+  it("uses Notion AI auto model selection when the runtime model is allowed", async () => {
     const session = sessionReturning([
       {
         spaceId: "space-id",
@@ -451,7 +445,36 @@ describe("Tier1ChromeNotionAiClient", () => {
     const evaluate = vi.mocked(session.evaluate)
     expect(evaluate).toHaveBeenCalledTimes(2)
     expect(evaluate.mock.calls[1][0]).toContain("/api/v3/runInferenceTranscript")
-    expect(evaluate.mock.calls[1][0]).toContain('"model":"angel-cake-high"')
+    expect(evaluate.mock.calls[1][0]).not.toContain('"model"')
+    expect(evaluate.mock.calls[1][0]).not.toContain("modelFromUser")
+  })
+
+  it("falls back to Sonnet 5 when Notion AI auto selection exposes a denied model", async () => {
+    const session = sessionReturning([
+      {
+        spaceId: "space-id",
+        userId: "user-id",
+        selectedModel: "gpt-5.4",
+        availableModels: ["gpt-5.4"],
+      },
+      { ok: true, rawText: "候補日を確認しました。", chunkCount: 1 },
+    ])
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () => session,
+      idFactory: vi.fn(() => "stable-id"),
+    })
+
+    await expect(client.generate(llmRequest())).resolves.toMatchObject({
+      rawText: "候補日を確認しました。",
+      tier: "tier-1-chrome-notion-ai",
+    })
+
+    const evaluate = vi.mocked(session.evaluate)
+    expect(evaluate).toHaveBeenCalledTimes(2)
+    expect(evaluate.mock.calls[1][0]).toContain(
+      `"model":"${chatbotNotionAiModelPolicy.fallbackNotionModel}"`,
+    )
     expect(evaluate.mock.calls[1][0]).toContain('"modelFromUser":true')
   })
 
@@ -709,7 +732,7 @@ describe("Tier1ChromeNotionAiClient", () => {
     })
   })
 
-  it("overrides page workflow model selection with the policy model before inference", async () => {
+  it("strips allowed page workflow model selection before inference", async () => {
     let evaluationCount = 0
     const evaluate = vi.fn(async <T,>(expression: string): Promise<T> => {
       evaluationCount += 1
@@ -727,8 +750,8 @@ describe("Tier1ChromeNotionAiClient", () => {
         } as T
       }
 
-      expect(expression).toContain('"model":"angel-cake-high"')
-      expect(expression).toContain('"modelFromUser":true')
+      expect(expression).not.toContain('"model"')
+      expect(expression).not.toContain("modelFromUser")
       expect(expression).not.toContain('"model":"page-diagnostic-model"')
       expect(expression).toContain('"useWebSearch":false')
       return {
@@ -756,6 +779,32 @@ describe("Tier1ChromeNotionAiClient", () => {
       tier: "tier-1-chrome-notion-ai",
       rawText: "相談内容を整理します。",
     })
+  })
+
+  it("falls back when the page workflow value carries a denied model", async () => {
+    const workflowValue = buildWorkflowValue({
+      workflowValue: {
+        model: "gemini-3.5-flash",
+        modelFromUser: true,
+        useWebSearch: false,
+      },
+    })
+
+    expect(workflowValue).toMatchObject({
+      model: chatbotNotionAiModelPolicy.fallbackNotionModel,
+      modelFromUser: true,
+      useWebSearch: false,
+    })
+  })
+
+  it("matches denied provider and display model names without guessing hidden Notion codenames", () => {
+    expect(isDeniedChatbotNotionAiModel("Claude Sonnet 4.6")).toBe(true)
+    expect(isDeniedChatbotNotionAiModel("claude-sonnet-4-6")).toBe(true)
+    expect(isDeniedChatbotNotionAiModel("gemini-3.1-pro-preview")).toBe(true)
+    expect(isDeniedChatbotNotionAiModel("gpt-5.3-codex")).toBe(true)
+    expect(isDeniedChatbotNotionAiModel("grok-build-0.1")).toBe(true)
+    expect(isDeniedChatbotNotionAiModel("block-build-0.1")).toBe(true)
+    expect(isDeniedChatbotNotionAiModel("angel-cake-high")).toBe(false)
   })
 
   it("retries transient empty Notion AI responses before falling back", async () => {

@@ -62,7 +62,7 @@ export type NotionAiRuntimeInspection = {
 
 type NotionAiWorkflowValue = {
   type: "workflow"
-  model: string
+  model?: string
   isHipaa: boolean
   isMobile: boolean
   yoloMode: boolean
@@ -70,7 +70,7 @@ type NotionAiWorkflowValue = {
   searchScopes: unknown[]
   useWebSearch: boolean
   isCustomAgent: boolean
-  modelFromUser: boolean
+  modelFromUser?: boolean
   enableComputer: boolean
   enableQueryMail: boolean
   useReadOnlyMode: boolean
@@ -226,9 +226,72 @@ const maxTransientGenerateAttempts = 2
 let tier1GenerateQueue = Promise.resolve()
 
 export const chatbotNotionAiModelPolicy = {
-  formalName: "Claude Sonnet 5",
-  notionModel: "angel-cake-high",
-  modelFromUser: true,
+  mode: "auto-with-denylist",
+  fallbackFormalName: "Claude Sonnet 5",
+  fallbackProviderApiModel: "claude-sonnet-5",
+  fallbackNotionModel: "angel-cake-high",
+  fallbackModelFromUser: true,
+  deniedModels: [
+    {
+      requestedName: "Sonnet 4.6",
+      providerApiModel: "claude-sonnet-4-6",
+      aliases: ["Claude Sonnet 4.6"],
+    },
+    {
+      requestedName: "Gemini 3.1 Pro",
+      providerApiModel: "gemini-3.1-pro-preview",
+      aliases: ["gemini-3.1-pro"],
+    },
+    {
+      requestedName: "GPT 5.2",
+      providerApiModel: "gpt-5.2",
+      aliases: ["GPT-5.2"],
+    },
+    {
+      requestedName: "GPT 5.3",
+      providerApiModel: "gpt-5.3-codex",
+      aliases: ["GPT-5.3", "gpt-5.3"],
+    },
+    {
+      requestedName: "GPT 5.4",
+      providerApiModel: "gpt-5.4",
+      aliases: ["GPT-5.4"],
+    },
+    {
+      requestedName: "Grok 4.3",
+      providerApiModel: "grok-4.3",
+      aliases: ["xAI Grok 4.3"],
+    },
+    {
+      requestedName: "Grok build0.1",
+      providerApiModel: "grok-build-0.1",
+      aliases: ["Grok Build 0.1", "grok build 0.1"],
+    },
+    {
+      requestedName: "Block Build 0.1",
+      aliases: ["block-build-0.1"],
+    },
+    {
+      requestedName: "Gemini 3.5 Flash",
+      providerApiModel: "gemini-3.5-flash",
+      aliases: ["Gemini 3.5 Flash"],
+    },
+    {
+      requestedName: "Kimi K2.6",
+      providerApiModel: "kimi-k2.6",
+      aliases: ["Moonshot Kimi K2.6"],
+    },
+    {
+      requestedName: "DeepSeek V4 Pro",
+      providerApiModel: "deepseek-v4-pro",
+      aliases: ["DeepSeek-V4-Pro"],
+    },
+    {
+      requestedName: "GLM 5.2",
+      providerApiModel: "glm-5.2",
+      aliases: ["GLM-5.2"],
+    },
+  ],
 } as const
 
 export const tier1ChromeNotionAiDefaults = {
@@ -619,6 +682,8 @@ export function buildRunInferencePayload(input: {
 
   const workflowValue = buildWorkflowValue({
     workflowValue: input.runtimeContext.workflowValue,
+    selectedModel: input.runtimeContext.selectedModel,
+    finalModelName: input.runtimeContext.finalModelName,
   })
 
   return {
@@ -705,10 +770,11 @@ export function buildRunInferenceHeaders(runtimeContext: NotionAiRuntimeContext)
 
 export function buildWorkflowValue(input: {
   workflowValue?: Partial<NotionAiWorkflowValue>
+  selectedModel?: string
+  finalModelName?: string
 } = {}): NotionAiWorkflowValue {
   const workflowValue: NotionAiWorkflowValue = {
     type: "workflow",
-    model: chatbotNotionAiModelPolicy.notionModel,
     isHipaa: false,
     isMobile: false,
     yoloMode: false,
@@ -716,7 +782,6 @@ export function buildWorkflowValue(input: {
     searchScopes: [{ type: "everything" }],
     useWebSearch: true,
     isCustomAgent: false,
-    modelFromUser: chatbotNotionAiModelPolicy.modelFromUser,
     enableComputer: false,
     enableQueryMail: false,
     useReadOnlyMode: false,
@@ -771,12 +836,54 @@ export function buildWorkflowValue(input: {
   }
 
   const sanitizedWorkflowValue = stripModelSelection(input.workflowValue)
+  const modelSelection = resolveModelSelection(input)
 
   return {
     ...workflowValue,
     ...sanitizedWorkflowValue,
+    ...modelSelection,
     type: "workflow",
   }
+}
+
+function resolveModelSelection(input: {
+  workflowValue?: Partial<NotionAiWorkflowValue>
+  selectedModel?: string
+  finalModelName?: string
+}): Pick<NotionAiWorkflowValue, "model" | "modelFromUser"> {
+  const candidates = [
+    input.selectedModel,
+    input.finalModelName,
+    input.workflowValue?.model,
+  ]
+
+  if (!candidates.some(isDeniedChatbotNotionAiModel)) return {}
+
+  return {
+    model: chatbotNotionAiModelPolicy.fallbackNotionModel,
+    modelFromUser: chatbotNotionAiModelPolicy.fallbackModelFromUser,
+  }
+}
+
+export function isDeniedChatbotNotionAiModel(model: unknown): boolean {
+  const normalizedModel = normalizeModelName(model)
+  if (!normalizedModel) return false
+
+  return chatbotNotionAiModelPolicy.deniedModels.some((entry) => {
+    return [
+      entry.requestedName,
+      "providerApiModel" in entry ? entry.providerApiModel : undefined,
+      ...entry.aliases,
+    ]
+      .map(normalizeModelName)
+      .some((candidate) => candidate === normalizedModel)
+  })
+}
+
+function normalizeModelName(model: unknown): string | undefined {
+  if (typeof model !== "string") return undefined
+  const normalized = model.toLowerCase().replace(/[^a-z0-9]+/g, "")
+  return normalized.length > 0 ? normalized : undefined
 }
 
 function stripModelSelection(
