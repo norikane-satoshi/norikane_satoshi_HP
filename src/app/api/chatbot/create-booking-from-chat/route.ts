@@ -99,6 +99,7 @@ function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>): 
   return {
     ...bookingFormSchema.parse(baseInput),
     selectedSlots: [],
+    requestedDates: [],
   }
 }
 
@@ -278,6 +279,7 @@ export async function POST(request: NextRequest) {
     const result = await createBookingFromApiInput({
       input,
       notionTaskType: "仮押さえ",
+      originatedFrom: "chatbot",
       userId,
       userEmail,
     })

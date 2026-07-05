@@ -16,8 +16,19 @@ const bookingWeekdayOffset = e2eCurrentWeekdayOffset()
 const existingSlot = e2eSlot(bookingWeekdayOffset, 1)
 const bookingWeekSelectionDate = existingSlot.date
 
+function addDaysToDateKey(dateKey: string, days: number) {
+  const [year, month, day] = dateKey.split("-").map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day + days))
+  return date.toISOString().slice(0, 10)
+}
+
+function displayDateKey(dateKey: string) {
+  const [, month, day] = dateKey.split("-").map(Number)
+  return `${month}/${day}`
+}
+
 test.describe("booking personal smoke", () => {
-  test("personal booking surfaces calendar failure and marks the pending group failed", async ({ page }) => {
+  test("personal booking saves a date consultation request without creating a calendar event", async ({ page }) => {
     const prisma = prismaForE2E()
     const user = await upsertUser(prisma, testUserEmail, "E2E Satoshi")
     await prisma.bookingGroup.deleteMany({ where: { projectTitle: { startsWith: prefix } } })
@@ -34,7 +45,8 @@ test.describe("booking personal smoke", () => {
     expect(bookingHtmlResponse.status()).toBe(200)
     const bookingHtml = await bookingHtmlResponse.text()
     expect(bookingHtml).toContain('data-testid="booking-month-skeleton"')
-    expect(bookingHtml).toContain('data-state="pending"')
+    expect(bookingHtml).toContain('data-state="ready"')
+    expect(bookingHtml).toContain('data-kind="lock"')
 
     const freeBusyUrl = `/api/calendar/free-busy?start=${bookingWeek.startIso}&end=${bookingWeek.endIso}`
     const cachedBeforeSubmit = await page.request.get(freeBusyUrl)
@@ -47,44 +59,73 @@ test.describe("booking personal smoke", () => {
     await expect(page.getByTestId("booking-month-skeleton")).toHaveCount(0)
     await page.waitForTimeout(750)
     await expect(page.locator(".booking-calendar__booking-event")).toHaveCount(1)
-    await page.getByRole("button", { name: "週" }).click()
-    await page.locator(".fc-timegrid-slot-lane").first().waitFor()
-
-    const dayColumn = page.locator(`.fc-timegrid-col[data-date="${bookingWeekSelectionDate}"]`).first()
-    const slotLane = page.locator('.fc-timegrid-slot-lane[data-time="13:00:00"]').first()
-    await dayColumn.waitFor()
-    await slotLane.waitFor()
-    await slotLane.scrollIntoViewIfNeeded()
-    const dayBox = await dayColumn.boundingBox()
-    const slotBox = await slotLane.boundingBox()
-    expect(dayBox).not.toBeNull()
-    expect(slotBox).not.toBeNull()
-    if (!dayBox || !slotBox) throw new Error("timegrid selection target was not available")
-
-    await page.mouse.move(dayBox.x + dayBox.width / 2, slotBox.y + 4)
-    await page.mouse.down()
-    await page.mouse.move(dayBox.x + dayBox.width / 2, slotBox.y + slotBox.height * 2 + 8, { steps: 8 })
-    await page.mouse.up()
-
-    await expect(page.getByTestId("booking-action-panel")).toBeVisible()
-    await page.getByRole("button", { name: "本予約" }).click()
+    await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
+    const firstRequestedDate = addDaysToDateKey(bookingWeekSelectionDate, 1)
+    await page.locator(`.fc-daygrid-day[data-date="${firstRequestedDate}"] .fc-daygrid-day-number`).click()
+    await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
+    await expect(page.getByTestId("booking-date-request-panel")).toBeVisible()
+    await expect(page.getByTestId("booking-month-slot-option")).toHaveCount(0)
+    await expect(page.getByTestId("booking-action-panel")).toHaveCount(0)
+    const skippedDate = addDaysToDateKey(firstRequestedDate, 1)
+    const laterDate = addDaysToDateKey(firstRequestedDate, 7)
+    await page.locator(`.fc-daygrid-day[data-date="${laterDate}"] .fc-daygrid-day-number`).click()
+    await expect(page.getByTestId("booking-date-request-summary")).toContainText("2日間")
+    await expect(page.getByTestId("booking-date-request-summary")).toContainText(displayDateKey(firstRequestedDate))
+    await expect(page.getByTestId("booking-date-request-summary")).toContainText(displayDateKey(laterDate))
+    await expect(page.getByTestId("booking-date-request-summary")).not.toContainText(displayDateKey(skippedDate))
+    await expect(page.locator(`.fc-daygrid-day[data-date="${skippedDate}"].booking-calendar__selected-date`)).toHaveCount(0)
+    await expect(page.getByTestId("booking-date-request-chips")).toHaveCount(0)
+    await page.getByRole("button", { name: "この日程で相談する" }).click()
 
     await expect(page.getByLabel("案件名")).toBeVisible()
     await page.getByLabel("案件名").fill(`${prefix} personal`)
     await page.getByLabel("納期").fill("2026-06-30")
-    await page.getByLabel("会社名").fill("NCS")
-    await page.getByLabel("担当者氏名").fill("E2E Satoshi")
-    await expect(page.getByLabel("メールアドレス")).toHaveValue(testUserEmail)
-    await page.getByLabel("電話番号(任意)").fill("09000000000")
-    await page.getByLabel("補足メモ").fill("e2e smoke")
+    await page.getByLabel("会社名").fill("NCS Long Company Name " + "VeryLongSegment".repeat(5))
+    await page.getByLabel("氏名", { exact: true }).fill("E2E Satoshi")
+    await expect(page.getByLabel("メール", { exact: true })).toHaveValue(testUserEmail)
+    await page.getByLabel("TEL(任意)").fill("09000000000")
+    await page.getByLabel(/補足/).fill(`e2e smoke https://example.com/${"very-long-url-segment".repeat(10)}`)
     await page.getByRole("checkbox").check()
 
-    await page.getByRole("button", { name: "申込内容を確認" }).click()
-    await expect(page.getByRole("heading", { name: "申込内容の確認" })).toBeVisible()
-    await page.getByRole("button", { name: "予約を申し込む" }).click()
+    await page.getByRole("button", { name: "相談内容を確認" }).click()
+    await expect(page.getByRole("heading", { name: "日程相談内容の確認" })).toBeVisible()
+    const confirmText = await page.locator(".booking-confirm").innerText()
+    expect(confirmText).toContain("希望日")
+    expect(confirmText).toContain("氏名")
+    expect(confirmText).toContain("メール")
+    expect(confirmText).toContain("TEL")
+    expect(confirmText).toContain("補足")
+    expect(confirmText).not.toContain("相談希望日")
+    expect(confirmText).not.toContain("担当者氏名")
+    expect(confirmText).not.toContain("メールアドレス")
+    expect(confirmText).not.toContain("電話番号")
+    expect(confirmText).not.toContain("補足メモ")
+    const overflowingConfirmNodes = await page.evaluate(() => {
+      const viewportWidth = document.documentElement.clientWidth
+      return Array.from(document.querySelectorAll(".booking-confirm, .booking-confirm *"))
+        .map((node) => {
+          const rect = (node as HTMLElement).getBoundingClientRect()
+          return { tag: node.nodeName, className: (node as HTMLElement).className, left: rect.left, right: rect.right }
+        })
+        .filter((rect) => rect.left < -1 || rect.right > viewportWidth + 1)
+    })
+    expect(overflowingConfirmNodes).toEqual([])
+    await page.getByRole("button", { name: "日程相談を送信" }).click()
 
-    await expect(page.getByText("カレンダー連携に一時的な問題が発生しています。時間をおいて再度お試しください")).toBeVisible()
-    await expect(page.getByRole("heading", { name: "予約を受け付けました" })).toHaveCount(0)
+    await expect(page.getByRole("heading", { name: "日程相談を受け付けました" })).toBeVisible()
+    await expect(page.getByText("確認メールをお送りしました。内容を確認後、直接ご連絡します。")).toBeVisible()
+    await expect(page.getByRole("link", { name: "マイページで予約一覧を見る" })).toHaveAttribute("href", "/booking/history")
+    const overflowingDoneNodes = await page.evaluate(() => {
+      const viewportWidth = document.documentElement.clientWidth
+      return Array.from(document.querySelectorAll(".booking-done, .booking-done *"))
+        .map((node) => {
+          const rect = (node as HTMLElement).getBoundingClientRect()
+          return { tag: node.nodeName, className: (node as HTMLElement).className, left: rect.left, right: rect.right }
+        })
+        .filter((rect) => rect.left < -1 || rect.right > viewportWidth + 1)
+    })
+    expect(overflowingDoneNodes).toEqual([])
+    await expect(page.getByText("カレンダー連携に一時的な問題が発生しています。時間をおいて再度お試しください")).toHaveCount(0)
     await expect(page.getByText("予約申込で予期せぬエラーが発生しました")).toHaveCount(0)
 
     const afterSubmit = await page.request.get(freeBusyUrl)
@@ -102,7 +143,25 @@ test.describe("booking personal smoke", () => {
     const failedCount = await prisma.bookingGroup.count({
       where: { projectTitle: `${prefix} personal`, status: "FAILED" },
     })
-    expect(failedCount).toBe(1)
+    expect(failedCount).toBe(0)
+    const scheduleRequestCount = await prisma.bookingGroup.count({
+      where: { projectTitle: `${prefix} personal`, status: "NEEDS_SCHEDULE" },
+    })
+    expect(scheduleRequestCount).toBe(1)
+    await page.goto("/booking/history")
+    await expect(page.getByRole("heading", { name: "予約一覧" })).toBeVisible()
+    const historyCard = page.locator(".booking-history__card", { hasText: `${prefix} personal` })
+    await expect(historyCard).toBeVisible()
+    await expect(historyCard).toContainText("受付済み")
+    await expect(historyCard).toContainText("希望日一覧")
+    const scheduleRequest = await prisma.bookingGroup.findFirst({
+      where: { projectTitle: `${prefix} personal`, status: "NEEDS_SCHEDULE" },
+      select: { memo: true, timeSlots: { select: { id: true } } },
+    })
+    expect(scheduleRequest?.memo).toContain(displayDateKey(firstRequestedDate))
+    expect(scheduleRequest?.memo).toContain(displayDateKey(laterDate))
+    expect(scheduleRequest?.memo).not.toContain(displayDateKey(skippedDate))
+    expect(scheduleRequest?.timeSlots).toHaveLength(0)
 
     await prisma.bookingGroup.deleteMany({ where: { projectTitle: { startsWith: prefix } } })
     await prisma.user.deleteMany({ where: { email: testUserEmail } })

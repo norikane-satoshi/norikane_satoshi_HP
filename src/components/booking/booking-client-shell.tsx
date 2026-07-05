@@ -3,6 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react"
 
 import { BookingSection } from "@/components/booking/booking-section"
+import type { CalendarBookingFromApi } from "@/lib/booking/server/calendar-free-busy/bookings-repository"
+import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar/server"
 
 type SessionPayload = {
   user?: {
@@ -14,13 +16,37 @@ type SessionPayload = {
 type BookingClientShellProps = {
   monthSkeleton: ReactNode
   isCalendarAdmin: boolean
+  initialSession?: SessionPayload | null
+  initialBusy?: CalendarBusyEventWithBuffer[]
+  initialBookings?: CalendarBookingFromApi[]
+  initialRange?: { start: string; end: string }
+  callbackUrl?: string
+  entryPoint?: "web" | "line_liff"
+  lineUserId?: string
+  redirectUnauthenticated?: boolean
 }
 
-export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingClientShellProps) {
-  const [session, setSession] = useState<SessionPayload | null>(null)
-  const [loaded, setLoaded] = useState(false)
+export function shouldRedirectUnauthenticated(loaded: boolean, userId: string | undefined, redirectUnauthenticated: boolean) {
+  return loaded && !userId && redirectUnauthenticated
+}
+
+export function BookingClientShell({
+  monthSkeleton,
+  isCalendarAdmin,
+  initialSession,
+  initialBusy = [],
+  initialBookings = [],
+  initialRange,
+  callbackUrl = "/booking",
+  entryPoint = "web",
+  lineUserId,
+  redirectUnauthenticated = true,
+}: BookingClientShellProps) {
+  const [session, setSession] = useState<SessionPayload | null>(initialSession ?? null)
+  const [loaded, setLoaded] = useState(initialSession !== undefined)
 
   useEffect(() => {
+    if (initialSession !== undefined) return
     let cancelled = false
     async function loadSession() {
       try {
@@ -37,15 +63,15 @@ export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingCl
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [initialSession])
 
   const userId = session?.user?.id
 
   useEffect(() => {
-    if (loaded && !userId) {
-      window.location.href = "/login?callbackUrl=/booking"
+    if (shouldRedirectUnauthenticated(loaded, userId, redirectUnauthenticated)) {
+      window.location.href = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
     }
-  }, [loaded, userId])
+  }, [callbackUrl, loaded, redirectUnauthenticated, userId])
 
   if (!loaded) return monthSkeleton
 
@@ -58,6 +84,11 @@ export function BookingClientShell({ monthSkeleton, isCalendarAdmin }: BookingCl
       userId={userId}
       userEmail={session.user?.email ?? ""}
       isCalendarAdmin={isCalendarAdmin}
+      entryPoint={entryPoint}
+      lineUserId={lineUserId}
+      initialBusy={initialBusy}
+      initialBookings={initialBookings}
+      initialRange={initialRange}
       monthSkeleton={monthSkeleton}
     />
   )

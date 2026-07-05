@@ -3,11 +3,15 @@ import { describe, expect, it } from "vitest"
 import type { ConversationState, JobContext, SurveyChoiceSet } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
+  cmProjectLengthChoices,
   documentaryAttachmentChoices,
+  dramaProjectLengthChoices,
   finalMediumChoices,
   jobKindChoices,
+  liveProjectLengthChoices,
   lectureTrainingContentChoices,
   lectureTrainingFormatChoices,
+  mvProjectLengthChoices,
   projectLengthChoices,
   productionOptionChoices,
   workSiteChoices,
@@ -96,8 +100,12 @@ describe("choice panel state", () => {
 
   it.each([
     [jobKindChoices, "選択: Web CM / CM", { hasJobKind: true }, { jobKind: "cm-30s" }],
+    [jobKindChoices, "選択: Web CMです", { hasJobKind: true }, { jobKind: "cm-30s" }],
     [jobKindChoices, "選択: 映画 / 長編 / 本編", { hasJobKind: true }, { jobKind: "feature-90m" }],
+    [jobKindChoices, "選択: ドラマ / シリーズです", { hasJobKind: true }, { jobKind: "drama-first" }],
+    [jobKindChoices, "選択: ドラマシリーズ", { hasJobKind: true }, { jobKind: "drama-first" }],
     [jobKindChoices, "選択: ライブ / コンサート / 舞台収録", { hasJobKind: true }, { jobKind: "live-60m" }],
+    [jobKindChoices, "選択: MVです", { hasJobKind: true }, { jobKind: "mv-5m" }],
     [
       jobKindChoices,
       "選択: 講演会 / 講習会 / 教育 / 研修 / 講師依頼",
@@ -106,6 +114,11 @@ describe("choice panel state", () => {
     ],
     [projectLengthChoices, "選択: ライブ 150分前後", { hasProjectLength: true }, { projectLengthMinutes: 150 }],
     [projectLengthChoices, "選択: 未定", { hasProjectLength: true }, {}],
+    [dramaProjectLengthChoices, "選択: 1話30分前後", { hasProjectLength: true }, { projectLengthMinutes: 30 }],
+    [dramaProjectLengthChoices, "選択: 話数・全体尺を相談したい", { hasProjectLength: true }, {}],
+    [liveProjectLengthChoices, "選択: 90分", { hasProjectLength: true }, { projectLengthMinutes: 90 }],
+    [cmProjectLengthChoices, "選択: 15秒", { hasProjectLength: true }, { projectLengthMinutes: 0.25 }],
+    [mvProjectLengthChoices, "選択: 5〜10分", { hasProjectLength: true }, { projectLengthMinutes: 10 }],
     [finalMediumChoices, "live", { hasFinalMedium: true }, { finalMedium: "live" }],
     [finalMediumChoices, "選択: ライブ", { hasFinalMedium: true }, { finalMedium: "live" }],
     [additionalWorkChoices, "retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch"] }],
@@ -191,6 +204,22 @@ describe("choice panel state", () => {
           status: "needs-clarification",
           choiceSetId: "project-length",
           reason: "quantity-needs-unit",
+        },
+      },
+      jobContext: {},
+    })
+
+    expect(
+      applyActiveChoiceAnswer({
+        activeChoices: dramaProjectLengthChoices,
+        message: "選択: ライブ 60分前後",
+      }),
+    ).toMatchObject({
+      conversationState: {
+        activeIntakeClarification: {
+          status: "needs-clarification",
+          choiceSetId: "project-length",
+          reason: "project-length-choice-mismatch",
         },
       },
       jobContext: {},

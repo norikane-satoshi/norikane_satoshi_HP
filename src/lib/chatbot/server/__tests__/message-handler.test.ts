@@ -6,13 +6,18 @@ import type { CandidateWindow, ChatbotConversation, ChatbotMessage, Conversation
 import {
   additionalWorkChoices,
   bookingFinalConfirmationChoices,
+  cmProjectLengthChoices,
   documentaryAttachmentChoices,
+  dramaProjectLengthChoices,
   finalMediumChoices,
   jobKindChoices,
+  liveProjectLengthChoices,
+  mvProjectLengthChoices,
   projectLengthChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { createStaticChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
 import type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"
 
@@ -65,6 +70,16 @@ function userContext(overrides: Partial<UserChatbotContext> = {}): UserChatbotCo
     referenceUrls: ["https://a.example/ref"],
     ...overrides,
   }
+}
+
+function customerReply(text: string): string {
+  return `<customer_reply>${text}</customer_reply>`
+}
+
+function withDisplayEnvelope<T extends { rawText?: unknown }>(response: T): T {
+  return typeof response.rawText === "string" && !("displayEnvelope" in response)
+    ? { ...response, displayEnvelope: createChatbotLlmDisplayEnvelope(response.rawText) }
+    : response
 }
 
 function baseProductionConversationState(overrides: Partial<ConversationState> = {}): ConversationState {
@@ -126,7 +141,8 @@ function setup(overrides: {
     linkConversationToUser: vi.fn(),
   }
   const generate = vi.fn().mockResolvedValue({
-    rawText: "返信です",
+    rawText: customerReply("返信です"),
+    displayEnvelope: createChatbotLlmDisplayEnvelope(customerReply("返信です")),
     tier: "tier-3-ollama-deepseek",
   })
   const slackNotifier = vi.fn().mockResolvedValue({ status: "skipped", reason: "disabled" })
@@ -149,7 +165,10 @@ function setup(overrides: {
     slackNotifier,
     options: {
       repository,
-      orchestratorFactory: () => ({ generate, isHealthy: vi.fn() }),
+      orchestratorFactory: () => ({
+        generate: vi.fn(async (...args) => withDisplayEnvelope(await generate(...args))),
+        isHealthy: vi.fn(),
+      }),
       userContextLoader,
       userContextFormatter,
       candidateWindowFinder,
@@ -215,7 +234,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ご相談ありがとうございます。まず案件の種別を教えてください。下の選択肢から選んでください。- ライブ - CM - MV - その他",
+        customerReply("ご相談ありがとうございます。まず案件の種別を教えてください。下の選択肢から選んでください。- ライブ - CM - MV - その他"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -229,6 +248,866 @@ describe("handleChatbotMessage user context", () => {
       kind: "choice-panel",
       choiceSet: { id: jobKindChoices.id },
     })
+  })
+
+  it("keeps production-log drama series wording on the drama project-length contract", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: jobKindChoices,
+          currentQuestion: "まず案件種別を選んでください",
+          conversationState: {
+            hasFinalMedium: false,
+            hasJobKind: false,
+            hasProjectLength: false,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 1,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("ライブ配信の尺を選んでください。"),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    try {
+      const result = await handleChatbotMessage(
+        {
+          requestId: "req_drama_log",
+          sessionId: "session_1",
+          userId: "user_a",
+          message: "選択: ドラマ / シリーズです",
+        },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
+      expect(result.assistantMessage.content).not.toContain("ライブ")
+      expect(result.ui).toEqual({ kind: "none" })
+      expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({ jobKind: "drama-first" })
+      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentQuestion: expect.stringContaining("ドラマ / シリーズとして整理しています"),
+          activeChoices: null,
+          conversationState: expect.objectContaining({ hasJobKind: true, hasProjectLength: false }),
+          jobContext: expect.objectContaining({ jobKind: "drama-first" }),
+        }),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"project_type_choice_mismatch"'),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"reason":"choice-set-context-mismatch"'),
+      )
+    } finally {
+      consoleInfo.mockRestore()
+    }
+  })
+
+  it("recontextualizes stale generic project-length choices after reload before accepting answers", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: projectLengthChoices,
+          currentQuestion: "尺・分量の大枠を選んでください",
+          conversationState: {
+            hasFinalMedium: false,
+            hasJobKind: true,
+            hasProjectLength: false,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            otherChoiceComments: { "job-kind": "ドラマ / シリーズです" },
+            turnCount: 2,
+          },
+        },
+        messages: [
+          message("user", "お仕事頼みたいです"),
+          message("assistant", "まず案件種別を選んでください\n下の選択肢から選んでください。"),
+          message("user", "選択: ドラマ / シリーズです"),
+          message("assistant", "尺・分量の大枠を選んでください\n下の選択肢から選んでください。"),
+        ],
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "選択: ライブ 60分前後",
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain("尺・分量は下の選択肢から選ぶ")
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "project-length" } })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toContain("1話30分前後")
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).not.toContain("ライブ 60分前後")
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: dramaProjectLengthChoices,
+        conversationState: expect.objectContaining({
+          hasProjectLength: false,
+          activeIntakeClarification: expect.objectContaining({
+            choiceSetId: "project-length",
+            reason: "project-length-choice-mismatch",
+          }),
+        }),
+        jobContext: expect.objectContaining({ jobKind: "drama-first" }),
+      }),
+    )
+  })
+
+  it.each([
+    ["選択: ライブ / コンサート / 舞台収録", liveProjectLengthChoices],
+    ["選択: Web CMです", cmProjectLengthChoices],
+    ["選択: MVです", mvProjectLengthChoices],
+  ] as const)("keeps contextual project-length choices for %s", async (messageText, expectedChoices) => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: jobKindChoices,
+          currentQuestion: "まず案件種別を選んでください",
+        },
+      }),
+    })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: messageText,
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentQuestion: expectedChoices.question,
+        activeChoices: expectedChoices,
+      }),
+    )
+  })
+
+  it.each([
+    [
+      "drama-first",
+      "ドラマ / シリーズでは、先にどの粒度を整理しますか？",
+      ["1話ごとの尺", "話数", "全体尺", "未定・相談したい"],
+    ],
+    [
+      "drama-first",
+      "シリーズ全体の規模感として、今わかる範囲を選んでください。",
+      ["1話尺だけ決まっている", "話数だけ決まっている", "全体尺が決まっている", "これから相談"],
+    ],
+  ] as const)("respects LLM-authored drama project-length panel: %s", async (jobKind, question, labels) => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply(JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "project-length",
+          question,
+          selectionMode: "single",
+          allowFreeText: true,
+          choices: labels.map((label, index) => ({ id: `drama-natural-${index + 1}`, label })),
+        },
+      })),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "ドラマ / シリーズです",
+        jobContext: {
+          jobKind,
+          finalMedium: "ott",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasJobKind: true,
+          hasProjectLength: false,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe(`${question}\n下の選択肢から選んでください。`)
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: {
+        id: "project-length",
+        question,
+        allowFreeText: true,
+      },
+    })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentQuestion: question,
+        activeChoices: expect.objectContaining({
+          id: "project-length",
+          question,
+          allowFreeText: true,
+        }),
+      }),
+    )
+  })
+
+  it.each([
+    ["live-60m", "ライブ全体の尺感はどれに近いですか？", ["60分前後", "90分前後", "2時間以上", "未定"]],
+    ["cm-30s", "CMは1本あたりの尺と本数、どちらが先に決まっていますか？", ["15秒", "30秒", "複数本", "未定"]],
+    ["mv-5m", "MVの尺やバージョン数はどれに近いですか？", ["3〜5分", "5〜10分", "複数バージョン", "未定"]],
+  ] as const)("respects LLM-authored project-length granularity for %s", async (jobKind, question, labels) => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply(JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "project-length",
+          question,
+          choices: labels.map((label, index) => ({ id: `${jobKind.replace(/[^a-z0-9]/g, "-")}-${index + 1}`, label })),
+        },
+      })),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "尺を相談したいです",
+        jobContext: {
+          jobKind,
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasJobKind: true,
+          hasProjectLength: false,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "project-length", question } })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+  })
+
+  it("does not silently replace an LLM-authored cross-context project-length panel", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply(JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "project-length",
+          question: "ライブ / 舞台収録の尺を選んでください",
+          choices: [
+            { id: "live-length-60m", label: "60分" },
+            { id: "live-length-90m", label: "90分" },
+            { id: "live-length-over-120m", label: "2時間以上" },
+          ],
+        },
+      })),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    try {
+      const result = await handleChatbotMessage(
+        {
+          requestId: "req_choice_mismatch",
+          sessionId: "session_1",
+          userId: "user_a",
+          message: "ドラマ / シリーズです",
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "ott",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasJobKind: true,
+            hasProjectLength: false,
+          },
+        },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
+      expect(result.assistantMessage.content).not.toContain("ライブ")
+      expect(result.ui).toEqual({ kind: "none" })
+      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeChoices: null,
+          currentQuestion: expect.stringContaining("ドラマ / シリーズとして整理しています"),
+        }),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"project_type_choice_mismatch"'),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"reason":"choice-set-context-mismatch"'),
+      )
+    } finally {
+      consoleInfo.mockRestore()
+    }
+  })
+
+  it("preserves a production-log-like LLM-authored drama final-medium panel", async () => {
+    const question = "このドラマの最終放映先・配信先はどちらですか？"
+    const choices = [
+      { id: "tv-broadcast", label: "地上波・BS／CS放送" },
+      { id: "ott", label: "配信プラットフォーム" },
+      { id: "web", label: "Web公開" },
+      { id: "cinema", label: "劇場・イベント上映" },
+      { id: "undecided", label: "未定・相談したい" },
+      { id: "other", label: "その他" },
+    ]
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: dramaProjectLengthChoices,
+          currentQuestion: dramaProjectLengthChoices.question,
+          conversationState: {
+            hasFinalMedium: false,
+            hasJobKind: true,
+            hasProjectLength: false,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 2,
+          },
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "other",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply(`ドラマ初回・1話45〜60分で確認しました。続けて、最終的な放映先・媒体を教えてください。 ${JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "final-medium",
+          question,
+          selectionMode: "single",
+          allowFreeText: true,
+          choices,
+        },
+      })}`),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        requestId: "req_drama_final_media",
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "選択: 1話45〜60分",
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe(`${question}\n下の選択肢から選んでください。`)
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: {
+        id: "final-medium",
+        question,
+        allowFreeText: true,
+      },
+    })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(choices)
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentQuestion: question,
+        activeChoices: expect.objectContaining({
+          id: "final-medium",
+          question,
+          choices,
+          allowFreeText: true,
+        }),
+        conversationState: expect.objectContaining({
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasFinalMedium: false,
+        }),
+        jobContext: expect.objectContaining({
+          jobKind: "drama-first",
+          finalMedium: "other",
+          projectLengthMinutes: 60,
+        }),
+      }),
+    )
+  })
+
+  it("converts production-style plain text final-medium choices after drama episode length into a choice panel", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: dramaProjectLengthChoices,
+          currentQuestion: dramaProjectLengthChoices.question,
+          conversationState: {
+            hasFinalMedium: false,
+            hasJobKind: true,
+            hasProjectLength: false,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 2,
+          },
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "other",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+    })
+    const question = "ドラマ / シリーズとして整理しています。想定している公開先・納品先を1つ教えてください"
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply([
+        `${question}。`,
+        "候補は以下です。",
+        "- 地上波・BS／CS放送",
+        "- 配信プラットフォーム",
+        "- Web公開",
+        "- 劇場・イベント上映",
+        "- 未定・相談したい",
+      ].join("\n")),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    try {
+      const result = await handleChatbotMessage(
+        {
+          requestId: "req_text_final_media",
+          sessionId: "session_1",
+          userId: "user_a",
+          message: "選択: 1話45〜60分ですー",
+        },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toBe(`${question}\n下の選択肢から選んでください。`)
+      expect(result.ui).toMatchObject({
+        kind: "choice-panel",
+        choiceSet: {
+          id: "final-medium",
+          question,
+          allowFreeText: true,
+        },
+      })
+      expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual([
+        "地上波・BS／CS放送",
+        "配信プラットフォーム",
+        "Web公開",
+        "劇場・イベント上映",
+        "未定・相談したい",
+      ])
+      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentQuestion: question,
+          activeChoices: expect.objectContaining({
+            id: "final-medium",
+            choices: expect.arrayContaining([
+              { id: "tv-broadcast", label: "地上波・BS／CS放送" },
+              { id: "ott", label: "配信プラットフォーム" },
+              { id: "web", label: "Web公開" },
+              { id: "cinema", label: "劇場・イベント上映" },
+            ]),
+          }),
+          conversationState: expect.objectContaining({
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasFinalMedium: false,
+          }),
+          jobContext: expect.objectContaining({
+            jobKind: "drama-first",
+            projectLengthMinutes: 60,
+          }),
+        }),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"choice_panel_text_fallback_detected"'),
+      )
+    } finally {
+      consoleInfo.mockRestore()
+    }
+  })
+
+  it("does not show the fixed final-medium fallback for drama context", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("最終媒体を教えてください。"),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    try {
+      const result = await handleChatbotMessage(
+        {
+          requestId: "req_fixed_final_media_fallback",
+          sessionId: "session_1",
+          userId: "user_a",
+          message: "媒体はまだ相談したいです",
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "other",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 60,
+          },
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasFinalMedium: false,
+          },
+        },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
+      expect(result.assistantMessage.content).toContain("公開先・納品先")
+      expect(result.ui).toMatchObject({
+        kind: "choice-panel",
+        choiceSet: {
+          id: "final-medium",
+          choices: expect.arrayContaining([
+            { id: "tv-broadcast", label: "地上波・BS／CS放送" },
+            { id: "ott", label: "配信プラットフォーム" },
+            { id: "web", label: "Web公開" },
+            { id: "cinema", label: "劇場・イベント上映" },
+          ]),
+        },
+      })
+      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeChoices: expect.objectContaining({ id: "final-medium" }),
+          currentQuestion: expect.stringContaining("ドラマ / シリーズとして整理しています"),
+        }),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"final_media_choice_mismatch"'),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"reason":"fixed-final-medium-fallback"'),
+      )
+    } finally {
+      consoleInfo.mockRestore()
+    }
+  })
+
+  it("returns to a natural final-medium rejudgment question when LLM mixes another context", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply(JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "final-medium",
+          question: "ライブ配信の最終媒体を選んでください",
+          choices: [
+            { id: "live", label: "ライブ配信" },
+            { id: "vertical-sns", label: "縦型SNS" },
+            { id: "web", label: "Web" },
+          ],
+        },
+      })),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    try {
+      const result = await handleChatbotMessage(
+        {
+          requestId: "req_final_media_choice_mismatch",
+          sessionId: "session_1",
+          userId: "user_a",
+          message: "ドラマシリーズです。1話45分です。",
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "other",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 45,
+          },
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasFinalMedium: false,
+          },
+        },
+        harness.options,
+      )
+
+      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
+      expect(result.assistantMessage.content).not.toContain("ライブ配信")
+      expect(result.ui).toMatchObject({
+        kind: "choice-panel",
+        choiceSet: { id: "final-medium" },
+      })
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"final_media_choice_mismatch"'),
+      )
+      expect(consoleInfo).toHaveBeenCalledWith(
+        expect.stringContaining('"reason":"choice-set-context-mismatch"'),
+      )
+    } finally {
+      consoleInfo.mockRestore()
+    }
+  })
+
+  it("maps LLM-authored final-medium choice ids to canonical job context on the next turn", async () => {
+    const llmFinalMediumChoices = {
+      id: "final-medium",
+      question: "このドラマの最終放映先・配信先はどちらですか？",
+      allowFreeText: true,
+      choices: [
+        { id: "broadcast-drama", label: "地上波・BS／CS放送" },
+        { id: "streaming-drama", label: "配信プラットフォーム" },
+        { id: "web-public", label: "Web公開" },
+        { id: "other", label: "その他" },
+      ],
+    }
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: llmFinalMediumChoices,
+          currentQuestion: llmFinalMediumChoices.question,
+          conversationState: {
+            hasFinalMedium: false,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasAdditionalWork: false,
+            hasDocumentaryAttachments: false,
+            hasWorkSite: false,
+            hasReferenceUrls: false,
+            hasContactEmail: false,
+            hasDesiredSchedule: false,
+            turnCount: 3,
+          },
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "other",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 60,
+          },
+        },
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "選択: 地上波・BS／CS放送",
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "additional-work" } })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: additionalWorkChoices,
+        conversationState: expect.objectContaining({ hasFinalMedium: true }),
+        jobContext: expect.objectContaining({ finalMedium: "tv-broadcast" }),
+      }),
+    )
+  })
+
+  it.each([
+    ["live-60m", "ライブの公開・納品先を選んでください", ["配信", "会場上映", "パッケージ納品", "未定"]],
+    ["cm-30s", "CMの使用先を選んでください", ["Web広告", "SNS", "テレビ放送", "店頭・イベント"]],
+    ["mv-5m", "MVの公開先を選んでください", ["YouTube", "SNS", "配信プラットフォーム", "ライブ会場上映"]],
+  ] as const)("respects LLM-authored final-medium panel for %s", async (jobKind, question, labels) => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply(JSON.stringify({
+        tool: "show_choice_panel",
+        args: {
+          id: "final-medium",
+          question,
+          allowFreeText: true,
+          choices: labels.map((label, index) => ({ id: `${jobKind.replace(/[^a-z0-9]/g, "-")}-medium-${index + 1}`, label })),
+        },
+      })),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "媒体を相談したいです",
+        jobContext: {
+          jobKind,
+          finalMedium: "other",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: jobKind === "cm-30s" ? 0.5 : 60,
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasFinalMedium: false,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "final-medium", question } })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+  })
+
+  it.each([
+    ["live-60m", "ライブ / 舞台収録として整理しています。想定している公開先・納品先を選んでください", ["配信", "会場上映", "パッケージ納品", "未定"]],
+    ["cm-30s", "Web CM / CM として整理しています。想定している使用先を選んでください", ["Web広告", "SNS", "テレビ放送", "店頭・イベント"]],
+    ["mv-5m", "MV / 音楽映像として整理しています。想定している公開先を選んでください", ["YouTube", "SNS", "配信プラットフォーム", "ライブ会場上映"]],
+  ] as const)("converts plain text final-medium choices into a panel for %s", async (jobKind, question, labels) => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply([`${question}。`, "選択肢:", ...labels.map((label) => `- ${label}`)].join("\n")),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "公開先を相談したいです",
+        jobContext: {
+          jobKind,
+          finalMedium: "other",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: jobKind === "cm-30s" ? 0.5 : 60,
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasFinalMedium: false,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "final-medium", question } })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+  })
+
+  it("does not turn explanatory bullet text into a choice panel when no choice slot is pending", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply([
+        "ライブ60分の進め方は以下です。",
+        "- 素材量を確認します。",
+        "- 追加作業の有無で日数が変わります。",
+      ].join("\n")),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "ライブ60分の進め方だけ教えてください",
+        jobContext: {
+          jobKind: "live-60m",
+          finalMedium: "live",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: 60,
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(result.assistantMessage.content).toContain("ライブ60分の進め方")
+  })
+
+  it("preserves a production-style final-medium tool call embedded in assistant text", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        customerReply('公開先の相談ですね。{"tool":"show_choice_panel","args":{"id":"final-medium","question":"想定している公開先を教えてください","selectionMode":"single","allowFreeText":true,"choices":[{"id":"tv-broadcast","label":"地上波・BS／CS放送"},{"id":"streaming-drama","label":"配信プラットフォーム"},{"id":"web-public","label":"Web公開"},{"id":"theater-event","label":"劇場・イベント上映"}'),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "公開先を相談したいです",
+        jobContext: {
+          jobKind: "drama-first",
+          finalMedium: "other",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: 60,
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasFinalMedium: false,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: {
+        id: "final-medium",
+        question: "想定している公開先を教えてください",
+        allowFreeText: true,
+      },
+    })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual([
+      "地上波・BS／CS放送",
+      "配信プラットフォーム",
+      "Web公開",
+      "劇場・イベント上映",
+    ])
   })
 
   it("uses client user message ids for optimistic cancelled messages", async () => {
@@ -389,6 +1268,136 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
       { role: "user", content: "編集後の相談" },
     ])
+  })
+
+  it("posts an edit event and regenerated response into the stored Slack thread", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+        messages: [
+          { id: "user_1", role: "user", content: "古い相談 email client@example.com", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_1", role: "assistant", content: "古い回答", createdAt: "2026-05-26T00:00:01.000Z" },
+          { id: "user_2", role: "user", content: "後続相談", createdAt: "2026-05-26T00:00:02.000Z" },
+        ],
+      }),
+    })
+    harness.generate.mockResolvedValue({ rawText: customerReply("再生成後の返信です"), tier: "tier-2-hosted-chrome-notion-ai" })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      {
+        requestId: "req_edit",
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "編集後の相談",
+        editTargetMessageId: "user_1",
+      },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      kind: "message-edit",
+      requestId: "req_edit",
+      conversationId: "conv_1",
+      sessionId: "session_1",
+      threadTs: "1700000000.000100",
+      pendingRequestKind: "edit",
+      editedMessage: {
+        previousSummary: "古い相談 email client@example.com",
+        nextMessage: "編集後の相談",
+        truncatedFollowingMessages: 2,
+      },
+    }))
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      kind: "conversation",
+      requestId: "req_edit",
+      conversationId: "conv_1",
+      sessionId: "session_1",
+      threadTs: "1700000000.000100",
+      userMessage: "編集後の相談",
+      assistantResponse: expect.any(String),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    }))
+    expect(harness.repository.updateConversationSlackThreadTs).not.toHaveBeenCalled()
+  })
+
+  it("keeps edited regeneration in the same Slack thread after stale server edit fallback", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
+        messages: [
+          { id: "user_last", role: "user", content: "保存済み直近", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_last", role: "assistant", content: "保存済み回答", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+    harness.generate.mockResolvedValue({ rawText: customerReply("復元後の返信です"), tier: "tier-2-hosted-chrome-notion-ai" })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "モバイルの古い編集再送",
+        editTargetMessageId: "user_missing_from_stale_local_storage",
+      },
+      harness.options,
+    )
+
+    expect(harness.repository.truncateConversationFromMessage).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      messageId: "user_last",
+    })
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      kind: "message-edit",
+      threadTs: "1700000000.000100",
+      editedMessage: expect.objectContaining({
+        previousSummary: "保存済み直近",
+        nextMessage: "モバイルの古い編集再送",
+        truncatedFollowingMessages: 1,
+      }),
+    }))
+    expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      kind: "conversation",
+      threadTs: "1700000000.000100",
+      userMessage: "モバイルの古い編集再送",
+      assistantResponse: "復元後の返信です",
+    }))
+  })
+
+  it("does not create a Slack parent post only for an edit event before a thread exists", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [
+          { id: "user_1", role: "user", content: "古い相談", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_1", role: "assistant", content: "古い回答", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+    harness.generate.mockResolvedValue({ rawText: customerReply("再生成後の返信です"), tier: "tier-2-hosted-chrome-notion-ai" })
+    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000100" })
+
+    await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "編集後の相談",
+        editTargetMessageId: "user_1",
+      },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenCalledTimes(1)
+    expect(harness.slackNotifier).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "conversation",
+      threadTs: undefined,
+      userMessage: "編集後の相談",
+      assistantResponse: expect.any(String),
+    }))
+    expect(harness.repository.updateConversationSlackThreadTs).toHaveBeenCalledWith({
+      conversationId: "conv_1",
+      slackThreadTs: "1700000000.000100",
+    })
   })
 
   it("keeps the current conversation when a client edit id was never persisted", async () => {
@@ -656,7 +1665,7 @@ describe("handleChatbotMessage user context", () => {
   it("does not show a booking card for incomplete email text unless the LLM calls the tool", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "メールアドレスの末尾が途中で切れているようです。正しいメールアドレスを教えてください。",
+      rawText: customerReply("メールアドレスの末尾が途中で切れているようです。正しいメールアドレスを教えてください。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -681,7 +1690,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"ライブ2.5h 消し物・肌修正・観客の顔ぼかし30カット以上、リモートでも立ち会いでも相談","contactName":"テスト太郎","contactEmail":"client@example.jp","companyName":"テスト株式会社","dueDate":"2026-07-31"}}',
+        customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"ライブ2.5h 消し物・肌修正・観客の顔ぼかし30カット以上、リモートでも立ち会いでも相談","contactName":"テスト太郎","contactEmail":"client@example.jp","companyName":"テスト株式会社","dueDate":"2026-07-31"}}'),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -721,7 +1730,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+        customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -815,7 +1824,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -851,6 +1860,109 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("uses the structured LLM no-additional-concern signal for a colloquial final answer", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState({ hasDesiredSchedule: false }),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingReadiness: {
+              finalQuestionOffered: true,
+              finalQuestionOfferedAtTurn: 4,
+            },
+            bookingFinalConfirmation: {
+              status: "pending",
+              requestedAtTurn: 4,
+              bookingPrefill: { projectTitle: "CM案件", contactEmail: "client@example.com" },
+            },
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 30,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        "user says there are no additional concerns. confirmed facts are ready, so proceed to the booking card.",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "特にないですー" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "CM案件",
+        contactEmail: "client@example.com",
+      },
+    })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routingDecision: "to-booking-inline",
+        conversationState: expect.objectContaining({
+          bookingReadiness: expect.objectContaining({
+            additionalConcernStatus: "none",
+            additionalConcernSource: "llm-booking-card",
+          }),
+          bookingFinalConfirmation: expect.objectContaining({ status: "confirmed" }),
+        }),
+      }),
+    )
+  })
+
+  it("blocks a premature booking card when required booking readiness facts are missing", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState({ hasDesiredSchedule: false }),
+            hasContactEmail: false,
+            contactEmail: undefined,
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 30,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-10"}}'),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "この内容でお願いします" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: "ご連絡先メールを教えてください",
+    })
+    expect(result.ui).toMatchObject({ kind: "none" })
+    expect(result.assistantMessage.content).toBe("ご連絡先メールを教えてください")
+  })
+
   it("keeps a confirmed booking card ahead of settled to-email fallback", async () => {
     const harness = setup({
       existingConversation: conversation({
@@ -880,7 +1992,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"ライブ案件","contactName":"山田太郎","contactEmail":"client@example.com"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"ライブ案件","contactName":"山田太郎","contactEmail":"client@example.com"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -940,7 +2052,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "ご連絡ありがとうございます。則兼からメールでご連絡します。",
+      rawText: customerReply("ご連絡ありがとうございます。則兼からメールでご連絡します。"),
       tier: "tier-3-gemini-flash",
     })
 
@@ -960,6 +2072,56 @@ describe("handleChatbotMessage user context", () => {
         memo: expect.stringContaining("LINE希望"),
       }),
     })
+  })
+
+  it("recovers a booking card when a mobile final approval gets a cardless acceptance response", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState({ hasDesiredSchedule: false }),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 150,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        customerReply("ありがとうございます。それでは、このまま受付完了として進めます。則兼からご登録のメールアドレス宛にご連絡いたしますので、今しばらくお待ちください。"),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "良いです！" },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toBe("候補日を確認しました。\n下の予約カードから選択してください。")
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: expect.objectContaining({
+        projectTitle: "ライブ案件",
+        contactEmail: "client@example.com",
+      }),
+    })
+    expect(harness.slackNotifier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uiKind: "booking-card",
+        flowStep: "booking-card",
+        bookingProgress: true,
+      }),
+    )
   })
 
   it("moves to the booking card when the final confirmation choice label is submitted", async () => {
@@ -991,7 +2153,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "承知いたしました。これまでのご相談内容をもとに、則兼との相談・確認に進むための予約候補カードを作成します。",
+        customerReply("承知いたしました。これまでのご相談内容をもとに、則兼との相談・確認に進むための予約候補カードを作成します。"),
       tier: "tier-3-gemini-flash",
     })
 
@@ -1063,7 +2225,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "候補を確認します。",
+      rawText: customerReply("候補を確認します。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1126,7 +2288,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"Old User","contactEmail":"old@example.com","memo":"案件種別: ライブ / 最終媒体: ライブ"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"Old User","contactEmail":"old@example.com","memo":"案件種別: ライブ / 最終媒体: ライブ"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1179,7 +2341,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "承知いたしました。これまでのご相談内容をもとに、予約候補カードを作成します。",
+        customerReply("承知いたしました。これまでのご相談内容をもとに、予約候補カードを作成します。"),
       tier: "tier-3-gemini-flash",
     })
 
@@ -1232,7 +2394,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"山田太郎","contactEmail":"client@example.com"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"山田太郎","contactEmail":"client@example.com"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1289,7 +2451,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "予約候補カードは作成済みです。則兼からご登録のメールアドレス宛にご連絡いたします。",
+      rawText: customerReply("予約候補カードは作成済みです。則兼からご登録のメールアドレス宛にご連絡いたします。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1360,7 +2522,7 @@ describe("handleChatbotMessage user context", () => {
     harness.candidateWindowFinder.mockResolvedValueOnce([])
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1379,7 +2541,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "予約候補カードに進める前に、最後に一点だけ確認させてください。ほかに伝えておきたいことや不安な点はありますか。なければ「なし」とお返事ください。",
+        customerReply("予約候補カードに進める前に、最後に一点だけ確認させてください。ほかに伝えておきたいことや不安な点はありますか。なければ「なし」とお返事ください。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1453,7 +2615,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","dueDate":"2026-07-10"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1502,7 +2664,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '納品形式も補足に入れます。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactEmail":"client@example.com","dueDate":"2026-07-10"}}',
+        customerReply('納品形式も補足に入れます。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1530,7 +2692,7 @@ describe("handleChatbotMessage user context", () => {
   it("replaces backend identity-only assistant text with the routing question", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "のりかね映像設計室の相談窓口として動いています",
+      rawText: customerReply("のりかね映像設計室の相談窓口として動いています"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -1590,23 +2752,8 @@ describe("handleChatbotMessage user context", () => {
         hasDocumentaryAttachments: true,
         hasWorkSite: true,
       },
-      "尺・分量の大枠を選んでください",
+      "ライブ / 舞台収録の尺を選んでください",
       projectLengthChoices.id,
-    ],
-    [
-      "final medium",
-      "MV 5分のカラーグレーディング相談です。",
-      {},
-      {
-        hasFinalMedium: false,
-        hasJobKind: true,
-        hasProjectLength: true,
-        hasAdditionalWork: true,
-        hasDocumentaryAttachments: true,
-        hasWorkSite: true,
-      },
-      "最終媒体は何になりますか？",
-      finalMediumChoices.id,
     ],
     [
       "additional work",
@@ -1675,7 +2822,7 @@ describe("handleChatbotMessage user context", () => {
       const harness = setup()
       harness.generate.mockResolvedValueOnce({
         rawText:
-          "受付内容の整理：ライブ案件です。納品形式も教えてください。追加で確認したいことがあります。",
+          customerReply("受付内容の整理：ライブ案件です。納品形式も教えてください。追加で確認したいことがあります。"),
         tier: "tier-3-ollama-deepseek",
       })
 
@@ -1708,13 +2855,101 @@ describe("handleChatbotMessage user context", () => {
     },
   )
 
+  it("replaces the fixed final-medium prompt with a contextual choice panel", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        customerReply("受付内容の整理：MV案件です。納品形式も教えてください。追加で確認したいことがあります。"),
+      tier: "tier-3-ollama-deepseek",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "MV 5分のカラーグレーディング相談です。",
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasFinalMedium: false,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toContain("MV / 音楽映像として整理しています")
+    expect(result.assistantMessage.content).toContain("公開先・使用先")
+    expect(result.assistantMessage.content).not.toContain("受付内容の整理")
+    expect(result.assistantMessage.content).not.toContain("納品形式も教えてください")
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: { id: "final-medium" },
+    })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeChoices: expect.objectContaining({ id: "final-medium" }),
+        currentQuestion: expect.stringContaining("MV / 音楽映像として整理しています"),
+      }),
+    )
+  })
+
+  it("forces contextual project length choices when Tier2 asks the duration as free text", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("まず、1話あたりの尺はどのくらいを想定されていますか？"),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "ドラマシリーズの尺を相談したいです。",
+        jobContext: {
+          jobKind: "drama-first",
+          finalMedium: "ott",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+        conversationState: {
+          ...baseProductionConversationState(),
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: false,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: {
+        id: "project-length",
+        question: "ドラマ / シリーズの尺・話数を選んでください",
+      },
+    })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(
+      expect.arrayContaining(["1話30分前後", "話数・全体尺を相談したい"]),
+    )
+    expect(result.assistantMessage.content).toBe(
+      "ドラマ / シリーズの尺・話数を選んでください\n下の選択肢から選んでください。",
+    )
+  })
+
   it("keeps the studio premise internal before 2026-09-15 while hiding it from work-site choices", async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-06-25T10:00:00+09:00"))
     try {
       const harness = setup()
       harness.generate.mockResolvedValueOnce({
-        rawText: "スタジオ利用も含めて整理できます。",
+        rawText: customerReply("スタジオ利用も含めて整理できます。"),
         tier: "tier-3-ollama-deepseek",
       })
 
@@ -1756,7 +2991,7 @@ describe("handleChatbotMessage user context", () => {
   it("ignores non-tier4 proposed routing decisions and keeps talking when there is no tool call", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "メールアドレスをもう一度教えてください。",
+      rawText: customerReply("メールアドレスをもう一度教えてください。"),
       tier: "tier-3-ollama-deepseek",
       proposedRoutingDecision: {
         kind: "to-booking-inline",
@@ -1794,7 +3029,7 @@ describe("handleChatbotMessage user context", () => {
   it("keeps direct-contact safety routing outside the tool-call dispatcher path", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "詳細は担当者が確認します。",
+      rawText: customerReply("詳細は担当者が確認します。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -1823,7 +3058,7 @@ describe("handleChatbotMessage user context", () => {
   it("routes protected pricing questions to direct contact", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "料金は本人が確認します。",
+      rawText: customerReply("料金は本人が確認します。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2000,7 +3235,7 @@ describe("handleChatbotMessage user context", () => {
   it("passes planned-only note questions to the LLM as customer-facing planned context", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "カラーグレーディングの因数分解は公開予定のノートです。作品意図を観客の印象へ翻訳する考え方を扱う予定です。",
+      rawText: customerReply("カラーグレーディングの因数分解は公開予定のノートです。作品意図を観客の印象へ翻訳する考え方を扱う予定です。"),
       tier: "tier-3-ollama-deepseek",
     })
     const snapshot = createStaticChatbotKnowledgeSnapshot("2026-06-22T01:10:34.550Z")
@@ -2066,7 +3301,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ライブ2時間半なら通常7〜8日が目安です。3日以内も内容と素材状況を整理して相談できますが、この場では確約しません。",
+        customerReply("ライブ2時間半なら通常7〜8日が目安です。3日以内も内容と素材状況を整理して相談できますが、この場では確約しません。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2135,7 +3370,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "ライブ2時間半規模の工程目安は17〜20日です。素材の受け渡し方法を教えてください。",
+      rawText: customerReply("ライブ2時間半規模の工程目安は17〜20日です。素材の受け渡し方法を教えてください。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2167,7 +3402,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ライブ2時間半なら通常7〜9日が目安です。素材状況や追加作業が重い場合は前後するので、受け渡し状況も確認させてください。",
+        customerReply("ライブ2時間半なら通常7〜9日が目安です。素材状況や追加作業が重い場合は前後するので、受け渡し状況も確認させてください。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2207,7 +3442,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ありがとうございます。内容を整理しました。案件種類・尺: ライブ 2時間半。所要日数の目安は17〜20日です。",
+        customerReply("ありがとうございます。内容を整理しました。案件種類・尺: ライブ 2時間半。所要日数の目安は17〜20日です。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2309,7 +3544,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText,
+      rawText: customerReply(rawText),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2376,7 +3611,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "ライブ60分・追加作業なしのカラーグレーディングでしたら、4日程度が目安です。",
+      rawText: customerReply("ライブ60分・追加作業なしのカラーグレーディングでしたら、4日程度が目安です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2423,7 +3658,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "希望開始日 2026-07-01、希望納期 2026-07-10で承知しました。基本工程ラインは0.5〜1日が目安です。",
+      rawText: customerReply("希望開始日 2026-07-01、希望納期 2026-07-10で承知しました。基本工程ラインは0.5〜1日が目安です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2480,7 +3715,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ライブ2時間半の基本工程に加え、観客ぼかしの作業量によって変動します。基本工程（17〜20日）に対し、ぼかし作業の規模次第で延びる可能性があります。",
+        customerReply("ライブ2時間半の基本工程に加え、観客ぼかしの作業量によって変動します。基本工程（17〜20日）に対し、ぼかし作業の規模次第で延びる可能性があります。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2552,7 +3787,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "素材状況を踏まえると、基本工程は17〜20日を見ておくとよさそうです。",
+      rawText: customerReply("素材状況を踏まえると、基本工程は17〜20日を見ておくとよさそうです。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2667,7 +3902,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText,
+      rawText: customerReply(rawText),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2743,7 +3978,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "素材状況を踏まえると、工程目安は17〜20日です。",
+      rawText: customerReply("素材状況を踏まえると、工程目安は17〜20日です。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2798,7 +4033,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "MV 5分なら通常2〜2.5日を基準に、素材状況で前後します。",
+      rawText: customerReply("MV 5分なら通常2〜2.5日を基準に、素材状況で前後します。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2832,7 +4067,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("shows a consultation summary form when a settled no-schedule consultation can be emailed", async () => {
+  it("moves a settled no-schedule consultation to final booking confirmation instead of email fallback", async () => {
     const harness = setup({
       existingConversation: conversation({
         messages: Array.from({ length: 7 }, (_, index) =>
@@ -2841,7 +4076,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "相談内容を整理して送信できます。",
+      rawText: customerReply("相談内容を整理して送信できます。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2877,21 +4112,10 @@ describe("handleChatbotMessage user context", () => {
     )
 
     expect(result.routingDecision).toMatchObject({
-      kind: "to-email",
+      kind: "continue",
+      presentChoices: { id: bookingFinalConfirmationChoices.id },
     })
-    expect(result.ui).toMatchObject({
-      kind: "consultation-summary-form",
-      summary: {
-        customerEmail: "client@example.com",
-        summaryText: expect.stringContaining("live-60m"),
-      },
-    })
-    expect(result.ui).toMatchObject({
-      kind: "consultation-summary-form",
-      summary: {
-        summaryText: expect.stringContaining("追加作業:その他(MA も相談したい)"),
-      },
-    })
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: bookingFinalConfirmationChoices.id } })
   })
 
   it("consumes stored final medium choice and advances to the next slot", async () => {
@@ -3278,7 +4502,8 @@ describe("handleChatbotMessage user context", () => {
 
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        activeChoices: expect.objectContaining({ id: finalMediumChoices.id }),
+        activeChoices: expect.objectContaining({ id: "final-medium" }),
+        currentQuestion: expect.stringContaining("Web CM / CM として整理しています"),
         conversationState: expect.objectContaining({
           hasProjectLength: true,
           intakeClarifications: {
@@ -3293,7 +4518,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3351,7 +4576,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-31"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-31"}}'),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3396,7 +4621,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '候補を確認します。 {"tool":"show_booking_card","args":{"projectTitle":"DaVinci Resolve 講習","contactEmail":"client@example.com","dueDate":"2026-07-10"}}',
+        customerReply('候補を確認します。 {"tool":"show_booking_card","args":{"projectTitle":"DaVinci Resolve 講習","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3431,7 +4656,7 @@ describe("handleChatbotMessage user context", () => {
   it("uses lecture and training fallback routing even when the LLM only returns text", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "講習内容を整理します。",
+      rawText: customerReply("講習内容を整理します。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3459,7 +4684,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("posts the first Slack conversation notification as a parent message and saves the returned thread ts", async () => {
     const harness = setup()
-    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-chrome-notion-ai" })
     harness.slackNotifier.mockResolvedValueOnce({ status: "sent", ts: "1700000000.000100" })
 
     await handleChatbotMessage(
@@ -3488,7 +4713,7 @@ describe("handleChatbotMessage user context", () => {
         context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
       }),
     })
-    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-chrome-notion-ai" })
     harness.slackNotifier.mockResolvedValueOnce({ status: "sent", ts: "1700000000.000200" })
 
     await handleChatbotMessage(
@@ -3505,7 +4730,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("creates separate Slack parent posts for separate sessions", async () => {
     const harness = setup({ existingConversation: null, isolatedConversation: null })
-    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-chrome-notion-ai" })
     harness.slackNotifier
       .mockResolvedValueOnce({ status: "sent", ts: "1700000000.000100" })
       .mockResolvedValueOnce({ status: "sent", ts: "1700000000.000200" })
@@ -3538,7 +4763,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "フォームで相談内容を送ってください。",
+      rawText: customerReply("フォームで相談内容を送ってください。"),
       tier: "tier-4-form-fallback",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
@@ -3566,7 +4791,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "通常応答です。",
+      rawText: customerReply("通常応答です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
@@ -3591,7 +4816,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "通常応答です。",
+      rawText: customerReply("通常応答です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
       diagnostics: {
         attemptCount: 2,
@@ -3603,7 +4828,7 @@ describe("handleChatbotMessage user context", () => {
         perAttemptTimeoutMs: 15000,
         fallbackReason: "retryable-timeout",
         exhausted: false,
-        attempts: [{ attempt: 1, requestBody: "raw" }],
+        attempts: [{ attempt: 1, outcome: "error", reason: "timeout", durationMs: 2000, timeoutMs: 15000, requestBody: "raw" }],
         token: "secret-token",
         cookie: "secret-cookie",
         authorization: "Bearer secret",
@@ -3635,11 +4860,15 @@ describe("handleChatbotMessage user context", () => {
         perAttemptTimeoutMs: 15000,
         fallbackReason: "retryable-timeout",
         exhausted: false,
+        attempts: [{ attempt: 1, outcome: "error", reason: "timeout", durationMs: 2000, timeoutMs: 15000 }],
       },
     }))
     const notification = harness.slackNotifier.mock.calls[0]?.[0]
     expect(JSON.stringify(notification.retryDiagnostics)).not.toContain("secret")
-    expect(notification.retryDiagnostics).not.toHaveProperty("attempts")
+    expect(notification.retryDiagnostics).toHaveProperty("attempts", [
+      { attempt: 1, outcome: "error", reason: "timeout", durationMs: 2000, timeoutMs: 15000 },
+    ])
+    expect(JSON.stringify(notification.retryDiagnostics)).not.toContain("raw")
     expect(notification.retryDiagnostics).not.toHaveProperty("token")
     expect(notification.retryDiagnostics).not.toHaveProperty("cookie")
     expect(notification.retryDiagnostics).not.toHaveProperty("authorization")
@@ -3658,7 +4887,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "復旧応答です。",
+      rawText: customerReply("復旧応答です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
@@ -3689,7 +4918,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "Gemini fallback response.",
+      rawText: customerReply("Gemini fallback response."),
       tier: "tier-3-gemini-flash",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
@@ -3710,7 +4939,7 @@ describe("handleChatbotMessage user context", () => {
   it("returns the chatbot response when Slack notification fails", async () => {
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const harness = setup()
-    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-chrome-notion-ai" })
     harness.slackNotifier.mockResolvedValueOnce({ status: "failed", reason: "send-failed" })
 
     const result = await handleChatbotMessage(
@@ -3733,7 +4962,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "フォームで相談内容を送ってください。",
+      rawText: customerReply("フォームで相談内容を送ってください。"),
       tier: "tier-4-form-fallback",
       diagnostics: {
         attemptCount: 3,
@@ -3742,7 +4971,7 @@ describe("handleChatbotMessage user context", () => {
         totalGenerateDurationMs: 45000,
         totalGenerateBudgetMs: 45000,
         exhausted: true,
-        attempts: [{ attempt: 3, requestBody: "raw" }],
+        attempts: [{ attempt: 3, outcome: "error", reason: "timeout", durationMs: 45000, timeoutMs: 45000, requestBody: "raw" }],
         token: "secret-token",
         systemPrompt: "secret system prompt",
       },
@@ -3761,6 +4990,7 @@ describe("handleChatbotMessage user context", () => {
       totalGenerateDurationMs: 45000,
       totalGenerateBudgetMs: 45000,
       exhausted: true,
+      attempts: [{ attempt: 3, outcome: "error", reason: "timeout", durationMs: 45000, timeoutMs: 45000 }],
     }
     expect(harness.slackNotifier).toHaveBeenNthCalledWith(1, expect.objectContaining({
       kind: "conversation",
@@ -3772,7 +5002,10 @@ describe("handleChatbotMessage user context", () => {
     }))
     const issueNotification = harness.slackNotifier.mock.calls[1]?.[0]
     expect(JSON.stringify(issueNotification.retryDiagnostics)).not.toContain("secret")
-    expect(issueNotification.retryDiagnostics).not.toHaveProperty("attempts")
+    expect(issueNotification.retryDiagnostics).toHaveProperty("attempts", [
+      { attempt: 3, outcome: "error", reason: "timeout", durationMs: 45000, timeoutMs: 45000 },
+    ])
+    expect(JSON.stringify(issueNotification.retryDiagnostics)).not.toContain("raw")
     expect(issueNotification.retryDiagnostics).not.toHaveProperty("token")
     expect(issueNotification.retryDiagnostics).not.toHaveProperty("systemPrompt")
   })

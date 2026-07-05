@@ -1,5 +1,6 @@
 import {
   ChatbotLlmError,
+  assertChatbotLlmResponseContract,
   defaultLlmTierOrder,
   type ChatbotLlmClient,
   type ChatbotLlmRequest,
@@ -32,6 +33,11 @@ type ChatbotLlmTierOrchestratorOptions = {
   onTierAttempt?: (event: TierAttemptEvent) => void
 }
 
+type HealthCheckResult = {
+  healthy: boolean
+  error?: ChatbotLlmError | Error
+}
+
 export function createChatbotLlmTierOrchestrator(
   options: ChatbotLlmTierOrchestratorOptions,
 ): ChatbotLlmTierOrchestrator {
@@ -40,28 +46,30 @@ export function createChatbotLlmTierOrchestrator(
     options.healthCheckTimeoutMs ?? llmOrchestratorDefaults.healthCheckTimeoutMs
   const clientsByTier = new Map(options.clients.map((client) => [client.tier, client]))
 
-  async function checkClientHealth(client: ChatbotLlmClient): Promise<boolean> {
+  async function checkClientHealth(client: ChatbotLlmClient): Promise<HealthCheckResult> {
     const startedAt = Date.now()
 
     try {
       const healthy = await withTimeout(client.isHealthy(), healthCheckTimeoutMs)
+      const error = healthy ? undefined : client.getLastHealthError?.()
       emitAttempt(options.onTierAttempt, {
         tier: client.tier,
         phase: "health-check",
         outcome: healthy ? "healthy" : "unhealthy",
-        ...(healthy ? {} : { error: client.getLastHealthError?.() }),
+        ...(healthy ? {} : { error }),
         latencyMs: Date.now() - startedAt,
       })
-      return healthy
+      return { healthy, error }
     } catch (error) {
+      const normalized = normalizeError(error, client.tier)
       emitAttempt(options.onTierAttempt, {
         tier: client.tier,
         phase: "health-check",
         outcome: "unhealthy",
-        error: normalizeError(error, client.tier),
+        error: normalized,
         latencyMs: Date.now() - startedAt,
       })
-      return false
+      return { healthy: false, error: normalized }
     }
   }
 
@@ -74,13 +82,14 @@ export function createChatbotLlmTierOrchestrator(
         if (!client) continue
 
         lastAttemptedTier = tier
-        const isHealthy = await checkClientHealth(client)
-        if (!isHealthy) continue
+        const health = await checkClientHealth(client)
+        if (!health.healthy && !shouldAttemptGenerateAfterUnhealthyHealth(client, health.error)) continue
 
         const startedAt = Date.now()
 
         try {
           const response = await client.generate(request)
+          assertChatbotLlmResponseContract(response, tier)
           emitAttempt(options.onTierAttempt, {
             tier,
             phase: "generate",
@@ -112,12 +121,26 @@ export function createChatbotLlmTierOrchestrator(
       for (const tier of tierOrder) {
         const client = clientsByTier.get(tier)
         if (!client) continue
-        if (await checkClientHealth(client)) return true
+        if ((await checkClientHealth(client)).healthy) return true
       }
 
       return false
     },
   }
+}
+
+function shouldAttemptGenerateAfterUnhealthyHealth(
+  client: ChatbotLlmClient,
+  error: ChatbotLlmError | Error | undefined,
+): boolean {
+  if (client.tier !== "tier-2-hosted-chrome-notion-ai") return false
+  if (!error) return false
+
+  if (error instanceof ChatbotLlmError) {
+    return error.isRetryable && (error.code === "timeout" || error.code === "connection")
+  }
+
+  return /health check timed out/i.test(error.message)
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

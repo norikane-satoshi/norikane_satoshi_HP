@@ -9,7 +9,6 @@ import {
   createTier1ChromeNotionAiClient,
   isNotionAiChatbotTargetUrl,
   tier1ChromeNotionAiDefaults,
-  tier1ObservedNotionAiModel,
   type NotionAiRuntimeInspection,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
@@ -56,7 +55,6 @@ export function resolveHostedWorkerChromeConfig(
       env.CHATBOT_HOSTED_WORKER_NOTION_THREAD_URL ??
       env.NOTION_AI_CHATBOT_THREAD_URL ??
       getNotionAiChatbotThreadUrl({ NOTION_AI_CHATBOT_THREAD_URL: env.NOTION_AI_CHATBOT_THREAD_URL }),
-    preferredModel: tier1ObservedNotionAiModel,
     chromeProfileDir:
       env.CHATBOT_HOSTED_WORKER_CHROME_PROFILE_DIR ??
       path.join(homedir(), ".cc-notion", "chrome-profiles", "hosted-worker-notion-ai"),
@@ -125,18 +123,6 @@ export async function inspectHostedWorkerChrome(
 
   try {
     const inspection = await runtimeInspector()
-    if (!inspection.preferredModelAvailable) {
-      return result(config, {
-        status: "model_unavailable",
-        browser: version.Browser,
-        target,
-        targetCount: targets.length,
-        selectedModel: inspection.selectedModel,
-        finalModelName: inspection.finalModelName,
-        modelAvailable: false,
-      })
-    }
-
     return result(config, {
       status: "ready",
       browser: version.Browser,
@@ -144,7 +130,6 @@ export async function inspectHostedWorkerChrome(
       targetCount: targets.length,
       selectedModel: inspection.selectedModel,
       finalModelName: inspection.finalModelName,
-      modelAvailable: true,
     })
   } catch (error) {
     if (error instanceof ChatbotLlmError && error.code === "auth") {
@@ -178,7 +163,6 @@ export async function ensureHostedWorkerChrome(
   if (before.status === "ready") return before
   if (
     before.status === "manual_login_required" ||
-    before.status === "model_unavailable" ||
     before.status === "target_url_mismatch"
   ) {
     return { ...before, action: before.status === "manual_login_required" ? "manual_pending" : "none" }
@@ -208,7 +192,6 @@ async function waitForReady(
     Date.now() < deadline &&
     latest.status !== "ready" &&
     latest.status !== "manual_login_required" &&
-    latest.status !== "model_unavailable" &&
     latest.status !== "target_url_mismatch"
   ) {
     await sleep(retryIntervalMs)
@@ -224,7 +207,6 @@ function createRuntimeInspector(config: HostedWorkerChromeConfig): RuntimeInspec
       cdpBaseUrl: config.cdpBaseUrl,
       targetUrlIncludes: config.targetUrlIncludes,
       healthCheckTimeoutMs: Math.max(config.waitMs, tier1ChromeNotionAiDefaults.healthCheckTimeoutMs),
-      preferredModel: config.preferredModel,
     })
     return client.inspectRuntimeContext()
   }
@@ -289,7 +271,6 @@ function result(
     action?: HostedWorkerEnsureResult["action"]
     selectedModel?: string
     finalModelName?: string
-    modelAvailable?: boolean
   },
 ): HostedWorkerEnsureResult {
   return {
@@ -309,9 +290,7 @@ function result(
       ),
       target: input.target ? summarizeTarget(input.target) : undefined,
     },
-    preferredModel: {
-      name: config.preferredModel,
-      available: input.modelAvailable,
+    notionAiModelSelection: {
       selectedModel: input.selectedModel,
       finalModelName: input.finalModelName,
     },

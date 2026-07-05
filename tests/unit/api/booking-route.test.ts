@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   isTeamMember: vi.fn(),
   invalidateCalendarFreeBusyCacheForUser: vi.fn(),
   sendBookingConfirmedEmail: vi.fn(),
+  sendLineBookingReceipt: vi.fn(),
   refreshCalendarAccessToken: vi.fn(),
   createCalendarEvent: vi.fn(),
   deleteCalendarEvent: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock("@/lib/booking/server/calendar-free-busy/free-busy", () => ({
   invalidateCalendarFreeBusyCacheForUser: mocks.invalidateCalendarFreeBusyCacheForUser,
 }))
 vi.mock("@/lib/booking/server/email", () => ({ sendBookingConfirmedEmail: mocks.sendBookingConfirmedEmail }))
+vi.mock("@/lib/line/messaging", () => ({ sendLineBookingReceipt: mocks.sendLineBookingReceipt }))
 vi.mock("@/lib/google-calendar/server", () => ({
   CALENDAR_TOKEN_USER_ID: "satoshi-calendar-owner",
   createCalendarEvent: mocks.createCalendarEvent,
@@ -98,6 +100,7 @@ function mockHappyPath() {
   mocks.resolveConflictForFinalSubmit.mockReturnValue(null)
   mocks.prisma.$transaction.mockImplementation((callback) => callback(mocks.prisma))
   mocks.sendBookingConfirmedEmail.mockResolvedValue({ skipped: true })
+  mocks.sendLineBookingReceipt.mockResolvedValue({ ok: true, method: "push" })
   mocks.prisma.calendarToken.findUnique.mockResolvedValue({
     refreshToken: "refresh_token",
   })
@@ -236,6 +239,138 @@ describe("POST /api/booking", () => {
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({ error: "unauthorized" })
+  })
+
+  it("allows LINE LIFF bookings with a session user id and contact email input when the provider has no email", async () => {
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "line_user_1", email: null },
+    })
+
+    const response = await POST(request(validBooking({
+      entryPoint: "line_liff",
+      lineUserId: "Uline123",
+      sessionEmail: "client@example.com",
+    })))
+
+    expect(response.status).toBe(200)
+    expect(mocks.prisma.bookingGroup.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          customerEmail: "client@example.com",
+          originatedFrom: "line_liff",
+          lineUserId: "Uline123",
+        }),
+      }),
+    )
+    expect(mocks.sendLineBookingReceipt).toHaveBeenCalledWith(expect.objectContaining({
+      bookingGroupId: "group_1",
+      lineUserId: "Uline123",
+      scheduleLabel: "2099-06-10T01:00:00.000Z - 2099-06-10T02:00:00.000Z",
+    }))
+    expect(mocks.sendBookingConfirmedEmail).not.toHaveBeenCalled()
+    expect(mocks.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("line_user_1", null)
+  })
+
+  it("allows LINE LIFF date requests without email when the LINE session has a user id", async () => {
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "line_user_1", email: null },
+    })
+    mocks.prisma.bookingGroup.create.mockResolvedValue({
+      id: "group_1",
+      timeSlots: [],
+    })
+
+    const response = await POST(request(validBooking({
+      entryPoint: "line_liff",
+      lineUserId: "Uline123",
+      sessionEmail: "",
+      selectedSlots: [],
+      requestedDates: ["2099-06-10"],
+    })))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      bookingStatus: "NEEDS_SCHEDULE",
+      scheduleStatus: "unscheduled",
+    })
+    expect(mocks.prisma.bookingGroup.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          customerEmail: null,
+          originatedFrom: "line_liff",
+          lineUserId: "Uline123",
+          status: "NEEDS_SCHEDULE",
+        }),
+      }),
+    )
+    expect(mocks.sendLineBookingReceipt).toHaveBeenCalledWith(expect.objectContaining({
+      bookingGroupId: "group_1",
+      lineUserId: "Uline123",
+      scheduleLabel: "6/10(水)、1日間",
+    }))
+    expect(mocks.sendBookingConfirmedEmail).not.toHaveBeenCalled()
+    expect(mocks.invalidateCalendarFreeBusyCacheForUser).not.toHaveBeenCalled()
+  })
+
+  it("keeps LINE receipt failures non-fatal and logs the failed method", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "line_user_1", email: null },
+    })
+    mocks.prisma.bookingGroup.create.mockResolvedValue({
+      id: "group_1",
+      timeSlots: [],
+    })
+    mocks.sendLineBookingReceipt.mockResolvedValue({ ok: false, method: "push", status: 401, error: "invalid token" })
+
+    const response = await POST(request(validBooking({
+      entryPoint: "line_liff",
+      lineUserId: "Uline123",
+      sessionEmail: "",
+      selectedSlots: [],
+      requestedDates: ["2099-06-10"],
+    })))
+
+    expect(response.status).toBe(200)
+    expect(warn).toHaveBeenCalledWith("LINE booking receipt failed", {
+      bookingGroupId: "group_1",
+      method: "push",
+      status: 401,
+      error: "invalid token",
+    })
+    warn.mockRestore()
+  })
+
+  it("keeps normal web bookings blocked when the authenticated session has no email", async () => {
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "line_user_1", email: null },
+    })
+
+    const response = await POST(request(validBooking()))
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({ error: "unauthorized" })
+    expect(mocks.prisma.bookingGroup.create).not.toHaveBeenCalled()
+  })
+
+  it("does not let LINE LIFF override an existing authenticated email", async () => {
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "user_1", email: "session@example.com" },
+    })
+
+    const response = await POST(request(validBooking({
+      entryPoint: "line_liff",
+      sessionEmail: "client@example.com",
+    })))
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({ error: "unauthorized" })
+    expect(mocks.prisma.bookingGroup.create).not.toHaveBeenCalled()
   })
 
   it("creates the booking and returns 207 when GOOGLE_CALENDAR_BUSY_SOURCE_ID is missing", async () => {

@@ -25,6 +25,7 @@ export type CalendarBusyEventWithBuffer = CalendarBusySlot & {
   bufferBeforeHours: number | null
   bufferAfterHours: number | null
   summary: string | null
+  source?: "google_calendar" | "notion_work"
 }
 
 export type CalendarEventWriteInput = {
@@ -37,6 +38,8 @@ export type CalendarEventWriteInput = {
   accessToken: string
   eventId?: string
   notionTaskType?: "仮押さえ" | "本予約"
+  dateOnly?: boolean
+  transparency?: "opaque" | "transparent"
 }
 
 export type CalendarEventUpdateInput = {
@@ -232,6 +235,7 @@ export async function listBusyEventsWithBuffer(
         bufferBeforeHours: Number.isFinite(parsedBefore) && parsedBefore >= 0 ? parsedBefore : null,
         bufferAfterHours: Number.isFinite(parsedAfter) && parsedAfter >= 0 ? parsedAfter : null,
         summary: event.summary ?? null,
+        source: "google_calendar",
       })
     }
 
@@ -260,6 +264,8 @@ function getGoogleErrorStatus(error: unknown): number | null {
 
 export async function createCalendarEvent(input: CalendarEventWriteInput): Promise<{ id: string }> {
   const calendar = createCalendarWriteClient(input.accessToken)
+  const start = input.dateOnly ? { date: input.start } : { dateTime: input.start }
+  const end = input.dateOnly ? { date: input.end } : { dateTime: input.end }
   try {
     const response = await calendar.events.insert({
       calendarId: input.calendarId,
@@ -268,12 +274,9 @@ export async function createCalendarEvent(input: CalendarEventWriteInput): Promi
         summary: input.summary,
         description: input.description,
         colorId: input.colorId,
-        start: {
-          dateTime: input.start,
-        },
-        end: {
-          dateTime: input.end,
-        },
+        start,
+        end,
+        ...(input.transparency ? { transparency: input.transparency } : {}),
         extendedProperties: {
           private: {
             source: "hp-booking",

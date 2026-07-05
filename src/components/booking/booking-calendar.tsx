@@ -26,12 +26,17 @@ import type {
   EventSourceFuncArg,
 } from "@fullcalendar/core"
 import { format } from "date-fns"
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
-import { signOut } from "next-auth/react"
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from "react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
-import { getHolidayName } from "@/lib/booking/domain/holidays"
-import type { BookingSlot } from "@/lib/booking/domain/form-schema"
+import {
+  bookingDateRangeToSelection,
+  formatBookingDateSelection,
+  normalizeBookingDateKeys,
+  type BookingDateRange,
+  type BookingDateSelection,
+  type BookingSlot,
+} from "@/lib/booking/domain/form-schema"
 
 type TeamOption = {
   id: string
@@ -48,6 +53,7 @@ type BusySlot = {
   bufferBeforeHours?: number | null
   bufferAfterHours?: number | null
   summary?: string | null
+  source?: "google_calendar" | "notion_work"
 }
 
 type BookingFromApi = {
@@ -73,6 +79,13 @@ type CachedRange = {
   startMs: number
   endMs: number
   data: FreeBusyResponse
+  fetchedAt: number
+}
+
+declare global {
+  interface Window {
+    __bookingTimeToLockVisibleMs?: number
+  }
 }
 
 type BookingStatus = "CONFIRMED"
@@ -87,6 +100,8 @@ type BusyEventProps = {
   projectTitle?: string
   canView?: boolean
   canEdit?: boolean
+  lockedDate?: boolean
+  source?: BusySlot["source"]
 }
 
 type DraftEventProps = {
@@ -118,6 +133,8 @@ type AnyEventProps = {
   side?: "before" | "after"
   bookingStart?: string
   bookingEnd?: string
+  lockedDate?: boolean
+  source?: BusySlot["source"]
 }
 
 type BufferEdgeAllowProps = Pick<AnyEventProps, "side" | "bookingStart" | "bookingEnd">
@@ -172,11 +189,12 @@ type AdminMoveConfirmState = {
 
 type InteractionType = "drag" | "resize" | "select" | null
 
-const VIEW_OPTIONS: { label: string; value: CalendarView }[] = [
-  { label: "月", value: "dayGridMonth" },
-  { label: "週", value: "timeGridWeek" },
-  { label: "日", value: "timeGridDay" },
-]
+type TouchTapTarget = {
+  date: string
+  time: string
+  x: number
+  y: number
+}
 
 const MIN_SELECTION_MS = 30 * 60 * 1000
 const BOOKING_BUFFER_HOURS = 1
@@ -190,6 +208,33 @@ function toDateKey(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const day = String(date.getDate()).padStart(2, "0")
   return `${year}-${month}-${day}`
+}
+
+const tokyoDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+
+function toTokyoDateKey(date = new Date()): string {
+  const parts = tokyoDateFormatter.formatToParts(date)
+  const year = parts.find((part) => part.type === "year")?.value
+  const month = parts.find((part) => part.type === "month")?.value
+  const day = parts.find((part) => part.type === "day")?.value
+  if (!year || !month || !day) return toDateKey(date)
+  return `${year}-${month}-${day}`
+}
+
+export function isDateKeyTodayOrPast(dateKey: string, todayDateKey = toTokyoDateKey()): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateKey) && dateKey <= todayDateKey
+}
+
+function parseDateTimeSlot(date: string, time: string): Date | null {
+  const [year, month, day] = date.split("-").map(Number)
+  const [hours, minutes, seconds = 0] = time.split(":").map(Number)
+  if (!year || !month || !day || Number.isNaN(hours) || Number.isNaN(minutes)) return null
+  return new Date(year, month - 1, day, hours, minutes, seconds, 0)
 }
 
 function hasTimePart(value: string): boolean {
@@ -244,6 +289,7 @@ function toBusyEvent(slot: BusySlot, isCalendarAdmin: boolean): EventInput {
     kind: "busy",
     label,
     canEdit: isCalendarAdmin,
+    source: slot.source,
     ...(isCalendarAdmin && summary ? { projectTitle: summary } : {}),
   }
 
@@ -259,6 +305,58 @@ function toBusyEvent(slot: BusySlot, isCalendarAdmin: boolean): EventInput {
     startEditable: false,
     durationEditable: false,
     extendedProps,
+  }
+}
+
+function isDateLockBusySlot(slot: BusySlot): boolean {
+  return !isFullDayBusySlot(slot)
+}
+
+function dateKeysForBusySlot(slot: BusySlot): string[] {
+  const start = new Date(slot.start)
+  const end = new Date(slot.end)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end.getTime() <= start.getTime()) return []
+  const inclusiveEnd = new Date(end.getTime() - 1)
+  const keys: string[] = []
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0)
+  const last = new Date(inclusiveEnd.getFullYear(), inclusiveEnd.getMonth(), inclusiveEnd.getDate(), 0, 0, 0, 0)
+
+  while (cursor.getTime() <= last.getTime()) {
+    keys.push(toDateKey(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return keys
+}
+
+function getLockedDateKeys(data: FreeBusyResponse): string[] {
+  const keys = new Set<string>()
+  for (const slot of data.busy ?? []) {
+    if (!isDateLockBusySlot(slot)) continue
+    for (const dateKey of dateKeysForBusySlot(slot)) {
+      keys.add(dateKey)
+    }
+  }
+  return Array.from(keys).sort()
+}
+
+function toLockedDateEvent(dateKey: string): EventInput {
+  return {
+    id: `notion-work-lock-${dateKey}`,
+    title: "",
+    start: dateKey,
+    allDay: true,
+    display: "block",
+    classNames: ["booking-calendar__busy", "booking-calendar__date-lock"],
+    editable: false,
+    startEditable: false,
+    durationEditable: false,
+    extendedProps: {
+      kind: "busy",
+      label: "",
+      canEdit: false,
+      lockedDate: true,
+      source: "notion_work",
+    } satisfies BusyEventProps,
   }
 }
 
@@ -358,12 +456,14 @@ async function fetchFreeBusy(
   start: string,
   end: string,
   teamId: string | null,
+  refresh = false,
 ): Promise<FreeBusyResponse> {
   const params = new URLSearchParams({
     start,
     end,
   })
   if (teamId) params.set("teamId", teamId)
+  if (refresh) params.set("refresh", String(Date.now()))
   const response = await fetch(`/api/calendar/free-busy?${params.toString()}`)
 
   if (!response.ok) {
@@ -456,7 +556,7 @@ function formatRange(start: string, end: string): string {
 }
 
 function isSelectableView(viewType: string): boolean {
-  return viewType === "timeGridWeek"
+  return viewType === "timeGridWeek" || viewType === "timeGridDay"
 }
 
 function hasMinimumSelectionDuration(start: Date, end: Date): boolean {
@@ -545,12 +645,19 @@ type BookingCalendarProps = {
   resetRequestKey?: number
   remoteRefreshRequestKey?: number
   focusSlot?: BookingSlot | null
+  initialDateSelection?: BookingDateSelection | null
+  initialDateRange?: BookingDateRange | null
   teams?: TeamOption[]
   selectedTeamId?: string | null
   onSelectedTeamIdChange?: (teamId: string | null) => void
   monthSkeleton?: ReactNode
-  onCommit: (slots: { start: string; end: string }[]) => void
+  onCommit: (input: { slots: { start: string; end: string }[]; requestedDateSelection?: BookingDateSelection | null }) => void
   onCodeChange?: (code: string | null) => void
+}
+
+function normalizeDateSelection(selection: BookingDateSelection | null | undefined): BookingDateSelection | null {
+  const dates = normalizeBookingDateKeys(selection?.dates ?? [])
+  return dates.length > 0 ? { dates } : null
 }
 
 export function BookingCalendar({
@@ -567,6 +674,8 @@ export function BookingCalendar({
   resetRequestKey = 0,
   remoteRefreshRequestKey = 0,
   focusSlot = null,
+  initialDateSelection = null,
+  initialDateRange = null,
   teams = [],
   selectedTeamId = null,
   onSelectedTeamIdChange,
@@ -574,10 +683,21 @@ export function BookingCalendar({
   onCommit,
   onCodeChange,
 }: BookingCalendarProps) {
+  const initialDateSelectionState = normalizeDateSelection(
+    initialDateSelection ?? (initialDateRange ? bookingDateRangeToSelection(initialDateRange) : null),
+  )
+  const initialDateSelectionSignature = initialDateSelectionState?.dates.join("||") ?? ""
   const [view, setView] = useState<CalendarView>("dayGridMonth")
   const [isFullCalendarReady, setIsFullCalendarReady] = useState(false)
   const [isMonthSkeletonMounted, setIsMonthSkeletonMounted] = useState(() => Boolean(monthSkeleton))
   const [isMonthSkeletonFading, setIsMonthSkeletonFading] = useState(false)
+  const [selectedMonthDate, setSelectedMonthDate] = useState<string | null>(() => {
+    if (initialDateSelectionState?.dates[0]) return initialDateSelectionState.dates[0]
+    const firstSlot = initialSlots[0]
+    return firstSlot ? toDateKey(new Date(firstSlot.start)) : null
+  })
+  const [selectedDateSelection, setSelectedDateSelection] = useState<BookingDateSelection | null>(initialDateSelectionState)
+  const [lockedDateKeys, setLockedDateKeys] = useState<string[]>(() => getLockedDateKeys({ busy: initialBusy, bookings: initialBookings }))
   const [modeKind, setModeKind] = useState<ModeKind>("normal")
   const [adjustingGroupId, setAdjustingGroupId] = useState<string | null>(null)
   const [adjustingTitle, setAdjustingTitle] = useState<string | null>(null)
@@ -585,8 +705,6 @@ export function BookingCalendar({
   const [slotMaxTime, setSlotMaxTime] = useState("19:00:00")
   const [moveCopyPopup, setMoveCopyPopup] = useState<MoveCopyPopupState>(null)
   const [adminMoveConfirm, setAdminMoveConfirm] = useState<AdminMoveConfirmState>(null)
-  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [actionPanelPosition, setActionPanelPosition] = useState<{ top: number; left: number } | null>(null)
   const calendarRef = useRef<FullCalendar | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -597,9 +715,12 @@ export function BookingCalendar({
   const lastTopExpandAtRef = useRef<number | null>(null)
   const lastBottomExpandAtRef = useRef<number | null>(null)
   const draftPreviewRef = useRef<DraftEvent | null>(null)
+  const touchTapTargetRef = useRef<TouchTapTarget | null>(null)
+  const lastTapDraftRef = useRef<{ date: string; time: string; createdAt: number } | null>(null)
   const fullCalendarViewMountedRef = useRef(false)
   const fullCalendarEventsSettledRef = useRef(false)
   const fullCalendarReadyFrameRef = useRef<number | null>(null)
+  const lockVisibleMeasuredRef = useRef(false)
   const fetchedRef = useRef<CachedRange[]>(
     initialRange
       ? [{
@@ -607,10 +728,28 @@ export function BookingCalendar({
           startMs: toTime(initialRange.start),
           endMs: toTime(initialRange.end),
           data: { busy: initialBusy, bookings: initialBookings },
+          fetchedAt: 0,
         }]
       : [],
   )
+  const prefetchingRangesRef = useRef<Set<string>>(new Set())
+  const refreshingRangesRef = useRef<Set<string>>(new Set())
   const lastEmittedCodeRef = useRef<string | null>(null)
+
+  const markLockVisible = useCallback(() => {
+    if (lockVisibleMeasuredRef.current) return
+    lockVisibleMeasuredRef.current = true
+    const value = Math.round(performance.now())
+    performance.mark("booking-lock-visible")
+    window.__bookingTimeToLockVisibleMs = value
+    rootRef.current?.setAttribute("data-lock-visible-ms", String(value))
+    console.info(`[booking] time-to-lock-visible=${value}ms`)
+  }, [])
+
+  useEffect(() => {
+    if (lockedDateKeys.length === 0) return
+    markLockVisible()
+  }, [lockedDateKeys.length, markLockVisible])
 
   const initialDrafts = useMemo<DraftEvent[]>(() => {
     return initialSlots.map((slot) => ({ id: makeDraftId(), start: slot.start, end: slot.end }))
@@ -627,6 +766,7 @@ export function BookingCalendar({
     [initialSlots],
   )
   const restoredInitialSlotsSignatureRef = useRef(initialSlotsSignature)
+  const restoredInitialDateSelectionSignatureRef = useRef(initialDateSelectionSignature)
 
   const activeDraft = useMemo(
     () => drafts.find((draft) => draft.id === activeDraftId) ?? null,
@@ -713,6 +853,19 @@ export function BookingCalendar({
     setActiveDraftId(restored[0]?.id ?? null)
   }, [drafts.length, initialSlots, initialSlotsSignature])
 
+  useEffect(() => {
+    if (!initialDateSelectionSignature) {
+      restoredInitialDateSelectionSignatureRef.current = ""
+      return
+    }
+    if (selectedDateSelection || restoredInitialDateSelectionSignatureRef.current === initialDateSelectionSignature) return
+    restoredInitialDateSelectionSignatureRef.current = initialDateSelectionSignature
+    const dates = initialDateSelectionSignature.split("||")
+    // Restores persisted date-request props after hydration.
+    setSelectedDateSelection({ dates })
+    setSelectedMonthDate(dates[0] ?? null)
+  }, [initialDateSelectionSignature, selectedDateSelection])
+
   const changeCalendarView = useCallback((nextView: CalendarView, dateStr?: string) => {
     selectedViewRef.current = nextView
     setView(nextView)
@@ -756,6 +909,53 @@ export function BookingCalendar({
   const refreshRemoteEventsFromCache = useCallback(() => {
     calendarRef.current?.getApi().getEventSourceById("remote-events")?.refetch()
   }, [])
+
+  const upsertFetchedRange = useCallback((
+    teamId: string | null,
+    startMs: number,
+    endMs: number,
+    data: FreeBusyResponse,
+  ) => {
+    fetchedRef.current = [
+      ...fetchedRef.current.filter((range) => !(range.teamId === teamId && range.startMs === startMs && range.endMs === endMs)),
+      { teamId, startMs, endMs, data, fetchedAt: Date.now() },
+    ]
+  }, [])
+
+  const refreshCachedRangeInBackground = useCallback((startMs: number, endMs: number, teamId: string | null) => {
+    const key = `${teamId ?? "self"}:${startMs}:${endMs}`
+    if (refreshingRangesRef.current.has(key)) return
+    refreshingRangesRef.current.add(key)
+    void fetchFreeBusy(new Date(startMs).toISOString(), new Date(endMs).toISOString(), teamId, true)
+      .then((data) => {
+        upsertFetchedRange(teamId, startMs, endMs, data)
+        refreshRemoteEventsFromCache()
+      })
+      .finally(() => {
+        refreshingRangesRef.current.delete(key)
+      })
+  }, [refreshRemoteEventsFromCache, upsertFetchedRange])
+
+  const prefetchRangeWhenIdle = useCallback((startMs: number, endMs: number, teamId: string | null) => {
+    const key = `${teamId ?? "self"}:${startMs}:${endMs}`
+    if (prefetchingRangesRef.current.has(key)) return
+    if (missingRanges(startMs, endMs, fetchedRef.current.filter((range) => range.teamId === teamId)).length === 0) return
+    prefetchingRangesRef.current.add(key)
+    const run = () => {
+      void fetchFreeBusy(new Date(startMs).toISOString(), new Date(endMs).toISOString(), teamId)
+        .then((data) => {
+          upsertFetchedRange(teamId, startMs, endMs, data)
+        })
+        .finally(() => {
+          prefetchingRangesRef.current.delete(key)
+        })
+    }
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(run, { timeout: 1200 })
+    } else {
+      globalThis.setTimeout(run, 250)
+    }
+  }, [upsertFetchedRange])
 
   const getCachedBooking = useCallback((bookingId: string): BookingFromApi | null => {
     for (const range of fetchedRef.current) {
@@ -814,7 +1014,9 @@ export function BookingCalendar({
     const firstSlot = focusSlot ?? drafts[0] ?? initialSlots[0]
     const frame = window.requestAnimationFrame(() => {
       if (firstSlot) {
-        changeCalendarView("timeGridWeek", firstSlot.start)
+        const firstSlotDate = toDateKey(new Date(firstSlot.start))
+        setSelectedMonthDate(firstSlotDate)
+        changeCalendarView("dayGridMonth", firstSlotDate)
         if (focusSlot) {
           const start = new Date(focusSlot.start)
           const end = new Date(focusSlot.end)
@@ -834,7 +1036,7 @@ export function BookingCalendar({
           })
         }
       } else {
-        changeCalendarView("timeGridWeek")
+        changeCalendarView("dayGridMonth")
       }
     })
     return () => {
@@ -853,12 +1055,17 @@ export function BookingCalendar({
         new Date(range.endMs).toISOString(),
         selectedTeamId,
       )
-      fetchedRef.current.push({
-        teamId: selectedTeamId,
-        startMs: range.startMs,
-        endMs: range.endMs,
-        data,
-      })
+      upsertFetchedRange(selectedTeamId, range.startMs, range.endMs, data)
+    }
+    if (rangesToFetch.length === 0) {
+      const staleCutoff = Date.now() - 15_000
+      const hasStaleRange = teamRanges.some((range) => range.startMs < endMs && range.endMs > startMs && range.fetchedAt < staleCutoff)
+      if (hasStaleRange) refreshCachedRangeInBackground(startMs, endMs, selectedTeamId)
+    }
+    if (selectedViewRef.current === "dayGridMonth") {
+      const span = endMs - startMs
+      prefetchRangeWhenIdle(startMs - span, startMs, selectedTeamId)
+      prefetchRangeWhenIdle(endMs, endMs + span, selectedTeamId)
     }
     const data = mergeResponses(
       fetchedRef.current
@@ -872,7 +1079,13 @@ export function BookingCalendar({
       lastEmittedCodeRef.current = nextCode
       onCodeChange?.(nextCode)
     }
-    const busyEvents = (data.busy ?? []).map((slot) => toBusyEvent(slot, isCalendarAdmin))
+    const nextLockedDateKeys = getLockedDateKeys(data)
+    setLockedDateKeys(nextLockedDateKeys)
+    const isMonthView = selectedViewRef.current === "dayGridMonth"
+    const busyEvents = (data.busy ?? [])
+      .filter((slot) => !(isMonthView && (isDateLockBusySlot(slot) || isFullDayBusySlot(slot))))
+      .map((slot) => toBusyEvent(slot, isCalendarAdmin))
+    const lockedDateEvents = isMonthView ? nextLockedDateKeys.map(toLockedDateEvent) : []
     const bookingEvents = (data.bookings ?? []).map((booking) =>
       toBookingEvent(
         booking,
@@ -966,15 +1179,18 @@ export function BookingCalendar({
     }
     fullCalendarEventsSettledRef.current = true
     markFullCalendarReadyIfSettled()
-    return [...busyEvents, ...bookingEvents, ...bufferEvents]
+    return [...busyEvents, ...lockedDateEvents, ...bookingEvents, ...bufferEvents]
   }, [
     adjustingGroupId,
     isCalendarAdmin,
     markFullCalendarReadyIfSettled,
     modeKind,
     onCodeChange,
+    prefetchRangeWhenIdle,
+    refreshCachedRangeInBackground,
     selectedTeamId,
     teamMemberUserIds,
+    upsertFetchedRange,
     viewerUserId,
   ])
 
@@ -1066,6 +1282,8 @@ export function BookingCalendar({
     setDrafts([])
     setActiveDraftId(null)
     setDraftPreviewValue(null)
+    setSelectedDateSelection(null)
+    setSelectedMonthDate(null)
     setActionPanelPosition(null)
     setActionError(null)
     refetchDraftEvents()
@@ -1118,7 +1336,7 @@ export function BookingCalendar({
   }, [activeDraftId, removeDraft])
 
   const updateActionPanelPosition = useCallback(() => {
-    if (!activeDraftId || view !== "timeGridWeek") {
+    if (!activeDraftId || !isSelectableView(view)) {
       setActionPanelPosition(null)
       return
     }
@@ -1148,7 +1366,7 @@ export function BookingCalendar({
   }, [activeDraftId, view])
 
   useEffect(() => {
-    if (!activeDraftId || view !== "timeGridWeek") {
+    if (!activeDraftId || !isSelectableView(view)) {
       // The floating action panel is DOM-positioned and must be cleared when its anchor disappears.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setActionPanelPosition(null)
@@ -1162,7 +1380,7 @@ export function BookingCalendar({
   }, [activeDraftId, activePanelDraft?.start, activePanelDraft?.end, updateActionPanelPosition])
 
   useEffect(() => {
-    if (!activePanelDraft || view !== "timeGridWeek" || !actionPanelPosition || !actionPanelRef.current) return
+    if (!activePanelDraft || !isSelectableView(view) || !actionPanelPosition || !actionPanelRef.current) return
     const frame = window.requestAnimationFrame(updateActionPanelPosition)
     return () => window.cancelAnimationFrame(frame)
   }, [activePanelDraft, actionPanelPosition, updateActionPanelPosition, view])
@@ -1263,6 +1481,42 @@ export function BookingCalendar({
     expandTimeRangeAtClientY(event.clientY)
   }, [expandTimeRangeAtClientY])
 
+  const getTouchTapTarget = useCallback((target: EventTarget | null, clientX: number, clientY: number): TouchTapTarget | null => {
+    if (selectedViewRef.current !== "timeGridDay") return null
+    const element = target instanceof Element ? target : null
+    if (!element) return null
+    if (element.closest(".fc-event, button, a, input, textarea, select")) return null
+
+    const root = rootRef.current
+    const slot =
+      element.closest<HTMLElement>(".fc-timegrid-slot-lane[data-time], .fc-timegrid-slot[data-time]") ??
+      [...(root?.querySelectorAll<HTMLElement>(".fc-timegrid-slot-lane[data-time]") ?? [])].find((candidate) => {
+        const rect = candidate.getBoundingClientRect()
+        return clientY >= rect.top && clientY <= rect.bottom
+      })
+    const dayColumn =
+      [...(root?.querySelectorAll<HTMLElement>(".fc-timegrid-col[data-date]") ?? [])].find((candidate) => {
+        const rect = candidate.getBoundingClientRect()
+        return clientX >= rect.left && clientX <= rect.right
+      }) ?? root?.querySelector<HTMLElement>(".fc-timegrid-col[data-date]")
+    const date = dayColumn?.dataset.date
+    const time = slot?.dataset.time
+    if (!date || !time) return null
+
+    return { date, time, x: clientX, y: clientY }
+  }, [])
+
+  const handleCalendarPointerDownCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") return
+    touchTapTargetRef.current = getTouchTapTarget(event.target, event.clientX, event.clientY)
+  }, [getTouchTapTarget])
+
+  const handleCalendarTouchStartCapture = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    const touch = event.changedTouches[0]
+    if (!touch) return
+    touchTapTargetRef.current = getTouchTapTarget(event.target, touch.clientX, touch.clientY)
+  }, [getTouchTapTarget])
+
   useEffect(() => {
     function expandTimeRange(event: MouseEvent) {
       if (selectedViewRef.current === "dayGridMonth" || !interactionInProgressRef.current) {
@@ -1293,27 +1547,103 @@ export function BookingCalendar({
     }
   }, [finishInteraction])
 
-  const handleSelect = useCallback((arg: DateSelectArg) => {
+  const getBlockedRangeReason = useCallback((start: Date, end: Date) => {
+    if (!hasMinimumSelectionDuration(start, end)) {
+      return "30分以上の空き時間を選んでください。"
+    }
+    if (overlapsBlockedEvent(start, end)) {
+      return "この時間は既存予定があるため選べません。"
+    }
+    if (overlapsConfirmedBufferZone(start, end)) {
+      return "この時間は予約前後の保護時間のため選べません。"
+    }
+    return null
+  }, [overlapsBlockedEvent, overlapsConfirmedBufferZone])
+
+  const createDraftFromRange = useCallback((start: Date, end: Date) => {
     const calendarApi = calendarRef.current?.getApi()
-    if (
-      !isSelectableView(arg.view.type) ||
-      !hasMinimumSelectionDuration(arg.start, arg.end) ||
-      overlapsBlockedEvent(arg.start, arg.end) ||
-      overlapsConfirmedBufferZone(arg.start, arg.end)
-    ) {
+    const blockedReason = getBlockedRangeReason(start, end)
+    if (blockedReason) {
+      setActionError(blockedReason)
       finishInteraction()
       calendarApi?.unselect()
-      return
+      return false
     }
     const draft: DraftEvent = {
       id: makeDraftId(),
-      start: arg.start.toISOString(),
-      end: arg.end.toISOString(),
+      start: start.toISOString(),
+      end: end.toISOString(),
     }
     finishInteraction([{ start: draft.start, end: draft.end }])
     upsertDraft(draft, true)
     calendarApi?.unselect()
-  }, [finishInteraction, overlapsBlockedEvent, overlapsConfirmedBufferZone, upsertDraft])
+    return true
+  }, [finishInteraction, getBlockedRangeReason, upsertDraft])
+
+  const handleSelect = useCallback((arg: DateSelectArg) => {
+    if (!isSelectableView(arg.view.type)) {
+      finishInteraction()
+      calendarRef.current?.getApi().unselect()
+      return
+    }
+    createDraftFromRange(arg.start, arg.end)
+  }, [createDraftFromRange, finishInteraction])
+
+  const createDraftFromTapTarget = useCallback((target: TouchTapTarget) => {
+    const recent = lastTapDraftRef.current
+    if (recent && recent.date === target.date && recent.time === target.time && Date.now() - recent.createdAt < 500) {
+      return false
+    }
+    const start = parseDateTimeSlot(target.date, target.time)
+    if (!start) return false
+    const created = createDraftFromRange(start, new Date(start.getTime() + MIN_SELECTION_MS))
+    if (created) {
+      lastTapDraftRef.current = { date: target.date, time: target.time, createdAt: Date.now() }
+    }
+    return created
+  }, [createDraftFromRange])
+
+  const handleCalendarPointerUpCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") return
+    const startTarget = touchTapTargetRef.current
+    touchTapTargetRef.current = null
+    if (!startTarget) return
+
+    const endTarget = getTouchTapTarget(event.target, event.clientX, event.clientY)
+    if (!endTarget || endTarget.date !== startTarget.date || endTarget.time !== startTarget.time) return
+    if (Math.hypot(event.clientX - startTarget.x, event.clientY - startTarget.y) > 10) return
+
+    if (createDraftFromTapTarget(endTarget)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [createDraftFromTapTarget, getTouchTapTarget])
+
+  const handleCalendarTouchEndCapture = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    const startTarget = touchTapTargetRef.current
+    touchTapTargetRef.current = null
+    if (!startTarget) return
+
+    const touch = event.changedTouches[0]
+    if (!touch) return
+    const endTarget = getTouchTapTarget(event.target, touch.clientX, touch.clientY)
+    if (!endTarget || endTarget.date !== startTarget.date || endTarget.time !== startTarget.time) return
+    if (Math.hypot(touch.clientX - startTarget.x, touch.clientY - startTarget.y) > 10) return
+
+    if (createDraftFromTapTarget(endTarget)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [createDraftFromTapTarget, getTouchTapTarget])
+
+  const handleCalendarClickCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    const tapTarget = getTouchTapTarget(event.target, event.clientX, event.clientY)
+    if (!tapTarget) return
+    if (createDraftFromTapTarget(tapTarget)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [createDraftFromTapTarget, getTouchTapTarget])
 
   const handleUnselect = useCallback(() => {
     finishInteraction()
@@ -1327,6 +1657,40 @@ export function BookingCalendar({
       !overlapsConfirmedBufferZone(span.start, span.end)
     )
   }, [overlapsBlockedEvent, overlapsConfirmedBufferZone])
+
+  const selectedDateSelectionLabel = selectedDateSelection ? formatBookingDateSelection(selectedDateSelection) : null
+  const lockedDateKeySet = useMemo(() => new Set(lockedDateKeys), [lockedDateKeys])
+  const todayDateKey = toTokyoDateKey()
+
+  const isSelectableMonthDateKey = useCallback((dateKey: string) => {
+    return !isDateKeyTodayOrPast(dateKey, todayDateKey) && !lockedDateKeySet.has(dateKey)
+  }, [lockedDateKeySet, todayDateKey])
+
+  const selectMonthDate = useCallback((date: Date) => {
+    const dateKey = toDateKey(date)
+    if (isDateKeyTodayOrPast(dateKey, todayDateKey)) {
+      setActionError("今日以前の日付は選べません。")
+      return
+    }
+    if (lockedDateKeySet.has(dateKey)) {
+      setActionError("この日は既存予定があるため選べません。")
+      return
+    }
+    selectedViewRef.current = "dayGridMonth"
+    setView("dayGridMonth")
+    setSelectedMonthDate(dateKey)
+    setSelectedDateSelection((current) => {
+      const currentDates = current?.dates ?? []
+      const nextDates = currentDates.includes(dateKey)
+        ? currentDates.filter((value) => value !== dateKey)
+        : [...currentDates, dateKey]
+      const normalized = normalizeBookingDateKeys(nextDates)
+      return normalized.length > 0 ? { dates: normalized } : null
+    })
+    setActionError(null)
+    setActionPanelPosition(null)
+    calendarRef.current?.getApi().changeView("dayGridMonth", dateKey)
+  }, [lockedDateKeySet, todayDateKey])
 
   const handleEventAllow = useCallback<AllowFunc>((span, movingEvent) => {
     const props = movingEvent?.extendedProps as AnyEventProps | undefined
@@ -1357,16 +1721,15 @@ export function BookingCalendar({
   const handleDateClick = useCallback(
     (arg: DateClickArg) => {
       if (arg.view.type === "dayGridMonth") {
-        changeCalendarView("timeGridWeek", arg.dateStr)
+        selectMonthDate(arg.date)
+        return
+      }
+      if (arg.view.type === "timeGridDay") {
+        createDraftFromRange(arg.date, new Date(arg.date.getTime() + MIN_SELECTION_MS))
       }
     },
-    [changeCalendarView],
+    [createDraftFromRange, selectMonthDate],
   )
-
-  const handleLogoutConfirm = useCallback(async () => {
-    setIsLoggingOut(true)
-    await signOut({ callbackUrl: "/" })
-  }, [])
 
   const handleEventClick = useCallback((arg: EventClickArg) => {
     const props = arg.event.extendedProps as AnyEventProps
@@ -1567,26 +1930,46 @@ export function BookingCalendar({
     const classes: string[] = []
     const day = arg.date.getDay()
     if (day === 0 || day === 6) classes.push("booking-calendar__weekend")
-    if (getHolidayName(arg.date)) classes.push("booking-calendar__holiday")
+    const dateKey = toDateKey(arg.date)
+    const selectedDates = selectedDateSelection?.dates ?? []
+    const unavailable = !isSelectableMonthDateKey(dateKey)
+    if (isDateKeyTodayOrPast(dateKey, todayDateKey)) classes.push("booking-calendar__past-or-today-date")
+    if (lockedDateKeySet.has(dateKey)) classes.push("booking-calendar__locked-date")
+    if (selectedMonthDate === dateKey && selectedDates.includes(dateKey) && !unavailable) classes.push("booking-calendar__selected-day")
+    if (selectedDates.includes(dateKey) && !unavailable) {
+      classes.push("booking-calendar__selected-date")
+    }
     return classes
   }
 
   const handleDayCellDidMount = (arg: DayCellMountArg) => {
     if (arg.view.type !== "dayGridMonth") return
 
-    const holidayName = getHolidayName(arg.date)
     const cellTop = arg.el.querySelector<HTMLElement>(".fc-daygrid-day-top")
     const dayNumber = arg.el.querySelector<HTMLElement>(".fc-daygrid-day-number")
 
     cellTop?.classList.add("booking-calendar__day-cell")
     dayNumber?.classList.add("booking-calendar__day-number")
+  }
 
-    if (holidayName && cellTop && !cellTop.querySelector(".booking-calendar__holiday-label")) {
-      const holidayLabel = document.createElement("span")
-      holidayLabel.className = "booking-calendar__holiday-label"
-      holidayLabel.textContent = holidayName
-      cellTop.appendChild(holidayLabel)
-    }
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    root.querySelectorAll<HTMLElement>(".fc-daygrid-day[data-date]").forEach((cell) => {
+      const dateKey = cell.dataset.date
+      const locked = Boolean(dateKey && lockedDateKeySet.has(dateKey))
+      const unavailable = Boolean(dateKey && !isSelectableMonthDateKey(dateKey))
+      cell.setAttribute("aria-disabled", unavailable ? "true" : "false")
+      if (locked) cell.setAttribute("data-booking-locked", "true")
+      else cell.removeAttribute("data-booking-locked")
+      if (dateKey && isDateKeyTodayOrPast(dateKey, todayDateKey)) cell.setAttribute("data-booking-past-or-today", "true")
+      else cell.removeAttribute("data-booking-past-or-today")
+    })
+  }, [isSelectableMonthDateKey, lockedDateKeySet, todayDateKey])
+
+  const renderDayCellContent = (arg: DayCellContentArg) => {
+    if (arg.view.type !== "dayGridMonth") return undefined
+    return <span>{arg.date.getDate()}</span>
   }
 
   const removeExistingSlot = useCallback(
@@ -1607,7 +1990,7 @@ export function BookingCalendar({
     if (props.kind === "draft") {
       arg.el.setAttribute("data-active-draft", props.draftId === activeDraftId ? "true" : "false")
       if (props.draftId) arg.el.setAttribute("data-draft-id", props.draftId)
-      if (props.draftId === activeDraftId && arg.view.type === "timeGridWeek") {
+      if (props.draftId === activeDraftId && isSelectableView(arg.view.type)) {
         updateActionPanelPosition()
       }
       if (props.draftId) {
@@ -1628,6 +2011,13 @@ export function BookingCalendar({
       return
     }
     if (props.kind !== "busy") return
+    if (props.lockedDate) {
+      markLockVisible()
+      arg.el.removeAttribute("title")
+      arg.el.querySelectorAll<HTMLElement>(".fc-event-title, .fc-event-time").forEach((element) => {
+        element.textContent = ""
+      })
+    }
     if (props.bookingId && props.bookingGroupId === adjustingGroupId) {
       const removeButton = document.createElement("button")
       removeButton.type = "button"
@@ -1667,19 +2057,33 @@ export function BookingCalendar({
       const rangeLabel = props.label ?? (arg.event.start && arg.event.end ? `${format(arg.event.start, "HH:mm")}-${format(arg.event.end, "HH:mm")}` : "")
       const monthTimeLabel = arg.event.allDay ? "終日" : arg.event.start ? format(arg.event.start, "HH:mm") : rangeLabel
       const title = props.projectTitle?.trim()
-      const canShowTitle = props.status === "CONFIRMED" && props.canView && title
-      const baseText = canShowTitle
-        ? isMonthView
-          ? `${monthTimeLabel} 本: ${title}`
-          : `本予約 ${rangeLabel}: ${title}`
-        : props.status === "CONFIRMED" && !props.canView
-          ? "本予約"
-          : isMonthView
-            ? `${monthTimeLabel} ${shortLabel}`
-            : `${statusLabel} ${rangeLabel}`.trim()
-      const text = !canShowTitle && !props.bookingId && title
-        ? `${baseText}: ${title}`
-        : baseText
+      const text = props.lockedDate
+        ? ""
+        : (() => {
+            const canShowTitle = props.status === "CONFIRMED" && props.canView && title
+            const baseText = canShowTitle
+              ? isMonthView
+                ? `${monthTimeLabel} 本: ${title}`
+                : `本予約 ${rangeLabel}: ${title}`
+              : props.status === "CONFIRMED" && !props.canView
+                ? "本予約"
+                : isMonthView
+                  ? `${monthTimeLabel} ${shortLabel}`
+                  : `${statusLabel} ${rangeLabel}`.trim()
+            return !canShowTitle && !props.bookingId && title
+              ? `${baseText}: ${title}`
+              : baseText
+          })()
+      if (props.lockedDate) {
+        return (
+          <span
+            className="booking-calendar__busy-pill-content booking-calendar__busy-pill-content--lock-only"
+            aria-label="locked"
+          >
+            {lockIcon}
+          </span>
+        )
+      }
       return (
         <span className="booking-calendar__busy-pill-content">
           {!props.canEdit && lockIcon}
@@ -1723,7 +2127,7 @@ export function BookingCalendar({
           setActionError(verdict.message)
           return
         }
-        onCommit(slots)
+        onCommit({ slots, requestedDateSelection: null })
       } catch (error) {
         const message = error instanceof Error ? error.message : "予約の重なり確認に失敗しました"
         setActionError(message)
@@ -1733,6 +2137,17 @@ export function BookingCalendar({
     },
     [activeDraft, drafts, onCommit, preflighting, runPreflight],
   )
+
+  const startDateRequestCommit = useCallback(() => {
+    if (!selectedDateSelection || preflighting) return
+    setActionError(null)
+    const dates = normalizeBookingDateKeys(selectedDateSelection.dates.filter(isSelectableMonthDateKey))
+    if (dates.length === 0) {
+      setActionError("希望日を 1 日以上選択してください。")
+      return
+    }
+    onCommit({ slots: [], requestedDateSelection: { dates } })
+  }, [isSelectableMonthDateKey, onCommit, preflighting, selectedDateSelection])
 
   const executeMove = useCallback(
     async () => {
@@ -1815,6 +2230,7 @@ export function BookingCalendar({
   }, [markFullCalendarReadyIfSettled])
 
   const hideFullCalendarForMonthSkeleton = view === "dayGridMonth" && !isFullCalendarReady && Boolean(monthSkeleton)
+  const handleSelectedTeamIdChange = teams.length > 0 ? onSelectedTeamIdChange : undefined
 
   return (
     <div
@@ -1822,43 +2238,28 @@ export function BookingCalendar({
       ref={rootRef}
       onMouseDownCapture={handleCalendarMouseDownCapture}
       onMouseMoveCapture={handleCalendarMouseMoveCapture}
+      onClickCapture={handleCalendarClickCapture}
+      onPointerDownCapture={handleCalendarPointerDownCapture}
+      onPointerUpCapture={handleCalendarPointerUpCapture}
+      onTouchStartCapture={handleCalendarTouchStartCapture}
+      onTouchEndCapture={handleCalendarTouchEndCapture}
     >
       <div className="booking-calendar__view-row">
-        <div className="booking-calendar__tabs" aria-label="カレンダー表示切替">
-          {VIEW_OPTIONS.map((option) => {
-            const isActive = view === option.value
-            return (
-              <button
-                key={option.value}
-                type="button"
-                data-view={option.value === "dayGridMonth" ? "month" : option.value === "timeGridWeek" ? "week" : "day"}
-                className={`booking-calendar__tab ${isActive ? "glass-inset text-hp" : "glass-flat text-hp-muted"}`}
-                aria-pressed={isActive}
-                onClick={() => changeCalendarView(option.value)}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
         <div className="booking-calendar__view-row-end">
           {modeKind === "adjust" ? (
             <div className="booking-calendar__adjust-badge glass-inset">
               {(adjustingTitle ?? projectTitle)?.trim() ? `${(adjustingTitle ?? projectTitle)!.trim()}案件の日時調整中` : "日時調整中"}
             </div>
           ) : null}
-          {onSelectedTeamIdChange ? (
+          {handleSelectedTeamIdChange ? (
             <div className="booking-calendar__scope">
-              <label className="booking-calendar__scope-label" htmlFor="booking-team-scope">
-                <span className="booking-calendar__scope-label-full">ログイン状態</span>
-                <span className="booking-calendar__scope-label-compact">ログイン状態</span>
-              </label>
               <select
                 id="booking-team-scope"
                 className="booking-calendar__scope-select glass-input"
+                aria-label="表示対象"
                 value={selectedTeamId ?? ""}
                 onChange={(event) => {
-                  onSelectedTeamIdChange(event.target.value || null)
+                  handleSelectedTeamIdChange(event.target.value || null)
                 }}
               >
                 <option value="">{viewerEmail || "個人"}</option>
@@ -1868,53 +2269,11 @@ export function BookingCalendar({
                   </option>
                 ))}
               </select>
-              <button
-                type="button"
-                className="booking-calendar__logout-button"
-                onClick={() => setIsLogoutConfirmOpen(true)}
-              >
-                ログアウト
-              </button>
             </div>
           ) : null}
         </div>
       </div>
-      {isLogoutConfirmOpen ? (
-        <div
-          className="booking-calendar__modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="booking-logout-title"
-        >
-          <div className="booking-calendar__modal-card glass-flat">
-            <h2 id="booking-logout-title" className="booking-calendar__modal-title">
-              ログアウトしますか？
-            </h2>
-            <p className="booking-calendar__modal-message">
-              予約カレンダーを使うには再ログインが必要になります。
-            </p>
-            <div className="booking-calendar__modal-actions">
-              <button
-                type="button"
-                className="booking-calendar__action-button"
-                onClick={() => setIsLogoutConfirmOpen(false)}
-                disabled={isLoggingOut}
-              >
-                キャンセル
-              </button>
-              <button
-                type="button"
-                className="booking-calendar__action-button booking-calendar__action-button--primary"
-                onClick={handleLogoutConfirm}
-                disabled={isLoggingOut}
-              >
-                {isLoggingOut ? "ログアウト中..." : "ログアウト"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {activePanelDraft && view === "timeGridWeek" && actionPanelPosition ? (
+      {activePanelDraft && isSelectableView(view) && actionPanelPosition ? (
         <div
           ref={actionPanelRef}
           className="booking-calendar__action-panel glass-flat"
@@ -1951,70 +2310,111 @@ export function BookingCalendar({
           {actionError}
         </div>
       ) : null}
-      <div className="booking-calendar__surface glass-flat">
-        <div className="booking-calendar__stack">
-          {isMonthSkeletonMounted ? (
-            <div
-              className={`booking-calendar__month-skeleton-layer ${isMonthSkeletonFading ? "booking-calendar__month-skeleton-layer--fading" : ""}`}
-            >
-              {monthSkeleton}
+      <div className="booking-calendar__month-layout">
+        <div className="booking-calendar__surface glass-flat">
+          <div className="booking-calendar__stack">
+            {isMonthSkeletonMounted ? (
+              <div
+                className={`booking-calendar__month-skeleton-layer ${isMonthSkeletonFading ? "booking-calendar__month-skeleton-layer--fading" : ""}`}
+              >
+                {monthSkeleton}
+              </div>
+            ) : null}
+            <div className={`booking-calendar__fullcalendar-layer ${hideFullCalendarForMonthSkeleton ? "booking-calendar__fullcalendar-layer--hidden" : ""}`}>
+              <FullCalendar
+                ref={calendarRef}
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                initialView="dayGridMonth"
+                locale={jaLocale}
+                firstDay={0}
+                headerToolbar={{
+                  left: "prev,next today",
+                  center: "title",
+                  right: "",
+                }}
+                buttonText={{
+                  today: "今日",
+                }}
+                height="auto"
+                selectable={isSelectableView(view)}
+                selectAllow={handleSelectAllow}
+                selectOverlap={false}
+                eventAllow={handleEventAllow}
+                selectMinDistance={16}
+                selectMirror
+                unselectAuto={false}
+                editable={false}
+                eventStartEditable
+                eventDurationEditable
+                eventResizableFromStart
+                nowIndicator
+                slotMinTime={slotMinTime}
+                slotMaxTime={slotMaxTime}
+                slotDuration="00:30:00"
+                snapDuration="00:30:00"
+                allDaySlot={false}
+                navLinks={false}
+                eventSources={eventSources}
+                lazyFetching
+                loading={handleFullCalendarLoading}
+                datesSet={() => applyDynamicTimeRangeBounds()}
+                viewDidMount={handleFullCalendarViewDidMount}
+                eventContent={renderEventContent}
+                eventDidMount={handleEventDidMount}
+                dayCellClassNames={dayCellClassNames}
+                dayCellContent={renderDayCellContent}
+                dayCellDidMount={handleDayCellDidMount}
+                dateClick={handleDateClick}
+                select={handleSelect}
+                unselect={handleUnselect}
+                eventClick={handleEventClick}
+                eventDragStart={handleEventDragStart}
+                eventDragStop={handleEventDragStop}
+                eventDrop={handleEventDrop}
+                eventResizeStart={handleEventResizeStart}
+                eventResizeStop={handleEventResizeStop}
+                eventResize={handleEventResize}
+              />
             </div>
-          ) : null}
-          <div className={`booking-calendar__fullcalendar-layer ${hideFullCalendarForMonthSkeleton ? "booking-calendar__fullcalendar-layer--hidden" : ""}`}>
-            <FullCalendar
-              ref={calendarRef}
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              initialView="dayGridMonth"
-              locale={jaLocale}
-              firstDay={0}
-              headerToolbar={{
-                left: "prev,next today",
-                center: "title",
-                right: "",
+          </div>
+        </div>
+        <div className="booking-calendar__date-request glass-flat" data-testid="booking-date-request-panel">
+          <div className="booking-calendar__date-request-head">
+            <h2 className="booking-calendar__date-request-title">希望日</h2>
+            <p className="booking-calendar__date-request-note">
+              日付をタップして希望日を選んでください。もう一度タップすると解除できます。
+            </p>
+          </div>
+          <div className="booking-calendar__date-request-summary" aria-live="polite">
+            <span className="booking-calendar__date-request-label">選択中</span>
+            <strong data-testid="booking-date-request-summary">
+              {selectedDateSelectionLabel ?? "未選択"}
+            </strong>
+            {selectedDateSelection ? null : (
+              <span className="booking-calendar__date-request-empty">希望日を 1 日以上選択してください。</span>
+            )}
+          </div>
+          <div className="booking-calendar__date-request-actions">
+            <button
+              type="button"
+              className="booking-calendar__action-button booking-calendar__action-button--primary"
+              onClick={startDateRequestCommit}
+              disabled={!selectedDateSelection || preflighting}
+            >
+              この日程で相談する
+            </button>
+            <button
+              type="button"
+              className="booking-calendar__action-button booking-calendar__action-button--ghost"
+              onClick={() => {
+                setSelectedDateSelection(null)
+                setSelectedMonthDate(null)
+                setActionError(null)
               }}
-              buttonText={{
-                today: "今日",
-              }}
-              height="auto"
-              selectable={view === "timeGridWeek"}
-              selectAllow={handleSelectAllow}
-              selectOverlap={false}
-              eventAllow={handleEventAllow}
-              selectMinDistance={16}
-              selectMirror
-              unselectAuto={false}
-              editable={false}
-              eventStartEditable
-              eventDurationEditable
-              eventResizableFromStart
-              nowIndicator
-              slotMinTime={slotMinTime}
-              slotMaxTime={slotMaxTime}
-              slotDuration="00:30:00"
-              snapDuration="00:30:00"
-              allDaySlot={false}
-              navLinks
-              navLinkDayClick={(date) => changeCalendarView("timeGridDay", toDateKey(date))}
-              eventSources={eventSources}
-              lazyFetching
-              loading={handleFullCalendarLoading}
-              datesSet={() => applyDynamicTimeRangeBounds()}
-              viewDidMount={handleFullCalendarViewDidMount}
-              eventContent={renderEventContent}
-              eventDidMount={handleEventDidMount}
-              dayCellClassNames={dayCellClassNames}
-              dayCellDidMount={handleDayCellDidMount}
-              dateClick={handleDateClick}
-              select={handleSelect}
-              unselect={handleUnselect}
-              eventClick={handleEventClick}
-              eventDragStart={handleEventDragStart}
-              eventDragStop={handleEventDragStop}
-              eventDrop={handleEventDrop}
-              eventResizeStart={handleEventResizeStart}
-              eventResizeStop={handleEventResizeStop}
-              eventResize={handleEventResize}
-            />
+              disabled={!selectedDateSelection || preflighting}
+            >
+              すべて解除
+            </button>
           </div>
         </div>
       </div>

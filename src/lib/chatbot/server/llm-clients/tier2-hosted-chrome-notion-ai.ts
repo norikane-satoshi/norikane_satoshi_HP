@@ -3,6 +3,7 @@ import { join } from "node:path"
 
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 
 type Tier2HostedChromeNotionAiClientConfig = {
   workerUrl?: string
@@ -79,16 +80,16 @@ class HostedWorkerHttpStatusError extends Error {
 }
 
 export const tier2HostedChromeNotionAiDefaults = {
-  requestTimeoutMs: 55000,
+  requestTimeoutMs: 75000,
   healthCheckTimeoutMs: 3000,
-  totalGenerateBudgetMs: 65000,
+  totalGenerateBudgetMs: 90000,
   enabled: true,
 } as const
 
 const tier = "tier-2-hosted-chrome-notion-ai" as const
 const timeoutTag: TimeoutTag = "timeout"
 const abortTag: AbortTag = "aborted"
-const healthEndpointPath = "/health"
+const healthEndpointPath = "/health?mode=quick"
 const generateEndpointPath = "/generate"
 const ensureChromeEndpointPath = "/ensure-chrome"
 const httpMethodGet = "GET"
@@ -143,6 +144,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
 
       return {
         rawText,
+        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tokensUsed: numberOrUndefined(response.tokensUsed),
         latencyMs: Date.now() - startedAt,
         tier: this.tier,
@@ -418,7 +420,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
         return this.toLlmError({
           message: "Hosted Notion AI worker was rate limited.",
           code: "rate-limit",
-          isRetryable: true,
+          isRetryable: error.summary.retryable === true,
           cause: error.summary,
         })
       }
@@ -487,7 +489,12 @@ function summarizeGenerateFailure(error: unknown): {
       return { reason: "auth", retryable: false, httpStatus: error.status, errorCode: error.summary.errorCode }
     }
     if (error.status === httpStatusTooManyRequests) {
-      return { reason: "rate-limit", retryable: true, httpStatus: error.status, errorCode: error.summary.errorCode }
+      return {
+        reason: "rate-limit",
+        retryable: error.summary.retryable === true,
+        httpStatus: error.status,
+        errorCode: error.summary.errorCode,
+      }
     }
     if (error.status >= firstServerErrorStatus) {
       return { reason: "server-error", retryable: true, httpStatus: error.status, errorCode: error.summary.errorCode }

@@ -4,6 +4,7 @@ import { join } from "node:path"
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain"
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 
 type Tier3GeminiFlashClientConfig = {
   apiKey?: string
@@ -109,6 +110,7 @@ export class Tier3GeminiFlashClient implements ChatbotLlmClient {
 
       return {
         rawText,
+        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tokensUsed: numberOrUndefined(response.usageMetadata?.totalTokenCount),
         latencyMs: Date.now() - startedAt,
         tier: this.tier,

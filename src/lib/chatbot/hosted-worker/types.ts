@@ -17,7 +17,6 @@ export type HostedWorkerQueueState = {
 export type HostedWorkerChromeConfig = {
   cdpBaseUrl: string
   targetUrlIncludes: string
-  preferredModel: string
   chromeProfileDir: string
   chromeCommand?: string
   chromeApp?: string
@@ -29,7 +28,6 @@ export type HostedWorkerEnsureStatus =
   | "cdp_connection_refused"
   | "target_missing"
   | "manual_login_required"
-  | "model_unavailable"
   | "target_url_mismatch"
   | "unknown"
 
@@ -55,9 +53,7 @@ export type HostedWorkerEnsureResult = {
     targetUrlMatches: boolean
     target?: HostedWorkerCdpTargetSummary
   }
-  preferredModel: {
-    name: string
-    available?: boolean
+  notionAiModelSelection?: {
     selectedModel?: string
     finalModelName?: string
   }
@@ -68,6 +64,8 @@ export type HostedWorkerEnsureResult = {
 export type HostedWorkerHealthResponse = HostedWorkerEnsureResult & {
   tier: typeof hostedWorkerTier
   queue: HostedWorkerQueueState
+  healthMode?: "deep" | "quick"
+  checkedAt?: string
 }
 
 export type HostedWorkerGenerateRequest = ChatbotLlmRequest

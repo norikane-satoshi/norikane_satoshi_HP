@@ -10,10 +10,10 @@ type NotificationKind = "unhealthy" | "recovered" | "test"
 type IncidentClass =
   | "none"
   | "chrome_cdp"
-  | "notion_model"
   | "notion_runtime_trust_rule_denied"
   | "worker_error:auth"
   | "worker_error:connection"
+  | "worker_error:invalid-output"
   | "worker_http_502"
   | "http"
   | "timeout"
@@ -24,6 +24,7 @@ export type HeartbeatState = {
   consecutiveFailures: number
   lastGenerateAt?: string
   lastNotificationAt?: string
+  lastNotificationKind?: NotificationKind
   lastRepairAt?: string
   incidentClass?: IncidentClass
   incidentStartedAt?: string
@@ -57,6 +58,7 @@ export type HeartbeatConfig = {
   generateTimeoutMs: number
   generateIntervalMs: number
   failureThreshold: number
+  transientGenerateFailureThreshold: number
   notificationCooldownMs: number
   statePath: string
   logPath: string
@@ -90,13 +92,14 @@ type HeartbeatResult = {
 }
 
 const tier = "tier-2-hosted-chrome-notion-ai"
-const defaultWorkerUrl = "https://worker.norikane.studio"
+const defaultWorkerUrl = "http://127.0.0.1:8787"
 const defaultNotificationTo = "norikane.satoshi@gmail.com"
 const defaultTimeoutMs = 10_000
 const defaultGenerateTimeoutMs = 60_000
-const defaultGenerateIntervalMs = 2 * 60_000
+const defaultGenerateIntervalMs = 10 * 60_000
 const defaultNotificationCooldownMs = 60 * 60_000
 const defaultFailureThreshold = 1
+const defaultTransientGenerateFailureThreshold = 3
 const repairCooldownMs = 20 * 60_000
 const stateDir = path.join(homedir(), ".local", "state", "norikane_satoshi_hp")
 const defaultStatePath = path.join(stateDir, "hosted-tier2-heartbeat-state.json")
@@ -128,12 +131,14 @@ export async function runHeartbeat(
   const primaryFailure = checks.find((check) => !check.ok)
   const incidentClass = classifyFailureOrigin(primaryFailure)
   const transientGenerateFailure = isTransientGenerateFailure(primaryFailure)
+  const delayedTransientGenerateFailure =
+    primaryFailure?.name === "generate" && incidentClass === "worker_error:invalid-output"
   let ok = checks.every((check) => check.ok)
   let nextState = buildNextState({
     previous,
     ok,
     now,
-    threshold: config.failureThreshold,
+    threshold: effectiveFailureThreshold(config, delayedTransientGenerateFailure),
     generateSucceeded: generate?.ok === true,
     generateFailed: generate?.ok === false,
     incidentClass,
@@ -153,7 +158,7 @@ export async function runHeartbeat(
       previous,
       ok,
       now,
-      threshold: config.failureThreshold,
+      threshold: effectiveFailureThreshold(config, delayedTransientGenerateFailure),
       generateSucceeded: generate?.ok === true,
       generateFailed: generate?.ok === false,
       incidentClass,
@@ -165,6 +170,7 @@ export async function runHeartbeat(
   const notification = await maybeNotify(config, previous, nextState, checks, repairActions, deps.fetch, now)
   if (notification?.status === "sent" || notification?.status === "dry-run") {
     nextState.lastNotificationAt = now.toISOString()
+    nextState.lastNotificationKind = notification.kind
   }
 
   await writeState(config.statePath, nextState)
@@ -197,17 +203,16 @@ export function evaluateHealthResponse(status: number, body: unknown): CheckResu
 
   const ok = body.ok === true
   const ready = body.status === "ready"
-  const modelAvailable = readModelAvailable(body)
-  if (!ok || !ready || modelAvailable !== true) {
+  if (!ok || !ready) {
     return {
       name: "health",
       ok: false,
       status,
-      detail: `ok:${String(body.ok)};status:${String(body.status)};model_available:${String(modelAvailable)}`,
+      detail: `ok:${String(body.ok)};status:${String(body.status)}`,
     }
   }
 
-  return { name: "health", ok: true, status, detail: "ok:true;status:ready;model_available:true" }
+  return { name: "health", ok: true, status, detail: "ok:true;status:ready" }
 }
 
 export function evaluateGenerateResponse(status: number, body: unknown): CheckResult {
@@ -357,7 +362,11 @@ async function maybeNotify(
     return sendNotification(config, "unhealthy", checks, repairActions, fetchClient, now)
   }
 
-  if (next.status === "healthy" && previous.status === "unhealthy") {
+  if (
+    next.status === "healthy" &&
+    previous.status === "unhealthy" &&
+    previous.lastNotificationKind === "unhealthy"
+  ) {
     return sendNotification(config, "recovered", checks, repairActions, fetchClient, now)
   }
 
@@ -550,6 +559,12 @@ function buildNextState(input: {
   }
 }
 
+function effectiveFailureThreshold(config: HeartbeatConfig, transientGenerateFailure: boolean): number {
+  return transientGenerateFailure
+    ? Math.max(config.failureThreshold, config.transientGenerateFailureThreshold)
+    : config.failureThreshold
+}
+
 function shouldAttemptRepair(
   previous: HeartbeatState,
   nextState: HeartbeatState,
@@ -629,6 +644,7 @@ async function readState(statePath: string): Promise<HeartbeatState> {
       consecutiveFailures: Number.isFinite(parsed.consecutiveFailures) ? Number(parsed.consecutiveFailures) : 0,
       lastGenerateAt: stringOrUndefined(parsed.lastGenerateAt),
       lastNotificationAt: stringOrUndefined(parsed.lastNotificationAt),
+      lastNotificationKind: isNotificationKind(parsed.lastNotificationKind) ? parsed.lastNotificationKind : undefined,
       lastRepairAt: stringOrUndefined(parsed.lastRepairAt),
       incidentClass: isIncidentClass(parsed.incidentClass) ? parsed.incidentClass : undefined,
       incidentStartedAt: stringOrUndefined(parsed.incidentStartedAt),
@@ -701,6 +717,11 @@ function resolveConfig(argv: string[]): { config: HeartbeatConfig; sendTestNotif
       failureThreshold: readPositiveInt(
         args["failure-threshold"] ?? process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_FAILURE_THRESHOLD,
         defaultFailureThreshold,
+      ),
+      transientGenerateFailureThreshold: readPositiveInt(
+        args["transient-generate-failure-threshold"] ??
+          process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD,
+        defaultTransientGenerateFailureThreshold,
       ),
       notificationCooldownMs: readPositiveInt(
         args["notification-cooldown-ms"] ?? process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_NOTIFICATION_COOLDOWN_MS,
@@ -781,13 +802,6 @@ function parseEnvFile(raw: string): Record<string, string> {
   return env
 }
 
-function readModelAvailable(body: Record<string, unknown>): boolean | undefined {
-  if (typeof body.modelAvailable === "boolean") return body.modelAvailable
-  const preferredModel = body.preferredModel
-  if (isRecord(preferredModel) && typeof preferredModel.available === "boolean") return preferredModel.available
-  return undefined
-}
-
 function canNotify(lastNotificationAt: string | undefined, now: Date, cooldownMs: number): boolean {
   if (!lastNotificationAt) return true
   const parsed = Date.parse(lastNotificationAt)
@@ -820,15 +834,19 @@ function isIncidentClass(value: unknown): value is IncidentClass {
   return (
     value === "none" ||
     value === "chrome_cdp" ||
-    value === "notion_model" ||
     value === "notion_runtime_trust_rule_denied" ||
     value === "worker_error:auth" ||
     value === "worker_error:connection" ||
+    value === "worker_error:invalid-output" ||
     value === "worker_http_502" ||
     value === "http" ||
     value === "timeout" ||
     value === "unknown"
   )
+}
+
+function isNotificationKind(value: unknown): value is NotificationKind {
+  return value === "unhealthy" || value === "recovered" || value === "test"
 }
 
 function stringOrUndefined(value: unknown): string | undefined {
@@ -867,8 +885,8 @@ function classifyFailureOrigin(check: CheckResult | undefined): IncidentClass {
   }
   if (check.detail.includes("error:connection")) return "worker_error:connection"
   if (check.detail.includes("error:auth")) return "worker_error:auth"
+  if (check.detail.includes("error:invalid-output")) return "worker_error:invalid-output"
   if (check.detail.includes("cdp_")) return "chrome_cdp"
-  if (check.detail.includes("model_available:false")) return "notion_model"
   if (check.detail.includes("timeout")) return "timeout"
   if (check.detail.includes("worker_http_502")) return "worker_http_502"
   if (check.status === 502) return "worker_http_502"
@@ -877,7 +895,7 @@ function classifyFailureOrigin(check: CheckResult | undefined): IncidentClass {
 }
 
 function isTransientGenerateIncident(incidentClass: IncidentClass | undefined): boolean {
-  return incidentClass === "notion_runtime_trust_rule_denied"
+  return incidentClass === "notion_runtime_trust_rule_denied" || incidentClass === "worker_error:invalid-output"
 }
 
 function isTransientGenerateFailure(check: CheckResult | undefined): boolean {

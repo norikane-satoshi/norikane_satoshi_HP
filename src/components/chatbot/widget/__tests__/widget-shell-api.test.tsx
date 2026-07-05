@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
+import { readFileSync } from "node:fs"
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { hydrateRoot } from "react-dom/client"
 import { renderToString } from "react-dom/server"
@@ -222,7 +223,19 @@ describe("WidgetShell API wiring", () => {
     })
   })
 
-  it("shows a passive right-side scroll indicator while the mobile conversation scrolls", async () => {
+  it("hides the native conversation scrollbar while keeping native scrolling", () => {
+    const css = readFileSync("src/app/globals.css", "utf8")
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = screen.getByLabelText("チャット本文")
+    expect(conversation).toHaveClass("chatbot-conversation-scroll")
+    expect(conversation).toHaveClass("overflow-y-auto")
+    expect(css).toMatch(/\.chatbot-conversation-scroll\s*{[\s\S]*?scrollbar-width:\s*none;/)
+    expect(css).toMatch(/\.chatbot-conversation-scroll::-webkit-scrollbar\s*{[\s\S]*?display:\s*none;/)
+    expect(css).toMatch(/\.chatbot-scroll-indicator__thumb\s*{[\s\S]*?touch-action:\s*none;/)
+  })
+
+  it("shows a right-side scroll indicator while the mobile conversation scrolls", async () => {
     vi.useFakeTimers()
     render(<WidgetShell onMinimize={vi.fn()} />)
 
@@ -234,9 +247,10 @@ describe("WidgetShell API wiring", () => {
     const thumb = screen.getByTestId("chatbot-scroll-indicator-thumb")
     expect(indicator).toHaveAttribute("data-scrolling", "true")
     expect(indicator).toHaveStyle({
-      pointerEvents: "none",
+      pointerEvents: "auto",
       top: "12px",
       height: "376px",
+      width: "16px",
     })
     expect(thumb).toHaveStyle({ height: "125px" })
 
@@ -250,6 +264,81 @@ describe("WidgetShell API wiring", () => {
     fireEvent.scroll(conversation)
     await flushScrollIndicatorFrame()
     expect(Number.parseFloat(thumb.style.height)).toBeLessThan(125)
+  })
+
+  it("drags the custom conversation scrollbar thumb with mouse input and stops after release", async () => {
+    vi.useFakeTimers()
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = setConversationScrollGeometry({ scrollTop: 0, clientHeight: 400, scrollHeight: 1200 })
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+
+    const indicator = screen.getByTestId("chatbot-scroll-indicator")
+    const thumb = screen.getByTestId("chatbot-scroll-indicator-thumb")
+    expect(indicator).toHaveStyle({ pointerEvents: "auto" })
+
+    fireEvent.pointerDown(thumb, { pointerId: 41, pointerType: "mouse", button: 0, clientX: 10, clientY: 20 })
+    fireEvent.pointerMove(window, { pointerId: 41, pointerType: "mouse", clientX: 10, clientY: 114 })
+    await flushScrollIndicatorFrame()
+    expect(conversation.scrollTop).toBeGreaterThan(250)
+    expect(indicator).toHaveAttribute("data-dragging", "true")
+
+    fireEvent.pointerUp(window, { pointerId: 41, pointerType: "mouse", clientX: 10, clientY: 114 })
+    const releasedScrollTop = conversation.scrollTop
+    fireEvent.pointerMove(window, { pointerId: 41, pointerType: "mouse", clientX: 10, clientY: 260 })
+    await flushScrollIndicatorFrame()
+    expect(conversation.scrollTop).toBe(releasedScrollTop)
+    expect(indicator).toHaveAttribute("data-dragging", "false")
+  })
+
+  it("starts custom conversation scrollbar dragging from the expanded track hit target", async () => {
+    vi.useFakeTimers()
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = setConversationScrollGeometry({ scrollTop: 0, clientHeight: 400, scrollHeight: 1200 })
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+
+    const indicator = screen.getByTestId("chatbot-scroll-indicator")
+    fireEvent.pointerDown(indicator, { pointerId: 44, pointerType: "mouse", button: 0, clientX: 2, clientY: 20 })
+    fireEvent.pointerMove(window, { pointerId: 44, pointerType: "mouse", clientX: 2, clientY: 114 })
+    await flushScrollIndicatorFrame()
+    expect(conversation.scrollTop).toBeGreaterThan(250)
+
+    fireEvent.pointerUp(window, { pointerId: 44, pointerType: "mouse", clientX: 2, clientY: 114 })
+    const releasedScrollTop = conversation.scrollTop
+    fireEvent.pointerMove(window, { pointerId: 44, pointerType: "mouse", clientX: 2, clientY: 260 })
+    await flushScrollIndicatorFrame()
+    expect(conversation.scrollTop).toBe(releasedScrollTop)
+  })
+
+  it("drags the custom conversation scrollbar thumb with touch pointer input and cleans up on cancel and blur", async () => {
+    vi.useFakeTimers()
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const conversation = setConversationScrollGeometry({ scrollTop: 120, clientHeight: 400, scrollHeight: 1200 })
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+
+    const thumb = screen.getByTestId("chatbot-scroll-indicator-thumb")
+    fireEvent.pointerDown(thumb, { pointerId: 42, pointerType: "touch", button: 0, clientX: 10, clientY: 80 })
+    fireEvent.pointerMove(window, { pointerId: 42, pointerType: "touch", clientX: 10, clientY: 150 })
+    await flushScrollIndicatorFrame()
+    expect(conversation.scrollTop).toBeGreaterThan(120)
+
+    fireEvent.pointerCancel(window, { pointerId: 42, pointerType: "touch", clientX: 10, clientY: 150 })
+    const canceledScrollTop = conversation.scrollTop
+    fireEvent.pointerMove(window, { pointerId: 42, pointerType: "touch", clientX: 10, clientY: 260 })
+    await flushScrollIndicatorFrame()
+    expect(conversation.scrollTop).toBe(canceledScrollTop)
+
+    fireEvent.pointerDown(thumb, { pointerId: 43, pointerType: "touch", button: 0, clientX: 10, clientY: 90 })
+    window.dispatchEvent(new Event("blur"))
+    const blurredScrollTop = conversation.scrollTop
+    fireEvent.pointerMove(window, { pointerId: 43, pointerType: "touch", clientX: 10, clientY: 240 })
+    await flushScrollIndicatorFrame()
+    expect(conversation.scrollTop).toBe(blurredScrollTop)
   })
 
   it("fades the mobile scroll indicator after scrolling stops", async () => {
@@ -266,6 +355,29 @@ describe("WidgetShell API wiring", () => {
     })
     await flushScrollIndicatorFrame()
     expect(screen.getByTestId("chatbot-scroll-indicator")).toHaveAttribute("data-scrolling", "false")
+  })
+
+  it("keeps the desktop scroll indicator visible for twice the mobile fade delay", async () => {
+    vi.useFakeTimers()
+    render(<WidgetShell onMinimize={vi.fn()} isDesktopLayout />)
+
+    const conversation = setConversationScrollGeometry({ scrollTop: 120, clientHeight: 400, scrollHeight: 1200 })
+    fireEvent.scroll(conversation)
+    await flushScrollIndicatorFrame()
+    const indicator = screen.getByTestId("chatbot-scroll-indicator")
+    expect(indicator).toHaveAttribute("data-scrolling", "true")
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700)
+    })
+    await flushScrollIndicatorFrame()
+    expect(indicator).toHaveAttribute("data-scrolling", "true")
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(520)
+    })
+    await flushScrollIndicatorFrame()
+    expect(indicator).toHaveAttribute("data-scrolling", "false")
   })
 
   it("posts submitted chat text to /api/chatbot/message", async () => {
@@ -1095,8 +1207,8 @@ describe("WidgetShell API wiring", () => {
     expect(screen.getByLabelText("仮キープ候補のカレンダー選択")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-07-10 選択可" })).toBeInTheDocument()
     expect(screen.getByLabelText("案件名")).toHaveValue("ライブ案件")
-    expect(screen.getByLabelText("メールアドレス")).toHaveValue("client@example.jp")
-    expect(screen.getByLabelText("補足ノート")).toHaveValue("観客の顔ぼかし30カット以上\n作業場所: リモート")
+    expect(screen.getByLabelText("メール")).toHaveValue("client@example.jp")
+    expect(screen.getByLabelText("補足")).toHaveValue("観客の顔ぼかし30カット以上\n作業場所: リモート")
 
     const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
     expect(stored.activeUi.bookingPrefill).toMatchObject({
@@ -1474,7 +1586,7 @@ describe("WidgetShell API wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
     fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "編集後の相談です" } })
     fireEvent.click(screen.getByRole("button", { name: "保存" }))
-    expect(screen.getByText("この後の会話を削除します")).toBeInTheDocument()
+    expect(screen.getByText("下の会話は削除されます")).toBeInTheDocument()
     expect(screen.queryByText("保存すると、これより後のやり取りは削除されます。")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "OK" }))
 

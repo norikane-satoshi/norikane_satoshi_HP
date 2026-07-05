@@ -62,7 +62,10 @@ export function inferWorkflowJobContextFromText(
     Boolean(jobKind) &&
     (!current.jobKind || !explicitJobKind || explicitJobKind === current.jobKind)
   const projectLengthMinutes = canInferProjectLength ? explicitProjectLengthMinutes : undefined
-  const finalMedium = current.finalMedium === "other" ? inferFinalMedium(normalized, jobKind) : undefined
+  const finalMedium =
+    current.finalMedium === "other" && !looksLikeJobKindChoiceOnly(normalized)
+      ? inferFinalMedium(normalized)
+      : undefined
   const deliveryMedium = current.deliveryMedium === undefined ? inferDeliveryMedium(normalized) : undefined
   const inferred: Partial<JobContext> = {}
 
@@ -80,6 +83,12 @@ function canInferExplicitJobKind(jobKind: JobKind, projectLengthMinutes: number 
   return workflowDurationJobKindMap[jobKind].baselineMinutes === undefined || projectLengthMinutes !== undefined
 }
 
+function looksLikeJobKindChoiceOnly(text: string): boolean {
+  if (!/^\s*選択\s*[：:]/u.test(text)) return false
+  if (!inferJobKind(text)) return false
+  return !/(?:公開|納品|使用先|放送|配信|劇場|上映|web公開|youtube|sns|ott|プラットフォーム)/u.test(text)
+}
+
 function inferJobKind(text: string): JobKind | undefined {
   if (/(?:ライブ|live)/u.test(text)) return "live-60m"
   if (/(?:縦型|縦動画|縦長|shorts|reels|tiktok|vertical)/u.test(text)) return "vertical-60s"
@@ -88,7 +97,7 @@ function inferJobKind(text: string): JobKind | undefined {
       return "drama-follow-up"
     }
     if (/(?:初回|第?1話|1話目|一話目)/u.test(text)) return "drama-first"
-    return undefined
+    return "drama-first"
   }
   if (/(?:本編|長編|feature)/u.test(text)) return "feature-90m"
   if (/(?:ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(text)) return "mv-5m"
@@ -99,16 +108,13 @@ function inferJobKind(text: string): JobKind | undefined {
   return undefined
 }
 
-function inferFinalMedium(text: string, jobKind: JobKind | undefined): FinalMedium | undefined {
+function inferFinalMedium(text: string): FinalMedium | undefined {
   if (/(?:ott|配信|streaming)/u.test(text)) return "ott"
   if (/(?:劇場|映画館|cinema|theater)/u.test(text)) return "cinema"
   if (/(?:テレビ|tv|放送|地上波)/u.test(text)) return "tv-broadcast"
   if (/(?:ライブ|live)/u.test(text)) return "live"
   if (/(?:縦型|縦動画|縦長|shorts|reels|tiktok|vertical)/u.test(text)) return "vertical-sns"
   if (/(?:web|ウェブ|youtube|サイト|sns)/u.test(text)) return "web"
-  if (jobKind === "live-60m") return "live"
-  if (jobKind === "vertical-60s") return "vertical-sns"
-
   return undefined
 }
 

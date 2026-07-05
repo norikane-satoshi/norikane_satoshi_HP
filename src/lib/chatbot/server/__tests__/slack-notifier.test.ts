@@ -215,6 +215,40 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).not.toContain("sessionId:")
   })
 
+  it("posts message edit events into the existing thread with safe before and after details", async () => {
+    const fetcher = okFetch("1700000000.000200")
+
+    await sendChatbotSlackNotification(
+      {
+        kind: "message-edit",
+        requestId: "req_edit",
+        conversationId: "conv_1",
+        sessionId: "session_1",
+        threadTs: "1700000000.000100",
+        editedMessage: {
+          previousSummary: "古い相談 email client@example.com",
+          nextMessage: "編集後メッセージ phone 090-1234-5678 token=abc12345",
+          truncatedFollowingMessages: 2,
+        },
+      },
+      { env: enabledEnv, fetcher },
+    )
+
+    const body = postedBody(fetcher)
+    expect(body.thread_ts).toBe("1700000000.000100")
+    expect(body.text).toContain("ユーザーメッセージが編集されました")
+    expect(body.text).toContain("requestId: req_edit")
+    expect(body.text).toContain("編集前の安全な要約: 古い相談 email [email]")
+    expect(body.text).toContain("編集後メッセージ: 編集後メッセージ phone [phone] token=[secret]")
+    expect(body.text).toContain("編集により切り捨てられた後続件数: 2")
+    expect(body.text).toContain("ここから再生成")
+    expect(body.text).not.toContain("client@example.com")
+    expect(body.text).not.toContain("090-1234-5678")
+    expect(body.text).not.toContain("abc12345")
+    expect(body.text).not.toContain("会話ID:")
+    expect(body.text).not.toContain("セッションID:")
+  })
+
   it("returns failed without throwing when Slack rejects the message", async () => {
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const fetcher = vi.fn().mockResolvedValue(

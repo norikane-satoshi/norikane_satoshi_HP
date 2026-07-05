@@ -3,8 +3,13 @@ import { describe, expect, it } from "vitest"
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
+  bookingFinalConfirmationChoices,
+  cmProjectLengthChoices,
+  dramaProjectLengthChoices,
   finalMediumChoices,
   jobKindChoices,
+  liveProjectLengthChoices,
+  mvProjectLengthChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
@@ -77,6 +82,30 @@ describe("chatbot fallback router", () => {
     })
   })
 
+  it.each([
+    ["drama-first", dramaProjectLengthChoices, ["話数・全体尺を相談したい"], ["30分", "60分", "90分", "2時間以上"]],
+    ["live-60m", liveProjectLengthChoices, ["30分", "60分", "90分", "2時間以上"], ["1話30分前後", "15秒"]],
+    ["cm-30s", cmProjectLengthChoices, ["15秒", "30秒", "60秒", "複数本"], ["90分", "1話30分前後"]],
+    ["mv-5m", mvProjectLengthChoices, ["3〜5分", "5〜10分"], ["2時間以上", "15秒"]],
+  ] as const)("continues with contextual project length choices for %s", (jobKind, expectedChoices, included, excluded) => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ jobKind }),
+      conversationState: conversationState({
+        hasProjectLength: false,
+        hasContactEmail: false,
+        hasDesiredSchedule: false,
+      }),
+    })
+
+    expect(result.kind).toBe("continue")
+    if (result.kind !== "continue") return
+    expect(result.nextQuestion).toBe(expectedChoices.question)
+    expect(result.presentChoices).toBe(expectedChoices)
+    const labels = result.presentChoices?.choices.map((choice) => choice.label) ?? []
+    included.forEach((label) => expect(labels).toContain(label))
+    excluded.forEach((label) => expect(labels).not.toContain(label))
+  })
+
   it("continues with additional work choices after final medium and job kind are collected", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
@@ -137,20 +166,17 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("routes to email when contact email is collected and schedule is undecided", () => {
+  it("does not require a desired schedule before final booking confirmation", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
         hasDesiredSchedule: false,
-        turnCount: settledConversationTurnThreshold + 2,
       }),
     })
 
     expect(result).toMatchObject({
-      kind: "to-email",
-      summary: {
-        customerEmail: "client@example.com",
-      },
+      kind: "continue",
+      presentChoices: bookingFinalConfirmationChoices,
     })
   })
 

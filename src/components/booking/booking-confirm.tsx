@@ -1,6 +1,8 @@
 import {
+  formatBookingDateSelection,
   formatDurationMinutes,
   getTotalDurationMinutes,
+  type BookingDateSelection,
   type BookingFormData,
   type BookingSlot,
 } from "@/lib/booking/domain/form-schema"
@@ -8,9 +10,11 @@ import {
 type BookingConfirmProps = {
   formData: BookingFormData
   selectedSlots: BookingSlot[]
+  requestedDateSelection?: BookingDateSelection | null
   submitError?: string | null
   onDismissSubmitError?: () => void
   onReselectDate?: (slot?: BookingSlot) => void
+  sessionEmailOptional?: boolean
 }
 
 function formatSlot(slot: BookingSlot): string {
@@ -33,27 +37,31 @@ function valueOrDash(value: string | string[]): string {
   return value.trim() || "-"
 }
 
-function formatSlots(slots: BookingSlot[]): string {
-  if (slots.length === 0) return "日時未選択"
+function formatSlots(slots: BookingSlot[], requestedDateSelection?: BookingDateSelection | null): string {
+  if (requestedDateSelection) return formatBookingDateSelection(requestedDateSelection)
+  if (slots.length === 0) return "希望日未選択"
   return slots.map((slot) => formatSlot(slot)).join(" / ")
 }
 
 export function BookingConfirm({
   formData,
   selectedSlots,
+  requestedDateSelection = null,
   submitError,
   onDismissSubmitError,
   onReselectDate,
+  sessionEmailOptional = false,
 }: BookingConfirmProps) {
   const rows = [
     ["案件名", formData.projectTitle],
-    ["想定作業時間合計", formatDurationMinutes(getTotalDurationMinutes(selectedSlots))],
-    ["納期", formData.dueDate],
+    ["希望日", formatSlots(selectedSlots, requestedDateSelection)],
+    ...(selectedSlots.length > 0 ? [["想定作業時間合計", formatDurationMinutes(getTotalDurationMinutes(selectedSlots))] as const] : []),
+    ["納期(任意)", formData.dueDate],
     ["会社名", formData.companyName],
-    ["担当者氏名", formData.contactName],
-    ["メールアドレス", formData.sessionEmail],
-    ["電話番号", formData.phone],
-    ["補足メモ", formData.memo],
+    ["氏名", formData.contactName],
+    [sessionEmailOptional ? "メール(任意)" : "メール", formData.sessionEmail],
+    ["TEL", formData.phone],
+    ["補足(任意)", formData.memo],
   ] as const
 
   return (
@@ -66,7 +74,7 @@ export function BookingConfirm({
             <div className="booking-confirm__submit-actions">
               {onReselectDate ? (
                 <button className="booking-section__text-button" type="button" onClick={() => onReselectDate()}>
-                  日時を選び直す
+                  希望日を選び直す
                 </button>
               ) : null}
               {onDismissSubmitError ? (
@@ -79,8 +87,8 @@ export function BookingConfirm({
         </div>
       ) : null}
       <div>
-        <span className="glass-badge booking-confirm__slot-pill">{formatSlots(selectedSlots)}</span>
-        <h2 className="booking-confirm__title">申込内容の確認</h2>
+        <span className="glass-badge booking-confirm__slot-pill">{formatSlots(selectedSlots, requestedDateSelection)}</span>
+        <h2 className="booking-confirm__title">日程相談内容の確認</h2>
       </div>
       <dl className="booking-confirm__list glass-inset">
         {rows.map(([label, value]) => (

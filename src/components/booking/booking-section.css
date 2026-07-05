@@ -1,5 +1,5 @@
 .booking-section {
-  --booking-card-min-height: 920px;
+  --booking-card-min-height: 760px;
   display: flex;
   min-height: var(--booking-card-min-height);
   flex-direction: column;
@@ -321,7 +321,7 @@
 }
 
 .booking-section__pane > .booking-calendar .fc-daygrid-day-frame {
-  min-height: 112px;
+  min-height: clamp(76px, 6.5vw, 88px);
 }
 
 .booking-section__pane > .booking-calendar .fc-timegrid-slot {
@@ -341,11 +341,16 @@
 
 .booking-footer__secondary,
 .booking-footer__primary {
+  display: inline-flex;
   min-height: 44px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--glass-border);
   padding: 0 18px;
   font: inherit;
   font-weight: 700;
+  text-align: center;
+  text-decoration: none;
 }
 
 .booking-footer__secondary {
@@ -366,6 +371,7 @@
 
 .booking-form {
   display: grid;
+  min-width: 0;
   min-height: 0;
   gap: 18px;
   overflow-y: auto;
@@ -386,7 +392,10 @@
   display: inline-flex;
   width: fit-content;
   max-width: 100%;
+  min-width: 0;
   padding: 8px 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 button.booking-form__slot-pill {
@@ -406,13 +415,16 @@ button.booking-form__slot-pill:focus-visible {
   flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .booking-form__duration-total {
   display: flex;
   width: fit-content;
   max-width: 100%;
+  min-width: 0;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 10px;
   border-radius: var(--hp-radius-sm);
   padding: 10px 12px;
@@ -464,6 +476,7 @@ button.booking-form__slot-pill:focus-visible {
 
 .booking-choice {
   display: flex;
+  min-width: 0;
   min-height: 44px;
   align-items: center;
   gap: 10px;
@@ -485,11 +498,13 @@ button.booking-form__slot-pill:focus-visible {
 }
 
 .booking-form__callout {
+  min-width: 0;
   border: 1px solid var(--accent-primary);
   padding: 12px 14px;
   color: var(--text-primary);
   font-size: 0.875rem;
   line-height: 1.8;
+  overflow-wrap: anywhere;
 }
 
 .booking-form__error {
@@ -500,12 +515,14 @@ button.booking-form__slot-pill:focus-visible {
 
 .booking-confirm {
   display: grid;
+  min-width: 0;
   align-content: start;
   gap: 18px;
 }
 
 .booking-confirm__submit-error {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   gap: 10px;
   border: 1px solid var(--accent-primary);
@@ -517,6 +534,7 @@ button.booking-form__slot-pill:focus-visible {
 
 .booking-confirm__submit-error p {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .booking-confirm__submit-actions {
@@ -537,6 +555,7 @@ button.booking-form__slot-pill:focus-visible {
 
 .booking-confirm__list {
   display: grid;
+  min-width: 0;
   gap: 0;
   padding: 18px;
 }
@@ -544,6 +563,7 @@ button.booking-form__slot-pill:focus-visible {
 .booking-confirm__row {
   display: grid;
   grid-template-columns: minmax(120px, 0.32fr) minmax(0, 1fr);
+  min-width: 0;
   gap: 16px;
   border-bottom: 1px solid var(--glass-border);
   padding: 12px 0;
@@ -555,20 +575,133 @@ button.booking-form__slot-pill:focus-visible {
 
 .booking-confirm__row dt,
 .booking-confirm__row dd {
+  min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .booking-done {
   display: grid;
+  width: 100%;
   max-width: 720px;
+  min-width: 0;
   align-content: start;
   gap: 16px;
+  overflow: hidden;
   padding: 28px;
+}
+
+.booking-done p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.booking-history__page-head {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.booking-history__back {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--glass-border);
+  padding: 0 18px;
+  color: var(--text-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.booking-history__list {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.booking-history__card,
+.booking-history__empty {
+  min-width: 0;
+  overflow: hidden;
+  padding: 18px;
+}
+
+.booking-history__card-head {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.booking-history__title-group {
+  min-width: 0;
+}
+
+.booking-history__item-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.booking-history__created {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.booking-history__status {
+  max-width: 100%;
+  padding: 6px 10px;
+}
+
+.booking-history__details {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.booking-history__row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(88px, 0.22fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.booking-history__row dt,
+.booking-history__row dd,
+.booking-history__empty {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.booking-history__row dt {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.booking-history__row dd,
+.booking-history__empty {
+  color: var(--text-primary);
 }
 
 @media (max-width: 1024px) {
   .booking-section {
-    --booking-card-min-height: 840px;
+    --booking-card-min-height: 700px;
   }
 
   .booking-settings__grid {
@@ -576,7 +709,7 @@ button.booking-form__slot-pill:focus-visible {
   }
 
   .booking-section__pane > .booking-calendar .fc-daygrid-day-frame {
-    min-height: 80px;
+    min-height: clamp(64px, 7.5vw, 76px);
   }
 }
 
@@ -601,13 +734,23 @@ button.booking-form__slot-pill:focus-visible {
   }
 
   .booking-section__pane > .booking-calendar .fc-daygrid-day-frame {
-    min-height: 56px;
+    min-height: clamp(40px, 10.5vw, 52px);
   }
 
   .booking-form__grid,
   .booking-form__checkbox-grid,
   .booking-footer {
     grid-template-columns: 1fr;
+  }
+
+  .booking-confirm__row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .booking-history__row {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .booking-settings__button {

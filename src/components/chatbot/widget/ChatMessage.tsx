@@ -41,7 +41,7 @@ const LONG_PRESS_VIBRATION_MS = 10
 const TOUCH_RELEASE_RIPPLE_MS = 420
 const TOUCH_CANCEL_FALLBACK_MS = 900
 const TOUCH_EDIT_HINT_LABEL = "長押しして編集"
-const EDIT_TRUNCATION_WARNING = "この後の会話を削除します"
+const EDIT_TRUNCATION_WARNING = "下の会話は削除されます"
 const PENDING_TOUCH_IDENTIFIER = -1
 const CHATBOT_MESSAGE_EDITING_STARTED_EVENT = "chatbot-message-editing-started"
 
@@ -174,6 +174,7 @@ export function ChatMessage({
   const endTouchFeedbackRef = useRef<() => void>(() => {})
   const scheduleTouchCancelFallbackRef = useRef<() => void>(() => {})
   const continueTouchLongPressRef = useRef<(point: TouchPoint) => void>(() => {})
+  const articleRef = useRef<HTMLElement | null>(null)
   const trimmedDraft = draft.trim()
   const normalizedDisplayName = displayName?.trim()
   const resolvedRoleLabel = normalizedDisplayName || roleLabel[role]
@@ -329,11 +330,11 @@ export function ChatMessage({
     endTouchFeedback()
   }
 
-  const cancelEdit = () => {
+  const cancelEdit = useCallback(() => {
     setDraft(content)
     setEditConfirmPending(false)
     setIsEditing(false)
-  }
+  }, [content])
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (!canEdit || !id || isEditing || !isMobileLikePointer(event.pointerType)) return
@@ -485,6 +486,26 @@ export function ChatMessage({
   }, [clearLongPressTimer, clearTouchCancelFallbackTimer, clearTouchReleaseTimer, content, id])
 
   useEffect(() => {
+    if (!isEditing) return undefined
+
+    const handleOutsideEditPointer = (event: PointerEvent | MouseEvent | TouchEvent) => {
+      const article = articleRef.current
+      const target = event.target
+      if (article && target instanceof Node && article.contains(target)) return
+      cancelEdit()
+    }
+
+    document.addEventListener("pointerdown", handleOutsideEditPointer, true)
+    document.addEventListener("mousedown", handleOutsideEditPointer, true)
+    document.addEventListener("touchstart", handleOutsideEditPointer, { capture: true, passive: true })
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideEditPointer, true)
+      document.removeEventListener("mousedown", handleOutsideEditPointer, true)
+      document.removeEventListener("touchstart", handleOutsideEditPointer, true)
+    }
+  }, [cancelEdit, isEditing])
+
+  useEffect(() => {
     const handleWindowTouchEnd = () => {
       if (!id || !isLongPressOwner(id)) return
       releaseLongPressOwner(id)
@@ -534,6 +555,7 @@ export function ChatMessage({
 
   return (
     <article
+      ref={articleRef}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

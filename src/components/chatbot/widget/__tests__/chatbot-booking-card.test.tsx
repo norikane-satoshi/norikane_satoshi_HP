@@ -95,8 +95,8 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByRole("button", { name: "2026-06-10 選択可" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-06-11 選択可" })).toBeInTheDocument()
     expect(screen.getByLabelText("会社名")).toHaveValue("株式会社サンプル")
-    expect(screen.getByLabelText("担当者氏名")).toHaveValue("田中")
-    expect(screen.getByLabelText("メールアドレス")).toHaveValue("")
+    expect(screen.getByLabelText("氏名")).toHaveValue("田中")
+    expect(screen.getByLabelText("メール")).toHaveValue("")
     expect(screen.getByPlaceholderText("作品名または案件名（イニシャル表記も可）")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "利用規約" })).toHaveAttribute("href", "/terms")
     expect(screen.getByRole("link", { name: "プライバシーポリシー" })).toHaveAttribute("href", "/privacy")
@@ -118,8 +118,8 @@ describe("ChatbotBookingCard", () => {
     expect(within(bookingOrder).getByText("仮キープ候補")).toBeInTheDocument()
     expect(within(bookingOrder).getByText("仮キープ候補").parentElement).not.toHaveTextContent("必須")
     expect(screen.getByLabelText("案件名")).toBeRequired()
-    expect(screen.getByLabelText("担当者氏名")).toBeRequired()
-    expect(screen.getByLabelText("メールアドレス")).toBeRequired()
+    expect(screen.getByLabelText("氏名")).toBeRequired()
+    expect(screen.getByLabelText("メール")).toBeRequired()
   })
 
   it("renders calendar date cells with numeric day text only", () => {
@@ -610,9 +610,9 @@ describe("ChatbotBookingCard", () => {
       defaultMemo: "ライブ2.5h\nプロンプター消し物・顔アップ肌修正",
     })
 
-    expect(screen.getByLabelText("補足ノート")).toHaveValue("ライブ2.5h\nプロンプター消し物・顔アップ肌修正")
+    expect(screen.getByLabelText("補足")).toHaveValue("ライブ2.5h\nプロンプター消し物・顔アップ肌修正")
     expect(screen.getByLabelText("会社名")).toHaveValue("株式会社サンプル")
-    expect(screen.getByLabelText("担当者氏名")).toHaveValue("田中")
+    expect(screen.getByLabelText("氏名")).toHaveValue("田中")
     expect(screen.getByLabelText("案件名")).toHaveValue("")
   })
 
@@ -620,7 +620,7 @@ describe("ChatbotBookingCard", () => {
     const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: ["slot_1"] })
     renderCard({ defaultContactEmail: "client@example.jp" })
 
-    expect(screen.getByLabelText("メールアドレス")).toHaveValue("client@example.jp")
+    expect(screen.getByLabelText("メール")).toHaveValue("client@example.jp")
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
@@ -643,7 +643,7 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(screen.getByText("メールアドレスの形式を確認してください")).toBeInTheDocument()
+    expect(screen.getByText("メールの形式を確認してください")).toBeInTheDocument()
   })
 
   it("does not submit without a required contact email", () => {
@@ -698,7 +698,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "client@example.jp" } })
+    fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -734,7 +734,7 @@ describe("ChatbotBookingCard", () => {
     renderCard()
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "client@example.jp" } })
+    fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -758,7 +758,7 @@ describe("ChatbotBookingCard", () => {
     })
     renderCard()
 
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "client@example.jp" } })
+    fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -767,7 +767,7 @@ describe("ChatbotBookingCard", () => {
       selectedSlots: [],
     })
     const completion = await screen.findByLabelText("予約送信完了")
-    expect(within(completion).getByText("候補日未選択")).toBeInTheDocument()
+    expect(within(completion).getByText("希望日未選択")).toBeInTheDocument()
     expect(within(completion).getByText("予約番号: group_1")).toBeInTheDocument()
     expect(within(completion).getByText("CM grading")).toBeInTheDocument()
     expect(within(completion).getByText("田中")).toBeInTheDocument()
@@ -797,7 +797,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "client@example.jp" } })
+    fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -828,7 +828,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "client@example.jp" } })
+    fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -843,7 +843,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "client@example.jp" } })
+    fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 

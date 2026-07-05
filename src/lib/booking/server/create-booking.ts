@@ -1,5 +1,6 @@
 import type { BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { resolveConflictForFinalSubmit } from "@/lib/booking/domain/conflicts"
+import { bookingDateRangeToSelection, formatBookingDateSelection, type BookingDateSelection } from "@/lib/booking/domain/form-schema"
 import { invalidateCalendarFreeBusyCacheForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
 import { findConflictingBookings } from "@/lib/booking/server/conflicts"
 import { BookingConflictError } from "@/lib/booking/server/errors"
@@ -13,6 +14,7 @@ import {
   refreshCalendarAccessToken,
   type CalendarEventWriteInput,
 } from "@/lib/google-calendar/server"
+import { sendLineBookingReceipt } from "@/lib/line/messaging"
 import { prisma } from "@/lib/prisma"
 
 export type CreateBookingResult = {
@@ -24,8 +26,9 @@ export type CreateBookingResult = {
 type CreateBookingFromApiInputArgs = {
   input: BookingApiInput
   notionTaskType?: CalendarEventWriteInput["notionTaskType"]
+  originatedFrom?: "web" | "line_liff" | "chatbot"
   userId: string
-  userEmail: string
+  userEmail: string | null
 }
 
 function nullable(value: string): string | null {
@@ -35,21 +38,21 @@ function nullable(value: string): string | null {
 
 function createDescription(input: BookingApiInput): string {
   return [
-    ["候補日", input.selectedSlots.length > 0 ? input.selectedSlots.map((slot) => `${slot.start} - ${slot.end}`).join(" / ") : "候補日未選択"],
+    ["候補日", getScheduleLabel(input)],
     ["案件名", input.projectTitle],
     ["納期", input.dueDate],
     ["会社名", input.companyName],
-    ["担当者氏名", input.contactName],
-    ["メールアドレス", input.sessionEmail],
-    ["電話番号", input.phone],
-    ["補足メモ", input.memo],
+    ["氏名", input.contactName],
+    ["メール", input.sessionEmail],
+    ["TEL", input.phone],
+    ["補足", input.memo],
   ]
     .map(([label, value]) => `${label}: ${value.trim() || "-"}`)
     .join("\n")
 }
 
 function createSummary(input: BookingApiInput): string {
-  return `【仮キープ】${input.projectTitle}`
+  return `【仮キープ】${input.projectTitle} / ${input.contactName}`
 }
 
 function createBookingEmailArgs(input: BookingApiInput, to: string, bookingGroupId: string): BookingEmailArgs {
@@ -57,11 +60,33 @@ function createBookingEmailArgs(input: BookingApiInput, to: string, bookingGroup
     to,
     projectTitle: input.projectTitle,
     selectedSlots: input.selectedSlots,
+    requestedDates: getRequestedDateSelection(input)?.dates,
     bookingGroupId,
     workScopes: [],
     otherWorkDetail: input.memo,
     estimatedDuration: "consult",
   }
+}
+
+function getRequestedDateSelection(input: BookingApiInput): BookingDateSelection | null {
+  if ((input.requestedDates ?? []).length > 0) return { dates: input.requestedDates }
+  if (input.requestedDateRange) return bookingDateRangeToSelection(input.requestedDateRange)
+  return null
+}
+
+function getScheduleLabel(input: BookingApiInput): string {
+  if (input.selectedSlots.length > 0) {
+    return input.selectedSlots.map((slot) => `${slot.start} - ${slot.end}`).join(" / ")
+  }
+  const requestedDateSelection = getRequestedDateSelection(input)
+  return requestedDateSelection ? formatBookingDateSelection(requestedDateSelection) : "候補日未選択"
+}
+
+function nextDateKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  date.setUTCDate(date.getUTCDate() + 1)
+  return date.toISOString().slice(0, 10)
 }
 
 async function warnOnEmailFailure(task: Promise<unknown>, tag: string, to: string) {
@@ -71,6 +96,38 @@ async function warnOnEmailFailure(task: Promise<unknown>, tag: string, to: strin
     const message = error instanceof Error ? error.message : "email send failed"
     console.warn(`[email failed] tag=${tag} to=${to}`, message)
   }
+}
+
+async function sendTentativeHoldEmail(input: BookingApiInput, to: string | null, bookingGroupId: string) {
+  if (!to) return
+  await warnOnEmailFailure(
+    sendBookingConfirmedEmail(createBookingEmailArgs(input, to, bookingGroupId)),
+    "tentative_hold",
+    to,
+  )
+}
+
+async function sendCustomerReceipt(input: BookingApiInput, to: string | null, bookingGroupId: string, scheduleLabel: string) {
+  if (input.entryPoint === "line_liff" && input.lineUserId) {
+    const result = await sendLineBookingReceipt({
+      bookingGroupId,
+      lineUserId: input.lineUserId,
+      replyToken: input.lineReplyToken,
+      projectTitle: input.projectTitle,
+      scheduleLabel,
+    })
+    if (!result.ok) {
+      console.warn("LINE booking receipt failed", {
+        bookingGroupId,
+        method: result.method,
+        status: result.status,
+        error: result.error,
+      })
+    }
+    return
+  }
+
+  await sendTentativeHoldEmail(input, to, bookingGroupId)
 }
 
 async function refreshStoredCalendarToken() {
@@ -108,15 +165,17 @@ function wait(ms: number) {
 export async function createBookingFromApiInput({
   input,
   notionTaskType,
+  originatedFrom,
   userId,
   userEmail,
 }: CreateBookingFromApiInputArgs): Promise<CreateBookingResult> {
   const slots = input.selectedSlots
   const primarySlot = slots[0]
   const hasSelectedSlots = slots.length > 0
+  const scheduleLabel = getScheduleLabel(input)
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   const teamId = input.teamId ?? null
-  const storedMemo = [input.memo, hasSelectedSlots ? undefined : "候補日未選択"]
+  const storedMemo = [input.memo, hasSelectedSlots ? undefined : `希望日: ${scheduleLabel}`]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
     .join("\n")
@@ -162,6 +221,8 @@ export async function createBookingFromApiInput({
         customerEmail: userEmail,
         phone: nullable(input.phone),
         dueDate: nullable(input.dueDate),
+        originatedFrom: originatedFrom ?? input.entryPoint ?? "web",
+        lineUserId: input.entryPoint === "line_liff" ? input.lineUserId ?? null : null,
         timeSlots: {
           create: slots.map((slot) => ({
             startTime: new Date(slot.start),
@@ -175,25 +236,6 @@ export async function createBookingFromApiInput({
   }, { maxWait: 5000, timeout: 10000 })
 
   const bookingIds = bookingGroup.timeSlots.map((slot) => slot.id)
-
-  if (!hasSelectedSlots) {
-    await warnOnEmailFailure(
-      sendBookingConfirmedEmail(createBookingEmailArgs(input, userEmail, bookingGroup.id)),
-      "tentative_hold",
-      userEmail,
-    )
-    return {
-      body: {
-        status: "schedule_unselected",
-        bookingGroupId: bookingGroup.id,
-        bookingIds,
-        bookingStatus: "NEEDS_SCHEDULE",
-        scheduleStatus: "unscheduled",
-        scheduleLabel: "候補日未選択",
-      },
-      status: 200,
-    }
-  }
 
   const confirmBooking = async (gcalEventId?: string | null) => {
     await prisma.bookingGroup.update({
@@ -210,14 +252,93 @@ export async function createBookingFromApiInput({
     })
   }
 
+  const description = createDescription(input)
+  const summary = createSummary(input)
+  const eventId = sanitizeGcalEventId(bookingGroup.id)
+
+  if (!hasSelectedSlots) {
+    const requestedDateSelection = getRequestedDateSelection(input)
+    if (!calendarId || !requestedDateSelection?.dates.length) {
+      await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+      return {
+        body: {
+          status: "schedule_unselected",
+          bookingGroupId: bookingGroup.id,
+          bookingIds,
+          bookingStatus: "NEEDS_SCHEDULE",
+          scheduleStatus: "unscheduled",
+          scheduleLabel,
+          ...(!calendarId ? { gcalError: "GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set" } : {}),
+        },
+        status: calendarId ? 200 : 207,
+      }
+    }
+
+    try {
+      const accessToken = await refreshStoredCalendarToken()
+      const firstDate = requestedDateSelection.dates[0]
+      const createEvent = () => createCalendarEvent({
+        calendarId,
+        summary,
+        description,
+        start: firstDate,
+        end: nextDateKey(firstDate),
+        colorId: "4",
+        accessToken,
+        eventId,
+        notionTaskType: notionTaskType ?? "仮押さえ",
+        dateOnly: true,
+        transparency: "transparent",
+      })
+      let event
+      try {
+        event = await createEvent()
+      } catch {
+        await wait(500)
+        event = await createEvent()
+      }
+      await prisma.bookingGroup.update({
+        where: { id: bookingGroup.id },
+        data: { gcalEventId: event.id ?? null },
+      })
+    } catch (error) {
+      const gcalError = errorMessage(error) || "Google Calendar event write failed"
+      console.warn("Booking Google Calendar date-only hold write failed", {
+        bookingGroupId: bookingGroup.id,
+        error: gcalError,
+      })
+      await prisma.bookingGroup.update({
+        where: { id: bookingGroup.id },
+        data: { status: "FAILED", pendingExpiresAt: null },
+      })
+
+      return {
+        body: {
+          error: "calendar_unavailable",
+          bookingGroupId: bookingGroup.id,
+        },
+        status: 502,
+      }
+    }
+
+    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+    return {
+      body: {
+        status: "schedule_unselected",
+        bookingGroupId: bookingGroup.id,
+        bookingIds,
+        bookingStatus: "NEEDS_SCHEDULE",
+        scheduleStatus: "unscheduled",
+        scheduleLabel,
+      },
+      status: 200,
+    }
+  }
+
   if (!calendarId) {
     await confirmBooking(null)
     invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-    await warnOnEmailFailure(
-      sendBookingConfirmedEmail(createBookingEmailArgs(input, userEmail, bookingGroup.id)),
-      "tentative_hold",
-      userEmail,
-    )
+    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
     console.warn("Booking created without Google Calendar event: GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set")
     return {
       body: {
@@ -231,12 +352,9 @@ export async function createBookingFromApiInput({
     }
   }
 
-  const description = createDescription(input)
-  const summary = createSummary(input)
   let gcalEventId: string | null
   try {
     const accessToken = await refreshStoredCalendarToken()
-    const eventId = sanitizeGcalEventId(bookingGroup.id)
     const createEvent = () => createCalendarEvent({
       calendarId,
       summary,
@@ -246,7 +364,7 @@ export async function createBookingFromApiInput({
       colorId: "9",
       accessToken,
       eventId,
-      notionTaskType,
+      notionTaskType: notionTaskType ?? "仮押さえ",
     })
     let event
     try {
@@ -292,7 +410,7 @@ export async function createBookingFromApiInput({
     try {
       await prisma.adminActionLog.create({
         data: {
-          actorEmail: userEmail,
+          actorEmail: userEmail ?? "line_liff",
           action: "GCAL_OK_DB_CONFIRM_FAILED",
           payload: JSON.stringify({
             bookingGroupId: bookingGroup.id,
@@ -313,11 +431,7 @@ export async function createBookingFromApiInput({
   }
 
   invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-  await warnOnEmailFailure(
-    sendBookingConfirmedEmail(createBookingEmailArgs(input, userEmail, bookingGroup.id)),
-    "tentative_hold",
-    userEmail,
-  )
+  await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
 
   return {
     body: {

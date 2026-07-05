@@ -37,34 +37,43 @@ vi.mock("@fullcalendar/timegrid", () => ({ default: {} }))
 vi.mock("@fullcalendar/core/locales/ja", () => ({ default: {} }))
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }))
 
-import { BookingCalendar, shouldConfirmAdminMove } from "@/components/booking/booking-calendar"
+import { BookingCalendar, isDateKeyTodayOrPast, shouldConfirmAdminMove } from "@/components/booking/booking-calendar"
+
+type BookingCalendarTestProps = React.ComponentProps<typeof BookingCalendar>
+
+function calendarProps(overrides: Partial<BookingCalendarTestProps> = {}): BookingCalendarTestProps {
+  return {
+    viewerUserId: "admin_user",
+    viewerEmail: "admin@example.com",
+    isCalendarAdmin: true,
+    teamMemberUserIds: [],
+    initialRange: {
+      start: "2099-05-18T00:00:00.000Z",
+      end: "2099-05-19T00:00:00.000Z",
+    },
+    initialBookings: [{
+      id: "slot_1",
+      bookingGroupId: "group_1",
+      customerUserId: "admin_user",
+      start: "2099-05-18T01:00:00.000Z",
+      end: "2099-05-18T02:00:00.000Z",
+      title: "Project",
+      status: "CONFIRMED",
+      bufferBeforeHours: 1,
+      bufferAfterHours: 1,
+    }],
+    onCommit: vi.fn(),
+    ...overrides,
+  }
+}
+
+function renderCalendarMarkup(overrides: Partial<BookingCalendarTestProps> = {}) {
+  fullCalendar.props = null
+  return renderToStaticMarkup(React.createElement(BookingCalendar, calendarProps(overrides)))
+}
 
 function renderCalendar() {
-  fullCalendar.props = null
-  renderToStaticMarkup(
-    React.createElement(BookingCalendar, {
-      viewerUserId: "admin_user",
-      viewerEmail: "admin@example.com",
-      isCalendarAdmin: true,
-      teamMemberUserIds: [],
-      initialRange: {
-        start: "2099-05-18T00:00:00.000Z",
-        end: "2099-05-19T00:00:00.000Z",
-      },
-      initialBookings: [{
-        id: "slot_1",
-        bookingGroupId: "group_1",
-        customerUserId: "admin_user",
-        start: "2099-05-18T01:00:00.000Z",
-        end: "2099-05-18T02:00:00.000Z",
-        title: "Project",
-        status: "CONFIRMED",
-        bufferBeforeHours: 1,
-        bufferAfterHours: 1,
-      }],
-      onCommit: vi.fn(),
-    }),
-  )
+  renderCalendarMarkup()
   const props = fullCalendar.props as CapturedFullCalendarProps | null
   if (!props) throw new Error("FullCalendar props were not captured")
   return props
@@ -206,5 +215,26 @@ describe("BookingCalendar admin move confirmation", () => {
     const props = renderCalendar()
 
     expect(props.eventResizableFromStart).toBe(true)
+  })
+})
+
+describe("BookingCalendar date request guards", () => {
+  it("treats today and past dates as unavailable using the provided date key", () => {
+    expect(isDateKeyTodayOrPast("2026-07-01", "2026-07-01")).toBe(true)
+    expect(isDateKeyTodayOrPast("2026-06-30", "2026-07-01")).toBe(true)
+    expect(isDateKeyTodayOrPast("2026-07-02", "2026-07-01")).toBe(false)
+  })
+})
+
+describe("BookingCalendar account scope display", () => {
+  it("does not render the personal scope selector when there are no teams", () => {
+    const html = renderCalendarMarkup({
+      onSelectedTeamIdChange: vi.fn(),
+      teams: [],
+      viewerEmail: "",
+    })
+
+    expect(html).not.toContain("booking-team-scope")
+    expect(html).not.toContain("個人")
   })
 })

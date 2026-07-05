@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   listTeamMemberUserIds: vi.fn(),
   listBusyEventsWithBuffer: vi.fn(),
+  getNotionWorkScheduleBusyIntervals: vi.fn(),
   refreshCalendarAccessToken: vi.fn(),
   prisma: {
     bookingTimeSlot: {
@@ -33,6 +34,9 @@ vi.mock("@/lib/google-calendar/server", () => ({
   CalendarTokenRevokedError: mocks.CalendarTokenRevokedError,
   listBusyEventsWithBuffer: mocks.listBusyEventsWithBuffer,
   refreshCalendarAccessToken: mocks.refreshCalendarAccessToken,
+}))
+vi.mock("@/lib/chatbot/server/notion-work-schedule-busy", () => ({
+  getNotionWorkScheduleBusyIntervals: mocks.getNotionWorkScheduleBusyIntervals,
 }))
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }))
 
@@ -74,6 +78,7 @@ function mockCalendar() {
       summary: null,
     },
   ])
+  mocks.getNotionWorkScheduleBusyIntervals.mockResolvedValue([])
 }
 
 function mockBookingRows() {
@@ -185,6 +190,18 @@ describe("GET /api/calendar/free-busy", () => {
     expect(mocks.refreshCalendarAccessToken).toHaveBeenCalledTimes(1)
     expect(mocks.listBusyEventsWithBuffer).toHaveBeenCalledTimes(1)
     expect(second.headers.get("server-timing")).toContain('cache;desc="hit"')
+  })
+
+  it("coalesces concurrent cold requests for the same visible range", async () => {
+    mockCalendar()
+
+    const [first, second] = await Promise.all([GET(request()), GET(request())])
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(mocks.prisma.bookingTimeSlot.findMany).toHaveBeenCalledTimes(1)
+    expect(mocks.refreshCalendarAccessToken).toHaveBeenCalledTimes(1)
+    expect(mocks.listBusyEventsWithBuffer).toHaveBeenCalledTimes(1)
   })
 
   it("bypasses the in-memory cache when refresh nonce is present", async () => {
@@ -413,6 +430,42 @@ describe("GET /api/calendar/free-busy", () => {
     expect(result.bookings).toEqual([
       expect.objectContaining({ id: "slot_overlap" }),
     ])
+  })
+
+  it("adds timed IB work intervals as notion_work busy slots", async () => {
+    mockCalendar()
+    mocks.getNotionWorkScheduleBusyIntervals.mockResolvedValue([
+      {
+        start: "2026-06-15T04:00:00.000Z",
+        end: "2026-06-15T04:30:00.000Z",
+        source: "notion_work",
+      },
+    ])
+
+    const result = await getCalendarFreeBusyForUser({
+      userId: "user_1",
+      teamId: null,
+      timeMin: "2026-06-01T00:00:00.000Z",
+      timeMax: "2026-06-30T00:00:00.000Z",
+      calendarId: "calendar_1",
+      useCache: false,
+    })
+
+    expect(mocks.getNotionWorkScheduleBusyIntervals).toHaveBeenCalledWith({
+      from: "2026-06-01T00:00:00.000Z",
+      to: "2026-06-30T00:00:00.000Z",
+    })
+    expect(result.busy).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          start: "2026-06-15T04:00:00.000Z",
+          end: "2026-06-15T04:30:00.000Z",
+          source: "notion_work",
+          bufferBeforeHours: null,
+          bufferAfterHours: null,
+        }),
+      ]),
+    )
   })
 
   it("invalidates only the matching team-scoped cache entries", async () => {

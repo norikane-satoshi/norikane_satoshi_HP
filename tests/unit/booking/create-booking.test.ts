@@ -13,6 +13,7 @@ function bookingInput(overrides: Partial<BookingApiInput> = {}): BookingApiInput
     memo: "",
     agreed: true,
     selectedSlots: [],
+    requestedDates: [],
     ...overrides,
   }
 }
@@ -98,7 +99,8 @@ describe("createBookingFromApiInput", () => {
     })
 
     expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
-      summary: "【仮キープ】Color grading",
+      summary: "【仮キープ】Color grading / Satoshi",
+      notionTaskType: "仮押さえ",
     }))
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({
       bookingGroupId: "group_1",
@@ -133,7 +135,7 @@ describe("createBookingFromApiInput", () => {
     }))
   })
 
-  it("persists zero selected slots as an unscheduled chatbot booking request without creating a calendar event", async () => {
+  it("persists zero selected slots as an unscheduled chatbot booking request without creating a calendar event when no candidate date exists", async () => {
     const service = await loadCreateBooking()
 
     const result = await service.createBookingFromApiInput({
@@ -158,7 +160,7 @@ describe("createBookingFromApiInput", () => {
         data: expect.objectContaining({
           status: "NEEDS_SCHEDULE",
           pendingExpiresAt: null,
-          memo: "候補日未選択",
+          memo: "希望日: 候補日未選択",
           timeSlots: { create: [] },
         }),
       }),
@@ -167,6 +169,65 @@ describe("createBookingFromApiInput", () => {
     expect(service.invalidateCalendarFreeBusyCacheForUser).not.toHaveBeenCalled()
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({
       bookingGroupId: "group_1",
+      selectedSlots: [],
+    }))
+  })
+
+  it("creates a transparent all-day tentative hold for requested date arrays", async () => {
+    const service = await loadCreateBooking()
+
+    const result = await service.createBookingFromApiInput({
+      input: bookingInput({
+        selectedSlots: [],
+        requestedDates: ["2026-07-10", "2026-07-12", "2026-07-15"],
+      }),
+      userId: "user_1",
+      userEmail: "satoshi@example.com",
+    })
+
+    expect(result).toMatchObject({
+      status: 200,
+      body: {
+        status: "schedule_unselected",
+        bookingGroupId: "group_1",
+        bookingIds: [],
+        bookingStatus: "NEEDS_SCHEDULE",
+        scheduleStatus: "unscheduled",
+      },
+    })
+    expect(result.body).toMatchObject({
+      scheduleLabel: expect.stringContaining("3日間"),
+    })
+    expect(result.body).toMatchObject({
+      scheduleLabel: expect.not.stringContaining("7/11"),
+    })
+    expect(service.prisma.bookingGroup.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "NEEDS_SCHEDULE",
+          pendingExpiresAt: null,
+          memo: expect.stringContaining("希望日:"),
+          timeSlots: { create: [] },
+        }),
+      }),
+    )
+    expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
+      summary: "【仮キープ】Color grading / Satoshi",
+      start: "2026-07-10",
+      end: "2026-07-11",
+      colorId: "4",
+      eventId: "group1",
+      notionTaskType: "仮押さえ",
+      dateOnly: true,
+      transparency: "transparent",
+    }))
+    expect(service.prisma.bookingGroup.update).toHaveBeenCalledWith({
+      where: { id: "group_1" },
+      data: { gcalEventId: "gcal_1" },
+    })
+    expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({
+      bookingGroupId: "group_1",
+      requestedDates: ["2026-07-10", "2026-07-12", "2026-07-15"],
       selectedSlots: [],
     }))
   })

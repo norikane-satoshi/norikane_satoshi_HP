@@ -5,6 +5,7 @@ import { ensureHostedWorkerChrome } from "@/lib/chatbot/hosted-worker/ensure-chr
 import {
   createHostedWorkerRuntimeState,
   getHostedWorkerHealth,
+  getHostedWorkerQuickHealth,
   type HostedWorkerRuntimeState,
 } from "@/lib/chatbot/hosted-worker/health"
 import {
@@ -91,7 +92,7 @@ export function createHostedWorkerRequestHandler(options: HostedWorkerHandlerOpt
     const url = new URL(request.url ?? "/", "http://127.0.0.1")
 
     if (request.method === "GET" && url.pathname === "/health") {
-      writeJson(response, 200, await health(state))
+      writeJson(response, 200, url.searchParams.get("mode") === "quick" ? getHostedWorkerQuickHealth(state) : await health(state))
       return
     }
 

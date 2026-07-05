@@ -54,6 +54,9 @@ describe("getCalendarFreeBusyForUser dedupe (B)", () => {
     }))
 
     vi.doMock("@/lib/prisma", () => ({ prisma: {} }))
+    vi.doMock("@/lib/chatbot/server/notion-work-schedule-busy", () => ({
+      getNotionWorkScheduleBusyIntervals: vi.fn().mockResolvedValue([]),
+    }))
 
     const { getCalendarFreeBusyForUser } = await import("./free-busy")
     const result = await getCalendarFreeBusyForUser({
@@ -126,6 +129,9 @@ describe("getCalendarFreeBusyForUser dedupe (B)", () => {
     }))
 
     vi.doMock("@/lib/prisma", () => ({ prisma: {} }))
+    vi.doMock("@/lib/chatbot/server/notion-work-schedule-busy", () => ({
+      getNotionWorkScheduleBusyIntervals: vi.fn().mockResolvedValue([]),
+    }))
 
     const { getCalendarFreeBusyForUser } = await import("./free-busy")
     const result = await getCalendarFreeBusyForUser({

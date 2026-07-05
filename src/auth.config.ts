@@ -2,6 +2,7 @@ import type { NextAuthConfig } from "next-auth"
 import Google from "next-auth/providers/google"
 import Line from "next-auth/providers/line"
 import Twitter from "next-auth/providers/twitter"
+import { getLineLoginChannelId, getLineLoginChannelSecret } from "@/lib/line/env"
 
 export default {
   pages: {
@@ -17,8 +18,8 @@ export default {
       clientSecret: process.env.AUTH_TWITTER_SECRET!,
     }),
     Line({
-      clientId: process.env.AUTH_LINE_ID!,
-      clientSecret: process.env.AUTH_LINE_SECRET!,
+      clientId: getLineLoginChannelId(),
+      clientSecret: getLineLoginChannelSecret(),
       authorization: { params: { scope: "profile openid" } },
     }),
   ],

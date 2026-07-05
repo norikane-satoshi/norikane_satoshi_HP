@@ -73,6 +73,8 @@ const CHATBOT_PENDING_REQUEST_TTL_MS = 15 * 60 * 1000
 const thinkingDelayNoticeMs = 6000
 const SCROLL_BOUNDARY_EPSILON_PX = 1
 const SCROLL_INDICATOR_FADE_DELAY_MS = 560
+const SCROLL_INDICATOR_DESKTOP_FADE_DELAY_MS = SCROLL_INDICATOR_FADE_DELAY_MS * 2
+const SCROLL_INDICATOR_HIT_TARGET_PX = 16
 const SCROLL_INDICATOR_MIN_THUMB_PX = 28
 const SCROLL_INDICATOR_VERTICAL_INSET_PX = 12
 
@@ -82,6 +84,10 @@ type ScrollIndicatorState = {
   trackHeight: number
   thumbHeight: number
   thumbTop: number
+}
+
+type ScrollThumbDragSession = {
+  cleanup: () => void
 }
 
 const hiddenScrollIndicatorState: ScrollIndicatorState = {
@@ -409,7 +415,9 @@ export function WidgetShell({
   const shellTouchYRef = useRef<number | null>(null)
   const scrollIndicatorFrameRef = useRef<number | null>(null)
   const scrollIndicatorFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scrollThumbDragSessionRef = useRef<ScrollThumbDragSession | null>(null)
   const [scrollIndicator, setScrollIndicator] = useState<ScrollIndicatorState>(hiddenScrollIndicatorState)
+  const [isScrollThumbDragging, setIsScrollThumbDragging] = useState(false)
   const showLocalTierDebug =
     typeof window !== "undefined" && isLocalChatbotTierDebugLocation(window.location.hostname, window.location.port)
   const conversationContentKey = [
@@ -461,8 +469,8 @@ export function WidgetShell({
     scrollIndicatorFadeTimerRef.current = setTimeout(() => {
       scrollIndicatorFadeTimerRef.current = null
       scheduleScrollIndicatorUpdate(false)
-    }, SCROLL_INDICATOR_FADE_DELAY_MS)
-  }, [scheduleScrollIndicatorUpdate])
+    }, isDesktopLayout ? SCROLL_INDICATOR_DESKTOP_FADE_DELAY_MS : SCROLL_INDICATOR_FADE_DELAY_MS)
+  }, [isDesktopLayout, scheduleScrollIndicatorUpdate])
 
   const handleConversationScrollWithIndicator = useCallback(
     () => {
@@ -470,6 +478,102 @@ export function WidgetShell({
       showScrollIndicatorDuringScroll()
     },
     [handleConversationScroll, showScrollIndicatorDuringScroll],
+  )
+
+  const handleScrollIndicatorPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      if (event.button !== 0) return
+      const container = conversationScrollRef.current
+      if (!container || !scrollIndicator.isScrollable) return
+
+      const maxScrollTop = Math.max(1, container.scrollHeight - container.clientHeight)
+      const maxThumbTop = Math.max(0, scrollIndicator.trackHeight - scrollIndicator.thumbHeight)
+      if (maxThumbTop <= 0) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      scrollThumbDragSessionRef.current?.cleanup()
+
+      const captureTarget = event.currentTarget
+      const pointerId = event.pointerId
+      const startClientY = event.clientY
+      const startScrollTop = container.scrollTop
+      let hasCleanedUp = false
+
+      const moveConversationToClientY = (clientY: number) => {
+        const nextScrollTop = Math.min(
+          maxScrollTop,
+          Math.max(0, startScrollTop + ((clientY - startClientY) / maxThumbTop) * maxScrollTop),
+        )
+        container.scrollTop = nextScrollTop
+        scheduleScrollIndicatorUpdate(true)
+        handleConversationScroll()
+      }
+
+      const cleanup = () => {
+        if (hasCleanedUp) return
+        hasCleanedUp = true
+        scrollThumbDragSessionRef.current = null
+        setIsScrollThumbDragging(false)
+        window.removeEventListener("pointermove", handlePointerMove, true)
+        window.removeEventListener("pointerup", handlePointerEnd, true)
+        window.removeEventListener("pointercancel", handlePointerEnd, true)
+        window.removeEventListener("blur", cleanup)
+        document.removeEventListener("visibilitychange", handleVisibilityChange)
+        captureTarget.removeEventListener("pointerup", handlePointerEnd, true)
+        captureTarget.removeEventListener("pointercancel", handlePointerEnd, true)
+        captureTarget.removeEventListener("lostpointercapture", cleanup)
+        try {
+          if (captureTarget.hasPointerCapture?.(pointerId)) {
+            captureTarget.releasePointerCapture(pointerId)
+          }
+        } catch {
+          // The pointer may already have been released by the browser.
+        }
+        showScrollIndicatorDuringScroll()
+      }
+
+      const handlePointerMove = (pointerEvent: PointerEvent) => {
+        if (pointerEvent.pointerId !== pointerId) return
+        pointerEvent.preventDefault()
+        moveConversationToClientY(pointerEvent.clientY)
+      }
+
+      const handlePointerEnd = (pointerEvent: PointerEvent) => {
+        if (pointerEvent.pointerId !== pointerId && pointerEvent.pointerType !== "mouse") return
+        cleanup()
+      }
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "hidden") cleanup()
+      }
+
+      scrollThumbDragSessionRef.current = { cleanup }
+      setIsScrollThumbDragging(true)
+      scheduleScrollIndicatorUpdate(true)
+      window.addEventListener("pointermove", handlePointerMove, true)
+      window.addEventListener("pointerup", handlePointerEnd, true)
+      window.addEventListener("pointercancel", handlePointerEnd, true)
+      window.addEventListener("blur", cleanup)
+      document.addEventListener("visibilitychange", handleVisibilityChange)
+      captureTarget.addEventListener("pointerup", handlePointerEnd, true)
+      captureTarget.addEventListener("pointercancel", handlePointerEnd, true)
+      captureTarget.addEventListener("lostpointercapture", cleanup)
+      try {
+        captureTarget.setPointerCapture?.(pointerId)
+      } catch {
+        // Capture can fail if the browser has already ended the pointer.
+      }
+    },
+    [
+      conversationScrollRef,
+      handleConversationScroll,
+      scheduleScrollIndicatorUpdate,
+      scrollIndicator.isScrollable,
+      scrollIndicator.thumbHeight,
+      scrollIndicator.trackHeight,
+      showScrollIndicatorDuringScroll,
+    ],
   )
 
   const appendMessage = (message: WidgetMessage) => {
@@ -1028,6 +1132,7 @@ export function WidgetShell({
   useEffect(() => {
     scheduleScrollIndicatorUpdate(false)
     return () => {
+      scrollThumbDragSessionRef.current?.cleanup()
       if (scrollIndicatorFrameRef.current !== null) {
         window.cancelAnimationFrame(scrollIndicatorFrameRef.current)
         scrollIndicatorFrameRef.current = null
@@ -1189,14 +1294,17 @@ export function WidgetShell({
         </div>
         {scrollIndicator.isScrollable ? (
           <div
-            className="chatbot-scroll-indicator absolute right-2 z-10 w-1.5"
+            className="chatbot-scroll-indicator absolute right-1 z-10"
             data-testid="chatbot-scroll-indicator"
             data-scrolling={scrollIndicator.isScrolling ? "true" : "false"}
             aria-hidden="true"
+            data-dragging={isScrollThumbDragging ? "true" : "false"}
+            onPointerDown={handleScrollIndicatorPointerDown}
             style={{
               top: SCROLL_INDICATOR_VERTICAL_INSET_PX,
               height: scrollIndicator.trackHeight,
-              pointerEvents: "none",
+              width: SCROLL_INDICATOR_HIT_TARGET_PX,
+              pointerEvents: scrollIndicator.isScrolling || isScrollThumbDragging ? "auto" : "none",
             }}
           >
             <div

@@ -168,6 +168,51 @@ describe("POST /api/booking Saga", () => {
     expect(route.prisma.bookingGroup.create).not.toHaveBeenCalled()
   })
 
+  it("accepts requested date arrays and creates a transparent all-day Google Calendar hold", async () => {
+    const route = await loadPost()
+    route.prisma.bookingGroup.create.mockResolvedValueOnce({
+      id: "clwxyz123abc",
+      timeSlots: [],
+    })
+
+    const response = await route.POST(request(validBooking({
+      selectedSlots: [],
+      requestedDates: ["2026-07-10", "2026-07-12"],
+    })))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      status: "schedule_unselected",
+      bookingGroupId: "clwxyz123abc",
+      bookingIds: [],
+      bookingStatus: "NEEDS_SCHEDULE",
+      scheduleStatus: "unscheduled",
+    })
+    expect(route.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventId: "cl123abc",
+      summary: "【仮キープ】Color grading / Satoshi",
+      start: "2026-07-10",
+      end: "2026-07-11",
+      colorId: "4",
+      notionTaskType: "仮押さえ",
+      dateOnly: true,
+      transparency: "transparent",
+    }))
+    expect(route.prisma.bookingGroup.update).toHaveBeenCalledWith({
+      where: { id: "clwxyz123abc" },
+      data: { gcalEventId: "gcal_1" },
+    })
+    expect(route.prisma.bookingGroup.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "NEEDS_SCHEDULE",
+          pendingExpiresAt: null,
+          timeSlots: { create: [] },
+        }),
+      }),
+    )
+  })
+
   it("marks bookingGroup and timeSlots FAILED when Google Calendar fails twice", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const route = await loadPost()

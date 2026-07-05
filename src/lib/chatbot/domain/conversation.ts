@@ -98,6 +98,13 @@ export type ConversationState = {
     supplementalNote?: string
     bookingPrefill?: BookingCardPrefill
   }
+  bookingReadiness?: {
+    finalQuestionOffered?: boolean
+    finalQuestionOfferedAtTurn?: number
+    additionalConcernStatus?: "none" | "has-concern" | "unknown"
+    additionalConcernSource?: "choice-panel" | "llm-booking-card" | "fallback-pattern"
+    additionalConcernUpdatedAtTurn?: number
+  }
   bookingSubmission?: {
     status: "submitted"
     reservationNumber: string

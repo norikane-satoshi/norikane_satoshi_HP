@@ -18,21 +18,28 @@ const CONTACT_HASH = "#contact"
 type DragState =
   | {
       kind: "move"
+      pointerId: number
       startClientX: number
       startClientY: number
       startPosition: WidgetPosition
     }
   | {
       kind: "resize-floating"
+      pointerId: number
       startClientX: number
       startClientY: number
       startSize: WidgetSize
     }
   | {
       kind: "resize-side-peek"
+      pointerId: number
       startClientX: number
       startWidth: number
     }
+
+type DragSession = {
+  cleanup: () => void
+}
 
 export function ChatbotWidget() {
   const chatbotEnabled = isChatbotEnabled()
@@ -40,6 +47,7 @@ export function ChatbotWidget() {
   const { open } = widgetState
   const [isDesktopLayout, setIsDesktopLayout] = useState(false)
   const dragStateRef = useRef<DragState | null>(null)
+  const dragSessionRef = useRef<DragSession | null>(null)
 
   useEffect(() => {
     if (!chatbotEnabled) return
@@ -92,12 +100,15 @@ export function ChatbotWidget() {
     widgetState.setSidePeekWidth(widgetState.layout.sidePeekWidth + deltaWidth)
   }, [widgetState])
 
-  const startDrag = useCallback((dragState: DragState) => {
+  const startDrag = useCallback((dragState: DragState, captureTarget: HTMLElement) => {
+    dragSessionRef.current?.cleanup()
     dragStateRef.current = dragState
 
     const handlePointerMove = (event: PointerEvent) => {
       const currentDragState = dragStateRef.current
       if (!currentDragState) return
+      if (event.pointerId !== currentDragState.pointerId) return
+      event.preventDefault()
 
       if (currentDragState.kind === "move") {
         widgetState.setFloatingPosition({
@@ -118,17 +129,63 @@ export function ChatbotWidget() {
       widgetState.setSidePeekWidth(currentDragState.startWidth - (event.clientX - currentDragState.startClientX))
     }
 
-    const handlePointerUp = () => {
+    let hasCleanedUp = false
+    const cleanup = () => {
+      if (hasCleanedUp) return
+      hasCleanedUp = true
       dragStateRef.current = null
-      window.removeEventListener("pointermove", handlePointerMove)
-      window.removeEventListener("pointerup", handlePointerUp)
-      window.removeEventListener("pointercancel", handlePointerUp)
+      dragSessionRef.current = null
+      window.removeEventListener("pointermove", handlePointerMove, true)
+      window.removeEventListener("pointerup", handlePointerEnd, true)
+      window.removeEventListener("pointercancel", handlePointerEnd, true)
+      window.removeEventListener("mouseup", cleanup, true)
+      document.removeEventListener("pointerup", handlePointerEnd, true)
+      document.removeEventListener("pointercancel", handlePointerEnd, true)
+      window.removeEventListener("blur", cleanup)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      captureTarget.removeEventListener("pointerup", handlePointerEnd, true)
+      captureTarget.removeEventListener("pointercancel", handlePointerEnd, true)
+      captureTarget.removeEventListener("lostpointercapture", cleanup)
+      try {
+        if (captureTarget.hasPointerCapture?.(dragState.pointerId)) {
+          captureTarget.releasePointerCapture(dragState.pointerId)
+        }
+      } catch {
+        // The pointer may already have been released by the browser.
+      }
     }
 
-    window.addEventListener("pointermove", handlePointerMove)
-    window.addEventListener("pointerup", handlePointerUp)
-    window.addEventListener("pointercancel", handlePointerUp)
+    const handlePointerEnd = (event: PointerEvent) => {
+      if (event.pointerId !== dragState.pointerId && event.pointerType !== "mouse") return
+      cleanup()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") cleanup()
+    }
+
+    dragSessionRef.current = { cleanup }
+    window.addEventListener("pointermove", handlePointerMove, true)
+    window.addEventListener("pointerup", handlePointerEnd, true)
+    window.addEventListener("pointercancel", handlePointerEnd, true)
+    window.addEventListener("mouseup", cleanup, true)
+    document.addEventListener("pointerup", handlePointerEnd, true)
+    document.addEventListener("pointercancel", handlePointerEnd, true)
+    window.addEventListener("blur", cleanup)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    captureTarget.addEventListener("pointerup", handlePointerEnd, true)
+    captureTarget.addEventListener("pointercancel", handlePointerEnd, true)
+    captureTarget.addEventListener("lostpointercapture", cleanup)
+    try {
+      captureTarget.setPointerCapture?.(dragState.pointerId)
+    } catch {
+      // Capture can fail if the browser has already ended the pointer.
+    }
   }, [widgetState])
+
+  useEffect(() => {
+    return () => dragSessionRef.current?.cleanup()
+  }, [])
 
   const beginFloatingMove = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (!isDesktopLayout || widgetState.layout.displayMode !== "floating") return
@@ -136,10 +193,11 @@ export function ChatbotWidget() {
     event.preventDefault()
     startDrag({
       kind: "move",
+      pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
       startPosition: widgetState.layout.floatingPosition,
-    })
+    }, event.currentTarget)
   }, [isDesktopLayout, startDrag, widgetState.layout.displayMode, widgetState.layout.floatingPosition])
 
   const beginFloatingResize = useCallback((event: ReactPointerEvent<HTMLElement>) => {
@@ -149,10 +207,11 @@ export function ChatbotWidget() {
     event.stopPropagation()
     startDrag({
       kind: "resize-floating",
+      pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
       startSize: widgetState.layout.floatingSize,
-    })
+    }, event.currentTarget)
   }, [isDesktopLayout, startDrag, widgetState.layout.displayMode, widgetState.layout.floatingSize])
 
   const beginSidePeekResize = useCallback((event: ReactPointerEvent<HTMLElement>) => {
@@ -162,9 +221,10 @@ export function ChatbotWidget() {
     event.stopPropagation()
     startDrag({
       kind: "resize-side-peek",
+      pointerId: event.pointerId,
       startClientX: event.clientX,
       startWidth: widgetState.layout.sidePeekWidth,
-    })
+    }, event.currentTarget)
   }, [isDesktopLayout, startDrag, widgetState.layout.displayMode, widgetState.layout.sidePeekWidth])
 
   const isReady = widgetState.hasHydrated && widgetState.isVisible

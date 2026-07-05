@@ -104,7 +104,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
 
     await expect(client.isHealthy()).resolves.toBe(true)
     expect(httpClient).toHaveBeenCalledWith(
-      "https://worker.example.test/health",
+      "https://worker.example.test/health?mode=quick",
       expect.objectContaining({
         method: "GET",
         headers: { authorization: "Bearer test-token" },
@@ -417,5 +417,42 @@ describe("Tier2HostedChromeNotionAiClient", () => {
         },
       },
     })
+  })
+
+  it("does not retry a hosted worker rate limit when the worker marks it non-retryable", async () => {
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: "rate-limit",
+              message: "Notion AI rate limit response was returned.",
+              retryable: false,
+            },
+          },
+          { ok: false, status: 429 },
+        ),
+      )
+    const client = hostedClient(httpClient)
+
+    await expect(client.generate(llmRequest())).rejects.toMatchObject({
+      code: "rate-limit",
+      isRetryable: false,
+      cause: {
+        endpoint: "/generate",
+        httpStatus: 429,
+        errorCode: "rate-limit",
+        retryable: false,
+        retryDiagnostics: {
+          attemptCount: 1,
+          exhausted: true,
+          fallbackReason: "rate-limit",
+          retryReasons: [],
+        },
+      },
+    })
+    expect(httpClient).toHaveBeenCalledTimes(2)
   })
 })

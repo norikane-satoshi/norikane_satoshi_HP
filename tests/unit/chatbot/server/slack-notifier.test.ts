@@ -44,6 +44,11 @@ describe("sendChatbotSlackNotification", () => {
             perAttemptTimeoutMs: 55000,
             fallbackReason: "server-error",
             exhausted: false,
+            attempts: [
+              { attempt: 1, outcome: "error", reason: "server-error", httpStatus: 502, durationMs: 30146, timeoutMs: 55000 },
+              { attempt: 2, outcome: "error", reason: "timeout", durationMs: 55003, timeoutMs: 55000 },
+              { requestBody: "do-not-leak-request" },
+            ],
             token: "do-not-leak-token",
             cookie: "do-not-leak-cookie",
           },
@@ -72,9 +77,11 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("perAttemptTimeoutMs: 55000")
     expect(body.text).toContain("fallbackReason: server-error")
     expect(body.text).toContain("retryExhausted: false")
+    expect(body.text).toContain("attempts: #1/error/server-error/http:502/30146ms/timeout:55000;#2/error/timeout/55003ms/timeout:55000")
     expect(body.text).not.toContain("xoxb-secret-token")
     expect(body.text).not.toContain("do-not-leak-token")
     expect(body.text).not.toContain("do-not-leak-cookie")
+    expect(body.text).not.toContain("do-not-leak-request")
   })
 
   it("includes retry diagnostics in issue thread replies", async () => {

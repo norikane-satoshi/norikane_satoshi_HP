@@ -17,6 +17,7 @@ const MAX_QUERY_PAGES = 10
 type BusyInterval = {
   start: string
   end: string
+  source: "notion_work"
 }
 
 type CacheEntry = {
@@ -104,6 +105,7 @@ function toBusyInterval(page: PageObjectResponse): BusyInterval | null {
   return {
     start: start.toISOString(),
     end: end.toISOString(),
+    source: "notion_work",
   }
 }
 

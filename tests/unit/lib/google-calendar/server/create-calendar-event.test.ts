@@ -83,6 +83,30 @@ describe("createCalendarEvent", () => {
     expect(args.requestBody.end).toEqual({ dateTime: baseInput.end })
   })
 
+  it("writes date-only transparent all-day events for calendar-neutral tentative holds", async () => {
+    mocks.insert.mockResolvedValue({ data: { id: "evt-date-hold" } })
+
+    await createCalendarEvent({
+      ...baseInput,
+      start: "2026-07-10",
+      end: "2026-07-11",
+      colorId: "4",
+      dateOnly: true,
+      transparency: "transparent",
+      notionTaskType: "仮押さえ",
+    })
+
+    const args = mocks.insert.mock.calls[0][0]
+    expect(args.requestBody.start).toEqual({ date: "2026-07-10" })
+    expect(args.requestBody.end).toEqual({ date: "2026-07-11" })
+    expect(args.requestBody.colorId).toBe("4")
+    expect(args.requestBody.transparency).toBe("transparent")
+    expect(args.requestBody.extendedProperties.private).toMatchObject({
+      source: "hp-booking",
+      notion_task_type: "仮押さえ",
+    })
+  })
+
   it("returns the inserted event id", async () => {
     mocks.insert.mockResolvedValue({ data: { id: "evt-3" } })
 

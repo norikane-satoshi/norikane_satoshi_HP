@@ -1,7 +1,9 @@
-import type { BookingSlot } from "@/lib/booking/domain/form-schema"
+import { formatBookingDateSelection, type BookingDateSelection, type BookingSlot } from "@/lib/booking/domain/form-schema"
 
 type BookingDoneProps = {
   selectedSlots: BookingSlot[]
+  requestedDateSelection?: BookingDateSelection | null
+  entryPoint?: "web" | "line_liff"
 }
 
 function formatSlot(slot: BookingSlot): string {
@@ -19,17 +21,23 @@ function formatSlot(slot: BookingSlot): string {
   })}`
 }
 
-function formatSlots(slots: BookingSlot[]): string {
-  if (slots.length === 0) return "日時未選択"
+function formatSlots(slots: BookingSlot[], requestedDateSelection?: BookingDateSelection | null): string {
+  if (requestedDateSelection) return formatBookingDateSelection(requestedDateSelection)
+  if (slots.length === 0) return "希望日未選択"
   return slots.map((slot) => formatSlot(slot)).join(" / ")
 }
 
-export function BookingDone({ selectedSlots }: BookingDoneProps) {
+export function BookingDone({ selectedSlots, requestedDateSelection = null, entryPoint = "web" }: BookingDoneProps) {
+  const receiptText =
+    entryPoint === "line_liff"
+      ? "公式LINEに受付のお知らせを送ります。内容を確認後、直接ご連絡します。"
+      : "確認メールをお送りしました。内容を確認後、直接ご連絡します。"
+
   return (
     <div className="booking-done glass-card-sm">
-      <h2 className="booking-done__title">予約を受け付けました</h2>
-      <p className="text-hp-muted">確認メールをお送りしました（PR-C で本実装予定）</p>
-      <span className="glass-badge booking-done__slot">{formatSlots(selectedSlots)}</span>
+      <h2 className="booking-done__title">日程相談を受け付けました</h2>
+      <p className="text-hp-muted">{receiptText}</p>
+      <span className="glass-badge booking-done__slot">{formatSlots(selectedSlots, requestedDateSelection)}</span>
     </div>
   )
 }

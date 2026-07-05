@@ -5,6 +5,7 @@ import type {
   ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 
 type Tier1ChromeNotionAiClientConfig = {
@@ -12,7 +13,6 @@ type Tier1ChromeNotionAiClientConfig = {
   targetUrlIncludes: string
   requestTimeoutMs: number
   healthCheckTimeoutMs: number
-  preferredModel?: string
 }
 
 type Tier1ChromeNotionAiClientOptions = Partial<Tier1ChromeNotionAiClientConfig> & {
@@ -50,7 +50,6 @@ type NotionAiRuntimeContext = {
   selectedModel?: string
   finalModelName?: string
   availableModels?: string[]
-  modelFromUser?: boolean
   workflowValue?: Partial<NotionAiWorkflowValue>
 }
 
@@ -59,12 +58,10 @@ export type NotionAiRuntimeInspection = {
   selectedModel?: string
   finalModelName?: string
   availableModels?: string[]
-  preferredModelAvailable: boolean
 }
 
 type NotionAiWorkflowValue = {
   type: "workflow"
-  model: string
   isHipaa: boolean
   isMobile: boolean
   yoloMode: boolean
@@ -72,7 +69,6 @@ type NotionAiWorkflowValue = {
   searchScopes: unknown[]
   useWebSearch: boolean
   isCustomAgent: boolean
-  modelFromUser: boolean
   enableComputer: boolean
   enableQueryMail: boolean
   useReadOnlyMode: boolean
@@ -183,7 +179,7 @@ type NotionAiInferenceResult =
       parsedPartial: boolean
       parsedFinal: boolean
     }
-  | { ok: false; status?: number; code: "auth" | "invalid-output" | "unknown"; message: string }
+  | { ok: false; status?: number; code: "auth" | "invalid-output" | "rate-limit" | "unknown"; message: string }
 
 export type ParsedInferenceNdjsonChunk = {
   raw: unknown
@@ -220,7 +216,6 @@ const jsonListPath = "/json/list"
 const jsonVersionPath = "/json/version"
 const httpGet = "GET"
 const targetTypePage = "page"
-export const tier1ObservedNotionAiModel = "apricot-sorbet-high"
 const defaultCreatedSource = "assistant"
 const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
@@ -250,7 +245,6 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       requestTimeoutMs: options.requestTimeoutMs ?? tier1ChromeNotionAiDefaults.requestTimeoutMs,
       healthCheckTimeoutMs:
         options.healthCheckTimeoutMs ?? tier1ChromeNotionAiDefaults.healthCheckTimeoutMs,
-      preferredModel: options.preferredModel,
     }
     this.fetchClient = options.fetchClient ?? globalFetch
     this.sessionFactory = options.sessionFactory ?? createDefaultCdpSession
@@ -284,7 +278,6 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       const payload = buildRunInferencePayload({
         request,
         runtimeContext: effectiveRuntimeContext,
-        preferredModel: this.config.preferredModel,
         idFactory: this.idFactory,
       })
       const headers = buildRunInferenceHeaders(effectiveRuntimeContext)
@@ -323,6 +316,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
 
       return {
         rawText,
+        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tier: this.tier,
         latencyMs: Date.now() - startedAt,
         diagnostics: {
@@ -371,20 +365,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         })
         return false
       }
-      if (!this.config.preferredModel) return true
-
-      const preferredModelAvailable = modelIsAvailable(
-        this.config.preferredModel,
-        effectiveRuntimeContext.availableModels,
-      )
-      if (!preferredModelAvailable) {
-        this.lastHealthError = this.toLlmError({
-          message: "Preferred Notion AI model is unavailable.",
-          code: "connection",
-          isRetryable: true,
-        })
-      }
-      return preferredModelAvailable
+      return true
     } catch (error) {
       this.lastHealthError = error instanceof Error ? error : this.toLlmError({
         message: "Notion AI Chrome CDP health check failed.",
@@ -415,14 +396,11 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         runtimeContext,
         this.config.targetUrlIncludes,
       )
-      const preferredModel = this.config.preferredModel ?? tier1ObservedNotionAiModel
-
       return {
         targetUrl: target.url,
         selectedModel: effectiveRuntimeContext.selectedModel,
         finalModelName: effectiveRuntimeContext.finalModelName,
         availableModels: effectiveRuntimeContext.availableModels,
-        preferredModelAvailable: modelIsAvailable(preferredModel, effectiveRuntimeContext.availableModels),
       }
     } finally {
       await session.close()
@@ -547,7 +525,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     return this.toLlmError({
       message: result.message,
       code: result.code,
-      isRetryable: result.code !== "auth" && result.code !== "invalid-output",
+      isRetryable: result.code !== "auth" && result.code !== "invalid-output" && result.code !== "rate-limit",
     })
   }
 
@@ -614,7 +592,6 @@ export function createTier1ChromeNotionAiClient(
 export function buildRunInferencePayload(input: {
   request: ChatbotLlmRequest
   runtimeContext: NotionAiRuntimeContext
-  preferredModel?: string
   idFactory: IdFactory
   contextPageId?: string
 }): RunInferencePayload {
@@ -632,10 +609,7 @@ export function buildRunInferencePayload(input: {
     })
   }
 
-  const model = resolveModel(input.runtimeContext, input.preferredModel)
   const workflowValue = buildWorkflowValue({
-    model,
-    modelFromUser: input.runtimeContext.modelFromUser ?? Boolean(input.runtimeContext.selectedModel),
     workflowValue: input.runtimeContext.workflowValue,
   })
 
@@ -722,13 +696,10 @@ export function buildRunInferenceHeaders(runtimeContext: NotionAiRuntimeContext)
 }
 
 export function buildWorkflowValue(input: {
-  model: string
-  modelFromUser: boolean
   workflowValue?: Partial<NotionAiWorkflowValue>
-}): NotionAiWorkflowValue {
+} = {}): NotionAiWorkflowValue {
   const workflowValue: NotionAiWorkflowValue = {
     type: "workflow",
-    model: input.model,
     isHipaa: false,
     isMobile: false,
     yoloMode: false,
@@ -736,7 +707,6 @@ export function buildWorkflowValue(input: {
     searchScopes: [{ type: "everything" }],
     useWebSearch: true,
     isCustomAgent: false,
-    modelFromUser: input.modelFromUser,
     enableComputer: false,
     enableQueryMail: false,
     useReadOnlyMode: false,
@@ -790,13 +760,27 @@ export function buildWorkflowValue(input: {
     enableScriptAgentSearchConnectorsInCustomAgent: false,
   }
 
+  const sanitizedWorkflowValue = stripModelSelection(input.workflowValue)
+
   return {
     ...workflowValue,
-    ...input.workflowValue,
+    ...sanitizedWorkflowValue,
     type: "workflow",
-    model: input.model,
-    modelFromUser: input.modelFromUser,
   }
+}
+
+function stripModelSelection(
+  workflowValue: Partial<NotionAiWorkflowValue> | undefined,
+): Partial<NotionAiWorkflowValue> | undefined {
+  if (!workflowValue) return undefined
+
+  const withoutModelSelection: Partial<NotionAiWorkflowValue> & {
+    model?: unknown
+    modelFromUser?: unknown
+  } = { ...workflowValue }
+  delete withoutModelSelection.model
+  delete withoutModelSelection.modelFromUser
+  return withoutModelSelection
 }
 
 export function extractAssistantTextFromNdjson(ndjson: string): string {
@@ -840,33 +824,6 @@ export function parseInferenceNdjsonStream(ndjson: string): ParsedInferenceNdjso
     assistantText,
     chunkCount: chunks.length,
   }
-}
-
-function resolveModel(runtimeContext: NotionAiRuntimeContext, preferredModel?: string): string {
-  const availableModels = runtimeContext.availableModels
-  const selectedModel = preferredModel ?? tier1ObservedNotionAiModel
-
-  if (availableModels && !modelIsAvailable(selectedModel, availableModels)) {
-    throw new ChatbotLlmError({
-      message: "Preferred Notion AI model is not available in the current page context.",
-      code: "connection",
-      tier,
-      isRetryable: true,
-    })
-  }
-
-  if (selectedModel) return selectedModel
-
-  throw new ChatbotLlmError({
-    message: "Notion AI page did not expose a current model selection.",
-    code: "connection",
-    tier,
-    isRetryable: true,
-  })
-}
-
-function modelIsAvailable(model: string, availableModels?: string[]): boolean {
-  return !availableModels || availableModels.includes(model)
 }
 
 function buildUserPrompt(request: ChatbotLlmRequest): string {
@@ -1000,26 +957,36 @@ function collectText(value: unknown): string {
   }
 
   const record = value as Record<string, unknown>
+  if (isNonDisplayInferenceRecord(record)) return emptyText
   const agentInferenceText = collectAgentInferenceText(record)
   if (agentInferenceText) return agentInferenceText
 
   const directText = record.text ?? record.content ?? record.plainText ?? record.markdown ?? record.delta
   if (typeof directText === "string") return directText
 
-  return [
-    record.v,
-    record.message,
-    record.value,
-    record.result,
-    record.output,
-    record.assistant,
-    record.response,
-    record.data,
-    record.recordMap,
-    record.step,
-  ]
-    .map((entry) => collectText(entry))
+  return collectDisplayCandidateValues(record)
+    .map((entry) => collectText(entry.value))
     .join(emptyText)
+}
+
+function isNonDisplayInferenceRecord(record: Record<string, unknown>): boolean {
+  return isNonDisplayInferenceType(record.type)
+}
+
+function isNonDisplayInferenceType(value: unknown): boolean {
+  if (typeof value !== "string") return false
+  return /(?:thinking|reasoning|signature|encrypted|redacted)/iu.test(value)
+}
+
+function isNonDisplayInferenceKey(key: string): boolean {
+  return /(?:thinking|reasoning|signature|encrypted|redacted|cipher|blob|model)/iu.test(key)
+}
+
+function collectDisplayCandidateValues(record: Record<string, unknown>): Array<{ key: string; value: unknown }> {
+  const keys = ["v", "message", "value", "result", "output", "assistant", "response", "data", "recordMap", "step"]
+  return keys
+    .filter((key) => !isNonDisplayInferenceKey(key))
+    .map((key) => ({ key, value: record[key] }))
 }
 
 function isPartialInferenceChunk(value: unknown): boolean {
@@ -1036,6 +1003,7 @@ function collectAgentInferenceText(value: unknown): string {
   }
 
   const record = value as Record<string, unknown>
+  if (isNonDisplayInferenceRecord(record)) return emptyText
   if (record.type === "agent-inference" && Array.isArray(record.value)) {
     return record.value
       .map((entry) => {
@@ -1046,8 +1014,9 @@ function collectAgentInferenceText(value: unknown): string {
       .join(emptyText)
   }
 
-  return Object.values(record)
-    .map((entry) => collectAgentInferenceText(entry))
+  return Object.entries(record)
+    .filter(([key]) => !isNonDisplayInferenceKey(key))
+    .map(([, entry]) => collectAgentInferenceText(entry))
     .join(emptyText)
 }
 
@@ -1194,10 +1163,9 @@ const runtimeContextExpression = `(() => (async () => {
     notionClientVersion: root.__notionClientVersion || buildId || readMeta("notion-client-version"),
     contextPageId: root.__notionAiContextPageId || readNotionAiContextPageId(),
     threadId,
-    selectedModel: root.__notionAiSelectedModel || "${tier1ObservedNotionAiModel}",
+    selectedModel: root.__notionAiSelectedModel,
     finalModelName: root.__notionAiFinalModelName,
     availableModels: Array.isArray(root.__notionAiAvailableModels) ? root.__notionAiAvailableModels : undefined,
-    modelFromUser: true,
     workflowValue: root.__notionAiWorkflowValue,
   };
 })())()`
@@ -1216,6 +1184,7 @@ async function runInferenceInPage(input: {
     }
 
     const record = value as Record<string, unknown>
+    if (isNonDisplayInferenceRecordInPage(record)) return ""
     if (record.type === "agent-inference" && Array.isArray(record.value)) {
       return record.value
         .map((entry) => {
@@ -1226,8 +1195,9 @@ async function runInferenceInPage(input: {
         .join("")
     }
 
-    return Object.values(record)
-      .map((entry) => collectAgentInferenceTextInPage(entry))
+    return Object.entries(record)
+      .filter(([key]) => !isNonDisplayInferenceKeyInPage(key))
+      .map(([, entry]) => collectAgentInferenceTextInPage(entry))
       .join("")
   }
   const collectTextInPage = (value: unknown): string => {
@@ -1239,26 +1209,32 @@ async function runInferenceInPage(input: {
     }
 
     const record = value as Record<string, unknown>
+    if (isNonDisplayInferenceRecordInPage(record)) return ""
     const agentInferenceText = collectAgentInferenceTextInPage(record)
     if (agentInferenceText) return agentInferenceText
 
     const directText = record.text ?? record.content ?? record.plainText ?? record.markdown ?? record.delta
     if (typeof directText === "string") return directText
 
-    return [
-      record.v,
-      record.message,
-      record.value,
-      record.result,
-      record.output,
-      record.assistant,
-      record.response,
-      record.data,
-      record.recordMap,
-      record.step,
-    ]
-      .map((entry) => collectTextInPage(entry))
+    return collectDisplayCandidateValuesInPage(record)
+      .map((entry) => collectTextInPage(entry.value))
       .join("")
+  }
+  const isNonDisplayInferenceTypeInPage = (value: unknown): boolean => {
+    if (typeof value !== "string") return false
+    return /(?:thinking|reasoning|signature|encrypted|redacted)/iu.test(value)
+  }
+  const isNonDisplayInferenceRecordInPage = (record: Record<string, unknown>): boolean => {
+    return isNonDisplayInferenceTypeInPage(record.type)
+  }
+  const isNonDisplayInferenceKeyInPage = (key: string): boolean => {
+    return /(?:thinking|reasoning|signature|encrypted|redacted|cipher|blob|model)/iu.test(key)
+  }
+  const collectDisplayCandidateValuesInPage = (record: Record<string, unknown>): Array<{ key: string; value: unknown }> => {
+    const keys = ["v", "message", "value", "result", "output", "assistant", "response", "data", "recordMap", "step"]
+    return keys
+      .filter((key) => !isNonDisplayInferenceKeyInPage(key))
+      .map((key) => ({ key, value: record[key] }))
   }
   const extractResponseTextInPage = (value: unknown): string => {
     const chunks: string[] = []
@@ -1355,8 +1331,21 @@ async function runInferenceInPage(input: {
       chunkCount += 1
     }
 
+    const isRateLimitResponse = (text: string) =>
+      text.includes("UserRateLimitResponse") ||
+      text.includes("fairUseAIRateLimit") ||
+      text.includes('"message":"Please try again later."')
+
     const rawText = finalText || partialText
     if (!rawText) {
+      if (isRateLimitResponse(responseText)) {
+        return {
+          ok: false,
+          code: "rate-limit",
+          message: `Notion AI rate limit response was returned. bytes=${responseText.length} preview=${responseText.slice(0, 300)}`,
+        }
+      }
+
       return {
         ok: false,
         code: "invalid-output",
@@ -1382,6 +1371,14 @@ async function runInferenceInPage(input: {
       message: error instanceof Error ? error.message : "Notion AI request failed.",
     }
   }
+}
+
+export function isNotionAiRateLimitResponse(responseText: string): boolean {
+  return (
+    responseText.includes("UserRateLimitResponse") ||
+    responseText.includes("fairUseAIRateLimit") ||
+    responseText.includes('"message":"Please try again later."')
+  )
 }
 
 function globalFetch(input: string, init?: RequestInit): Promise<Response> {

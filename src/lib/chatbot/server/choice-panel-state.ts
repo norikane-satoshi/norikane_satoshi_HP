@@ -2,6 +2,7 @@ import type {
   ConversationState,
   DocumentaryAttachment,
   DocumentaryAttachmentItem,
+  FinalMedium,
   JobContext,
   JobKind,
   SurveyChoice,
@@ -57,16 +58,18 @@ export function applyActiveChoiceAnswer(input: {
         jobContext: toProjectLengthJobContext(choice.id),
       }
     case "final-medium":
+      const finalMediumPatch = toFinalMediumJobContextPatch(activeChoices, choice)
       return {
         choiceSetId: activeChoices.id,
         choiceId: choice.id,
         choiceIds: [choice.id],
         conversationState: {
           hasFinalMedium: true,
+          ...finalMediumPatch.conversationState,
           ...otherCommentPatch,
           ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
         },
-        jobContext: { finalMedium: choice.id as JobContext["finalMedium"] },
+        jobContext: finalMediumPatch.jobContext,
       }
     case "additional-work":
       if (choices.some((item) => item.id === "none")) {
@@ -234,6 +237,11 @@ export function applyActiveChoiceAnswer(input: {
             bookingFinalConfirmation: {
               status: "confirmed",
             },
+            bookingReadiness: {
+              finalQuestionOffered: true,
+              additionalConcernStatus: "none",
+              additionalConcernSource: "choice-panel",
+            },
             ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
           },
           jobContext: {},
@@ -248,6 +256,11 @@ export function applyActiveChoiceAnswer(input: {
           bookingFinalConfirmation: {
             status: "supplemental-received",
             supplementalNote: otherCommentPatch.otherChoiceComments?.[activeChoices.id] ?? labelChoice(activeChoices, choice.id),
+          },
+          bookingReadiness: {
+            finalQuestionOffered: true,
+            additionalConcernStatus: "has-concern",
+            additionalConcernSource: "choice-panel",
           },
           ...otherCommentPatch,
           ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
@@ -294,12 +307,6 @@ function buildUnmatchedChoiceClarification(
 ): ChoicePanelPatch | null {
   if (!activeChoices) return null
   const unmatchedChoiceText = extractUnmatchedChoiceText(message)
-  if (unmatchedChoiceText && activeChoices.choices.some((choice) => choice.id === "other")) {
-    return applyActiveChoiceAnswer({
-      activeChoices,
-      message: `選択: other\nその他コメント: ${unmatchedChoiceText}`,
-    })
-  }
   if (activeChoices.id === "project-length" && isBareQuantity(message)) {
     return toClarificationPatch({
       activeChoices,
@@ -307,6 +314,21 @@ function buildUnmatchedChoiceClarification(
       message,
       question: "その数値の単位を1つだけ教えてください。分、時間、本数など、どれに近いですか？",
       reason: "quantity-needs-unit",
+    })
+  }
+  if (activeChoices.id === "project-length" && unmatchedChoiceText) {
+    return toClarificationPatch({
+      activeChoices,
+      choices: [],
+      message,
+      question: "尺・分量は下の選択肢から選ぶか、「その他」の内容を1つだけ補足してください。",
+      reason: "project-length-choice-mismatch",
+    })
+  }
+  if (unmatchedChoiceText && activeChoices.choices.some((choice) => choice.id === "other")) {
+    return applyActiveChoiceAnswer({
+      activeChoices,
+      message: `選択: other\nその他コメント: ${unmatchedChoiceText}`,
     })
   }
 
@@ -465,6 +487,55 @@ function choicesFromIds(choiceSet: SurveyChoiceSet, choiceIds: string[]): Survey
     .filter((choice): choice is SurveyChoice => Boolean(choice))
 }
 
+const canonicalFinalMediumIds = new Set<FinalMedium>([
+  "ott",
+  "cinema",
+  "tv-broadcast",
+  "live",
+  "web",
+  "vertical-sns",
+  "other",
+])
+
+function toFinalMediumJobContextPatch(
+  activeChoices: SurveyChoiceSet,
+  choice: SurveyChoice,
+): {
+  conversationState: Partial<ConversationState>
+  jobContext: Pick<JobContext, "finalMedium">
+} {
+  const finalMedium = normalizeFinalMediumChoice(choice)
+  if (finalMedium !== "other") {
+    return {
+      conversationState: {},
+      jobContext: { finalMedium },
+    }
+  }
+
+  return {
+    conversationState: {
+      otherChoiceComments: {
+        [activeChoices.id]: choice.label,
+      },
+    },
+    jobContext: { finalMedium: "other" },
+  }
+}
+
+function normalizeFinalMediumChoice(choice: SurveyChoice): FinalMedium {
+  if (canonicalFinalMediumIds.has(choice.id as FinalMedium)) return choice.id as FinalMedium
+
+  const normalized = `${choice.id} ${choice.label}`.normalize("NFKC").toLowerCase()
+  if (/(?:ott|配信|streaming|vod|svod|tvod|hulu|netflix|prime|disney)/u.test(normalized)) return "ott"
+  if (/(?:劇場|映画館|cinema|theater|上映|映画祭)/u.test(normalized)) return "cinema"
+  if (/(?:テレビ|tv|放送|地上波|bs|cs|broadcast)/u.test(normalized)) return "tv-broadcast"
+  if (/(?:ライブ|live|イベント|舞台収録)/u.test(normalized)) return "live"
+  if (/(?:縦型|縦動画|縦長|shorts|reels|tiktok|vertical)/u.test(normalized)) return "vertical-sns"
+  if (/(?:web|ウェブ|youtube|vimeo|サイト|sns|公開)/u.test(normalized)) return "web"
+
+  return "other"
+}
+
 function isBareQuantity(message: string): boolean {
   const compact = message.normalize("NFKC").trim()
   return /^\d+(?:\.\d+)?$/u.test(compact)
@@ -523,6 +594,7 @@ function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: str
     .map((normalizedMessage) =>
       activeChoices.choices.find((choice) => normalizeChoiceText(choice.id) === normalizedMessage) ??
       activeChoices.choices.find((choice) => normalizeChoiceText(choice.label) === normalizedMessage) ??
+      activeChoices.choices.find((choice) => choiceTextMatches(activeChoices, choice, normalizedMessage)) ??
       null,
     )
     .filter((choice): choice is SurveyChoice => Boolean(choice))
@@ -593,6 +665,44 @@ function toProjectLengthJobContext(choiceId: string): Partial<JobContext> {
       return { projectLengthMinutes: 60 }
     case "live-150m":
       return { projectLengthMinutes: 150 }
+    case "cm-length-15s":
+      return { projectLengthMinutes: 0.25 }
+    case "cm-length-30s":
+      return { projectLengthMinutes: 0.5 }
+    case "cm-length-60s":
+      return { projectLengthMinutes: 1 }
+    case "mv-length-3-5m":
+      return { projectLengthMinutes: 5 }
+    case "mv-length-5-10m":
+      return { projectLengthMinutes: 10 }
+    case "mv-length-over-10m":
+      return { projectLengthMinutes: 10 }
+    case "drama-episode-under-15m":
+      return { projectLengthMinutes: 15 }
+    case "drama-episode-30m":
+      return { projectLengthMinutes: 30 }
+    case "drama-episode-45-60m":
+      return { projectLengthMinutes: 60 }
+    case "live-length-30m":
+      return { projectLengthMinutes: 30 }
+    case "live-length-60m":
+      return { projectLengthMinutes: 60 }
+    case "live-length-90m":
+      return { projectLengthMinutes: 90 }
+    case "live-length-over-120m":
+      return { projectLengthMinutes: 120 }
+    case "feature-length-under-60m":
+      return { projectLengthMinutes: 60 }
+    case "feature-length-90m":
+      return { projectLengthMinutes: 90 }
+    case "feature-length-over-120m":
+      return { projectLengthMinutes: 120 }
+    case "vertical-length-15s":
+      return { projectLengthMinutes: 0.25 }
+    case "vertical-length-30s":
+      return { projectLengthMinutes: 0.5 }
+    case "vertical-length-60s":
+      return { projectLengthMinutes: 1 }
     default:
       return {}
   }
@@ -623,6 +733,31 @@ function labelChoice(choiceSet: SurveyChoiceSet, choiceId: string): string {
 
 function normalizeChoiceText(value: string): string {
   return value.normalize("NFKC").trim().toLowerCase().replace(/\s+/gu, " ")
+}
+
+function choiceTextMatches(choiceSet: SurveyChoiceSet, choice: SurveyChoice, normalizedMessage: string): boolean {
+  const messageKey = normalizeChoiceComparableText(normalizedMessage)
+  if (!messageKey) return false
+  return [choice.id, choice.label]
+    .map(normalizeChoiceComparableText)
+    .some((candidate) => candidate === messageKey || containsComparableChoiceText(choiceSet, candidate, messageKey))
+}
+
+function normalizeChoiceComparableText(value: string): string {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(choicePrefixPattern, "")
+    .replace(/[。.!！?？]+$/gu, "")
+    .replace(/(?:でお願いします|をお願いします|お願いします|にします|です)$/u, "")
+    .replace(/[\s　/／|｜・:：-]+/gu, "")
+}
+
+function containsComparableChoiceText(choiceSet: SurveyChoiceSet, candidate: string, messageKey: string): boolean {
+  if (choiceSet.id !== "job-kind" && choiceSet.id !== "project-length") return false
+  if (messageKey.length < 2) return false
+  return candidate.includes(messageKey) || messageKey.includes(candidate)
 }
 
 function extractSelectedChoiceText(message: string): string {

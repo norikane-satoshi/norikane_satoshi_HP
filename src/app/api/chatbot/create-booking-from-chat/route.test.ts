@@ -105,6 +105,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
         sessionEmail: "client@example.com",
       }),
       notionTaskType: "仮押さえ",
+      originatedFrom: "chatbot",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
@@ -163,6 +164,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
         ],
       }),
       notionTaskType: "仮押さえ",
+      originatedFrom: "chatbot",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
@@ -209,6 +211,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
         ],
       }),
       notionTaskType: "仮押さえ",
+      originatedFrom: "chatbot",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
@@ -231,6 +234,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
         selectedSlots: [],
       }),
       notionTaskType: "仮押さえ",
+      originatedFrom: "chatbot",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })

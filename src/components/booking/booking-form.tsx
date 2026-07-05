@@ -5,9 +5,11 @@ import { useEffect } from "react"
 import { useForm } from "react-hook-form"
 
 import {
+  formatBookingDateSelection,
   bookingFormSchema,
   formatDurationMinutes,
   getTotalDurationMinutes,
+  type BookingDateSelection,
   type BookingFormData,
   type BookingSlot,
 } from "@/lib/booking/domain/form-schema"
@@ -16,9 +18,12 @@ import {
 type BookingFormProps = {
   formData: BookingFormData
   selectedSlots: BookingSlot[]
+  requestedDateSelection?: BookingDateSelection | null
   onChange: (data: Partial<BookingFormData>) => void
   onValidityChange: (isValid: boolean) => void
   onReselectDate: (slot?: BookingSlot) => void
+  sessionEmailReadOnly?: boolean
+  sessionEmailOptional?: boolean
 }
 
 function formatSlot(slot: BookingSlot): string {
@@ -38,9 +43,12 @@ function formatSlot(slot: BookingSlot): string {
 export function BookingForm({
   formData,
   selectedSlots,
+  requestedDateSelection = null,
   onChange,
   onValidityChange,
   onReselectDate,
+  sessionEmailReadOnly = true,
+  sessionEmailOptional = false,
 }: BookingFormProps) {
   const {
     formState: { errors, isValid },
@@ -67,8 +75,17 @@ export function BookingForm({
     <div className="booking-form">
       <div className="booking-form__slot-row">
         <div className="booking-form__slot-list">
-          {selectedSlots.length === 0 ? (
-            <span className="glass-badge booking-form__slot-pill">日時未選択</span>
+          {requestedDateSelection ? (
+            <button
+              type="button"
+              className="glass-badge booking-form__slot-pill"
+              onClick={() => onReselectDate()}
+              aria-label={`${formatBookingDateSelection(requestedDateSelection)} の希望日に戻って調整`}
+            >
+              {formatBookingDateSelection(requestedDateSelection)}
+            </button>
+          ) : selectedSlots.length === 0 ? (
+            <span className="glass-badge booking-form__slot-pill">希望日未選択</span>
           ) : (
             selectedSlots.map((slot, index) => (
               <button
@@ -84,16 +101,18 @@ export function BookingForm({
           )}
         </div>
         <button className="booking-form__text-link" type="button" onClick={() => onReselectDate()}>
-          選択日時
+          希望日
         </button>
       </div>
-      <div className="booking-form__duration-total glass-inset">
-        <span className="booking-form__label">想定作業時間合計</span>
-        <strong>{formatDurationMinutes(getTotalDurationMinutes(selectedSlots))}</strong>
-      </div>
+      {selectedSlots.length > 0 ? (
+        <div className="booking-form__duration-total glass-inset">
+          <span className="booking-form__label">想定作業時間合計</span>
+          <strong>{formatDurationMinutes(getTotalDurationMinutes(selectedSlots))}</strong>
+        </div>
+      ) : null}
 
       <p className="booking-form__callout glass-flat">
-        本予約はお申し込み時点では確定ではありません。内容を確認のうえ、確定のご連絡を別途お送りします。確定までしばらくお時間をいただきます
+        送信時点では確定予約ではありません。希望日として内容をお預かりし、確認後に直接ご連絡します。
       </p>
 
       <label className="booking-form__group">
@@ -104,7 +123,10 @@ export function BookingForm({
 
       <div className="booking-form__grid">
         <label className="booking-form__group">
-          <span className="booking-form__label">納期</span>
+          <span className="booking-form__label">
+            納期
+            <span className="booking-form__label-optional">(任意)</span>
+          </span>
           <input className="glass-input booking-form__control" type="date" {...register("dueDate")} />
         </label>
         <label className="booking-form__group">
@@ -115,20 +137,29 @@ export function BookingForm({
 
       <div className="booking-form__grid">
         <label className="booking-form__group">
-          <span className="booking-form__label">担当者氏名</span>
+          <span className="booking-form__label">氏名</span>
           <input className="glass-input booking-form__control" {...register("contactName")} />
           {errors.contactName ? <span className="booking-form__error">{errors.contactName.message}</span> : null}
         </label>
         <label className="booking-form__group">
-          <span className="booking-form__label">メールアドレス</span>
-          <input className="glass-input booking-form__control booking-form__control--readonly" readOnly {...register("sessionEmail")} />
+          <span className="booking-form__label">
+            メール
+            {sessionEmailOptional ? <span className="booking-form__label-optional">(任意)</span> : null}
+          </span>
+          <input
+            className={`glass-input booking-form__control${sessionEmailReadOnly ? " booking-form__control--readonly" : ""}`}
+            readOnly={sessionEmailReadOnly}
+            type="email"
+            {...register("sessionEmail")}
+          />
+          {errors.sessionEmail ? <span className="booking-form__error">{errors.sessionEmail.message}</span> : null}
         </label>
       </div>
 
       <div className="booking-form__grid">
         <label className="booking-form__group">
           <span className="booking-form__label">
-            電話番号
+            TEL
             <span className="booking-form__label-optional">(任意)</span>
           </span>
           <input className="glass-input booking-form__control" type="tel" {...register("phone")} />
@@ -136,7 +167,10 @@ export function BookingForm({
       </div>
 
       <label className="booking-form__group">
-        <span className="booking-form__label">補足メモ</span>
+        <span className="booking-form__label">
+          補足
+          <span className="booking-form__label-optional">(任意)</span>
+        </span>
         <textarea className="glass-input booking-form__control" maxLength={1000} rows={5} {...register("memo")} />
         {errors.memo ? <span className="booking-form__error">{errors.memo.message}</span> : null}
       </label>
@@ -144,10 +178,14 @@ export function BookingForm({
       <label className="booking-choice booking-choice--terms glass-flat">
         <input type="checkbox" {...register("agreed")} />
         <span>
-          <a href="#" onClick={(event) => event.preventDefault()}>
+          <a href="/terms" aria-label="利用規約を開く">
             利用規約
           </a>
           に同意します
+          <span className="booking-choice__legal-separator" aria-hidden="true"> / </span>
+          <a href="/privacy" aria-label="プライバシーポリシーを開く">
+            プライバシーポリシー
+          </a>
         </span>
       </label>
       {errors.agreed ? <span className="booking-form__error">{errors.agreed.message}</span> : null}

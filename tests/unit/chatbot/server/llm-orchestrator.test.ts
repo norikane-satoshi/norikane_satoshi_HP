@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
+  assertChatbotLlmResponseContract,
   ChatbotLlmError,
   type ChatbotLlmClient,
   type ChatbotLlmRequest,
@@ -12,6 +13,7 @@ import {
   createChatbotLlmTierOrchestrator,
   type TierAttemptEvent,
 } from "@/lib/chatbot/server/llm-orchestrator"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 
 function conversationState(overrides: Partial<ConversationState> = {}): ConversationState {
   return {
@@ -57,6 +59,7 @@ function llmResponse(
 ): ChatbotLlmResponse {
   return {
     rawText,
+    displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
     tier,
     ...(diagnostics ? { diagnostics } : {}),
   }
@@ -137,6 +140,45 @@ describe("createChatbotLlmTierOrchestrator", () => {
     expect(tier2.generate).toHaveBeenCalledOnce()
     expect(tier3.generate).not.toHaveBeenCalled()
     expect(tier4.generate).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["missing display envelope", { rawText: "broken", tier: "tier-1-chrome-notion-ai" }],
+    [
+      "missing raw text",
+      {
+        displayEnvelope: createChatbotLlmDisplayEnvelope("broken"),
+        tier: "tier-1-chrome-notion-ai",
+      },
+    ],
+    [
+      "malformed envelope",
+      {
+        rawText: "broken",
+        displayEnvelope: { text: "broken", source: "unknown", defaultDenied: false, fallbackApplied: false, reasons: [] },
+        tier: "tier-1-chrome-notion-ai",
+      },
+    ],
+  ])("falls back when a tier returns contract-invalid output: %s", async (_label, invalidResponse) => {
+    const tier1 = fakeClient("tier-1-chrome-notion-ai", {
+      generateResult: invalidResponse as ChatbotLlmResponse,
+    })
+    const tier4 = fakeClient(
+      "tier-4-form-fallback",
+      { generateResult: llmResponse("tier-4-form-fallback", "<customer_reply>フォームへ切り替えます。</customer_reply>") },
+    )
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier4] })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toMatchObject({
+      tier: "tier-4-form-fallback",
+      rawText: "<customer_reply>フォームへ切り替えます。</customer_reply>",
+    })
+    expect(tier1.generate).toHaveBeenCalledOnce()
+    expect(tier4.generate).toHaveBeenCalledOnce()
+  })
+
+  it("accepts the shared tier response envelope", () => {
+    expect(() => assertChatbotLlmResponseContract(llmResponse("tier-2-hosted-chrome-notion-ai"))).not.toThrow()
   })
 
   it("chooses Ollama tier 3 when tiers 1 and 2 are unhealthy", async () => {
@@ -396,6 +438,42 @@ describe("createChatbotLlmTierOrchestrator", () => {
     )
     expect(tier1.generate).not.toHaveBeenCalled()
     expect(tier4.generate).toHaveBeenCalledOnce()
+  })
+
+  it("still tries hosted tier 2 when its health probe times out", async () => {
+    const tier2 = fakeClient("tier-2-hosted-chrome-notion-ai", {
+      healthPromise: new Promise<boolean>(() => {}),
+    })
+    const tier3 = fakeClient("tier-3-gemini-flash")
+    const orchestrator = createChatbotLlmTierOrchestrator({
+      clients: [tier2, tier3],
+      healthCheckTimeoutMs: 1,
+    })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
+      llmResponse("tier-2-hosted-chrome-notion-ai"),
+    )
+    expect(tier2.generate).toHaveBeenCalledOnce()
+    expect(tier3.generate).not.toHaveBeenCalled()
+  })
+
+  it("still tries hosted tier 2 after a retryable health error", async () => {
+    const healthError = llmError("tier-2-hosted-chrome-notion-ai", {
+      code: "connection",
+      isRetryable: true,
+    })
+    const tier2 = fakeClient("tier-2-hosted-chrome-notion-ai", {
+      healthy: false,
+      healthError,
+    })
+    const tier3 = fakeClient("tier-3-gemini-flash")
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2, tier3] })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
+      llmResponse("tier-2-hosted-chrome-notion-ai"),
+    )
+    expect(tier2.generate).toHaveBeenCalledOnce()
+    expect(tier3.generate).not.toHaveBeenCalled()
   })
 
   it("does not call fetch or any network transport directly", async () => {

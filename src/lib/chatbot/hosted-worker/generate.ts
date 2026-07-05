@@ -10,7 +10,6 @@ import path from "node:path"
 import {
   createTier1ChromeNotionAiClient,
   tier1ChromeNotionAiDefaults,
-  tier1ObservedNotionAiModel,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 import {
@@ -29,7 +28,7 @@ type GenerateOptions = {
   diagnosticsPath?: string
 }
 
-const defaultWorkerGenerateTimeoutMs = 50000
+const defaultWorkerGenerateTimeoutMs = 70000
 const timeoutTag = "timeout"
 const abortTag = "request_aborted"
 const diagnosticsEventName = "hosted_worker_generate"
@@ -190,7 +189,6 @@ function createTier1Response(
         process.env.CHATBOT_HOSTED_WORKER_GENERATE_TIMEOUT_MS,
         tier1ChromeNotionAiDefaults.requestTimeoutMs,
       ),
-      preferredModel: process.env.CHATBOT_HOSTED_WORKER_PREFERRED_MODEL ?? tier1ObservedNotionAiModel,
     })
 
   return client.generate(request, { signal })

@@ -54,7 +54,7 @@ describe("BookingEditForm customer email display", () => {
   it("renders the customer email field as read-only and disabled", () => {
     const markup = renderForm("customer@example.com")
 
-    expect(markup).toContain(">メールアドレス<")
+    expect(markup).toContain(">メール<")
     expect(markup).toContain('type="email"')
     expect(markup).toContain('value="customer@example.com"')
     expect(markup).toContain("readOnly")

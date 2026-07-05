@@ -1,4 +1,10 @@
-import { hasRequiredEmailConsultationSlots, surveyChoiceSets } from "@/lib/chatbot/domain"
+import {
+  finalMediumChoices,
+  hasRequiredEmailConsultationSlots,
+  projectLengthChoices,
+  projectLengthChoicesForJobKind,
+  surveyChoiceSets,
+} from "@/lib/chatbot/domain"
 import type {
   BookingCardPrefill,
   ChatbotConversation,
@@ -11,6 +17,7 @@ import type {
 } from "@/lib/chatbot/domain"
 import {
   appendMessage,
+  assertChatbotLlmResponseContract,
   createChatbotLlmTierOrchestrator,
   createConversation,
   createTier1ChromeNotionAiClient,
@@ -25,6 +32,7 @@ import {
   truncateConversationFromMessage,
   updateConversationRouting,
   updateConversationSlackThreadTs,
+  isChatbotLlmResponseContractError,
   type ChatbotLlmClient,
   type ChatbotLlmRequest,
   type ChatbotLlmResponse,
@@ -38,14 +46,16 @@ import {
   findCandidateCalendar,
   type CandidateCalendarResult,
 } from "@/lib/chatbot/server/availability-finder"
+import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import {
   resolveWorkflowDurationContext,
   type DurationTraceContext,
 } from "@/lib/chatbot/server/duration-context"
-import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
+import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
+  createChatbotLlmDisplayEnvelope,
   sanitizeChatbotLlmTextWithReport,
   type ChatbotLlmSanitizationReport,
 } from "@/lib/chatbot/server/llm-response-normalizer"
@@ -61,9 +71,12 @@ import {
 import {
   applyBookingFinalConfirmationAnswer,
   applyBookingFinalConfirmationPolicy,
+  getMissingBookingReadinessSlots,
   inferChatbotFlowStep,
   isBookingFinalConfirmationPrompt,
+  isLlmNoAdditionalBookingConcernSignal,
   isNoAdditionalBookingConcern,
+  wasBookingFinalQuestionOffered,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
@@ -127,6 +140,12 @@ type ChatbotMessageRepository = {
   updateConversationRouting: typeof updateConversationRouting
   updateConversationSlackThreadTs: typeof updateConversationSlackThreadTs
   linkConversationToUser: typeof linkConversationToUser
+}
+
+type ChatbotEditSlackEvent = {
+  previousSummary?: string
+  nextMessage: string
+  truncatedFollowingMessages: number
 }
 
 type CandidateWindowFinder =
@@ -207,12 +226,18 @@ export async function handleChatbotMessage(
   }
 
   let didTruncateForEdit = false
+  let editSlackEvent: ChatbotEditSlackEvent | undefined
   if (input.editTargetMessageId) {
     const targetIndex = conversation.messages.findIndex((message) => message.id === input.editTargetMessageId)
     if (targetIndex === -1) {
       if (!isClientGeneratedMessageId(input.editTargetMessageId)) {
         const fallbackTargetIndex = findLastUserMessageIndex(conversation.messages)
         if (fallbackTargetIndex >= 0) {
+          editSlackEvent = buildEditSlackEvent({
+            messages: conversation.messages,
+            targetIndex: fallbackTargetIndex,
+            nextMessage: input.message,
+          })
           await repository.truncateConversationFromMessage({
             conversationId: conversation.id,
             messageId: conversation.messages[fallbackTargetIndex].id,
@@ -220,11 +245,20 @@ export async function handleChatbotMessage(
           conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, fallbackTargetIndex))
           didTruncateForEdit = true
         } else {
+          editSlackEvent = {
+            nextMessage: input.message,
+            truncatedFollowingMessages: conversation.messages.length,
+          }
           conversation = resetEditedConversationContext(conversation, [])
           didTruncateForEdit = true
         }
       }
     } else {
+      editSlackEvent = buildEditSlackEvent({
+        messages: conversation.messages,
+        targetIndex,
+        nextMessage: input.message,
+      })
       await repository.truncateConversationFromMessage({
         conversationId: conversation.id,
         messageId: input.editTargetMessageId,
@@ -261,6 +295,14 @@ export async function handleChatbotMessage(
     role: "user",
     content: input.message,
   })
+  if (editSlackEvent) {
+    await notifySlackForChatbotEdit({
+      notifier: slackNotifier,
+      requestId: input.requestId,
+      conversation,
+      edit: editSlackEvent,
+    })
+  }
   if (isAssistantNameQuestion(input.message)) {
     const assistantMessage = await repository.appendMessage({
       conversationId: conversation.id,
@@ -285,8 +327,9 @@ export async function handleChatbotMessage(
       ui: { kind: "none" },
     }
   }
+  const activeChoices = contextualizeStoredActiveChoices(conversation)
   const activeChoiceAnswer = applyActiveChoiceAnswer({
-    activeChoices: conversation.context.activeChoices,
+    activeChoices,
     message: input.message,
     activeIntakeClarification: conversation.context.conversationState?.activeIntakeClarification,
   })
@@ -343,28 +386,35 @@ export async function handleChatbotMessage(
       latestUserMessage: input.message,
       userAgent: input.userAgent,
     })
-  const llmResponse = await orchestrator.generate({
-    requestId: input.requestId,
-    systemPrompt,
-    messages: buildLlmMessages(conversation.messages, userMessage),
-    conversationState,
-    jobContext,
-    latestUserMessage: input.message,
-    temperature: 0.2,
-    maxOutputTokens: 900,
-  })
-  const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
-  const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
   const fallbackRoutingDecision = decideRoutingFallback({
     jobContext,
     conversationState,
     latestUserMessage: input.message,
     knowledgeSnapshot,
   })
+  const llmResponse = await generateContractedLlmResponse({
+    orchestrator,
+    request: {
+      requestId: input.requestId,
+      systemPrompt,
+      messages: buildLlmMessages(conversation.messages, userMessage),
+      conversationState,
+      jobContext,
+      latestUserMessage: input.message,
+      temperature: 0.2,
+      maxOutputTokens: 900,
+    },
+    fallbackRoutingDecision,
+  })
+  const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
+  const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
   const resolvedRoutingDecision = await resolveRoutingDecision({
+    requestId: input.requestId,
     llmResponse,
+    conversation,
     jobContext,
     conversationState,
+    latestUserMessage: input.message,
     fallbackRoutingDecision,
     candidateWindowFinder,
     knowledgeSnapshot,
@@ -382,8 +432,25 @@ export async function handleChatbotMessage(
     })
       ? fallbackRoutingDecision
       : undefined)
-  const flowPolicy = applyBookingFinalConfirmationPolicy({
+  const contractRoutingDecision = enforceProjectTypeChoiceContract({
+    requestId: input.requestId,
+    conversation,
+    tier: llmResponse.tier,
     routingDecision: rawRoutingDecision,
+    rawAssistantText: llmResponse.rawText,
+    jobContext,
+  })
+  const finalMediumRoutingDecision = enforceFinalMediumChoiceContract({
+    requestId: input.requestId,
+    conversation,
+    tier: llmResponse.tier,
+    routingDecision: contractRoutingDecision,
+    rawAssistantText: llmResponse.rawText,
+    jobContext,
+  })
+  const flowPolicy = applyBookingFinalConfirmationPolicy({
+    routingDecision: finalMediumRoutingDecision,
+    fallbackRoutingDecision,
     conversationState,
     jobContext,
     latestUserMessage: input.message,
@@ -391,9 +458,20 @@ export async function handleChatbotMessage(
   })
   const routingDecision = flowPolicy.routingDecision
   const persistedConversationState = flowPolicy.conversationState
+  logChatbotBookingReadinessBoundary({
+    requestId: input.requestId,
+    conversation,
+    beforeState: conversationState,
+    afterState: persistedConversationState,
+    jobContext,
+    fallbackRoutingDecision,
+    routingDecision,
+  })
   const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState: persistedConversationState })
   const assistantDisplay = buildAssistantDisplayContent({
+    requestId: input.requestId,
     rawText: llmResponse.rawText,
+    displayEnvelope: llmResponse.displayEnvelope,
     routingDecision,
     fallbackRoutingDecision,
     jobContext,
@@ -419,6 +497,16 @@ export async function handleChatbotMessage(
     rawText: llmResponse.rawText,
     finalText: assistantContent,
     report: assistantDisplay.singleUserPromptGuard,
+  })
+  logChatbotDisplayBoundary({
+    requestId: input.requestId,
+    conversation,
+    tier: llmResponse.tier,
+    routingDecision,
+    uiKind: ui.kind,
+    rawText: llmResponse.rawText,
+    finalText: assistantContent,
+    report: assistantDisplay.sanitizationReport,
   })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
@@ -517,16 +605,332 @@ function shouldUseFallbackRouting(input: {
   }
   if (input.noteAccess.kind !== "none") return false
   if (isBookingFinalConfirmationPrompt(input.rawAssistantText)) return false
-  if (isDurationAnswerRequest(input.latestUserMessage) || isDurationAnswerRequest(input.rawAssistantText)) return false
+  if (isDurationAnswerRequest(input.latestUserMessage)) return false
+  if (
+    input.fallbackRoutingDecision.presentChoices.id !== "project-length" &&
+    isDurationAnswerRequest(input.rawAssistantText)
+  ) {
+    return false
+  }
 
   switch (input.fallbackRoutingDecision.presentChoices.id) {
     case "job-kind":
       return hasConsultationStartIntent(input.latestUserMessage) || looksLikeChoiceListQuestion(input.rawAssistantText)
     case "project-length":
-      return hasProjectLengthFollowupIntent(input.latestUserMessage)
+      return true
     default:
       return true
   }
+}
+
+function enforceProjectTypeChoiceContract(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmTier
+  routingDecision: RoutingDecision | undefined
+  rawAssistantText: string
+  jobContext: JobContext
+}): RoutingDecision | undefined {
+  const routingDecision = input.routingDecision
+  const jobKind = input.jobContext.jobKind
+  if (!jobKind || routingDecision?.kind !== "continue" || routingDecision.presentChoices?.id !== "project-length") {
+    return routingDecision
+  }
+
+  const hasRawTextMismatch = hasProjectTypeTextMismatch(input.rawAssistantText, jobKind)
+  if (!hasRawTextMismatch) {
+    return routingDecision
+  }
+
+  logProjectTypeChoiceMismatch({
+    requestId: input.requestId,
+    conversation: input.conversation,
+    tier: input.tier,
+    jobKind,
+    reason: "choice-set-context-mismatch",
+    receivedQuestion: routingDecision.nextQuestion,
+    correctedQuestion: buildProjectLengthRejudgmentQuestion(jobKind),
+    receivedChoiceLabels: routingDecision.presentChoices.choices.map((choice) => choice.label),
+    correctedChoiceLabels: [],
+  })
+
+  return {
+    kind: "continue",
+    nextQuestion: buildProjectLengthRejudgmentQuestion(jobKind),
+  }
+}
+
+function buildProjectLengthRejudgmentQuestion(jobKind: NonNullable<JobContext["jobKind"]>): string {
+  switch (jobKind) {
+    case "drama-first":
+    case "drama-follow-up":
+      return "ドラマ / シリーズとして整理しています。1話の尺、話数、全体尺のどれから確認するのが近いですか？"
+    case "live-60m":
+      return "ライブ / 舞台収録として整理しています。収録全体の尺か、曲数・パート数のどちらから確認するのが近いですか？"
+    case "cm-30s":
+      return "Web CM / CM として整理しています。1本あたりの尺か、本数・バリエーションのどちらから確認するのが近いですか？"
+    case "mv-5m":
+      return "MV / 音楽映像として整理しています。楽曲尺か、複数バージョンの有無のどちらから確認するのが近いですか？"
+    default:
+      return "案件内容に合わせて、次に確認すべき尺・分量の粒度をもう少し教えてください。"
+  }
+}
+
+function hasProjectTypeTextMismatch(text: string, jobKind: NonNullable<JobContext["jobKind"]>): boolean {
+  const normalized = text.normalize("NFKC").toLowerCase()
+  const mentions = {
+    drama: /(ドラマ|シリーズ|1話|話数|episode)/u.test(normalized),
+    live: /(ライブ|コンサート|舞台収録|live)/u.test(normalized),
+    cm: /(web\s*cm|ウェブ\s*cm|コマーシャル|(?:^|[^a-z0-9])cm(?:$|[^a-z0-9]))/u.test(normalized),
+    mv: /(ミュージックビデオ|音楽映像|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(normalized),
+  }
+
+  switch (jobKind) {
+    case "drama-first":
+    case "drama-follow-up":
+      return mentions.live || mentions.cm || mentions.mv
+    case "live-60m":
+      return mentions.drama || mentions.cm || mentions.mv
+    case "cm-30s":
+      return mentions.drama || mentions.live || mentions.mv
+    case "mv-5m":
+      return mentions.drama || mentions.live || mentions.cm
+    default:
+      return false
+  }
+}
+
+function contextualizeStoredActiveChoices(conversation: ChatbotConversation): SurveyChoiceSet | undefined {
+  const activeChoices = conversation.context.activeChoices
+  if (activeChoices?.id !== "project-length") return activeChoices
+
+  const jobKind = resolveStoredOrHistoricalJobKind(conversation)
+  if (!jobKind) return activeChoices
+  return projectLengthChoicesForJobKind(jobKind)
+}
+
+function resolveStoredOrHistoricalJobKind(conversation: ChatbotConversation): JobContext["jobKind"] | undefined {
+  const storedJobKind =
+    conversation.context.jobContext?.jobKind ??
+    conversation.context.conversationState?.durationContext?.workflowFacts?.jobKind
+  if (storedJobKind) return storedJobKind
+
+  const base: JobContext = {
+    finalMedium: "other",
+    workSite: "remote-grading",
+    documentaryAttachment: { kind: "none" },
+  }
+
+  return conversation.messages
+    .filter((message) => message.role === "user")
+    .reduce((current, message) => ({ ...current, ...inferWorkflowJobContextFromText(message.content, current) }), base)
+    .jobKind
+}
+
+function logProjectTypeChoiceMismatch(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmTier
+  jobKind: JobContext["jobKind"]
+  reason: "choice-set-context-mismatch"
+  receivedQuestion: string
+  correctedQuestion: string
+  receivedChoiceLabels: string[]
+  correctedChoiceLabels: string[]
+}): void {
+  console.info(
+    JSON.stringify({
+      event: "project_type_choice_mismatch",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      jobKind: input.jobKind,
+      reason: input.reason,
+      receivedQuestion: redactForChatbotLog(input.receivedQuestion),
+      correctedQuestion: redactForChatbotLog(input.correctedQuestion),
+      receivedChoiceLabels: input.receivedChoiceLabels.map(redactForChatbotLog),
+      correctedChoiceLabels: input.correctedChoiceLabels.map(redactForChatbotLog),
+    }),
+  )
+}
+
+function enforceFinalMediumChoiceContract(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmTier
+  routingDecision: RoutingDecision | undefined
+  rawAssistantText: string
+  jobContext: JobContext
+}): RoutingDecision | undefined {
+  const routingDecision = input.routingDecision
+  const jobKind = input.jobContext.jobKind
+  if (!jobKind || routingDecision?.kind !== "continue" || routingDecision.presentChoices?.id !== "final-medium") {
+    return routingDecision
+  }
+
+  const mismatchReason = getFinalMediumChoiceMismatchReason({
+    jobKind,
+    choiceSet: routingDecision.presentChoices,
+    rawAssistantText: input.rawAssistantText,
+  })
+  if (!mismatchReason) return routingDecision
+
+  const correctedQuestion = buildFinalMediumRejudgmentQuestion(jobKind)
+  logFinalMediumChoiceMismatch({
+    requestId: input.requestId,
+    conversation: input.conversation,
+    tier: input.tier,
+    jobKind,
+    reason: mismatchReason,
+    receivedQuestion: routingDecision.nextQuestion,
+    correctedQuestion,
+    receivedChoiceLabels: routingDecision.presentChoices.choices.map((choice) => choice.label),
+  })
+
+  return {
+    kind: "continue",
+    nextQuestion: correctedQuestion,
+    presentChoices: buildFinalMediumRejudgmentChoiceSet(jobKind, correctedQuestion),
+  }
+}
+
+function getFinalMediumChoiceMismatchReason(input: {
+  jobKind: NonNullable<JobContext["jobKind"]>
+  choiceSet: SurveyChoiceSet
+  rawAssistantText: string
+}): "fixed-final-medium-fallback" | "choice-set-context-mismatch" | undefined {
+  if (isStaticFinalMediumChoiceSet(input.choiceSet)) return "fixed-final-medium-fallback"
+
+  const text = [
+    input.rawAssistantText,
+    input.choiceSet.question,
+    ...input.choiceSet.choices.map((choice) => `${choice.id} ${choice.label}`),
+  ]
+    .join("\n")
+    .normalize("NFKC")
+    .toLowerCase()
+
+  switch (input.jobKind) {
+    case "drama-first":
+    case "drama-follow-up":
+      return /(ライブ|コンサート|舞台収録|縦型|縦動画|shorts|reels|tiktok|web\s*cm|ウェブ\s*cm|コマーシャル|ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(text)
+        ? "choice-set-context-mismatch"
+        : undefined
+    case "live-60m":
+      return /(ドラマ|シリーズ|1話|話数|web\s*cm|ウェブ\s*cm|コマーシャル|ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9])|縦型|縦動画|shorts|reels|tiktok)/u.test(text)
+        ? "choice-set-context-mismatch"
+        : undefined
+    case "cm-30s":
+      return /(ドラマ|シリーズ|1話|話数|ライブ|コンサート|舞台収録|ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(text)
+        ? "choice-set-context-mismatch"
+        : undefined
+    case "mv-5m":
+      return /(ドラマ|シリーズ|1話|話数|web\s*cm|ウェブ\s*cm|コマーシャル)/u.test(text)
+        ? "choice-set-context-mismatch"
+        : undefined
+    default:
+      return undefined
+  }
+}
+
+function isStaticFinalMediumChoiceSet(choiceSet: SurveyChoiceSet): boolean {
+  if (choiceSet.id !== finalMediumChoices.id) return false
+  const actual = choiceSet.choices.map((choice) => `${choice.id}:${choice.label}`).join("|")
+  const canonical = finalMediumChoices.choices.map((choice) => `${choice.id}:${choice.label}`).join("|")
+  return choiceSet.question === finalMediumChoices.question && actual === canonical
+}
+
+function buildFinalMediumRejudgmentQuestion(jobKind: NonNullable<JobContext["jobKind"]>): string {
+  switch (jobKind) {
+    case "drama-first":
+    case "drama-follow-up":
+      return "ドラマ / シリーズとして整理しています。放送、配信、Web公開、劇場上映など、想定している公開先・納品先を1つ教えてください。"
+    case "live-60m":
+      return "ライブ / 舞台収録として整理しています。配信、会場上映、パッケージ納品、Web公開など、想定している公開先・納品先を1つ教えてください。"
+    case "cm-30s":
+      return "Web CM / CM として整理しています。Web広告、SNS、テレビ放送、店頭・イベントなど、想定している公開先・使用先を1つ教えてください。"
+    case "mv-5m":
+      return "MV / 音楽映像として整理しています。YouTube、SNS、配信プラットフォーム、ライブ会場上映など、想定している公開先・使用先を1つ教えてください。"
+    default:
+      return "今回の案件で想定している公開先・納品先・使用先を1つ教えてください。"
+  }
+}
+
+function buildFinalMediumRejudgmentChoiceSet(
+  jobKind: NonNullable<JobContext["jobKind"]>,
+  question: string,
+): SurveyChoiceSet {
+  const choices =
+    jobKind === "drama-first" || jobKind === "drama-follow-up"
+      ? [
+          { id: "tv-broadcast", label: "地上波・BS／CS放送" },
+          { id: "ott", label: "配信プラットフォーム" },
+          { id: "web", label: "Web公開" },
+          { id: "cinema", label: "劇場・イベント上映" },
+          { id: "undecided", label: "未定・相談したい" },
+          { id: "other", label: "その他" },
+        ]
+      : jobKind === "live-60m"
+        ? [
+            { id: "ott", label: "配信" },
+            { id: "cinema", label: "会場上映・イベント上映" },
+            { id: "web", label: "Web公開" },
+            { id: "undecided", label: "未定・相談したい" },
+            { id: "other", label: "その他" },
+          ]
+        : jobKind === "cm-30s"
+          ? [
+              { id: "web", label: "Web広告・Web公開" },
+              { id: "vertical-sns", label: "SNS広告・縦型SNS" },
+              { id: "tv-broadcast", label: "テレビ放送" },
+              { id: "cinema", label: "店頭・イベント上映" },
+              { id: "undecided", label: "未定・相談したい" },
+              { id: "other", label: "その他" },
+            ]
+          : jobKind === "mv-5m"
+            ? [
+                { id: "web", label: "YouTube / Web公開" },
+                { id: "vertical-sns", label: "SNS / 縦型展開" },
+                { id: "ott", label: "配信プラットフォーム" },
+                { id: "cinema", label: "ライブ会場・イベント上映" },
+                { id: "undecided", label: "未定・相談したい" },
+                { id: "other", label: "その他" },
+              ]
+            : finalMediumChoices.choices
+
+  return {
+    id: "final-medium",
+    question,
+    allowFreeText: true,
+    choices,
+  }
+}
+
+function logFinalMediumChoiceMismatch(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmTier
+  jobKind: JobContext["jobKind"]
+  reason: "fixed-final-medium-fallback" | "choice-set-context-mismatch"
+  receivedQuestion: string
+  correctedQuestion: string
+  receivedChoiceLabels: string[]
+}): void {
+  console.info(
+    JSON.stringify({
+      event: "final_media_choice_mismatch",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      jobKind: input.jobKind,
+      reason: input.reason,
+      receivedQuestion: redactForChatbotLog(input.receivedQuestion),
+      correctedQuestion: redactForChatbotLog(input.correctedQuestion),
+      receivedChoiceLabels: input.receivedChoiceLabels.map(redactForChatbotLog),
+    }),
+  )
 }
 
 function hasConsultationStartIntent(message: string): boolean {
@@ -539,11 +943,6 @@ function hasConsultationStartIntent(message: string): boolean {
 function looksLikeChoiceListQuestion(message: string): boolean {
   const normalized = message.normalize("NFKC").toLowerCase()
   return /(下の選択肢|選んで|選択して|どれに近い|種別)[\s\S]*(cm|mv|ライブ|講習|その他)/u.test(normalized)
-}
-
-function hasProjectLengthFollowupIntent(message: string): boolean {
-  const normalized = message.normalize("NFKC").toLowerCase()
-  return /(尺|分|秒|時間|ライブ|cm|mv|映画|ドラマ|縦型|案件|相談|依頼)/u.test(normalized)
 }
 
 function isDurationAnswerRequest(message: string): boolean {
@@ -622,6 +1021,34 @@ async function notifySlackForChatbotResponse(input: {
   }
 }
 
+async function notifySlackForChatbotEdit(input: {
+  notifier: typeof sendChatbotSlackNotification
+  requestId?: string
+  conversation: ChatbotConversation
+  edit: ChatbotEditSlackEvent
+}): Promise<void> {
+  const threadTs = input.conversation.context.slackThreadTs
+  if (!threadTs) return
+
+  try {
+    await input.notifier({
+      kind: "message-edit",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      threadTs,
+      editedMessage: {
+        ...(input.edit.previousSummary ? { previousSummary: input.edit.previousSummary } : {}),
+        nextMessage: input.edit.nextMessage,
+        truncatedFollowingMessages: input.edit.truncatedFollowingMessages,
+      },
+      pendingRequestKind: "edit",
+    })
+  } catch (error) {
+    console.warn("[chatbot slack edit notification failed]", error instanceof Error ? error.message : String(error))
+  }
+}
+
 function detectChatbotIssueReasons(tier: ChatbotLlmResponse["tier"]): string[] {
   switch (tier) {
     case "tier-3-gemini-flash":
@@ -639,6 +1066,25 @@ function findLastUserMessageIndex(messages: ChatbotMessage[]): number {
     if (messages[index].role === "user") return index
   }
   return -1
+}
+
+function buildEditSlackEvent(input: {
+  messages: ChatbotMessage[]
+  targetIndex: number
+  nextMessage: string
+}): ChatbotEditSlackEvent {
+  const targetMessage = input.messages[input.targetIndex]
+  return {
+    ...(targetMessage?.content ? { previousSummary: summarizeEditedMessageForSlack(targetMessage.content) } : {}),
+    nextMessage: input.nextMessage,
+    truncatedFollowingMessages: Math.max(0, input.messages.length - input.targetIndex - 1),
+  }
+}
+
+function summarizeEditedMessageForSlack(content: string): string {
+  const normalized = content.replace(/\s+/gu, " ").trim()
+  if (normalized.length <= 180) return normalized
+  return `${normalized.slice(0, 180)}...`
 }
 
 function isClientGeneratedMessageId(messageId: string): boolean {
@@ -864,25 +1310,21 @@ function findContactEmailInText(value: string): string | undefined {
 
 function findChoiceSetFromAssistantContent(content: string): SurveyChoiceSet | undefined {
   const normalized = content.normalize("NFKC")
-  return surveyChoiceSets.find((choiceSet) => {
-    if (normalized.includes(choiceSet.question.normalize("NFKC"))) return true
-    switch (choiceSet.id) {
-      case "job-kind":
-        return normalized.includes("案件種別")
-      case "project-length":
-        return normalized.includes("尺・分量")
-      case "final-medium":
-        return normalized.includes("最終媒体")
-      case "additional-work":
-        return normalized.includes("カラグレ以外の追加作業")
-      case "documentary-attachment":
-        return normalized.includes("付随する映像")
-      case "work-site":
-        return normalized.includes("作業場所")
-      default:
-        return false
-    }
-  })
+  const exactQuestionMatch = surveyChoiceSets.find((choiceSet) =>
+    normalized.includes(choiceSet.question.normalize("NFKC")),
+  )
+  if (exactQuestionMatch) return exactQuestionMatch
+  if (normalized.includes("案件種別")) return surveyChoiceSets.find((choiceSet) => choiceSet.id === "job-kind")
+  if (normalized.includes("尺・分量")) return projectLengthChoices
+  if (normalized.includes("最終媒体")) return surveyChoiceSets.find((choiceSet) => choiceSet.id === "final-medium")
+  if (normalized.includes("カラグレ以外の追加作業")) {
+    return surveyChoiceSets.find((choiceSet) => choiceSet.id === "additional-work")
+  }
+  if (normalized.includes("付随する映像")) {
+    return surveyChoiceSets.find((choiceSet) => choiceSet.id === "documentary-attachment")
+  }
+  if (normalized.includes("作業場所")) return surveyChoiceSets.find((choiceSet) => choiceSet.id === "work-site")
+  return undefined
 }
 
 function selectRecoveredActiveChoices(input: {
@@ -935,6 +1377,10 @@ function mergeRecoveredConversationState(
     ...(stored.bookingFinalConfirmation ?? {}),
     ...(recovered.bookingFinalConfirmation ?? {}),
   }
+  const bookingReadiness = {
+    ...(stored.bookingReadiness ?? {}),
+    ...(recovered.bookingReadiness ?? {}),
+  }
   const merged: Partial<ConversationState> = {
     ...stored,
     ...recovered,
@@ -955,6 +1401,9 @@ function mergeRecoveredConversationState(
       : {}),
     ...(!hasSubmittedBooking && bookingFinalConfirmation.status
       ? { bookingFinalConfirmation: bookingFinalConfirmation as NonNullable<ConversationState["bookingFinalConfirmation"]> }
+      : {}),
+    ...(Object.keys(bookingReadiness).length > 0
+      ? { bookingReadiness: bookingReadiness as NonNullable<ConversationState["bookingReadiness"]> }
       : {}),
   }
 
@@ -1001,6 +1450,7 @@ function resetEditedConversationContext(
       sessionId: conversation.context.sessionId,
       ...(conversation.context.userId ? { userId: conversation.context.userId } : {}),
       ...(conversation.context.customerEmail ? { customerEmail: conversation.context.customerEmail } : {}),
+      ...(conversation.context.slackThreadTs ? { slackThreadTs: conversation.context.slackThreadTs } : {}),
     },
     messages,
   }
@@ -1028,6 +1478,38 @@ function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogConte
   })
 }
 
+async function generateContractedLlmResponse(input: {
+  orchestrator: ChatbotLlmTierOrchestrator
+  request: ChatbotLlmRequest
+  fallbackRoutingDecision: RoutingDecision
+}): Promise<ChatbotLlmResponse> {
+  try {
+    const response = await input.orchestrator.generate(input.request)
+    assertChatbotLlmResponseContract(response)
+    return response
+  } catch (error) {
+    if (!isChatbotLlmResponseContractError(error)) throw error
+    const rawText = customerReplyMarkup(
+      input.fallbackRoutingDecision.kind === "continue"
+        ? input.fallbackRoutingDecision.nextQuestion
+        : "内容を確認しました。次に必要な情報を1つずつ確認します。",
+    )
+    return {
+      rawText,
+      displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
+      tier: "tier-4-form-fallback",
+      diagnostics: {
+        contractFallback: true,
+        reason: error.message,
+      },
+    }
+  }
+}
+
+function customerReplyMarkup(text: string): string {
+  return `<customer_reply>${text}</customer_reply>`
+}
+
 type ChatbotTierAttemptLogContext = {
   requestId?: string
   conversationId: string
@@ -1048,6 +1530,12 @@ function buildChatbotSystemPrompt(
     "あなたは単なる受付フォームではなく、お客様、則兼、のーちゃんの3人チームでいい作品を作るために伴走する事務担当です。",
     "事務担当として確認漏れ、不安、伝え忘れを減らし、ユーザーの考える量を増やさず次にすることを1つずつ案内します。",
     "案件整理では複数項目を文章で一気に聞かず、選べる項目は choice-panel の1項目ずつで確認します。その他を選んだ自由入力は補足として保持し、勝手に近い既存分類へ潰しません。",
+    'choice-panel を出す時は、本文に {"tool":"show_choice_panel","args":{"id":"project-length","question":"...","selectionMode":"single","allowFreeText":true,"choices":[{"id":"...","label":"..."}]}} を1個だけ含めます。',
+    "選択させる候補は本文の箇条書きや「選択肢: A/B/C」だけで出さず、必ず show_choice_panel に入れます。候補を選ばせる意図がある本文だけの回答は禁止です。",
+    "choice-panel の id は job-kind / project-length / final-medium / additional-work / documentary-attachment / work-site / production-options のいずれかを使います。",
+    "案件種別ごとの候補表は例と安全網です。最終的な質問文、選択肢粒度、複数選択可否、自由入力有無は、会話全体、確定済み facts、未確定 facts、ユーザーの言い方から自然に判断します。",
+    "ドラマ / シリーズ、ライブ、Web CM、MV の尺確認では、固定順や固定候補表に縛られず、会話に合う粒度を選びます。ただし別文脈の選択肢を混ぜません。",
+    "最終媒体 / 公開先 / 納品先の確認でも固定候補表をそのまま出さず、案件種別、作品形態、尺・話数、放送、配信、Web公開、劇場上映、イベント上映などの文脈から自然な質問文と選択肢を作ります。ドラマ / シリーズにライブ・縦型SNS・Web CM など別文脈の候補を混ぜず、ライブ、Web CM、MV でもそれぞれの公開・納品文脈に合わせます。",
     "現在確認している1項目について、会話文脈、選択済み項目、自由入力、未確認項目から次へ進めるほど明確かを判断します。疑問が残る場合は同じ項目について確認を1問だけ返し、十分明確なら過剰確認せず次へ進みます。",
     "明確でないが未定として扱える回答は未定として保持し、後段の相談、最終確認、予約可否判断で扱います。",
     "勝手に予約確定、料金判断、実施可否判断、本人判断が必要な確約はしません。",
@@ -1064,6 +1552,8 @@ function buildChatbotSystemPrompt(
     "2026年9月15日 JST 以降は、状況に応じてスタジオ利用を作業場所の選択肢として扱えます。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、JSON 出力の説明だけを返しません。",
+    "最終出力は必ず <customer_reply> と </customer_reply> の内側だけに、お客様へ表示してよい本文を書きます。内部推論、確認メモ、英語の思考、モデル名、署名、ラベル説明、タグ外の本文は一切書きません。",
+    "show_choice_panel / show_booking_card の JSON を出す場合も、表示してよい短い本文と同じ <customer_reply> 内に1個だけ置きます。タグ外には何も書きません。",
     '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD","memo":"..."}} を 1 個だけ含めます。',
     "予約候補カードを出す直前には、これまでの文脈を短く踏まえて、ほかに確認したいこと、伝えておきたいこと、不安な点がないかを1回だけ確認します。その最終確認ターンでは show_booking_card を同時に出さず、1ターン1問いかけにします。",
     "ユーザーが最終確認に「なし」「大丈夫」「ありません」などと答えた次のターンで、必要情報が揃っていれば show_booking_card に進めます。追加情報や質問が来た場合は補足として取り込み、必要な確認をしてから進めます。",
@@ -1159,7 +1649,9 @@ function getCustomerFacingNoteKnowledge(snapshot: ChatbotKnowledgeSnapshot) {
 }
 
 function buildAssistantDisplayContent(input: {
+  requestId?: string
   rawText: string
+  displayEnvelope: ChatbotLlmResponse["displayEnvelope"]
   routingDecision: RoutingDecision | undefined
   fallbackRoutingDecision: RoutingDecision
   jobContext: JobContext
@@ -1170,11 +1662,14 @@ function buildAssistantDisplayContent(input: {
   singleUserPromptGuard: SingleUserPromptGuardReport
 } {
   const text = input.rawText.trim()
-  const toolFreeText = stripShowBookingCardToolCall(text).trim()
-  const sanitize = (content: string) => {
+  const toolFreeText = stripStructuredToolCalls(text).trim()
+  const explicitDisplayText = extractExplicitCustomerReplyText(text)
+  const sanitize = (content: string, trustedDisplayText = false) => {
     const result = sanitizeChatbotLlmTextWithReport(content, {
       routingDecision: input.routingDecision,
       jobContext: input.jobContext,
+      trustedDisplayText,
+      ...(content === text && !trustedDisplayText ? { displayEnvelope: input.displayEnvelope } : {}),
     })
     return { content: result.text, sanitizationReport: result.report }
   }
@@ -1188,7 +1683,7 @@ function buildAssistantDisplayContent(input: {
   ) => ({ ...result, singleUserPromptGuard: report })
 
   if (guardedContent) {
-    return withGuardReport(sanitize(guardedContent.content), {
+    return withGuardReport(sanitize(guardedContent.content, true), {
       applied: true,
       reason: guardedContent.reason,
       uiKind: input.uiKind,
@@ -1197,16 +1692,42 @@ function buildAssistantDisplayContent(input: {
   }
 
   if (input.routingDecision?.kind === "to-booking-inline" && toolFreeText.length === 0) {
-    return withGuardReport(sanitize("候補日を確認しました。"))
+    return withGuardReport(sanitize("候補日を確認しました。", true))
+  }
+  if (input.routingDecision?.kind === "continue" && toolFreeText.length === 0) {
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
+  }
+  if (input.routingDecision?.kind === "continue" && parseShowBookingCardToolCall(text)) {
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
+  }
+  if (
+    input.routingDecision?.kind === "continue" &&
+    !input.routingDecision.presentChoices &&
+    input.jobContext.jobKind &&
+    hasProjectTypeTextMismatch(text, input.jobContext.jobKind)
+  ) {
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
+  }
+  if (
+    input.routingDecision?.kind === "continue" &&
+    !input.routingDecision.presentChoices &&
+    isFinalMediumRejudgmentQuestion(input.routingDecision.nextQuestion)
+  ) {
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
   if (toolFreeText !== text) return withGuardReport(sanitize(toolFreeText))
-  if (!isBackendIdentityOnlyResponse(text)) return withGuardReport(sanitize(text))
+  if (!isBackendIdentityOnlyResponse(explicitDisplayText ?? text)) return withGuardReport(sanitize(text))
 
   const routingDecision =
     input.routingDecision?.kind === "continue" ? input.routingDecision : input.fallbackRoutingDecision
-  if (routingDecision.kind === "continue") return withGuardReport(sanitize(routingDecision.nextQuestion))
+  if (routingDecision.kind === "continue") return withGuardReport(sanitize(routingDecision.nextQuestion, true))
 
   return withGuardReport(sanitize(text))
+}
+
+function extractExplicitCustomerReplyText(rawText: string): string | undefined {
+  const match = /<customer_reply>\s*([\s\S]*?)\s*<\/customer_reply>/iu.exec(rawText)
+  return match ? (match[1] ?? "").trim() : undefined
 }
 
 type SingleUserPromptGuardReport =
@@ -1359,6 +1880,123 @@ function logSingleUserPromptGuard(input: {
   )
 }
 
+function logChatbotDisplayBoundary(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmResponse["tier"]
+  routingDecision: RoutingDecision | undefined
+  uiKind: ChatbotMessageUi["kind"]
+  rawText: string
+  finalText: string
+  report: ChatbotLlmSanitizationReport
+}): void {
+  if (process.env.NODE_ENV === "test") return
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_display_boundary",
+      requestId: input.requestId,
+      buildSha: getChatbotBuildSha(),
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      routingDecisionKind: input.routingDecision?.kind ?? null,
+      uiKind: input.uiKind,
+      boundary: input.report.displayBoundary,
+      unsafeArtifacts: input.report.unsafeArtifacts,
+      rawTextPreview: redactForChatbotLog(input.rawText),
+      finalTextPreview: redactForChatbotLog(input.finalText),
+      normalized: input.rawText !== input.finalText,
+    }),
+  )
+}
+
+function logChatbotBookingReadinessBoundary(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  beforeState: ConversationState
+  afterState: ConversationState
+  jobContext: JobContext
+  fallbackRoutingDecision: RoutingDecision
+  routingDecision: RoutingDecision | undefined
+}): void {
+  if (process.env.NODE_ENV === "test") return
+
+  const bookingPrefill =
+    input.routingDecision?.kind === "to-booking-inline" ? input.routingDecision.bookingPrefill : undefined
+  const beforeMissing = getMissingBookingReadinessSlots(input.beforeState, {
+    jobContext: input.jobContext,
+    bookingPrefill,
+  })
+  const afterMissing = getMissingBookingReadinessSlots(input.afterState, {
+    jobContext: input.jobContext,
+    bookingPrefill,
+  })
+  const beforeFinal = input.beforeState.bookingFinalConfirmation
+  const afterFinal = input.afterState.bookingFinalConfirmation
+  const beforeReadiness = input.beforeState.bookingReadiness
+  const afterReadiness = input.afterState.bookingReadiness
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_booking_readiness_boundary",
+      requestId: input.requestId,
+      buildSha: getChatbotBuildSha(),
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      boundary: "booking-readiness",
+      input: {
+        missingSlots: beforeMissing,
+        finalQuestionOffered: Boolean(beforeReadiness?.finalQuestionOffered || beforeFinal?.status),
+        finalConfirmationStatus: beforeFinal?.status ?? null,
+        additionalConcernStatus: beforeReadiness?.additionalConcernStatus ?? null,
+      },
+      output: {
+        missingSlots: afterMissing,
+        finalQuestionOffered: Boolean(afterReadiness?.finalQuestionOffered || afterFinal?.status),
+        finalConfirmationStatus: afterFinal?.status ?? null,
+        additionalConcernStatus: afterReadiness?.additionalConcernStatus ?? null,
+        additionalConcernSource: afterReadiness?.additionalConcernSource ?? null,
+      },
+      decision: input.routingDecision?.kind ?? null,
+      reason: summarizeBookingReadinessReason({
+        beforeMissing,
+        afterMissing,
+        beforeState: input.beforeState,
+        afterState: input.afterState,
+        fallbackRoutingDecision: input.fallbackRoutingDecision,
+        routingDecision: input.routingDecision,
+      }),
+    }),
+  )
+}
+
+function summarizeBookingReadinessReason(input: {
+  beforeMissing: ReturnType<typeof getMissingBookingReadinessSlots>
+  afterMissing: ReturnType<typeof getMissingBookingReadinessSlots>
+  beforeState: ConversationState
+  afterState: ConversationState
+  fallbackRoutingDecision: RoutingDecision
+  routingDecision: RoutingDecision | undefined
+}): string {
+  if (input.afterMissing.length > 0) return `missing-required:${input.afterMissing[0]}`
+  if (
+    input.beforeState.bookingFinalConfirmation?.status !== "confirmed" &&
+    input.afterState.bookingFinalConfirmation?.status === "confirmed"
+  ) {
+    return `additional-concern-cleared:${input.afterState.bookingReadiness?.additionalConcernSource ?? "unknown"}`
+  }
+  if (
+    !input.beforeState.bookingReadiness?.finalQuestionOffered &&
+    input.afterState.bookingReadiness?.finalQuestionOffered
+  ) {
+    return "final-question-offered"
+  }
+  if (input.routingDecision?.kind === "to-booking-inline") return "booking-ready"
+  if (input.fallbackRoutingDecision.kind === "continue") return "fallback-continue"
+  return "unchanged"
+}
+
 function logChatbotLlmTierAttempt(
   context: ChatbotTierAttemptLogContext,
   event: TierAttemptEvent,
@@ -1442,8 +2080,53 @@ function summarizeChatbotRetryDiagnostics(diagnostics: unknown): ChatbotRetryDia
       .map((reason) => redactForChatbotLog(reason.trim()))
     if (retryReasons.length > 0) summary.retryReasons = retryReasons
   }
+  const attempts = summarizeRetryAttempts(source.attempts)
+  if (attempts.length > 0) summary.attempts = attempts
 
   return Object.keys(summary).length > 0 ? summary : undefined
+}
+
+function summarizeRetryAttempts(value: unknown): NonNullable<ChatbotRetryDiagnosticsSummary["attempts"]> {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((entry): NonNullable<ChatbotRetryDiagnosticsSummary["attempts"]> => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return []
+    const source = entry as Record<string, unknown>
+    const attempt: NonNullable<ChatbotRetryDiagnosticsSummary["attempts"]>[number] = {}
+    assignAttemptFiniteNumber(attempt, "attempt", source.attempt)
+    assignAttemptFiniteNumber(attempt, "durationMs", source.durationMs)
+    assignAttemptFiniteNumber(attempt, "timeoutMs", source.timeoutMs)
+    assignAttemptFiniteNumber(attempt, "httpStatus", source.httpStatus)
+    assignAttemptBoolean(attempt, "retryable", source.retryable)
+    assignAttemptString(attempt, "outcome", source.outcome)
+    assignAttemptString(attempt, "reason", source.reason)
+    assignAttemptString(attempt, "errorCode", source.errorCode)
+    return Object.keys(attempt).length > 0 ? [attempt] : []
+  })
+}
+
+function assignAttemptFiniteNumber(
+  target: NonNullable<ChatbotRetryDiagnosticsSummary["attempts"]>[number],
+  key: "attempt" | "durationMs" | "timeoutMs" | "httpStatus",
+  value: unknown,
+): void {
+  if (typeof value === "number" && Number.isFinite(value)) target[key] = value
+}
+
+function assignAttemptBoolean(
+  target: NonNullable<ChatbotRetryDiagnosticsSummary["attempts"]>[number],
+  key: "retryable",
+  value: unknown,
+): void {
+  if (typeof value === "boolean") target[key] = value
+}
+
+function assignAttemptString(
+  target: NonNullable<ChatbotRetryDiagnosticsSummary["attempts"]>[number],
+  key: "outcome" | "reason" | "errorCode",
+  value: unknown,
+): void {
+  if (typeof value === "string" && value.trim()) target[key] = redactForChatbotLog(value.trim())
 }
 
 function assignFiniteNumber(
@@ -1493,6 +2176,10 @@ function sanitizeTierAttemptCause(cause: unknown): unknown {
 }
 
 const dayRangePattern = /\d+(?:\.\d+)?\s*(?:日\s*から\s*|[〜～\-ー]\s*)\d+(?:\.\d+)?\s*日/u
+
+function isFinalMediumRejudgmentQuestion(message: string): boolean {
+  return /公開先・(?:納品先|使用先)|納品先・使用先/u.test(message)
+}
 
 function isBackendIdentityOnlyResponse(text: string): boolean {
   const compact = text.replace(/\s+/g, "")
@@ -1566,15 +2253,20 @@ function toMessageUi(input: {
 }
 
 async function resolveRoutingDecision(input: {
+  requestId?: string
   llmResponse: ChatbotLlmResponse
+  conversation: ChatbotConversation
   jobContext: JobContext
   conversationState: ConversationState
+  latestUserMessage: string
   fallbackRoutingDecision: RoutingDecision
   candidateWindowFinder: CandidateWindowFinder
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
 }): Promise<RoutingDecision | undefined> {
   if (input.llmResponse.tier === "tier-4-form-fallback") return input.fallbackRoutingDecision
-  const toolCall = parseShowBookingCardToolCall(input.llmResponse.rawText)
+  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
+  const toolCall = parseShowBookingCardToolCall(rawDisplayText)
+  const choicePanelToolCall = parseShowChoicePanelToolCall(rawDisplayText)
   const submittedBooking = getSubmittedBooking(input.conversationState)
   if (submittedBooking && (toolCall || input.fallbackRoutingDecision.kind !== "continue")) {
     return {
@@ -1624,9 +2316,54 @@ async function resolveRoutingDecision(input: {
   }
   if (isLectureTrainingInquiry(input.conversationState)) return input.fallbackRoutingDecision
 
+  if (choicePanelToolCall) {
+    return resolveLlmChoicePanelRoutingDecision({
+      toolCall: choicePanelToolCall,
+      fallbackRoutingDecision: input.fallbackRoutingDecision,
+      conversationState: input.conversationState,
+      jobContext: input.jobContext,
+    })
+  }
+  const textChoicePanelToolCall = parseTextChoicePanelToolCall(
+    rawDisplayText,
+    input.fallbackRoutingDecision,
+  )
+  if (textChoicePanelToolCall) {
+    logChoicePanelTextFallbackDetected({
+      requestId: input.requestId,
+      conversation: input.conversation,
+      tier: input.llmResponse.tier,
+      choiceSet: textChoicePanelToolCall.args,
+    })
+    return resolveLlmChoicePanelRoutingDecision({
+      toolCall: textChoicePanelToolCall,
+      fallbackRoutingDecision: input.fallbackRoutingDecision,
+      conversationState: input.conversationState,
+      jobContext: input.jobContext,
+    })
+  }
+
   if (!input.jobContext.jobKind) return undefined
   if (!toolCall) {
     if (submittedBooking) return undefined
+    if (shouldRecoverBookingCardFromAcceptanceText(input)) {
+      return buildBookingInlineRoutingDecision({
+        jobContext: input.jobContext,
+        conversationState: input.conversationState,
+        bookingPrefill: input.conversationState.bookingFinalConfirmation?.bookingPrefill ?? {},
+        candidateWindowFinder: input.candidateWindowFinder,
+        knowledgeSnapshot: input.knowledgeSnapshot,
+      })
+    }
+    if (shouldRecoverBookingCardFromLlmNoAdditionalConcern(input)) {
+      return buildBookingInlineRoutingDecision({
+        jobContext: input.jobContext,
+        conversationState: input.conversationState,
+        bookingPrefill: input.conversationState.bookingFinalConfirmation?.bookingPrefill ?? {},
+        candidateWindowFinder: input.candidateWindowFinder,
+        knowledgeSnapshot: input.knowledgeSnapshot,
+      })
+    }
     if (input.conversationState.bookingFinalConfirmation?.status !== "confirmed") return undefined
     return buildBookingInlineRoutingDecision({
       jobContext: input.jobContext,
@@ -1644,6 +2381,41 @@ async function resolveRoutingDecision(input: {
     candidateWindowFinder: input.candidateWindowFinder,
     knowledgeSnapshot: input.knowledgeSnapshot,
   })
+}
+
+function shouldRecoverBookingCardFromAcceptanceText(input: {
+  latestUserMessage: string
+  llmResponse: ChatbotLlmResponse
+  conversationState: ConversationState
+  jobContext: JobContext
+  fallbackRoutingDecision: RoutingDecision
+}): boolean {
+  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
+  const normalized = rawDisplayText.normalize("NFKC").toLowerCase()
+  const hasCardlessAcceptanceText =
+    /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized) &&
+    !parseShowBookingCardToolCall(rawDisplayText)
+  if (!wasBookingFinalQuestionOffered(input.conversationState) && !hasCardlessAcceptanceText) return false
+  if (input.conversationState.bookingSubmission?.status === "submitted") return false
+  if (!input.jobContext.jobKind || !input.conversationState.hasContactEmail) return false
+  if (input.fallbackRoutingDecision.kind === "to-direct-contact") return false
+  if (input.conversationState.bookingFinalConfirmation?.status === "supplemental-received") return false
+
+  return hasCardlessAcceptanceText
+}
+
+function shouldRecoverBookingCardFromLlmNoAdditionalConcern(input: {
+  llmResponse: ChatbotLlmResponse
+  conversationState: ConversationState
+  jobContext: JobContext
+  fallbackRoutingDecision: RoutingDecision
+}): boolean {
+  if (!wasBookingFinalQuestionOffered(input.conversationState)) return false
+  if (input.conversationState.bookingSubmission?.status === "submitted") return false
+  if (input.conversationState.bookingFinalConfirmation?.status === "supplemental-received") return false
+  if (!input.jobContext.jobKind || !input.conversationState.hasContactEmail) return false
+  if (input.fallbackRoutingDecision.kind === "to-direct-contact") return false
+  return isLlmNoAdditionalBookingConcernSignal(input.llmResponse.rawText)
 }
 
 function getSubmittedBooking(
@@ -1730,6 +2502,291 @@ function normalizeCandidateCalendarResult(
   return Array.isArray(result) ? { candidates: result, busyDateKeys: [] } : result
 }
 
+type ShowChoicePanelToolCall = {
+  tool: "show_choice_panel"
+  args: SurveyChoiceSet
+}
+
+const llmChoicePanelIds = new Set([
+  "job-kind",
+  "project-length",
+  "final-medium",
+  "additional-work",
+  "documentary-attachment",
+  "work-site",
+  "production-options",
+])
+
+function resolveLlmChoicePanelRoutingDecision(input: {
+  toolCall: ShowChoicePanelToolCall
+  fallbackRoutingDecision: RoutingDecision
+  conversationState: ConversationState
+  jobContext: JobContext
+}): RoutingDecision | undefined {
+  const fallback = input.fallbackRoutingDecision
+  if (fallback.kind !== "continue") return undefined
+
+  const choiceSet = input.toolCall.args
+  const fallbackChoiceSetId = fallback.presentChoices?.id
+  if (fallbackChoiceSetId && choiceSet.id !== fallbackChoiceSetId) return undefined
+  if (isSatisfiedChoicePanel(choiceSet, input.conversationState)) return undefined
+
+  return {
+    kind: "continue",
+    nextQuestion: choiceSet.question,
+    presentChoices: choiceSet,
+  }
+}
+
+function parseShowChoicePanelToolCall(text: string): ShowChoicePanelToolCall | undefined {
+  for (const candidate of extractJsonObjectCandidates(text)) {
+    const parsed = parseJson(candidate)
+    if (!isRecord(parsed) || parsed.tool !== "show_choice_panel" || !isRecord(parsed.args)) continue
+
+    const choiceSet = normalizeLlmChoiceSet(parsed.args)
+    if (!choiceSet) continue
+    return {
+      tool: "show_choice_panel",
+      args: choiceSet,
+    }
+  }
+
+  const looseChoiceSet = parseLooseShowChoicePanelChoiceSet(text)
+  return looseChoiceSet ? { tool: "show_choice_panel", args: looseChoiceSet } : undefined
+}
+
+function parseTextChoicePanelToolCall(
+  text: string,
+  fallbackRoutingDecision: RoutingDecision,
+): ShowChoicePanelToolCall | undefined {
+  if (fallbackRoutingDecision.kind !== "continue" || !fallbackRoutingDecision.presentChoices) return undefined
+  if (!looksLikePlainTextChoicePanel(text)) return undefined
+
+  const choices = extractPlainTextChoices(text)
+  if (choices.length < 2) return undefined
+
+  const question = extractPlainTextChoiceQuestion(text) ?? fallbackRoutingDecision.nextQuestion
+  const choiceSet = normalizeLlmChoiceSet({
+    id: fallbackRoutingDecision.presentChoices.id,
+    question,
+    choices,
+    selectionMode: fallbackRoutingDecision.presentChoices.selectionMode,
+    allowFreeText: fallbackRoutingDecision.presentChoices.allowFreeText ?? true,
+  })
+  return choiceSet ? { tool: "show_choice_panel", args: choiceSet } : undefined
+}
+
+function looksLikePlainTextChoicePanel(text: string): boolean {
+  const normalized = text.normalize("NFKC")
+  if (/(選択肢|候補|下記|以下)/u.test(normalized) && /(?:^|\n)\s*(?:[-*•・]|\d+[.)．、])/um.test(normalized)) return true
+  if (/(選択肢|候補|下記|以下).{0,24}(選|教えて|ください|近い|どちら|どれ)/u.test(normalized)) return true
+  if (/(選んで|選択して|どれに近い|どちらですか)[\s\S]*(?:^|\n)\s*(?:[-*•・]|\d+[.)．、])/um.test(normalized)) {
+    return true
+  }
+  return false
+}
+
+function extractPlainTextChoiceQuestion(text: string): string | undefined {
+  const lines = text
+    .split(/\r?\n/u)
+    .map((line) => cleanPlainTextChoiceLine(line))
+    .filter(Boolean)
+  const markerIndex = lines.findIndex((line) => /(選択肢|候補|下記|以下)/u.test(line))
+  const candidate = markerIndex > 0 ? lines[markerIndex - 1] : lines.find((line) => /[?？]$|どちら|どれ|教えて|選んで/u.test(line))
+  return candidate && candidate.length <= 140 ? candidate : undefined
+}
+
+function extractPlainTextChoices(text: string): SurveyChoiceSet["choices"] {
+  const lines = text.split(/\r?\n/u)
+  const choices: SurveyChoiceSet["choices"] = []
+  const seenLabels = new Set<string>()
+  let afterMarker = false
+
+  for (const line of lines) {
+    if (/(選択肢|候補|以下|下記)/u.test(line)) {
+      afterMarker = true
+      const inlineChoices = extractInlinePlainTextChoices(line)
+      for (const label of inlineChoices) pushPlainTextChoice(choices, seenLabels, label)
+      continue
+    }
+
+    const bullet = /^\s*(?:[-*•・]|\d+[.)．、])\s*(.+?)\s*$/u.exec(line)?.[1]
+    if (bullet) {
+      pushPlainTextChoice(choices, seenLabels, bullet)
+      continue
+    }
+
+    if (afterMarker) {
+      for (const label of extractInlinePlainTextChoices(line)) pushPlainTextChoice(choices, seenLabels, label)
+    }
+  }
+
+  return choices.slice(0, 10)
+}
+
+function extractInlinePlainTextChoices(line: string): string[] {
+  const afterMarker = line.split(/選択肢|候補/u).at(-1) ?? line
+  const source = afterMarker
+    .replace(/^[\s:：\-—–]+/u, "")
+  if (/^は?(?:以下|下記)です[。.!！?？]?\s*$/u.test(source)) return []
+  const separator = /[、,，]|\s+(?:or|または)\s+/iu.test(source)
+    ? /[、,，]|\s+(?:or|または)\s+/iu
+    : source.split("/").length >= 3
+      ? /\//u
+      : /[、,，]/u
+  return source
+    .split(separator)
+    .map(cleanPlainTextChoiceLine)
+    .filter((label) => label.length > 0)
+}
+
+function pushPlainTextChoice(
+  choices: SurveyChoiceSet["choices"],
+  seenLabels: Set<string>,
+  value: string,
+): void {
+  const label = cleanPlainTextChoiceLine(value)
+  if (!isValidPlainTextChoiceLabel(label)) return
+  const key = label.normalize("NFKC").toLowerCase()
+  if (seenLabels.has(key)) return
+  const choice = normalizeLlmChoice({
+    id: toLlmChoiceId(label, choices.length),
+    label,
+  })
+  if (!choice) return
+  seenLabels.add(key)
+  choices.push(choice)
+}
+
+function cleanPlainTextChoiceLine(value: string): string {
+  return value
+    .replace(/^\s*(?:[-*•・]|\d+[.)．、])\s*/u, "")
+    .replace(/\s+/gu, " ")
+    .replace(/[。.!！?？]+$/u, "")
+    .trim()
+    .slice(0, 80)
+}
+
+function isValidPlainTextChoiceLabel(label: string): boolean {
+  if (label.length < 2 || label.length > 80) return false
+  if (/[{}[\]]/u.test(label)) return false
+  if (/^(選択肢|候補|以下|下記)$/u.test(label)) return false
+  return true
+}
+
+function toLlmChoiceId(label: string, index: number): string {
+  const normalized = label.normalize("NFKC").toLowerCase()
+  const known =
+    /地上波|放送|テレビ|tv|bs|cs|broadcast/u.test(normalized)
+      ? "tv-broadcast"
+      : /配信|stream|ott|vod|netflix|prime|hulu/u.test(normalized)
+        ? "ott"
+        : /劇場|映画館|上映|cinema|theater/u.test(normalized)
+          ? "cinema"
+          : /web|ウェブ|youtube|vimeo/u.test(normalized)
+            ? "web"
+            : /未定|相談|決まって/u.test(normalized)
+              ? "undecided"
+              : /その他|other/u.test(normalized)
+                ? "other"
+                : undefined
+  return known ?? `llm-choice-${index + 1}`
+}
+
+function logChoicePanelTextFallbackDetected(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmTier
+  choiceSet: SurveyChoiceSet
+}): void {
+  console.info(
+    JSON.stringify({
+      event: "choice_panel_text_fallback_detected",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      choiceSetId: input.choiceSet.id,
+      question: redactForChatbotLog(input.choiceSet.question),
+      choiceLabels: input.choiceSet.choices.map((choice) => redactForChatbotLog(choice.label)),
+    }),
+  )
+}
+
+function normalizeLlmChoiceSet(value: Record<string, unknown>): SurveyChoiceSet | undefined {
+  const id = optionalString(value.id)
+  const question = optionalString(value.question)
+  const choices = Array.isArray(value.choices)
+    ? value.choices
+        .map(normalizeLlmChoice)
+        .filter((choice): choice is NonNullable<ReturnType<typeof normalizeLlmChoice>> => Boolean(choice))
+    : []
+  const selectionMode = optionalString(value.selectionMode)
+  const allowFreeText = value.allowFreeText
+
+  if (!id || !llmChoicePanelIds.has(id)) return undefined
+  if (!question || question.length > 140) return undefined
+  if (choices.length < 2 || choices.length > 10) return undefined
+
+  return {
+    id,
+    question,
+    choices,
+    ...(selectionMode === "multiple" ? { selectionMode: "multiple" } : {}),
+    ...(allowFreeText === true ? { allowFreeText: true } : {}),
+  }
+}
+
+function normalizeLlmChoice(value: unknown): SurveyChoiceSet["choices"][number] | undefined {
+  if (!isRecord(value)) return undefined
+  const id = optionalString(value.id)
+  const label = optionalString(value.label)
+  if (!id || !label) return undefined
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(id)) return undefined
+  if (label.length > 80) return undefined
+  return { id, label }
+}
+
+function parseLooseShowChoicePanelChoiceSet(text: string): SurveyChoiceSet | undefined {
+  if (!/"tool"\s*:\s*"show_choice_panel"/u.test(text)) return undefined
+
+  const argsMatch = /"args"\s*:\s*\{([\s\S]*)/u.exec(text)
+  const source = argsMatch?.[1] ?? text
+  const id = parseLooseJsonStringMatch(/"id"\s*:\s*"((?:\\.|[^"\\]){1,80})"/u.exec(source)?.[1])
+  const question = parseLooseJsonStringMatch(/"question"\s*:\s*"((?:\\.|[^"\\]){1,180})"/u.exec(source)?.[1])
+  const choicesStart = source.indexOf('"choices"')
+  const choiceSource = choicesStart >= 0 ? source.slice(choicesStart) : source
+  const choices: Array<SurveyChoiceSet["choices"][number]> = []
+  const seenChoiceIds = new Set<string>()
+  const choicePattern =
+    /\{\s*"id"\s*:\s*"((?:\\.|[^"\\]){1,80})"\s*,\s*"label"\s*:\s*"((?:\\.|[^"\\]){1,120})"/gu
+  let match: RegExpExecArray | null
+
+  while ((match = choicePattern.exec(choiceSource)) && choices.length < 10) {
+    const choice = normalizeLlmChoice({
+      id: parseLooseJsonStringMatch(match[1]),
+      label: parseLooseJsonStringMatch(match[2]),
+    })
+    if (!choice || seenChoiceIds.has(choice.id)) continue
+    seenChoiceIds.add(choice.id)
+    choices.push(choice)
+  }
+
+  return normalizeLlmChoiceSet({
+    id,
+    question,
+    choices,
+    selectionMode: /"selectionMode"\s*:\s*"multiple"/u.test(source) ? "multiple" : undefined,
+    allowFreeText: /"allowFreeText"\s*:\s*true/u.test(source),
+  })
+}
+
+function parseLooseJsonStringMatch(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const parsed = parseJson(`"${value}"`)
+  return typeof parsed === "string" ? parsed : value
+}
+
 type ShowBookingCardToolCall = {
   tool: "show_booking_card"
   args: BookingCardPrefill
@@ -1756,10 +2813,10 @@ function parseShowBookingCardToolCall(text: string): ShowBookingCardToolCall | u
   return undefined
 }
 
-function stripShowBookingCardToolCall(text: string): string {
+function stripStructuredToolCalls(text: string): string {
   let next = text
   for (const candidate of extractJsonObjectCandidates(text)) {
-    if (parseShowBookingCardToolCall(candidate)) {
+    if (parseShowBookingCardToolCall(candidate) || parseShowChoicePanelToolCall(candidate)) {
       next = next.replace(candidate, "")
     }
   }
@@ -1786,8 +2843,50 @@ function extractJsonObjectCandidates(text: string): string[] {
   if (firstBrace >= 0 && lastBrace > firstBrace) {
     candidates.push(text.slice(firstBrace, lastBrace + 1))
   }
+  candidates.push(...extractBalancedJsonObjectCandidates(text))
 
   return [...new Set(candidates)]
+}
+
+function extractBalancedJsonObjectCandidates(text: string): string[] {
+  const candidates: string[] = []
+  let start = -1
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (char === "\\") {
+        escaped = true
+      } else if (char === "\"") {
+        inString = false
+      }
+      continue
+    }
+
+    if (char === "\"") {
+      inString = true
+      continue
+    }
+    if (char === "{") {
+      if (depth === 0) start = index
+      depth += 1
+      continue
+    }
+    if (char !== "}" || depth === 0) continue
+
+    depth -= 1
+    if (depth === 0 && start >= 0) {
+      candidates.push(text.slice(start, index + 1))
+      start = -1
+    }
+  }
+
+  return candidates
 }
 
 function parseJson(value: string): unknown {

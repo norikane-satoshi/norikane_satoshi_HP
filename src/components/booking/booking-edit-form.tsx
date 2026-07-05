@@ -194,7 +194,7 @@ export function BookingEditForm({
             <input className="glass-input w-full px-4 py-3 text-sm" value={details.projectTitle} disabled={isReadOnly} onChange={(event) => updateDetail("projectTitle", event.target.value)} />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
-            <span>担当者氏名</span>
+            <span>氏名</span>
             <input className="glass-input w-full px-4 py-3 text-sm" value={details.contactName} disabled={isReadOnly} onChange={(event) => updateDetail("contactName", event.target.value)} />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
@@ -202,11 +202,11 @@ export function BookingEditForm({
             <input className="glass-input w-full px-4 py-3 text-sm" value={details.companyName} disabled={isReadOnly} onChange={(event) => updateDetail("companyName", event.target.value)} />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
-            <span>メールアドレス</span>
+            <span>メール</span>
             <input className="glass-input w-full px-4 py-3 text-sm opacity-70" type="email" value={details.customerEmail} readOnly disabled />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
-            <span>電話番号</span>
+            <span>TEL</span>
             <input className="glass-input w-full px-4 py-3 text-sm" type="tel" value={details.phone} disabled={isReadOnly} onChange={(event) => updateDetail("phone", event.target.value)} />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
@@ -215,7 +215,7 @@ export function BookingEditForm({
           </label>
         </div>
         <label className="mt-4 block space-y-2 text-sm font-medium text-hp">
-          <span>補足メモ</span>
+          <span>補足</span>
           <textarea className="glass-input w-full px-4 py-3 text-sm" rows={5} value={details.memo} disabled={isReadOnly} onChange={(event) => updateDetail("memo", event.target.value)} />
         </label>
       </section>

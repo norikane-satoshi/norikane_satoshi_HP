@@ -58,6 +58,8 @@ type WidgetState = {
   setSidePeekWidth: (width: number) => void
 }
 
+type WidgetLayoutUpdate = WidgetLayoutState | ((currentLayout: WidgetLayoutState) => WidgetLayoutState)
+
 type ViewportSize = {
   width: number
   height: number
@@ -269,15 +271,18 @@ export function useWidgetState(): WidgetState {
     setHasOpened(nextHasOpened)
   }, [firstShownAt, hasOpened, layout])
 
-  const updateLayout = useCallback((nextLayout: WidgetLayoutState) => {
-    const sanitizedLayout = sanitizeWidgetLayout(nextLayout)
-    setLayout(sanitizedLayout)
-    if (isVisible) {
-      const now = new Date(Date.now())
-      const nextFirstShownAt = firstShownAt ?? now
-      persistWidgetState(window.localStorage, isMinimized, now, nextFirstShownAt, sanitizedLayout, hasOpened)
-      setFirstShownAt(nextFirstShownAt)
-    }
+  const updateLayout = useCallback((nextLayout: WidgetLayoutUpdate) => {
+    setLayout((currentLayout) => {
+      const rawNextLayout = typeof nextLayout === "function" ? nextLayout(currentLayout) : nextLayout
+      const sanitizedLayout = sanitizeWidgetLayout(rawNextLayout)
+      if (isVisible) {
+        const now = new Date(Date.now())
+        const nextFirstShownAt = firstShownAt ?? now
+        persistWidgetState(window.localStorage, isMinimized, now, nextFirstShownAt, sanitizedLayout, hasOpened)
+        setFirstShownAt(nextFirstShownAt)
+      }
+      return sanitizedLayout
+    })
   }, [firstShownAt, hasOpened, isMinimized, isVisible])
 
   const showInitial = useCallback(() => {
@@ -294,30 +299,33 @@ export function useWidgetState(): WidgetState {
   }, [writeState])
 
   const setDisplayMode = useCallback((displayMode: WidgetDisplayMode) => {
-    updateLayout({ ...layout, displayMode })
-  }, [layout, updateLayout])
+    updateLayout((currentLayout) => ({ ...currentLayout, displayMode }))
+  }, [updateLayout])
 
   const toggleDisplayMode = useCallback(() => {
-    setDisplayMode(layout.displayMode === "side-peek" || layout.displayMode === "full-screen" ? "floating" : "side-peek")
-  }, [layout.displayMode, setDisplayMode])
+    updateLayout((currentLayout) => ({
+      ...currentLayout,
+      displayMode: currentLayout.displayMode === "side-peek" || currentLayout.displayMode === "full-screen" ? "floating" : "side-peek",
+    }))
+  }, [updateLayout])
 
   const setFloatingSize = useCallback((size: Partial<WidgetSize>) => {
-    updateLayout({
-      ...layout,
-      floatingSize: { ...layout.floatingSize, ...size },
-    })
-  }, [layout, updateLayout])
+    updateLayout((currentLayout) => ({
+      ...currentLayout,
+      floatingSize: { ...currentLayout.floatingSize, ...size },
+    }))
+  }, [updateLayout])
 
   const setFloatingPosition = useCallback((position: Partial<WidgetPosition>) => {
-    updateLayout({
-      ...layout,
-      floatingPosition: { ...layout.floatingPosition, ...position },
-    })
-  }, [layout, updateLayout])
+    updateLayout((currentLayout) => ({
+      ...currentLayout,
+      floatingPosition: { ...currentLayout.floatingPosition, ...position },
+    }))
+  }, [updateLayout])
 
   const setSidePeekWidth = useCallback((width: number) => {
-    updateLayout({ ...layout, sidePeekWidth: width })
-  }, [layout, updateLayout])
+    updateLayout((currentLayout) => ({ ...currentLayout, sidePeekWidth: width }))
+  }, [updateLayout])
 
   return {
     hasHydrated,

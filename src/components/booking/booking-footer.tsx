@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 import type { BookingStep } from "@/lib/booking/domain/form-schema"
 
 type BookingFooterProps = {
@@ -11,8 +13,8 @@ type BookingFooterProps = {
 
 function nextLabel(step: BookingStep, submitting: boolean): string {
   if (submitting) return "送信中…"
-  if (step === "confirm") return "予約を申し込む"
-  return "申込内容を確認"
+  if (step === "confirm") return "日程相談を送信"
+  return "相談内容を確認"
 }
 
 export function BookingFooter({ step, canGoNext, submitting = false, onBack, onNext, onReset }: BookingFooterProps) {
@@ -22,9 +24,9 @@ export function BookingFooter({ step, canGoNext, submitting = false, onBack, onN
         <button className="booking-footer__secondary glass-flat" type="button" onClick={onReset}>
           カレンダーに戻る
         </button>
-        <button className="booking-footer__primary glass-btn" type="button" onClick={() => undefined}>
+        <Link className="booking-footer__primary glass-btn" href="/booking/history">
           マイページで予約一覧を見る
-        </button>
+        </Link>
       </footer>
     )
   }

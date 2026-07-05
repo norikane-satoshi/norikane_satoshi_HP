@@ -15,6 +15,7 @@ import { sendChatbotSlackNotification } from "@/lib/chatbot/server/slack-notifie
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+export const maxDuration = 120
 
 const sessionCookieName = "chatbot_session_id"
 const sessionMaxAgeSeconds = 7 * 24 * 60 * 60

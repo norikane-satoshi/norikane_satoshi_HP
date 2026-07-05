@@ -9,11 +9,14 @@ import {
   clearCalendarAccessTokenCacheForTest,
   getCachedCalendarAccessToken,
 } from "./google-token-cache"
+import { getNotionWorkScheduleBusyIntervals } from "@/lib/chatbot/server/notion-work-schedule-busy"
 
 export type { CalendarBookingFromApi } from "./bookings-repository"
 
 const FREE_BUSY_TTL_MS = 15 * 1000
+const FREE_BUSY_STALE_MS = 60 * 1000
 const RANGE_BUCKET_MS = 15 * 60 * 1000
+const CACHE_TIME_ZONE = "Asia/Tokyo"
 
 export type CalendarFreeBusyValue = {
   busy: CalendarBusyEventWithBuffer[]
@@ -30,15 +33,18 @@ export type CalendarFreeBusyResult = CalendarFreeBusyValue & {
   code?: string
   status: number
   timings: CalendarFreeBusyTimings
-  cache: "hit" | "miss" | "bypass"
+  cache: "hit" | "miss" | "stale" | "bypass"
 }
 
 type FreeBusyCacheEntry = {
   value: CalendarFreeBusyValue
   expiresAt: number
+  staleUntil: number
 }
 
 const freeBusyCache = new Map<string, FreeBusyCacheEntry>()
+const freeBusyInflight = new Map<string, Promise<CalendarFreeBusyResult>>()
+let freeBusyCacheRevision = 0
 const SURFACED_CALENDAR_CODES = new Set([
   "calendar_token_revoked",
   "calendar_token_not_connected",
@@ -59,7 +65,7 @@ function floorBucket(value: string): string {
 }
 
 function cacheKey(userId: string, teamId: string | null, timeMin: string, timeMax: string, isCalendarAdmin: boolean): string {
-  return `${userId}:${teamId ?? "self"}:${isCalendarAdmin ? "admin" : "user"}:${floorBucket(timeMin)}:${floorBucket(timeMax)}`
+  return `${userId}:${teamId ?? "self"}:${isCalendarAdmin ? "admin" : "user"}:${CACHE_TIME_ZONE}:${floorBucket(timeMin)}:${floorBucket(timeMax)}`
 }
 
 function withCalendarIssueLog<T extends CalendarFreeBusyResult>(result: T, userId: string): T {
@@ -78,7 +84,7 @@ export async function getCalendarFreeBusyForUser(input: {
   isCalendarAdmin?: boolean
   useCache?: boolean
 }): Promise<CalendarFreeBusyResult> {
-  const { userId, teamId, timeMin, timeMax, calendarId, isCalendarAdmin = false, useCache = true } = input
+  const { userId, teamId, timeMin, timeMax, isCalendarAdmin = false, useCache = true } = input
   const key = cacheKey(userId, teamId, timeMin, timeMax, isCalendarAdmin)
   const now = nowMs()
   const cached = useCache ? freeBusyCache.get(key) : undefined
@@ -90,7 +96,47 @@ export async function getCalendarFreeBusyForUser(input: {
       cache: "hit",
     }
   }
+  if (cached && cached.staleUntil > now) {
+    if (!freeBusyInflight.has(key)) {
+      const refresh = loadCalendarFreeBusyForUser(input, key, true, freeBusyCacheRevision).finally(() => {
+        freeBusyInflight.delete(key)
+      })
+      freeBusyInflight.set(key, refresh)
+      void refresh.catch((error) => {
+        console.warn(`[calendar-free-busy] stale refresh failed userId=${userId} at=${new Date().toISOString()}`, error)
+      })
+    }
+    return {
+      ...cached.value,
+      status: 200,
+      timings: { db: 0, oauthRefresh: 0, gcal: 0 },
+      cache: "stale",
+    }
+  }
 
+  if (useCache) {
+    const inflight = freeBusyInflight.get(key)
+    if (inflight) return inflight
+    const refresh = loadCalendarFreeBusyForUser(input, key, false, freeBusyCacheRevision).finally(() => {
+      freeBusyInflight.delete(key)
+    })
+    freeBusyInflight.set(key, refresh)
+    return refresh
+  }
+
+  return loadCalendarFreeBusyForUser(input, key, false, freeBusyCacheRevision)
+}
+
+async function loadCalendarFreeBusyForUser(input: {
+  userId: string
+  teamId: string | null
+  timeMin: string
+  timeMax: string
+  calendarId: string | undefined
+  isCalendarAdmin?: boolean
+  useCache?: boolean
+}, key: string, backgroundRefresh: boolean, cacheRevision: number): Promise<CalendarFreeBusyResult> {
+  const { userId, teamId, timeMin, timeMax, calendarId, isCalendarAdmin = false, useCache = true } = input
   const timings: CalendarFreeBusyTimings = { db: 0, oauthRefresh: 0, gcal: 0 }
   const dbStarted = performance.now()
   let bookings: CalendarBookingFromApi[]
@@ -156,7 +202,20 @@ export async function getCalendarFreeBusyForUser(input: {
   let busy: CalendarBusyEventWithBuffer[]
   try {
     const gcalStarted = performance.now()
-    busy = await listBusyEventsWithBuffer(calendarId, timeMin, timeMax, accessToken)
+    const [calendarBusy, notionWorkBusy] = await Promise.all([
+      listBusyEventsWithBuffer(calendarId, timeMin, timeMax, accessToken),
+      getNotionWorkScheduleBusyIntervals({ from: timeMin, to: timeMax }),
+    ])
+    busy = [
+      ...calendarBusy,
+      ...notionWorkBusy.map((slot): CalendarBusyEventWithBuffer => ({
+        ...slot,
+        bufferHours: null,
+        bufferBeforeHours: 0,
+        bufferAfterHours: 0,
+        summary: "IB_仕事",
+      })),
+    ]
     timings.gcal = elapsedSince(gcalStarted)
   } catch (error) {
     if (error instanceof CalendarTokenRevokedError || error instanceof CalendarOAuthEnvMissingError) {
@@ -191,15 +250,20 @@ export async function getCalendarFreeBusyForUser(input: {
     bookings,
   }
 
-  if (useCache) {
-    freeBusyCache.set(key, { value, expiresAt: nowMs() + FREE_BUSY_TTL_MS })
+  if (useCache && cacheRevision === freeBusyCacheRevision) {
+    const refreshedAt = nowMs()
+    freeBusyCache.set(key, {
+      value,
+      expiresAt: refreshedAt + FREE_BUSY_TTL_MS,
+      staleUntil: refreshedAt + FREE_BUSY_TTL_MS + FREE_BUSY_STALE_MS,
+    })
   }
 
   return {
     ...value,
     status: 200,
     timings,
-    cache: useCache ? "miss" : "bypass",
+    cache: backgroundRefresh ? "stale" : useCache ? "miss" : "bypass",
   }
 }
 
@@ -214,6 +278,7 @@ export function calendarErrorStatus(error: unknown): { code: string; status: num
 }
 
 export function invalidateCalendarFreeBusyCacheForUser(userId: string, teamId?: string | null): void {
+  freeBusyCacheRevision += 1
   const prefix = `${userId}:${teamId ?? "self"}:`
   for (const key of freeBusyCache.keys()) {
     const matchesUser = teamId === undefined ? key.startsWith(`${userId}:`) : key.startsWith(prefix)
@@ -222,10 +287,18 @@ export function invalidateCalendarFreeBusyCacheForUser(userId: string, teamId?: 
       freeBusyCache.delete(key)
     }
   }
+  for (const key of freeBusyInflight.keys()) {
+    const matchesUser = teamId === undefined ? key.startsWith(`${userId}:`) : key.startsWith(prefix)
+    const matchesTeam = typeof teamId === "string" && key.includes(`:${teamId}:`)
+    if (matchesUser || matchesTeam) {
+      freeBusyInflight.delete(key)
+    }
+  }
 }
 
 export function clearCalendarFreeBusyCachesForTest(): void {
   if (process.env.NODE_ENV !== "test") return
   freeBusyCache.clear()
+  freeBusyInflight.clear()
   clearCalendarAccessTokenCacheForTest()
 }
