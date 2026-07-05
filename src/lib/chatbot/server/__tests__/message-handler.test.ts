@@ -2300,6 +2300,9 @@ describe("handleChatbotMessage user context", () => {
       kind: "continue",
       presentChoices: { id: bookingFinalConfirmationChoices.id },
     })
+    expect(result.assistantMessage.content).toContain("ほかに確認したいこと")
+    expect(result.assistantMessage.content).not.toContain("user said")
+    expect(result.assistantMessage.content).not.toContain("final confirmation")
     expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: bookingFinalConfirmationChoices.id } })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2381,6 +2384,63 @@ describe("handleChatbotMessage user context", () => {
         }),
       }),
     )
+  })
+
+  it("extracts quoted project titles without trailing copula from full conversation history", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [
+          message(
+            "user",
+            "案件名は「星空ライブ2026」です。担当者は山田 花子、会社名はテスト株式会社、メールアドレスは hanako.yamada@example.jp です。",
+          ),
+          message("assistant", "ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？なければ「なし」で進めます。"),
+        ],
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: false,
+            hasCustomerIdentity: false,
+            bookingFinalConfirmation: {
+              status: "confirmed",
+              requestedAtTurn: 8,
+              confirmedAtTurn: 9,
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "web",
+            projectLengthMinutes: 60,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            additionalWork: [],
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply('候補を確認します。 {"tool":"show_booking_card","args":{}}'),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "なし" },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "星空ライブ2026",
+        contactName: "山田 花子",
+        companyName: "テスト株式会社",
+        contactEmail: "hanako.yamada@example.jp",
+      },
+    })
+    if (result.ui.kind !== "booking-card") throw new Error("booking-card expected")
+    expect(result.ui.bookingPrefill?.projectTitle).not.toContain("です")
   })
 
   it("does not let stale hosted tool args override confirmed session identity", async () => {

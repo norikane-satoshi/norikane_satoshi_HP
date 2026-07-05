@@ -156,10 +156,11 @@ export function applyBookingFinalConfirmationPolicy(input: {
           input.routingDecision.presentChoices?.id === bookingFinalConfirmationChoices.id)) &&
       input.conversationState.bookingFinalConfirmation?.status !== "confirmed"
     ) {
+      const nextQuestion = buildBookingFinalConfirmationQuestion(input.jobContext)
       return {
-        routingDecision: input.routingDecision ?? {
+        routingDecision: {
           kind: "continue",
-          nextQuestion: input.assistantText.trim(),
+          nextQuestion,
           presentChoices: bookingFinalConfirmationChoices,
         },
         conversationState: {

@@ -1332,6 +1332,13 @@ function extractLabeledBookingValue(content: string, labels: string[], maxLength
   ]
   const labelPattern = labels.map(escapeRegExp).join("|")
   const nextLabelPattern = allLabels.map(escapeRegExp).join("|")
+  const quotedPattern = new RegExp(
+    `(?:^|[\\s\\n,、。;；])(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']([^」』"']{1,${maxLength}})[」』"']\\s*(?:です|でございます|になります)?(?=[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=))`,
+    "iu",
+  )
+  const quotedValue = normalizeFreeTextBookingValue(quotedPattern.exec(normalized)?.[1], maxLength)
+  if (quotedValue && !isEmptyBookingFieldAnswer(quotedValue)) return quotedValue
+
   const pattern = new RegExp(
     `(?:^|[\\s\\n,、。;；])(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']?([\\s\\S]{1,${Math.max(maxLength, 160)}}?)(?=[」』"']?(?:[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=)))`,
     "iu",
@@ -2699,6 +2706,7 @@ function parseTextChoicePanelToolCall(
   fallbackRoutingDecision: RoutingDecision,
 ): ShowChoicePanelToolCall | undefined {
   if (fallbackRoutingDecision.kind !== "continue" || !fallbackRoutingDecision.presentChoices) return undefined
+  if (hasUnsafeLlmChoicePanelText(text)) return undefined
   if (!looksLikePlainTextChoicePanel(text)) return undefined
 
   const choices = extractPlainTextChoices(text)
@@ -2713,6 +2721,17 @@ function parseTextChoicePanelToolCall(
     allowFreeText: fallbackRoutingDecision.presentChoices.allowFreeText ?? true,
   })
   return choiceSet ? { tool: "show_choice_panel", args: choiceSet } : undefined
+}
+
+function hasUnsafeLlmChoicePanelText(text: string): boolean {
+  return (
+    /(?:^|\b)(?:user|customer)\s+(?:has|said|provided|asked|answered|wants?|mentioned)\b/iu.test(text) ||
+    /\blet(?:'|’)?s\b|\blet\s+(?:me|us)\b|\bi\s+(?:need|should|will|would|have|must|think|can)\b/iu.test(text) ||
+    /\b(?:thinking|signature|claude[-_\w]*sonnet)\b/iu.test(text) ||
+    /\b[a-z][a-z0-9]*-[a-z][a-z0-9]*-(?:low|medium|high|fast|thinking|reasoning)\b/iu.test(text) ||
+    /[A-Za-z0-9+/=_-]{80,}/u.test(text) ||
+    /\b(?:projectTitle|contactName|contactEmail|companyName|dueDate)\s*:/u.test(text)
+  )
 }
 
 function looksLikePlainTextChoicePanel(text: string): boolean {
