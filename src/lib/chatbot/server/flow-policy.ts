@@ -108,7 +108,7 @@ export function applyBookingFinalConfirmationPolicy(input: {
     input.routingDecision?.kind === "to-booking-inline" &&
     input.conversationState.bookingFinalConfirmation?.status !== "confirmed" &&
     wasBookingFinalQuestionOffered(input.conversationState) &&
-    isCleanBookingProceedSignal(input.assistantText)
+    (isCleanBookingProceedSignal(input.assistantText) || isLlmNoAdditionalBookingConcernSignal(input.assistantText))
   ) {
     return {
       routingDecision: input.routingDecision,
@@ -328,6 +328,18 @@ function isCleanBookingProceedSignal(assistantText: string): boolean {
 
 function extractCustomerReplyText(rawText: string): string | undefined {
   return /<customer_reply>\s*([\s\S]*?)\s*<\/customer_reply>/iu.exec(rawText)?.[1]?.trim()
+}
+
+export function isLlmNoAdditionalBookingConcernSignal(rawText: string): boolean {
+  const normalized = rawText.normalize("NFKC").toLowerCase()
+  if (/(案件名|作品タイトル|project\s*title|title).{0,80}(未定|ない|なし|don't have|do not have|not have)/iu.test(normalized)) {
+    return false
+  }
+  return (
+    /(?:no|nothing)\s+(?:additional|particular|else|more|concerns?|questions?)/iu.test(normalized) ||
+    /(?:追加|ほか|他|確認|懸念|不安|質問).{0,40}(?:ない|なし|ありません|特にない|特になし)/u.test(normalized) ||
+    /特に.{0,12}(?:ない|なし|ありません)/u.test(normalized)
+  )
 }
 
 function markFinalQuestionOffered(conversationState: ConversationState): ConversationState {

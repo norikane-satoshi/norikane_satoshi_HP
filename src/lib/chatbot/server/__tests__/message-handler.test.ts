@@ -1860,7 +1860,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("uses the structured booking-card tool signal for a colloquial no-additional-concern answer", async () => {
+  it("uses the structured LLM no-additional-concern signal for a colloquial final answer", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
@@ -1892,7 +1892,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
+        "user says there are no additional concerns. confirmed facts are ready, so proceed to the booking card.",
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
