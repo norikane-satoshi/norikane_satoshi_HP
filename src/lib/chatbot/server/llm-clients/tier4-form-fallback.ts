@@ -1,4 +1,5 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 
 type Tier4FormFallbackClientOptions = {
   responseText?: string
@@ -25,6 +26,7 @@ export class Tier4FormFallbackClient implements ChatbotLlmClient {
 
     return {
       rawText: this.responseText,
+      displayEnvelope: createChatbotLlmDisplayEnvelope(this.responseText),
       tier: this.tier,
       latencyMs: Date.now() - startedAt,
     }

@@ -2,6 +2,11 @@ import { NextRequest } from "next/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
+import {
+  assertChatbotLlmResponseContract,
+  isChatbotLlmResponseContractError,
+} from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { chatbotLeakCorpus } from "../../../../../tests/fixtures/chatbot/leak-corpus"
 
 function request(body: unknown, cookie?: string, headers: Record<string, string> = {}) {
@@ -33,6 +38,12 @@ function message(role: ChatbotMessage["role"], content: string): ChatbotMessage 
   }
 }
 
+function withDisplayEnvelope<T extends Record<string, unknown>>(response: T): T {
+  return typeof response.rawText === "string" && !("displayEnvelope" in response)
+    ? { ...response, displayEnvelope: createChatbotLlmDisplayEnvelope(response.rawText) }
+    : response
+}
+
 async function loadPost({
   session = null,
   existingConversation = null,
@@ -42,6 +53,7 @@ async function loadPost({
   slackNotificationResult = { status: "skipped", reason: "disabled" },
   llmResponse = {
     rawText: "最終媒体を教えてください",
+    displayEnvelope: createChatbotLlmDisplayEnvelope("最終媒体を教えてください"),
     tier: "tier-3-ollama-deepseek" as const,
   },
 }: {
@@ -82,7 +94,7 @@ async function loadPost({
     referenceUrls: [],
   })
   const formatUserChatbotContextForPrompt = vi.fn(() => "本人文脈:\n- 既存の本人文脈はありません。")
-  const generate = vi.fn().mockResolvedValue(llmResponse)
+  const generate = vi.fn().mockResolvedValue(withDisplayEnvelope(llmResponse))
   const sendChatbotSlackNotification = vi.fn().mockResolvedValue(slackNotificationResult)
 
   vi.doMock("@/auth", () => ({ auth }))
@@ -95,6 +107,8 @@ async function loadPost({
     updateConversationRouting,
     updateConversationSlackThreadTs,
     linkConversationToUser,
+    assertChatbotLlmResponseContract,
+    isChatbotLlmResponseContractError,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),

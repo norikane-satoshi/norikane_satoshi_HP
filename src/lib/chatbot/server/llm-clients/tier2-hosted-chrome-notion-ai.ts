@@ -3,6 +3,7 @@ import { join } from "node:path"
 
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 
 type Tier2HostedChromeNotionAiClientConfig = {
   workerUrl?: string
@@ -143,6 +144,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
 
       return {
         rawText,
+        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tokensUsed: numberOrUndefined(response.tokensUsed),
         latencyMs: Date.now() - startedAt,
         tier: this.tier,

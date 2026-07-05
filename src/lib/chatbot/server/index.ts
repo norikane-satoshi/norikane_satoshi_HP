@@ -48,8 +48,14 @@ export type {
 } from "@/lib/chatbot/server/availability-finder"
 export { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 export type { RoutingDecisionInput } from "@/lib/chatbot/server/routing"
-export { ChatbotLlmError, defaultLlmTierOrder } from "@/lib/chatbot/server/llm-client"
+export {
+  ChatbotLlmError,
+  assertChatbotLlmResponseContract,
+  defaultLlmTierOrder,
+  isChatbotLlmResponseContractError,
+} from "@/lib/chatbot/server/llm-client"
 export type {
+  ChatbotLlmDisplayEnvelope,
   ChatbotLlmClient,
   ChatbotLlmRequest,
   ChatbotLlmResponse,

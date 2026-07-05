@@ -5,6 +5,7 @@ import type {
   ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 
 type Tier1ChromeNotionAiClientConfig = {
@@ -315,6 +316,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
 
       return {
         rawText,
+        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tier: this.tier,
         latencyMs: Date.now() - startedAt,
         diagnostics: {

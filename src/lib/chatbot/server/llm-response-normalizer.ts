@@ -3,7 +3,7 @@ import {
   evaluateWorkflowDurationSafety,
   type ChatbotDurationSafetyReport,
 } from "@/lib/chatbot/server/duration-safety"
-import type { ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
+import type { ChatbotLlmDisplayEnvelope, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 
 export type NormalizedChatbotLlmResponse = {
   content: string
@@ -44,11 +44,14 @@ export type ChatbotLlmSanitizationReport = ChatbotDurationSafetyReport & {
 }
 
 export function normalizeChatbotLlmResponse(
-  response: ChatbotLlmResponse,
+  response: Pick<ChatbotLlmResponse, "rawText" | "tier"> & Partial<Pick<ChatbotLlmResponse, "displayEnvelope">>,
   options: { routingDecision?: RoutingDecision; jobContext?: JobContext; trustedDisplayText?: boolean } = {},
 ): NormalizedChatbotLlmResponse {
   return {
-    content: sanitizeChatbotLlmText(response.rawText, options),
+    content: sanitizeChatbotLlmText(response.rawText, {
+      ...options,
+      displayEnvelope: response.displayEnvelope ?? createChatbotLlmDisplayEnvelope(response.rawText),
+    }),
     role: "assistant",
     model: response.tier,
     finish_reason: "stop",
@@ -57,28 +60,35 @@ export function normalizeChatbotLlmResponse(
 
 export function sanitizeChatbotLlmText(
   rawText: string,
-  options: { routingDecision?: RoutingDecision; jobContext?: JobContext; trustedDisplayText?: boolean } = {},
+  options: {
+    routingDecision?: RoutingDecision
+    jobContext?: JobContext
+    trustedDisplayText?: boolean
+    displayEnvelope?: ChatbotLlmDisplayEnvelope
+  } = {},
 ): string {
   return sanitizeChatbotLlmTextWithReport(rawText, options).text
 }
 
 export function sanitizeChatbotLlmTextWithReport(
   rawText: string,
-  options: { routingDecision?: RoutingDecision; jobContext?: JobContext; trustedDisplayText?: boolean } = {},
+  options: {
+    routingDecision?: RoutingDecision
+    jobContext?: JobContext
+    trustedDisplayText?: boolean
+    displayEnvelope?: ChatbotLlmDisplayEnvelope
+  } = {},
 ): { text: string; report: ChatbotLlmSanitizationReport } {
   const fallbackText =
     options.routingDecision?.kind === "continue"
       ? options.routingDecision.nextQuestion
       : "内容を確認しました。次に必要な情報を1つずつ確認します。"
-  const extraction = options.trustedDisplayText
-    ? ({
-        text: rawText.trim(),
-        source: "trusted-server-display",
-        defaultDenied: false,
-        fallbackApplied: false,
-        reasons: ["trusted-server-display"],
-      } satisfies DisplayBoundaryExtraction)
-    : extractExplicitCustomerDisplayText(rawText)
+  const extraction = toDisplayBoundaryExtraction(
+    options.displayEnvelope ??
+      (options.trustedDisplayText
+        ? createTrustedChatbotLlmDisplayEnvelope(rawText)
+        : createChatbotLlmDisplayEnvelope(rawText)),
+  )
   const unsafe = extraction.text ? detectUnsafeCustomerFacingArtifacts(extraction.text) : noUnsafeArtifacts()
   const useFallback = !extraction.text || unsafe.detected
   const displayText = useFallback ? fallbackText : extraction.text
@@ -110,6 +120,20 @@ export function sanitizeChatbotLlmTextWithReport(
   }
 
   return { text: durationResult.text, report }
+}
+
+export function createChatbotLlmDisplayEnvelope(rawText: string): ChatbotLlmDisplayEnvelope {
+  return extractExplicitCustomerDisplayText(rawText)
+}
+
+export function createTrustedChatbotLlmDisplayEnvelope(rawText: string): ChatbotLlmDisplayEnvelope {
+  return {
+    text: rawText.trim(),
+    source: "trusted-server-display",
+    defaultDenied: false,
+    fallbackApplied: false,
+    reasons: ["trusted-server-display"],
+  }
 }
 
 const opaqueTokenPattern = /(?:[A-Za-z0-9+/=_-]{80,})/gu
@@ -184,12 +208,10 @@ type StripReason =
   | "internal-model-codename"
   | "internal-markup"
 
-type DisplayBoundaryExtraction = {
-  text: string
-  source: "customer-reply-tag" | "json-customer-reply" | "trusted-server-display"
-  defaultDenied: boolean
-  fallbackApplied: boolean
-  reasons: ChatbotLlmSanitizationReport["displayBoundary"]["reasons"]
+type DisplayBoundaryExtraction = ChatbotLlmDisplayEnvelope
+
+function toDisplayBoundaryExtraction(envelope: ChatbotLlmDisplayEnvelope): DisplayBoundaryExtraction {
+  return envelope
 }
 
 function extractExplicitCustomerDisplayText(rawText: string): DisplayBoundaryExtraction {

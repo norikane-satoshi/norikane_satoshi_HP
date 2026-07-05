@@ -17,6 +17,7 @@ import {
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { createStaticChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
 import type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"
 
@@ -73,6 +74,12 @@ function userContext(overrides: Partial<UserChatbotContext> = {}): UserChatbotCo
 
 function customerReply(text: string): string {
   return `<customer_reply>${text}</customer_reply>`
+}
+
+function withDisplayEnvelope<T extends { rawText?: unknown }>(response: T): T {
+  return typeof response.rawText === "string" && !("displayEnvelope" in response)
+    ? { ...response, displayEnvelope: createChatbotLlmDisplayEnvelope(response.rawText) }
+    : response
 }
 
 function baseProductionConversationState(overrides: Partial<ConversationState> = {}): ConversationState {
@@ -135,6 +142,7 @@ function setup(overrides: {
   }
   const generate = vi.fn().mockResolvedValue({
     rawText: customerReply("返信です"),
+    displayEnvelope: createChatbotLlmDisplayEnvelope(customerReply("返信です")),
     tier: "tier-3-ollama-deepseek",
   })
   const slackNotifier = vi.fn().mockResolvedValue({ status: "skipped", reason: "disabled" })
@@ -157,7 +165,10 @@ function setup(overrides: {
     slackNotifier,
     options: {
       repository,
-      orchestratorFactory: () => ({ generate, isHealthy: vi.fn() }),
+      orchestratorFactory: () => ({
+        generate: vi.fn(async (...args) => withDisplayEnvelope(await generate(...args))),
+        isHealthy: vi.fn(),
+      }),
       userContextLoader,
       userContextFormatter,
       candidateWindowFinder,

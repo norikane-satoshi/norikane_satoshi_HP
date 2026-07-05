@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { createHostedWorkerRuntimeState } from "@/lib/chatbot/hosted-worker/health"
 import {
   createHostedWorkerQueue,
@@ -121,12 +122,14 @@ describe("hosted worker generate", () => {
             releaseActive = () =>
               resolve({
                 rawText: "active done",
+                displayEnvelope: createChatbotLlmDisplayEnvelope("active done"),
                 tier: "tier-1-chrome-notion-ai",
               })
           }),
       )
       .mockResolvedValue({
         rawText: "queued should not run",
+        displayEnvelope: createChatbotLlmDisplayEnvelope("queued should not run"),
         tier: "tier-1-chrome-notion-ai",
       })
     const queuedAbort = new AbortController()
@@ -167,6 +170,7 @@ describe("hosted worker generate", () => {
       clientFactory: () => ({
         generate: async () => ({
           rawText: "ok",
+          displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
           tier: "tier-1-chrome-notion-ai",
           diagnostics: { endpoint: "/api/v3/runInferenceTranscript" },
         }),

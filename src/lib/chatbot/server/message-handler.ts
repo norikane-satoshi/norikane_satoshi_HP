@@ -17,6 +17,7 @@ import type {
 } from "@/lib/chatbot/domain"
 import {
   appendMessage,
+  assertChatbotLlmResponseContract,
   createChatbotLlmTierOrchestrator,
   createConversation,
   createTier1ChromeNotionAiClient,
@@ -31,6 +32,7 @@ import {
   truncateConversationFromMessage,
   updateConversationRouting,
   updateConversationSlackThreadTs,
+  isChatbotLlmResponseContractError,
   type ChatbotLlmClient,
   type ChatbotLlmRequest,
   type ChatbotLlmResponse,
@@ -53,6 +55,7 @@ import {
 } from "@/lib/chatbot/server/duration-context"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
+  createChatbotLlmDisplayEnvelope,
   sanitizeChatbotLlmTextWithReport,
   type ChatbotLlmSanitizationReport,
 } from "@/lib/chatbot/server/llm-response-normalizer"
@@ -380,24 +383,28 @@ export async function handleChatbotMessage(
       latestUserMessage: input.message,
       userAgent: input.userAgent,
     })
-  const llmResponse = await orchestrator.generate({
-    requestId: input.requestId,
-    systemPrompt,
-    messages: buildLlmMessages(conversation.messages, userMessage),
-    conversationState,
-    jobContext,
-    latestUserMessage: input.message,
-    temperature: 0.2,
-    maxOutputTokens: 900,
-  })
-  const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
-  const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
   const fallbackRoutingDecision = decideRoutingFallback({
     jobContext,
     conversationState,
     latestUserMessage: input.message,
     knowledgeSnapshot,
   })
+  const llmResponse = await generateContractedLlmResponse({
+    orchestrator,
+    request: {
+      requestId: input.requestId,
+      systemPrompt,
+      messages: buildLlmMessages(conversation.messages, userMessage),
+      conversationState,
+      jobContext,
+      latestUserMessage: input.message,
+      temperature: 0.2,
+      maxOutputTokens: 900,
+    },
+    fallbackRoutingDecision,
+  })
+  const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
+  const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
   const resolvedRoutingDecision = await resolveRoutingDecision({
     requestId: input.requestId,
     llmResponse,
@@ -451,6 +458,7 @@ export async function handleChatbotMessage(
   const assistantDisplay = buildAssistantDisplayContent({
     requestId: input.requestId,
     rawText: llmResponse.rawText,
+    displayEnvelope: llmResponse.displayEnvelope,
     routingDecision,
     fallbackRoutingDecision,
     jobContext,
@@ -1450,6 +1458,38 @@ function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogConte
   })
 }
 
+async function generateContractedLlmResponse(input: {
+  orchestrator: ChatbotLlmTierOrchestrator
+  request: ChatbotLlmRequest
+  fallbackRoutingDecision: RoutingDecision
+}): Promise<ChatbotLlmResponse> {
+  try {
+    const response = await input.orchestrator.generate(input.request)
+    assertChatbotLlmResponseContract(response)
+    return response
+  } catch (error) {
+    if (!isChatbotLlmResponseContractError(error)) throw error
+    const rawText = customerReplyMarkup(
+      input.fallbackRoutingDecision.kind === "continue"
+        ? input.fallbackRoutingDecision.nextQuestion
+        : "内容を確認しました。次に必要な情報を1つずつ確認します。",
+    )
+    return {
+      rawText,
+      displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
+      tier: "tier-4-form-fallback",
+      diagnostics: {
+        contractFallback: true,
+        reason: error.message,
+      },
+    }
+  }
+}
+
+function customerReplyMarkup(text: string): string {
+  return `<customer_reply>${text}</customer_reply>`
+}
+
 type ChatbotTierAttemptLogContext = {
   requestId?: string
   conversationId: string
@@ -1591,6 +1631,7 @@ function getCustomerFacingNoteKnowledge(snapshot: ChatbotKnowledgeSnapshot) {
 function buildAssistantDisplayContent(input: {
   requestId?: string
   rawText: string
+  displayEnvelope: ChatbotLlmResponse["displayEnvelope"]
   routingDecision: RoutingDecision | undefined
   fallbackRoutingDecision: RoutingDecision
   jobContext: JobContext
@@ -1608,6 +1649,7 @@ function buildAssistantDisplayContent(input: {
       routingDecision: input.routingDecision,
       jobContext: input.jobContext,
       trustedDisplayText,
+      ...(content === text && !trustedDisplayText ? { displayEnvelope: input.displayEnvelope } : {}),
     })
     return { content: result.text, sanitizationReport: result.report }
   }
