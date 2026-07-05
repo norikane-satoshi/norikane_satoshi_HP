@@ -62,6 +62,7 @@ export type NotionAiRuntimeInspection = {
 
 type NotionAiWorkflowValue = {
   type: "workflow"
+  model: string
   isHipaa: boolean
   isMobile: boolean
   yoloMode: boolean
@@ -69,6 +70,7 @@ type NotionAiWorkflowValue = {
   searchScopes: unknown[]
   useWebSearch: boolean
   isCustomAgent: boolean
+  modelFromUser: boolean
   enableComputer: boolean
   enableQueryMail: boolean
   useReadOnlyMode: boolean
@@ -222,6 +224,12 @@ const defaultNotionClientVersion = "unknown"
 const emptyText = ""
 const maxTransientGenerateAttempts = 2
 let tier1GenerateQueue = Promise.resolve()
+
+export const chatbotNotionAiModelPolicy = {
+  formalName: "Claude Sonnet 5",
+  notionModel: "angel-cake-high",
+  modelFromUser: true,
+} as const
 
 export const tier1ChromeNotionAiDefaults = {
   cdpBaseUrl: "http://127.0.0.1:9223",
@@ -700,6 +708,7 @@ export function buildWorkflowValue(input: {
 } = {}): NotionAiWorkflowValue {
   const workflowValue: NotionAiWorkflowValue = {
     type: "workflow",
+    model: chatbotNotionAiModelPolicy.notionModel,
     isHipaa: false,
     isMobile: false,
     yoloMode: false,
@@ -707,6 +716,7 @@ export function buildWorkflowValue(input: {
     searchScopes: [{ type: "everything" }],
     useWebSearch: true,
     isCustomAgent: false,
+    modelFromUser: chatbotNotionAiModelPolicy.modelFromUser,
     enableComputer: false,
     enableQueryMail: false,
     useReadOnlyMode: false,

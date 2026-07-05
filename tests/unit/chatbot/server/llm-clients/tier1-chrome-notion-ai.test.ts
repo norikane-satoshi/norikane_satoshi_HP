@@ -8,6 +8,7 @@ import {
   buildRunInferenceHeaders,
   buildRunInferencePayload,
   buildWorkflowValue,
+  chatbotNotionAiModelPolicy,
   createTier1ChromeNotionAiClient,
   extractAssistantTextFromNdjson,
   isNotionAiRateLimitResponse,
@@ -190,8 +191,11 @@ describe("Tier1ChromeNotionAiClient", () => {
         type: "workflow",
       },
     })
-    expect(payload.transcript[0]).not.toHaveProperty("value.model")
-    expect(payload.transcript[0]).not.toHaveProperty("value.modelFromUser")
+    expect(payload.transcript[0]).toHaveProperty(
+      "value.model",
+      chatbotNotionAiModelPolicy.notionModel,
+    )
+    expect(payload.transcript[0]).toHaveProperty("value.modelFromUser", true)
     expect(payload.transcript[1]).toMatchObject({
       id: "context-id",
       type: "context",
@@ -289,6 +293,8 @@ describe("Tier1ChromeNotionAiClient", () => {
               "isHipaa": false,
               "isMobile": false,
               "isOnboardingAgent": false,
+              "model": "angel-cake-high",
+              "modelFromUser": true,
               "searchScopes": [
                 {
                   "type": "everything",
@@ -358,6 +364,7 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     expect(Object.keys(workflowValue)).toEqual([
       "type",
+      "model",
       "isHipaa",
       "isMobile",
       "yoloMode",
@@ -365,6 +372,7 @@ describe("Tier1ChromeNotionAiClient", () => {
       "searchScopes",
       "useWebSearch",
       "isCustomAgent",
+      "modelFromUser",
       "enableComputer",
       "enableQueryMail",
       "useReadOnlyMode",
@@ -419,7 +427,7 @@ describe("Tier1ChromeNotionAiClient", () => {
     ])
   })
 
-  it("does not serialize an explicit Notion AI model in the browser request", async () => {
+  it("serializes the policy Notion AI model in the browser request", async () => {
     const session = sessionReturning([
       {
         spaceId: "space-id",
@@ -443,8 +451,8 @@ describe("Tier1ChromeNotionAiClient", () => {
     const evaluate = vi.mocked(session.evaluate)
     expect(evaluate).toHaveBeenCalledTimes(2)
     expect(evaluate.mock.calls[1][0]).toContain("/api/v3/runInferenceTranscript")
-    expect(evaluate.mock.calls[1][0]).not.toContain('"model"')
-    expect(evaluate.mock.calls[1][0]).not.toContain("modelFromUser")
+    expect(evaluate.mock.calls[1][0]).toContain('"model":"angel-cake-high"')
+    expect(evaluate.mock.calls[1][0]).toContain('"modelFromUser":true')
   })
 
   it("serializes concurrent generate calls against the shared Chrome target", async () => {
@@ -701,7 +709,7 @@ describe("Tier1ChromeNotionAiClient", () => {
     })
   })
 
-  it("strips model selection from the page workflow value before inference", async () => {
+  it("overrides page workflow model selection with the policy model before inference", async () => {
     let evaluationCount = 0
     const evaluate = vi.fn(async <T,>(expression: string): Promise<T> => {
       evaluationCount += 1
@@ -719,8 +727,9 @@ describe("Tier1ChromeNotionAiClient", () => {
         } as T
       }
 
-      expect(expression).not.toContain('"model"')
-      expect(expression).not.toContain("modelFromUser")
+      expect(expression).toContain('"model":"angel-cake-high"')
+      expect(expression).toContain('"modelFromUser":true')
+      expect(expression).not.toContain('"model":"page-diagnostic-model"')
       expect(expression).toContain('"useWebSearch":false')
       return {
         ok: true,
