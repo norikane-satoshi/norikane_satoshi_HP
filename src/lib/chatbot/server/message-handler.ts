@@ -44,6 +44,7 @@ import {
   findCandidateCalendar,
   type CandidateCalendarResult,
 } from "@/lib/chatbot/server/availability-finder"
+import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import {
@@ -1830,6 +1831,7 @@ function logChatbotDisplayBoundary(input: {
     JSON.stringify({
       event: "chatbot_display_boundary",
       requestId: input.requestId,
+      buildSha: getChatbotBuildSha(),
       conversationId: input.conversation.id,
       sessionId: input.conversation.context.sessionId,
       tier: input.tier,
