@@ -227,10 +227,6 @@ let tier1GenerateQueue = Promise.resolve()
 
 export const chatbotNotionAiModelPolicy = {
   mode: "auto-with-denylist",
-  fallbackFormalName: "Claude Sonnet 5",
-  fallbackProviderApiModel: "claude-sonnet-5",
-  fallbackNotionModel: "angel-cake-high",
-  fallbackModelFromUser: true,
   deniedModels: [
     {
       requestedName: "Sonnet 4.6",
@@ -836,32 +832,10 @@ export function buildWorkflowValue(input: {
   }
 
   const sanitizedWorkflowValue = stripModelSelection(input.workflowValue)
-  const modelSelection = resolveModelSelection(input)
-
   return {
     ...workflowValue,
     ...sanitizedWorkflowValue,
-    ...modelSelection,
     type: "workflow",
-  }
-}
-
-function resolveModelSelection(input: {
-  workflowValue?: Partial<NotionAiWorkflowValue>
-  selectedModel?: string
-  finalModelName?: string
-}): Pick<NotionAiWorkflowValue, "model" | "modelFromUser"> {
-  const candidates = [
-    input.selectedModel,
-    input.finalModelName,
-    input.workflowValue?.model,
-  ]
-
-  if (!candidates.some(isDeniedChatbotNotionAiModel)) return {}
-
-  return {
-    model: chatbotNotionAiModelPolicy.fallbackNotionModel,
-    modelFromUser: chatbotNotionAiModelPolicy.fallbackModelFromUser,
   }
 }
 
