@@ -676,6 +676,8 @@ export function buildRunInferencePayload(input: {
     })
   }
 
+  assertNoDeniedRuntimeModelSelection(input.runtimeContext)
+
   const workflowValue = buildWorkflowValue({
     workflowValue: input.runtimeContext.workflowValue,
     selectedModel: input.runtimeContext.selectedModel,
@@ -837,6 +839,20 @@ export function buildWorkflowValue(input: {
     ...sanitizedWorkflowValue,
     type: "workflow",
   }
+}
+
+function assertNoDeniedRuntimeModelSelection(runtimeContext: NotionAiRuntimeContext): void {
+  const deniedModel = [runtimeContext.selectedModel, runtimeContext.finalModelName].find((model) =>
+    isDeniedChatbotNotionAiModel(model),
+  )
+  if (!deniedModel) return
+
+  throw new ChatbotLlmError({
+    message: `Notion AI runtime selected a denied chatbot model: ${deniedModel}`,
+    code: "invalid-output",
+    tier,
+    isRetryable: true,
+  })
 }
 
 export function isDeniedChatbotNotionAiModel(model: unknown): boolean {

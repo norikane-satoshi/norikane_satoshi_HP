@@ -448,7 +448,7 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(evaluate.mock.calls[1][0]).not.toContain("modelFromUser")
   })
 
-  it("keeps Notion AI auto mode when runtime inspection exposes a denied model", async () => {
+  it("blocks inference when runtime inspection exposes a denied model", async () => {
     const session = sessionReturning([
       {
         spaceId: "space-id",
@@ -456,7 +456,6 @@ describe("Tier1ChromeNotionAiClient", () => {
         selectedModel: "gpt-5.4",
         availableModels: ["gpt-5.4"],
       },
-      { ok: true, rawText: "候補日を確認しました。", chunkCount: 1 },
     ])
     const client = new Tier1ChromeNotionAiClient({
       fetchClient: cdpFetch(),
@@ -464,16 +463,14 @@ describe("Tier1ChromeNotionAiClient", () => {
       idFactory: vi.fn(() => "stable-id"),
     })
 
-    await expect(client.generate(llmRequest())).resolves.toMatchObject({
-      rawText: "候補日を確認しました。",
-      tier: "tier-1-chrome-notion-ai",
+    await expectLlmError(client.generate(llmRequest()), {
+      code: "invalid-output",
+      isRetryable: true,
     })
 
     const evaluate = vi.mocked(session.evaluate)
-    expect(evaluate).toHaveBeenCalledTimes(2)
-    expect(evaluate.mock.calls[1][0]).not.toContain('"model"')
-    expect(evaluate.mock.calls[1][0]).not.toContain("modelFromUser")
-    expect(evaluate.mock.calls[1][0]).not.toContain("gpt-5.4")
+    expect(evaluate).toHaveBeenCalledTimes(1)
+    expect(evaluate.mock.calls[0][0]).not.toContain("/api/v3/runInferenceTranscript")
   })
 
   it("serializes concurrent generate calls against the shared Chrome target", async () => {
