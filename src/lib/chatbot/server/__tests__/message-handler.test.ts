@@ -2443,6 +2443,68 @@ describe("handleChatbotMessage user context", () => {
     expect(result.ui.bookingPrefill?.projectTitle).not.toContain("です")
   })
 
+  it("deduplicates repeated booking memo lines from recovered and tool prefill state", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            hasCustomerIdentity: true,
+            contactEmail: "hanako.yamada@example.jp",
+            customerName: "山田 花子",
+            companyName: "テスト株式会社",
+            bookingPrefill: {
+              projectTitle: "星空ライブ2026",
+              contactName: "山田 花子",
+              companyName: "テスト株式会社",
+              contactEmail: "hanako.yamada@example.jp",
+              memo: "ライブ映像60分\n依頼内容: ライブ",
+            },
+            bookingFinalConfirmation: {
+              status: "confirmed",
+              requestedAtTurn: 8,
+              confirmedAtTurn: 9,
+              bookingPrefill: {
+                projectTitle: "星空ライブ2026",
+                contactName: "山田 花子",
+                companyName: "テスト株式会社",
+                contactEmail: "hanako.yamada@example.jp",
+                memo: "ライブ映像60分\n依頼内容: ライブ",
+              },
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "web",
+            projectLengthMinutes: 60,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            additionalWork: [],
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply(
+        '候補を確認します。 {"tool":"show_booking_card","args":{"memo":"ライブ映像60分\\n依頼内容: ライブ"}}',
+      ),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "なし" },
+      harness.options,
+    )
+
+    if (result.ui.kind !== "booking-card") throw new Error("booking-card expected")
+    const lines = result.ui.bookingPrefill?.memo?.split("\n") ?? []
+    expect(lines.filter((line) => line === "ライブ映像60分")).toHaveLength(1)
+    expect(lines.filter((line) => line === "依頼内容: ライブ")).toHaveLength(1)
+  })
+
   it("does not let stale hosted tool args override confirmed session identity", async () => {
     const harness = setup({
       existingConversation: conversation({

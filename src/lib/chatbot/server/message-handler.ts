@@ -3339,10 +3339,19 @@ function normalizeSupplementalBookingFinalNote(value: string | undefined): strin
 }
 
 function mergeMemoParts(parts: Array<string | undefined>): Pick<BookingCardPrefill, "memo"> | Record<string, never> {
-  const memo = parts
+  const seen = new Set<string>()
+  const lines = parts
     .filter((part): part is string => Boolean(part?.trim()))
-    .map((part) => part.trim())
-    .join("\n")
+    .flatMap((part) => part.split(/\n+/u))
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (!line) return false
+      const key = line.normalize("NFKC")
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  const memo = lines.join("\n")
   return memo ? { memo } : {}
 }
 
