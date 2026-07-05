@@ -4,12 +4,32 @@ import {
   normalizeChatbotLlmResponse,
   sanitizeChatbotLlmTextWithReport,
 } from "@/lib/chatbot/server/llm-response-normalizer"
+import {
+  chatbotLeakCorpus,
+  chatbotLeakCorpusFallbackText,
+} from "../../../fixtures/chatbot/leak-corpus"
 
 function customerReply(text: string): string {
   return `<customer_reply>${text}</customer_reply>`
 }
 
 describe("normalizeChatbotLlmResponse", () => {
+  it.each(chatbotLeakCorpus)("matches the shared leak corpus: $id", (item) => {
+    const result = sanitizeChatbotLlmTextWithReport(item.rawText, {
+      routingDecision: {
+        kind: "continue",
+        nextQuestion: chatbotLeakCorpusFallbackText,
+      },
+    })
+
+    expect(result.text).toBe(item.expected.text)
+    expect(result.report.displayBoundary).toMatchObject({
+      outcome: item.expected.outcome,
+      fallbackApplied: item.expected.fallbackApplied,
+    })
+    expect(Boolean(result.report.unsafeArtifacts?.detected)).toBe(item.expected.unsafe)
+  })
+
   it("keeps the cross-tier response contract stable", () => {
     expect(
       normalizeChatbotLlmResponse({
