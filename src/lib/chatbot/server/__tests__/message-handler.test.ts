@@ -1829,7 +1829,7 @@ describe("handleChatbotMessage user context", () => {
     })
 
     const result = await handleChatbotMessage(
-      { sessionId: "session_1", userId: "user_a", message: "なし" },
+      { sessionId: "session_1", userId: "user_a", message: "それでお願いします" },
       harness.options,
     )
 
@@ -1896,7 +1896,7 @@ describe("handleChatbotMessage user context", () => {
     })
 
     const result = await handleChatbotMessage(
-      { sessionId: "session_1", userId: "user_a", message: "特にないですー" },
+      { sessionId: "session_1", userId: "user_a", message: "それでお願いします" },
       harness.options,
     )
 
@@ -2219,7 +2219,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: customerReply("候補を確認します。"),
+      rawText: customerReply("追加の確認は特にありません。候補を確認します。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2249,6 +2249,77 @@ describe("handleChatbotMessage user context", () => {
     expect(memo).not.toContain("案件種別:")
     expect(memo).not.toContain("最終媒体:")
     expect(memo).not.toContain("live-60m")
+  })
+
+  it("persists deterministic booking prefill from full conversation history without relying on LLM raw text", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [
+          message("user", "案件名はリブランディングCM、氏名は山田 太郎、会社名は株式会社テスト、メールアドレスは yamada@example.jp です。"),
+          message("assistant", "ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？なければ「なし」で進めます。"),
+        ],
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: false,
+            hasCustomerIdentity: false,
+            bookingFinalConfirmation: {
+              status: "confirmed",
+              requestedAtTurn: 8,
+              confirmedAtTurn: 9,
+            },
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "web",
+            projectLengthMinutes: 30,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            additionalWork: ["retouch"],
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply('候補を確認します。 {"tool":"show_booking_card","args":{}}'),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "なし" },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "リブランディングCM",
+        contactName: "山田 太郎",
+        companyName: "株式会社テスト",
+        contactEmail: "yamada@example.jp",
+      },
+    })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationState: expect.objectContaining({
+          hasContactEmail: true,
+          hasCustomerIdentity: true,
+          contactEmail: "yamada@example.jp",
+          customerName: "山田 太郎",
+          companyName: "株式会社テスト",
+          bookingFinalConfirmation: expect.objectContaining({
+            bookingPrefill: expect.objectContaining({
+              projectTitle: "リブランディングCM",
+              contactName: "山田 太郎",
+              companyName: "株式会社テスト",
+              contactEmail: "yamada@example.jp",
+            }),
+          }),
+        }),
+      }),
+    )
   })
 
   it("does not let stale hosted tool args override confirmed session identity", async () => {

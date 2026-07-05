@@ -1461,6 +1461,8 @@ function bookingCardInstanceKey(conversationId: string | undefined, ui: Extract<
     conversationId ?? "new",
     ui.completedBooking?.bookingGroupId ?? "draft",
     ui.bookingPrefill?.projectTitle ?? "",
+    ui.bookingPrefill?.contactName ?? "",
+    ui.bookingPrefill?.companyName ?? "",
     ui.bookingPrefill?.contactEmail ?? "",
     ui.bookingPrefill?.dueDate ?? "",
     ui.suggestedSlots.map((slot) => `${slot.start}/${slot.end}`).join(","),

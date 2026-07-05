@@ -349,7 +349,7 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   const jobContext = durationContext.jobContext
-  const conversationState = applyBookingFinalConfirmationAnswer({
+  const baseConversationState = applyBookingFinalConfirmationAnswer({
     latestUserMessage: input.message,
     previousAssistantMessage: findLastAssistantMessageContent(conversation.messages),
     conversationState: applyLectureTrainingConversationState({
@@ -365,6 +365,10 @@ export async function handleChatbotMessage(
       }),
     }),
   })
+  const conversationState = mergeRecoveredBookingContext(
+    baseConversationState,
+    recoverBookingContextFromHistory([...conversation.messages, userMessage]),
+  ) as ConversationState
   const systemPrompt = buildChatbotSystemPrompt(
     userContext,
     userContextFormatter,
@@ -1183,6 +1187,24 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
   const conversationState: Partial<ConversationState> = {}
 
   for (const message of messages) {
+    const extracted = extractDeterministicBookingPrefill(message.content)
+    if (extracted.projectTitle) bookingPrefill.projectTitle = extracted.projectTitle
+    if (extracted.contactName) {
+      bookingPrefill.contactName = extracted.contactName
+      conversationState.customerName = extracted.contactName
+      conversationState.hasCustomerIdentity = true
+    }
+    if (extracted.companyName) {
+      bookingPrefill.companyName = extracted.companyName
+      conversationState.companyName = extracted.companyName
+      conversationState.hasCustomerIdentity = true
+    }
+    if (extracted.contactEmail) {
+      bookingPrefill.contactEmail = extracted.contactEmail
+      conversationState.contactEmail = extracted.contactEmail
+      conversationState.hasContactEmail = true
+    }
+
     if (message.role === "assistant") {
       const confirmedProjectTitle = extractQuotedValue(message.content, /案件名[「『"]([^」』"]{1,120})[」』"]/u)
       if (confirmedProjectTitle) bookingPrefill.projectTitle = confirmedProjectTitle
@@ -1251,6 +1273,56 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
   return { conversationState, bookingPrefill }
 }
 
+function extractDeterministicBookingPrefill(content: string): BookingCardPrefill {
+  const contactEmail = findContactEmailInText(content)
+  const contactName = extractLabeledBookingValue(content, ["ご担当者", "担当者", "お名前", "氏名", "名前"], 80)
+  return compactBookingPrefill({
+    projectTitle: extractLabeledBookingValue(content, ["案件名", "作品名", "プロジェクト名"], 120),
+    ...(contactName ? { contactName: normalizeContactNameValue(contactName) } : {}),
+    companyName: extractLabeledBookingValue(content, ["会社名", "法人名", "御社名", "貴社名"], 100),
+    ...(contactEmail ? { contactEmail } : {}),
+  })
+}
+
+function extractLabeledBookingValue(content: string, labels: string[], maxLength: number): string | undefined {
+  const normalized = content.normalize("NFKC")
+  const allLabels = [
+    "案件名",
+    "作品名",
+    "プロジェクト名",
+    "ご担当者",
+    "担当者",
+    "お名前",
+    "氏名",
+    "名前",
+    "会社名",
+    "法人名",
+    "御社名",
+    "貴社名",
+    "メールアドレス",
+    "メール",
+    "mail",
+    "email",
+    "連絡先",
+  ]
+  const labelPattern = labels.map(escapeRegExp).join("|")
+  const nextLabelPattern = allLabels.map(escapeRegExp).join("|")
+  const pattern = new RegExp(
+    `(?:^|[\\s\\n,、。;；])(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']?([\\s\\S]{1,${Math.max(maxLength, 160)}}?)(?=[」』"']?(?:[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=)))`,
+    "iu",
+  )
+  const value = normalizeFreeTextBookingValue(pattern.exec(normalized)?.[1], maxLength)
+  if (!value) return undefined
+  if (isEmptyBookingFieldAnswer(value)) return undefined
+  if (/(教えて|入力|ください|伺|確認|間違い|お間違い)/u.test(value)) return undefined
+  return value
+}
+
+function isEmptyBookingFieldAnswer(value: string): boolean {
+  const compact = value.normalize("NFKC").replace(/\s+/gu, "")
+  return /^(?:未定|なし|無し|特になし|特にない|まだ未定|決まっていない|決まってない|不明)$/u.test(compact)
+}
+
 function mergeRecoveredBookingContext(
   stored: Partial<ConversationState>,
   recovered: ReturnType<typeof recoverBookingContextFromHistory>,
@@ -1258,22 +1330,24 @@ function mergeRecoveredBookingContext(
   const recoveredPrefill = recovered.bookingPrefill
   const storedBookingFinalConfirmation = stored.bookingFinalConfirmation
   const storedPrefill = storedBookingFinalConfirmation?.bookingPrefill ?? {}
+  const storedStatePrefill = stored.bookingPrefill ?? {}
   const bookingPrefill = compactBookingPrefill({
-    projectTitle: storedPrefill.projectTitle ?? recoveredPrefill.projectTitle,
-    contactName: storedPrefill.contactName ?? recoveredPrefill.contactName,
-    contactEmail: storedPrefill.contactEmail ?? recoveredPrefill.contactEmail,
-    companyName: storedPrefill.companyName ?? recoveredPrefill.companyName,
-    dueDate: storedPrefill.dueDate ?? recoveredPrefill.dueDate,
-    memo: storedPrefill.memo ?? recoveredPrefill.memo,
+    projectTitle: storedPrefill.projectTitle ?? storedStatePrefill.projectTitle ?? recoveredPrefill.projectTitle,
+    contactName: storedPrefill.contactName ?? storedStatePrefill.contactName ?? recoveredPrefill.contactName,
+    contactEmail: storedPrefill.contactEmail ?? storedStatePrefill.contactEmail ?? recoveredPrefill.contactEmail,
+    companyName: storedPrefill.companyName ?? storedStatePrefill.companyName ?? recoveredPrefill.companyName,
+    dueDate: storedPrefill.dueDate ?? storedStatePrefill.dueDate ?? recoveredPrefill.dueDate,
+    memo: storedPrefill.memo ?? storedStatePrefill.memo ?? recoveredPrefill.memo,
   })
 
   return {
     ...stored,
     ...recovered.conversationState,
-    ...(storedBookingFinalConfirmation || Object.keys(bookingPrefill).length > 0
+    ...(Object.keys(bookingPrefill).length > 0 ? { bookingPrefill } : {}),
+    ...(storedBookingFinalConfirmation
       ? {
           bookingFinalConfirmation: {
-            ...(storedBookingFinalConfirmation ?? { status: "pending" as const }),
+            ...storedBookingFinalConfirmation,
             ...(Object.keys(bookingPrefill).length > 0 ? { bookingPrefill } : {}),
           },
         }
@@ -1323,7 +1397,7 @@ function normalizeContactNameValue(value: string): string | undefined {
 }
 
 function findContactEmailInText(value: string): string | undefined {
-  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu.exec(value)?.[0]
+  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![A-Z0-9.-])/iu.exec(value)?.[0]
 }
 
 function findChoiceSetFromAssistantContent(content: string): SurveyChoiceSet | undefined {
@@ -1399,6 +1473,10 @@ function mergeRecoveredConversationState(
     ...(stored.bookingReadiness ?? {}),
     ...(recovered.bookingReadiness ?? {}),
   }
+  const bookingPrefill = {
+    ...(stored.bookingPrefill ?? {}),
+    ...(recovered.bookingPrefill ?? {}),
+  }
   const merged: Partial<ConversationState> = {
     ...stored,
     ...recovered,
@@ -1417,6 +1495,7 @@ function mergeRecoveredConversationState(
     ...(hasSubmittedBooking
       ? { bookingSubmission: bookingSubmission as NonNullable<ConversationState["bookingSubmission"]> }
       : {}),
+    ...(Object.keys(bookingPrefill).length > 0 ? { bookingPrefill } : {}),
     ...(!hasSubmittedBooking && bookingFinalConfirmation.status
       ? { bookingFinalConfirmation: bookingFinalConfirmation as NonNullable<ConversationState["bookingFinalConfirmation"]> }
       : {}),
@@ -1955,6 +2034,8 @@ function logChatbotBookingReadinessBoundary(input: {
   const afterFinal = input.afterState.bookingFinalConfirmation
   const beforeReadiness = input.beforeState.bookingReadiness
   const afterReadiness = input.afterState.bookingReadiness
+  const beforePrefill = beforeFinal?.bookingPrefill ?? input.beforeState.bookingPrefill ?? {}
+  const afterPrefill = bookingPrefill ?? afterFinal?.bookingPrefill ?? input.afterState.bookingPrefill ?? {}
 
   console.info(
     JSON.stringify({
@@ -1966,12 +2047,16 @@ function logChatbotBookingReadinessBoundary(input: {
       boundary: "booking-readiness",
       input: {
         missingSlots: beforeMissing,
+        bookingPrefillKeys: getBookingPrefillKeys(beforePrefill),
+        missingPrefillFields: getMissingBookingPrefillFields(beforePrefill),
         finalQuestionOffered: Boolean(beforeReadiness?.finalQuestionOffered || beforeFinal?.status),
         finalConfirmationStatus: beforeFinal?.status ?? null,
         additionalConcernStatus: beforeReadiness?.additionalConcernStatus ?? null,
       },
       output: {
         missingSlots: afterMissing,
+        bookingPrefillKeys: getBookingPrefillKeys(afterPrefill),
+        missingPrefillFields: getMissingBookingPrefillFields(afterPrefill),
         finalQuestionOffered: Boolean(afterReadiness?.finalQuestionOffered || afterFinal?.status),
         finalConfirmationStatus: afterFinal?.status ?? null,
         additionalConcernStatus: afterReadiness?.additionalConcernStatus ?? null,
@@ -1988,6 +2073,16 @@ function logChatbotBookingReadinessBoundary(input: {
       }),
     }),
   )
+}
+
+const trackedBookingPrefillFields = ["projectTitle", "contactName", "companyName", "contactEmail"] as const
+
+function getBookingPrefillKeys(prefill: BookingCardPrefill): Array<(typeof trackedBookingPrefillFields)[number]> {
+  return trackedBookingPrefillFields.filter((field) => Boolean(prefill[field]?.trim()))
+}
+
+function getMissingBookingPrefillFields(prefill: BookingCardPrefill): Array<(typeof trackedBookingPrefillFields)[number]> {
+  return trackedBookingPrefillFields.filter((field) => !prefill[field]?.trim())
 }
 
 function summarizeBookingReadinessReason(input: {
@@ -2932,6 +3027,7 @@ function normalizeBookingCardPrefill(
   conversationState: ConversationState,
 ): BookingCardPrefill {
   const statePrefill = conversationState.bookingFinalConfirmation?.bookingPrefill ?? {}
+  const stateBookingPrefill = conversationState.bookingPrefill ?? {}
   const confirmedStateCustomerName = conversationState.hasCustomerIdentity
     ? normalizeBookingIdentityField(conversationState.customerName, 80)
     : undefined
@@ -2945,14 +3041,21 @@ function normalizeBookingCardPrefill(
       ? conversationState.contactEmail
       : undefined
   const statePrefillEmail = isValidContactEmail(statePrefill.contactEmail) ? statePrefill.contactEmail : undefined
+  const stateBookingPrefillEmail = isValidContactEmail(stateBookingPrefill.contactEmail)
+    ? stateBookingPrefill.contactEmail
+    : undefined
   const toolContactEmail = extractBookingPrefillEmail(prefill)
-  const prefillEmailFromMemo = extractBookingPrefillEmail(statePrefill)
+  const prefillEmailFromMemo = extractBookingPrefillEmail({ ...stateBookingPrefill, ...statePrefill })
   const toolPrefillLooksStale = Boolean(stateContactEmail && toolContactEmail && stateContactEmail !== toolContactEmail)
   const trustedToolPrefill = toolPrefillLooksStale ? {} : prefill
-  const projectTitle = normalizeBookingProjectTitle(statePrefill.projectTitle ?? trustedToolPrefill.projectTitle, jobContext)
-  const contactEmail = stateContactEmail ?? statePrefillEmail ?? prefillEmailFromMemo ?? toolContactEmail
+  const projectTitle = normalizeBookingProjectTitle(
+    statePrefill.projectTitle ?? stateBookingPrefill.projectTitle ?? trustedToolPrefill.projectTitle,
+    jobContext,
+  )
+  const contactEmail = stateContactEmail ?? statePrefillEmail ?? stateBookingPrefillEmail ?? prefillEmailFromMemo ?? toolContactEmail
   const memoParts = [
     normalizeBookingSupplementalMemo(statePrefill.memo, contactEmail),
+    normalizeBookingSupplementalMemo(stateBookingPrefill.memo, contactEmail),
     normalizeBookingSupplementalMemo(trustedToolPrefill.memo, contactEmail),
     normalizeSupplementalBookingFinalNote(conversationState.bookingFinalConfirmation?.supplementalNote),
     ...buildChoiceDetailSegments(jobContext, conversationState),
@@ -2960,14 +3063,16 @@ function normalizeBookingCardPrefill(
   const contactName =
     confirmedStateCustomerName ??
     normalizeBookingIdentityField(statePrefill.contactName, 80) ??
+    normalizeBookingIdentityField(stateBookingPrefill.contactName, 80) ??
     normalizeBookingIdentityField(trustedToolPrefill.contactName, 80) ??
     fallbackStateCustomerName
   const companyName =
     confirmedStateCompanyName ??
     normalizeBookingIdentityField(statePrefill.companyName, 100) ??
+    normalizeBookingIdentityField(stateBookingPrefill.companyName, 100) ??
     normalizeBookingIdentityField(trustedToolPrefill.companyName, 100) ??
     fallbackStateCompanyName
-  const dueDate = statePrefill.dueDate ?? trustedToolPrefill.dueDate
+  const dueDate = statePrefill.dueDate ?? stateBookingPrefill.dueDate ?? trustedToolPrefill.dueDate
 
   if (
     trustedToolPrefill.projectTitle &&

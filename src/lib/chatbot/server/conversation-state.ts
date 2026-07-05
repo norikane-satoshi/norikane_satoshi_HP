@@ -54,6 +54,11 @@ export function buildConversationState(input: {
     ...(inputState.bookingFinalConfirmation ?? {}),
     ...(activeChoiceState.bookingFinalConfirmation ?? {}),
   }
+  const bookingPrefill = {
+    ...(stored.bookingPrefill ?? {}),
+    ...(inputState.bookingPrefill ?? {}),
+    ...(activeChoiceState.bookingPrefill ?? {}),
+  }
   const bookingReadiness = {
     ...(stored.bookingReadiness ?? {}),
     ...(inputState.bookingReadiness ?? {}),
@@ -81,6 +86,7 @@ export function buildConversationState(input: {
     ...(Object.keys(otherChoiceComments).length > 0 ? { otherChoiceComments } : {}),
     ...(Object.keys(lectureTrainingInquiry).length > 0 ? { lectureTrainingInquiry } : {}),
     ...(Object.keys(intakeClarifications).length > 0 ? { intakeClarifications } : {}),
+    ...(Object.keys(bookingPrefill).length > 0 ? { bookingPrefill } : {}),
     ...mergedBookingFinalConfirmation,
     ...mergedBookingSubmission,
     ...(Object.keys(bookingReadiness).length > 0 ? { bookingReadiness } : {}),
