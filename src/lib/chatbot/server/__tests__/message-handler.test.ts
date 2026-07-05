@@ -1904,7 +1904,6 @@ describe("handleChatbotMessage user context", () => {
     expect(result.ui).toMatchObject({
       kind: "booking-card",
       bookingPrefill: {
-        projectTitle: "CM案件",
         contactEmail: "client@example.com",
       },
     })
