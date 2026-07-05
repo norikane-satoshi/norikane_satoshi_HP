@@ -2251,6 +2251,67 @@ describe("handleChatbotMessage user context", () => {
     expect(memo).not.toContain("live-60m")
   })
 
+  it("treats a no-reference-url answer as satisfied and advances to final confirmation", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [
+          message("assistant", "事前に把握しておきたい参考URLがあれば教えてください"),
+        ],
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState({ hasReferenceUrls: false }),
+            hasContactEmail: true,
+            hasCustomerIdentity: true,
+            customerName: "テスト太郎",
+            companyName: "テスト株式会社",
+            contactEmail: "client@example.com",
+            bookingPrefill: {
+              projectTitle: "案件T",
+              contactName: "テスト太郎",
+              companyName: "テスト株式会社",
+              contactEmail: "client@example.com",
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            projectLengthMinutes: 150,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "other", count: 1, note: "特典映像" },
+            additionalWork: ["retouch", "skin-retouch"],
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        "user said no reference URLs are needed. All required facts are gathered, so I should do the final confirmation before showing the booking card.",
+      tier: "tier-1-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "特にないです。" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      presentChoices: { id: bookingFinalConfirmationChoices.id },
+    })
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: bookingFinalConfirmationChoices.id } })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routingDecision: "continue",
+        conversationState: expect.objectContaining({
+          hasReferenceUrls: true,
+          bookingFinalConfirmation: expect.objectContaining({ status: "pending" }),
+        }),
+      }),
+    )
+  })
+
   it("persists deterministic booking prefill from full conversation history without relying on LLM raw text", async () => {
     const harness = setup({
       existingConversation: conversation({

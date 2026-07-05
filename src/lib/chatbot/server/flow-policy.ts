@@ -126,13 +126,30 @@ export function applyBookingFinalConfirmationPolicy(input: {
     return {
       routingDecision: {
         kind: "continue",
-          nextQuestion: "補足を反映しました。必要な点を確認してから進めます。",
+        nextQuestion: "補足を反映しました。必要な点を確認してから進めます。",
       },
       conversationState: markBookingFinalConfirmationSupplemental(input.conversationState, input.latestUserMessage),
     }
   }
 
   if (input.routingDecision?.kind !== "to-booking-inline") {
+    if (
+      !input.routingDecision &&
+      input.fallbackRoutingDecision.kind === "continue" &&
+      input.fallbackRoutingDecision.presentChoices?.id === bookingFinalConfirmationChoices.id &&
+      input.conversationState.bookingFinalConfirmation?.status !== "confirmed"
+    ) {
+      return {
+        routingDecision: input.fallbackRoutingDecision,
+        conversationState: {
+          ...markFinalQuestionOffered(input.conversationState),
+          bookingFinalConfirmation: {
+            status: "pending",
+            requestedAtTurn: input.conversationState.turnCount,
+          },
+        },
+      }
+    }
     if (
       (isBookingFinalConfirmationPrompt(input.assistantText) ||
         (input.routingDecision?.kind === "continue" &&
@@ -299,8 +316,11 @@ export function isNoAdditionalBookingConcern(message: string): boolean {
     .toLowerCase()
     .replace(/^\s*選択\s*[:：]\s*/u, "")
     .replace(/[\s　。、,.!！?？「」『』()[\]（）]/g, "")
-  return /^(なし|無し|ない|ありません|大丈夫|だいじょうぶ|了解|了解です|良い|良いです|いい|いいです|ok|okay|okです|問題ありません|問題ない|以上です|特にありません)(このまま進める|このまますすめる)?$/.test(
-    compact,
+  return (
+    /^(なし|無し|ない|ありません|大丈夫|だいじょうぶ|了解|了解です|良い|良いです|いい|いいです|ok|okay|okです|問題ありません|問題ない|以上です|特にありません)(このまま進める|このまますすめる)?$/.test(
+      compact,
+    ) ||
+    /^(特にない|特になし)(?:です)?(このまま進める|このまますすめる)?$/.test(compact)
   )
 }
 

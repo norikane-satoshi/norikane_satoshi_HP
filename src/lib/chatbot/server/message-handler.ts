@@ -349,19 +349,23 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   const jobContext = durationContext.jobContext
-  const baseConversationState = applyBookingFinalConfirmationAnswer({
+  const baseConversationState = applyEmptyReferenceUrlAnswer({
     latestUserMessage: input.message,
     previousAssistantMessage: findLastAssistantMessageContent(conversation.messages),
-    conversationState: applyLectureTrainingConversationState({
-      conversation,
+    conversationState: applyBookingFinalConfirmationAnswer({
       latestUserMessage: input.message,
-      conversationState: buildConversationState({
-        inputConversationState: didTruncateForEdit ? undefined : input.conversationState,
+      previousAssistantMessage: findLastAssistantMessageContent(conversation.messages),
+      conversationState: applyLectureTrainingConversationState({
         conversation,
-        userMessage,
-        activeChoiceConversationState: activeChoiceAnswer?.conversationState,
-        jobContext,
-        durationStatePatch: durationContext.conversationStatePatch,
+        latestUserMessage: input.message,
+        conversationState: buildConversationState({
+          inputConversationState: didTruncateForEdit ? undefined : input.conversationState,
+          conversation,
+          userMessage,
+          activeChoiceConversationState: activeChoiceAnswer?.conversationState,
+          jobContext,
+          durationStatePatch: durationContext.conversationStatePatch,
+        }),
       }),
     }),
   })
@@ -1100,6 +1104,27 @@ function findLastAssistantMessageContent(messages: ChatbotMessage[]): string | u
     if (messages[index].role === "assistant") return messages[index].content
   }
   return undefined
+}
+
+function applyEmptyReferenceUrlAnswer(input: {
+  latestUserMessage: string
+  previousAssistantMessage?: string
+  conversationState: ConversationState
+}): ConversationState {
+  if (input.conversationState.hasReferenceUrls) return input.conversationState
+  if (!isReferenceUrlQuestion(input.previousAssistantMessage)) return input.conversationState
+  if (!isNoAdditionalBookingConcern(input.latestUserMessage)) return input.conversationState
+
+  return {
+    ...input.conversationState,
+    hasReferenceUrls: true,
+  }
+}
+
+function isReferenceUrlQuestion(message: string | undefined): boolean {
+  if (!message) return false
+  const normalized = message.normalize("NFKC")
+  return /参考\s*(?:URL|リンク)|事前に把握しておきたい参考/u.test(normalized)
 }
 
 function reconcileConversationContextFromHistory(conversation: ChatbotConversation): ChatbotConversation {
