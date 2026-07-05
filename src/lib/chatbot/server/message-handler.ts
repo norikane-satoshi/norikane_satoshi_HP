@@ -448,6 +448,7 @@ export async function handleChatbotMessage(
   const persistedConversationState = flowPolicy.conversationState
   const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState: persistedConversationState })
   const assistantDisplay = buildAssistantDisplayContent({
+    requestId: input.requestId,
     rawText: llmResponse.rawText,
     routingDecision,
     fallbackRoutingDecision,
@@ -474,6 +475,16 @@ export async function handleChatbotMessage(
     rawText: llmResponse.rawText,
     finalText: assistantContent,
     report: assistantDisplay.singleUserPromptGuard,
+  })
+  logChatbotDisplayBoundary({
+    requestId: input.requestId,
+    conversation,
+    tier: llmResponse.tier,
+    routingDecision,
+    uiKind: ui.kind,
+    rawText: llmResponse.rawText,
+    finalText: assistantContent,
+    report: assistantDisplay.sanitizationReport,
   })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
@@ -1480,6 +1491,8 @@ function buildChatbotSystemPrompt(
     "2026年9月15日 JST 以降は、状況に応じてスタジオ利用を作業場所の選択肢として扱えます。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、JSON 出力の説明だけを返しません。",
+    "最終出力は必ず <customer_reply> と </customer_reply> の内側だけに、お客様へ表示してよい本文を書きます。内部推論、確認メモ、英語の思考、モデル名、署名、ラベル説明、タグ外の本文は一切書きません。",
+    "show_choice_panel / show_booking_card の JSON を出す場合も、表示してよい短い本文と同じ <customer_reply> 内に1個だけ置きます。タグ外には何も書きません。",
     '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD","memo":"..."}} を 1 個だけ含めます。',
     "予約候補カードを出す直前には、これまでの文脈を短く踏まえて、ほかに確認したいこと、伝えておきたいこと、不安な点がないかを1回だけ確認します。その最終確認ターンでは show_booking_card を同時に出さず、1ターン1問いかけにします。",
     "ユーザーが最終確認に「なし」「大丈夫」「ありません」などと答えた次のターンで、必要情報が揃っていれば show_booking_card に進めます。追加情報や質問が来た場合は補足として取り込み、必要な確認をしてから進めます。",
@@ -1575,6 +1588,7 @@ function getCustomerFacingNoteKnowledge(snapshot: ChatbotKnowledgeSnapshot) {
 }
 
 function buildAssistantDisplayContent(input: {
+  requestId?: string
   rawText: string
   routingDecision: RoutingDecision | undefined
   fallbackRoutingDecision: RoutingDecision
@@ -1587,10 +1601,12 @@ function buildAssistantDisplayContent(input: {
 } {
   const text = input.rawText.trim()
   const toolFreeText = stripStructuredToolCalls(text).trim()
-  const sanitize = (content: string) => {
+  const explicitDisplayText = extractExplicitCustomerReplyText(text)
+  const sanitize = (content: string, trustedDisplayText = false) => {
     const result = sanitizeChatbotLlmTextWithReport(content, {
       routingDecision: input.routingDecision,
       jobContext: input.jobContext,
+      trustedDisplayText,
     })
     return { content: result.text, sanitizationReport: result.report }
   }
@@ -1604,7 +1620,7 @@ function buildAssistantDisplayContent(input: {
   ) => ({ ...result, singleUserPromptGuard: report })
 
   if (guardedContent) {
-    return withGuardReport(sanitize(guardedContent.content), {
+    return withGuardReport(sanitize(guardedContent.content, true), {
       applied: true,
       reason: guardedContent.reason,
       uiKind: input.uiKind,
@@ -1613,10 +1629,10 @@ function buildAssistantDisplayContent(input: {
   }
 
   if (input.routingDecision?.kind === "to-booking-inline" && toolFreeText.length === 0) {
-    return withGuardReport(sanitize("候補日を確認しました。"))
+    return withGuardReport(sanitize("候補日を確認しました。", true))
   }
   if (input.routingDecision?.kind === "continue" && toolFreeText.length === 0) {
-    return withGuardReport(sanitize(input.routingDecision.nextQuestion))
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
   if (
     input.routingDecision?.kind === "continue" &&
@@ -1624,23 +1640,28 @@ function buildAssistantDisplayContent(input: {
     input.jobContext.jobKind &&
     hasProjectTypeTextMismatch(text, input.jobContext.jobKind)
   ) {
-    return withGuardReport(sanitize(input.routingDecision.nextQuestion))
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
   if (
     input.routingDecision?.kind === "continue" &&
     !input.routingDecision.presentChoices &&
     isFinalMediumRejudgmentQuestion(input.routingDecision.nextQuestion)
   ) {
-    return withGuardReport(sanitize(input.routingDecision.nextQuestion))
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
   if (toolFreeText !== text) return withGuardReport(sanitize(toolFreeText))
-  if (!isBackendIdentityOnlyResponse(text)) return withGuardReport(sanitize(text))
+  if (!isBackendIdentityOnlyResponse(explicitDisplayText ?? text)) return withGuardReport(sanitize(text))
 
   const routingDecision =
     input.routingDecision?.kind === "continue" ? input.routingDecision : input.fallbackRoutingDecision
-  if (routingDecision.kind === "continue") return withGuardReport(sanitize(routingDecision.nextQuestion))
+  if (routingDecision.kind === "continue") return withGuardReport(sanitize(routingDecision.nextQuestion, true))
 
   return withGuardReport(sanitize(text))
+}
+
+function extractExplicitCustomerReplyText(rawText: string): string | undefined {
+  const match = /<customer_reply>\s*([\s\S]*?)\s*<\/customer_reply>/iu.exec(rawText)
+  return match ? (match[1] ?? "").trim() : undefined
 }
 
 type SingleUserPromptGuardReport =
@@ -1786,6 +1807,36 @@ function logSingleUserPromptGuard(input: {
       uiKind: input.uiKind,
       reason: input.report.reason,
       choiceSetId: "choiceSetId" in input.report ? input.report.choiceSetId : undefined,
+      rawTextPreview: redactForChatbotLog(input.rawText),
+      finalTextPreview: redactForChatbotLog(input.finalText),
+      normalized: input.rawText !== input.finalText,
+    }),
+  )
+}
+
+function logChatbotDisplayBoundary(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmResponse["tier"]
+  routingDecision: RoutingDecision | undefined
+  uiKind: ChatbotMessageUi["kind"]
+  rawText: string
+  finalText: string
+  report: ChatbotLlmSanitizationReport
+}): void {
+  if (process.env.NODE_ENV === "test") return
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_display_boundary",
+      requestId: input.requestId,
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      routingDecisionKind: input.routingDecision?.kind ?? null,
+      uiKind: input.uiKind,
+      boundary: input.report.displayBoundary,
+      unsafeArtifacts: input.report.unsafeArtifacts,
       rawTextPreview: redactForChatbotLog(input.rawText),
       finalTextPreview: redactForChatbotLog(input.finalText),
       normalized: input.rawText !== input.finalText,
@@ -2060,8 +2111,9 @@ async function resolveRoutingDecision(input: {
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
 }): Promise<RoutingDecision | undefined> {
   if (input.llmResponse.tier === "tier-4-form-fallback") return input.fallbackRoutingDecision
-  const toolCall = parseShowBookingCardToolCall(input.llmResponse.rawText)
-  const choicePanelToolCall = parseShowChoicePanelToolCall(input.llmResponse.rawText)
+  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
+  const toolCall = parseShowBookingCardToolCall(rawDisplayText)
+  const choicePanelToolCall = parseShowChoicePanelToolCall(rawDisplayText)
   const submittedBooking = getSubmittedBooking(input.conversationState)
   if (submittedBooking && (toolCall || input.fallbackRoutingDecision.kind !== "continue")) {
     return {
@@ -2120,7 +2172,7 @@ async function resolveRoutingDecision(input: {
     })
   }
   const textChoicePanelToolCall = parseTextChoicePanelToolCall(
-    input.llmResponse.rawText,
+    rawDisplayText,
     input.fallbackRoutingDecision,
   )
   if (textChoicePanelToolCall) {
@@ -2182,10 +2234,11 @@ function shouldRecoverBookingCardFromAcceptanceText(input: {
   if (input.fallbackRoutingDecision.kind === "to-direct-contact") return false
   if (input.conversationState.bookingFinalConfirmation?.status === "supplemental-received") return false
 
-  const normalized = input.llmResponse.rawText.normalize("NFKC").toLowerCase()
+  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
+  const normalized = rawDisplayText.normalize("NFKC").toLowerCase()
   return (
     /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized) &&
-    !parseShowBookingCardToolCall(input.llmResponse.rawText)
+    !parseShowBookingCardToolCall(rawDisplayText)
   )
 }
 

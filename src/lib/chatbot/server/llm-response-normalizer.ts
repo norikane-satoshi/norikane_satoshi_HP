@@ -13,6 +13,23 @@ export type NormalizedChatbotLlmResponse = {
 }
 
 export type ChatbotLlmSanitizationReport = ChatbotDurationSafetyReport & {
+  displayBoundary: {
+    outcome: "adopted" | "fallback"
+    source:
+      | "customer-reply-tag"
+      | "json-customer-reply"
+      | "trusted-server-display"
+      | "fallback-routing-question"
+      | "fallback-safe-clarification"
+    defaultDenied: boolean
+    fallbackApplied: boolean
+    reasons: Array<
+      | "missing-explicit-display-boundary"
+      | "empty-display-text"
+      | "unsafe-display-candidate"
+      | "trusted-server-display"
+    >
+  }
   unsafeArtifacts?: {
     detected: true
     fallbackApplied: boolean
@@ -28,7 +45,7 @@ export type ChatbotLlmSanitizationReport = ChatbotDurationSafetyReport & {
 
 export function normalizeChatbotLlmResponse(
   response: ChatbotLlmResponse,
-  options: { routingDecision?: RoutingDecision; jobContext?: JobContext } = {},
+  options: { routingDecision?: RoutingDecision; jobContext?: JobContext; trustedDisplayText?: boolean } = {},
 ): NormalizedChatbotLlmResponse {
   return {
     content: sanitizeChatbotLlmText(response.rawText, options),
@@ -40,36 +57,59 @@ export function normalizeChatbotLlmResponse(
 
 export function sanitizeChatbotLlmText(
   rawText: string,
-  options: { routingDecision?: RoutingDecision; jobContext?: JobContext } = {},
+  options: { routingDecision?: RoutingDecision; jobContext?: JobContext; trustedDisplayText?: boolean } = {},
 ): string {
   return sanitizeChatbotLlmTextWithReport(rawText, options).text
 }
 
 export function sanitizeChatbotLlmTextWithReport(
   rawText: string,
-  options: { routingDecision?: RoutingDecision; jobContext?: JobContext } = {},
+  options: { routingDecision?: RoutingDecision; jobContext?: JobContext; trustedDisplayText?: boolean } = {},
 ): { text: string; report: ChatbotLlmSanitizationReport } {
-  const unsafe = stripUnsafeCustomerFacingArtifacts(rawText)
   const fallbackText =
-    unsafe.text ||
-    (options.routingDecision?.kind === "continue"
+    options.routingDecision?.kind === "continue"
       ? options.routingDecision.nextQuestion
-      : "内容を確認しました。次に必要な情報を1つずつ確認します。")
-  const durationResult = evaluateWorkflowDurationSafety(fallbackText, options)
-
-  if (!unsafe.detected) return durationResult
-
-  return {
-    text: durationResult.text,
-    report: {
-      ...durationResult.report,
-      unsafeArtifacts: {
-        detected: true,
-        fallbackApplied: unsafe.text.length === 0,
-        reasons: unsafe.reasons,
-      },
+      : "内容を確認しました。次に必要な情報を1つずつ確認します。"
+  const extraction = options.trustedDisplayText
+    ? ({
+        text: rawText.trim(),
+        source: "trusted-server-display",
+        defaultDenied: false,
+        fallbackApplied: false,
+        reasons: ["trusted-server-display"],
+      } satisfies DisplayBoundaryExtraction)
+    : extractExplicitCustomerDisplayText(rawText)
+  const unsafe = extraction.text ? detectUnsafeCustomerFacingArtifacts(extraction.text) : noUnsafeArtifacts()
+  const useFallback = !extraction.text || unsafe.detected
+  const displayText = useFallback ? fallbackText : extraction.text
+  const durationResult = evaluateWorkflowDurationSafety(displayText, options)
+  const report: ChatbotLlmSanitizationReport = {
+    ...durationResult.report,
+    displayBoundary: {
+      outcome: useFallback ? "fallback" : "adopted",
+      source: useFallback
+        ? options.routingDecision?.kind === "continue"
+          ? "fallback-routing-question"
+          : "fallback-safe-clarification"
+        : extraction.source,
+      defaultDenied: extraction.defaultDenied || useFallback,
+      fallbackApplied: useFallback,
+      reasons: [
+        ...extraction.reasons,
+        ...(unsafe.detected ? (["unsafe-display-candidate"] as const) : []),
+      ],
     },
   }
+
+  if (unsafe.detected) {
+    report.unsafeArtifacts = {
+        detected: true,
+        fallbackApplied: useFallback,
+        reasons: unsafe.reasons,
+    }
+  }
+
+  return { text: durationResult.text, report }
 }
 
 const opaqueTokenPattern = /(?:[A-Za-z0-9+/=_-]{80,})/gu
@@ -78,15 +118,12 @@ const thinkingSignatureMarkerPattern =
 const internalModelCodenamePattern =
   /\b[a-z][a-z0-9]*-[a-z][a-z0-9]*-(?:low|medium|high|fast|thinking|reasoning)\b/giu
 const langPrimaryWrapperPattern = /<lang\s+primary=["']?/iu
+const languagePrefixMarkerPattern = /^\s*(?:ja|jp|japanese|日本語)\s*[-_:：]/iu
 const xmlLikeTagPattern = /<\/?[a-z][a-z0-9_-]*(?:\s+[^<>]*)?>/giu
 
-// The customer-facing reply is always Japanese, addressed to the user in polite
-// register. Any segment that (a) narrates the user/conversation, (b) plans the
-// assistant's own next action in first person or plain-form volitional, (c) names
-// internal tools/fields/state, or (d) is English reasoning prose is internal
-// monologue that must never reach the customer. These detectors classify segments
-// structurally rather than matching one known leaked string, so novel monologue
-// phrasings are caught by the same boundary.
+// These detectors are an auxiliary validation net for the explicit display
+// candidate. They never rewrite text in place; a candidate that trips them is
+// rejected as a whole and the caller falls back to a server-authored safe reply.
 const internalReasoningEnglishPattern =
   /\b(?:i|we)\s+(?:need|should|will|would|have|must|think|can|am|could|'ll|'m|'ve)\b|\blet(?:'|’)?s\b|\blet\s+(?:me|us)\b|\bi'?ll\b|\b(?:the\s+)?(?:user|customer)\s+(?:said|says|selected|asked|answered|chose|wants?|mentioned|indicated|responded|is|has|gave|provided|replied)\b|\blooking at the (?:conversation|context)\b|\bconfirmed facts?\b|\bwhat'?s\s+(?:still\s+)?missing\b|\bstill\s+missing\b|\bno particular preferences?\b|\bnow i\b/iu
 const internalMachineIdentifierPattern =
@@ -140,27 +177,6 @@ function isInternalReasoningSegment(segment: string): boolean {
   )
 }
 
-// Drop internal-reasoning sentences while keeping any customer-facing sentence that
-// shares the same line, so a leading monologue does not take the real reply with it.
-function stripInternalReasoningSentences(line: string, reasons: Set<StripReason>): string {
-  // Split on Japanese terminators and on an ASCII period that ends a sentence
-  // (followed by whitespace or a Japanese character), so English monologue glued in
-  // front of a Japanese reply separates. URLs and decimals have no space/CJK after
-  // the dot, so they stay intact.
-  const sentences = line.split(/(?<=[。！？!?])|(?<=\.)(?=\s|[぀-ヿ㐀-鿹])/u)
-  let removed = false
-  const kept = sentences.filter((sentence) => {
-    if (sentence.trim().length === 0) return false
-    if (isInternalReasoningSegment(sentence)) {
-      removed = true
-      return false
-    }
-    return true
-  })
-  if (removed) reasons.add("internal-reasoning-line")
-  return kept.join("")
-}
-
 type StripReason =
   | "opaque-token"
   | "thinking-signature-marker"
@@ -168,22 +184,101 @@ type StripReason =
   | "internal-model-codename"
   | "internal-markup"
 
-function stripUnsafeCustomerFacingArtifacts(rawText: string): {
+type DisplayBoundaryExtraction = {
   text: string
+  source: "customer-reply-tag" | "json-customer-reply" | "trusted-server-display"
+  defaultDenied: boolean
+  fallbackApplied: boolean
+  reasons: ChatbotLlmSanitizationReport["displayBoundary"]["reasons"]
+}
+
+function extractExplicitCustomerDisplayText(rawText: string): DisplayBoundaryExtraction {
+  const tagged = extractCustomerReplyTag(rawText)
+  if (tagged !== undefined) {
+    return {
+      text: tagged,
+      source: "customer-reply-tag",
+      defaultDenied: false,
+      fallbackApplied: false,
+      reasons: tagged ? [] : ["empty-display-text"],
+    }
+  }
+
+  const jsonField = extractCustomerReplyJsonField(rawText)
+  if (jsonField !== undefined) {
+    return {
+      text: jsonField,
+      source: "json-customer-reply",
+      defaultDenied: false,
+      fallbackApplied: false,
+      reasons: jsonField ? [] : ["empty-display-text"],
+    }
+  }
+
+  return {
+    text: "",
+    source: "customer-reply-tag",
+    defaultDenied: true,
+    fallbackApplied: true,
+    reasons: ["missing-explicit-display-boundary"],
+  }
+}
+
+function extractCustomerReplyTag(rawText: string): string | undefined {
+  const match = /<customer_reply>\s*([\s\S]*?)\s*<\/customer_reply>/iu.exec(rawText)
+  return match ? normalizeDisplayText(match[1] ?? "") : undefined
+}
+
+function extractCustomerReplyJsonField(rawText: string): string | undefined {
+  for (const candidate of extractJsonObjectCandidates(rawText)) {
+    const parsed = parseJson(candidate)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue
+    const record = parsed as Record<string, unknown>
+    const value = record.customer_reply ?? record.customerReply ?? record.display_text ?? record.displayText
+    if (typeof value === "string") return normalizeDisplayText(value)
+  }
+  return undefined
+}
+
+function extractJsonObjectCandidates(text: string): string[] {
+  const candidates: string[] = []
+  const fencedPattern = /```(?:json)?\s*([\s\S]*?)```/gi
+  let match: RegExpExecArray | null
+  while ((match = fencedPattern.exec(text))) {
+    const body = match[1]?.trim()
+    if (body?.startsWith("{") && body.endsWith("}")) candidates.push(body)
+  }
+
+  const trimmed = text.trim()
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) candidates.push(trimmed)
+
+  const firstBrace = text.indexOf("{")
+  const lastBrace = text.lastIndexOf("}")
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(text.slice(firstBrace, lastBrace + 1))
+  }
+  return [...new Set(candidates)]
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return undefined
+  }
+}
+
+function noUnsafeArtifacts(): { detected: false; reasons: [] } {
+  return { detected: false, reasons: [] }
+}
+
+function detectUnsafeCustomerFacingArtifacts(rawText: string): {
   detected: boolean
   reasons: Array<StripReason>
 } {
   const reasons = new Set<StripReason>()
-  let text = rawText
-  const langPrimaryMatch = text.match(langPrimaryWrapperPattern)
-  if (langPrimaryMatch?.index !== undefined) {
-    reasons.add("internal-markup")
-    text = text.slice(langPrimaryMatch.index + langPrimaryMatch[0].length)
-  }
-
-  text = text
-    .split(/\r?\n/u)
-    .map((line) => {
+  const textForAudit = removeAllowedUiToolPayloads(rawText)
+  for (const line of textForAudit.split(/\r?\n/u)) {
       const opaqueMatches = [...line.matchAll(opaqueTokenPattern)]
       opaqueTokenPattern.lastIndex = 0
       const hasMarker = thinkingSignatureMarkerPattern.test(line)
@@ -191,44 +286,38 @@ function stripUnsafeCustomerFacingArtifacts(rawText: string): {
 
       if (opaqueMatches.length > 0) reasons.add("opaque-token")
       if (hasMarker) reasons.add("thinking-signature-marker")
-
-      // When an opaque thinking blob sits between leading reasoning and a trailing
-      // reply, keep only the text after the last blob (the blob carried the marker,
-      // so what remains is stripped sentence-by-sentence below).
-      if (opaqueMatches.length > 0 && (hasMarker || looksInternal)) {
-        const lastMatch = opaqueMatches.at(-1)
-        const tailStart = (lastMatch?.index ?? 0) + (lastMatch?.[0].length ?? 0)
-        line = line.slice(tailStart)
-      }
-      return stripInternalReasoningSentences(line, reasons)
-    })
-    .filter((line) => line.trim().length > 0)
-    .join("\n")
-
-  text = text.replace(opaqueTokenPattern, () => {
-    reasons.add("opaque-token")
-    return ""
-  })
-  text = text.replace(internalModelCodenamePattern, () => {
-    reasons.add("internal-model-codename")
-    return ""
-  })
-  text = text.replace(xmlLikeTagPattern, () => {
-    reasons.add("internal-markup")
-    return ""
-  })
-
-  if (thinkingSignatureMarkerPattern.test(text)) {
-    reasons.add("thinking-signature-marker")
-    text = text
-      .split(/(?<=[。！？.!?])\s*/u)
-      .filter((sentence) => !thinkingSignatureMarkerPattern.test(sentence))
-      .join("")
+      if (looksInternal) reasons.add("internal-reasoning-line")
   }
+  if (internalModelCodenamePattern.test(textForAudit)) reasons.add("internal-model-codename")
+  internalModelCodenamePattern.lastIndex = 0
+  if (
+    langPrimaryWrapperPattern.test(textForAudit) ||
+    languagePrefixMarkerPattern.test(textForAudit) ||
+    xmlLikeTagPattern.test(textForAudit)
+  ) {
+    reasons.add("internal-markup")
+  }
+  xmlLikeTagPattern.lastIndex = 0
 
   return {
-    text: text.replace(/\s{2,}/gu, " ").trim(),
     detected: reasons.size > 0,
     reasons: [...reasons],
   }
+}
+
+function removeAllowedUiToolPayloads(text: string): string {
+  let next = text
+  for (const candidate of extractJsonObjectCandidates(text)) {
+    const parsed = parseJson(candidate)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue
+    const tool = (parsed as Record<string, unknown>).tool
+    if (tool === "show_choice_panel" || tool === "show_booking_card") {
+      next = next.replace(candidate, "")
+    }
+  }
+  return next
+}
+
+function normalizeDisplayText(text: string): string {
+  return text.replace(/\s{2,}/gu, " ").trim()
 }

@@ -6,7 +6,7 @@ type Tier4FormFallbackClientOptions = {
 
 export const tier4FormFallbackDefaults = {
   responseText:
-    "確認項目をフォームに切り替えます。案件内容とご連絡先を整理して送信してください。",
+    "<customer_reply>確認項目をフォームに切り替えます。案件内容とご連絡先を整理して送信してください。</customer_reply>",
 } as const
 
 const tier = "tier-4-form-fallback" as const

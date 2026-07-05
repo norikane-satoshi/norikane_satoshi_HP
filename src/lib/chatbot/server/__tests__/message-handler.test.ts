@@ -71,6 +71,10 @@ function userContext(overrides: Partial<UserChatbotContext> = {}): UserChatbotCo
   }
 }
 
+function customerReply(text: string): string {
+  return `<customer_reply>${text}</customer_reply>`
+}
+
 function baseProductionConversationState(overrides: Partial<ConversationState> = {}): ConversationState {
   return {
     hasFinalMedium: true,
@@ -130,7 +134,7 @@ function setup(overrides: {
     linkConversationToUser: vi.fn(),
   }
   const generate = vi.fn().mockResolvedValue({
-    rawText: "返信です",
+    rawText: customerReply("返信です"),
     tier: "tier-3-ollama-deepseek",
   })
   const slackNotifier = vi.fn().mockResolvedValue({ status: "skipped", reason: "disabled" })
@@ -219,7 +223,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ご相談ありがとうございます。まず案件の種別を教えてください。下の選択肢から選んでください。- ライブ - CM - MV - その他",
+        customerReply("ご相談ありがとうございます。まず案件の種別を教えてください。下の選択肢から選んでください。- ライブ - CM - MV - その他"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -260,7 +264,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "ライブ配信の尺を選んでください。",
+      rawText: customerReply("ライブ配信の尺を選んでください。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -404,7 +408,7 @@ describe("handleChatbotMessage user context", () => {
   ] as const)("respects LLM-authored drama project-length panel: %s", async (jobKind, question, labels) => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: JSON.stringify({
+      rawText: customerReply(JSON.stringify({
         tool: "show_choice_panel",
         args: {
           id: "project-length",
@@ -413,7 +417,7 @@ describe("handleChatbotMessage user context", () => {
           allowFreeText: true,
           choices: labels.map((label, index) => ({ id: `drama-natural-${index + 1}`, label })),
         },
-      }),
+      })),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -466,14 +470,14 @@ describe("handleChatbotMessage user context", () => {
   ] as const)("respects LLM-authored project-length granularity for %s", async (jobKind, question, labels) => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: JSON.stringify({
+      rawText: customerReply(JSON.stringify({
         tool: "show_choice_panel",
         args: {
           id: "project-length",
           question,
           choices: labels.map((label, index) => ({ id: `${jobKind.replace(/[^a-z0-9]/g, "-")}-${index + 1}`, label })),
         },
-      }),
+      })),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -505,7 +509,7 @@ describe("handleChatbotMessage user context", () => {
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: JSON.stringify({
+      rawText: customerReply(JSON.stringify({
         tool: "show_choice_panel",
         args: {
           id: "project-length",
@@ -516,7 +520,7 @@ describe("handleChatbotMessage user context", () => {
             { id: "live-length-over-120m", label: "2時間以上" },
           ],
         },
-      }),
+      })),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -601,7 +605,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: `ドラマ初回・1話45〜60分で確認しました。続けて、最終的な放映先・媒体を教えてください。 ${JSON.stringify({
+      rawText: customerReply(`ドラマ初回・1話45〜60分で確認しました。続けて、最終的な放映先・媒体を教えてください。 ${JSON.stringify({
         tool: "show_choice_panel",
         args: {
           id: "final-medium",
@@ -610,7 +614,7 @@ describe("handleChatbotMessage user context", () => {
           allowFreeText: true,
           choices,
         },
-      })}`,
+      })}`),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -689,7 +693,7 @@ describe("handleChatbotMessage user context", () => {
     })
     const question = "ドラマ / シリーズとして整理しています。想定している公開先・納品先を1つ教えてください"
     harness.generate.mockResolvedValueOnce({
-      rawText: [
+      rawText: customerReply([
         `${question}。`,
         "候補は以下です。",
         "- 地上波・BS／CS放送",
@@ -697,7 +701,7 @@ describe("handleChatbotMessage user context", () => {
         "- Web公開",
         "- 劇場・イベント上映",
         "- 未定・相談したい",
-      ].join("\n"),
+      ].join("\n")),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -763,7 +767,7 @@ describe("handleChatbotMessage user context", () => {
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "最終媒体を教えてください。",
+      rawText: customerReply("最終媒体を教えてください。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -824,7 +828,7 @@ describe("handleChatbotMessage user context", () => {
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: JSON.stringify({
+      rawText: customerReply(JSON.stringify({
         tool: "show_choice_panel",
         args: {
           id: "final-medium",
@@ -835,7 +839,7 @@ describe("handleChatbotMessage user context", () => {
             { id: "web", label: "Web" },
           ],
         },
-      }),
+      })),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -946,7 +950,7 @@ describe("handleChatbotMessage user context", () => {
   ] as const)("respects LLM-authored final-medium panel for %s", async (jobKind, question, labels) => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: JSON.stringify({
+      rawText: customerReply(JSON.stringify({
         tool: "show_choice_panel",
         args: {
           id: "final-medium",
@@ -954,7 +958,7 @@ describe("handleChatbotMessage user context", () => {
           allowFreeText: true,
           choices: labels.map((label, index) => ({ id: `${jobKind.replace(/[^a-z0-9]/g, "-")}-medium-${index + 1}`, label })),
         },
-      }),
+      })),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -989,7 +993,7 @@ describe("handleChatbotMessage user context", () => {
   ] as const)("converts plain text final-medium choices into a panel for %s", async (jobKind, question, labels) => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: [`${question}。`, "選択肢:", ...labels.map((label) => `- ${label}`)].join("\n"),
+      rawText: customerReply([`${question}。`, "選択肢:", ...labels.map((label) => `- ${label}`)].join("\n")),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1020,11 +1024,11 @@ describe("handleChatbotMessage user context", () => {
   it("does not turn explanatory bullet text into a choice panel when no choice slot is pending", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: [
+      rawText: customerReply([
         "ライブ60分の進め方は以下です。",
         "- 素材量を確認します。",
         "- 追加作業の有無で日数が変わります。",
-      ].join("\n"),
+      ].join("\n")),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1055,7 +1059,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '公開先の相談ですね。{"tool":"show_choice_panel","args":{"id":"final-medium","question":"想定している公開先を教えてください","selectionMode":"single","allowFreeText":true,"choices":[{"id":"tv-broadcast","label":"地上波・BS／CS放送"},{"id":"streaming-drama","label":"配信プラットフォーム"},{"id":"web-public","label":"Web公開"},{"id":"theater-event","label":"劇場・イベント上映"}',
+        customerReply('公開先の相談ですね。{"tool":"show_choice_panel","args":{"id":"final-medium","question":"想定している公開先を教えてください","selectionMode":"single","allowFreeText":true,"choices":[{"id":"tv-broadcast","label":"地上波・BS／CS放送"},{"id":"streaming-drama","label":"配信プラットフォーム"},{"id":"web-public","label":"Web公開"},{"id":"theater-event","label":"劇場・イベント上映"}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1266,7 +1270,7 @@ describe("handleChatbotMessage user context", () => {
         ],
       }),
     })
-    harness.generate.mockResolvedValue({ rawText: "再生成後の返信です", tier: "tier-2-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("再生成後の返信です"), tier: "tier-2-hosted-chrome-notion-ai" })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
 
     await handleChatbotMessage(
@@ -1316,7 +1320,7 @@ describe("handleChatbotMessage user context", () => {
         ],
       }),
     })
-    harness.generate.mockResolvedValue({ rawText: "復元後の返信です", tier: "tier-2-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("復元後の返信です"), tier: "tier-2-hosted-chrome-notion-ai" })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
 
     await handleChatbotMessage(
@@ -1359,7 +1363,7 @@ describe("handleChatbotMessage user context", () => {
         ],
       }),
     })
-    harness.generate.mockResolvedValue({ rawText: "再生成後の返信です", tier: "tier-2-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("再生成後の返信です"), tier: "tier-2-hosted-chrome-notion-ai" })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000100" })
 
     await handleChatbotMessage(
@@ -1650,7 +1654,7 @@ describe("handleChatbotMessage user context", () => {
   it("does not show a booking card for incomplete email text unless the LLM calls the tool", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "メールアドレスの末尾が途中で切れているようです。正しいメールアドレスを教えてください。",
+      rawText: customerReply("メールアドレスの末尾が途中で切れているようです。正しいメールアドレスを教えてください。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -1675,7 +1679,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"ライブ2.5h 消し物・肌修正・観客の顔ぼかし30カット以上、リモートでも立ち会いでも相談","contactName":"テスト太郎","contactEmail":"client@example.jp","companyName":"テスト株式会社","dueDate":"2026-07-31"}}',
+        customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"ライブ2.5h 消し物・肌修正・観客の顔ぼかし30カット以上、リモートでも立ち会いでも相談","contactName":"テスト太郎","contactEmail":"client@example.jp","companyName":"テスト株式会社","dueDate":"2026-07-31"}}'),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -1715,7 +1719,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+        customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1809,7 +1813,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1874,7 +1878,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"ライブ案件","contactName":"山田太郎","contactEmail":"client@example.com"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"ライブ案件","contactName":"山田太郎","contactEmail":"client@example.com"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -1934,7 +1938,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "ご連絡ありがとうございます。則兼からメールでご連絡します。",
+      rawText: customerReply("ご連絡ありがとうございます。則兼からメールでご連絡します。"),
       tier: "tier-3-gemini-flash",
     })
 
@@ -1979,7 +1983,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ありがとうございます。それでは、このまま受付完了として進めます。則兼からご登録のメールアドレス宛にご連絡いたしますので、今しばらくお待ちください。",
+        customerReply("ありがとうございます。それでは、このまま受付完了として進めます。則兼からご登録のメールアドレス宛にご連絡いたしますので、今しばらくお待ちください。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2035,7 +2039,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "承知いたしました。これまでのご相談内容をもとに、則兼との相談・確認に進むための予約候補カードを作成します。",
+        customerReply("承知いたしました。これまでのご相談内容をもとに、則兼との相談・確認に進むための予約候補カードを作成します。"),
       tier: "tier-3-gemini-flash",
     })
 
@@ -2107,7 +2111,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "候補を確認します。",
+      rawText: customerReply("候補を確認します。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2170,7 +2174,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"Old User","contactEmail":"old@example.com","memo":"案件種別: ライブ / 最終媒体: ライブ"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"Old User","contactEmail":"old@example.com","memo":"案件種別: ライブ / 最終媒体: ライブ"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2223,7 +2227,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "承知いたしました。これまでのご相談内容をもとに、予約候補カードを作成します。",
+        customerReply("承知いたしました。これまでのご相談内容をもとに、予約候補カードを作成します。"),
       tier: "tier-3-gemini-flash",
     })
 
@@ -2276,7 +2280,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"山田太郎","contactEmail":"client@example.com"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"山田太郎","contactEmail":"client@example.com"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2333,7 +2337,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "予約候補カードは作成済みです。則兼からご登録のメールアドレス宛にご連絡いたします。",
+      rawText: customerReply("予約候補カードは作成済みです。則兼からご登録のメールアドレス宛にご連絡いたします。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2404,7 +2408,7 @@ describe("handleChatbotMessage user context", () => {
     harness.candidateWindowFinder.mockResolvedValueOnce([])
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2423,7 +2427,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "予約候補カードに進める前に、最後に一点だけ確認させてください。ほかに伝えておきたいことや不安な点はありますか。なければ「なし」とお返事ください。",
+        customerReply("予約候補カードに進める前に、最後に一点だけ確認させてください。ほかに伝えておきたいことや不安な点はありますか。なければ「なし」とお返事ください。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2497,7 +2501,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","dueDate":"2026-07-10"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2546,7 +2550,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '納品形式も補足に入れます。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactEmail":"client@example.com","dueDate":"2026-07-10"}}',
+        customerReply('納品形式も補足に入れます。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2574,7 +2578,7 @@ describe("handleChatbotMessage user context", () => {
   it("replaces backend identity-only assistant text with the routing question", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "のりかね映像設計室の相談窓口として動いています",
+      rawText: customerReply("のりかね映像設計室の相談窓口として動いています"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2704,7 +2708,7 @@ describe("handleChatbotMessage user context", () => {
       const harness = setup()
       harness.generate.mockResolvedValueOnce({
         rawText:
-          "受付内容の整理：ライブ案件です。納品形式も教えてください。追加で確認したいことがあります。",
+          customerReply("受付内容の整理：ライブ案件です。納品形式も教えてください。追加で確認したいことがあります。"),
         tier: "tier-3-ollama-deepseek",
       })
 
@@ -2741,7 +2745,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "受付内容の整理：MV案件です。納品形式も教えてください。追加で確認したいことがあります。",
+        customerReply("受付内容の整理：MV案件です。納品形式も教えてください。追加で確認したいことがあります。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2782,7 +2786,7 @@ describe("handleChatbotMessage user context", () => {
   it("forces contextual project length choices when Tier2 asks the duration as free text", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "まず、1話あたりの尺はどのくらいを想定されていますか？",
+      rawText: customerReply("まず、1話あたりの尺はどのくらいを想定されていますか？"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2831,7 +2835,7 @@ describe("handleChatbotMessage user context", () => {
     try {
       const harness = setup()
       harness.generate.mockResolvedValueOnce({
-        rawText: "スタジオ利用も含めて整理できます。",
+        rawText: customerReply("スタジオ利用も含めて整理できます。"),
         tier: "tier-3-ollama-deepseek",
       })
 
@@ -2873,7 +2877,7 @@ describe("handleChatbotMessage user context", () => {
   it("ignores non-tier4 proposed routing decisions and keeps talking when there is no tool call", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "メールアドレスをもう一度教えてください。",
+      rawText: customerReply("メールアドレスをもう一度教えてください。"),
       tier: "tier-3-ollama-deepseek",
       proposedRoutingDecision: {
         kind: "to-booking-inline",
@@ -2911,7 +2915,7 @@ describe("handleChatbotMessage user context", () => {
   it("keeps direct-contact safety routing outside the tool-call dispatcher path", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "詳細は担当者が確認します。",
+      rawText: customerReply("詳細は担当者が確認します。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -2940,7 +2944,7 @@ describe("handleChatbotMessage user context", () => {
   it("routes protected pricing questions to direct contact", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "料金は本人が確認します。",
+      rawText: customerReply("料金は本人が確認します。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3117,7 +3121,7 @@ describe("handleChatbotMessage user context", () => {
   it("passes planned-only note questions to the LLM as customer-facing planned context", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "カラーグレーディングの因数分解は公開予定のノートです。作品意図を観客の印象へ翻訳する考え方を扱う予定です。",
+      rawText: customerReply("カラーグレーディングの因数分解は公開予定のノートです。作品意図を観客の印象へ翻訳する考え方を扱う予定です。"),
       tier: "tier-3-ollama-deepseek",
     })
     const snapshot = createStaticChatbotKnowledgeSnapshot("2026-06-22T01:10:34.550Z")
@@ -3183,7 +3187,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ライブ2時間半なら通常7〜8日が目安です。3日以内も内容と素材状況を整理して相談できますが、この場では確約しません。",
+        customerReply("ライブ2時間半なら通常7〜8日が目安です。3日以内も内容と素材状況を整理して相談できますが、この場では確約しません。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3252,7 +3256,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "ライブ2時間半規模の工程目安は17〜20日です。素材の受け渡し方法を教えてください。",
+      rawText: customerReply("ライブ2時間半規模の工程目安は17〜20日です。素材の受け渡し方法を教えてください。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3284,7 +3288,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ライブ2時間半なら通常7〜9日が目安です。素材状況や追加作業が重い場合は前後するので、受け渡し状況も確認させてください。",
+        customerReply("ライブ2時間半なら通常7〜9日が目安です。素材状況や追加作業が重い場合は前後するので、受け渡し状況も確認させてください。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3324,7 +3328,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ありがとうございます。内容を整理しました。案件種類・尺: ライブ 2時間半。所要日数の目安は17〜20日です。",
+        customerReply("ありがとうございます。内容を整理しました。案件種類・尺: ライブ 2時間半。所要日数の目安は17〜20日です。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3426,7 +3430,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText,
+      rawText: customerReply(rawText),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3493,7 +3497,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "ライブ60分・追加作業なしのカラーグレーディングでしたら、4日程度が目安です。",
+      rawText: customerReply("ライブ60分・追加作業なしのカラーグレーディングでしたら、4日程度が目安です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -3540,7 +3544,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "希望開始日 2026-07-01、希望納期 2026-07-10で承知しました。基本工程ラインは0.5〜1日が目安です。",
+      rawText: customerReply("希望開始日 2026-07-01、希望納期 2026-07-10で承知しました。基本工程ラインは0.5〜1日が目安です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -3597,7 +3601,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText:
-        "ライブ2時間半の基本工程に加え、観客ぼかしの作業量によって変動します。基本工程（17〜20日）に対し、ぼかし作業の規模次第で延びる可能性があります。",
+        customerReply("ライブ2時間半の基本工程に加え、観客ぼかしの作業量によって変動します。基本工程（17〜20日）に対し、ぼかし作業の規模次第で延びる可能性があります。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3669,7 +3673,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "素材状況を踏まえると、基本工程は17〜20日を見ておくとよさそうです。",
+      rawText: customerReply("素材状況を踏まえると、基本工程は17〜20日を見ておくとよさそうです。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3784,7 +3788,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText,
+      rawText: customerReply(rawText),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3860,7 +3864,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "素材状況を踏まえると、工程目安は17〜20日です。",
+      rawText: customerReply("素材状況を踏まえると、工程目安は17〜20日です。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3915,7 +3919,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "MV 5分なら通常2〜2.5日を基準に、素材状況で前後します。",
+      rawText: customerReply("MV 5分なら通常2〜2.5日を基準に、素材状況で前後します。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -3958,7 +3962,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "相談内容を整理して送信できます。",
+      rawText: customerReply("相談内容を整理して送信できます。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -4411,7 +4415,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -4469,7 +4473,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-31"}}',
+        customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-31"}}'),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -4514,7 +4518,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
-        '候補を確認します。 {"tool":"show_booking_card","args":{"projectTitle":"DaVinci Resolve 講習","contactEmail":"client@example.com","dueDate":"2026-07-10"}}',
+        customerReply('候補を確認します。 {"tool":"show_booking_card","args":{"projectTitle":"DaVinci Resolve 講習","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -4549,7 +4553,7 @@ describe("handleChatbotMessage user context", () => {
   it("uses lecture and training fallback routing even when the LLM only returns text", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: "講習内容を整理します。",
+      rawText: customerReply("講習内容を整理します。"),
       tier: "tier-3-ollama-deepseek",
     })
 
@@ -4577,7 +4581,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("posts the first Slack conversation notification as a parent message and saves the returned thread ts", async () => {
     const harness = setup()
-    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-chrome-notion-ai" })
     harness.slackNotifier.mockResolvedValueOnce({ status: "sent", ts: "1700000000.000100" })
 
     await handleChatbotMessage(
@@ -4606,7 +4610,7 @@ describe("handleChatbotMessage user context", () => {
         context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
       }),
     })
-    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-chrome-notion-ai" })
     harness.slackNotifier.mockResolvedValueOnce({ status: "sent", ts: "1700000000.000200" })
 
     await handleChatbotMessage(
@@ -4623,7 +4627,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("creates separate Slack parent posts for separate sessions", async () => {
     const harness = setup({ existingConversation: null, isolatedConversation: null })
-    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-chrome-notion-ai" })
     harness.slackNotifier
       .mockResolvedValueOnce({ status: "sent", ts: "1700000000.000100" })
       .mockResolvedValueOnce({ status: "sent", ts: "1700000000.000200" })
@@ -4656,7 +4660,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "フォームで相談内容を送ってください。",
+      rawText: customerReply("フォームで相談内容を送ってください。"),
       tier: "tier-4-form-fallback",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
@@ -4684,7 +4688,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "通常応答です。",
+      rawText: customerReply("通常応答です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
@@ -4709,7 +4713,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "通常応答です。",
+      rawText: customerReply("通常応答です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
       diagnostics: {
         attemptCount: 2,
@@ -4780,7 +4784,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "復旧応答です。",
+      rawText: customerReply("復旧応答です。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
@@ -4811,7 +4815,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "Gemini fallback response.",
+      rawText: customerReply("Gemini fallback response."),
       tier: "tier-3-gemini-flash",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
@@ -4832,7 +4836,7 @@ describe("handleChatbotMessage user context", () => {
   it("returns the chatbot response when Slack notification fails", async () => {
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const harness = setup()
-    harness.generate.mockResolvedValue({ rawText: "返信です", tier: "tier-1-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-chrome-notion-ai" })
     harness.slackNotifier.mockResolvedValueOnce({ status: "failed", reason: "send-failed" })
 
     const result = await handleChatbotMessage(
@@ -4855,7 +4859,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: "フォームで相談内容を送ってください。",
+      rawText: customerReply("フォームで相談内容を送ってください。"),
       tier: "tier-4-form-fallback",
       diagnostics: {
         attemptCount: 3,
