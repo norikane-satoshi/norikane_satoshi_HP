@@ -77,12 +77,14 @@ export function sanitizeChatbotLlmTextWithReport(
     jobContext?: JobContext
     trustedDisplayText?: boolean
     displayEnvelope?: ChatbotLlmDisplayEnvelope
+    fallbackText?: string
   } = {},
 ): { text: string; report: ChatbotLlmSanitizationReport } {
   const fallbackText =
-    options.routingDecision?.kind === "continue"
+    options.fallbackText ??
+    (options.routingDecision?.kind === "continue"
       ? options.routingDecision.nextQuestion
-      : "内容を確認しました。次に必要な情報を1つずつ確認します。"
+      : "内容を確認しました。次に必要な情報を1つずつ確認します。")
   const extraction = toDisplayBoundaryExtraction(
     options.displayEnvelope ??
       (options.trustedDisplayText

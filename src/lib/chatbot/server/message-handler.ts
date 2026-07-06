@@ -555,6 +555,7 @@ export async function handleChatbotMessage(
     fallbackRoutingDecision,
     jobContext,
     uiKind: ui.kind,
+    latestUserMessage: input.message,
     submittedBooking,
   })
   const assistantContent = assistantDisplay.content
@@ -1871,6 +1872,7 @@ function buildAssistantDisplayContent(input: {
   fallbackRoutingDecision: RoutingDecision
   jobContext: JobContext
   uiKind: ChatbotMessageUi["kind"]
+  latestUserMessage: string
   submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
 }): {
   content: string
@@ -1880,11 +1882,19 @@ function buildAssistantDisplayContent(input: {
   const text = input.rawText.trim()
   const toolFreeText = stripStructuredToolCalls(text).trim()
   const explicitDisplayText = extractExplicitCustomerReplyText(text)
-  const sanitize = (content: string, trustedDisplayText = false) => {
+  const submittedBookingFallback = input.submittedBooking
+    ? buildSubmittedBookingActionableFallback({
+        latestUserMessage: input.latestUserMessage,
+        jobContext: input.jobContext,
+        submission: input.submittedBooking,
+      })
+    : undefined
+  const sanitize = (content: string, trustedDisplayText = false, fallbackText?: string) => {
     const result = sanitizeChatbotLlmTextWithReport(content, {
       routingDecision: input.routingDecision,
       jobContext: input.jobContext,
       trustedDisplayText,
+      fallbackText,
       ...(content === text && !trustedDisplayText ? { displayEnvelope: input.displayEnvelope } : {}),
     })
     return { content: result.text, sanitizationReport: result.report }
@@ -1932,7 +1942,7 @@ function buildAssistantDisplayContent(input: {
     return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
   if (input.submittedBooking && !explicitDisplayText && toolFreeText.length > 0) {
-    return withGuardReport(sanitize(toolFreeText, true))
+    return withGuardReport(sanitize(toolFreeText, true, submittedBookingFallback))
   }
   if (toolFreeText !== text) return withGuardReport(sanitize(toolFreeText))
   if (!isBackendIdentityOnlyResponse(explicitDisplayText ?? text)) return withGuardReport(sanitize(text))
@@ -2675,6 +2685,32 @@ function buildSubmittedBookingPromptContext(
     "- 具体的な質問、追加相談、予約内容の変更希望には、予約済みであることを前提に自然に答えます。本人確認が必要な変更や確約は、則兼が確認して連絡する案内にします。",
     "- 「次に必要な情報を1つずつ確認します」のような予約前の案内へ戻しません。",
   ].join("\n")
+}
+
+function buildSubmittedBookingActionableFallback(input: {
+  latestUserMessage: string
+  jobContext: JobContext
+  submission: NonNullable<ConversationState["bookingSubmission"]>
+}): string {
+  const normalized = input.latestUserMessage.normalize("NFKC").toLowerCase()
+  const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談として受け付け済みです。`
+  if (/(持ち物|必要なもの|準備|用意)/u.test(normalized)) {
+    const remoteNote =
+      input.jobContext.workSite === "remote-grading"
+        ? "リモート作業なので、来訪用の持ち物は基本的に不要です。"
+        : ""
+    return `${remoteNote}素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。${reservationPrefix}則兼が内容を確認して、追加で必要なものがあれば連絡します。`
+  }
+  if (/(集合|場所|アクセス|住所|どこ)/u.test(normalized)) {
+    if (input.jobContext.workSite === "remote-grading") {
+      return `リモート作業として受け付けているため、現地の集合場所はありません。${reservationPrefix}受け渡し方法や連絡手段は則兼が内容を確認して案内します。`
+    }
+    return `${reservationPrefix}集合場所や当日の詳細は則兼が内容を確認して案内します。`
+  }
+  if (/(変更|修正|追加|キャンセル|取り消)/u.test(normalized)) {
+    return `${reservationPrefix}変更希望もこの会話に残しておいてください。確定可否や反映方法は則兼が内容を確認して連絡します。`
+  }
+  return `${reservationPrefix}追加の質問として確認しました。則兼が内容を確認して、必要があれば連絡します。`
 }
 
 async function buildBookingInlineRoutingDecision(input: {

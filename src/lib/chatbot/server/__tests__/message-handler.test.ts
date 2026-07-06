@@ -2844,6 +2844,49 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("uses a post-submission fallback when the LLM leaks reasoning on an actionable follow-up", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingSubmission: {
+              status: "submitted",
+              reservationNumber: "booking_1",
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 150,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText:
+        "user is asking about what to bring on the day. The booking is already submitted. I should answer briefly. AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUvWxYz0123456789",
+      tier: "tier-1-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "当日の持ち物は何が必要ですか" },
+      harness.options,
+    )
+
+    expect(harness.generate).toHaveBeenCalled()
+    expect(result.assistantMessage.content).toContain("素材データ")
+    expect(result.assistantMessage.content).toContain("予約番号 booking_1")
+    expect(result.assistantMessage.content).not.toContain("次に必要な情報を1つずつ確認します")
+    expect(result.ui).toEqual({ kind: "none" })
+  })
+
   it("blocks booking-card tools after submission while still using the LLM for actionable follow-ups", async () => {
     const harness = setup({
       existingConversation: conversation({
