@@ -76,6 +76,7 @@ import {
   isBookingFinalConfirmationPrompt,
   isLlmNoAdditionalBookingConcernSignal,
   isNoAdditionalBookingConcern,
+  isSubmittedBookingTerminalAcknowledgement,
   wasBookingFinalQuestionOffered,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
@@ -374,7 +375,7 @@ export async function handleChatbotMessage(
     recoverBookingContextFromHistory([...conversation.messages, userMessage]),
   ) as ConversationState
   const submittedBooking = getSubmittedBooking(conversationState)
-  if (submittedBooking) {
+  if (submittedBooking && isSubmittedBookingTerminalAcknowledgement(input.message)) {
     const nextQuestion = buildSubmittedBookingFollowup(submittedBooking)
     const routingDecision: Extract<RoutingDecision, { kind: "continue" }> = {
       kind: "continue",
@@ -448,6 +449,7 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
     durationContext.promptContext,
     noteAccess,
+    submittedBooking ? buildSubmittedBookingPromptContext(submittedBooking) : undefined,
   )
   logChatbotKnowledgeSourceTrace({
     conversation,
@@ -553,6 +555,7 @@ export async function handleChatbotMessage(
     fallbackRoutingDecision,
     jobContext,
     uiKind: ui.kind,
+    submittedBooking,
   })
   const assistantContent = assistantDisplay.content
   logChatbotDurationTrace({
@@ -1731,6 +1734,7 @@ function buildChatbotSystemPrompt(
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null,
   workflowPromptContext?: string,
   noteAccess: CustomerFacingNoteAccess = { kind: "none" },
+  submittedBookingPromptContext?: string,
 ): string {
   const lines = [
     "あなたは新規映像案件の相談受付アシスタントです。",
@@ -1780,6 +1784,9 @@ function buildChatbotSystemPrompt(
   }
   if (workflowPromptContext) {
     lines.push(workflowPromptContext)
+  }
+  if (submittedBookingPromptContext) {
+    lines.push(submittedBookingPromptContext)
   }
   if (noteAccess.kind === "mixed") {
     lines.push(
@@ -1864,6 +1871,7 @@ function buildAssistantDisplayContent(input: {
   fallbackRoutingDecision: RoutingDecision
   jobContext: JobContext
   uiKind: ChatbotMessageUi["kind"]
+  submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
 }): {
   content: string
   sanitizationReport: ChatbotLlmSanitizationReport
@@ -1922,6 +1930,9 @@ function buildAssistantDisplayContent(input: {
     isFinalMediumRejudgmentQuestion(input.routingDecision.nextQuestion)
   ) {
     return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
+  }
+  if (input.submittedBooking && !explicitDisplayText && toolFreeText.length > 0) {
+    return withGuardReport(sanitize(toolFreeText, true))
   }
   if (toolFreeText !== text) return withGuardReport(sanitize(toolFreeText))
   if (!isBackendIdentityOnlyResponse(explicitDisplayText ?? text)) return withGuardReport(sanitize(text))
@@ -2652,6 +2663,18 @@ function getSubmittedBooking(
 
 function buildSubmittedBookingFollowup(submission: NonNullable<ConversationState["bookingSubmission"]>): string {
   return `予約番号 ${submission.reservationNumber} は送信完了済みです。内容は受け付け済みなので、同じ予約カードは再表示しません。則兼が内容を確認してご連絡します。`
+}
+
+function buildSubmittedBookingPromptContext(
+  submission: NonNullable<ConversationState["bookingSubmission"]>,
+): string {
+  return [
+    "予約送信後の会話状態:",
+    `- 予約番号 ${submission.reservationNumber} は送信完了済みです。`,
+    "- この状態では show_booking_card、予約候補カード、予約前の不足項目確認、選択パネルへ戻しません。",
+    "- 具体的な質問、追加相談、予約内容の変更希望には、予約済みであることを前提に自然に答えます。本人確認が必要な変更や確約は、則兼が確認して連絡する案内にします。",
+    "- 「次に必要な情報を1つずつ確認します」のような予約前の案内へ戻しません。",
+  ].join("\n")
 }
 
 async function buildBookingInlineRoutingDecision(input: {

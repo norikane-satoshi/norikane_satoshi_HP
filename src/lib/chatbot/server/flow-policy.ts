@@ -325,6 +325,23 @@ export function isNoAdditionalBookingConcern(message: string): boolean {
   )
 }
 
+export function isSubmittedBookingTerminalAcknowledgement(message: string): boolean {
+  const normalized = message.normalize("NFKC").toLowerCase().trim()
+  const compact = normalized.replace(/^\s*選択\s*[:：]\s*/u, "").replace(/[\s　。、,.!！?？「」『』()[\]（）]/g, "")
+  if (!compact) return false
+
+  if (hasPostSubmissionActionableIntent(normalized)) return false
+  if (isNoAdditionalBookingConcern(message)) return true
+
+  return /^(ありがとう|ありがとうございます|ありがとうございました|助かります|承知しました|承知です|確認しました|把握しました|了解しました|了解です|わかりました|分かりました|ok|okay|okです|大丈夫です|大丈夫)$/.test(compact)
+}
+
+function hasPostSubmissionActionableIntent(message: string): boolean {
+  return /(?:\?|？|何|どこ|どちら|いつ|誰|どの|どう|いくら|必要|持ち物|集合|場所|アクセス|変更|修正|追加|キャンセル|取り消|確認したい|教えて|知りたい|相談|お願い|できますか|でしょうか|ですか|ますか|してほしい|したい|したいです)/u.test(
+    message,
+  )
+}
+
 function hasNoAdditionalBookingConcern(conversationState: ConversationState, latestUserMessage: string): boolean {
   return (
     conversationState.bookingReadiness?.additionalConcernStatus === "none" ||
