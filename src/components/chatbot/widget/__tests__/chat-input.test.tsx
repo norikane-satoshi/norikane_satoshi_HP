@@ -75,6 +75,28 @@ describe("ChatInput", () => {
     expect(screen.getByText("+").parentElement).toHaveClass("gap-px")
   })
 
+  it("renders placeholder and shortcut hint text at muted sixty percent opacity", () => {
+    mockMatchMedia(false)
+    mockNavigatorPlatform("MacIntel")
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    expect(screen.getByText("案件内容やその他質問")).toHaveClass("opacity-60")
+    expect(screen.getByText("で改行")).toHaveClass("opacity-60")
+    expect(screen.getByText("で送信")).toHaveClass("opacity-60")
+    expect(screen.getByLabelText("相談内容")).toHaveClass("placeholder:text-transparent")
+    expect(screen.getByText("+")).toHaveClass("text-hp-muted/70")
+    expect(document.querySelector('[data-chat-input-key="command"]')?.closest("span")).not.toHaveClass(
+      "opacity-60",
+    )
+  })
+
+  it("renders the mobile textarea placeholder at muted sixty percent opacity", () => {
+    mockMatchMedia(true)
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    expect(screen.getByLabelText("相談内容")).toHaveClass("chatbot-input-placeholder-muted")
+  })
+
   it("switches the submit modifier hint to a Ctrl keycap outside macOS", () => {
     mockMatchMedia(false)
     mockNavigatorPlatform("Win32")

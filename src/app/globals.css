@@ -608,6 +608,10 @@
     overscroll-behavior: contain;
     touch-action: manipulation;
   }
+  .chatbot-input-placeholder-muted::placeholder {
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
   .chatbot-widget-shell :is(h1, h2, h3, h4, h5, h6, p, label, legend, button, input, textarea, select, dt, dd, span, a) {
     font-family: inherit;
     letter-spacing: 0;

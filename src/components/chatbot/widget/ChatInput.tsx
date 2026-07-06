@@ -99,12 +99,12 @@ export function ChatInput({
               style={CHATBOT_CONVERSATION_CONTENT_STYLE}
               aria-hidden="true"
             >
-              <span>案件内容やその他質問</span>
+              <span className="opacity-60">案件内容やその他質問</span>
               <span className="inline-flex items-center gap-1">
                 <ShortcutKeycap>
                   <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" />
                 </ShortcutKeycap>
-                <span>で改行</span>
+                <span className="opacity-60">で改行</span>
               </span>
               <span className="inline-flex items-center gap-1">
                 <span className="inline-flex items-center gap-px">
@@ -120,12 +120,12 @@ export function ChatInput({
                     <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" />
                   </ShortcutKeycap>
                 </span>
-                <span>で送信</span>
+                <span className="opacity-60">で送信</span>
               </span>
             </div>
           ) : null}
           <AutoResizeTextarea
-            className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} relative z-10 w-full min-w-0 bg-transparent py-2 text-sm leading-5 text-hp outline-none ${showsShortcutOverlay ? "min-h-[4.75rem] placeholder:text-transparent" : "min-h-9 placeholder:text-hp-muted"}`}
+            className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} relative z-10 w-full min-w-0 bg-transparent py-2 text-sm leading-5 text-hp outline-none ${showsShortcutOverlay ? "min-h-[4.75rem] placeholder:text-transparent" : "chatbot-input-placeholder-muted min-h-9"}`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
             placeholder={textareaPlaceholder}
             aria-label="相談内容"
