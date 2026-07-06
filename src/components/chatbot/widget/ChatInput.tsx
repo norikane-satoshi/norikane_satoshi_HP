@@ -35,7 +35,7 @@ function matchesMobileHintMedia() {
 function ShortcutKeycap({ children }: { children: ReactNode }) {
   return (
     <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-[6px] border border-white/65 bg-white/45 px-1.5 text-[10px] font-semibold leading-none text-hp">
-      {children}
+      <span className="inline-flex items-center justify-center opacity-60">{children}</span>
     </span>
   )
 }
@@ -102,7 +102,7 @@ export function ChatInput({
               <span className="opacity-60">案件内容やその他質問</span>
               <span className="inline-flex items-center gap-1">
                 <ShortcutKeycap>
-                  <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                  <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" data-chat-input-key="newline" />
                 </ShortcutKeycap>
                 <span className="opacity-60">で改行</span>
               </span>
@@ -117,7 +117,7 @@ export function ChatInput({
                   </ShortcutKeycap>
                   <span className="text-hp-muted/70">+</span>
                   <ShortcutKeycap>
-                    <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                    <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" data-chat-input-key="submit-enter" />
                   </ShortcutKeycap>
                 </span>
                 <span className="opacity-60">で送信</span>
