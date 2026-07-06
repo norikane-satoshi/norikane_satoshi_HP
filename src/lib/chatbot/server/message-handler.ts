@@ -1212,24 +1212,6 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
   const conversationState: Partial<ConversationState> = {}
 
   for (const message of messages) {
-    const extracted = extractDeterministicBookingPrefill(message.content)
-    if (extracted.projectTitle) bookingPrefill.projectTitle = extracted.projectTitle
-    if (extracted.contactName) {
-      bookingPrefill.contactName = extracted.contactName
-      conversationState.customerName = extracted.contactName
-      conversationState.hasCustomerIdentity = true
-    }
-    if (extracted.companyName) {
-      bookingPrefill.companyName = extracted.companyName
-      conversationState.companyName = extracted.companyName
-      conversationState.hasCustomerIdentity = true
-    }
-    if (extracted.contactEmail) {
-      bookingPrefill.contactEmail = extracted.contactEmail
-      conversationState.contactEmail = extracted.contactEmail
-      conversationState.hasContactEmail = true
-    }
-
     if (message.role === "assistant") {
       const confirmedProjectTitle = extractQuotedValue(message.content, /案件名[「『"]([^」』"]{1,120})[」』"]/u)
       if (confirmedProjectTitle) bookingPrefill.projectTitle = confirmedProjectTitle
@@ -1265,7 +1247,27 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
       continue
     }
 
-    if (message.role !== "user" || !pendingField) continue
+    if (message.role !== "user") continue
+
+    const extracted = extractDeterministicBookingPrefill(message.content)
+    if (extracted.projectTitle) bookingPrefill.projectTitle = extracted.projectTitle
+    if (extracted.contactName) {
+      bookingPrefill.contactName = extracted.contactName
+      conversationState.customerName = extracted.contactName
+      conversationState.hasCustomerIdentity = true
+    }
+    if (extracted.companyName) {
+      bookingPrefill.companyName = extracted.companyName
+      conversationState.companyName = extracted.companyName
+      conversationState.hasCustomerIdentity = true
+    }
+    if (extracted.contactEmail) {
+      bookingPrefill.contactEmail = extracted.contactEmail
+      conversationState.contactEmail = extracted.contactEmail
+      conversationState.hasContactEmail = true
+    }
+
+    if (!pendingField) continue
 
     if (pendingField === "projectTitle" && !bookingPrefill.projectTitle) {
       bookingPrefill.projectTitle = normalizeFreeTextBookingValue(message.content, 120)
@@ -1300,9 +1302,13 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
 
 function extractDeterministicBookingPrefill(content: string): BookingCardPrefill {
   const contactEmail = findContactEmailInText(content)
-  const contactName = extractLabeledBookingValue(content, ["ご担当者", "担当者", "お名前", "氏名", "名前"], 80)
+  const contactName = extractLabeledBookingValue(
+    content,
+    ["ご担当者名", "担当者名", "ご担当者", "担当者", "お名前", "氏名", "名前"],
+    80,
+  )
   return compactBookingPrefill({
-    projectTitle: extractLabeledBookingValue(content, ["案件名", "作品名", "プロジェクト名"], 120),
+    projectTitle: extractLabeledBookingValue(content, ["案件名", "作品タイトル", "作品名", "プロジェクト名"], 120),
     ...(contactName ? { contactName: normalizeContactNameValue(contactName) } : {}),
     companyName: extractLabeledBookingValue(content, ["会社名", "法人名", "御社名", "貴社名"], 100),
     ...(contactEmail ? { contactEmail } : {}),
@@ -1313,8 +1319,11 @@ function extractLabeledBookingValue(content: string, labels: string[], maxLength
   const normalized = content.normalize("NFKC")
   const allLabels = [
     "案件名",
+    "作品タイトル",
     "作品名",
     "プロジェクト名",
+    "ご担当者名",
+    "担当者名",
     "ご担当者",
     "担当者",
     "お名前",
@@ -1333,7 +1342,7 @@ function extractLabeledBookingValue(content: string, labels: string[], maxLength
   const labelPattern = labels.map(escapeRegExp).join("|")
   const nextLabelPattern = allLabels.map(escapeRegExp).join("|")
   const quotedPattern = new RegExp(
-    `(?:^|[\\s\\n,、。;；])(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']([^」』"']{1,${maxLength}})[」』"']\\s*(?:です|でございます|になります)?(?=[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=))`,
+    `(?:^|[\\s\\n,、。;；])(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']([^」』"']{1,${maxLength}})[」』"']\\s*(?:です|でございます|になります|でお願いします|でお願いいたします)?(?=[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=))`,
     "iu",
   )
   const quotedValue = normalizeFreeTextBookingValue(quotedPattern.exec(normalized)?.[1], maxLength)

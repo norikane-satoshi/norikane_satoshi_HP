@@ -2251,6 +2251,66 @@ describe("handleChatbotMessage user context", () => {
     expect(memo).not.toContain("live-60m")
   })
 
+  it("does not treat assistant booking-field questions as recovered prefill values", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [
+          message("assistant", "予約候補カードに進む前に、案件名（作品タイトル、または短い呼び名）を教えていただけますでしょうか？"),
+          message("user", "作品タイトルは「案件T」でお願いします"),
+          message("assistant", "事前に把握しておきたい参考URLがあれば教えてください"),
+          message("user", "特にないです!"),
+          message("assistant", "依頼内容はライブ、納品・使用先はライブ / イベント、尺は2.5時間として整理しています。ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？なければ「なし」で進めます。"),
+          message("user", "選択: なし、このまま進める!"),
+          message("user", "担当者名:テスト太郎、会社名:テスト株式会社、メールは qj9n9not6bov@yahoo.co.jp です。"),
+        ],
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: false,
+            hasCustomerIdentity: false,
+            bookingFinalConfirmation: {
+              status: "confirmed",
+              requestedAtTurn: 9,
+              confirmedAtTurn: 10,
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            projectLengthMinutes: 150,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "other", count: 1, note: "メイキング・バックステージ" },
+            additionalWork: ["retouch", "skin-retouch"],
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("候補を確認します。"),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "選択: なし、このまま進める!" },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: {
+        projectTitle: "案件T",
+        contactName: "テスト太郎",
+        companyName: "テスト株式会社",
+        contactEmail: "qj9n9not6bov@yahoo.co.jp",
+      },
+    })
+    if (result.ui.kind !== "booking-card") throw new Error("booking-card expected")
+    expect(result.ui.bookingPrefill?.projectTitle).not.toContain("作品タイトル")
+    expect(result.ui.bookingPrefill?.contactName).not.toContain("名:")
+  })
+
   it("treats a no-reference-url answer as satisfied and advances to final confirmation", async () => {
     const harness = setup({
       existingConversation: conversation({
