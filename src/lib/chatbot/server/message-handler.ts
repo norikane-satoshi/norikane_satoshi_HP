@@ -373,6 +373,75 @@ export async function handleChatbotMessage(
     baseConversationState,
     recoverBookingContextFromHistory([...conversation.messages, userMessage]),
   ) as ConversationState
+  const submittedBooking = getSubmittedBooking(conversationState)
+  if (submittedBooking) {
+    const nextQuestion = buildSubmittedBookingFollowup(submittedBooking)
+    const routingDecision: Extract<RoutingDecision, { kind: "continue" }> = {
+      kind: "continue",
+      nextQuestion,
+    }
+    const assistantMessage = await repository.appendMessage({
+      conversationId: conversation.id,
+      role: "assistant",
+      content: nextQuestion,
+    })
+    try {
+      await repository.updateConversationRouting({
+        conversationId: conversation.id,
+        routingDecision: routingDecision.kind,
+        currentQuestion: routingDecision.nextQuestion,
+        activeChoices: null,
+        conversationState,
+        jobContext,
+      })
+    } catch (error) {
+      throw new ChatbotMessagePersistenceError({
+        cause: error,
+        conversationId: conversation.id,
+        tier: "local-deterministic",
+        routingDecisionKind: routingDecision.kind,
+        uiKind: "none",
+      })
+    }
+    await notifySlackForChatbotResponse({
+      notifier: slackNotifier,
+      repository,
+      requestId: input.requestId,
+      conversation,
+      userText: userMessage.content,
+      assistantText: assistantMessage.content,
+      tier: "local-deterministic",
+      routingDecisionKind: routingDecision.kind,
+      uiKind: "none",
+      choiceSetId: undefined,
+      bookingProgress: false,
+      flowStep: "conversation",
+      flowStepReason: conversationState.activeIntakeClarification?.reason,
+      issueReasons: [],
+      retryDiagnostics: undefined,
+      pendingRecovery: input.pendingRequestKind === "message" || input.pendingRequestKind === "edit",
+      pendingRequestKind: input.pendingRequestKind,
+    })
+
+    return {
+      conversationId: conversation.id,
+      userMessage: {
+        id: userMessage.id,
+        role: userMessage.role,
+        content: userMessage.content,
+        createdAt: userMessage.createdAt,
+      },
+      assistantMessage: {
+        id: assistantMessage.id,
+        role: assistantMessage.role,
+        content: assistantMessage.content,
+        createdAt: assistantMessage.createdAt,
+      },
+      tier: "local-deterministic",
+      ui: { kind: "none" },
+      routingDecision,
+    }
+  }
   const systemPrompt = buildChatbotSystemPrompt(
     userContext,
     userContextFormatter,

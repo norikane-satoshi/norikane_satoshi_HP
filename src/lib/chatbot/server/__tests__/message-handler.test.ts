@@ -2820,10 +2820,13 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
+    expect(harness.generate).not.toHaveBeenCalled()
+    expect(result.assistantMessage.content).toContain("予約番号 booking_1 は送信完了済みです")
     expect(result.ui).toEqual({ kind: "none" })
-    expect(result.routingDecision?.kind).not.toBe("to-booking-inline")
-    expect(result.routingDecision?.kind).not.toBe("to-direct-contact")
-    expect(result.routingDecision?.kind).not.toBe("to-email")
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("booking_1"),
+    })
     expect(harness.slackNotifier).toHaveBeenCalledWith(
       expect.objectContaining({
         uiKind: "none",
