@@ -14,6 +14,7 @@ type IncidentClass =
   | "worker_error:auth"
   | "worker_error:connection"
   | "worker_error:invalid-output"
+  | "worker_error:rate-limit"
   | "worker_http_502"
   | "http"
   | "timeout"
@@ -132,7 +133,8 @@ export async function runHeartbeat(
   const incidentClass = classifyFailureOrigin(primaryFailure)
   const transientGenerateFailure = isTransientGenerateFailure(primaryFailure)
   const delayedTransientGenerateFailure =
-    primaryFailure?.name === "generate" && incidentClass === "worker_error:invalid-output"
+    primaryFailure?.name === "generate" &&
+    (incidentClass === "worker_error:invalid-output" || incidentClass === "worker_error:rate-limit")
   let ok = checks.every((check) => check.ok)
   let nextState = buildNextState({
     previous,
@@ -539,11 +541,10 @@ function buildNextState(input: {
     }
   }
 
-  const consecutiveFailures = previous.consecutiveFailures + 1
+  const incidentChanged = previous.status === "healthy" || previous.incidentClass !== incidentClass
+  const consecutiveFailures = incidentChanged ? 1 : previous.consecutiveFailures + 1
   const existingIncidentStartedAt =
-    previous.status === "healthy" || previous.incidentClass !== incidentClass
-      ? undefined
-      : previous.incidentStartedAt
+    incidentChanged ? undefined : previous.incidentStartedAt
   const incidentStartedAt = existingIncidentStartedAt ?? now.toISOString()
   const status = consecutiveFailures >= threshold ? "unhealthy" : "suspect"
 
@@ -838,6 +839,7 @@ function isIncidentClass(value: unknown): value is IncidentClass {
     value === "worker_error:auth" ||
     value === "worker_error:connection" ||
     value === "worker_error:invalid-output" ||
+    value === "worker_error:rate-limit" ||
     value === "worker_http_502" ||
     value === "http" ||
     value === "timeout" ||
@@ -886,6 +888,7 @@ function classifyFailureOrigin(check: CheckResult | undefined): IncidentClass {
   if (check.detail.includes("error:connection")) return "worker_error:connection"
   if (check.detail.includes("error:auth")) return "worker_error:auth"
   if (check.detail.includes("error:invalid-output")) return "worker_error:invalid-output"
+  if (check.detail.includes("error:rate-limit") || check.status === 429) return "worker_error:rate-limit"
   if (check.detail.includes("cdp_")) return "chrome_cdp"
   if (check.detail.includes("timeout")) return "timeout"
   if (check.detail.includes("worker_http_502")) return "worker_http_502"
@@ -895,7 +898,11 @@ function classifyFailureOrigin(check: CheckResult | undefined): IncidentClass {
 }
 
 function isTransientGenerateIncident(incidentClass: IncidentClass | undefined): boolean {
-  return incidentClass === "notion_runtime_trust_rule_denied" || incidentClass === "worker_error:invalid-output"
+  return (
+    incidentClass === "notion_runtime_trust_rule_denied" ||
+    incidentClass === "worker_error:invalid-output" ||
+    incidentClass === "worker_error:rate-limit"
+  )
 }
 
 function isTransientGenerateFailure(check: CheckResult | undefined): boolean {

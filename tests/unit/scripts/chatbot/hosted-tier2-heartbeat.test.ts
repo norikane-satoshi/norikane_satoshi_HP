@@ -79,6 +79,21 @@ function invalidOutputResponse(): Response {
   )
 }
 
+function rateLimitResponse(): Response {
+  return jsonResponse(
+    {
+      ok: false,
+      tier: "tier-2-hosted-chrome-notion-ai",
+      error: {
+        code: "rate-limit",
+        message: "Notion AI rate limit response was returned.",
+        retryable: false,
+      },
+    },
+    429,
+  )
+}
+
 function readState(dir: string) {
   return JSON.parse(readFileSync(join(dir, "state.json"), "utf8")) as Record<string, unknown>
 }
@@ -498,6 +513,71 @@ describe("hosted-tier2-heartbeat", () => {
       status: "suspect",
       consecutiveFailures: 1,
       incidentClass: "worker_error:invalid-output",
+    })
+  })
+
+  it("keeps Notion AI rate-limit generate failures suspect before notifying or repairing", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    dirs.push(dir)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(rateLimitResponse())
+    const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
+
+    const result = await runHeartbeat(config(dir, { failureThreshold: 1, repair: true, forceGenerate: true }), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-07-07T00:30:31.000Z"),
+      runCommand,
+    })
+
+    expect(result.status).toBe("suspect")
+    expect(result.notification).toBeUndefined()
+    expect(result.repairActions).toEqual([])
+    expect(runCommand).not.toHaveBeenCalled()
+    expect(readState(dir)).toMatchObject({
+      status: "suspect",
+      consecutiveFailures: 1,
+      incidentClass: "worker_error:rate-limit",
+      lastGenerateAt: "2026-07-07T00:30:31.000Z",
+      lastTransientGenerateFailureAt: "2026-07-07T00:30:31.000Z",
+    })
+  })
+
+  it("starts a fresh incident count when an old http incident becomes a classified rate-limit", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    dirs.push(dir)
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        status: "unhealthy",
+        consecutiveFailures: 5,
+        incidentClass: "http",
+        incidentStartedAt: "2026-07-07T00:10:31.000Z",
+        lastNotificationKind: "unhealthy",
+        lastNotificationAt: "2026-07-07T00:10:31.000Z",
+      }),
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(rateLimitResponse())
+    const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
+
+    const result = await runHeartbeat(config(dir, { failureThreshold: 1, repair: true, forceGenerate: true }), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-07-07T00:30:31.000Z"),
+      runCommand,
+    })
+
+    expect(result.status).toBe("suspect")
+    expect(result.notification).toBeUndefined()
+    expect(result.repairActions).toEqual([])
+    expect(readState(dir)).toMatchObject({
+      status: "suspect",
+      consecutiveFailures: 1,
+      incidentClass: "worker_error:rate-limit",
+      incidentStartedAt: "2026-07-07T00:30:31.000Z",
     })
   })
 
