@@ -1,9 +1,10 @@
 "use client"
 
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
+import { FormEvent, useEffect, useMemo, useState } from "react"
 
 import { DemoStage } from "@/components/chatbot/demo"
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import { mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 import { bookingOnboardingDemoScript } from "@/lib/chatbot/demo"
 import type { CandidateWindow, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
@@ -311,18 +312,17 @@ export function ChatbotBookingCard({
   ))
   const [monthLoadError, setMonthLoadError] = useState<string | null>(null)
   const [calendarHint, setCalendarHint] = useState<string | null>(null)
-  const [projectTitle, setProjectTitle] = useState(defaultProjectTitle)
-  const [dueDate, setDueDate] = useState(defaultDueDate)
-  const [companyName, setCompanyName] = useState(defaultCompanyName)
-  const [contactName, setContactName] = useState(defaultContactName)
-  const [contactEmail, setContactEmail] = useState(defaultContactEmail)
+  const [projectTitle, setProjectTitle] = useState(defaultProjectTitle ?? "")
+  const [dueDate, setDueDate] = useState(defaultDueDate ?? "")
+  const [companyName, setCompanyName] = useState(defaultCompanyName ?? "")
+  const [contactName, setContactName] = useState(defaultContactName ?? "")
+  const [contactEmail, setContactEmail] = useState(defaultContactEmail ?? "")
   const [phone, setPhone] = useState("")
-  const [memo, setMemo] = useState(defaultMemo)
+  const [memo, setMemo] = useState(defaultMemo ?? "")
   const [agreed, setAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [booked, setBooked] = useState<BookingResult | null>(completedBooking ?? null)
-  const projectTitleRef = useRef<HTMLTextAreaElement | null>(null)
 
   const currentJstDateKey = todayJstDateKey()
   const selectedKeys = useMemo(() => selectedDateKeys(selectedSlots), [selectedSlots])
@@ -376,13 +376,6 @@ export function ChatbotBookingCard({
       cancelled = true
     }
   }, [displayedMonthKey, displayedMonthOffset, effectiveEstimate, jobContext, monthCandidateOverrides, monthBusyDateKeyOverrides])
-
-  useEffect(() => {
-    const textarea = projectTitleRef.current
-    if (!textarea) return
-    textarea.style.height = "auto"
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`
-  }, [projectTitle])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -620,11 +613,11 @@ export function ChatbotBookingCard({
           <label className="block text-sm font-medium text-hp">
             案件名
             <RequiredMark />
-            <textarea
-              ref={projectTitleRef}
+            <AutoResizeTextarea
               value={projectTitle}
               onChange={(event) => setProjectTitle(event.target.value)}
-              className="glass-input mt-2 min-h-12 w-full resize-none overflow-hidden px-4 py-3 text-sm leading-relaxed"
+              className="glass-input mt-2 min-h-12 w-full px-4 py-3 text-sm leading-relaxed"
+              maxRows={5}
               placeholder="作品名または案件名（イニシャル表記も可）"
               aria-label="案件名"
               required
@@ -693,10 +686,11 @@ export function ChatbotBookingCard({
           </label>
           <label className="block text-sm font-medium text-hp sm:col-span-2">
             補足
-            <textarea
+            <AutoResizeTextarea
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
               className="glass-input mt-2 min-h-24 w-full px-4 py-3 text-sm"
+              maxRows={12}
               placeholder="入力欄に入りきらない共有事項"
               aria-label="補足"
             />

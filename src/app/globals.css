@@ -595,12 +595,26 @@
     color: var(--text-muted);
     opacity: 0.70;
   }
+  .auto-resize-textarea {
+    field-sizing: content;
+    overflow-y: hidden;
+    resize: none;
+  }
   .chatbot-widget-shell :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
     font-size: max(16px, 1rem);
   }
   .chatbot-widget-shell {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     overscroll-behavior: contain;
     touch-action: manipulation;
+  }
+  .chatbot-input-placeholder-muted::placeholder {
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+  .chatbot-widget-shell :is(h1, h2, h3, h4, h5, h6, p, label, legend, button, input, textarea, select, dt, dd, span, a) {
+    font-family: inherit;
+    letter-spacing: 0;
   }
   .chatbot-conversation-scroll {
     -webkit-overflow-scrolling: touch;

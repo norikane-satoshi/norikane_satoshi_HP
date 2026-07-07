@@ -16,9 +16,21 @@ describe("InquiryForm", () => {
     expect(screen.getByLabelText("氏名")).toBeInTheDocument()
     expect(screen.getByLabelText("メールアドレス")).toBeInTheDocument()
     expect(screen.getByLabelText("自由記述")).toBeInTheDocument()
+    expect(screen.getByLabelText("自由記述")).toHaveClass("auto-resize-textarea")
     expect(screen.getByText("必須")).toBeInTheDocument()
     expect(screen.getAllByText("任意")).toHaveLength(5)
     expect(screen.getByText("T・Y案件 等イニシャルでも可")).toBeInTheDocument()
+  })
+
+  it("expands the free text field to its content", () => {
+    render(<InquiryForm onSubmit={vi.fn()} />)
+
+    const field = screen.getByLabelText("自由記述")
+    Object.defineProperty(field, "scrollHeight", { configurable: true, value: 176 })
+
+    fireEvent.change(field, { target: { value: "相談内容\n".repeat(10) } })
+
+    expect(field).toHaveStyle({ height: "176px" })
   })
 
   it("submits normalized form input when email is present", () => {

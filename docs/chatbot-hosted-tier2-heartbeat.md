@@ -9,10 +9,10 @@ Runtime shape:
 - Production chatbot preflight uses quick `GET /health?mode=quick` so an active Notion AI generation or CDP runtime inspection spike does not skip Tier2 before `/generate`.
 - If the hosted Tier2 health probe times out or returns a retryable connection failure, Production still attempts `/generate`; fallback to Tier3 starts only after Tier2 generate exhausts its own repair/retry budget.
 - A lightweight `POST /generate` smoke runs every 10 minutes by default; the 2-minute timer still performs the cheap health check.
-- One failed health/connection run moves state to `unhealthy`; transient hosted Notion AI `invalid-output` generate misses stay `suspect` until `CHATBOT_HOSTED_TIER2_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD` consecutive misses.
+- One failed health/connection run moves state to `unhealthy`; transient hosted Notion AI `invalid-output` and `rate-limit` generate misses stay `suspect` until `CHATBOT_HOSTED_TIER2_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD` consecutive misses.
 - Tier2 generate failure is not treated as a successful lower-tier fallback.
 - On the first unhealthy transition, the script tries one repair sequence: `POST /ensure-chrome`, `systemctl --user restart hosted-notion-ai-worker.service`, then `systemctl --user restart hosted-worker-chrome.service`.
-- Notion trust-rule and hosted Notion AI `invalid-output` failures skip restart loops because service restarts do not fix model/extraction responses.
+- Notion trust-rule, hosted Notion AI `invalid-output`, and hosted Notion AI `rate-limit` failures skip restart loops because service restarts do not fix model/extraction/quota responses.
 - Notifications are state-change only: `unhealthy` and `recovered`. `recovered` is sent only after an `unhealthy` notification was actually sent/dry-run for the active incident; rate-limited or unnotified unhealthy samples do not create recovered spam. Slack is primary when configured; Resend email remains fallback.
 - Logs are JSONL and do not include bearer tokens, raw prompts, raw model output, cookies, or personal request bodies.
 - When `/health` is ready but `/generate` fails, JSONL and Slack mark `incident_kind: health_ok_generate_failed` with phase, HTTP status, duration, sanitized worker error code/message preview, and repair action summary.

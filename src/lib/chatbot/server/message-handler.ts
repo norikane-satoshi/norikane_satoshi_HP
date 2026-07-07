@@ -17,6 +17,7 @@ import type {
 } from "@/lib/chatbot/domain"
 import {
   appendMessage,
+  assertChatbotLlmResponseContract,
   createChatbotLlmTierOrchestrator,
   createConversation,
   createTier1ChromeNotionAiClient,
@@ -31,6 +32,7 @@ import {
   truncateConversationFromMessage,
   updateConversationRouting,
   updateConversationSlackThreadTs,
+  isChatbotLlmResponseContractError,
   type ChatbotLlmClient,
   type ChatbotLlmRequest,
   type ChatbotLlmResponse,
@@ -44,6 +46,7 @@ import {
   findCandidateCalendar,
   type CandidateCalendarResult,
 } from "@/lib/chatbot/server/availability-finder"
+import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import {
@@ -52,6 +55,7 @@ import {
 } from "@/lib/chatbot/server/duration-context"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
+  createChatbotLlmDisplayEnvelope,
   sanitizeChatbotLlmTextWithReport,
   type ChatbotLlmSanitizationReport,
 } from "@/lib/chatbot/server/llm-response-normalizer"
@@ -67,9 +71,13 @@ import {
 import {
   applyBookingFinalConfirmationAnswer,
   applyBookingFinalConfirmationPolicy,
+  getMissingBookingReadinessSlots,
   inferChatbotFlowStep,
   isBookingFinalConfirmationPrompt,
+  isLlmNoAdditionalBookingConcernSignal,
   isNoAdditionalBookingConcern,
+  isSubmittedBookingTerminalAcknowledgement,
+  wasBookingFinalQuestionOffered,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
@@ -342,28 +350,106 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   const jobContext = durationContext.jobContext
-  const conversationState = applyBookingFinalConfirmationAnswer({
+  const baseConversationState = applyEmptyReferenceUrlAnswer({
     latestUserMessage: input.message,
     previousAssistantMessage: findLastAssistantMessageContent(conversation.messages),
-    conversationState: applyLectureTrainingConversationState({
-      conversation,
+    conversationState: applyBookingFinalConfirmationAnswer({
       latestUserMessage: input.message,
-      conversationState: buildConversationState({
-        inputConversationState: didTruncateForEdit ? undefined : input.conversationState,
+      previousAssistantMessage: findLastAssistantMessageContent(conversation.messages),
+      conversationState: applyLectureTrainingConversationState({
         conversation,
-        userMessage,
-        activeChoiceConversationState: activeChoiceAnswer?.conversationState,
-        jobContext,
-        durationStatePatch: durationContext.conversationStatePatch,
+        latestUserMessage: input.message,
+        conversationState: buildConversationState({
+          inputConversationState: didTruncateForEdit ? undefined : input.conversationState,
+          conversation,
+          userMessage,
+          activeChoiceConversationState: activeChoiceAnswer?.conversationState,
+          jobContext,
+          durationStatePatch: durationContext.conversationStatePatch,
+        }),
       }),
     }),
   })
+  const conversationState = mergeRecoveredBookingContext(
+    baseConversationState,
+    recoverBookingContextFromHistory([...conversation.messages, userMessage]),
+  ) as ConversationState
+  const submittedBooking = getSubmittedBooking(conversationState)
+  if (submittedBooking && isSubmittedBookingTerminalAcknowledgement(input.message)) {
+    const nextQuestion = buildSubmittedBookingFollowup(submittedBooking)
+    const routingDecision: Extract<RoutingDecision, { kind: "continue" }> = {
+      kind: "continue",
+      nextQuestion,
+    }
+    const assistantMessage = await repository.appendMessage({
+      conversationId: conversation.id,
+      role: "assistant",
+      content: nextQuestion,
+    })
+    try {
+      await repository.updateConversationRouting({
+        conversationId: conversation.id,
+        routingDecision: routingDecision.kind,
+        currentQuestion: routingDecision.nextQuestion,
+        activeChoices: null,
+        conversationState,
+        jobContext,
+      })
+    } catch (error) {
+      throw new ChatbotMessagePersistenceError({
+        cause: error,
+        conversationId: conversation.id,
+        tier: "local-deterministic",
+        routingDecisionKind: routingDecision.kind,
+        uiKind: "none",
+      })
+    }
+    await notifySlackForChatbotResponse({
+      notifier: slackNotifier,
+      repository,
+      requestId: input.requestId,
+      conversation,
+      userText: userMessage.content,
+      assistantText: assistantMessage.content,
+      tier: "local-deterministic",
+      routingDecisionKind: routingDecision.kind,
+      uiKind: "none",
+      choiceSetId: undefined,
+      bookingProgress: false,
+      flowStep: "conversation",
+      flowStepReason: conversationState.activeIntakeClarification?.reason,
+      issueReasons: [],
+      retryDiagnostics: undefined,
+      pendingRecovery: input.pendingRequestKind === "message" || input.pendingRequestKind === "edit",
+      pendingRequestKind: input.pendingRequestKind,
+    })
+
+    return {
+      conversationId: conversation.id,
+      userMessage: {
+        id: userMessage.id,
+        role: userMessage.role,
+        content: userMessage.content,
+        createdAt: userMessage.createdAt,
+      },
+      assistantMessage: {
+        id: assistantMessage.id,
+        role: assistantMessage.role,
+        content: assistantMessage.content,
+        createdAt: assistantMessage.createdAt,
+      },
+      tier: "local-deterministic",
+      ui: { kind: "none" },
+      routingDecision,
+    }
+  }
   const systemPrompt = buildChatbotSystemPrompt(
     userContext,
     userContextFormatter,
     knowledgeSnapshot,
     durationContext.promptContext,
     noteAccess,
+    submittedBooking ? buildSubmittedBookingPromptContext(submittedBooking) : undefined,
   )
   logChatbotKnowledgeSourceTrace({
     conversation,
@@ -379,24 +465,28 @@ export async function handleChatbotMessage(
       latestUserMessage: input.message,
       userAgent: input.userAgent,
     })
-  const llmResponse = await orchestrator.generate({
-    requestId: input.requestId,
-    systemPrompt,
-    messages: buildLlmMessages(conversation.messages, userMessage),
-    conversationState,
-    jobContext,
-    latestUserMessage: input.message,
-    temperature: 0.2,
-    maxOutputTokens: 900,
-  })
-  const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
-  const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
   const fallbackRoutingDecision = decideRoutingFallback({
     jobContext,
     conversationState,
     latestUserMessage: input.message,
     knowledgeSnapshot,
   })
+  const llmResponse = await generateContractedLlmResponse({
+    orchestrator,
+    request: {
+      requestId: input.requestId,
+      systemPrompt,
+      messages: buildLlmMessages(conversation.messages, userMessage),
+      conversationState,
+      jobContext,
+      latestUserMessage: input.message,
+      temperature: 0.2,
+      maxOutputTokens: 900,
+    },
+    fallbackRoutingDecision,
+  })
+  const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
+  const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
   const resolvedRoutingDecision = await resolveRoutingDecision({
     requestId: input.requestId,
     llmResponse,
@@ -439,6 +529,7 @@ export async function handleChatbotMessage(
   })
   const flowPolicy = applyBookingFinalConfirmationPolicy({
     routingDecision: finalMediumRoutingDecision,
+    fallbackRoutingDecision,
     conversationState,
     jobContext,
     latestUserMessage: input.message,
@@ -446,13 +537,26 @@ export async function handleChatbotMessage(
   })
   const routingDecision = flowPolicy.routingDecision
   const persistedConversationState = flowPolicy.conversationState
+  logChatbotBookingReadinessBoundary({
+    requestId: input.requestId,
+    conversation,
+    beforeState: conversationState,
+    afterState: persistedConversationState,
+    jobContext,
+    fallbackRoutingDecision,
+    routingDecision,
+  })
   const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState: persistedConversationState })
   const assistantDisplay = buildAssistantDisplayContent({
+    requestId: input.requestId,
     rawText: llmResponse.rawText,
+    displayEnvelope: llmResponse.displayEnvelope,
     routingDecision,
     fallbackRoutingDecision,
     jobContext,
     uiKind: ui.kind,
+    latestUserMessage: input.message,
+    submittedBooking,
   })
   const assistantContent = assistantDisplay.content
   logChatbotDurationTrace({
@@ -474,6 +578,16 @@ export async function handleChatbotMessage(
     rawText: llmResponse.rawText,
     finalText: assistantContent,
     report: assistantDisplay.singleUserPromptGuard,
+  })
+  logChatbotDisplayBoundary({
+    requestId: input.requestId,
+    conversation,
+    tier: llmResponse.tier,
+    routingDecision,
+    uiKind: ui.kind,
+    rawText: llmResponse.rawText,
+    finalText: assistantContent,
+    report: assistantDisplay.sanitizationReport,
   })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
@@ -1065,6 +1179,27 @@ function findLastAssistantMessageContent(messages: ChatbotMessage[]): string | u
   return undefined
 }
 
+function applyEmptyReferenceUrlAnswer(input: {
+  latestUserMessage: string
+  previousAssistantMessage?: string
+  conversationState: ConversationState
+}): ConversationState {
+  if (input.conversationState.hasReferenceUrls) return input.conversationState
+  if (!isReferenceUrlQuestion(input.previousAssistantMessage)) return input.conversationState
+  if (!isNoAdditionalBookingConcern(input.latestUserMessage)) return input.conversationState
+
+  return {
+    ...input.conversationState,
+    hasReferenceUrls: true,
+  }
+}
+
+function isReferenceUrlQuestion(message: string | undefined): boolean {
+  if (!message) return false
+  const normalized = message.normalize("NFKC")
+  return /参考\s*(?:URL|リンク)|事前に把握しておきたい参考/u.test(normalized)
+}
+
 function reconcileConversationContextFromHistory(conversation: ChatbotConversation): ChatbotConversation {
   if (conversation.messages.length === 0) return conversation
 
@@ -1145,7 +1280,7 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
   conversationState: Partial<ConversationState>
   bookingPrefill: BookingCardPrefill
 } {
-  let pendingField: "projectTitle" | "contactName" | "contactEmail" | undefined
+  let pendingField: "projectTitle" | "contactName" | "contactEmail" | "companyName" | undefined
   const bookingPrefill: BookingCardPrefill = {}
   const conversationState: Partial<ConversationState> = {}
 
@@ -1164,6 +1299,16 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
         conversationState.hasCustomerIdentity = true
       }
 
+      const confirmedCompanyName = extractQuotedValue(
+        message.content,
+        /(?:会社名|会社|法人名|御社名|貴社名)[「『"]([^」』"]{1,100})[」』"]/u,
+      )
+      if (confirmedCompanyName) {
+        bookingPrefill.companyName = confirmedCompanyName
+        conversationState.companyName = confirmedCompanyName
+        conversationState.hasCustomerIdentity = true
+      }
+
       const confirmedEmail = findContactEmailInText(message.content)
       if (confirmedEmail) {
         bookingPrefill.contactEmail = confirmedEmail
@@ -1175,7 +1320,27 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
       continue
     }
 
-    if (message.role !== "user" || !pendingField) continue
+    if (message.role !== "user") continue
+
+    const extracted = extractDeterministicBookingPrefill(message.content)
+    if (extracted.projectTitle) bookingPrefill.projectTitle = extracted.projectTitle
+    if (extracted.contactName) {
+      bookingPrefill.contactName = extracted.contactName
+      conversationState.customerName = extracted.contactName
+      conversationState.hasCustomerIdentity = true
+    }
+    if (extracted.companyName) {
+      bookingPrefill.companyName = extracted.companyName
+      conversationState.companyName = extracted.companyName
+      conversationState.hasCustomerIdentity = true
+    }
+    if (extracted.contactEmail) {
+      bookingPrefill.contactEmail = extracted.contactEmail
+      conversationState.contactEmail = extracted.contactEmail
+      conversationState.hasContactEmail = true
+    }
+
+    if (!pendingField) continue
 
     if (pendingField === "projectTitle" && !bookingPrefill.projectTitle) {
       bookingPrefill.projectTitle = normalizeFreeTextBookingValue(message.content, 120)
@@ -1193,12 +1358,83 @@ function recoverBookingContextFromHistory(messages: ChatbotMessage[]): {
         conversationState.contactEmail = contactEmail
         conversationState.hasContactEmail = true
       }
+    } else if (pendingField === "companyName" && !bookingPrefill.companyName) {
+      const companyName = normalizeFreeTextBookingValue(message.content, 100)
+      if (companyName) {
+        bookingPrefill.companyName = companyName
+        conversationState.companyName = companyName
+        conversationState.hasCustomerIdentity = true
+      }
     }
 
     pendingField = undefined
   }
 
   return { conversationState, bookingPrefill }
+}
+
+function extractDeterministicBookingPrefill(content: string): BookingCardPrefill {
+  const contactEmail = findContactEmailInText(content)
+  const contactName = extractLabeledBookingValue(
+    content,
+    ["ご担当者名", "担当者名", "ご担当者", "担当者", "お名前", "氏名", "名前"],
+    80,
+  )
+  return compactBookingPrefill({
+    projectTitle: extractLabeledBookingValue(content, ["案件名", "作品タイトル", "作品名", "プロジェクト名"], 120),
+    ...(contactName ? { contactName: normalizeContactNameValue(contactName) } : {}),
+    companyName: extractLabeledBookingValue(content, ["会社名", "法人名", "御社名", "貴社名"], 100),
+    ...(contactEmail ? { contactEmail } : {}),
+  })
+}
+
+function extractLabeledBookingValue(content: string, labels: string[], maxLength: number): string | undefined {
+  const normalized = content.normalize("NFKC")
+  const allLabels = [
+    "案件名",
+    "作品タイトル",
+    "作品名",
+    "プロジェクト名",
+    "ご担当者名",
+    "担当者名",
+    "ご担当者",
+    "担当者",
+    "お名前",
+    "氏名",
+    "名前",
+    "会社名",
+    "法人名",
+    "御社名",
+    "貴社名",
+    "メールアドレス",
+    "メール",
+    "mail",
+    "email",
+    "連絡先",
+  ]
+  const labelPattern = labels.map(escapeRegExp).join("|")
+  const nextLabelPattern = allLabels.map(escapeRegExp).join("|")
+  const quotedPattern = new RegExp(
+    `(?:^|[\\s\\n,、。;；])(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']([^」』"']{1,${maxLength}})[」』"']\\s*(?:です|でございます|になります|でお願いします|でお願いいたします)?(?=[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=))`,
+    "iu",
+  )
+  const quotedValue = normalizeFreeTextBookingValue(quotedPattern.exec(normalized)?.[1], maxLength)
+  if (quotedValue && !isEmptyBookingFieldAnswer(quotedValue)) return quotedValue
+
+  const pattern = new RegExp(
+    `(?:^|[\\s\\n,、。;；])(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']?([\\s\\S]{1,${Math.max(maxLength, 160)}}?)(?=[」』"']?(?:[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=)))`,
+    "iu",
+  )
+  const value = normalizeFreeTextBookingValue(pattern.exec(normalized)?.[1], maxLength)
+  if (!value) return undefined
+  if (isEmptyBookingFieldAnswer(value)) return undefined
+  if (/(教えて|入力|ください|伺|確認|間違い|お間違い)/u.test(value)) return undefined
+  return value
+}
+
+function isEmptyBookingFieldAnswer(value: string): boolean {
+  const compact = value.normalize("NFKC").replace(/\s+/gu, "")
+  return /^(?:未定|なし|無し|特になし|特にない|まだ未定|決まっていない|決まってない|不明)$/u.test(compact)
 }
 
 function mergeRecoveredBookingContext(
@@ -1208,22 +1444,24 @@ function mergeRecoveredBookingContext(
   const recoveredPrefill = recovered.bookingPrefill
   const storedBookingFinalConfirmation = stored.bookingFinalConfirmation
   const storedPrefill = storedBookingFinalConfirmation?.bookingPrefill ?? {}
+  const storedStatePrefill = stored.bookingPrefill ?? {}
   const bookingPrefill = compactBookingPrefill({
-    projectTitle: storedPrefill.projectTitle ?? recoveredPrefill.projectTitle,
-    contactName: storedPrefill.contactName ?? recoveredPrefill.contactName,
-    contactEmail: storedPrefill.contactEmail ?? recoveredPrefill.contactEmail,
-    companyName: storedPrefill.companyName ?? recoveredPrefill.companyName,
-    dueDate: storedPrefill.dueDate ?? recoveredPrefill.dueDate,
-    memo: storedPrefill.memo ?? recoveredPrefill.memo,
+    projectTitle: storedPrefill.projectTitle ?? storedStatePrefill.projectTitle ?? recoveredPrefill.projectTitle,
+    contactName: storedPrefill.contactName ?? storedStatePrefill.contactName ?? recoveredPrefill.contactName,
+    contactEmail: storedPrefill.contactEmail ?? storedStatePrefill.contactEmail ?? recoveredPrefill.contactEmail,
+    companyName: storedPrefill.companyName ?? storedStatePrefill.companyName ?? recoveredPrefill.companyName,
+    dueDate: storedPrefill.dueDate ?? storedStatePrefill.dueDate ?? recoveredPrefill.dueDate,
+    memo: storedPrefill.memo ?? storedStatePrefill.memo ?? recoveredPrefill.memo,
   })
 
   return {
     ...stored,
     ...recovered.conversationState,
-    ...(storedBookingFinalConfirmation || Object.keys(bookingPrefill).length > 0
+    ...(Object.keys(bookingPrefill).length > 0 ? { bookingPrefill } : {}),
+    ...(storedBookingFinalConfirmation
       ? {
           bookingFinalConfirmation: {
-            ...(storedBookingFinalConfirmation ?? { status: "pending" as const }),
+            ...storedBookingFinalConfirmation,
             ...(Object.keys(bookingPrefill).length > 0 ? { bookingPrefill } : {}),
           },
         }
@@ -1239,10 +1477,11 @@ function compactBookingPrefill(input: BookingCardPrefill): BookingCardPrefill {
   )
 }
 
-function inferPendingBookingField(content: string): "projectTitle" | "contactName" | "contactEmail" | undefined {
+function inferPendingBookingField(content: string): "projectTitle" | "contactName" | "contactEmail" | "companyName" | undefined {
   const normalized = content.normalize("NFKC")
   if (/(案件名|作品名).{0,40}(教えて|入力|ください|伺)/u.test(normalized)) return "projectTitle"
   if (/(担当者|お名前|氏名).{0,40}(教えて|入力|ください|伺)/u.test(normalized)) return "contactName"
+  if (/(会社名|会社|法人名|御社名|貴社名).{0,40}(教えて|入力|ください|伺)/u.test(normalized)) return "companyName"
   if (/(メール|mail|email|連絡先).{0,40}(教えて|入力|ください|伺)/iu.test(normalized)) return "contactEmail"
   return undefined
 }
@@ -1272,7 +1511,7 @@ function normalizeContactNameValue(value: string): string | undefined {
 }
 
 function findContactEmailInText(value: string): string | undefined {
-  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu.exec(value)?.[0]
+  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![A-Z0-9.-])/iu.exec(value)?.[0]
 }
 
 function findChoiceSetFromAssistantContent(content: string): SurveyChoiceSet | undefined {
@@ -1344,6 +1583,14 @@ function mergeRecoveredConversationState(
     ...(stored.bookingFinalConfirmation ?? {}),
     ...(recovered.bookingFinalConfirmation ?? {}),
   }
+  const bookingReadiness = {
+    ...(stored.bookingReadiness ?? {}),
+    ...(recovered.bookingReadiness ?? {}),
+  }
+  const bookingPrefill = {
+    ...(stored.bookingPrefill ?? {}),
+    ...(recovered.bookingPrefill ?? {}),
+  }
   const merged: Partial<ConversationState> = {
     ...stored,
     ...recovered,
@@ -1362,8 +1609,12 @@ function mergeRecoveredConversationState(
     ...(hasSubmittedBooking
       ? { bookingSubmission: bookingSubmission as NonNullable<ConversationState["bookingSubmission"]> }
       : {}),
+    ...(Object.keys(bookingPrefill).length > 0 ? { bookingPrefill } : {}),
     ...(!hasSubmittedBooking && bookingFinalConfirmation.status
       ? { bookingFinalConfirmation: bookingFinalConfirmation as NonNullable<ConversationState["bookingFinalConfirmation"]> }
+      : {}),
+    ...(Object.keys(bookingReadiness).length > 0
+      ? { bookingReadiness: bookingReadiness as NonNullable<ConversationState["bookingReadiness"]> }
       : {}),
   }
 
@@ -1438,6 +1689,38 @@ function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogConte
   })
 }
 
+async function generateContractedLlmResponse(input: {
+  orchestrator: ChatbotLlmTierOrchestrator
+  request: ChatbotLlmRequest
+  fallbackRoutingDecision: RoutingDecision
+}): Promise<ChatbotLlmResponse> {
+  try {
+    const response = await input.orchestrator.generate(input.request)
+    assertChatbotLlmResponseContract(response)
+    return response
+  } catch (error) {
+    if (!isChatbotLlmResponseContractError(error)) throw error
+    const rawText = customerReplyMarkup(
+      input.fallbackRoutingDecision.kind === "continue"
+        ? input.fallbackRoutingDecision.nextQuestion
+        : "内容を確認しました。次に必要な情報を1つずつ確認します。",
+    )
+    return {
+      rawText,
+      displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
+      tier: "tier-4-form-fallback",
+      diagnostics: {
+        contractFallback: true,
+        reason: error.message,
+      },
+    }
+  }
+}
+
+function customerReplyMarkup(text: string): string {
+  return `<customer_reply>${text}</customer_reply>`
+}
+
 type ChatbotTierAttemptLogContext = {
   requestId?: string
   conversationId: string
@@ -1452,6 +1735,7 @@ function buildChatbotSystemPrompt(
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null,
   workflowPromptContext?: string,
   noteAccess: CustomerFacingNoteAccess = { kind: "none" },
+  submittedBookingPromptContext?: string,
 ): string {
   const lines = [
     "あなたは新規映像案件の相談受付アシスタントです。",
@@ -1480,11 +1764,14 @@ function buildChatbotSystemPrompt(
     "2026年9月15日 JST 以降は、状況に応じてスタジオ利用を作業場所の選択肢として扱えます。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、JSON 出力の説明だけを返しません。",
+    "最終出力は必ず <customer_reply> と </customer_reply> の内側だけに、お客様へ表示してよい本文を書きます。内部推論、確認メモ、英語の思考、モデル名、署名、ラベル説明、タグ外の本文は一切書きません。",
+    "show_choice_panel / show_booking_card の JSON を出す場合も、表示してよい短い本文と同じ <customer_reply> 内に1個だけ置きます。タグ外には何も書きません。",
     '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD","memo":"..."}} を 1 個だけ含めます。',
     "予約候補カードを出す直前には、これまでの文脈を短く踏まえて、ほかに確認したいこと、伝えておきたいこと、不安な点がないかを1回だけ確認します。その最終確認ターンでは show_booking_card を同時に出さず、1ターン1問いかけにします。",
     "ユーザーが最終確認に「なし」「大丈夫」「ありません」などと答えた次のターンで、必要情報が揃っていれば show_booking_card に進めます。追加情報や質問が来た場合は補足として取り込み、必要な確認をしてから進めます。",
     "show_booking_card の projectTitle は作品名または短い案件名だけにし、ライブ内容、作業内容、顔ぼかしカット数、素材状況、立ち会い方法、希望条件は memo に分離します。",
-    "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。",
+    "Booking Order の自動入力では、メール、氏名、会社名、案件名、補足を必ず対応する専用フィールドに一対一で入れ、別フィールドや memo へ混ぜません。example.com などのプレースホルダーは実データとして扱いません。",
+    "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。案件名が未確定なら projectTitle を空にし、ライブ案件 / CM案件などの種別名で推測補完しません。",
     "所要日数は同期済み正本ナレッジを基準値・判断材料として使い、案件種別、尺、媒体、素材状況、追加作業、希望納期を文脈から読んで前提つきの目安を返します。",
     "工程別日数テーブルを単純な固定回答として扱わず、迷う場合は通常範囲と変動要因を短く添え、正本から大きく外れる断定は避けます。",
     "希望日数が正本ラインより短い場合も即時に不可と断定せず、内容・素材状況・空き状況によって希望日数内で調整できる可能性を示し、確定には空き状況・内容確認・本人確認が必要だと伝えます。",
@@ -1498,6 +1785,9 @@ function buildChatbotSystemPrompt(
   }
   if (workflowPromptContext) {
     lines.push(workflowPromptContext)
+  }
+  if (submittedBookingPromptContext) {
+    lines.push(submittedBookingPromptContext)
   }
   if (noteAccess.kind === "mixed") {
     lines.push(
@@ -1575,11 +1865,15 @@ function getCustomerFacingNoteKnowledge(snapshot: ChatbotKnowledgeSnapshot) {
 }
 
 function buildAssistantDisplayContent(input: {
+  requestId?: string
   rawText: string
+  displayEnvelope: ChatbotLlmResponse["displayEnvelope"]
   routingDecision: RoutingDecision | undefined
   fallbackRoutingDecision: RoutingDecision
   jobContext: JobContext
   uiKind: ChatbotMessageUi["kind"]
+  latestUserMessage: string
+  submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
 }): {
   content: string
   sanitizationReport: ChatbotLlmSanitizationReport
@@ -1587,10 +1881,21 @@ function buildAssistantDisplayContent(input: {
 } {
   const text = input.rawText.trim()
   const toolFreeText = stripStructuredToolCalls(text).trim()
-  const sanitize = (content: string) => {
+  const explicitDisplayText = extractExplicitCustomerReplyText(text)
+  const submittedBookingFallback = input.submittedBooking
+    ? buildSubmittedBookingActionableFallback({
+        latestUserMessage: input.latestUserMessage,
+        jobContext: input.jobContext,
+        submission: input.submittedBooking,
+      })
+    : undefined
+  const sanitize = (content: string, trustedDisplayText = false, fallbackText?: string) => {
     const result = sanitizeChatbotLlmTextWithReport(content, {
       routingDecision: input.routingDecision,
       jobContext: input.jobContext,
+      trustedDisplayText,
+      fallbackText,
+      ...(content === text && !trustedDisplayText ? { displayEnvelope: input.displayEnvelope } : {}),
     })
     return { content: result.text, sanitizationReport: result.report }
   }
@@ -1604,7 +1909,7 @@ function buildAssistantDisplayContent(input: {
   ) => ({ ...result, singleUserPromptGuard: report })
 
   if (guardedContent) {
-    return withGuardReport(sanitize(guardedContent.content), {
+    return withGuardReport(sanitize(guardedContent.content, true), {
       applied: true,
       reason: guardedContent.reason,
       uiKind: input.uiKind,
@@ -1613,10 +1918,13 @@ function buildAssistantDisplayContent(input: {
   }
 
   if (input.routingDecision?.kind === "to-booking-inline" && toolFreeText.length === 0) {
-    return withGuardReport(sanitize("候補日を確認しました。"))
+    return withGuardReport(sanitize("候補日を確認しました。", true))
   }
   if (input.routingDecision?.kind === "continue" && toolFreeText.length === 0) {
-    return withGuardReport(sanitize(input.routingDecision.nextQuestion))
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
+  }
+  if (input.routingDecision?.kind === "continue" && parseShowBookingCardToolCall(text)) {
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
   if (
     input.routingDecision?.kind === "continue" &&
@@ -1624,23 +1932,31 @@ function buildAssistantDisplayContent(input: {
     input.jobContext.jobKind &&
     hasProjectTypeTextMismatch(text, input.jobContext.jobKind)
   ) {
-    return withGuardReport(sanitize(input.routingDecision.nextQuestion))
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
   if (
     input.routingDecision?.kind === "continue" &&
     !input.routingDecision.presentChoices &&
     isFinalMediumRejudgmentQuestion(input.routingDecision.nextQuestion)
   ) {
-    return withGuardReport(sanitize(input.routingDecision.nextQuestion))
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
+  }
+  if (input.submittedBooking && !explicitDisplayText && toolFreeText.length > 0) {
+    return withGuardReport(sanitize(toolFreeText, true, submittedBookingFallback))
   }
   if (toolFreeText !== text) return withGuardReport(sanitize(toolFreeText))
-  if (!isBackendIdentityOnlyResponse(text)) return withGuardReport(sanitize(text))
+  if (!isBackendIdentityOnlyResponse(explicitDisplayText ?? text)) return withGuardReport(sanitize(text))
 
   const routingDecision =
     input.routingDecision?.kind === "continue" ? input.routingDecision : input.fallbackRoutingDecision
-  if (routingDecision.kind === "continue") return withGuardReport(sanitize(routingDecision.nextQuestion))
+  if (routingDecision.kind === "continue") return withGuardReport(sanitize(routingDecision.nextQuestion, true))
 
   return withGuardReport(sanitize(text))
+}
+
+function extractExplicitCustomerReplyText(rawText: string): string | undefined {
+  const match = /<customer_reply>\s*([\s\S]*?)\s*<\/customer_reply>/iu.exec(rawText)
+  return match ? (match[1] ?? "").trim() : undefined
 }
 
 type SingleUserPromptGuardReport =
@@ -1791,6 +2107,139 @@ function logSingleUserPromptGuard(input: {
       normalized: input.rawText !== input.finalText,
     }),
   )
+}
+
+function logChatbotDisplayBoundary(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  tier: ChatbotLlmResponse["tier"]
+  routingDecision: RoutingDecision | undefined
+  uiKind: ChatbotMessageUi["kind"]
+  rawText: string
+  finalText: string
+  report: ChatbotLlmSanitizationReport
+}): void {
+  if (process.env.NODE_ENV === "test") return
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_display_boundary",
+      requestId: input.requestId,
+      buildSha: getChatbotBuildSha(),
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      tier: input.tier,
+      routingDecisionKind: input.routingDecision?.kind ?? null,
+      uiKind: input.uiKind,
+      boundary: input.report.displayBoundary,
+      unsafeArtifacts: input.report.unsafeArtifacts,
+      rawTextPreview: redactForChatbotLog(input.rawText),
+      finalTextPreview: redactForChatbotLog(input.finalText),
+      normalized: input.rawText !== input.finalText,
+    }),
+  )
+}
+
+function logChatbotBookingReadinessBoundary(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  beforeState: ConversationState
+  afterState: ConversationState
+  jobContext: JobContext
+  fallbackRoutingDecision: RoutingDecision
+  routingDecision: RoutingDecision | undefined
+}): void {
+  if (process.env.NODE_ENV === "test") return
+
+  const bookingPrefill =
+    input.routingDecision?.kind === "to-booking-inline" ? input.routingDecision.bookingPrefill : undefined
+  const beforeMissing = getMissingBookingReadinessSlots(input.beforeState, {
+    jobContext: input.jobContext,
+    bookingPrefill,
+  })
+  const afterMissing = getMissingBookingReadinessSlots(input.afterState, {
+    jobContext: input.jobContext,
+    bookingPrefill,
+  })
+  const beforeFinal = input.beforeState.bookingFinalConfirmation
+  const afterFinal = input.afterState.bookingFinalConfirmation
+  const beforeReadiness = input.beforeState.bookingReadiness
+  const afterReadiness = input.afterState.bookingReadiness
+  const beforePrefill = beforeFinal?.bookingPrefill ?? input.beforeState.bookingPrefill ?? {}
+  const afterPrefill = bookingPrefill ?? afterFinal?.bookingPrefill ?? input.afterState.bookingPrefill ?? {}
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_booking_readiness_boundary",
+      requestId: input.requestId,
+      buildSha: getChatbotBuildSha(),
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      boundary: "booking-readiness",
+      input: {
+        missingSlots: beforeMissing,
+        bookingPrefillKeys: getBookingPrefillKeys(beforePrefill),
+        missingPrefillFields: getMissingBookingPrefillFields(beforePrefill),
+        finalQuestionOffered: Boolean(beforeReadiness?.finalQuestionOffered || beforeFinal?.status),
+        finalConfirmationStatus: beforeFinal?.status ?? null,
+        additionalConcernStatus: beforeReadiness?.additionalConcernStatus ?? null,
+      },
+      output: {
+        missingSlots: afterMissing,
+        bookingPrefillKeys: getBookingPrefillKeys(afterPrefill),
+        missingPrefillFields: getMissingBookingPrefillFields(afterPrefill),
+        finalQuestionOffered: Boolean(afterReadiness?.finalQuestionOffered || afterFinal?.status),
+        finalConfirmationStatus: afterFinal?.status ?? null,
+        additionalConcernStatus: afterReadiness?.additionalConcernStatus ?? null,
+        additionalConcernSource: afterReadiness?.additionalConcernSource ?? null,
+      },
+      decision: input.routingDecision?.kind ?? null,
+      reason: summarizeBookingReadinessReason({
+        beforeMissing,
+        afterMissing,
+        beforeState: input.beforeState,
+        afterState: input.afterState,
+        fallbackRoutingDecision: input.fallbackRoutingDecision,
+        routingDecision: input.routingDecision,
+      }),
+    }),
+  )
+}
+
+const trackedBookingPrefillFields = ["projectTitle", "contactName", "companyName", "contactEmail"] as const
+
+function getBookingPrefillKeys(prefill: BookingCardPrefill): Array<(typeof trackedBookingPrefillFields)[number]> {
+  return trackedBookingPrefillFields.filter((field) => Boolean(prefill[field]?.trim()))
+}
+
+function getMissingBookingPrefillFields(prefill: BookingCardPrefill): Array<(typeof trackedBookingPrefillFields)[number]> {
+  return trackedBookingPrefillFields.filter((field) => !prefill[field]?.trim())
+}
+
+function summarizeBookingReadinessReason(input: {
+  beforeMissing: ReturnType<typeof getMissingBookingReadinessSlots>
+  afterMissing: ReturnType<typeof getMissingBookingReadinessSlots>
+  beforeState: ConversationState
+  afterState: ConversationState
+  fallbackRoutingDecision: RoutingDecision
+  routingDecision: RoutingDecision | undefined
+}): string {
+  if (input.afterMissing.length > 0) return `missing-required:${input.afterMissing[0]}`
+  if (
+    input.beforeState.bookingFinalConfirmation?.status !== "confirmed" &&
+    input.afterState.bookingFinalConfirmation?.status === "confirmed"
+  ) {
+    return `additional-concern-cleared:${input.afterState.bookingReadiness?.additionalConcernSource ?? "unknown"}`
+  }
+  if (
+    !input.beforeState.bookingReadiness?.finalQuestionOffered &&
+    input.afterState.bookingReadiness?.finalQuestionOffered
+  ) {
+    return "final-question-offered"
+  }
+  if (input.routingDecision?.kind === "to-booking-inline") return "booking-ready"
+  if (input.fallbackRoutingDecision.kind === "continue") return "fallback-continue"
+  return "unchanged"
 }
 
 function logChatbotLlmTierAttempt(
@@ -2060,8 +2509,9 @@ async function resolveRoutingDecision(input: {
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
 }): Promise<RoutingDecision | undefined> {
   if (input.llmResponse.tier === "tier-4-form-fallback") return input.fallbackRoutingDecision
-  const toolCall = parseShowBookingCardToolCall(input.llmResponse.rawText)
-  const choicePanelToolCall = parseShowChoicePanelToolCall(input.llmResponse.rawText)
+  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
+  const toolCall = parseShowBookingCardToolCall(rawDisplayText)
+  const choicePanelToolCall = parseShowChoicePanelToolCall(rawDisplayText)
   const submittedBooking = getSubmittedBooking(input.conversationState)
   if (submittedBooking && (toolCall || input.fallbackRoutingDecision.kind !== "continue")) {
     return {
@@ -2120,7 +2570,7 @@ async function resolveRoutingDecision(input: {
     })
   }
   const textChoicePanelToolCall = parseTextChoicePanelToolCall(
-    input.llmResponse.rawText,
+    rawDisplayText,
     input.fallbackRoutingDecision,
   )
   if (textChoicePanelToolCall) {
@@ -2142,6 +2592,15 @@ async function resolveRoutingDecision(input: {
   if (!toolCall) {
     if (submittedBooking) return undefined
     if (shouldRecoverBookingCardFromAcceptanceText(input)) {
+      return buildBookingInlineRoutingDecision({
+        jobContext: input.jobContext,
+        conversationState: input.conversationState,
+        bookingPrefill: input.conversationState.bookingFinalConfirmation?.bookingPrefill ?? {},
+        candidateWindowFinder: input.candidateWindowFinder,
+        knowledgeSnapshot: input.knowledgeSnapshot,
+      })
+    }
+    if (shouldRecoverBookingCardFromLlmNoAdditionalConcern(input)) {
       return buildBookingInlineRoutingDecision({
         jobContext: input.jobContext,
         conversationState: input.conversationState,
@@ -2176,17 +2635,32 @@ function shouldRecoverBookingCardFromAcceptanceText(input: {
   jobContext: JobContext
   fallbackRoutingDecision: RoutingDecision
 }): boolean {
-  if (!isNoAdditionalBookingConcern(input.latestUserMessage)) return false
+  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
+  const normalized = rawDisplayText.normalize("NFKC").toLowerCase()
+  const hasCardlessAcceptanceText =
+    /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized) &&
+    !parseShowBookingCardToolCall(rawDisplayText)
+  if (!wasBookingFinalQuestionOffered(input.conversationState) && !hasCardlessAcceptanceText) return false
   if (input.conversationState.bookingSubmission?.status === "submitted") return false
   if (!input.jobContext.jobKind || !input.conversationState.hasContactEmail) return false
   if (input.fallbackRoutingDecision.kind === "to-direct-contact") return false
   if (input.conversationState.bookingFinalConfirmation?.status === "supplemental-received") return false
 
-  const normalized = input.llmResponse.rawText.normalize("NFKC").toLowerCase()
-  return (
-    /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized) &&
-    !parseShowBookingCardToolCall(input.llmResponse.rawText)
-  )
+  return hasCardlessAcceptanceText
+}
+
+function shouldRecoverBookingCardFromLlmNoAdditionalConcern(input: {
+  llmResponse: ChatbotLlmResponse
+  conversationState: ConversationState
+  jobContext: JobContext
+  fallbackRoutingDecision: RoutingDecision
+}): boolean {
+  if (!wasBookingFinalQuestionOffered(input.conversationState)) return false
+  if (input.conversationState.bookingSubmission?.status === "submitted") return false
+  if (input.conversationState.bookingFinalConfirmation?.status === "supplemental-received") return false
+  if (!input.jobContext.jobKind || !input.conversationState.hasContactEmail) return false
+  if (input.fallbackRoutingDecision.kind === "to-direct-contact") return false
+  return isLlmNoAdditionalBookingConcernSignal(input.llmResponse.rawText)
 }
 
 function getSubmittedBooking(
@@ -2199,6 +2673,44 @@ function getSubmittedBooking(
 
 function buildSubmittedBookingFollowup(submission: NonNullable<ConversationState["bookingSubmission"]>): string {
   return `予約番号 ${submission.reservationNumber} は送信完了済みです。内容は受け付け済みなので、同じ予約カードは再表示しません。則兼が内容を確認してご連絡します。`
+}
+
+function buildSubmittedBookingPromptContext(
+  submission: NonNullable<ConversationState["bookingSubmission"]>,
+): string {
+  return [
+    "予約送信後の会話状態:",
+    `- 予約番号 ${submission.reservationNumber} は送信完了済みです。`,
+    "- この状態では show_booking_card、予約候補カード、予約前の不足項目確認、選択パネルへ戻しません。",
+    "- 具体的な質問、追加相談、予約内容の変更希望には、予約済みであることを前提に自然に答えます。本人確認が必要な変更や確約は、則兼が確認して連絡する案内にします。",
+    "- 「次に必要な情報を1つずつ確認します」のような予約前の案内へ戻しません。",
+  ].join("\n")
+}
+
+function buildSubmittedBookingActionableFallback(input: {
+  latestUserMessage: string
+  jobContext: JobContext
+  submission: NonNullable<ConversationState["bookingSubmission"]>
+}): string {
+  const normalized = input.latestUserMessage.normalize("NFKC").toLowerCase()
+  const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談として受け付け済みです。`
+  if (/(持ち物|必要なもの|準備|用意)/u.test(normalized)) {
+    const remoteNote =
+      input.jobContext.workSite === "remote-grading"
+        ? "リモート作業なので、来訪用の持ち物は基本的に不要です。"
+        : ""
+    return `${remoteNote}素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。${reservationPrefix}則兼が内容を確認して、追加で必要なものがあれば連絡します。`
+  }
+  if (/(集合|場所|アクセス|住所|どこ)/u.test(normalized)) {
+    if (input.jobContext.workSite === "remote-grading") {
+      return `リモート作業として受け付けているため、現地の集合場所はありません。${reservationPrefix}受け渡し方法や連絡手段は則兼が内容を確認して案内します。`
+    }
+    return `${reservationPrefix}集合場所や当日の詳細は則兼が内容を確認して案内します。`
+  }
+  if (/(変更|修正|追加|キャンセル|取り消)/u.test(normalized)) {
+    return `${reservationPrefix}変更希望もこの会話に残しておいてください。確定可否や反映方法は則兼が内容を確認して連絡します。`
+  }
+  return `${reservationPrefix}追加の質問として確認しました。則兼が内容を確認して、必要があれば連絡します。`
 }
 
 async function buildBookingInlineRoutingDecision(input: {
@@ -2331,6 +2843,7 @@ function parseTextChoicePanelToolCall(
   fallbackRoutingDecision: RoutingDecision,
 ): ShowChoicePanelToolCall | undefined {
   if (fallbackRoutingDecision.kind !== "continue" || !fallbackRoutingDecision.presentChoices) return undefined
+  if (hasUnsafeLlmChoicePanelText(text)) return undefined
   if (!looksLikePlainTextChoicePanel(text)) return undefined
 
   const choices = extractPlainTextChoices(text)
@@ -2345,6 +2858,17 @@ function parseTextChoicePanelToolCall(
     allowFreeText: fallbackRoutingDecision.presentChoices.allowFreeText ?? true,
   })
   return choiceSet ? { tool: "show_choice_panel", args: choiceSet } : undefined
+}
+
+function hasUnsafeLlmChoicePanelText(text: string): boolean {
+  return (
+    /(?:^|\b)(?:user|customer)\s+(?:has|said|provided|asked|answered|wants?|mentioned)\b/iu.test(text) ||
+    /\blet(?:'|’)?s\b|\blet\s+(?:me|us)\b|\bi\s+(?:need|should|will|would|have|must|think|can)\b/iu.test(text) ||
+    /\b(?:thinking|signature|claude[-_\w]*sonnet)\b/iu.test(text) ||
+    /\b[a-z][a-z0-9]*-[a-z][a-z0-9]*-(?:low|medium|high|fast|thinking|reasoning)\b/iu.test(text) ||
+    /[A-Za-z0-9+/=_-]{80,}/u.test(text) ||
+    /\b(?:projectTitle|contactName|contactEmail|companyName|dueDate)\s*:/u.test(text)
+  )
 }
 
 function looksLikePlainTextChoicePanel(text: string): boolean {
@@ -2684,29 +3208,58 @@ function normalizeBookingCardPrefill(
   conversationState: ConversationState,
 ): BookingCardPrefill {
   const statePrefill = conversationState.bookingFinalConfirmation?.bookingPrefill ?? {}
+  const stateBookingPrefill = conversationState.bookingPrefill ?? {}
+  const confirmedStateCustomerName = conversationState.hasCustomerIdentity
+    ? normalizeBookingIdentityField(conversationState.customerName, 80)
+    : undefined
+  const confirmedStateCompanyName = conversationState.hasCustomerIdentity
+    ? normalizeBookingIdentityField(conversationState.companyName, 100)
+    : undefined
+  const fallbackStateCustomerName = normalizeBookingIdentityField(conversationState.customerName, 80)
+  const fallbackStateCompanyName = normalizeBookingIdentityField(conversationState.companyName, 100)
   const stateContactEmail =
     conversationState.hasContactEmail && isValidContactEmail(conversationState.contactEmail)
       ? conversationState.contactEmail
       : undefined
   const statePrefillEmail = isValidContactEmail(statePrefill.contactEmail) ? statePrefill.contactEmail : undefined
-  const toolContactEmail = isValidContactEmail(prefill.contactEmail) ? prefill.contactEmail : undefined
+  const stateBookingPrefillEmail = isValidContactEmail(stateBookingPrefill.contactEmail)
+    ? stateBookingPrefill.contactEmail
+    : undefined
+  const toolContactEmail = extractBookingPrefillEmail(prefill)
+  const prefillEmailFromMemo = extractBookingPrefillEmail({ ...stateBookingPrefill, ...statePrefill })
   const toolPrefillLooksStale = Boolean(stateContactEmail && toolContactEmail && stateContactEmail !== toolContactEmail)
   const trustedToolPrefill = toolPrefillLooksStale ? {} : prefill
-  const projectTitle = normalizeBookingProjectTitle(statePrefill.projectTitle ?? trustedToolPrefill.projectTitle, jobContext)
+  const projectTitle = normalizeBookingProjectTitle(
+    statePrefill.projectTitle ?? stateBookingPrefill.projectTitle ?? trustedToolPrefill.projectTitle,
+    jobContext,
+  )
+  const contactEmail = stateContactEmail ?? statePrefillEmail ?? stateBookingPrefillEmail ?? prefillEmailFromMemo ?? toolContactEmail
   const memoParts = [
-    normalizeSupplementalMemo(statePrefill.memo),
-    normalizeSupplementalMemo(trustedToolPrefill.memo),
+    normalizeBookingSupplementalMemo(statePrefill.memo, contactEmail),
+    normalizeBookingSupplementalMemo(stateBookingPrefill.memo, contactEmail),
+    normalizeBookingSupplementalMemo(trustedToolPrefill.memo, contactEmail),
     normalizeSupplementalBookingFinalNote(conversationState.bookingFinalConfirmation?.supplementalNote),
     ...buildChoiceDetailSegments(jobContext, conversationState),
   ]
-  const stateCustomerName = conversationState.hasCustomerIdentity ? conversationState.customerName : undefined
-  const stateCompanyName = conversationState.hasCustomerIdentity ? conversationState.companyName : undefined
-  const contactName = stateCustomerName ?? statePrefill.contactName ?? trustedToolPrefill.contactName
-  const contactEmail = stateContactEmail ?? statePrefillEmail ?? (isValidContactEmail(trustedToolPrefill.contactEmail) ? trustedToolPrefill.contactEmail : undefined)
-  const companyName = stateCompanyName ?? statePrefill.companyName ?? trustedToolPrefill.companyName
-  const dueDate = statePrefill.dueDate ?? trustedToolPrefill.dueDate
+  const contactName =
+    confirmedStateCustomerName ??
+    normalizeBookingIdentityField(statePrefill.contactName, 80) ??
+    normalizeBookingIdentityField(stateBookingPrefill.contactName, 80) ??
+    normalizeBookingIdentityField(trustedToolPrefill.contactName, 80) ??
+    fallbackStateCustomerName
+  const companyName =
+    confirmedStateCompanyName ??
+    normalizeBookingIdentityField(statePrefill.companyName, 100) ??
+    normalizeBookingIdentityField(stateBookingPrefill.companyName, 100) ??
+    normalizeBookingIdentityField(trustedToolPrefill.companyName, 100) ??
+    fallbackStateCompanyName
+  const dueDate = statePrefill.dueDate ?? stateBookingPrefill.dueDate ?? trustedToolPrefill.dueDate
 
-  if (trustedToolPrefill.projectTitle && projectTitle !== trustedToolPrefill.projectTitle) {
+  if (
+    trustedToolPrefill.projectTitle &&
+    projectTitle !== trustedToolPrefill.projectTitle &&
+    shouldKeepRejectedProjectTitleInMemo(trustedToolPrefill.projectTitle, jobContext)
+  ) {
     memoParts.push(trustedToolPrefill.projectTitle)
   }
 
@@ -2721,11 +3274,32 @@ function normalizeBookingCardPrefill(
 }
 
 function normalizeBookingProjectTitle(value: string | undefined, jobContext: JobContext): string | undefined {
-  if (!value) return defaultProjectTitleForJob(jobContext)
+  if (!value) return undefined
   const title = value.trim()
-  if (!title) return defaultProjectTitleForJob(jobContext)
-  if (isLikelyProjectDetail(title)) return defaultProjectTitleForJob(jobContext)
+  if (!title) return undefined
+  if (isGenericBookingProjectTitle(title, jobContext)) return undefined
+  if (isLikelyProjectDetail(title)) return undefined
   return title.slice(0, 80)
+}
+
+function shouldKeepRejectedProjectTitleInMemo(value: string, jobContext: JobContext): boolean {
+  const title = value.trim()
+  return Boolean(title && !isGenericBookingProjectTitle(title, jobContext) && isLikelyProjectDetail(title))
+}
+
+function isGenericBookingProjectTitle(value: string, jobContext: JobContext): boolean {
+  const normalized = value.normalize("NFKC").replace(/\s+/g, "")
+  const genericTitles = [
+    "ライブ案件",
+    "CM案件",
+    "MV案件",
+    "ドラマ案件",
+    "長編案件",
+    "縦型動画案件",
+    defaultProjectTitleForJob(jobContext),
+  ].filter((item): item is string => Boolean(item))
+
+  return genericTitles.some((title) => normalized === title.normalize("NFKC").replace(/\s+/g, ""))
 }
 
 function isLikelyProjectDetail(value: string): boolean {
@@ -2869,19 +3443,73 @@ function normalizeSupplementalMemo(value: string | undefined): string | undefine
   return text
 }
 
+function normalizeBookingSupplementalMemo(value: string | undefined, contactEmail?: string): string | undefined {
+  const rawLines = value?.split(/\n+/u) ?? []
+  const scrubbed = rawLines
+    .map((line) => normalizeSupplementalMemo(line))
+    .map((line) => scrubBookingSupplementalIdentityLine(line ?? "", contactEmail))
+    .filter((line): line is string => Boolean(line?.trim()))
+    .join("\n")
+    .trim()
+
+  return scrubbed || undefined
+}
+
+function scrubBookingSupplementalIdentityLine(line: string, contactEmail?: string): string | undefined {
+  let next = line
+    .replace(/[^\s@]+@[^\s@]+\.[^\s@]+/gu, "")
+    .replace(/\bexample\.com\b/giu, "")
+    .replace(contactEmail ? new RegExp(escapeRegExp(contactEmail), "giu") : /$a/u, "")
+    .trim()
+
+  if (/^[-\s]*(?:メール|mail|email|連絡先|氏名|お名前|名前|担当者|ご担当者|会社名|会社|法人名|御社名|貴社名)\s*[:：]/iu.test(next)) {
+    return undefined
+  }
+
+  next = next.replace(/^(?:メール|mail|email|連絡先|氏名|お名前|名前|担当者|ご担当者|会社名|会社|法人名|御社名|貴社名)\s*$/iu, "")
+  return next.trim() || undefined
+}
+
 function normalizeSupplementalBookingFinalNote(value: string | undefined): string | undefined {
   if (!value || isNoAdditionalBookingConcern(value)) return undefined
   return normalizeSupplementalMemo(value)
 }
 
 function mergeMemoParts(parts: Array<string | undefined>): Pick<BookingCardPrefill, "memo"> | Record<string, never> {
-  const memo = parts
+  const seen = new Set<string>()
+  const lines = parts
     .filter((part): part is string => Boolean(part?.trim()))
-    .map((part) => part.trim())
-    .join("\n")
+    .flatMap((part) => part.split(/\n+/u))
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (!line) return false
+      const key = line.normalize("NFKC")
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  const memo = lines.join("\n")
   return memo ? { memo } : {}
 }
 
 function isValidContactEmail(value: string | undefined): value is string {
   return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+}
+
+function extractBookingPrefillEmail(prefill: BookingCardPrefill): string | undefined {
+  return [
+    prefill.contactEmail,
+    prefill.memo,
+  ].map((value) => findContactEmailInText(value ?? "")).find((value): value is string => isValidContactEmail(value))
+}
+
+function normalizeBookingIdentityField(value: string | undefined, maxLength: number): string | undefined {
+  const normalized = normalizeFreeTextBookingValue(value, maxLength)
+  if (!normalized || /^example\.com$/iu.test(normalized)) return undefined
+  if (isValidContactEmail(normalized)) return undefined
+  return normalized
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }

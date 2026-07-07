@@ -2,6 +2,12 @@ import { NextRequest } from "next/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
+import {
+  assertChatbotLlmResponseContract,
+  isChatbotLlmResponseContractError,
+} from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
+import { chatbotLeakCorpus } from "../../../../../tests/fixtures/chatbot/leak-corpus"
 
 function request(body: unknown, cookie?: string, headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/chatbot/message", {
@@ -32,6 +38,12 @@ function message(role: ChatbotMessage["role"], content: string): ChatbotMessage 
   }
 }
 
+function withDisplayEnvelope<T extends Record<string, unknown>>(response: T): T {
+  return typeof response.rawText === "string" && !("displayEnvelope" in response)
+    ? { ...response, displayEnvelope: createChatbotLlmDisplayEnvelope(response.rawText) }
+    : response
+}
+
 async function loadPost({
   session = null,
   existingConversation = null,
@@ -41,6 +53,7 @@ async function loadPost({
   slackNotificationResult = { status: "skipped", reason: "disabled" },
   llmResponse = {
     rawText: "最終媒体を教えてください",
+    displayEnvelope: createChatbotLlmDisplayEnvelope("最終媒体を教えてください"),
     tier: "tier-3-ollama-deepseek" as const,
   },
 }: {
@@ -81,7 +94,7 @@ async function loadPost({
     referenceUrls: [],
   })
   const formatUserChatbotContextForPrompt = vi.fn(() => "本人文脈:\n- 既存の本人文脈はありません。")
-  const generate = vi.fn().mockResolvedValue(llmResponse)
+  const generate = vi.fn().mockResolvedValue(withDisplayEnvelope(llmResponse))
   const sendChatbotSlackNotification = vi.fn().mockResolvedValue(slackNotificationResult)
 
   vi.doMock("@/auth", () => ({ auth }))
@@ -94,6 +107,8 @@ async function loadPost({
     updateConversationRouting,
     updateConversationSlackThreadTs,
     linkConversationToUser,
+    assertChatbotLlmResponseContract,
+    isChatbotLlmResponseContractError,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),
@@ -135,6 +150,57 @@ afterEach(() => {
 })
 
 describe("POST /api/chatbot/message", () => {
+  it.each(chatbotLeakCorpus)("keeps the shared leak corpus safe at API level: $id", async (item) => {
+    const route = await loadPost({
+      llmResponse: {
+        rawText: item.rawText,
+        tier: "tier-2-hosted-chrome-notion-ai",
+      },
+    })
+
+    const response = await route.POST(
+      request({
+        message: "相談です",
+        jobContext: {
+          jobKind: "cm-30s",
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+          projectLengthMinutes: 30,
+        },
+        conversationState: {
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: true,
+          hasDesiredSchedule: false,
+        },
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    const serialized = JSON.stringify(body)
+
+    expect(serialized).not.toContain("thinking-signature")
+    expect(serialized).not.toContain("almond-croissant-low")
+    expect(serialized).not.toContain("<lang")
+    expect(serialized).not.toContain("user said")
+    expect(serialized).not.toContain("I need")
+    expect(serialized).not.toContain("聞こう")
+
+    if (item.api.assertExactText) {
+      expect(body.assistantMessage.content).toBe(item.expected.text)
+    }
+    if (item.api.expectedUiKind) {
+      expect(body.ui.kind).toBe(item.api.expectedUiKind)
+    }
+  })
+
   it("issues a new unauthenticated session cookie and creates a conversation", async () => {
     const route = await loadPost()
 

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
+import { readFileSync } from "node:fs"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ComponentProps } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -120,6 +121,17 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByLabelText("案件名")).toBeRequired()
     expect(screen.getByLabelText("氏名")).toBeRequired()
     expect(screen.getByLabelText("メール")).toBeRequired()
+  })
+
+  it("keeps booking order typography scoped to chatbot sans-serif", () => {
+    const css = readFileSync("src/app/globals.css", "utf8")
+    const shellRule = css.match(/\.chatbot-widget-shell\s*\{[\s\S]*?\n  \}/)?.[0] ?? ""
+    const descendantRule =
+      css.match(/\.chatbot-widget-shell :is\(h1, h2, h3, h4, h5, h6, p, label, legend, button, input, textarea, select, dt, dd, span, a\)\s*\{[\s\S]*?\n  \}/)?.[0] ?? ""
+
+    expect(shellRule).toContain('font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;')
+    expect(descendantRule).toContain("font-family: inherit;")
+    expect(descendantRule).toContain("letter-spacing: 0;")
   })
 
   it("renders calendar date cells with numeric day text only", () => {
@@ -610,7 +622,9 @@ describe("ChatbotBookingCard", () => {
       defaultMemo: "ライブ2.5h\nプロンプター消し物・顔アップ肌修正",
     })
 
-    expect(screen.getByLabelText("補足")).toHaveValue("ライブ2.5h\nプロンプター消し物・顔アップ肌修正")
+    const memoField = screen.getByLabelText("補足")
+    expect(memoField).toHaveValue("ライブ2.5h\nプロンプター消し物・顔アップ肌修正")
+    expect(memoField).toHaveClass("auto-resize-textarea")
     expect(screen.getByLabelText("会社名")).toHaveValue("株式会社サンプル")
     expect(screen.getByLabelText("氏名")).toHaveValue("田中")
     expect(screen.getByLabelText("案件名")).toHaveValue("")
@@ -688,8 +702,20 @@ describe("ChatbotBookingCard", () => {
     const field = screen.getByLabelText("案件名")
     expect(field.tagName).toBe("TEXTAREA")
     expect(field).toHaveValue(longTitle)
-    expect(field).toHaveClass("resize-none")
-    expect(field).toHaveClass("overflow-hidden")
+    expect(field).toHaveClass("auto-resize-textarea")
+    expect(field).not.toHaveClass("overflow-y-auto")
+    expect(field).toHaveStyle({ overflowY: "hidden" })
+  })
+
+  it("caps supplemental notes so wheel scrolling remains available after autogrow stops", () => {
+    renderCard({ defaultMemo: "補足メモ\n".repeat(30) })
+
+    const field = screen.getByLabelText("補足")
+    Object.defineProperty(field, "scrollHeight", { configurable: true, value: 520 })
+    fireEvent.change(field, { target: { value: "補足メモ\n".repeat(31) } })
+
+    expect(field).toHaveClass("auto-resize-textarea")
+    expect(field).toHaveStyle({ overflowY: "auto" })
   })
 
   it("posts the selected candidate and required fields to the chatbot booking API", async () => {

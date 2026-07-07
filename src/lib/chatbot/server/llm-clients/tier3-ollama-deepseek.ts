@@ -1,5 +1,6 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 
 type Tier3OllamaDeepSeekClientConfig = {
   baseUrl: string
@@ -107,6 +108,7 @@ export class Tier3OllamaDeepSeekClient implements ChatbotLlmClient {
 
       return {
         rawText,
+        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tier: this.tier,
         latencyMs: Date.now() - startedAt,
         diagnostics: buildOllamaDiagnostics(response),

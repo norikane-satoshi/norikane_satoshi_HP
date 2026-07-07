@@ -5,6 +5,7 @@ import type {
   ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
+import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 
 type Tier1ChromeNotionAiClientConfig = {
@@ -61,6 +62,7 @@ export type NotionAiRuntimeInspection = {
 
 type NotionAiWorkflowValue = {
   type: "workflow"
+  model?: string
   isHipaa: boolean
   isMobile: boolean
   yoloMode: boolean
@@ -68,6 +70,7 @@ type NotionAiWorkflowValue = {
   searchScopes: unknown[]
   useWebSearch: boolean
   isCustomAgent: boolean
+  modelFromUser?: boolean
   enableComputer: boolean
   enableQueryMail: boolean
   useReadOnlyMode: boolean
@@ -222,6 +225,71 @@ const emptyText = ""
 const maxTransientGenerateAttempts = 2
 let tier1GenerateQueue = Promise.resolve()
 
+export const chatbotNotionAiModelPolicy = {
+  mode: "auto-with-denylist",
+  deniedModels: [
+    {
+      requestedName: "Sonnet 4.6",
+      providerApiModel: "claude-sonnet-4-6",
+      aliases: ["Claude Sonnet 4.6"],
+    },
+    {
+      requestedName: "Gemini 3.1 Pro",
+      providerApiModel: "gemini-3.1-pro-preview",
+      aliases: ["gemini-3.1-pro"],
+    },
+    {
+      requestedName: "GPT 5.2",
+      providerApiModel: "gpt-5.2",
+      aliases: ["GPT-5.2"],
+    },
+    {
+      requestedName: "GPT 5.3",
+      providerApiModel: "gpt-5.3-codex",
+      aliases: ["GPT-5.3", "gpt-5.3"],
+    },
+    {
+      requestedName: "GPT 5.4",
+      providerApiModel: "gpt-5.4",
+      aliases: ["GPT-5.4"],
+    },
+    {
+      requestedName: "Grok 4.3",
+      providerApiModel: "grok-4.3",
+      aliases: ["xAI Grok 4.3"],
+    },
+    {
+      requestedName: "Grok build0.1",
+      providerApiModel: "grok-build-0.1",
+      aliases: ["Grok Build 0.1", "grok build 0.1"],
+    },
+    {
+      requestedName: "Block Build 0.1",
+      aliases: ["block-build-0.1"],
+    },
+    {
+      requestedName: "Gemini 3.5 Flash",
+      providerApiModel: "gemini-3.5-flash",
+      aliases: ["Gemini 3.5 Flash"],
+    },
+    {
+      requestedName: "Kimi K2.6",
+      providerApiModel: "kimi-k2.6",
+      aliases: ["Moonshot Kimi K2.6"],
+    },
+    {
+      requestedName: "DeepSeek V4 Pro",
+      providerApiModel: "deepseek-v4-pro",
+      aliases: ["DeepSeek-V4-Pro"],
+    },
+    {
+      requestedName: "GLM 5.2",
+      providerApiModel: "glm-5.2",
+      aliases: ["GLM-5.2"],
+    },
+  ],
+} as const
+
 export const tier1ChromeNotionAiDefaults = {
   cdpBaseUrl: "http://127.0.0.1:9223",
   targetUrlIncludes: getNotionAiChatbotThreadUrl(),
@@ -315,6 +383,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
 
       return {
         rawText,
+        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tier: this.tier,
         latencyMs: Date.now() - startedAt,
         diagnostics: {
@@ -607,8 +676,12 @@ export function buildRunInferencePayload(input: {
     })
   }
 
+  assertNoDeniedRuntimeModelSelection(input.runtimeContext)
+
   const workflowValue = buildWorkflowValue({
     workflowValue: input.runtimeContext.workflowValue,
+    selectedModel: input.runtimeContext.selectedModel,
+    finalModelName: input.runtimeContext.finalModelName,
   })
 
   return {
@@ -695,6 +768,8 @@ export function buildRunInferenceHeaders(runtimeContext: NotionAiRuntimeContext)
 
 export function buildWorkflowValue(input: {
   workflowValue?: Partial<NotionAiWorkflowValue>
+  selectedModel?: string
+  finalModelName?: string
 } = {}): NotionAiWorkflowValue {
   const workflowValue: NotionAiWorkflowValue = {
     type: "workflow",
@@ -759,12 +834,46 @@ export function buildWorkflowValue(input: {
   }
 
   const sanitizedWorkflowValue = stripModelSelection(input.workflowValue)
-
   return {
     ...workflowValue,
     ...sanitizedWorkflowValue,
     type: "workflow",
   }
+}
+
+function assertNoDeniedRuntimeModelSelection(runtimeContext: NotionAiRuntimeContext): void {
+  const deniedModel = [runtimeContext.selectedModel, runtimeContext.finalModelName].find((model) =>
+    isDeniedChatbotNotionAiModel(model),
+  )
+  if (!deniedModel) return
+
+  throw new ChatbotLlmError({
+    message: `Notion AI runtime selected a denied chatbot model: ${deniedModel}`,
+    code: "invalid-output",
+    tier,
+    isRetryable: true,
+  })
+}
+
+export function isDeniedChatbotNotionAiModel(model: unknown): boolean {
+  const normalizedModel = normalizeModelName(model)
+  if (!normalizedModel) return false
+
+  return chatbotNotionAiModelPolicy.deniedModels.some((entry) => {
+    return [
+      entry.requestedName,
+      "providerApiModel" in entry ? entry.providerApiModel : undefined,
+      ...entry.aliases,
+    ]
+      .map(normalizeModelName)
+      .some((candidate) => candidate === normalizedModel)
+  })
+}
+
+function normalizeModelName(model: unknown): string | undefined {
+  if (typeof model !== "string") return undefined
+  const normalized = model.toLowerCase().replace(/[^a-z0-9]+/g, "")
+  return normalized.length > 0 ? normalized : undefined
 }
 
 function stripModelSelection(

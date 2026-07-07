@@ -8,6 +8,7 @@ import { ChatInput } from "@/components/chatbot/widget/ChatInput"
 import { CHATBOT_CONVERSATION_CONTENT_STYLE } from "@/components/chatbot/widget/conversationTypography"
 
 const originalMatchMedia = window.matchMedia
+const originalNavigatorPlatform = window.navigator.platform
 
 function mockMatchMedia(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -26,6 +27,13 @@ function mockMatchMedia(matches: boolean) {
   })
 }
 
+function mockNavigatorPlatform(platform: string) {
+  Object.defineProperty(window.navigator, "platform", {
+    configurable: true,
+    value: platform,
+  })
+}
+
 describe("ChatInput", () => {
   afterEach(() => {
     Object.defineProperty(window, "matchMedia", {
@@ -33,6 +41,7 @@ describe("ChatInput", () => {
       writable: true,
       value: originalMatchMedia,
     })
+    mockNavigatorPlatform(originalNavigatorPlatform)
     cleanup()
   })
 
@@ -44,19 +53,72 @@ describe("ChatInput", () => {
 
   it("shows the default multiline and submit shortcut guidance on desktop", () => {
     mockMatchMedia(false)
+    mockNavigatorPlatform("MacIntel")
     render(<ChatInput onSubmit={vi.fn()} />)
 
-    expect(
-      screen.getByPlaceholderText("案件内容を書く（Enterで改行、Cmd（Ctrl）+ Enterで送信）"),
-    ).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("案件内容やその他質問")).toBeInTheDocument()
+    expect(screen.getByText("案件内容やその他質問")).toBeInTheDocument()
+    expect(screen.getByText("で改行")).toBeInTheDocument()
+    expect(screen.getByText("で送信")).toBeInTheDocument()
+    expect(document.querySelector('[data-chat-input-key="command"]')).toBeInTheDocument()
+    expect(screen.queryByText(/Enter|Cmd|Windows|Linux/)).not.toBeInTheDocument()
+  })
+
+  it("keeps shortcut spacing grouped by operation", () => {
+    mockMatchMedia(false)
+    mockNavigatorPlatform("MacIntel")
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    expect(screen.getByText("案件内容やその他質問").parentElement).toHaveClass("gap-x-4")
+    expect(screen.getByText("で改行").parentElement).toHaveClass("gap-1")
+    expect(screen.getByText("で送信").parentElement).toHaveClass("gap-1")
+    expect(screen.getByText("+").parentElement).toHaveClass("gap-px")
+  })
+
+  it("renders placeholder, shortcut hint text, and keycap contents at muted sixty percent opacity", () => {
+    mockMatchMedia(false)
+    mockNavigatorPlatform("MacIntel")
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    const keycapContents = ["newline", "command", "submit-enter"].map((key) =>
+      document.querySelector(`[data-chat-input-key="${key}"]`)?.closest("span"),
+    )
+
+    expect(screen.getByText("案件内容やその他質問")).toHaveClass("opacity-60")
+    expect(screen.getByText("で改行")).toHaveClass("opacity-60")
+    expect(screen.getByText("で送信")).toHaveClass("opacity-60")
+    expect(screen.getByLabelText("相談内容")).toHaveClass("placeholder:text-transparent")
+    expect(screen.getByText("+")).toHaveClass("text-hp-muted/70")
+    keycapContents.forEach((keycapContent) => {
+      expect(keycapContent).toHaveClass("opacity-60")
+      expect(keycapContent?.parentElement).toHaveClass("border-white/65", "bg-white/45")
+      expect(keycapContent?.parentElement).not.toHaveClass("opacity-60")
+    })
+  })
+
+  it("renders the mobile textarea placeholder at muted sixty percent opacity", () => {
+    mockMatchMedia(true)
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    expect(screen.getByLabelText("相談内容")).toHaveClass("chatbot-input-placeholder-muted")
+  })
+
+  it("switches the submit modifier hint to a Ctrl keycap outside macOS", () => {
+    mockMatchMedia(false)
+    mockNavigatorPlatform("Win32")
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    expect(screen.getByText("Ctrl")).toBeInTheDocument()
+    expect(document.querySelector('[data-chat-input-key="command"]')).not.toBeInTheDocument()
   })
 
   it("hides physical keyboard shortcut guidance on mobile", () => {
     mockMatchMedia(true)
     render(<ChatInput onSubmit={vi.fn()} />)
 
-    expect(screen.getByPlaceholderText("案件内容を書く")).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText(/Cmd（Ctrl）/)).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText("案件内容やその他質問")).toBeInTheDocument()
+    expect(screen.queryByText("で改行")).not.toBeInTheDocument()
+    expect(screen.queryByText("Ctrl")).not.toBeInTheDocument()
   })
 
   it("uses the same font family as submitted conversation content", () => {
@@ -85,8 +147,20 @@ describe("ChatInput", () => {
     const input = screen.getByLabelText("相談内容")
     expect(input.tagName).toBe("TEXTAREA")
     expect(input).toHaveAttribute("rows", "1")
-    expect(input).toHaveClass("max-h-40")
-    expect(input).toHaveClass("overflow-y-auto")
+    expect(input).toHaveClass("auto-resize-textarea")
+    expect(input).not.toHaveClass("max-h-40")
+    expect(input).not.toHaveClass("overflow-y-auto")
+  })
+
+  it("expands the textarea height to its content", () => {
+    render(<ChatInput onSubmit={vi.fn()} />)
+
+    const input = screen.getByLabelText("相談内容")
+    Object.defineProperty(input, "scrollHeight", { configurable: true, value: 144 })
+
+    fireEvent.change(input, { target: { value: "1行目\n2行目\n3行目" } })
+
+    expect(input).toHaveStyle({ height: "144px" })
   })
 
   it("keeps Enter as a newline and submits with Cmd or Ctrl Enter", async () => {

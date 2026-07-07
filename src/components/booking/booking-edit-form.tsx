@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { Save, Trash2, XCircle } from "lucide-react"
 
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import type {
   BookingAccessScope,
   EditableBookingDetails,
@@ -216,7 +217,7 @@ export function BookingEditForm({
         </div>
         <label className="mt-4 block space-y-2 text-sm font-medium text-hp">
           <span>補足</span>
-          <textarea className="glass-input w-full px-4 py-3 text-sm" rows={5} value={details.memo} disabled={isReadOnly} onChange={(event) => updateDetail("memo", event.target.value)} />
+          <AutoResizeTextarea className="glass-input w-full px-4 py-3 text-sm" rows={5} value={details.memo} disabled={isReadOnly} onChange={(event) => updateDetail("memo", event.target.value)} />
         </label>
       </section>
 

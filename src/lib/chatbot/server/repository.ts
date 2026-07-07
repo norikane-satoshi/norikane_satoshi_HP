@@ -597,6 +597,7 @@ function withSubmittedBookingState(
 ): Partial<ConversationState> {
   const rest = { ...state }
   delete rest.bookingFinalConfirmation
+  delete rest.bookingReadiness
   return {
     ...rest,
     bookingSubmission: {

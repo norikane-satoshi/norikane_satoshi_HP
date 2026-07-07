@@ -89,6 +89,7 @@ export type ConversationState = {
   contactEmail?: string
   customerName?: string
   companyName?: string
+  bookingPrefill?: BookingCardPrefill
   productionOptions?: Array<"captions" | "telops" | "narration" | "music" | "other">
   otherChoiceComments?: Record<string, string>
   bookingFinalConfirmation?: {
@@ -97,6 +98,13 @@ export type ConversationState = {
     confirmedAtTurn?: number
     supplementalNote?: string
     bookingPrefill?: BookingCardPrefill
+  }
+  bookingReadiness?: {
+    finalQuestionOffered?: boolean
+    finalQuestionOfferedAtTurn?: number
+    additionalConcernStatus?: "none" | "has-concern" | "unknown"
+    additionalConcernSource?: "choice-panel" | "llm-booking-card" | "fallback-pattern"
+    additionalConcernUpdatedAtTurn?: number
   }
   bookingSubmission?: {
     status: "submitted"
