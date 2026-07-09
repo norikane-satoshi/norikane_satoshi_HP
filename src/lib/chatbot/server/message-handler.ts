@@ -2533,6 +2533,9 @@ function buildSubmittedBookingActionableFallback(input: {
 }): string {
   const normalized = input.latestUserMessage.normalize("NFKC").toLowerCase()
   const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談内容として則兼に届いています。`
+  if (/(助か|また相談)/u.test(normalized)) {
+    return "そう言っていただけてうれしいです。則兼が内容を確認して、ご登録の連絡先へ案内します。"
+  }
   if (/(ありがとう|よろしく|助か|お世話|いい名前|良い名前|うれしい|嬉しい)/u.test(normalized)) {
     return "こちらこそありがとうございます。則兼が内容を確認して、ご登録の連絡先へ案内します。"
   }
@@ -2560,6 +2563,9 @@ function buildSubmittedBookingActionableFallback(input: {
 
 function buildFinalConfirmationSupplementalFollowup(latestUserMessage: string): string {
   const normalized = latestUserMessage.normalize("NFKC").toLowerCase()
+  if (/(助か|また相談)/u.test(normalized)) {
+    return "そう言っていただけてうれしいです。気になる点があれば、このまま送ってください。"
+  }
   if (/(ありがとう|よろしく|助か|いい名前|良い名前|うれしい|嬉しい)/u.test(normalized)) {
     return "ありがとうございます。こちらこそ、よろしくお願いします。"
   }

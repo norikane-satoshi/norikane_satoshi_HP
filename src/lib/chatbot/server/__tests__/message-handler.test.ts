@@ -2551,7 +2551,7 @@ describe("handleChatbotMessage user context", () => {
       label: "post-booking-small-talk",
       userMessage: "また相談できて助かりました",
       leakedReply: "UI上ではカードを再表示しません。内容は受け付け済みです。",
-      expectedReply: "こちらこそありがとうございます。則兼が内容を確認して、ご登録の連絡先へ案内します。",
+      expectedReply: "そう言っていただけてうれしいです。則兼が内容を確認して、ご登録の連絡先へ案内します。",
     },
   ])(
     "falls back to a customer-facing submitted-booking reply when LLM leaks internal UI state after submission: $label",
