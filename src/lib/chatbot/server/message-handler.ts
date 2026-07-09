@@ -1582,6 +1582,7 @@ function buildChatbotSystemPrompt(
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、JSON 出力の説明だけを返しません。",
     "最終出力は必ず <customer_reply> と </customer_reply> の内側だけに、お客様へ表示してよい本文を書きます。内部推論、確認メモ、英語の思考、モデル名、署名、ラベル説明、タグ外の本文は一切書きません。",
+    "お客様向け本文では、UI制御理由や内部状態説明としての「カードを再表示しない」「予約候補カードは作成済み」「受付済み」「UI」などを説明しません。予約送信後は、自然なあいさつ、追加相談への返答、則兼が確認して連絡する案内だけを書きます。",
     "show_choice_panel / show_booking_card の JSON を出す場合も、表示してよい短い本文と同じ <customer_reply> 内に1個だけ置きます。タグ外には何も書きません。",
     '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD","memo":"..."}} を 1 個だけ含めます。',
     "予約候補カードを出す直前には、これまでの文脈を短く踏まえて、ほかに確認したいこと、伝えておきたいこと、不安な点がないかを1回だけ確認します。その最終確認ターンでは show_booking_card を同時に出さず、1ターン1問いかけにします。",
@@ -1711,7 +1712,7 @@ function buildAssistantDisplayContent(input: {
       routingDecision: input.routingDecision,
       jobContext: input.jobContext,
       trustedDisplayText,
-      fallbackText,
+      fallbackText: fallbackText ?? submittedBookingFallback,
       ...(content === text && !trustedDisplayText ? { displayEnvelope: input.displayEnvelope } : {}),
     })
     return { content: result.text, sanitizationReport: result.report }
@@ -2503,7 +2504,7 @@ function getSubmittedBooking(
 }
 
 function buildSubmittedBookingFollowup(submission: NonNullable<ConversationState["bookingSubmission"]>): string {
-  return `予約番号 ${submission.reservationNumber} は送信完了済みです。内容は受け付け済みなので、同じ予約カードは再表示しません。則兼が内容を確認してご連絡します。`
+  return `ありがとうございます。予約番号 ${submission.reservationNumber} の内容は則兼に届いています。確認後、ご登録の連絡先へご案内します。`
 }
 
 function buildSubmittedBookingPromptContext(
@@ -2524,7 +2525,7 @@ function buildSubmittedBookingActionableFallback(input: {
   submission: NonNullable<ConversationState["bookingSubmission"]>
 }): string {
   const normalized = input.latestUserMessage.normalize("NFKC").toLowerCase()
-  const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談として受け付け済みです。`
+  const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談内容として則兼に届いています。`
   if (/(持ち物|必要なもの|準備|用意)/u.test(normalized)) {
     const remoteNote =
       input.jobContext.workSite === "remote-grading"
@@ -2534,7 +2535,7 @@ function buildSubmittedBookingActionableFallback(input: {
   }
   if (/(集合|場所|アクセス|住所|どこ)/u.test(normalized)) {
     if (input.jobContext.workSite === "remote-grading") {
-      return `今回はリモート作業の予約として受け付け済みです。${reservationPrefix}対面や場所の確認が必要な場合は、則兼が内容確認時に案内します。`
+      return `今回はリモート作業の相談内容として届いています。${reservationPrefix}対面や場所の確認が必要な場合は、則兼が内容確認時に案内します。`
     }
     return `${reservationPrefix}場所や入館方法などの詳細は、則兼が内容確認後に連絡します。`
   }

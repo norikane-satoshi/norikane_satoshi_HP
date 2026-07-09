@@ -2528,6 +2528,74 @@ describe("handleChatbotMessage user context", () => {
     expect(result.routingDecision).toBeUndefined()
   })
 
+  it.each([
+    {
+      label: "thank-you",
+      userMessage: "ありがとう",
+      leakedReply: "内容は受付済みなので同じ予約カードを再表示しません。則兼が内容を確認してご連絡します。",
+    },
+    {
+      label: "thank-you-and-greeting",
+      userMessage: "内容、ありがとう、今後ともよろしくお願いします",
+      leakedReply: "内容は受付済みなので同じ予約カードを再表示しません。則兼が内容を確認してご連絡します。",
+    },
+    {
+      label: "additional-question",
+      userMessage: "追加で聞きたいことがあります",
+      leakedReply: "予約候補カードは作成済みです。追加の予約カードは不要です。",
+    },
+    {
+      label: "post-booking-small-talk",
+      userMessage: "また相談できて助かりました",
+      leakedReply: "UI上ではカードを再表示しません。内容は受け付け済みです。",
+    },
+  ])(
+    "falls back to a customer-facing submitted-booking reply when LLM leaks internal UI state after submission: $label",
+    async ({ userMessage, leakedReply }) => {
+      const harness = setup({
+        existingConversation: conversation({
+          context: {
+            sessionId: "session_1",
+            userId: "user_a",
+            conversationState: {
+              ...baseProductionConversationState(),
+              hasContactEmail: true,
+              contactEmail: "client@example.com",
+              bookingSubmission: {
+                status: "submitted",
+                reservationNumber: "booking_1",
+                submittedAt: "2026-06-26T07:37:23.000Z",
+              },
+            },
+            jobContext: {
+              jobKind: "live-60m",
+              finalMedium: "live",
+              workSite: "remote-grading",
+              documentaryAttachment: { kind: "none" },
+              projectLengthMinutes: 150,
+            },
+          },
+        }),
+      })
+      harness.generate.mockResolvedValueOnce({
+        rawText: customerReply(leakedReply),
+        tier: "tier-2-hosted-chrome-notion-ai",
+      })
+
+      const result = await handleChatbotMessage(
+        { sessionId: "session_1", userId: "user_a", message: userMessage },
+        harness.options,
+      )
+
+      expect(result.ui).toEqual({ kind: "none" })
+      expect(result.routingDecision).toBeUndefined()
+      expect(result.assistantMessage.content).toBe(
+        "ありがとうございます。予約番号 booking_1 の内容は則兼に届いています。確認後、ご登録の連絡先へご案内します。",
+      )
+      expect(result.assistantMessage.content).not.toMatch(/カード|再表示|UI|受付済み|受け付け済み/u)
+    },
+  )
+
   it("keeps submitted booking follow-up as conversation instead of showing another handoff card", async () => {
     const harness = setup({
       existingConversation: conversation({

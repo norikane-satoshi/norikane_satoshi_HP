@@ -8,6 +8,7 @@ export type ChatbotLeakCorpusCase = {
     | "japanese-volitional-monologue"
     | "missing-display-boundary"
     | "mixed-tool-json"
+    | "internal-booking-ui-state"
     | "safe-polite-reply"
     | "safe-code-fence"
     | "safe-choice-panel"
@@ -117,6 +118,19 @@ export const chatbotLeakCorpus = [
       text: chatbotLeakCorpusFallbackText,
       fallbackApplied: true,
       unsafe: false,
+    },
+    api: {},
+  },
+  {
+    id: "reject-internal-booking-ui-state",
+    family: "internal-booking-ui-state",
+    rawText:
+      "<customer_reply>内容は受付済みなので同じ予約カードを再表示しません。則兼が内容を確認してご連絡します。</customer_reply>",
+    expected: {
+      outcome: "fallback",
+      text: chatbotLeakCorpusFallbackText,
+      fallbackApplied: true,
+      unsafe: true,
     },
     api: {},
   },

@@ -67,7 +67,7 @@ export function applyBookingFinalConfirmationPolicy(input: {
   if (input.conversationState.bookingSubmission?.status === "submitted") {
     return {
       routingDecision:
-        input.routingDecision?.kind === "continue" && /予約番号|送信完了|受け付け済み/u.test(input.routingDecision.nextQuestion)
+        input.routingDecision?.kind === "continue" && /予約番号|送信完了/u.test(input.routingDecision.nextQuestion)
           ? input.routingDecision
           : undefined,
       conversationState: input.conversationState,

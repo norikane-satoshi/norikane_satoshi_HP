@@ -39,6 +39,7 @@ export type ChatbotLlmSanitizationReport = ChatbotDurationSafetyReport & {
       | "internal-reasoning-line"
       | "internal-model-codename"
       | "internal-markup"
+      | "internal-booking-ui-state"
     >
   }
 }
@@ -155,6 +156,8 @@ const internalReasoningEnglishPattern =
   /\b(?:i|we)\s+(?:need|should|will|would|have|must|think|can|am|could|'ll|'m|'ve)\b|\blet(?:'|’)?s\b|\blet\s+(?:me|us)\b|\bi'?ll\b|\b(?:the\s+)?(?:user|customer)\s+(?:said|says|selected|asked|answered|chose|wants?|mentioned|indicated|responded|is|has|gave|provided|replied)\b|\blooking at the (?:conversation|context)\b|\bconfirmed facts?\b|\bwhat'?s\s+(?:still\s+)?missing\b|\bstill\s+missing\b|\bno particular preferences?\b|\bnow i\b/iu
 const internalMachineIdentifierPattern =
   /\b(?:show_booking_card|show_choice_panel|projectTitle|contactName|contactEmail|companyName|dueDate|selectionMode|allowFreeText|choiceSetId|projectLengthMinutes|jobKind|finalMedium)\b/u
+const internalBookingUiStatePattern =
+  /(?:受付済み|受け付け済み|(?:予約(?:候補)?カード|同じ予約カード|カード).{0,32}(?:再表示|表示しません|作成済み|不要)|(?:再表示).{0,32}(?:予約(?:候補)?カード|カード))/u
 const japaneseInternalMonologuePattern =
   /ユーザー(?:は|が|さん|の|に)|(?:確定済み|未確定)\s*facts|メモリのルール|A項目|Aアイテム|必須の[A-Za-z]|(?:必要がある|べきだ|べきです|べきだろう|聞き返す|聞き返そう|進める条件|埋めるために|留めるべき|留める必要|チェックしている|確認している|把握している|判断している|提案する必要|勧めるべき|しないといけない|進めるべき|埋めるべき|確認する必要)|(?:聞こう|確認しよう|進めよう|提案しよう|勧めよう|埋めよう|しよう|返そう|尋ねよう|整理しよう|始めよう|まとめよう|決めよう|考えよう|見よう|出そう|送ろう|続けよう|把握しよう|質問しよう)(?:[。、]|\n|$)/u
 
@@ -210,6 +213,7 @@ type StripReason =
   | "internal-reasoning-line"
   | "internal-model-codename"
   | "internal-markup"
+  | "internal-booking-ui-state"
 
 type DisplayBoundaryExtraction = ChatbotLlmDisplayEnvelope
 
@@ -322,6 +326,7 @@ function detectUnsafeCustomerFacingArtifacts(rawText: string): {
   ) {
     reasons.add("internal-markup")
   }
+  if (internalBookingUiStatePattern.test(textForAudit)) reasons.add("internal-booking-ui-state")
   xmlLikeTagPattern.lastIndex = 0
 
   return {
