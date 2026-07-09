@@ -485,6 +485,7 @@ export async function handleChatbotMessage(
     jobContext,
     uiKind: ui.kind,
     latestUserMessage: input.message,
+    conversationState: persistedConversationState,
     submittedBooking,
   })
   const assistantContent = assistantDisplay.content
@@ -1691,6 +1692,7 @@ function buildAssistantDisplayContent(input: {
   jobContext: JobContext
   uiKind: ChatbotMessageUi["kind"]
   latestUserMessage: string
+  conversationState: ConversationState
   submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
 }): {
   content: string
@@ -1707,12 +1709,17 @@ function buildAssistantDisplayContent(input: {
         submission: input.submittedBooking,
       })
     : undefined
+  const finalConfirmationFallback =
+    input.conversationState.bookingFinalConfirmation?.status === "supplemental-received"
+      ? buildFinalConfirmationSupplementalFollowup(input.latestUserMessage)
+      : undefined
+  const contextualFallback = submittedBookingFallback ?? finalConfirmationFallback
   const sanitize = (content: string, trustedDisplayText = false, fallbackText?: string) => {
     const result = sanitizeChatbotLlmTextWithReport(content, {
       routingDecision: input.routingDecision,
       jobContext: input.jobContext,
       trustedDisplayText,
-      fallbackText: fallbackText ?? submittedBookingFallback,
+      fallbackText: fallbackText ?? contextualFallback,
       ...(content === text && !trustedDisplayText ? { displayEnvelope: input.displayEnvelope } : {}),
     })
     return { content: result.text, sanitizationReport: result.report }
@@ -2526,6 +2533,12 @@ function buildSubmittedBookingActionableFallback(input: {
 }): string {
   const normalized = input.latestUserMessage.normalize("NFKC").toLowerCase()
   const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談内容として則兼に届いています。`
+  if (/(ありがとう|よろしく|助か|お世話|いい名前|良い名前|うれしい|嬉しい)/u.test(normalized)) {
+    return "こちらこそありがとうございます。則兼が内容を確認して、ご登録の連絡先へ案内します。"
+  }
+  if (/(聞きたい|質問|相談|確認|教えて|追加)/u.test(normalized)) {
+    return "はい、このまま追加で聞きたいことを書いてください。予約内容と一緒に則兼が確認します。"
+  }
   if (/(持ち物|必要なもの|準備|用意)/u.test(normalized)) {
     const remoteNote =
       input.jobContext.workSite === "remote-grading"
@@ -2543,6 +2556,17 @@ function buildSubmittedBookingActionableFallback(input: {
     return `${reservationPrefix}変更やキャンセルは本人確認が必要なので、この場では確約せず、則兼が内容を確認してご連絡します。`
   }
   return buildSubmittedBookingFollowup(input.submission)
+}
+
+function buildFinalConfirmationSupplementalFollowup(latestUserMessage: string): string {
+  const normalized = latestUserMessage.normalize("NFKC").toLowerCase()
+  if (/(ありがとう|よろしく|助か|いい名前|良い名前|うれしい|嬉しい)/u.test(normalized)) {
+    return "ありがとうございます。こちらこそ、よろしくお願いします。"
+  }
+  if (/(聞きたい|質問|相談|確認|教えて|追加)/u.test(normalized)) {
+    return "はい、このまま追加で聞きたいことを書いてください。内容を見ながら整理します。"
+  }
+  return "ありがとうございます。気になる点があれば、このまま送ってください。"
 }
 
 async function buildBookingInlineRoutingDecision(input: {
