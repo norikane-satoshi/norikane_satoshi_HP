@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  Fragment,
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -53,6 +54,7 @@ type WidgetMessage = {
   role: ChatbotMessageRole
   content: string
   createdAt: Date
+  embeddedUi?: WidgetUi
 }
 
 const initialMessage = {
@@ -266,9 +268,29 @@ function isCompletedBookingUi(ui: WidgetUi): ui is Extract<WidgetUi, { kind: "bo
   return ui.kind === "booking-card" && Boolean(ui.completedBooking)
 }
 
-function preserveCompletedBookingUi(currentUi: WidgetUi, nextUi: WidgetUi): WidgetUi {
-  if (nextUi.kind !== "none") return nextUi
-  return isCompletedBookingUi(currentUi) ? currentUi : nextUi
+function hasEmbeddedCompletedBooking(messages: WidgetMessage[], bookingGroupId: string): boolean {
+  return messages.some((message) => {
+    const embeddedUi = message.embeddedUi
+    return embeddedUi?.kind === "booking-card" && embeddedUi.completedBooking?.bookingGroupId === bookingGroupId
+  })
+}
+
+function appendCompletedBookingMessage(
+  messages: WidgetMessage[],
+  ui: Extract<WidgetUi, { kind: "booking-card" }> & { completedBooking: BookingCompletionSummary },
+  createdAt = new Date(),
+): WidgetMessage[] {
+  if (hasEmbeddedCompletedBooking(messages, ui.completedBooking.bookingGroupId)) return messages
+  return [
+    ...messages,
+    {
+      id: `booking-summary-${ui.completedBooking.bookingGroupId}`,
+      role: "system",
+      content: "",
+      createdAt,
+      embeddedUi: ui,
+    },
+  ]
 }
 
 const assistantNameQuestionPattern = /(名前|なんて呼|どう呼|呼べば|あなた.*誰|誰.*あなた|何者)/u
@@ -288,6 +310,7 @@ function serializeWidgetMessages(messages: WidgetMessage[]): StoredWidgetSession
     role: message.role,
     content: message.content,
     createdAt: message.createdAt.toISOString(),
+    ...(message.embeddedUi ? { embeddedUi: message.embeddedUi } : {}),
   }))
 }
 
@@ -327,9 +350,16 @@ function loadStoredWidgetSession(): {
             role: message.role,
             content: message.content,
             createdAt: new Date(message.createdAt),
+            ...(message.embeddedUi ? { embeddedUi: message.embeddedUi } : {}),
           }))
       : []
-    const restoredMessages = messages.length > 0 ? messages : [initialMessage]
+    const restoredActiveUi = pendingRequest || recoverableRequest ? noUi : parsed.activeUi ?? noUi
+    const restoredMessages =
+      messages.length > 0
+        ? isCompletedBookingUi(restoredActiveUi)
+          ? appendCompletedBookingMessage(messages, restoredActiveUi)
+          : messages
+        : [initialMessage]
     const messagesWithRecoveryNotice =
       recoverableRequest && !pendingRequest && restoredMessages[restoredMessages.length - 1]?.role !== "system"
         ? [...restoredMessages, { role: "system" as const, content: communicationFallbackMessage, createdAt: new Date() }]
@@ -339,10 +369,10 @@ function loadStoredWidgetSession(): {
       messages: messagesWithRecoveryNotice,
       clientSessionId: parsed.clientSessionId,
       conversationId: parsed.conversationId,
-      activeUi: pendingRequest || recoverableRequest ? noUi : parsed.activeUi ?? noUi,
+      activeUi: isCompletedBookingUi(restoredActiveUi) ? noUi : restoredActiveUi,
       customerDisplayName:
         normalizeDisplayName(parsed.customerDisplayName) ??
-        getCustomerDisplayNameFromUi(pendingRequest || recoverableRequest ? noUi : parsed.activeUi ?? noUi),
+        getCustomerDisplayNameFromUi(restoredActiveUi),
       lastResponseTier: parsed.lastResponseTier,
       pendingRequest,
       recoverableRequest: pendingRequest ? undefined : recoverableRequest,
@@ -789,7 +819,6 @@ export function WidgetShell({
     activeRequestControllerRef.current = controller
     const createdAt = new Date()
     const clientUserMessageId = createClientUserMessageId()
-    const pendingUi = preserveCompletedBookingUi(activeUi, noUi)
     const nextPendingRequest: StoredPendingRequest = {
       kind: "message",
       message: text,
@@ -808,13 +837,13 @@ export function WidgetShell({
         messages: serializeWidgetMessages(nextMessages),
         clientSessionId,
         conversationId,
-        activeUi: pendingUi,
+        activeUi: noUi,
         lastResponseTier,
         pendingRequest: nextPendingRequest,
       })
       return nextMessages
     })
-    setActiveUi(pendingUi)
+    setActiveUi(noUi)
     setShowThinkingDelayNotice(false)
     setSubmitting(true)
 
@@ -841,7 +870,7 @@ export function WidgetShell({
           ),
         )
       }
-      const nextActiveUi = preserveCompletedBookingUi(activeUi, payload.ui)
+      const nextActiveUi = payload.ui
       setMessages((currentMessages) => {
         const nextMessages = [
           ...currentMessages,
@@ -884,7 +913,7 @@ export function WidgetShell({
         content: communicationFallbackMessage,
         createdAt: new Date(),
       })
-      setActiveUi(pendingUi)
+      setActiveUi(noUi)
       setRecoverableRequest(nextPendingRequest)
     } finally {
       finishRequest(controller)
@@ -1055,13 +1084,28 @@ export function WidgetShell({
     if (nextCustomerDisplayName) {
       setCustomerDisplayName(nextCustomerDisplayName)
     }
-    setActiveUi((currentUi) => {
-      if (currentUi.kind !== "booking-card") return currentUi
-      return {
-        ...currentUi,
-        completedBooking: booking,
-      }
+    if (activeUi.kind !== "booking-card") return
+    const completedBookingUi = {
+      ...activeUi,
+      completedBooking: booking,
+    } satisfies Extract<WidgetUi, { kind: "booking-card" }>
+    setMessages((currentMessages) => {
+      const nextMessages = appendCompletedBookingMessage(currentMessages, completedBookingUi)
+      persistWidgetSession({
+        messages: serializeWidgetMessages(nextMessages),
+        clientSessionId,
+        conversationId,
+        activeUi: noUi,
+        ...(nextCustomerDisplayName
+          ? { customerDisplayName: nextCustomerDisplayName }
+          : customerDisplayName
+            ? { customerDisplayName }
+            : {}),
+        lastResponseTier,
+      })
+      return nextMessages
     })
+    setActiveUi(noUi)
   }
 
   const isSidePeek = isDesktopLayout && displayMode === "side-peek"
@@ -1271,22 +1315,34 @@ export function WidgetShell({
           <SecurityNote defaultOpen={false} />
           <div className="space-y-3" role="log" aria-live="polite">
             {messages.map((message, index) => (
-              <ChatMessage
-                key={message.id ?? `${message.role}-${message.createdAt.toISOString()}-${index}`}
-                id={message.id}
-                role={message.role}
-                content={message.content}
-                createdAt={message.createdAt}
-                displayName={
-                  message.role === "user"
-                    ? customerDisplayName
-                    : message.role === "assistant"
-                      ? assistantDisplayName
-                      : undefined
-                }
-                editingDisabled={submitting}
-                onEdit={handleEditMessage}
-              />
+              <Fragment key={message.id ?? `${message.role}-${message.createdAt.toISOString()}-${index}`}>
+                {message.content ? (
+                  <ChatMessage
+                    id={message.id}
+                    role={message.role}
+                    content={message.content}
+                    createdAt={message.createdAt}
+                    displayName={
+                      message.role === "user"
+                        ? customerDisplayName
+                        : message.role === "assistant"
+                          ? assistantDisplayName
+                          : undefined
+                    }
+                    editingDisabled={submitting}
+                    onEdit={handleEditMessage}
+                  />
+                ) : null}
+                {message.embeddedUi ? (
+                  <ActiveWidgetUi
+                    ui={message.embeddedUi}
+                    conversationId={conversationId}
+                    onSubmit={handleSubmit}
+                    onInquirySubmit={handleInquirySubmit}
+                    onBookingCompleted={handleBookingCompleted}
+                  />
+                ) : null}
+              </Fragment>
             ))}
             {submitting ? <ThinkingIndicator showDelayNotice={showThinkingDelayNotice} /> : null}
           </div>

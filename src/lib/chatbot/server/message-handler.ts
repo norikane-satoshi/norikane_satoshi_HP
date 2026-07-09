@@ -76,7 +76,6 @@ import {
   isBookingFinalConfirmationPrompt,
   isLlmNoAdditionalBookingConcernSignal,
   isNoAdditionalBookingConcern,
-  isSubmittedBookingTerminalAcknowledgement,
   wasBookingFinalQuestionOffered,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
@@ -367,74 +366,12 @@ export async function handleChatbotMessage(
     }),
   })
   const submittedBooking = getSubmittedBooking(conversationState)
-  if (submittedBooking && isSubmittedBookingTerminalAcknowledgement(input.message)) {
-    const nextQuestion = buildSubmittedBookingFollowup(submittedBooking)
-    const routingDecision: Extract<RoutingDecision, { kind: "continue" }> = {
-      kind: "continue",
-      nextQuestion,
-    }
-    const assistantMessage = await repository.appendMessage({
-      conversationId: conversation.id,
-      role: "assistant",
-      content: nextQuestion,
-    })
-    try {
-      await repository.updateConversationRouting({
-        conversationId: conversation.id,
-        routingDecision: routingDecision.kind,
-        currentQuestion: routingDecision.nextQuestion,
-        activeChoices: null,
-        conversationState,
-        jobContext,
-      })
-    } catch (error) {
-      throw new ChatbotMessagePersistenceError({
-        cause: error,
-        conversationId: conversation.id,
-        tier: "local-deterministic",
-        routingDecisionKind: routingDecision.kind,
-        uiKind: "none",
-      })
-    }
-    await notifySlackForChatbotResponse({
-      notifier: slackNotifier,
-      repository,
-      requestId: input.requestId,
-      conversation,
-      userText: userMessage.content,
-      assistantText: assistantMessage.content,
-      tier: "local-deterministic",
-      routingDecisionKind: routingDecision.kind,
-      uiKind: "none",
-      choiceSetId: undefined,
-      bookingProgress: false,
-      flowStep: "conversation",
-      flowStepReason: conversationState.activeIntakeClarification?.reason,
-      issueReasons: [],
-      retryDiagnostics: undefined,
-      pendingRecovery: input.pendingRequestKind === "message" || input.pendingRequestKind === "edit",
-      pendingRequestKind: input.pendingRequestKind,
-    })
-
-    return {
-      conversationId: conversation.id,
-      userMessage: {
-        id: userMessage.id,
-        role: userMessage.role,
-        content: userMessage.content,
-        createdAt: userMessage.createdAt,
-      },
-      assistantMessage: {
-        id: assistantMessage.id,
-        role: assistantMessage.role,
-        content: assistantMessage.content,
-        createdAt: assistantMessage.createdAt,
-      },
-      tier: "local-deterministic",
-      ui: { kind: "none" },
-      routingDecision,
-    }
-  }
+  logChatbotBookingCompletedContextBoundary({
+    requestId: input.requestId,
+    conversation,
+    latestUserMessage: input.message,
+    submittedBooking,
+  })
   const systemPrompt = buildChatbotSystemPrompt(
     userContext,
     userContextFormatter,
@@ -602,13 +539,13 @@ export async function handleChatbotMessage(
     pendingRecovery: isPendingRequestRecovery,
     pendingRequestKind: input.pendingRequestKind,
   })
-  if (routingDecision) {
+  if (routingDecision || submittedBooking) {
     try {
       await repository.updateConversationRouting({
         conversationId: conversation.id,
-        routingDecision: routingDecision.kind,
-        currentQuestion: routingDecision.kind === "continue" ? routingDecision.nextQuestion : null,
-        activeChoices: routingDecision.kind === "continue" ? routingDecision.presentChoices ?? null : null,
+        routingDecision: routingDecision?.kind ?? "continue",
+        currentQuestion: routingDecision?.kind === "continue" ? routingDecision.nextQuestion : null,
+        activeChoices: routingDecision?.kind === "continue" ? routingDecision.presentChoices ?? null : null,
         conversationState: persistedConversationState,
         jobContext,
       })
@@ -617,7 +554,7 @@ export async function handleChatbotMessage(
         cause: error,
         conversationId: conversation.id,
         tier: llmResponse.tier,
-        routingDecisionKind: routingDecision.kind,
+        routingDecisionKind: routingDecision?.kind ?? "continue",
         uiKind: ui.kind,
       })
     }
@@ -2080,6 +2017,39 @@ function logChatbotBookingReadinessBoundary(input: {
   )
 }
 
+function logChatbotBookingCompletedContextBoundary(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  latestUserMessage: string
+  submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
+}): void {
+  if (process.env.NODE_ENV === "test") return
+  if (!input.submittedBooking) return
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_booking_completed_context_boundary",
+      requestId: input.requestId,
+      buildSha: getChatbotBuildSha(),
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      boundary: "booking-completed-context",
+      input: {
+        latestUserMessagePreview: redactForChatbotLog(input.latestUserMessage),
+        bookingSubmissionStatus: input.submittedBooking.status,
+        hasReservationNumber: Boolean(input.submittedBooking.reservationNumber),
+      },
+      output: {
+        structuredContext: "booking-submitted",
+        promptContextIncluded: true,
+        uiKind: "none",
+      },
+      decision: "continue-llm-route",
+      reason: "submitted-booking-is-context-not-display-template",
+    }),
+  )
+}
+
 function summarizeBookingReadinessReason(input: {
   beforeMissing: ReturnType<typeof getMissingBookingReadinessSlots>
   afterMissing: ReturnType<typeof getMissingBookingReadinessSlots>
@@ -2377,11 +2347,8 @@ async function resolveRoutingDecision(input: {
   const toolCall = parseShowBookingCardToolCall(rawDisplayText)
   const choicePanelToolCall = parseShowChoicePanelToolCall(rawDisplayText)
   const submittedBooking = getSubmittedBooking(input.conversationState)
-  if (submittedBooking && (toolCall || input.fallbackRoutingDecision.kind !== "continue")) {
-    return {
-      kind: "continue",
-      nextQuestion: buildSubmittedBookingFollowup(submittedBooking),
-    }
+  if (submittedBooking) {
+    return undefined
   }
   if (input.fallbackRoutingDecision.kind === "to-direct-contact") {
     if (

@@ -1322,14 +1322,24 @@ describe("WidgetShell API wiring", () => {
 
     await waitFor(() => {
       const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
-      expect(stored.activeUi.completedBooking).toMatchObject({
-        bookingGroupId: "group_1",
-        projectTitle: "ライブ案件",
-        contactName: "田中",
-        contactEmail: "client@example.jp",
-        companyName: "株式会社サンプル",
-        memo: expect.stringContaining("観客の顔ぼかし30カット以上"),
-      })
+      expect(stored.activeUi).toEqual({ kind: "none" })
+      expect(stored.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            embeddedUi: expect.objectContaining({
+              kind: "booking-card",
+              completedBooking: expect.objectContaining({
+                bookingGroupId: "group_1",
+                projectTitle: "ライブ案件",
+                contactName: "田中",
+                contactEmail: "client@example.jp",
+                companyName: "株式会社サンプル",
+                memo: expect.stringContaining("観客の顔ぼかし30カット以上"),
+              }),
+            }),
+          }),
+        ]),
+      )
     })
 
     cleanup()
@@ -1425,20 +1435,32 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("予約送信済みです。ありがとうございます。")).toBeInTheDocument()
     expect(screen.getByLabelText("予約送信完了")).toBeInTheDocument()
     expect(screen.getByText("予約番号: group_keep")).toBeInTheDocument()
+    const bookingSummary = screen.getByLabelText("予約送信完了")
+    const followupUserMessage = screen.getByText("ありがとう")
+    const followupAssistantMessage = screen.getByText("予約送信済みです。ありがとうございます。")
+    expect(bookingSummary.compareDocumentPosition(followupUserMessage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(bookingSummary.compareDocumentPosition(followupAssistantMessage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     await waitFor(() => {
       const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
-      expect(stored.activeUi).toMatchObject({
-        kind: "booking-card",
-        completedBooking: {
-          bookingGroupId: "group_keep",
-          projectTitle: "送信後保持案件",
-          contactName: "田中",
-          contactEmail: "client@example.jp",
-          companyName: "株式会社サンプル",
-          memo: expect.stringContaining("保持メモ"),
-        },
-      })
+      expect(stored.activeUi).toEqual({ kind: "none" })
+      expect(stored.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            embeddedUi: expect.objectContaining({
+              kind: "booking-card",
+              completedBooking: expect.objectContaining({
+                bookingGroupId: "group_keep",
+                projectTitle: "送信後保持案件",
+                contactName: "田中",
+                contactEmail: "client@example.jp",
+                companyName: "株式会社サンプル",
+                memo: expect.stringContaining("保持メモ"),
+              }),
+            }),
+          }),
+        ]),
+      )
     })
 
     cleanup()
