@@ -304,6 +304,17 @@ export function isNoAdditionalBookingConcern(message: string): boolean {
   )
 }
 
+export function isSubmittedBookingTerminalAcknowledgement(message: string): boolean {
+  const compact = message
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/^\s*選択\s*[:：]\s*/u, "")
+    .replace(/[\s　。、,.!！?？「」『』()[\]（）]/gu, "")
+  return /^(ありがとう|ありがとうございます|ありがとうございました|助かりました|了解|了解です|承知しました|承知です|ok|okay|okです|わかりました|分かりました|大丈夫です|大丈夫)$/.test(
+    compact,
+  )
+}
+
 function hasNoAdditionalBookingConcern(conversationState: ConversationState, latestUserMessage: string): boolean {
   return (
     conversationState.bookingReadiness?.additionalConcernStatus === "none" ||

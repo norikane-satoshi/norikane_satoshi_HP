@@ -2471,6 +2471,49 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("answers a light thank-you after booking submission from persisted terminal state without re-entering LLM flow", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingSubmission: {
+              status: "submitted",
+              reservationNumber: "booking_1",
+              submittedAt: "2026-06-26T07:37:23.000Z",
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 150,
+          },
+        },
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "ありがとう" },
+      harness.options,
+    )
+
+    expect(harness.generate).not.toHaveBeenCalled()
+    expect(result.tier).toBe("local-deterministic")
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(result.assistantMessage.content).toContain("予約番号 booking_1 は送信完了済みです")
+    expect(result.assistantMessage.content).not.toContain("次に必要な情報")
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("booking_1"),
+    })
+  })
+
   it("keeps submitted booking follow-up as conversation instead of showing another handoff card", async () => {
     const harness = setup({
       existingConversation: conversation({

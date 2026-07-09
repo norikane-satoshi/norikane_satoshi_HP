@@ -76,6 +76,7 @@ import {
   isBookingFinalConfirmationPrompt,
   isLlmNoAdditionalBookingConcernSignal,
   isNoAdditionalBookingConcern,
+  isSubmittedBookingTerminalAcknowledgement,
   wasBookingFinalQuestionOffered,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
@@ -365,12 +366,82 @@ export async function handleChatbotMessage(
       }),
     }),
   })
+  const submittedBooking = getSubmittedBooking(conversationState)
+  if (submittedBooking && isSubmittedBookingTerminalAcknowledgement(input.message)) {
+    const nextQuestion = buildSubmittedBookingFollowup(submittedBooking)
+    const routingDecision: Extract<RoutingDecision, { kind: "continue" }> = {
+      kind: "continue",
+      nextQuestion,
+    }
+    const assistantMessage = await repository.appendMessage({
+      conversationId: conversation.id,
+      role: "assistant",
+      content: nextQuestion,
+    })
+    try {
+      await repository.updateConversationRouting({
+        conversationId: conversation.id,
+        routingDecision: routingDecision.kind,
+        currentQuestion: routingDecision.nextQuestion,
+        activeChoices: null,
+        conversationState,
+        jobContext,
+      })
+    } catch (error) {
+      throw new ChatbotMessagePersistenceError({
+        cause: error,
+        conversationId: conversation.id,
+        tier: "local-deterministic",
+        routingDecisionKind: routingDecision.kind,
+        uiKind: "none",
+      })
+    }
+    await notifySlackForChatbotResponse({
+      notifier: slackNotifier,
+      repository,
+      requestId: input.requestId,
+      conversation,
+      userText: userMessage.content,
+      assistantText: assistantMessage.content,
+      tier: "local-deterministic",
+      routingDecisionKind: routingDecision.kind,
+      uiKind: "none",
+      choiceSetId: undefined,
+      bookingProgress: false,
+      flowStep: "conversation",
+      flowStepReason: conversationState.activeIntakeClarification?.reason,
+      issueReasons: [],
+      retryDiagnostics: undefined,
+      pendingRecovery: input.pendingRequestKind === "message" || input.pendingRequestKind === "edit",
+      pendingRequestKind: input.pendingRequestKind,
+    })
+
+    return {
+      conversationId: conversation.id,
+      userMessage: {
+        id: userMessage.id,
+        role: userMessage.role,
+        content: userMessage.content,
+        createdAt: userMessage.createdAt,
+      },
+      assistantMessage: {
+        id: assistantMessage.id,
+        role: assistantMessage.role,
+        content: assistantMessage.content,
+        createdAt: assistantMessage.createdAt,
+      },
+      tier: "local-deterministic",
+      ui: { kind: "none" },
+      routingDecision,
+    }
+  }
   const systemPrompt = buildChatbotSystemPrompt(
     userContext,
     userContextFormatter,
     knowledgeSnapshot,
     durationContext.promptContext,
     noteAccess,
+    submittedBooking ? buildSubmittedBookingPromptContext(submittedBooking) : undefined,
   )
   logChatbotKnowledgeSourceTrace({
     conversation,
@@ -476,6 +547,8 @@ export async function handleChatbotMessage(
     fallbackRoutingDecision,
     jobContext,
     uiKind: ui.kind,
+    latestUserMessage: input.message,
+    submittedBooking,
   })
   const assistantContent = assistantDisplay.content
   logChatbotDurationTrace({
@@ -1542,6 +1615,7 @@ function buildChatbotSystemPrompt(
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null,
   workflowPromptContext?: string,
   noteAccess: CustomerFacingNoteAccess = { kind: "none" },
+  submittedBookingPromptContext?: string,
 ): string {
   const lines = [
     "あなたは新規映像案件の相談受付アシスタントです。",
@@ -1591,6 +1665,9 @@ function buildChatbotSystemPrompt(
   }
   if (workflowPromptContext) {
     lines.push(workflowPromptContext)
+  }
+  if (submittedBookingPromptContext) {
+    lines.push(submittedBookingPromptContext)
   }
   if (noteAccess.kind === "mixed") {
     lines.push(
@@ -1675,6 +1752,8 @@ function buildAssistantDisplayContent(input: {
   fallbackRoutingDecision: RoutingDecision
   jobContext: JobContext
   uiKind: ChatbotMessageUi["kind"]
+  latestUserMessage: string
+  submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
 }): {
   content: string
   sanitizationReport: ChatbotLlmSanitizationReport
@@ -1683,11 +1762,19 @@ function buildAssistantDisplayContent(input: {
   const text = input.rawText.trim()
   const toolFreeText = stripStructuredToolCalls(text).trim()
   const explicitDisplayText = extractExplicitCustomerReplyText(text)
-  const sanitize = (content: string, trustedDisplayText = false) => {
+  const submittedBookingFallback = input.submittedBooking
+    ? buildSubmittedBookingActionableFallback({
+        latestUserMessage: input.latestUserMessage,
+        jobContext: input.jobContext,
+        submission: input.submittedBooking,
+      })
+    : undefined
+  const sanitize = (content: string, trustedDisplayText = false, fallbackText?: string) => {
     const result = sanitizeChatbotLlmTextWithReport(content, {
       routingDecision: input.routingDecision,
       jobContext: input.jobContext,
       trustedDisplayText,
+      fallbackText,
       ...(content === text && !trustedDisplayText ? { displayEnvelope: input.displayEnvelope } : {}),
     })
     return { content: result.text, sanitizationReport: result.report }
@@ -1733,6 +1820,9 @@ function buildAssistantDisplayContent(input: {
     isFinalMediumRejudgmentQuestion(input.routingDecision.nextQuestion)
   ) {
     return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
+  }
+  if (input.submittedBooking && !explicitDisplayText && toolFreeText.length > 0) {
+    return withGuardReport(sanitize(toolFreeText, true, submittedBookingFallback))
   }
   if (toolFreeText !== text) return withGuardReport(sanitize(toolFreeText))
   if (!isBackendIdentityOnlyResponse(explicitDisplayText ?? text)) return withGuardReport(sanitize(text))
@@ -2447,6 +2537,44 @@ function getSubmittedBooking(
 
 function buildSubmittedBookingFollowup(submission: NonNullable<ConversationState["bookingSubmission"]>): string {
   return `予約番号 ${submission.reservationNumber} は送信完了済みです。内容は受け付け済みなので、同じ予約カードは再表示しません。則兼が内容を確認してご連絡します。`
+}
+
+function buildSubmittedBookingPromptContext(
+  submission: NonNullable<ConversationState["bookingSubmission"]>,
+): string {
+  return [
+    "予約送信後の会話状態:",
+    `- 予約番号 ${submission.reservationNumber} は送信完了済みです。`,
+    "- この状態では show_booking_card、予約候補カード、予約前の不足項目確認、選択パネルへ戻しません。",
+    "- 具体的な質問、追加相談、予約内容の変更希望には、予約済みであることを前提に自然に答えます。本人確認が必要な変更や確約は、則兼が確認して連絡する案内にします。",
+    "- 「次に必要な情報を1つずつ確認します」のような予約前の案内へ戻しません。",
+  ].join("\n")
+}
+
+function buildSubmittedBookingActionableFallback(input: {
+  latestUserMessage: string
+  jobContext: JobContext
+  submission: NonNullable<ConversationState["bookingSubmission"]>
+}): string {
+  const normalized = input.latestUserMessage.normalize("NFKC").toLowerCase()
+  const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談として受け付け済みです。`
+  if (/(持ち物|必要なもの|準備|用意)/u.test(normalized)) {
+    const remoteNote =
+      input.jobContext.workSite === "remote-grading"
+        ? "リモート作業なので、来訪用の持ち物は基本的に不要です。"
+        : ""
+    return `${remoteNote}素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。${reservationPrefix}則兼が内容を確認して、追加で必要なものがあれば連絡します。`
+  }
+  if (/(集合|場所|アクセス|住所|どこ)/u.test(normalized)) {
+    if (input.jobContext.workSite === "remote-grading") {
+      return `今回はリモート作業の予約として受け付け済みです。${reservationPrefix}対面や場所の確認が必要な場合は、則兼が内容確認時に案内します。`
+    }
+    return `${reservationPrefix}場所や入館方法などの詳細は、則兼が内容確認後に連絡します。`
+  }
+  if (/(変更|修正|キャンセル|取り消し|日時|日程|時間)/u.test(normalized)) {
+    return `${reservationPrefix}変更やキャンセルは本人確認が必要なので、この場では確約せず、則兼が内容を確認してご連絡します。`
+  }
+  return buildSubmittedBookingFollowup(input.submission)
 }
 
 async function buildBookingInlineRoutingDecision(input: {
