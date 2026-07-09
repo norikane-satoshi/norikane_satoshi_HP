@@ -1743,6 +1743,9 @@ function buildAssistantDisplayContent(input: {
       ...(guardedContent.choiceSetId ? { choiceSetId: guardedContent.choiceSetId } : {}),
     })
   }
+  if (input.submittedBooking && isPostBookingOffTopicSmallTalk(input.latestUserMessage)) {
+    return withGuardReport(sanitize(submittedBookingFallback ?? buildSubmittedBookingFollowup(), true))
+  }
 
   if (input.routingDecision?.kind === "to-booking-inline" && toolFreeText.length === 0) {
     return withGuardReport(sanitize("候補日を確認しました。", true))
@@ -2571,6 +2574,12 @@ function buildSubmittedBookingActionableFallback(input: {
     return "変更希望もこのまま送れます。日時など確約が必要な内容は、確認してからの扱いになります。"
   }
   return buildSubmittedBookingFollowup()
+}
+
+function isPostBookingOffTopicSmallTalk(latestUserMessage: string): boolean {
+  return /(映画|音楽|本|漫画|ゲーム|ご飯|ランチ|おすすめ|雑談|関係ない|最近)/u.test(
+    latestUserMessage.normalize("NFKC").toLowerCase(),
+  )
 }
 
 function buildFinalConfirmationSupplementalFollowup(latestUserMessage: string): string {

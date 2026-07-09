@@ -2554,11 +2554,6 @@ describe("handleChatbotMessage user context", () => {
         userMessage: "当日までに準備するものはありますか？",
         reply: "素材データ、参考資料、納品仕様が分かるメモがあると進めやすいです。",
       },
-      {
-        userMessage: "ところで最近おすすめの映画ありますか？",
-        reply:
-          "映画の話も楽しいですね。ここでは案件相談の続きに絞っているので、映像案件のことであればこのまま送ってください。",
-      },
     ]
     const replies: string[] = []
 
@@ -2606,6 +2601,50 @@ describe("handleChatbotMessage user context", () => {
     }
 
     expect(new Set(replies.map((reply) => reply.slice(-14))).size).toBeGreaterThan(4)
+  })
+
+  it("keeps unrelated post-submission small talk inside the consultation scope", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+            bookingSubmission: {
+              status: "submitted",
+              reservationNumber: "booking_1",
+              submittedAt: "2026-06-26T07:37:23.000Z",
+            },
+          },
+          jobContext: {
+            jobKind: "live-60m",
+            finalMedium: "live",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+            projectLengthMinutes: 150,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("最近の映画なら、じっくり見られる作品がおすすめです。好きなジャンルはありますか？"),
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "ところで最近おすすめの映画ありますか？" },
+      harness.options,
+    )
+
+    expect(result.ui).toEqual({ kind: "none" })
+    expect(result.routingDecision).toBeUndefined()
+    expect(result.assistantMessage.content).toBe(
+      "雑談もありがとうございます。ここでは案件相談の続きに絞っているので、相談に関係することがあればこのまま送ってください。",
+    )
+    expect(result.assistantMessage.content).not.toMatch(/好きなジャンル|映画なら/u)
   })
 
   it.each([
