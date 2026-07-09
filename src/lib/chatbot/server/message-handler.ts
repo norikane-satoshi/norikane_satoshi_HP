@@ -2538,10 +2538,16 @@ function buildSubmittedBookingActionableFallback(input: {
 }): string {
   const normalized = input.latestUserMessage.normalize("NFKC").toLowerCase()
   const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談内容として則兼に届いています。`
+  if (/(いい名前|良い名前)/u.test(normalized)) {
+    return "ありがとうございます。名前も気に入ってもらえてうれしいです。"
+  }
+  if (/(暑い|寒い|天気|雨|晴れ|蒸し暑|涼しい)/u.test(normalized)) {
+    return "天気や気温の変化が大きいですね。体調に気をつけてお過ごしください。案件のことで追記があれば、このまま送ってください。"
+  }
   if (/(助か|また相談)/u.test(normalized)) {
     return "そう言っていただけてうれしいです。また気になることがあれば、このまま送ってください。"
   }
-  if (/(ありがとう|よろしく|助か|お世話|いい名前|良い名前|うれしい|嬉しい)/u.test(normalized)) {
+  if (/(ありがとう|よろしく|助か|お世話|うれしい|嬉しい)/u.test(normalized)) {
     return "こちらこそありがとうございます。送信いただいた内容は届いているので、このまま安心してお待ちください。"
   }
   if (/(聞きたい|質問|相談|確認|教えて|追加)/u.test(normalized)) {

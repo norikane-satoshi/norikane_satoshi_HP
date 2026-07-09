@@ -2554,6 +2554,19 @@ describe("handleChatbotMessage user context", () => {
       expectedReply: "そう言っていただけてうれしいです。また気になることがあれば、このまま送ってください。",
     },
     {
+      label: "assistant-name-small-talk",
+      userMessage: "いい名前だね。",
+      leakedReply: 'user said "いい名前だね。". I should answer naturally.',
+      expectedReply: "ありがとうございます。名前も気に入ってもらえてうれしいです。",
+    },
+    {
+      label: "unrelated-weather-small-talk",
+      userMessage: "全然関係ないんですが、今日は暑いですね",
+      leakedReply: "user is making small talk about the weather being hot today.",
+      expectedReply:
+        "天気や気温の変化が大きいですね。体調に気をつけてお過ごしください。案件のことで追記があれば、このまま送ってください。",
+    },
+    {
       label: "prep-question",
       userMessage: "当日までに準備しておくものはありますか？",
       leakedReply: "予約候補カードは作成済みなので同じUIは出しません。",
