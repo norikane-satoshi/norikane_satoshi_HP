@@ -2554,6 +2554,11 @@ describe("handleChatbotMessage user context", () => {
         userMessage: "当日までに準備するものはありますか？",
         reply: "素材データ、参考資料、納品仕様が分かるメモがあると進めやすいです。",
       },
+      {
+        userMessage: "ところで最近おすすめの映画ありますか？",
+        reply:
+          "映画の話も楽しいですね。ここでは案件相談の続きに絞っているので、映像案件のことであればこのまま送ってください。",
+      },
     ]
     const replies: string[] = []
 
@@ -2652,6 +2657,13 @@ describe("handleChatbotMessage user context", () => {
       userMessage: "送った日程を変更したいです",
       leakedReply: "予約候補カードは作成済みです。追加の予約カードは不要です。",
       expectedReply: "変更希望もこのまま送れます。日時など確約が必要な内容は、確認してからの扱いになります。",
+    },
+    {
+      label: "unrelated-recommendation",
+      userMessage: "ところで最近おすすめの映画ありますか？",
+      leakedReply: 'The user asks for movie recommendations, but this chatbot should stay on scope.',
+      expectedReply:
+        "雑談もありがとうございます。ここでは案件相談の続きに絞っているので、相談に関係することがあればこのまま送ってください。",
     },
   ])(
     "falls back to a customer-facing submitted-booking reply when LLM leaks internal UI state after submission: $label",

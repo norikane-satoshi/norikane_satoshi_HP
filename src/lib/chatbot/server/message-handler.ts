@@ -2513,7 +2513,7 @@ function getSubmittedBooking(
 }
 
 function buildSubmittedBookingFollowup(): string {
-  return "承知しました。このまま続けて送れます。"
+  return "ありがとうございます。案件の続きや追記があれば、このまま送ってください。"
 }
 
 function buildSubmittedBookingPromptContext(
@@ -2541,6 +2541,9 @@ function buildSubmittedBookingActionableFallback(input: {
   }
   if (/(暑い|寒い|天気|雨|晴れ|蒸し暑|涼しい)/u.test(normalized)) {
     return "天気や気温の変化が大きいですね。体調に気をつけてお過ごしください。"
+  }
+  if (/(映画|音楽|本|漫画|ゲーム|ご飯|ランチ|おすすめ|雑談|関係ない|最近)/u.test(normalized)) {
+    return "雑談もありがとうございます。ここでは案件相談の続きに絞っているので、相談に関係することがあればこのまま送ってください。"
   }
   if (/(助か|また相談)/u.test(normalized)) {
     return "そう言っていただけてうれしいです。気になることが出てきたら、このまま気軽に送ってください。"
