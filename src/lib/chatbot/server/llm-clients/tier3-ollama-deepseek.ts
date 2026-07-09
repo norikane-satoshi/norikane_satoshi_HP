@@ -109,6 +109,7 @@ export class Tier3OllamaDeepSeekClient implements ChatbotLlmClient {
       return {
         rawText,
         displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
+        modelName: typeof response.model === "string" ? response.model : this.config.modelName,
         tier: this.tier,
         latencyMs: Date.now() - startedAt,
         diagnostics: buildOllamaDiagnostics(response),

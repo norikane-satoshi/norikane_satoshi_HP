@@ -13,6 +13,7 @@ export function isLocalChatbotTierDebugLocation(hostname: string, port: string) 
   return (hostname === "localhost" || hostname === "127.0.0.1") && port === "41238"
 }
 
-export function formatChatbotTierDebugLabel(tier: ChatbotResponseTier) {
-  return `${tierLabels[tier]} (${tier})`
+export function formatChatbotTierDebugLabel(tier: ChatbotResponseTier, modelName?: string) {
+  const modelLabel = typeof modelName === "string" && modelName.trim().length > 0 ? modelName.trim() : "model unknown"
+  return `${tierLabels[tier]} -> ${modelLabel} (${tier})`
 }

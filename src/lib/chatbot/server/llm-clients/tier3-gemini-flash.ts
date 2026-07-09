@@ -111,6 +111,7 @@ export class Tier3GeminiFlashClient implements ChatbotLlmClient {
       return {
         rawText,
         displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
+        modelName: typeof response.modelVersion === "string" ? response.modelVersion : this.config.modelName,
         tokensUsed: numberOrUndefined(response.usageMetadata?.totalTokenCount),
         latencyMs: Date.now() - startedAt,
         tier: this.tier,

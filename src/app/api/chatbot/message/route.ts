@@ -82,8 +82,10 @@ export async function POST(request: NextRequest) {
       jobContext: parsed.data.jobContext,
       conversationState: parsed.data.conversationState,
     })
+    const { debugModelName, ...publicResult } = result
     const response = NextResponse.json({
-      ...result,
+      ...publicResult,
+      ...(isLocalChatbotDebugRequest(request) && debugModelName ? { debug: { modelName: debugModelName } } : {}),
       clientBuildId: process.env.NEXT_PUBLIC_CHATBOT_BUILD_ID ?? "local",
     })
 
@@ -186,6 +188,11 @@ async function loadFailureNotificationConversation(input: {
 function classifyMessageIdKind(messageId: string | undefined): "none" | "client" | "server" {
   if (!messageId) return "none"
   return clientUserMessageIdPattern.test(messageId) ? "client" : "server"
+}
+
+function isLocalChatbotDebugRequest(request: NextRequest): boolean {
+  const host = request.headers.get("host") ?? request.nextUrl.host
+  return host === "localhost:41238" || host === "127.0.0.1:41238"
 }
 
 function classifyMessageFailureStage(error: unknown) {

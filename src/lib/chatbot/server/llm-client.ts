@@ -48,6 +48,7 @@ export type ChatbotLlmDisplayEnvelope = {
 export type ChatbotLlmResponse = {
   rawText: string
   displayEnvelope: ChatbotLlmDisplayEnvelope
+  modelName?: string
   tokensUsed?: number
   latencyMs?: number
   tier: ChatbotLlmTier

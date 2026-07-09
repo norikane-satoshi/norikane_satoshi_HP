@@ -37,6 +37,7 @@ type HostedWorkerHealthResponse = {
 
 type HostedWorkerGenerateResponse = {
   rawText?: unknown
+  modelName?: unknown
   tokensUsed?: unknown
   latencyMs?: unknown
 }
@@ -145,6 +146,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
       return {
         rawText,
         displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
+        modelName: stringOrUndefined(response.modelName),
         tokensUsed: numberOrUndefined(response.tokensUsed),
         latencyMs: Date.now() - startedAt,
         tier: this.tier,
@@ -658,6 +660,10 @@ async function readWorkerErrorSummary(response: Response, endpoint: string): Pro
 
 function numberOrUndefined(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

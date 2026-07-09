@@ -140,6 +140,7 @@ export async function generateHostedWorkerResponse(
       ...response,
       tier: hostedWorkerTier,
       latencyMs,
+      modelName: response.modelName,
       diagnostics: safeDiagnostics(response.diagnostics),
     }
   } catch (error) {
@@ -248,6 +249,8 @@ function safeDiagnostics(diagnostics: ChatbotLlmResponse["diagnostics"]): Record
     endpoint: diagnostics?.endpoint,
     contentType: diagnostics?.contentType,
     responseBytes: diagnostics?.responseBytes,
+    selectedModel: diagnostics?.selectedModel,
+    finalModelName: diagnostics?.finalModelName,
     ndjsonPartialParsed: diagnostics?.ndjsonPartialParsed,
     ndjsonFinalParsed: diagnostics?.ndjsonFinalParsed,
     chunkCount: diagnostics?.chunkCount,

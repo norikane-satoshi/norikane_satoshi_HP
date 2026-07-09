@@ -223,6 +223,38 @@ describe("POST /api/chatbot/message", () => {
     })
   })
 
+  it("keeps model debug metadata out of non-local API responses", async () => {
+    const route = await loadPost({
+      llmResponse: {
+        rawText: "最終媒体を教えてください",
+        tier: "tier-2-hosted-chrome-notion-ai",
+        modelName: "Notion AI Sonnet 5",
+      },
+    })
+
+    const response = await route.POST(request({ message: "相談したいです" }))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.not.toHaveProperty("debug")
+  })
+
+  it("returns model debug metadata for local 41238 API responses", async () => {
+    const route = await loadPost({
+      llmResponse: {
+        rawText: "最終媒体を教えてください",
+        tier: "tier-2-hosted-chrome-notion-ai",
+        modelName: "Notion AI Sonnet 5",
+      },
+    })
+
+    const response = await route.POST(request({ message: "相談したいです" }, undefined, { host: "127.0.0.1:41238" }))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      debug: { modelName: "Notion AI Sonnet 5" },
+    })
+  })
+
   it("uses the authenticated user id when creating the conversation", async () => {
     const route = await loadPost({ session: { user: { id: "user_1", email: "client@example.com" } } })
 

@@ -114,6 +114,7 @@ export type ChatbotMessageApiResult = {
   assistantMessage: Pick<ChatbotMessage, "id" | "role" | "content" | "createdAt">
   routingDecision?: RoutingDecision
   tier: ChatbotLlmResponse["tier"]
+  debugModelName?: string
   ui: ChatbotMessageUi
 }
 
@@ -324,6 +325,7 @@ export async function handleChatbotMessage(
         createdAt: assistantMessage.createdAt,
       },
       tier: "local-deterministic",
+      debugModelName: "No AI model (local deterministic)",
       ui: { kind: "none" },
     }
   }
@@ -589,8 +591,22 @@ export async function handleChatbotMessage(
     },
     routingDecision,
     tier: llmResponse.tier,
+    debugModelName: getChatbotDebugModelName(llmResponse),
     ui,
   }
+}
+
+function getChatbotDebugModelName(response: ChatbotLlmResponse): string | undefined {
+  return (
+    response.modelName ??
+    stringDiagnostic(response.diagnostics?.finalModelName) ??
+    stringDiagnostic(response.diagnostics?.selectedModel) ??
+    stringDiagnostic(response.diagnostics?.model)
+  )
+}
+
+function stringDiagnostic(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
 }
 
 function shouldUseFallbackRouting(input: {
