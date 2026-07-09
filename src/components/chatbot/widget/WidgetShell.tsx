@@ -260,6 +260,17 @@ function getCustomerDisplayNameFromUi(ui: WidgetUi): string | undefined {
   return normalizeDisplayName(ui.completedBooking?.contactName) ?? normalizeDisplayName(ui.bookingPrefill?.contactName)
 }
 
+function isCompletedBookingUi(ui: WidgetUi): ui is Extract<WidgetUi, { kind: "booking-card" }> & {
+  completedBooking: BookingCompletionSummary
+} {
+  return ui.kind === "booking-card" && Boolean(ui.completedBooking)
+}
+
+function preserveCompletedBookingUi(currentUi: WidgetUi, nextUi: WidgetUi): WidgetUi {
+  if (nextUi.kind !== "none") return nextUi
+  return isCompletedBookingUi(currentUi) ? currentUi : nextUi
+}
+
 const assistantNameQuestionPattern = /(名前|なんて呼|どう呼|呼べば|あなた.*誰|誰.*あなた|何者)/u
 
 function isAssistantNameIntroduced(messages: WidgetMessage[]): boolean {
@@ -778,6 +789,7 @@ export function WidgetShell({
     activeRequestControllerRef.current = controller
     const createdAt = new Date()
     const clientUserMessageId = createClientUserMessageId()
+    const pendingUi = preserveCompletedBookingUi(activeUi, noUi)
     const nextPendingRequest: StoredPendingRequest = {
       kind: "message",
       message: text,
@@ -796,13 +808,13 @@ export function WidgetShell({
         messages: serializeWidgetMessages(nextMessages),
         clientSessionId,
         conversationId,
-        activeUi: noUi,
+        activeUi: pendingUi,
         lastResponseTier,
         pendingRequest: nextPendingRequest,
       })
       return nextMessages
     })
-    setActiveUi(noUi)
+    setActiveUi(pendingUi)
     setShowThinkingDelayNotice(false)
     setSubmitting(true)
 
@@ -829,6 +841,7 @@ export function WidgetShell({
           ),
         )
       }
+      const nextActiveUi = preserveCompletedBookingUi(activeUi, payload.ui)
       setMessages((currentMessages) => {
         const nextMessages = [
           ...currentMessages,
@@ -843,13 +856,13 @@ export function WidgetShell({
           messages: serializeWidgetMessages(nextMessages),
           clientSessionId,
           conversationId: payload.conversationId,
-          activeUi: payload.ui,
+          activeUi: nextActiveUi,
           lastResponseTier: payload.tier,
         })
         return nextMessages
       })
-      setActiveUi(payload.ui)
-      rememberCustomerDisplayNameFromUi(payload.ui)
+      setActiveUi(nextActiveUi)
+      rememberCustomerDisplayNameFromUi(nextActiveUi)
       setRecoverableRequest(undefined)
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) return
@@ -871,7 +884,7 @@ export function WidgetShell({
         content: communicationFallbackMessage,
         createdAt: new Date(),
       })
-      setActiveUi(noUi)
+      setActiveUi(pendingUi)
       setRecoverableRequest(nextPendingRequest)
     } finally {
       finishRequest(controller)

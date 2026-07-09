@@ -1339,6 +1339,114 @@ describe("WidgetShell API wiring", () => {
     expect(screen.queryByRole("button", { name: "予約内容を送信" })).not.toBeInTheDocument()
   })
 
+  it("keeps the booking completion summary visible after a follow-up message and restores it", async () => {
+    process.env.NEXT_PUBLIC_ENABLE_BOOKING = "true"
+    const slot = {
+      start: "2026-07-10T01:00:00.000Z",
+      end: "2026-07-10T02:00:00.000Z",
+      label: "7月10日 午前",
+    }
+    let messageRequestCount = 0
+    const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/chatbot/message") {
+        messageRequestCount += 1
+        if (messageRequestCount === 1) {
+          return Promise.resolve(
+            mockJsonResponse({
+              conversationId: "conv_1",
+              assistantMessage: {
+                ...assistantMessage,
+                content: "候補日時から予約できます",
+              },
+              tier: "tier-3-ollama-deepseek",
+              ui: {
+                kind: "booking-card",
+                suggestedSlots: [slot],
+                jobContext: {
+                  finalMedium: "web",
+                  workSite: "remote-grading",
+                  documentaryAttachment: { kind: "none" },
+                  workflowEstimate: { stages: [], totalMinDays: 1, totalMaxDays: 1, riskFlags: [] },
+                },
+                bookingPrefill: {
+                  projectTitle: "送信後保持案件",
+                  contactName: "田中",
+                  contactEmail: "client@example.jp",
+                  companyName: "株式会社サンプル",
+                  memo: "保持メモ",
+                },
+              },
+            }),
+          )
+        }
+        return Promise.resolve(
+          mockJsonResponse({
+            conversationId: "conv_1",
+            assistantMessage: {
+              id: "assistant_followup",
+              role: "assistant",
+              content: "予約送信済みです。ありがとうございます。",
+              createdAt: "2026-05-26T00:00:02.000Z",
+            },
+            tier: "local-deterministic",
+            ui: { kind: "none" },
+          }),
+        )
+      }
+      if (url === "/api/chatbot/booking-candidates") {
+        return Promise.resolve(mockJsonResponse({ candidates: [slot], busyDateKeys: [] }))
+      }
+      if (url === "/api/chatbot/create-booking-from-chat") {
+        return Promise.resolve(
+          mockJsonResponse({
+            bookingGroupId: "group_keep",
+            bookingIds: ["slot_keep"],
+            scheduleLabel: "7月10日(金)",
+          }),
+        )
+      }
+      return Promise.resolve(mockJsonResponse({}))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    submitMessage("予約したいです")
+
+    expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+
+    expect(await screen.findByLabelText("予約送信完了")).toBeInTheDocument()
+    expect(screen.getByText("予約番号: group_keep")).toBeInTheDocument()
+
+    submitMessage("ありがとう")
+
+    expect(await screen.findByText("予約送信済みです。ありがとうございます。")).toBeInTheDocument()
+    expect(screen.getByLabelText("予約送信完了")).toBeInTheDocument()
+    expect(screen.getByText("予約番号: group_keep")).toBeInTheDocument()
+
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
+      expect(stored.activeUi).toMatchObject({
+        kind: "booking-card",
+        completedBooking: {
+          bookingGroupId: "group_keep",
+          projectTitle: "送信後保持案件",
+          contactName: "田中",
+          contactEmail: "client@example.jp",
+          companyName: "株式会社サンプル",
+          memo: expect.stringContaining("保持メモ"),
+        },
+      })
+    })
+
+    cleanup()
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    expect(await screen.findByLabelText("予約送信完了")).toBeInTheDocument()
+    expect(screen.getByText("予約番号: group_keep")).toBeInTheDocument()
+  })
+
   it("drops restored booking completion state when an earlier message is edited into a new booking card", async () => {
     process.env.NEXT_PUBLIC_ENABLE_BOOKING = "true"
     const slot = {
