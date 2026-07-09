@@ -38,10 +38,11 @@ export type ChatbotLlmDisplayEnvelope = {
   defaultDenied: boolean
   fallbackApplied: boolean
   reasons: Array<
-    | "missing-explicit-display-boundary"
-    | "empty-display-text"
-    | "unsafe-display-candidate"
-    | "trusted-server-display"
+      | "missing-explicit-display-boundary"
+      | "empty-display-text"
+      | "unsafe-display-candidate"
+      | "unsafe-fallback-text"
+      | "trusted-server-display"
   >
 }
 
@@ -163,6 +164,7 @@ function isDisplayEnvelopeReason(value: unknown): value is ChatbotLlmDisplayEnve
     value === "missing-explicit-display-boundary" ||
     value === "empty-display-text" ||
     value === "unsafe-display-candidate" ||
+    value === "unsafe-fallback-text" ||
     value === "trusted-server-display"
   )
 }

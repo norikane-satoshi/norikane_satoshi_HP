@@ -304,10 +304,13 @@ export async function handleChatbotMessage(
     })
   }
   if (isAssistantNameQuestion(input.message)) {
+    const assistantNameContent = sanitizeChatbotLlmTextWithReport(assistantNameAnswer, {
+      trustedDisplayText: true,
+    }).text
     const assistantMessage = await repository.appendMessage({
       conversationId: conversation.id,
       role: "assistant",
-      content: assistantNameAnswer,
+      content: assistantNameContent,
     })
     return {
       conversationId: conversation.id,

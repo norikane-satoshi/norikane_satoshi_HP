@@ -9,11 +9,14 @@ export type ChatbotLeakCorpusCase = {
     | "missing-display-boundary"
     | "mixed-tool-json"
     | "internal-booking-ui-state"
+    | "unsafe-server-fallback-text"
     | "safe-polite-reply"
     | "safe-code-fence"
     | "safe-choice-panel"
     | "safe-booking-card"
   rawText: string
+  sourceInput?: string
+  fallbackText?: string
   expected: {
     outcome: "adopted" | "fallback"
     text: string
@@ -124,11 +127,26 @@ export const chatbotLeakCorpus = [
   {
     id: "reject-internal-booking-ui-state",
     family: "internal-booking-ui-state",
+    sourceInput: "内容、ありがとう、今後ともよろしくお願いします",
     rawText:
       "<customer_reply>内容は受付済みなので同じ予約カードを再表示しません。則兼が内容を確認してご連絡します。</customer_reply>",
     expected: {
       outcome: "fallback",
       text: chatbotLeakCorpusFallbackText,
+      fallbackApplied: true,
+      unsafe: true,
+    },
+    api: {},
+  },
+  {
+    id: "reject-unsafe-final-confirmation-fallback-routing-question",
+    family: "unsafe-server-fallback-text",
+    sourceInput: "いい名前だね。",
+    rawText: 'user said "いい名前だね。". I should answer naturally.',
+    fallbackText: "補足を反映しました。必要な点を確認してから進めます。",
+    expected: {
+      outcome: "fallback",
+      text: "内容を確認しました。続けて相談内容を送ってください。",
       fallbackApplied: true,
       unsafe: true,
     },
