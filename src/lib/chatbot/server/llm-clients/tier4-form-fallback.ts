@@ -27,7 +27,6 @@ export class Tier4FormFallbackClient implements ChatbotLlmClient {
     return {
       rawText: this.responseText,
       displayEnvelope: createChatbotLlmDisplayEnvelope(this.responseText),
-      modelName: "No AI model (form fallback)",
       tier: this.tier,
       latencyMs: Date.now() - startedAt,
     }

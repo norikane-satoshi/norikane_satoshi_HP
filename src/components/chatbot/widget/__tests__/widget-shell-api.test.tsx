@@ -64,7 +64,6 @@ function writeStoredWidgetSession(session: {
   activeUi?: unknown
   customerDisplayName?: string
   lastResponseTier?: string
-  lastResponseDebugModelName?: string
   pendingRequest?: unknown
   recoverableRequest?: unknown
 }) {
@@ -77,7 +76,6 @@ function writeStoredWidgetSession(session: {
       activeUi: session.activeUi ?? { kind: "none" },
       customerDisplayName: session.customerDisplayName,
       lastResponseTier: session.lastResponseTier,
-      lastResponseDebugModelName: session.lastResponseDebugModelName,
       pendingRequest: session.pendingRequest,
       recoverableRequest: session.recoverableRequest,
       expiresAt: "2999-01-01T00:00:00.000Z",

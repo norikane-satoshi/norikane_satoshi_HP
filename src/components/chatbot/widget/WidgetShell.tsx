@@ -117,7 +117,6 @@ type StoredWidgetSession = {
   activeUi: WidgetUi
   customerDisplayName?: string
   lastResponseTier?: ChatbotResponseTier
-  lastResponseDebugModelName?: string
   pendingRequest?: StoredPendingRequest
   recoverableRequest?: StoredPendingRequest
   expiresAt: string
@@ -179,11 +178,6 @@ function persistWidgetSession(input: Omit<StoredWidgetSession, "expiresAt">) {
 }
 
 function normalizeDisplayName(value: string | null | undefined): string | undefined {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : undefined
-}
-
-function normalizeDebugModelName(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim()
   return trimmed ? trimmed : undefined
 }
@@ -293,7 +287,6 @@ function loadStoredWidgetSession(): {
   activeUi: WidgetUi
   customerDisplayName?: string
   lastResponseTier?: ChatbotResponseTier
-  lastResponseDebugModelName?: string
   pendingRequest?: StoredPendingRequest
   recoverableRequest?: StoredPendingRequest
 } {
@@ -340,7 +333,6 @@ function loadStoredWidgetSession(): {
         normalizeDisplayName(parsed.customerDisplayName) ??
         getCustomerDisplayNameFromUi(pendingRequest || recoverableRequest ? noUi : parsed.activeUi ?? noUi),
       lastResponseTier: parsed.lastResponseTier,
-      lastResponseDebugModelName: normalizeDebugModelName(parsed.lastResponseDebugModelName),
       pendingRequest,
       recoverableRequest: pendingRequest ? undefined : recoverableRequest,
     }
@@ -420,7 +412,6 @@ export function WidgetShell({
   const [submitting, setSubmitting] = useState(false)
   const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
   const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>(undefined)
-  const [lastResponseDebugModelName, setLastResponseDebugModelName] = useState<string | undefined>(undefined)
   const [pendingRequest, setPendingRequest] = useState<StoredPendingRequest | undefined>(undefined)
   const [recoverableRequest, setRecoverableRequest] = useState<StoredPendingRequest | undefined>(undefined)
   const [hasRestoredSession, setHasRestoredSession] = useState(false)
@@ -624,7 +615,6 @@ export function WidgetShell({
     setActiveUi(storedSession.activeUi)
     setCustomerDisplayName(storedSession.customerDisplayName)
     setLastResponseTier(storedSession.lastResponseTier)
-    setLastResponseDebugModelName(storedSession.lastResponseDebugModelName)
     restoredPendingRequestRef.current = storedSession.pendingRequest
     setPendingRequest(storedSession.pendingRequest)
     setRecoverableRequest(storedSession.recoverableRequest)
@@ -642,11 +632,10 @@ export function WidgetShell({
       activeUi,
       ...(customerDisplayName ? { customerDisplayName } : {}),
       lastResponseTier,
-      ...(lastResponseDebugModelName ? { lastResponseDebugModelName } : {}),
       ...(pendingRequest ? { pendingRequest } : {}),
       ...(recoverableRequest ? { recoverableRequest } : {}),
     })
-  }, [activeUi, clientSessionId, conversationId, customerDisplayName, hasRestoredSession, lastResponseDebugModelName, lastResponseTier, messages, pendingRequest, recoverableRequest])
+  }, [activeUi, clientSessionId, conversationId, customerDisplayName, hasRestoredSession, lastResponseTier, messages, pendingRequest, recoverableRequest])
 
   const recoverPendingRequest = async (pending: StoredPendingRequest, controller: AbortController) => {
     const recoveryClientUserMessageId = createClientUserMessageId()
@@ -677,7 +666,6 @@ export function WidgetShell({
       if (controller.signal.aborted) return
       setConversationId(payload.conversationId)
       setLastResponseTier(payload.tier)
-      setLastResponseDebugModelName(payload.debug?.modelName)
       setMessages((currentMessages) => {
         const submittedUserMessage = payload.userMessage ?? {
           id: recoveryClientUserMessageId,
@@ -712,7 +700,6 @@ export function WidgetShell({
           conversationId: payload.conversationId,
           activeUi: payload.ui,
           lastResponseTier: payload.tier,
-          ...(payload.debug?.modelName ? { lastResponseDebugModelName: payload.debug.modelName } : {}),
         })
         return nextMessages
       })
@@ -811,7 +798,6 @@ export function WidgetShell({
         conversationId,
         activeUi: noUi,
         lastResponseTier,
-        ...(lastResponseDebugModelName ? { lastResponseDebugModelName } : {}),
         pendingRequest: nextPendingRequest,
       })
       return nextMessages
@@ -828,7 +814,6 @@ export function WidgetShell({
       if (controller.signal.aborted) return
       setConversationId(payload.conversationId)
       setLastResponseTier(payload.tier)
-      setLastResponseDebugModelName(payload.debug?.modelName)
       const submittedUserMessage = payload.userMessage
       if (submittedUserMessage) {
         setMessages((currentMessages) =>
@@ -860,7 +845,6 @@ export function WidgetShell({
           conversationId: payload.conversationId,
           activeUi: payload.ui,
           lastResponseTier: payload.tier,
-          ...(payload.debug?.modelName ? { lastResponseDebugModelName: payload.debug.modelName } : {}),
         })
         return nextMessages
       })
@@ -928,7 +912,6 @@ export function WidgetShell({
         conversationId,
         activeUi: noUi,
         lastResponseTier,
-        ...(lastResponseDebugModelName ? { lastResponseDebugModelName } : {}),
         pendingRequest: nextPendingRequest,
       })
       return nextMessages
@@ -945,7 +928,6 @@ export function WidgetShell({
       if (controller.signal.aborted) return
       setConversationId(payload.conversationId)
       setLastResponseTier(payload.tier)
-      setLastResponseDebugModelName(payload.debug?.modelName)
       setMessages((currentMessages) => {
         const userMessage = payload.userMessage ?? {
           id: messageId,
@@ -980,7 +962,6 @@ export function WidgetShell({
           conversationId: payload.conversationId,
           activeUi: payload.ui,
           lastResponseTier: payload.tier,
-          ...(payload.debug?.modelName ? { lastResponseDebugModelName: payload.debug.modelName } : {}),
         })
         return nextMessages
       })
@@ -1255,7 +1236,7 @@ export function WidgetShell({
       {showLocalTierDebug && lastResponseTier ? (
         <div className="border-b border-[var(--glass-border)] px-5 py-2">
           <p className="glass-badge inline-flex max-w-full px-3 py-1 text-[11px] font-medium">
-            Local debug: {formatChatbotTierDebugLabel(lastResponseTier, lastResponseDebugModelName)}
+            Local debug: {formatChatbotTierDebugLabel(lastResponseTier)}
           </p>
         </div>
       ) : null}

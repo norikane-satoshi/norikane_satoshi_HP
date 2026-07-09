@@ -114,7 +114,6 @@ export type ChatbotMessageApiResult = {
   assistantMessage: Pick<ChatbotMessage, "id" | "role" | "content" | "createdAt">
   routingDecision?: RoutingDecision
   tier: ChatbotLlmResponse["tier"]
-  debugModelName?: string
   ui: ChatbotMessageUi
 }
 
@@ -325,7 +324,6 @@ export async function handleChatbotMessage(
         createdAt: assistantMessage.createdAt,
       },
       tier: "local-deterministic",
-      debugModelName: "No AI model (local deterministic)",
       ui: { kind: "none" },
     }
   }
@@ -591,37 +589,7 @@ export async function handleChatbotMessage(
     },
     routingDecision,
     tier: llmResponse.tier,
-    debugModelName: getChatbotDebugModelName(llmResponse),
     ui,
-  }
-}
-
-function getChatbotDebugModelName(response: ChatbotLlmResponse): string | undefined {
-  return (
-    response.modelName ??
-    stringDiagnostic(response.diagnostics?.finalModelName) ??
-    stringDiagnostic(response.diagnostics?.selectedModel) ??
-    stringDiagnostic(response.diagnostics?.model) ??
-    fallbackChatbotDebugModelName(response.tier)
-  )
-}
-
-function stringDiagnostic(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
-}
-
-function fallbackChatbotDebugModelName(tier: ChatbotLlmResponse["tier"]): string | undefined {
-  switch (tier) {
-    case "tier-1-chrome-notion-ai":
-    case "tier-2-hosted-chrome-notion-ai":
-      return "Notion AI (runtime model not exposed)"
-    case "local-deterministic":
-      return "No AI model (local deterministic)"
-    case "tier-4-form-fallback":
-      return "No AI model (form fallback)"
-    case "tier-3-gemini-flash":
-    case "tier-3-ollama-deepseek":
-      return undefined
   }
 }
 

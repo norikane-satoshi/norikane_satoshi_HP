@@ -60,9 +60,6 @@ export type ChatbotMessageResponse = {
   assistantMessage: WidgetAssistantMessage
   routingDecision?: RoutingDecision
   tier: ChatbotResponseTier
-  debug?: {
-    modelName?: string
-  }
   ui: WidgetUi
   clientBuildId?: string
 }

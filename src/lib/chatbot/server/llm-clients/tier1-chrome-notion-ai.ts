@@ -317,7 +317,6 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       return {
         rawText,
         displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
-        modelName: effectiveRuntimeContext.finalModelName ?? effectiveRuntimeContext.selectedModel,
         tier: this.tier,
         latencyMs: Date.now() - startedAt,
         diagnostics: {
