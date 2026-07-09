@@ -1706,11 +1706,10 @@ function buildAssistantDisplayContent(input: {
   const toolFreeText = stripStructuredToolCalls(text).trim()
   const explicitDisplayText = extractExplicitCustomerReplyText(text)
   const submittedBookingFallback = input.submittedBooking
-    ? buildSubmittedBookingActionableFallback({
-        latestUserMessage: input.latestUserMessage,
-        jobContext: input.jobContext,
-        submission: input.submittedBooking,
-      })
+      ? buildSubmittedBookingActionableFallback({
+          latestUserMessage: input.latestUserMessage,
+          jobContext: input.jobContext,
+        })
     : undefined
   const finalConfirmationFallback =
     input.conversationState.bookingFinalConfirmation?.status === "supplemental-received"
@@ -2513,8 +2512,8 @@ function getSubmittedBooking(
   return submission.reservationNumber.trim() ? submission : undefined
 }
 
-function buildSubmittedBookingFollowup(submission: NonNullable<ConversationState["bookingSubmission"]>): string {
-  return `ありがとうございます。予約番号 ${submission.reservationNumber} の相談は送信できています。追加で伝えたいことがあれば、このまま送ってください。`
+function buildSubmittedBookingFollowup(): string {
+  return "承知しました。このまま続けて送れます。"
 }
 
 function buildSubmittedBookingPromptContext(
@@ -2522,11 +2521,12 @@ function buildSubmittedBookingPromptContext(
 ): string {
   return [
     "予約送信後の会話状態:",
-    `- 予約番号 ${submission.reservationNumber} は送信完了済みです。この事実は背景情報であり、毎回お客様向け本文へ入れる定型文ではありません。`,
+    `- 予約番号 ${submission.reservationNumber} は送信完了済みです。この事実だけを背景にし、毎回お客様向け本文へ入れません。`,
     "- この状態では show_booking_card、予約候補カード、予約前の不足項目確認、選択パネルへ戻しません。",
-    "- 直近ユーザー入力への返答をその場で組み立てます。感謝には短く返し、雑談には自然に受け、追加質問にはこのまま聞けると案内し、具体的な質問には分かる範囲で答えます。",
-    "- 毎回同じ文末、固定サフィックス、同じ連絡待ち案内を付けません。",
-    "- 本人確認が必要な変更や確約だけ、必要最小限で則兼が確認する旨を添えます。",
+    "- 直近ユーザー入力への返答本文をその場で自由に組み立てます。感謝、雑談、追加質問、変更相談で言い回しと情報量を変えます。",
+    "- 予約済み、連絡待ち、則兼確認、予約番号を固定サフィックスとして付けません。",
+    "- 予約済みである事実は、ユーザーが受付状況・変更・キャンセル・場所・準備物などを聞いた時だけ必要最小限で触れます。",
+    "- 本人確認が必要な変更や確約だけ、必要最小限で確認後の扱いだと添えます。",
     "- 「次に必要な情報を1つずつ確認します」のような予約前の案内へ戻しません。",
   ].join("\n")
 }
@@ -2534,42 +2534,40 @@ function buildSubmittedBookingPromptContext(
 function buildSubmittedBookingActionableFallback(input: {
   latestUserMessage: string
   jobContext: JobContext
-  submission: NonNullable<ConversationState["bookingSubmission"]>
 }): string {
   const normalized = input.latestUserMessage.normalize("NFKC").toLowerCase()
-  const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談内容として則兼に届いています。`
   if (/(いい名前|良い名前)/u.test(normalized)) {
     return "ありがとうございます。名前も気に入ってもらえてうれしいです。"
   }
   if (/(暑い|寒い|天気|雨|晴れ|蒸し暑|涼しい)/u.test(normalized)) {
-    return "天気や気温の変化が大きいですね。体調に気をつけてお過ごしください。案件のことで追記があれば、このまま送ってください。"
+    return "天気や気温の変化が大きいですね。体調に気をつけてお過ごしください。"
   }
   if (/(助か|また相談)/u.test(normalized)) {
-    return "そう言っていただけてうれしいです。また気になることがあれば、このまま送ってください。"
+    return "そう言っていただけてうれしいです。気になることが出てきたら、このまま気軽に送ってください。"
   }
   if (/(ありがとう|よろしく|助か|お世話|うれしい|嬉しい)/u.test(normalized)) {
-    return "こちらこそありがとうございます。送信いただいた内容は届いているので、このまま安心してお待ちください。"
+    return "こちらこそありがとうございます。必要なことが出てきたら、このまま気軽に送ってください。"
   }
   if (/(聞きたい|質問|相談|確認|教えて|追加)/u.test(normalized)) {
-    return `はい、このまま質問を書いてください。予約番号 ${input.submission.reservationNumber} の相談に続けて確認できます。`
+    return "もちろんです。このまま聞きたいことを書いてください。"
   }
   if (/(持ち物|必要なもの|準備|用意)/u.test(normalized)) {
     const remoteNote =
       input.jobContext.workSite === "remote-grading"
         ? "リモート作業なので、来訪用の持ち物は基本的に不要です。"
         : ""
-    return `${remoteNote}素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。${reservationPrefix}追加で必要なものがあれば連絡します。`
+    return `${remoteNote}素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。`
   }
   if (/(集合|場所|アクセス|住所|どこ)/u.test(normalized)) {
     if (input.jobContext.workSite === "remote-grading") {
-      return `今回はリモート作業の相談内容として届いています。${reservationPrefix}対面や場所の確認が必要な場合は、則兼が内容確認時に案内します。`
+      return "今回はリモート作業の相談として受けています。対面に変えたい場合や場所の確認が必要な場合は、その旨をこのまま送ってください。"
     }
-    return `${reservationPrefix}場所や入館方法などの詳細は、則兼が内容確認後に連絡します。`
+    return "場所や入館方法などの詳細確認も、このまま続けて送れます。"
   }
   if (/(変更|修正|キャンセル|取り消し|日時|日程|時間)/u.test(normalized)) {
-    return `${reservationPrefix}変更やキャンセルは本人確認が必要なので、この場では確約せず、確認後に連絡します。`
+    return "変更希望もこのまま送れます。日時など確約が必要な内容は、確認してからの扱いになります。"
   }
-  return buildSubmittedBookingFollowup(input.submission)
+  return buildSubmittedBookingFollowup()
 }
 
 function buildFinalConfirmationSupplementalFollowup(latestUserMessage: string): string {

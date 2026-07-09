@@ -2500,7 +2500,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: customerReply("ありがとうございます。予約内容は届いているので、このまま則兼からの連絡をお待ちください。"),
+      rawText: customerReply("ありがとうございます。こちらで受け取れています。気になることがあればいつでも送ってください。"),
       tier: "tier-2-hosted-chrome-notion-ai",
     })
 
@@ -2511,7 +2511,7 @@ describe("handleChatbotMessage user context", () => {
 
     expect(harness.generate).toHaveBeenCalledWith(
       expect.objectContaining({
-        systemPrompt: expect.stringMatching(/予約送信後の会話状態[\s\S]*毎回同じ文末、固定サフィックス/u),
+        systemPrompt: expect.stringMatching(/予約送信後の会話状態[\s\S]*予約済み、連絡待ち、則兼確認、予約番号を固定サフィックス/u),
         conversationState: expect.objectContaining({
           bookingSubmission: expect.objectContaining({
             reservationNumber: "booking_1",
@@ -2523,9 +2523,84 @@ describe("handleChatbotMessage user context", () => {
     expect(result.tier).toBe("tier-2-hosted-chrome-notion-ai")
     expect(result.ui).toEqual({ kind: "none" })
     expect(result.assistantMessage.content).toContain("ありがとうございます")
-    expect(result.assistantMessage.content).toContain("予約内容は届いている")
+    expect(result.assistantMessage.content).toContain("気になることがあれば")
     expect(result.assistantMessage.content).not.toContain("次に必要な情報")
     expect(result.routingDecision).toBeUndefined()
+  })
+
+  it("keeps post-submission LLM replies varied without appending a fixed server suffix", async () => {
+    const cases = [
+      {
+        userMessage: "内容、ありがとう、今後ともよろしくお願いします",
+        reply: "こちらこそありがとうございます。今後の確認もこの流れで進められます。",
+      },
+      {
+        userMessage: "また相談できて助かりました",
+        reply: "そう言っていただけてうれしいです。気になることが出てきたら、またそのまま送ってください。",
+      },
+      {
+        userMessage: "追加で聞きたいことがあります",
+        reply: "もちろんです。続けて聞きたいことを書いてください。",
+      },
+      {
+        userMessage: "いい名前だね。",
+        reply: "ありがとうございます。そう言ってもらえるとうれしいです。",
+      },
+      {
+        userMessage: "今日は暑いですね",
+        reply: "本当に暑いですね。移動や準備の合間も、無理せずお過ごしください。",
+      },
+      {
+        userMessage: "当日までに準備するものはありますか？",
+        reply: "素材データ、参考資料、納品仕様が分かるメモがあると進めやすいです。",
+      },
+    ]
+    const replies: string[] = []
+
+    for (const item of cases) {
+      const harness = setup({
+        existingConversation: conversation({
+          context: {
+            sessionId: "session_1",
+            userId: "user_a",
+            conversationState: {
+              ...baseProductionConversationState(),
+              hasContactEmail: true,
+              contactEmail: "client@example.com",
+              bookingSubmission: {
+                status: "submitted",
+                reservationNumber: "booking_1",
+                submittedAt: "2026-06-26T07:37:23.000Z",
+              },
+            },
+            jobContext: {
+              jobKind: "live-60m",
+              finalMedium: "live",
+              workSite: "remote-grading",
+              documentaryAttachment: { kind: "none" },
+              projectLengthMinutes: 150,
+            },
+          },
+        }),
+      })
+      harness.generate.mockResolvedValueOnce({
+        rawText: customerReply(item.reply),
+        tier: "tier-2-hosted-chrome-notion-ai",
+      })
+
+      const result = await handleChatbotMessage(
+        { sessionId: "session_1", userId: "user_a", message: item.userMessage },
+        harness.options,
+      )
+
+      expect(result.ui).toEqual({ kind: "none" })
+      expect(result.routingDecision).toBeUndefined()
+      expect(result.assistantMessage.content).toBe(item.reply)
+      expect(result.assistantMessage.content).not.toMatch(/則兼が内容を確認|ご登録の連絡先|予約内容と一緒/u)
+      replies.push(result.assistantMessage.content)
+    }
+
+    expect(new Set(replies.map((reply) => reply.slice(-14))).size).toBeGreaterThan(4)
   })
 
   it.each([
@@ -2533,25 +2608,25 @@ describe("handleChatbotMessage user context", () => {
       label: "thank-you",
       userMessage: "ありがとう",
       leakedReply: "内容は受付済みなので同じ予約カードを再表示しません。則兼が内容を確認してご連絡します。",
-      expectedReply: "こちらこそありがとうございます。送信いただいた内容は届いているので、このまま安心してお待ちください。",
+      expectedReply: "こちらこそありがとうございます。必要なことが出てきたら、このまま気軽に送ってください。",
     },
     {
       label: "thank-you-and-greeting",
       userMessage: "内容、ありがとう、今後ともよろしくお願いします",
       leakedReply: "内容は受付済みなので同じ予約カードを再表示しません。則兼が内容を確認してご連絡します。",
-      expectedReply: "こちらこそありがとうございます。送信いただいた内容は届いているので、このまま安心してお待ちください。",
+      expectedReply: "こちらこそありがとうございます。必要なことが出てきたら、このまま気軽に送ってください。",
     },
     {
       label: "additional-question",
       userMessage: "追加で聞きたいことがあります",
       leakedReply: "予約候補カードは作成済みです。追加の予約カードは不要です。",
-      expectedReply: "はい、このまま質問を書いてください。予約番号 booking_1 の相談に続けて確認できます。",
+      expectedReply: "もちろんです。このまま聞きたいことを書いてください。",
     },
     {
       label: "post-booking-small-talk",
       userMessage: "また相談できて助かりました",
       leakedReply: "UI上ではカードを再表示しません。内容は受け付け済みです。",
-      expectedReply: "そう言っていただけてうれしいです。また気になることがあれば、このまま送ってください。",
+      expectedReply: "そう言っていただけてうれしいです。気になることが出てきたら、このまま気軽に送ってください。",
     },
     {
       label: "assistant-name-small-talk",
@@ -2563,22 +2638,20 @@ describe("handleChatbotMessage user context", () => {
       label: "unrelated-weather-small-talk",
       userMessage: "全然関係ないんですが、今日は暑いですね",
       leakedReply: "user is making small talk about the weather being hot today.",
-      expectedReply:
-        "天気や気温の変化が大きいですね。体調に気をつけてお過ごしください。案件のことで追記があれば、このまま送ってください。",
+      expectedReply: "天気や気温の変化が大きいですね。体調に気をつけてお過ごしください。",
     },
     {
       label: "prep-question",
       userMessage: "当日までに準備しておくものはありますか？",
       leakedReply: "予約候補カードは作成済みなので同じUIは出しません。",
       expectedReply:
-        "リモート作業なので、来訪用の持ち物は基本的に不要です。素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。予約番号 booking_1 の相談内容として則兼に届いています。追加で必要なものがあれば連絡します。",
+        "リモート作業なので、来訪用の持ち物は基本的に不要です。素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。",
     },
     {
       label: "schedule-change",
       userMessage: "送った日程を変更したいです",
       leakedReply: "予約候補カードは作成済みです。追加の予約カードは不要です。",
-      expectedReply:
-        "予約番号 booking_1 の相談内容として則兼に届いています。変更やキャンセルは本人確認が必要なので、この場では確約せず、確認後に連絡します。",
+      expectedReply: "変更希望もこのまま送れます。日時など確約が必要な内容は、確認してからの扱いになります。",
     },
   ])(
     "falls back to a customer-facing submitted-booking reply when LLM leaks internal UI state after submission: $label",
