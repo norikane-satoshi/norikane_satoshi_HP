@@ -2511,7 +2511,7 @@ describe("handleChatbotMessage user context", () => {
 
     expect(harness.generate).toHaveBeenCalledWith(
       expect.objectContaining({
-        systemPrompt: expect.stringContaining("予約送信後の会話状態"),
+        systemPrompt: expect.stringMatching(/予約送信後の会話状態[\s\S]*毎回同じ文末、固定サフィックス/u),
         conversationState: expect.objectContaining({
           bookingSubmission: expect.objectContaining({
             reservationNumber: "booking_1",
@@ -2533,25 +2533,39 @@ describe("handleChatbotMessage user context", () => {
       label: "thank-you",
       userMessage: "ありがとう",
       leakedReply: "内容は受付済みなので同じ予約カードを再表示しません。則兼が内容を確認してご連絡します。",
-      expectedReply: "こちらこそありがとうございます。則兼が内容を確認して、ご登録の連絡先へ案内します。",
+      expectedReply: "こちらこそありがとうございます。送信いただいた内容は届いているので、このまま安心してお待ちください。",
     },
     {
       label: "thank-you-and-greeting",
       userMessage: "内容、ありがとう、今後ともよろしくお願いします",
       leakedReply: "内容は受付済みなので同じ予約カードを再表示しません。則兼が内容を確認してご連絡します。",
-      expectedReply: "こちらこそありがとうございます。則兼が内容を確認して、ご登録の連絡先へ案内します。",
+      expectedReply: "こちらこそありがとうございます。送信いただいた内容は届いているので、このまま安心してお待ちください。",
     },
     {
       label: "additional-question",
       userMessage: "追加で聞きたいことがあります",
       leakedReply: "予約候補カードは作成済みです。追加の予約カードは不要です。",
-      expectedReply: "はい、このまま追加で聞きたいことを書いてください。予約内容と一緒に則兼が確認します。",
+      expectedReply: "はい、このまま質問を書いてください。予約番号 booking_1 の相談に続けて確認できます。",
     },
     {
       label: "post-booking-small-talk",
       userMessage: "また相談できて助かりました",
       leakedReply: "UI上ではカードを再表示しません。内容は受け付け済みです。",
-      expectedReply: "そう言っていただけてうれしいです。則兼が内容を確認して、ご登録の連絡先へ案内します。",
+      expectedReply: "そう言っていただけてうれしいです。また気になることがあれば、このまま送ってください。",
+    },
+    {
+      label: "prep-question",
+      userMessage: "当日までに準備しておくものはありますか？",
+      leakedReply: "予約候補カードは作成済みなので同じUIは出しません。",
+      expectedReply:
+        "リモート作業なので、来訪用の持ち物は基本的に不要です。素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。予約番号 booking_1 の相談内容として則兼に届いています。追加で必要なものがあれば連絡します。",
+    },
+    {
+      label: "schedule-change",
+      userMessage: "送った日程を変更したいです",
+      leakedReply: "予約候補カードは作成済みです。追加の予約カードは不要です。",
+      expectedReply:
+        "予約番号 booking_1 の相談内容として則兼に届いています。変更やキャンセルは本人確認が必要なので、この場では確約せず、確認後に連絡します。",
     },
   ])(
     "falls back to a customer-facing submitted-booking reply when LLM leaks internal UI state after submission: $label",
