@@ -56,6 +56,7 @@ import {
   getCalendarAuthUrl,
   getFreeBusy,
   listBusyEventsWithBuffer,
+  listTentativeHoldEvents,
   refreshCalendarAccessToken,
 } from "@/lib/google-calendar/server"
 
@@ -162,6 +163,49 @@ describe("google-calendar helpers", () => {
         "access_token",
       ),
     ).rejects.toThrow("events failed")
+  })
+
+  it("lists tentative hold events by private marker without exposing event details", async () => {
+    mocks.list.mockResolvedValue({
+      data: {
+        items: [
+          {
+            summary: "Hidden project",
+            transparency: "transparent",
+            start: { date: "2026-07-10" },
+            end: { date: "2026-07-11" },
+            extendedProperties: { private: { source: "hp-booking", notion_task_type: "仮押さえ" } },
+          },
+          {
+            start: { dateTime: "2026-07-12T10:00:00+09:00" },
+            end: { dateTime: "2026-07-12T11:00:00+09:00" },
+            extendedProperties: { private: { source: "hp-booking", notion_task_type: "本予約" } },
+          },
+          {
+            start: { date: "2026-07-13" },
+            end: { date: "2026-07-14" },
+            extendedProperties: { private: { source: "manual", notion_task_type: "仮押さえ" } },
+          },
+          {
+            start: {},
+            end: { date: "2026-07-15" },
+            extendedProperties: { private: { source: "hp-booking", notion_task_type: "仮押さえ" } },
+          },
+        ],
+      },
+    })
+
+    await expect(
+      listTentativeHoldEvents(
+        "calendar_1",
+        "2026-07-01T00:00:00.000Z",
+        "2026-08-01T00:00:00.000Z",
+        "access_token",
+      ),
+    ).resolves.toEqual([{ start: "2026-07-10", end: "2026-07-11" }])
+    expect(mocks.list).toHaveBeenCalledWith(expect.objectContaining({
+      privateExtendedProperty: ["source=hp-booking", "notion_task_type=仮押さえ"],
+    }))
   })
 
   it("returns freebusy slots with complete start/end only", async () => {

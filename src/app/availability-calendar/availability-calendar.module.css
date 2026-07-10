@@ -1,6 +1,6 @@
 .shell {
   width: 100%;
-  max-width: 980px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 24px 16px 56px;
 }
@@ -31,7 +31,7 @@
 .title {
   margin-top: 8px;
   color: var(--text-primary);
-  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-size: 2rem;
   font-weight: 700;
   line-height: 1.15;
 }
@@ -44,17 +44,25 @@
   line-height: 1.8;
 }
 
+.actions {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
 .monthNav {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.homeLink,
 .monthLink {
   display: inline-flex;
   min-height: 40px;
   align-items: center;
   justify-content: center;
+  gap: 7px;
   border: 1px solid var(--glass-border);
   border-radius: var(--hp-radius-sm);
   padding: 0 14px;
@@ -92,6 +100,19 @@
   border-color: var(--accent-primary);
 }
 
+.legendMarkTentative {
+  border-style: dashed;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--text-muted) 24%, transparent) 0,
+      color-mix(in srgb, var(--text-muted) 24%, transparent) 3px,
+      transparent 3px,
+      transparent 8px
+    ),
+    var(--glass-bg);
+}
+
 .calendar {
   display: grid;
   gap: 8px;
@@ -114,7 +135,7 @@
 .day {
   position: relative;
   display: grid;
-  min-height: 86px;
+  min-height: 96px;
   align-content: space-between;
   border: 1px solid var(--glass-border);
   border-radius: var(--hp-radius-sm);
@@ -135,6 +156,20 @@
 .dayBusy {
   border-color: color-mix(in srgb, var(--accent-primary) 40%, var(--glass-border));
   background: color-mix(in srgb, var(--accent-primary) 12%, rgba(255, 255, 255, 0.34));
+}
+
+.dayTentative {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--text-muted) 46%, var(--glass-border));
+  background:
+    repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--text-muted) 12%, transparent) 0,
+      color-mix(in srgb, var(--text-muted) 12%, transparent) 4px,
+      transparent 4px,
+      transparent 12px
+    ),
+    rgba(255, 255, 255, 0.34);
 }
 
 .dayNumber {
@@ -159,6 +194,10 @@
   color: var(--accent-primary);
 }
 
+.dayTentative .lock {
+  color: var(--text-muted);
+}
+
 .warning {
   border: 1px solid var(--glass-border);
   border-radius: var(--hp-radius-sm);
@@ -168,6 +207,36 @@
   font-weight: 700;
 }
 
+@media (min-width: 768px) {
+  .shell {
+    padding-inline: 24px;
+  }
+
+  .card {
+    gap: 28px;
+    padding: 28px;
+  }
+
+  .title {
+    font-size: 2.5rem;
+  }
+
+  .weekdays,
+  .grid {
+    gap: 10px;
+  }
+
+  .day {
+    min-height: 112px;
+  }
+}
+
+@media (min-width: 1180px) {
+  .day {
+    min-height: 128px;
+  }
+}
+
 @media (max-width: 640px) {
   .shell {
     padding-inline: 10px;
@@ -175,6 +244,24 @@
 
   .card {
     padding: 16px;
+  }
+
+  .header,
+  .actions,
+  .monthNav {
+    width: 100%;
+  }
+
+  .actions {
+    justify-items: stretch;
+  }
+
+  .homeLink {
+    width: 100%;
+  }
+
+  .monthLink {
+    flex: 1 1 0;
   }
 
   .weekdays,
@@ -189,5 +276,31 @@
 
   .status {
     font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .shell {
+    padding-inline: 6px;
+  }
+
+  .card {
+    gap: 18px;
+    padding: 12px;
+  }
+
+  .day {
+    min-height: 58px;
+    padding: 6px 4px;
+  }
+
+  .status {
+    gap: 3px;
+    font-size: 0.62rem;
+  }
+
+  .lock {
+    width: 12px;
+    height: 12px;
   }
 }

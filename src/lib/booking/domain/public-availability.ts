@@ -5,12 +5,16 @@ export type PublicAvailabilityBusySlot = {
   end: string
 }
 
+export type PublicAvailabilityDayStatus = "available" | "busy" | "tentative"
+
 export type PublicAvailabilityDay = {
   dateKey: string
   day: number
   inMonth: boolean
   isTodayOrPast: boolean
   isBusy: boolean
+  isTentative: boolean
+  status: PublicAvailabilityDayStatus
 }
 
 export type PublicAvailabilityMonth = {
@@ -26,6 +30,7 @@ export type PublicAvailabilityMonth = {
   }
   days: PublicAvailabilityDay[]
   busyDateKeys: string[]
+  tentativeDateKeys: string[]
 }
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/
@@ -128,6 +133,27 @@ function dateKeysForTimedSlot(slot: PublicAvailabilityBusySlot): string[] {
   return keys
 }
 
+function dateKeysForDateOnlySlot(slot: PublicAvailabilityBusySlot): string[] {
+  if (isTimedBusySlot(slot)) return []
+  if (hasTimePart(slot.start) || hasTimePart(slot.end)) {
+    if (!isFullDayBusySlot(slot)) return []
+  }
+
+  const startKey = hasTimePart(slot.start) ? toTokyoDateKey(new Date(slot.start)) : slot.start
+  const exclusiveEndKey = hasTimePart(slot.end) ? toTokyoDateKey(new Date(slot.end)) : slot.end
+  if (!DATE_PATTERN.test(startKey) || !DATE_PATTERN.test(exclusiveEndKey) || exclusiveEndKey <= startKey) return []
+
+  const keys: string[] = []
+  for (let cursor = startKey; cursor < exclusiveEndKey; cursor = addDays(cursor, 1)) {
+    keys.push(cursor)
+  }
+  return keys
+}
+
+function dateKeysForTentativeSlot(slot: PublicAvailabilityBusySlot): string[] {
+  return [...dateKeysForTimedSlot(slot), ...dateKeysForDateOnlySlot(slot)]
+}
+
 function monthLabel(month: string): string {
   const [year = "", monthNumber = ""] = month.split("-")
   return `${year}年${Number(monthNumber)}月`
@@ -153,16 +179,24 @@ export function buildPublicAvailabilityMonth(input: {
   now?: Date
   busy?: PublicAvailabilityBusySlot[]
   bookings?: PublicAvailabilityBusySlot[]
+  tentative?: PublicAvailabilityBusySlot[]
+  tentativeDateKeys?: string[]
 }): PublicAvailabilityMonth {
   const now = input.now ?? new Date()
   const month = normalizeMonth(input.month, now)
   const todayDateKey = toTokyoDateKey(now)
   const range = rangeForMonth(month)
   const busyDateKeys = new Set<string>()
+  const tentativeDateKeys = new Set(input.tentativeDateKeys ?? [])
 
   for (const slot of [...(input.busy ?? []), ...(input.bookings ?? [])]) {
     for (const dateKey of dateKeysForTimedSlot(slot)) {
       busyDateKeys.add(dateKey)
+    }
+  }
+  for (const slot of input.tentative ?? []) {
+    for (const dateKey of dateKeysForTentativeSlot(slot)) {
+      tentativeDateKeys.add(dateKey)
     }
   }
 
@@ -170,12 +204,16 @@ export function buildPublicAvailabilityMonth(input: {
   for (let cursor = range.start; cursor < range.end; cursor = addDays(cursor, 1)) {
     if (!DATE_PATTERN.test(cursor)) break
     const { day } = parseDateKey(cursor)
+    const isBusy = busyDateKeys.has(cursor)
+    const isTentative = !isBusy && tentativeDateKeys.has(cursor)
     days.push({
       dateKey: cursor,
       day,
       inMonth: cursor.startsWith(month),
       isTodayOrPast: cursor <= todayDateKey,
-      isBusy: busyDateKeys.has(cursor),
+      isBusy,
+      isTentative,
+      status: isBusy ? "busy" : isTentative ? "tentative" : "available",
     })
   }
 
@@ -187,5 +225,6 @@ export function buildPublicAvailabilityMonth(input: {
     range,
     days,
     busyDateKeys: Array.from(busyDateKeys).sort(),
+    tentativeDateKeys: Array.from(tentativeDateKeys).sort(),
   }
 }

@@ -28,6 +28,8 @@ export type CalendarBusyEventWithBuffer = CalendarBusySlot & {
   source?: "google_calendar" | "notion_work"
 }
 
+export type CalendarTentativeHoldEvent = CalendarBusySlot
+
 export type CalendarEventWriteInput = {
   calendarId: string
   summary: string
@@ -237,6 +239,48 @@ export async function listBusyEventsWithBuffer(
         summary: event.summary ?? null,
         source: "google_calendar",
       })
+    }
+
+    pageToken = response.data.nextPageToken ?? undefined
+  } while (pageToken)
+
+  return slots
+}
+
+export async function listTentativeHoldEvents(
+  calendarId: string,
+  timeMin: string,
+  timeMax: string,
+  accessToken: string,
+): Promise<CalendarTentativeHoldEvent[]> {
+  const oauth2Client = createCalendarOAuthClient()
+  oauth2Client.setCredentials({ access_token: accessToken })
+
+  const calendar = google.calendar({ version: "v3", auth: oauth2Client })
+  const slots: CalendarTentativeHoldEvent[] = []
+  let pageToken: string | undefined
+
+  do {
+    const response = await calendar.events.list({
+      calendarId,
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: "startTime",
+      showDeleted: false,
+      privateExtendedProperty: ["source=hp-booking", "notion_task_type=仮押さえ"],
+      pageToken,
+    })
+
+    for (const event of response.data.items ?? []) {
+      const privateProperties = event.extendedProperties?.private
+      if (privateProperties?.source !== "hp-booking") continue
+      if (privateProperties.notion_task_type !== "仮押さえ") continue
+
+      const start = event.start?.dateTime ?? event.start?.date
+      const end = event.end?.dateTime ?? event.end?.date
+      if (!start || !end) continue
+      slots.push({ start, end })
     }
 
     pageToken = response.data.nextPageToken ?? undefined

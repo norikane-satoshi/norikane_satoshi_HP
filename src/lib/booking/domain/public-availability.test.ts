@@ -18,10 +18,44 @@ describe("buildPublicAvailabilityMonth", () => {
     })
 
     expect(month.busyDateKeys).toEqual(["2026-07-15", "2026-07-20"])
+    expect(month.tentativeDateKeys).toEqual([])
     expect(month.days.find((day) => day.dateKey === "2026-07-15")?.isBusy).toBe(true)
     expect(month.days.find((day) => day.dateKey === "2026-07-16")?.isBusy).toBe(false)
     expect(month.days.find((day) => day.dateKey === "2026-07-17")?.isBusy).toBe(false)
     expect(month.days.find((day) => day.dateKey === "2026-07-20")?.isBusy).toBe(true)
+  })
+
+  it("marks date-only tentative holds without turning them into confirmed busy days", () => {
+    const month = buildPublicAvailabilityMonth({
+      month: "2026-07",
+      now: new Date("2026-07-10T00:00:00.000+09:00"),
+      busy: [
+        { start: "2026-07-15T10:00:00+09:00", end: "2026-07-15T11:00:00+09:00" },
+      ],
+      tentative: [
+        { start: "2026-07-16", end: "2026-07-18" },
+        { start: "2026-07-20T10:00:00+09:00", end: "2026-07-20T11:00:00+09:00" },
+      ],
+      tentativeDateKeys: ["2026-07-22"],
+    })
+
+    expect(month.busyDateKeys).toEqual(["2026-07-15"])
+    expect(month.tentativeDateKeys).toEqual(["2026-07-16", "2026-07-17", "2026-07-20", "2026-07-22"])
+    expect(month.days.find((day) => day.dateKey === "2026-07-15")).toMatchObject({
+      isBusy: true,
+      isTentative: false,
+      status: "busy",
+    })
+    expect(month.days.find((day) => day.dateKey === "2026-07-16")).toMatchObject({
+      isBusy: false,
+      isTentative: true,
+      status: "tentative",
+    })
+    expect(month.days.find((day) => day.dateKey === "2026-07-18")).toMatchObject({
+      isBusy: false,
+      isTentative: false,
+      status: "available",
+    })
   })
 
   it("uses a stable Sunday-start month grid and JST today/past state", () => {

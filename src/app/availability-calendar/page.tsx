@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { Lock } from "lucide-react"
+import { Home, Lock } from "lucide-react"
 
 import styles from "./availability-calendar.module.css"
 import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
@@ -23,6 +23,12 @@ function monthParam(value: string) {
   return `${PUBLIC_AVAILABILITY_ROUTE}?month=${encodeURIComponent(value)}`
 }
 
+function statusText(status: "available" | "busy" | "tentative") {
+  if (status === "busy") return "予定あり"
+  if (status === "tentative") return "仮押さえ"
+  return "空き"
+}
+
 export default async function PublicAvailabilityCalendarPage({ searchParams }: PageProps) {
   const params = await searchParams
   const month = Array.isArray(params?.month) ? params?.month[0] : params?.month
@@ -38,14 +44,20 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
             <h1 className={styles.title}>{availability.monthLabel}</h1>
             <p className={styles.lead}>予約可否の目安だけを表示しています。案件名や予定の詳細は表示しません。</p>
           </div>
-          <nav className={styles.monthNav} aria-label="表示月">
-            <Link className={`glass-card-sm ${styles.monthLink}`} href={monthParam(availability.prevMonth)}>
-              前月
+          <div className={styles.actions}>
+            <Link className={`glass-card-sm ${styles.homeLink}`} href="/">
+              <Home size={16} aria-hidden="true" />
+              ホームへ戻る
             </Link>
-            <Link className={`glass-card-sm ${styles.monthLink}`} href={monthParam(availability.nextMonth)}>
-              翌月
-            </Link>
-          </nav>
+            <nav className={styles.monthNav} aria-label="表示月">
+              <Link className={`glass-card-sm ${styles.monthLink}`} href={monthParam(availability.prevMonth)}>
+                前月
+              </Link>
+              <Link className={`glass-card-sm ${styles.monthLink}`} href={monthParam(availability.nextMonth)}>
+                翌月
+              </Link>
+            </nav>
+          </div>
         </div>
 
         <div className={styles.legend} aria-label="凡例">
@@ -56,6 +68,10 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
           <span className={styles.legendItem}>
             <span className={`${styles.legendMark} ${styles.legendMarkBusy}`} aria-hidden="true" />
             予定あり
+          </span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.legendMark} ${styles.legendMarkTentative}`} aria-hidden="true" />
+            仮押さえ
           </span>
         </div>
 
@@ -75,7 +91,7 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
           </div>
           <div className={styles.grid}>
             {availability.days.map((day) => {
-              const stateText = day.isBusy ? "予定あり" : "空き"
+              const stateText = statusText(day.status)
               return (
                 <div
                   key={day.dateKey}
@@ -84,14 +100,16 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
                     !day.inMonth ? styles.dayMuted : "",
                     day.isTodayOrPast ? styles.dayPast : "",
                     day.isBusy ? styles.dayBusy : "",
+                    day.isTentative ? styles.dayTentative : "",
                   ].filter(Boolean).join(" ")}
                   data-date={day.dateKey}
                   data-busy={day.isBusy ? "true" : "false"}
+                  data-status={day.status}
                   aria-label={`${day.dateKey} ${stateText}`}
                 >
                   <span className={styles.dayNumber}>{day.day}</span>
                   <span className={styles.status}>
-                    {day.isBusy ? <Lock className={styles.lock} size={14} aria-hidden="true" /> : null}
+                    {day.status !== "available" ? <Lock className={styles.lock} size={14} aria-hidden="true" /> : null}
                     {stateText}
                   </span>
                 </div>

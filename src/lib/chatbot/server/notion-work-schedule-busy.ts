@@ -9,6 +9,7 @@ import type {
 } from "@notionhq/client/build/src/api-endpoints"
 
 const SCHEDULED_AT_PROPERTY = "実施予定日"
+const TASK_TYPE_PROPERTY = "タスク種別"
 const CACHE_TTL_MS = 120_000
 const DAY_MS = 24 * 60 * 60 * 1000
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
@@ -51,26 +52,7 @@ export async function getNotionWorkScheduleBusyIntervals(args: {
     return []
   }
 
-  const results: PageObjectResponse[] = []
-  let cursor: string | undefined
-  for (let i = 0; i < MAX_QUERY_PAGES; i += 1) {
-    const response: QueryDataSourceResponse = await notion.dataSources.query({
-      data_source_id: IB_WORK_DATA_SOURCE_ID,
-      filter: {
-        property: SCHEDULED_AT_PROPERTY,
-        date: { on_or_before: args.to },
-      },
-      sorts: [{ property: SCHEDULED_AT_PROPERTY, direction: "ascending" }],
-      page_size: 100,
-      start_cursor: cursor,
-    })
-
-    for (const row of response.results) {
-      if (isFullPage(row)) results.push(row)
-    }
-    if (!response.has_more || !response.next_cursor) break
-    cursor = response.next_cursor
-  }
+  const results = await queryWorkSchedulePages(args.to)
 
   const intervals = results
     .map(toBusyInterval)
@@ -85,8 +67,70 @@ export async function getNotionWorkScheduleBusyIntervals(args: {
   return intervals
 }
 
+export async function getNotionWorkTentativeDateKeys(args: {
+  from: string
+  to: string
+}): Promise<string[]> {
+  const notion = getNotionClient()
+  if (!notion) {
+    throw new Error("NOTION_TOKEN is required to read IB_仕事 scheduled rows.")
+  }
+
+  const fromKey = args.from.slice(0, 10)
+  const toKey = args.to.slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromKey) || !/^\d{4}-\d{2}-\d{2}$/.test(toKey) || fromKey >= toKey) {
+    return []
+  }
+
+  const results = await queryWorkSchedulePages(args.to)
+  const dateKeys = new Set<string>()
+  for (const row of results) {
+    if (getTaskType(row) !== "仮押さえ") continue
+    const property = row.properties[SCHEDULED_AT_PROPERTY]
+    if (!property || property.type !== "date" || !property.date?.start) continue
+    if (hasTime(property.date.start)) continue
+
+    const startKey = property.date.start.slice(0, 10)
+    const endKey = property.date.end && !hasTime(property.date.end) ? property.date.end.slice(0, 10) : startKey
+    for (let cursor = startKey; cursor <= endKey; cursor = addDays(cursor, 1)) {
+      if (cursor >= fromKey && cursor < toKey) dateKeys.add(cursor)
+    }
+  }
+
+  return Array.from(dateKeys).sort()
+}
+
 function isFullPage(row: QueryDataSourceResponse["results"][number]): row is PageObjectResponse {
   return "properties" in row
+}
+
+async function queryWorkSchedulePages(to: string): Promise<PageObjectResponse[]> {
+  const notion = getNotionClient()
+  if (!notion) {
+    throw new Error("NOTION_TOKEN is required to read IB_仕事 scheduled rows.")
+  }
+
+  const results: PageObjectResponse[] = []
+  let cursor: string | undefined
+  for (let i = 0; i < MAX_QUERY_PAGES; i += 1) {
+    const response: QueryDataSourceResponse = await notion.dataSources.query({
+      data_source_id: IB_WORK_DATA_SOURCE_ID,
+      filter: {
+        property: SCHEDULED_AT_PROPERTY,
+        date: { on_or_before: to },
+      },
+      sorts: [{ property: SCHEDULED_AT_PROPERTY, direction: "ascending" }],
+      page_size: 100,
+      start_cursor: cursor,
+    })
+
+    for (const row of response.results) {
+      if (isFullPage(row)) results.push(row)
+    }
+    if (!response.has_more || !response.next_cursor) break
+    cursor = response.next_cursor
+  }
+  return results
 }
 
 function toBusyInterval(page: PageObjectResponse): BusyInterval | null {
@@ -109,8 +153,28 @@ function toBusyInterval(page: PageObjectResponse): BusyInterval | null {
   }
 }
 
+function getTaskType(page: PageObjectResponse): string | null {
+  const property = page.properties[TASK_TYPE_PROPERTY]
+  if (!property) return null
+  if (property.type === "select") return property.select?.name ?? null
+  if (property.type === "status") return property.status?.name ?? null
+  if (property.type === "multi_select") return property.multi_select.map((item) => item.name).join(",") || null
+  if (property.type === "rich_text") return property.rich_text.map((item) => item.plain_text).join("").trim() || null
+  return null
+}
+
 function hasTime(value: string): boolean {
   return value.includes("T")
+}
+
+function addDays(dateKey: string, days: number): string {
+  const [year = "0", month = "1", day = "1"] = dateKey.split("-")
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day) + days))
+  return [
+    String(date.getUTCFullYear()).padStart(4, "0"),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+  ].join("-")
 }
 
 function parseNotionDate(value: string, endExclusive: boolean): Date {
