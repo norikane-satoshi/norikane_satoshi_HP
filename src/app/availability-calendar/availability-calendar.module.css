@@ -101,16 +101,8 @@
 }
 
 .legendMarkTentative {
-  border-style: dashed;
-  background:
-    repeating-linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--text-muted) 24%, transparent) 0,
-      color-mix(in srgb, var(--text-muted) 24%, transparent) 3px,
-      transparent 3px,
-      transparent 8px
-    ),
-    var(--glass-bg);
+  background: color-mix(in srgb, #d9a514 28%, rgba(255, 255, 255, 0.5));
+  border-color: color-mix(in srgb, #d9a514 42%, var(--glass-border));
 }
 
 .calendar {
@@ -159,17 +151,8 @@
 }
 
 .dayTentative {
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--text-muted) 46%, var(--glass-border));
-  background:
-    repeating-linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--text-muted) 12%, transparent) 0,
-      color-mix(in srgb, var(--text-muted) 12%, transparent) 4px,
-      transparent 4px,
-      transparent 12px
-    ),
-    rgba(255, 255, 255, 0.34);
+  border-color: color-mix(in srgb, #d9a514 36%, var(--glass-border));
+  background: color-mix(in srgb, #f7d86a 18%, rgba(255, 255, 255, 0.46));
 }
 
 .dayNumber {
@@ -195,7 +178,7 @@
 }
 
 .dayTentative .lock {
-  color: var(--text-muted);
+  color: color-mix(in srgb, #b98500 72%, var(--text-primary));
 }
 
 .warning {

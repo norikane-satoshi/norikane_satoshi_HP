@@ -7,6 +7,12 @@ import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-li
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+const mockNavigation = vi.hoisted(() => ({ pathname: "/" }))
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockNavigation.pathname,
+}))
+
 import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget"
 import { CHATBOT_CONVERSATION_CONTENT_CLASS_NAME } from "@/components/chatbot/widget/conversationTypography"
 import { FloatingLauncher } from "@/components/chatbot/widget/FloatingLauncher"
@@ -131,6 +137,7 @@ function getWidgetHeaderText() {
 describe("chatbot widget shell", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_ENABLE_CHATBOT = "true"
+    mockNavigation.pathname = "/"
     installLocalStorage()
     window.localStorage.clear()
     window.location.hash = ""
@@ -325,6 +332,29 @@ describe("chatbot widget shell", () => {
       minimized: false,
       displayMode: "floating",
     })
+  })
+
+  it("removes side-peek page spacing when the public availability page suppresses the widget", async () => {
+    setViewportWidth(1024)
+    const { rerender } = render(<ChatbotWidget />)
+    await vi.runOnlyPendingTimersAsync()
+
+    await act(async () => {
+      window.dispatchEvent(new Event("hp-chatbot:open"))
+    })
+    await act(async () => {
+      screen.getByRole("button", { name: "サイドピーク表示に切り替え" }).click()
+    })
+
+    expect(document.body).toHaveClass("chatbot-side-peek-active")
+    expect(document.body.style.getPropertyValue("--chatbot-side-peek-width")).toBe("384px")
+
+    mockNavigation.pathname = "/availability-calendar"
+    rerender(<ChatbotWidget />)
+
+    expect(screen.queryByRole("complementary", { name: "AI 相談窓口" })).not.toBeInTheDocument()
+    expect(document.body).not.toHaveClass("chatbot-side-peek-active")
+    expect(document.body.style.getPropertyValue("--chatbot-side-peek-width")).toBe("")
   })
 
   it("ends floating drag even when shell pointer events stop bubbling", async () => {

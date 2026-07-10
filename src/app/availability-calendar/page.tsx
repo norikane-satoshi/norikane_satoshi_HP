@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { Home, Lock } from "lucide-react"
+import { ExternalLink, Lock } from "lucide-react"
 
 import styles from "./availability-calendar.module.css"
 import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
@@ -46,8 +46,8 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
           </div>
           <div className={styles.actions}>
             <Link className={`glass-card-sm ${styles.homeLink}`} href="/">
-              <Home size={16} aria-hidden="true" />
-              ホームへ戻る
+              <ExternalLink size={16} aria-hidden="true" />
+              本体サイトへ移動
             </Link>
             <nav className={styles.monthNav} aria-label="表示月">
               <Link className={`glass-card-sm ${styles.monthLink}`} href={monthParam(availability.prevMonth)}>

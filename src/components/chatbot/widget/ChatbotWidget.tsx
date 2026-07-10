@@ -240,11 +240,13 @@ export function ChatbotWidget() {
         ? "floating"
         : widgetState.layout.displayMode
   const isSidePeekActive =
+    shouldRenderChatbot &&
     isReady &&
     isDesktopLayout &&
     !widgetState.isMinimized &&
     effectiveDisplayMode === "side-peek"
   const isMobileFullScreenActive =
+    shouldRenderChatbot &&
     isReady &&
     !isDesktopLayout &&
     !widgetState.isMinimized &&
