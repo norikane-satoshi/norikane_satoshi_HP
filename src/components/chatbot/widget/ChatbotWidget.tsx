@@ -1,6 +1,8 @@
 "use client"
 
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react"
+import { usePathname } from "next/navigation"
+import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
 import { isChatbotEnabled } from "@/lib/feature-flags"
 import { MinimizedBar } from "./MinimizedBar"
 import { WidgetShell } from "./WidgetShell"
@@ -42,7 +44,10 @@ type DragSession = {
 }
 
 export function ChatbotWidget() {
+  const pathname = usePathname()
+  const isPublicAvailabilityPage = pathname === PUBLIC_AVAILABILITY_ROUTE
   const chatbotEnabled = isChatbotEnabled()
+  const shouldRenderChatbot = chatbotEnabled && !isPublicAvailabilityPage
   const widgetState = useWidgetState()
   const { open } = widgetState
   const [isDesktopLayout, setIsDesktopLayout] = useState(false)
@@ -50,14 +55,14 @@ export function ChatbotWidget() {
   const dragSessionRef = useRef<DragSession | null>(null)
 
   useEffect(() => {
-    if (!chatbotEnabled) return
+    if (!shouldRenderChatbot) return
     const handleOpen = () => open()
     window.addEventListener(CHATBOT_OPEN_EVENT, handleOpen)
     return () => window.removeEventListener(CHATBOT_OPEN_EVENT, handleOpen)
-  }, [chatbotEnabled, open])
+  }, [open, shouldRenderChatbot])
 
   useEffect(() => {
-    if (!chatbotEnabled) return
+    if (!shouldRenderChatbot) return
     const openForContactHash = () => {
       if (!widgetState.hasHydrated) return
       if (window.location.hash === CONTACT_HASH) open()
@@ -66,10 +71,10 @@ export function ChatbotWidget() {
     openForContactHash()
     window.addEventListener("hashchange", openForContactHash)
     return () => window.removeEventListener("hashchange", openForContactHash)
-  }, [chatbotEnabled, open, widgetState.hasHydrated])
+  }, [open, shouldRenderChatbot, widgetState.hasHydrated])
 
   useScrollTrigger({
-    disabled: !chatbotEnabled || !widgetState.hasHydrated || widgetState.isVisible,
+    disabled: !shouldRenderChatbot || !widgetState.hasHydrated || widgetState.isVisible,
     onTriggered: widgetState.showInitial,
   })
 
@@ -280,7 +285,7 @@ export function ChatbotWidget() {
     }
   }, [isMobileFullScreenActive])
 
-  if (!chatbotEnabled) return null
+  if (!shouldRenderChatbot) return null
 
   const asideClassName = isSidePeekActive
     ? "pointer-events-none fixed bottom-0 right-0 top-0 z-[2147483640] flex justify-end"

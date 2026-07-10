@@ -6,6 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, X } from "lucide-react"
 import { isBookingEnabled } from "@/lib/feature-flags"
+import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
 import { SITE_BRAND_NAME } from "@/lib/site-brand"
 
 type SectionId = "home" | "profile" | "philosophy" | "schedule"
@@ -25,6 +26,7 @@ const bookingNavItem: NavItem = {
 
 export function NavHeader() {
   const pathname = usePathname()
+  const isPublicAvailabilityPage = pathname === PUBLIC_AVAILABILITY_ROUTE
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<SectionId>("home")
   const bookingEnabled = isBookingEnabled()
@@ -38,6 +40,8 @@ export function NavHeader() {
   )
 
   useEffect(() => {
+    if (isPublicAvailabilityPage) return
+
     const updateActiveSection = () => {
       if (pathname.startsWith("/notes")) {
         setActiveSection("philosophy")
@@ -93,7 +97,9 @@ export function NavHeader() {
       observer.disconnect()
       window.removeEventListener("hashchange", updateActiveSection)
     }
-  }, [pathname, sectionIds])
+  }, [isPublicAvailabilityPage, pathname, sectionIds])
+
+  if (isPublicAvailabilityPage) return null
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
