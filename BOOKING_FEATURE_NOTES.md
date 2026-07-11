@@ -54,5 +54,5 @@ Phase 8（後追い）：Apple Sign In 追加（屋号開業 + Apple Developer P
 
 - Notion タスクページ：HP 予約カレンダー機能の方針確定と実装
 - 流用元：colorist-scheduler（github.com/norituku/colorist-scheduler）
-- HP 本体：github.com/norikane-satoshi/norikane_satoshi_HP
+- HP 本体：https://github.com/norikane-satoshi/norikane_satoshi_HP
 - 屋号：のりかね映像設計室（英文表記：Norikane Film Design Office、契約・税務上の代表者表記：則兼智志）
