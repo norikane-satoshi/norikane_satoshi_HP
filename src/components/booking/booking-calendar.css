@@ -186,7 +186,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--glass-border);
-  border-radius: 9999px;
+  border-radius: var(--hp-radius-pill);
   background: var(--glass-bg);
   color: var(--text-primary);
   font: inherit;
@@ -206,7 +206,7 @@
   margin-left: 4px;
   padding: 0 6px;
   height: 18px;
-  border-radius: 9999px;
+  border-radius: var(--hp-radius-pill);
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
   font-size: 0.6875rem;

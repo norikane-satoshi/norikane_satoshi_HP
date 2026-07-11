@@ -33,7 +33,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--glass-border);
-  border-radius: 9999px;
+  border-radius: var(--hp-radius-pill);
   color: var(--text-muted);
   font-size: 0.75rem;
 }
