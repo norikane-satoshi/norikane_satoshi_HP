@@ -1,6 +1,6 @@
 # NCS Grading Design Contract
 
-This file is the source of truth for the visual design of `norituku/norikane_satoshi_HP`.
+This file is the source of truth for the visual design of `norikane-satoshi/norikane_satoshi_HP`.
 AI coding agents must read this before creating or modifying any UI.
 
 ## 0. Role of this file
