@@ -117,6 +117,23 @@ function bodyWithNotificationWarning(body: unknown, warning: "skipped" | "send_f
   return bodyWithWarning(body, "ownerNotificationWarning", warning)
 }
 
+function bodyWithEmailDebug(body: unknown, key: string, id: string | null): unknown {
+  const isLocalDevelopment =
+    process.env.NODE_ENV === "development" &&
+    process.env.VERCEL !== "1" &&
+    (!process.env.VERCEL_ENV || process.env.VERCEL_ENV === "development")
+  if (!isLocalDevelopment) return body
+  if (!body || typeof body !== "object" || Array.isArray(body)) return body
+  const current = (body as { emailDebug?: unknown }).emailDebug
+  return {
+    ...body,
+    emailDebug: {
+      ...(current && typeof current === "object" && !Array.isArray(current) ? current : {}),
+      [key]: id,
+    },
+  }
+}
+
 function bodyWithWarning(body: unknown, key: string, value: string): unknown {
   if (!body || typeof body !== "object" || Array.isArray(body)) return body
   return {
@@ -151,10 +168,10 @@ async function notifyOwner(input: z.infer<typeof chatbotBookingRequestSchema>, b
           selectedSlotCount: selectedSlots.length,
         },
       })
-      return "skipped" as const
+      return { warning: "skipped" as const, id: null }
     }
 
-    return null
+    return { warning: null, id: result.id }
   } catch (error) {
     logChatbotOperationFailure({
       operation: "create-booking-from-chat",
@@ -167,7 +184,7 @@ async function notifyOwner(input: z.infer<typeof chatbotBookingRequestSchema>, b
         selectedSlotCount: selectedSlots.length,
       },
     })
-    return "send_failed" as const
+    return { warning: "send_failed" as const, id: null }
   }
 }
 
@@ -288,7 +305,9 @@ export async function POST(request: NextRequest) {
     let responseBody = result.body
     let notificationWarning: "skipped" | "send_failed" | null = null
     if (result.status >= 200 && result.status < 300 && bookingGroupId) {
-      notificationWarning = await notifyOwner(parsed.data, bookingGroupId)
+      const ownerNotification = await notifyOwner(parsed.data, bookingGroupId)
+      notificationWarning = ownerNotification.warning
+      responseBody = bodyWithEmailDebug(responseBody, "chatbotOwnerNotificationId", ownerNotification.id)
       if (notificationWarning) {
         responseBody = bodyWithNotificationWarning(responseBody, notificationWarning)
       }

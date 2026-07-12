@@ -89,6 +89,7 @@ export type ConversationState = {
   contactEmail?: string
   customerName?: string
   companyName?: string
+  bookingPrefill?: BookingCardPrefill
   productionOptions?: Array<"captions" | "telops" | "narration" | "music" | "other">
   otherChoiceComments?: Record<string, string>
   bookingFinalConfirmation?: {
