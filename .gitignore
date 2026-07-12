@@ -55,6 +55,9 @@ yarn-error.log*
 # diagram review artifacts (rendered HTML / screenshots for local QA)
 /public/notes/diagrams/review/
 
+# diagram source-asset inventory (local-only棚卸し、HP公開記事に混入させない)
+/.diagram-inventory.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
