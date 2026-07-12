@@ -468,7 +468,7 @@ export function ChatbotBookingCard({
           <legend className="text-sm font-semibold text-hp">
             仮キープ候補
           </legend>
-          <div className="rounded-[16px] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
+          <div className="rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
             <div className="mb-3 flex items-center justify-between gap-3">
               <button
                 type="button"

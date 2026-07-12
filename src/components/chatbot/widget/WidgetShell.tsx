@@ -1113,10 +1113,10 @@ export function WidgetShell({
   const isFullScreen = !isDesktopLayout && displayMode === "full-screen"
   const assistantDisplayName = isAssistantNameIntroduced(messages) ? "のーちゃん" : "AI アシスタント"
   const shellSizeClassName = isDesktopLayout
-    ? "h-full w-full max-w-none rounded-[20px]"
+    ? "h-full w-full max-w-none rounded-[var(--hp-radius)]"
     : isFullScreen
       ? "h-[100dvh] w-screen max-w-none rounded-none pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]"
-      : "h-[min(560px,calc(100dvh-2rem))] w-full max-w-[384px] rounded-t-[20px] md:rounded-[20px]"
+      : "h-[min(560px,calc(100dvh-2rem))] w-full max-w-[384px] rounded-t-[var(--hp-radius)] md:rounded-[var(--hp-radius)]"
 
   const handleHeaderPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (!isFloating || isInteractiveTarget(event.target)) return
