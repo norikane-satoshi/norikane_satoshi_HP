@@ -176,6 +176,65 @@ describe("choice panel state", () => {
     },
   )
 
+  it("does not expose color correction as a standalone customer-facing survey choice", () => {
+    const customerFacingLabels = [jobKindChoices, lectureTrainingContentChoices]
+      .flatMap((choiceSet) => choiceSet.choices.map((choice) => choice.label))
+
+    expect(customerFacingLabels).not.toContain("カラーコレクション相談")
+    expect(customerFacingLabels).not.toContain("カラーコレクション")
+    expect(jobKindChoices.choices.map((choice) => choice.label)).not.toContain("カラーグレーディング相談")
+    expect(lectureTrainingContentChoices.choices.map((choice) => choice.label)).toContain("カラーグレーディング")
+  })
+
+  it("maps legacy color consultation job-kind ids without restoring split choices", () => {
+    const legacyJobKindChoices = {
+      ...jobKindChoices,
+      choices: [
+        ...jobKindChoices.choices,
+        { id: "grading-consultation", label: "カラーグレーディング相談" },
+        { id: "correction-consultation", label: "カラーコレクション相談" },
+      ],
+    } as const satisfies SurveyChoiceSet
+
+    expect(
+      applyActiveChoiceAnswer({
+        activeChoices: legacyJobKindChoices,
+        message: "選択: correction-consultation",
+      }),
+    ).toMatchObject({
+      conversationState: {
+        hasJobKind: true,
+        otherChoiceComments: { "job-kind": "カラーグレーディング相談" },
+      },
+      jobContext: {},
+    })
+  })
+
+  it("maps legacy lecture color correction content to the unified grading content", () => {
+    const legacyLectureTrainingContentChoices = {
+      ...lectureTrainingContentChoices,
+      choices: [
+        { id: "grading", label: "カラーグレーディング" },
+        { id: "correction", label: "カラーコレクション" },
+        ...lectureTrainingContentChoices.choices.filter((choice) => choice.id !== "grading"),
+      ],
+    } as const satisfies SurveyChoiceSet
+
+    expect(
+      applyActiveChoiceAnswer({
+        activeChoices: legacyLectureTrainingContentChoices,
+        message: "選択: correction",
+      }),
+    ).toMatchObject({
+      choiceIds: ["grading"],
+      conversationState: {
+        requestKind: "lecture-training",
+        hasLectureTrainingContent: true,
+        lectureTrainingInquiry: { content: "カラーグレーディング" },
+      },
+    })
+  })
+
   it("marks ambiguous choice answers as clarification state without advancing the slot", () => {
     expect(
       applyActiveChoiceAnswer({
