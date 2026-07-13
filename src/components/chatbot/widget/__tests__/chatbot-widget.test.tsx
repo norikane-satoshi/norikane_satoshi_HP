@@ -186,7 +186,7 @@ describe("chatbot widget shell", () => {
     expect(screen.getByRole("link", { name: "公式LINEを友だち追加" })).toHaveClass(
       "h-11",
       "w-11",
-      "bg-[#06C755]",
+      "!bg-[#06C755]",
       "text-[var(--text-primary)]",
     )
     expect(screen.getByRole("link", { name: "公式LINEを友だち追加" }).querySelector("svg")).toHaveClass("h-9", "w-9")

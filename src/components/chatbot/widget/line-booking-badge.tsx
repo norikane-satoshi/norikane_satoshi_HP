@@ -1,7 +1,7 @@
 export function LineBookingBadge() {
   return (
     <a
-      className="glass-badge pointer-events-auto inline-flex h-11 w-11 items-center justify-center border-[#05B94F] bg-[#06C755] p-0 text-[var(--text-primary)] shadow-[var(--hp-shadow-soft)] hover:border-[#049F43] hover:bg-[#05B94F] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+      className="glass-badge pointer-events-auto inline-flex h-11 w-11 items-center justify-center !border-[#05B94F] !bg-[#06C755] p-0 text-[var(--text-primary)] !shadow-[var(--hp-shadow-soft)] hover:!border-[#049F43] hover:!bg-[#05B94F] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
       href="https://line.me/R/ti/p/%40044ucnym"
       target="_blank"
       rel="noopener noreferrer"
