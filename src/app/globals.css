@@ -737,7 +737,6 @@
     inset: -34% -22%;
     opacity: 0;
     transform: translate3d(-8%, 0, 0) rotate(0.001deg);
-    transition: opacity 180ms ease, transform 240ms ease;
   }
   .chatbot-message-liquid::after {
     background:
