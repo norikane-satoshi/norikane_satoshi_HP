@@ -147,7 +147,8 @@ describe("ChatbotBookingCard", () => {
 
     const dateCell = screen.getByRole("button", { name: "2026-06-10 選択可" })
     expect(dateCell).toHaveClass("hover:bg-white/85")
-    expect(dateCell).toHaveClass("hover:scale-[1.04]")
+    expect(dateCell).toHaveClass("hover:scale-[1.02]")
+    expect(dateCell).toHaveClass("active:scale-[0.97]")
     expect(dateCell).toHaveClass("hover:ring-2")
     expect(dateCell).not.toHaveClass("bg-[var(--accent-primary)]")
   })

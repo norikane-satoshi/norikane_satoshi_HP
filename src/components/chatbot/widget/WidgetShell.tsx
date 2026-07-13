@@ -1261,7 +1261,7 @@ export function WidgetShell({
             <button
               type="button"
               onClick={onToggleDisplayMode}
-              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_color-mix(in_srgb,var(--hp-color-accent)_30%,transparent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
               aria-label={displayMode === "side-peek" ? "フローティング表示に切り替え" : "サイドピーク表示に切り替え"}
             >
               <PanelRightOpen className={`h-4 w-4 ${displayMode === "side-peek" ? "rotate-180" : ""}`} aria-hidden="true" />
@@ -1270,7 +1270,7 @@ export function WidgetShell({
             <button
               type="button"
               onClick={onToggleDisplayMode}
-              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_color-mix(in_srgb,var(--hp-color-accent)_30%,transparent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
               aria-label={isFullScreen ? "通常表示に戻す" : "全画面表示に切り替え"}
             >
               {isFullScreen ? (
@@ -1283,7 +1283,7 @@ export function WidgetShell({
           <button
             type="button"
             onClick={onMinimize}
-            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_color-mix(in_srgb,var(--hp-color-accent)_30%,transparent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
             aria-label="最小化"
           >
             <Minus className="h-4 w-4" aria-hidden="true" />
@@ -1404,7 +1404,7 @@ export function WidgetShell({
           <button
             type="button"
             onClick={scrollToLatest}
-            className="glass-badge absolute bottom-4 left-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center border border-[var(--glass-border)] p-0 text-[var(--accent-primary)] shadow-[var(--glass-shadow)] transition hover:shadow-[0_0_24px_color-mix(in_srgb,var(--hp-color-accent)_30%,transparent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+            className="glass-badge absolute bottom-4 left-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center border border-[var(--glass-border)] p-0 text-[var(--accent-primary)] shadow-[var(--glass-shadow)] transition-[transform,box-shadow,opacity] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
             style={{
               background: "rgba(255, 255, 255, 0.42)",
               backdropFilter: "blur(18px) saturate(140%)",

@@ -583,7 +583,7 @@ export function ChatMessage({
           {canEdit && !isEditing ? (
             <button
               type="button"
-              className="glass-btn inline-flex h-8 w-8 items-center justify-center opacity-0 transition-opacity duration-150 hover:shadow-[0_0_24px_color-mix(in_srgb,var(--hp-color-accent)_30%,transparent)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] group-hover:opacity-100 group-focus-within:opacity-100"
+              className="glass-btn inline-flex h-8 w-8 items-center justify-center opacity-0 transition-[transform,box-shadow,opacity,background-color,border-color,color] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] group-hover:opacity-100 group-focus-within:opacity-100"
               onClick={startEditing}
               aria-label="メッセージを編集"
             >
@@ -638,7 +638,7 @@ export function ChatMessage({
               </button>
               <button
                 type="button"
-                className="glass-btn inline-flex h-8 items-center gap-1 border-red-300 px-3 text-xs font-semibold text-red-700 hover:shadow-[0_0_24px_rgba(239,68,68,0.24)] focus-visible:outline-red-400"
+                className="glass-btn inline-flex h-8 items-center gap-1 border-red-300 px-3 text-xs font-semibold text-red-700 focus-visible:outline-red-400"
                 onClick={confirmSaveEdit}
                 disabled={editingDisabled || !trimmedDraft || trimmedDraft === content.trim()}
               >
