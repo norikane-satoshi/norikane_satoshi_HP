@@ -50,10 +50,7 @@ describe("HomePage profile press dialog trigger", () => {
     const { container } = render(await HomePage())
 
     expect(container.firstElementChild).toHaveClass("hp-section-stack")
-    expect(screen.getByRole("link", { name: "公式LINEを友だち追加" })).toHaveAttribute(
-      "href",
-      "https://line.me/R/ti/p/%40044ucnym",
-    )
+    expect(screen.queryByRole("link", { name: "公式LINEを友だち追加" })).not.toBeInTheDocument()
 
     const philosophy = container.querySelector("#philosophy")
     expect(philosophy).toHaveClass("hp-section-shell")

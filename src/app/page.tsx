@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowRight, MessageCircle } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
 import { PressDialog } from "@/components/hp/press-section"
@@ -233,23 +233,6 @@ export default async function HomePage() {
         <FeaturedWorks />
       </section>
 
-      <section className="hp-section-shell">
-        <div className="glass-card-sm flex min-w-0 flex-col items-start justify-between gap-4 overflow-hidden p-6 md:flex-row md:items-center md:p-7">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">LINE</p>
-            <h2 className="mt-2 text-lg font-semibold text-hp md:text-xl">公式LINEから予約する</h2>
-          </div>
-          <a
-            className="glass-btn inline-flex min-h-11 max-w-full items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-hp"
-            href="https://line.me/R/ti/p/%40044ucnym"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <MessageCircle aria-hidden="true" size={18} />
-            <span className="min-w-0 break-words">公式LINEを友だち追加</span>
-          </a>
-        </div>
-      </section>
     </div>
   )
 }

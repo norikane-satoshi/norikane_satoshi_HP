@@ -179,6 +179,10 @@ describe("chatbot widget shell", () => {
     expect(screen.getByRole("complementary", { name: "AI 相談窓口" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveAttribute("data-attention", "true")
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveClass("chatbot-minimized-attention")
+    expect(screen.getByRole("link", { name: "公式LINEを友だち追加" })).toHaveAttribute(
+      "href",
+      "https://line.me/R/ti/p/%40044ucnym",
+    )
     expect(screen.queryByText("のりかね映像設計室のご相談窓口")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("相談内容")).not.toBeInTheDocument()
     expect(JSON.parse(window.localStorage.getItem(CHATBOT_WIDGET_STORAGE_KEY) ?? "{}")).toMatchObject({

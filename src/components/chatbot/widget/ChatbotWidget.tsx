@@ -2,6 +2,7 @@
 
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react"
 import { isChatbotEnabled } from "@/lib/feature-flags"
+import { LineBookingBadge } from "./line-booking-badge"
 import { MinimizedBar } from "./MinimizedBar"
 import { WidgetShell } from "./WidgetShell"
 import { useScrollTrigger } from "./useScrollTrigger"
@@ -312,7 +313,10 @@ export function ChatbotWidget() {
       style={asideStyle}
     >
       {!isReady ? null : widgetState.isMinimized ? (
-        <MinimizedBar onOpen={widgetState.open} shouldShowAttention={widgetState.shouldShowMinimizedAttention} />
+        <div className="flex items-center gap-2">
+          <MinimizedBar onOpen={widgetState.open} shouldShowAttention={widgetState.shouldShowMinimizedAttention} />
+          <LineBookingBadge />
+        </div>
       ) : (
         <WidgetShell
           displayMode={effectiveDisplayMode}
