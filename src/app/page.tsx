@@ -224,7 +224,9 @@ export default async function HomePage() {
                 ))}
               </div>
             </div>
-            <ProfileForeground />
+            <div className="mt-[var(--hp-space-4)]">
+              <ProfileForeground />
+            </div>
           </div>
         </div>
       </section>

@@ -62,6 +62,9 @@ describe("HomePage profile press dialog trigger", () => {
     const profile = container.querySelector("#profile")
     expect(profile).toHaveClass("hp-section-shell")
     expect(profile?.querySelector(".hp-profile-grid")).toHaveClass("hp-grid")
+    expect(profile?.querySelector(".hp-profile-grid")?.parentElement).toHaveClass(
+      "mt-[var(--hp-space-4)]",
+    )
     expect(profile?.querySelector(".hp-career-item")).toBeInTheDocument()
     expect(container.querySelector("#schedule")).not.toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "予約カレンダー" })).not.toBeInTheDocument()
