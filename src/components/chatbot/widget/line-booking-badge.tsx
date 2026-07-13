@@ -1,16 +1,21 @@
-import { MessageCircle } from "lucide-react"
-
 export function LineBookingBadge() {
   return (
     <a
-      className="glass-badge pointer-events-auto inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+      className="glass-badge pointer-events-auto inline-flex h-11 w-11 items-center justify-center p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
       href="https://line.me/R/ti/p/%40044ucnym"
       target="_blank"
       rel="noopener noreferrer"
       aria-label="公式LINEを友だち追加"
     >
-      <MessageCircle aria-hidden="true" className="h-4 w-4" />
-      <span>LINE予約</span>
+      <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M20 11.2c0-4.09-3.58-7.4-8-7.4s-8 3.31-8 7.4c0 2.68 1.56 5.03 3.9 6.33L6.8 20l3.24-1.08c.63.18 1.28.28 1.96.28 4.42 0 8-3.31 8-7.4Z"
+          fill="currentColor"
+        />
+        <text x="12" y="13.4" fill="var(--bg-base)" fontSize="5.3" fontWeight="700" textAnchor="middle">
+          LINE
+        </text>
+      </svg>
     </a>
   )
 }
