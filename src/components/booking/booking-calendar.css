@@ -298,7 +298,7 @@
 
 .booking-calendar__tab[aria-pressed="true"] {
   background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
-  border-color: rgba(139, 127, 255, 0.20);
+  border-color: color-mix(in srgb, var(--hp-color-accent) 20%, transparent);
 }
 
 .booking-calendar__tab:hover {
@@ -584,7 +584,7 @@
 }
 
 .booking-calendar .fc .fc-button {
-  border: 1px solid rgba(139, 127, 255, 0.22);
+  border: 1px solid color-mix(in srgb, var(--hp-color-accent) 22%, transparent);
   border-radius: var(--hp-radius-sm);
   background: rgba(255, 255, 255, 0.52);
   color: var(--text-primary);
@@ -596,7 +596,7 @@
 .booking-calendar .fc .fc-button:focus-visible {
   background: rgba(255, 255, 255, 0.72);
   color: var(--accent-primary);
-  box-shadow: 0 4px 20px rgba(139, 127, 255, 0.22);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--hp-color-accent) 22%, transparent);
 }
 
 .booking-calendar .fc .fc-button:disabled {
@@ -849,7 +849,7 @@
 }
 
 .booking-calendar .fc-event.booking-calendar__draft {
-  border: 2px solid color-mix(in srgb, var(--accent-primary) 82%, #6b2dff);
+  border: 2px solid var(--hp-color-accent);
   border-radius: var(--hp-radius-sm);
   background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
   color: var(--text-primary);
@@ -857,13 +857,13 @@
 
 .booking-calendar .fc-event.booking-calendar__draft--active,
 .booking-calendar .fc-event.booking-calendar__draft[data-active-draft="true"] {
-  border: 2px solid color-mix(in srgb, var(--accent-primary) 82%, #6b2dff);
+  border: 2px solid var(--hp-color-accent);
   background: color-mix(in srgb, var(--accent-primary) 42%, transparent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 24%, transparent), var(--glass-shadow);
 }
 
 .booking-calendar .fc-event.booking-calendar__draft[data-active-draft="false"] {
-  border: 2px solid color-mix(in srgb, var(--accent-primary) 82%, #6b2dff);
+  border: 2px solid var(--hp-color-accent);
   background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
   box-shadow: none;
 }
@@ -994,7 +994,7 @@
   min-width: 34px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(139, 127, 255, 0.22);
+  border: 1px solid color-mix(in srgb, var(--hp-color-accent) 22%, transparent);
   border-radius: var(--hp-radius-sm);
   background: rgba(255, 255, 255, 0.52);
   color: var(--text-primary);

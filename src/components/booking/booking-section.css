@@ -406,7 +406,7 @@ button.booking-form__slot-pill {
 
 button.booking-form__slot-pill:hover,
 button.booking-form__slot-pill:focus-visible {
-  border-color: color-mix(in srgb, var(--hp-accent) 40%, transparent);
+  border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent);
   color: var(--text-primary);
 }
 

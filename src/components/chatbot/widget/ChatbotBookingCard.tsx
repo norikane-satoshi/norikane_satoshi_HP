@@ -567,8 +567,8 @@ export function ChatbotBookingCard({
                     className={[
                       "min-h-11 rounded-[12px] border px-1.5 py-2 text-xs transition duration-150 ease-out",
                       selected
-                        ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset shadow-[0_0_24px_rgba(117,104,214,0.24)]"
-                        : "border-white/65 bg-white/55 text-hp hover:-translate-y-0.5 hover:scale-[1.04] hover:border-[var(--accent-primary)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--accent-primary)]/45 hover:ring-inset hover:shadow-[0_0_24px_rgba(139,127,255,0.24)] focus-visible:border-[var(--accent-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/45 focus-visible:ring-inset",
+                        ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset shadow-[0_0_24px_color-mix(in_srgb,var(--hp-color-accent)_24%,transparent)]"
+                        : "border-white/65 bg-white/55 text-hp hover:-translate-y-0.5 hover:scale-[1.04] hover:border-[var(--accent-primary)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--accent-primary)]/45 hover:ring-inset hover:shadow-[0_0_24px_color-mix(in_srgb,var(--hp-color-accent)_24%,transparent)] focus-visible:border-[var(--accent-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/45 focus-visible:ring-inset",
                     ].join(" ")}
                     data-selected={selected ? "true" : undefined}
                     data-calendar-state="startable"

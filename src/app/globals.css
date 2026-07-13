@@ -733,7 +733,7 @@
     background:
       radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.72), transparent 30%),
       radial-gradient(circle at 82% 18%, rgba(107, 181, 255, 0.22), transparent 34%),
-      linear-gradient(115deg, transparent 12%, rgba(139, 127, 255, 0.15) 42%, rgba(232, 121, 168, 0.13) 56%, transparent 78%);
+      linear-gradient(115deg, transparent 12%, color-mix(in srgb, var(--hp-color-accent) 15%, transparent) 42%, rgba(232, 121, 168, 0.13) 56%, transparent 78%);
     inset: -34% -22%;
     opacity: 0;
     transform: translate3d(-8%, 0, 0) rotate(0.001deg);
@@ -741,7 +741,7 @@
   .chatbot-message-liquid::after {
     background:
       radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.42), transparent 28%),
-      radial-gradient(circle at 50% 50%, rgba(139, 127, 255, 0.24), transparent 54%),
+      radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--hp-color-accent) 24%, transparent), transparent 54%),
       radial-gradient(circle at 50% 50%, rgba(121, 199, 199, 0.20), transparent 68%);
     inset: -18%;
     opacity: 0;
