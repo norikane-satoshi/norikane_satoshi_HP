@@ -268,9 +268,6 @@
     grid-column: auto;
     min-width: 0;
   }
-  .hp-featured-works-block {
-    margin-top: var(--hp-space-5);
-  }
   .font-maru {
     font-family: var(--font-maru), sans-serif;
   }
@@ -881,9 +878,6 @@
   }
   .hp-career-body {
     grid-column: auto;
-  }
-  .hp-featured-works-block {
-    margin-top: var(--hp-space-6);
   }
 }
 
