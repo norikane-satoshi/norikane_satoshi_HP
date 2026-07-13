@@ -183,7 +183,13 @@ describe("chatbot widget shell", () => {
       "href",
       "https://line.me/R/ti/p/%40044ucnym",
     )
-    expect(screen.getByRole("link", { name: "公式LINEを友だち追加" })).toHaveClass("h-11", "w-11")
+    expect(screen.getByRole("link", { name: "公式LINEを友だち追加" })).toHaveClass(
+      "h-11",
+      "w-11",
+      "bg-[#06C755]",
+      "text-[var(--text-primary)]",
+    )
+    expect(screen.getByRole("link", { name: "公式LINEを友だち追加" }).querySelector("svg")).toHaveClass("h-9", "w-9")
     expect(screen.queryByText("LINE予約")).not.toBeInTheDocument()
     expect(screen.queryByText("のりかね映像設計室のご相談窓口")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("相談内容")).not.toBeInTheDocument()
