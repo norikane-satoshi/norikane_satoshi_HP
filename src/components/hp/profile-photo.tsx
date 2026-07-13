@@ -128,11 +128,7 @@ export function ProfilePhoto() {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
-        className="relative block shrink-0 overflow-hidden rounded-2xl transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
-        style={{
-          width: 220,
-          height: 220,
-        }}
+        className="relative block aspect-square w-full max-w-[220px] shrink-0 overflow-hidden rounded-2xl transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
         aria-label="プロフィール写真を拡大表示"
       >
         <Image

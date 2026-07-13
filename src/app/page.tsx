@@ -82,9 +82,9 @@ function renderIntroTextWithTrainerLink() {
 
 function ProfileForeground() {
   return (
-    <div className="hp-grid hp-profile-grid">
+    <div className="hp-grid hp-profile-grid min-w-0">
       {/* Left: profile photo + social links */}
-      <div className="hp-profile-sidebar flex flex-col items-center gap-5 @[680px]/profile:items-start">
+      <div className="hp-profile-sidebar flex min-w-0 max-w-full flex-col items-center gap-5 @[680px]/profile:items-start">
         <ProfilePhoto />
         <div className="mt-1 flex items-center justify-center gap-3 @[680px]/profile:justify-start">
           {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
@@ -208,24 +208,23 @@ export default async function HomePage() {
             </h2>
           </div>
 
-          <div className="mt-[var(--hp-space-3)] text-center @[680px]/profile:text-left">
-            <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
-            <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
-              {hpPublicContent.profile.title}
-            </p>
-            <div className="mt-[var(--hp-space-2)] flex flex-wrap justify-center gap-2 @[680px]/profile:justify-start">
-              {hpPublicContent.profile.tools.map((tool) => (
-                <span
-                  key={tool}
-                  className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
-                >
-                  {tool}
-                </span>
-              ))}
+          <div className="glass-card glass-card--hp-profile mt-[var(--hp-space-3)] p-8 md:p-10 xl:p-12">
+            <div className="min-w-0 text-center @[680px]/profile:text-left">
+              <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
+              <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
+                {hpPublicContent.profile.title}
+              </p>
+              <div className="mt-[var(--hp-space-2)] flex flex-wrap justify-center gap-2 @[680px]/profile:justify-start">
+                {hpPublicContent.profile.tools.map((tool) => (
+                  <span
+                    key={tool}
+                    className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
+                  >
+                    {tool}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-
-          <div className="glass-card glass-card--hp-profile mt-[var(--hp-space-4)] p-8 md:p-10 xl:p-12">
             <ProfileForeground />
           </div>
         </div>
