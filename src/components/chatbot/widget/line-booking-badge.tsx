@@ -1,3 +1,5 @@
+import { SiLine } from "react-icons/si"
+
 export function LineBookingBadge() {
   return (
     <a
@@ -7,15 +9,7 @@ export function LineBookingBadge() {
       rel="noopener noreferrer"
       aria-label="公式LINEを友だち追加"
     >
-      <svg aria-hidden="true" className="h-9 w-9 text-[#06C755]" viewBox="3 3 18 18" fill="none">
-        <path
-          d="M20 11.2c0-4.09-3.58-7.4-8-7.4s-8 3.31-8 7.4c0 2.68 1.56 5.03 3.9 6.33L6.8 20l3.24-1.08c.63.18 1.28.28 1.96.28 4.42 0 8-3.31 8-7.4Z"
-          fill="currentColor"
-        />
-        <text x="12" y="13.4" fill="white" fontSize="5.3" fontWeight="700" textAnchor="middle">
-          LINE
-        </text>
-      </svg>
+      <SiLine aria-hidden="true" className="h-9 w-9 text-[#06C755]" />
     </a>
   )
 }

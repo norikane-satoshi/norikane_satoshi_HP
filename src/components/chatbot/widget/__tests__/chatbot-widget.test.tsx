@@ -188,11 +188,14 @@ describe("chatbot widget shell", () => {
       "h-11",
       "w-11",
     )
-    expect(screen.getByRole("link", { name: "公式LINEを友だち追加" }).querySelector("svg")).toHaveClass(
+    const lineLogo = screen.getByRole("link", { name: "公式LINEを友だち追加" }).querySelector("svg")
+    expect(lineLogo).toHaveClass(
       "h-9",
       "w-9",
       "text-[#06C755]",
     )
+    expect(lineLogo).toHaveAttribute("viewBox", "0 0 24 24")
+    expect(lineLogo?.querySelector("text")).toBeNull()
     expect(screen.queryByText("LINE予約")).not.toBeInTheDocument()
     expect(screen.queryByText("のりかね映像設計室のご相談窓口")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("相談内容")).not.toBeInTheDocument()
