@@ -1,4 +1,4 @@
-import Image from "next/image"
+import { SiLine } from "react-icons/si"
 
 export function LineBookingBadge() {
   return (
@@ -9,13 +9,7 @@ export function LineBookingBadge() {
       rel="noopener noreferrer"
       aria-label="公式LINEを友だち追加"
     >
-      <Image
-        src="/line-brand-icon.png"
-        alt=""
-        width={40}
-        height={40}
-        priority={false}
-      />
+      <SiLine aria-hidden="true" className="h-9 w-9 text-[#06C755]" />
     </a>
   )
 }
