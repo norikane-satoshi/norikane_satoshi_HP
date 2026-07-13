@@ -621,10 +621,10 @@ export function ChatMessage({
           />
           {editConfirmPending ? (
             <div
-              className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-red-300 bg-red-50/70 px-3 py-2"
+              className="flex flex-wrap items-center justify-end gap-2 rounded-2xl bg-[color-mix(in_srgb,var(--hp-color-error)_10%,transparent)] px-3 py-2"
               data-edit-confirm-pending="true"
             >
-              <p className="mr-auto text-xs font-semibold text-red-600">
+              <p className="mr-auto text-xs font-semibold text-hp">
                 {EDIT_TRUNCATION_WARNING}
               </p>
               <button
