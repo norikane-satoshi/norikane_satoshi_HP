@@ -724,16 +724,13 @@ describe("ChatMessage", () => {
     expect(assistantMessage).not.toHaveAttribute("data-chatbot-user-message")
   })
 
-  it("keeps chatbot liquid feedback disabled or static for reduced motion users", () => {
+  it("keeps chatbot liquid feedback static", () => {
     const css = readFileSync("src/app/globals.css", "utf8")
 
     expect(css).toContain(".chatbot-message-liquid[data-chatbot-touch-state=\"active\"]::before")
-    expect(css).toContain(".chatbot-message-liquid[data-chatbot-touch-state=\"release\"]::after")
     expect(css).toContain("@media (prefers-reduced-motion: reduce)")
+    expect(css).not.toMatch(/chatbot-message-liquid-(enter|flow|release|ripple)/)
     expect(css).toMatch(/\.chatbot-message-liquid::before,[\s\S]*?\.chatbot-message-liquid::after,[\s\S]*?animation: none;/)
-    expect(css).toMatch(
-      /\.chatbot-message-liquid\[data-chatbot-touch-state="active"\]::before,[\s\S]*?\.chatbot-message-liquid\[data-chatbot-touch-state="release"\]::after[\s\S]*?opacity: 0\.18;/,
-    )
   })
 
   it("enters edit mode from a mobile long press on user messages", () => {

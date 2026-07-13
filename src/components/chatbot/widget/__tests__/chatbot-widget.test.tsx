@@ -726,12 +726,11 @@ describe("chatbot widget hooks", () => {
     expect(css).toMatch(/\.chatbot-minimized-attention,[\s\S]*?animation: none;/)
   })
 
-  it("keeps minimized attention bouncing until the first open", () => {
+  it("keeps minimized attention to a single entry animation", () => {
     const css = readFileSync("src/app/globals.css", "utf8")
 
-    expect(css).toMatch(/chatbot-minimized-pop 420ms cubic-bezier\(0\.2, 0\.9, 0\.2, 1\.2\) both/)
-    expect(css).toMatch(/chatbot-minimized-bounce 3\.2s ease-in-out 900ms infinite/)
-    expect(css).not.toMatch(/chatbot-minimized-bounce 3\.2s ease-in-out 900ms 3\b/)
+    expect(css).toMatch(/chatbot-minimized-pop 420ms var\(--ease-out-strong\) both/)
+    expect(css).not.toContain("chatbot-minimized-bounce")
   })
 
   it("clamps invalid restored layout values to the desktop viewport", () => {
