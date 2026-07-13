@@ -70,8 +70,7 @@ export default async function BookingHistoryPage() {
       <div className="glass-card p-8 md:p-10 xl:p-14">
         <div className="booking-history__page-head">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Booking</p>
-            <h1 className="mt-2 text-3xl font-bold text-hp md:text-4xl">予約一覧</h1>
+            <h1 className="text-3xl font-bold text-hp md:text-4xl">予約一覧</h1>
           </div>
           <Link className="booking-history__back glass-flat" href="/booking">
             カレンダーに戻る

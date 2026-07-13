@@ -174,7 +174,6 @@ export default async function HomePage() {
       >
         <div className="hp-grid">
           <div className="hp-section-heading hp-section-title-stack">
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Notes</p>
             <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
               ノート
             </h2>
@@ -218,7 +217,6 @@ export default async function HomePage() {
         <div className="@container/profile">
           <div className="glass-card glass-card--hp-profile p-8 md:p-10 xl:p-12">
             <div className="hp-section-title-stack">
-              <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
               <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
                 {hpPublicContent.profile.sectionTitle}
               </h2>

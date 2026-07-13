@@ -32,8 +32,7 @@ export default async function BookingEditPage({
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">
       <div className="glass-card p-8 md:p-10 xl:p-14">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Booking</p>
-          <h1 className="mt-2 text-3xl font-bold text-hp md:text-4xl">予約編集</h1>
+          <h1 className="text-3xl font-bold text-hp md:text-4xl">予約編集</h1>
         </div>
         <div className="mt-8">
           <BookingEditForm

@@ -211,8 +211,7 @@ export function PressDialog() {
           >
             <div className="flex items-start justify-between gap-5">
               <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Press</p>
-                <h2 className="hp-heading mt-2 text-2xl font-semibold text-hp md:text-3xl">
+                <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
                   登壇・メディア掲載 / 実績
                 </h2>
               </div>

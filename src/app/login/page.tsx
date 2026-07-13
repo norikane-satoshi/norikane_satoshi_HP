@@ -93,8 +93,7 @@ function LoginCard() {
 
   return (
     <div className="glass-card p-8 md:p-10">
-      <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Login</p>
-      <h1 className="mt-2 text-3xl font-bold text-hp md:text-4xl">ログイン</h1>
+      <h1 className="text-3xl font-bold text-hp md:text-4xl">ログイン</h1>
       <p className="mt-3 text-sm text-hp-muted">
         ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。
       </p>
