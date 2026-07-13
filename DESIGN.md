@@ -41,34 +41,35 @@ Do not invent parallel tokens unless the user explicitly asks for a design-syste
 
 | Token | Value | Role |
 |---|---:|---|
-| `--bg-base` | `#F8F6FF` | Page background base |
-| `--accent-primary` | `#8B7FFF` | Primary accent, active dots, glyphs, subtle highlights |
-| `--accent-secondary` | `#C4B5FD` | Secondary soft accent |
+| `--bg-base` | `#F4F6F9` | Page background base |
+| `--accent-primary` | `#366FCC` | Primary accent, active dots, glyphs, subtle highlights |
 | `--text-primary` | `#1C0F6E` | Main text color |
-| `--text-muted` | `#6B5FA8` | Secondary text color |
+| `--text-muted` | `#5A6473` | Secondary text color |
 | `--glass-bg` | `rgba(255, 255, 255, 0.45)` | Standard glass card fill |
 | `--glass-border` | `rgba(255, 255, 255, 0.62)` | Standard glass card border |
-| `--glass-shadow` | `0 8px 32px rgba(139, 127, 255, 0.15)` | Standard glass card shadow |
-| `--hp-radius-sm` | `12px` | Small cards, inputs, tags, buttons |
-| `--hp-radius` | `16px` | Standard cards and figure shells |
-| `--hp-radius-lg` | `20px` | Larger cards |
+| `--glass-shadow` | `var(--hp-shadow-soft)` | Standard glass card shadow alias |
+| `--hp-radius-sm` | `16px` | Small cards, inputs, tags, buttons |
+| `--hp-radius` | `20px` | Standard cards and figure shells |
+| `--hp-radius-lg` | `24px` | Larger cards |
+| `--hp-shadow-soft` | `0 8px 28px rgba(30,34,42,.06)` | Standard soft shadow |
+| `--hp-shadow-modal` | `0 14px 32px rgba(30,34,42,.08)` | Modal shadow |
 
 ### 2.2 Aurora background tokens
 
 | Token | Value | Role |
 |---|---:|---|
-| `--aurora-purple` | `rgba(139, 127, 255, 0.28)` | Main lavender glow |
-| `--aurora-pink` | `rgba(255, 143, 171, 0.20)` | Warm soft glow |
-| `--aurora-sky` | `rgba(125, 211, 252, 0.20)` | Cool soft glow |
+| `--aurora-purple` | `rgba(93, 84, 171, 0.16)` | Main lavender glow |
+| `--aurora-pink` | `rgba(178, 112, 150, 0.11)` | Warm soft glow |
+| `--aurora-sky` | `rgba(106, 138, 172, 0.10)` | Cool soft glow |
 
 The body background is:
 
 ```css
 background-color: var(--bg-base);
 background-image:
-  radial-gradient(ellipse at 15% 40%, var(--aurora-purple) 0%, transparent 55%),
-  radial-gradient(ellipse at 85% 15%, var(--aurora-pink) 0%, transparent 45%),
-  radial-gradient(ellipse at 55% 85%, var(--aurora-sky) 0%, transparent 45%);
+  radial-gradient(ellipse 78% 58% at 15% 40%, var(--aurora-purple) 0%, transparent 68%),
+  radial-gradient(ellipse 66% 52% at 85% 15%, var(--aurora-pink) 0%, transparent 62%),
+  radial-gradient(ellipse 72% 54% at 55% 85%, var(--aurora-sky) 0%, transparent 64%);
 background-attachment: fixed;
 ```
 
@@ -81,8 +82,9 @@ Fonts are loaded in `src/app/layout.tsx`.
 
 | Role | Font | Variable | Weights |
 |---|---|---|---|
-| Japanese / default UI | Noto Sans JP | `--font-sans` | 400, 600, 700 |
-| Latin brand / numeric emphasis | Inter | `--font-inter` | 400, 600, 700 |
+| Japanese default and headings | Noto Serif JP | `--font-mincho` (also `--font-sans` / `--font-heading`) | 400, 500, 600, 700 |
+| Japanese UI and note headings | Noto Sans JP | `--font-gothic` | 300, 400, 500, 600, 700 |
+| Latin brand / display emphasis | Inter | `--font-inter` (also `--font-display`) | 400, 600, 700 |
 | Code / counters / small technical labels | Geist Mono | `--font-geist-mono` | default |
 
 ### 3.1 Japanese UI rules
@@ -320,8 +322,8 @@ Only add a new layout if the structure truly cannot be represented by the existi
 
 ### 7.4 Diagram visual style
 
-- Image base: `#F8F6FF`
-- Accent: `#8B7FFF`
+- Image base: `#F4F6F9`
+- Accent: `#366FCC`
 - Glow colors: `--aurora-purple`, `--aurora-pink`, `--aurora-sky`
 - Density: spacious, readable in 5 seconds
 - Forbidden: dark noir, cinematic black, neon, orange/teal extra aurora, text baked into image
@@ -339,7 +341,7 @@ A UI change fails L1 if any of these are true:
 - Uses Tailwind default heavy shadows such as `shadow-lg`, `shadow-xl` for primary surfaces
 - Adds dark sections outside the hero
 - Breaks the canonical width/padding shell
-- Uses fonts other than Noto Sans JP, Inter, Geist Mono
+- Uses fonts other than Noto Serif JP, Noto Sans JP, Inter, Geist Mono
 - Bakes text into diagram images
 - Makes Japanese body text cramped
 
@@ -418,4 +420,4 @@ When asking an AI agent to build UI in this repo, use:
 
 For diagrams:
 
-> Follow the diagram contract in `DESIGN.md`. Generate only soft background imagery; put all labels, numbers, cards, and glyphs in React/CSS through `note-diagram.tsx`. Use `#F8F6FF`, `#8B7FFF`, and the three aurora colors only. No baked-in text or arrows.
+> Follow the diagram contract in `DESIGN.md`. Generate only soft background imagery; put all labels, numbers, cards, and glyphs in React/CSS through `note-diagram.tsx`. Use `#F4F6F9`, `#366FCC`, and the three aurora colors only. No baked-in text or arrows.
