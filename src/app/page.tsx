@@ -3,7 +3,6 @@ import Link from "next/link"
 import { ArrowRight, MessageCircle } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
-import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
@@ -233,8 +232,6 @@ export default async function HomePage() {
       <section className="hp-section-shell">
         <FeaturedWorks />
       </section>
-
-      <HomeScheduleSection />
 
       <section className="hp-section-shell">
         <div className="glass-card-sm flex min-w-0 flex-col items-start justify-between gap-4 overflow-hidden p-6 md:flex-row md:items-center md:p-7">
