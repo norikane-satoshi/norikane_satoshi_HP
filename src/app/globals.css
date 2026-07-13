@@ -124,6 +124,13 @@
   --hp-font-h3: 1.5rem;
   --hp-font-body: 1.0625rem;
   --hp-font-caption: var(--text-xs);
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-duration-fast: 120ms;
+  --motion-duration-press: 160ms;
+  --motion-duration-popover: 200ms;
+  --motion-duration-modal: 300ms;
 }
 
 @media (min-width: 768px) {
@@ -998,5 +1005,15 @@ body.chatbot-mobile-fullscreen-active {
   }
   18% {
     transform: translateY(-4px) scale(1.008);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
   }
 }
