@@ -85,6 +85,22 @@ function ProfileForeground() {
       {/* Left: profile photo + social links */}
       <div className="hp-profile-sidebar flex min-w-0 max-w-full flex-col items-center gap-5 @[680px]/profile:items-start">
         <ProfilePhoto />
+        <div className="min-w-0 text-center @[680px]/profile:text-left">
+          <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
+          <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
+            {hpPublicContent.profile.title}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-2 @[680px]/profile:justify-start">
+          {hpPublicContent.profile.tools.map((tool) => (
+            <span
+              key={tool}
+              className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
+            >
+              {tool}
+            </span>
+          ))}
+        </div>
         <div className="mt-1 flex items-center justify-center gap-3 @[680px]/profile:justify-start">
           {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
             const Icon = socialIcons[label]
@@ -200,29 +216,12 @@ export default async function HomePage() {
         className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
       >
         <div className="@container/profile">
-          <div className="hp-section-title-stack">
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
-            <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
-              {hpPublicContent.profile.sectionTitle}
-            </h2>
-          </div>
-
-          <div className="glass-card glass-card--hp-profile mt-[var(--hp-space-3)] p-8 md:p-10 xl:p-12">
-            <div className="min-w-0 text-center @[680px]/profile:text-left">
-              <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
-              <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
-                {hpPublicContent.profile.title}
-              </p>
-              <div className="mt-[var(--hp-space-2)] flex flex-wrap justify-center gap-2 @[680px]/profile:justify-start">
-                {hpPublicContent.profile.tools.map((tool) => (
-                  <span
-                    key={tool}
-                    className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
-                  >
-                    {tool}
-                  </span>
-                ))}
-              </div>
+          <div className="glass-card glass-card--hp-profile p-8 md:p-10 xl:p-12">
+            <div className="hp-section-title-stack">
+              <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
+              <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
+                {hpPublicContent.profile.sectionTitle}
+              </h2>
             </div>
             <div className="mt-[var(--hp-space-4)]">
               <ProfileForeground />
