@@ -11,6 +11,7 @@ import {
   useState,
 } from "react"
 import { ChevronDown, GripHorizontal, Maximize2, Minimize2, Minus, PanelRightOpen, Sparkles } from "lucide-react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
@@ -445,6 +446,8 @@ export function WidgetShell({
   onSidePeekResizePointerDown,
   onToggleDisplayMode,
 }: WidgetShellProps) {
+  const shouldReduceMotion = useReducedMotion()
+  const [isPanelVisible, setIsPanelVisible] = useState(true)
   const [messages, setMessages] = useState<WidgetMessage[]>(() => getInitialWidgetSession().messages)
   const [conversationId, setConversationId] = useState<string | undefined>(undefined)
   const [clientSessionId, setClientSessionId] = useState<string>(() => createClientSessionId())
@@ -457,6 +460,7 @@ export function WidgetShell({
   const [recoverableRequest, setRecoverableRequest] = useState<StoredPendingRequest | undefined>(undefined)
   const [hasRestoredSession, setHasRestoredSession] = useState(false)
   const activeRequestControllerRef = useRef<AbortController | null>(null)
+  const minimizeTimerRef = useRef<number | null>(null)
   const pendingRecoveryStartedRef = useRef(false)
   const restoredPendingRequestRef = useRef<StoredPendingRequest | undefined>(undefined)
   const shellRef = useRef<HTMLElement | null>(null)
@@ -792,8 +796,16 @@ export function WidgetShell({
   useEffect(() => {
     return () => {
       activeRequestControllerRef.current?.abort()
+      if (minimizeTimerRef.current !== null) {
+        window.clearTimeout(minimizeTimerRef.current)
+      }
     }
   }, [])
+
+  const handleMinimize = () => {
+    setIsPanelVisible(false)
+    minimizeTimerRef.current = window.setTimeout(onMinimize, shouldReduceMotion ? 200 : 500)
+  }
 
   const finishRequest = (controller: AbortController) => {
     if (activeRequestControllerRef.current !== controller) return
@@ -1216,9 +1228,20 @@ export function WidgetShell({
   }, [conversationContentKey, displayMode, scheduleScrollIndicatorUpdate])
 
   return (
-    <section
+    <AnimatePresence mode="wait">
+      {isPanelVisible ? (
+    <motion.section
+      key="widget-shell"
       ref={shellRef}
-      className={`chatbot-widget-shell glass-card glass-card--chat-frost pointer-events-auto relative flex animate-in fade-in slide-in-from-bottom-2 flex-col overflow-hidden duration-300 ${shellSizeClassName}`}
+      initial={{ scale: 0.95, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      transition={
+        shouldReduceMotion
+          ? { duration: 0.2, ease: "easeOut" }
+          : { type: "spring", stiffness: 380, damping: 30 }
+      }
+      className={`chatbot-widget-shell glass-card glass-card--chat-frost pointer-events-auto relative flex flex-col overflow-hidden ${shellSizeClassName}`}
       onPointerDown={stopShellEventPropagation}
       onPointerMove={stopShellEventPropagation}
       onPointerUp={stopShellEventPropagation}
@@ -1282,7 +1305,7 @@ export function WidgetShell({
           )}
           <button
             type="button"
-            onClick={onMinimize}
+            onClick={handleMinimize}
             className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
             aria-label="最小化"
           >
@@ -1432,7 +1455,9 @@ export function WidgetShell({
           aria-label="パネルを拡大・縮小"
         />
       ) : null}
-    </section>
+    </motion.section>
+      ) : null}
+    </AnimatePresence>
   )
 }
 

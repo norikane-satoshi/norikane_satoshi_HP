@@ -231,6 +231,7 @@ describe("chatbot widget shell", () => {
 
     await act(async () => {
       screen.getByRole("button", { name: "最小化" }).click()
+      await vi.runAllTimersAsync()
     })
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveAttribute("data-attention", "false")
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).not.toHaveClass("chatbot-minimized-attention")
@@ -491,7 +492,7 @@ describe("chatbot widget shell", () => {
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toBeInTheDocument()
   })
 
-  it("renders shell a11y labels and minimize behavior", () => {
+  it("renders shell a11y labels and completes minimize after the exit motion", async () => {
     const onMinimize = vi.fn()
     render(<WidgetShell onMinimize={onMinimize} />)
 
@@ -500,7 +501,10 @@ describe("chatbot widget shell", () => {
     expect(screen.getByRole("button", { name: "送信" })).toBeInTheDocument()
     expect(screen.getByLabelText("相談内容")).toBeEnabled()
 
-    screen.getByRole("button", { name: "最小化" }).click()
+    await act(async () => {
+      screen.getByRole("button", { name: "最小化" }).click()
+      await vi.runAllTimersAsync()
+    })
     expect(onMinimize).toHaveBeenCalledTimes(1)
   })
 
@@ -718,19 +722,11 @@ describe("chatbot widget hooks", () => {
     })
   })
 
-  it("keeps reduced motion users out of minimized attention animation", () => {
+  it("removes the superseded minimized attention keyframe", () => {
     const css = readFileSync("src/app/globals.css", "utf8")
 
-    expect(css).toContain(".chatbot-minimized-attention")
-    expect(css).toContain("@media (prefers-reduced-motion: reduce)")
-    expect(css).toMatch(/\.chatbot-minimized-attention,[\s\S]*?animation: none;/)
-  })
-
-  it("keeps minimized attention to a single entry animation", () => {
-    const css = readFileSync("src/app/globals.css", "utf8")
-
-    expect(css).toMatch(/chatbot-minimized-pop 420ms var\(--ease-out-strong\) both/)
-    expect(css).not.toContain("chatbot-minimized-bounce")
+    expect(css).not.toContain("chatbot-minimized-attention")
+    expect(css).not.toContain("chatbot-minimized-pop")
   })
 
   it("clamps invalid restored layout values to the desktop viewport", () => {

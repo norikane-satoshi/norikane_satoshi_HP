@@ -538,11 +538,6 @@
     pointer-events: none;
     transform: none;
   }
-  .chatbot-minimized-attention {
-    animation: chatbot-minimized-pop 420ms var(--ease-out-strong) both;
-    transform-origin: center bottom;
-    will-change: transform;
-  }
   .glass-btn--profile-social {
     background: rgba(255, 255, 255, 0.52);
     backdrop-filter: blur(16px) saturate(1.38);
@@ -811,7 +806,6 @@
     .glass-btn,
     .glass-input,
     .glass-badge,
-    .chatbot-minimized-attention,
     .chatbot-message-liquid::before,
     .chatbot-message-liquid::after,
     .chatbot-scroll-indicator,
@@ -822,7 +816,6 @@
       transition: none;
     }
     .glass-btn:active,
-    .chatbot-minimized-attention,
     .chatbot-message-liquid::before,
     .chatbot-message-liquid::after,
     .glass-btn--profile-social:hover,
@@ -917,18 +910,6 @@ body.chatbot-mobile-fullscreen-active {
   40% {
     opacity: 1;
     transform: translateY(-3px);
-  }
-}
-
-@keyframes chatbot-minimized-pop {
-  0% {
-    transform: translateY(8px) scale(0.94);
-  }
-  65% {
-    transform: translateY(-4px) scale(1.035);
-  }
-  100% {
-    transform: translateY(0) scale(1);
   }
 }
 
