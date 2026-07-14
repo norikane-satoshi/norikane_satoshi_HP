@@ -1431,14 +1431,6 @@ function updateFeaturedWorkTilt(
   )
 
   event.currentTarget.style.setProperty(
-    "--featured-work-reflection-x",
-    `${event.clientX - bounds.left}px`,
-  )
-  event.currentTarget.style.setProperty(
-    "--featured-work-reflection-y",
-    `${event.clientY - bounds.top}px`,
-  )
-  event.currentTarget.style.setProperty(
     "--featured-work-tilt-x",
     `${(0.5 - y) * 3}deg`,
   )
@@ -1904,24 +1896,23 @@ export function FeaturedWorks() {
     <div className="hp-featured-works-block">
       <style>{`
         .featured-work-transparent-card {
-          --featured-work-reflection-x: 50%;
-          --featured-work-reflection-y: 50%;
           --featured-work-tilt-x: 0deg;
           --featured-work-tilt-y: 0deg;
-          border: 1px solid transparent;
           box-shadow: none;
           isolation: isolate;
+          outline: 1px solid transparent;
+          outline-offset: -1px;
           position: relative;
           transition:
-            border-color 150ms var(--ease-out-strong),
+            outline-color 150ms var(--ease-out-strong),
             box-shadow 150ms var(--ease-out-strong),
             transform var(--motion-duration-press) var(--ease-out-strong);
           width: min(72vw, 260px);
         }
 
         .featured-work-transparent-card:is(:hover, :focus-within) {
-          border-color: var(--glass-border);
           box-shadow: var(--hp-shadow-soft);
+          outline-color: var(--glass-border);
           transform: perspective(800px) rotateX(var(--featured-work-tilt-x)) rotateY(var(--featured-work-tilt-y));
         }
 
@@ -1933,34 +1924,6 @@ export function FeaturedWorks() {
           transform: perspective(800px) rotateX(var(--featured-work-tilt-x)) rotateY(var(--featured-work-tilt-y)) scale(0.985);
         }
 
-        .featured-work-transparent-card::before {
-          background: radial-gradient(
-            circle,
-            var(--hp-color-accent-focus-ring) 0%,
-            transparent 68%
-          );
-          content: "";
-          height: 240px;
-          left: 0;
-          opacity: 0;
-          pointer-events: none;
-          position: absolute;
-          top: 0;
-          transform: translate(
-            calc(var(--featured-work-reflection-x) - 50%),
-            calc(var(--featured-work-reflection-y) - 50%)
-          );
-          transition:
-            opacity var(--motion-duration-fast) var(--ease-out-strong),
-            transform var(--motion-duration-fast) var(--ease-out-strong);
-          width: 240px;
-          z-index: 40;
-        }
-
-        .featured-work-transparent-card:hover::before {
-          opacity: 1;
-        }
-
         @media (min-width: 1280px) {
           .featured-work-transparent-card {
             width: 390px;
@@ -1968,17 +1931,12 @@ export function FeaturedWorks() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .featured-work-transparent-card,
-          .featured-work-transparent-card::before {
+          .featured-work-transparent-card {
             transition: none;
           }
 
           .featured-work-transparent-card:active {
             transform: none;
-          }
-
-          .featured-work-transparent-card::before {
-            display: none;
           }
         }
 

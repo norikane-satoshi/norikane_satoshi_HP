@@ -179,7 +179,7 @@ describe("FeaturedWorks", () => {
     )
   })
 
-  it("keeps preview and metadata independent from hover while using a transform tilt reflection", () => {
+  it("keeps preview and metadata independent from hover while using a transform tilt without a reflection highlight", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -198,18 +198,17 @@ describe("FeaturedWorks", () => {
     expect(card).not.toHaveClass("hover:-translate-y-0.5")
     expect(card.querySelector(".featured-work-card-meta")).toBeInTheDocument()
     expect(thumbnail).toHaveClass("transition-opacity")
-    expect(styles).toContain("border-color 150ms var(--ease-out-strong)")
+    expect(styles).toContain("outline-color 150ms var(--ease-out-strong)")
     expect(styles).toContain("transform: scale(0.985)")
-    expect(styles).toContain(".featured-work-transparent-card::before")
-    expect(styles).toContain("var(--hp-color-accent-focus-ring)")
+    expect(styles).not.toContain(".featured-work-transparent-card::before")
+    expect(styles).not.toContain("var(--hp-color-accent-focus-ring)")
+    expect(styles).not.toContain("--featured-work-reflection-x")
     expect(styles).toContain("rotateX(var(--featured-work-tilt-x))")
     expect(styles).toContain("rotateY(var(--featured-work-tilt-y))")
-    expect(styles).toContain("--featured-work-reflection-x")
     expect(styles).toContain("width: 390px")
 
     fireEvent.pointerMove(card, { clientX: 120, clientY: 80 })
-    expect(card).toHaveStyle("--featured-work-reflection-x: 120px")
-    expect(card).toHaveStyle("--featured-work-reflection-y: 80px")
+    expect(card).not.toHaveStyle("--featured-work-reflection-x: 120px")
     expect(card).toHaveStyle("--featured-work-tilt-x: -1.5deg")
     expect(card).toHaveStyle("--featured-work-tilt-y: 1.5deg")
   })
