@@ -328,12 +328,21 @@
     word-break: normal;
   }
   .glass-card {
+    --hp-liquid-glass-filter: blur(24px) saturate(1.2);
+    --hp-liquid-glass-hover-filter: blur(26px) saturate(1.24);
+    --hp-liquid-glass-hover-border: color-mix(in srgb, var(--glass-border) 82%, white);
     background: var(--glass-bg);
-    backdrop-filter: blur(24px) saturate(1.2);
-    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    backdrop-filter: var(--hp-liquid-glass-filter);
+    -webkit-backdrop-filter: var(--hp-liquid-glass-filter);
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
     border-radius: var(--hp-radius);
+    transition: border-color var(--motion-duration-press) var(--ease-out-strong), backdrop-filter var(--motion-duration-press) var(--ease-out-strong), -webkit-backdrop-filter var(--motion-duration-press) var(--ease-out-strong);
+  }
+  .glass-card:hover {
+    backdrop-filter: var(--hp-liquid-glass-hover-filter);
+    -webkit-backdrop-filter: var(--hp-liquid-glass-hover-filter);
+    border-color: var(--hp-liquid-glass-hover-border);
   }
   article.glass-card--hp-note-page {
     container-name: hp-note-page;
@@ -409,21 +418,23 @@
     }
   }
   .glass-card--chat-frost {
+    --hp-liquid-glass-filter: blur(32px) saturate(1.3);
+    --hp-liquid-glass-hover-filter: blur(34px) saturate(1.34);
     background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(32px) saturate(1.3);
-    -webkit-backdrop-filter: blur(32px) saturate(1.3);
   }
   .glass-card--hp-profile {
+    --hp-liquid-glass-filter: blur(34px) saturate(1.38);
+    --hp-liquid-glass-hover-filter: blur(36px) saturate(1.42);
+    --hp-liquid-glass-hover-border: rgba(255, 255, 255, 0.82);
     background: rgba(255, 255, 255, 0.50);
-    backdrop-filter: blur(34px) saturate(1.38);
-    -webkit-backdrop-filter: blur(34px) saturate(1.38);
     border-color: rgba(255, 255, 255, 0.72);
     box-shadow: var(--hp-shadow-modal);
   }
   .glass-card--hp-schedule {
+    --hp-liquid-glass-filter: blur(30px) saturate(1.34);
+    --hp-liquid-glass-hover-filter: blur(32px) saturate(1.38);
+    --hp-liquid-glass-hover-border: rgba(255, 255, 255, 0.82);
     background: rgba(255, 255, 255, 0.56);
-    backdrop-filter: blur(30px) saturate(1.34);
-    -webkit-backdrop-filter: blur(30px) saturate(1.34);
     border-color: rgba(255, 255, 255, 0.72);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.88),
@@ -431,17 +442,27 @@
       0 18px 42px rgba(30, 34, 42, 0.10);
   }
   .glass-card-sm {
+    --hp-liquid-glass-filter: blur(12px);
+    --hp-liquid-glass-hover-filter: blur(14px) saturate(1.04);
+    --hp-liquid-glass-hover-border: rgba(255, 255, 255, 0.72);
     background: rgba(255, 255, 255, 0.52);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: var(--hp-liquid-glass-filter);
+    -webkit-backdrop-filter: var(--hp-liquid-glass-filter);
     border: 1px solid rgba(255, 255, 255, 0.58);
     box-shadow: 0 4px 14px rgba(30, 34, 42, 0.06);
     border-radius: var(--hp-radius-sm);
+    transition: border-color var(--motion-duration-press) var(--ease-out-strong), backdrop-filter var(--motion-duration-press) var(--ease-out-strong), -webkit-backdrop-filter var(--motion-duration-press) var(--ease-out-strong);
+  }
+  .glass-card-sm:hover {
+    backdrop-filter: var(--hp-liquid-glass-hover-filter);
+    -webkit-backdrop-filter: var(--hp-liquid-glass-hover-filter);
+    border-color: var(--hp-liquid-glass-hover-border);
   }
   .glass-card-sm--hp-note {
+    --hp-liquid-glass-filter: blur(18px) saturate(1.42);
+    --hp-liquid-glass-hover-filter: blur(20px) saturate(1.46);
+    --hp-liquid-glass-hover-border: rgba(255, 255, 255, 0.86);
     background: rgba(255, 255, 255, 0.58);
-    backdrop-filter: blur(18px) saturate(1.42);
-    -webkit-backdrop-filter: blur(18px) saturate(1.42);
     border-color: rgba(255, 255, 255, 0.74);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.86),
@@ -455,19 +476,24 @@
     word-break: normal;
   }
   .glass-badge {
+    --hp-liquid-glass-filter: blur(8px);
+    --hp-liquid-glass-hover-filter: blur(10px) saturate(1.04);
+    --hp-liquid-glass-hover-border: rgba(54, 111, 204, 0.68);
     background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--hp-liquid-glass-filter);
+    -webkit-backdrop-filter: var(--hp-liquid-glass-filter);
     border: 1px solid rgba(255, 255, 255, 0.72);
     border-radius: var(--hp-radius-pill);
     box-shadow: 0 1px 4px rgba(30, 34, 42, 0.08);
     color: var(--text-primary);
     font-weight: 600;
-    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+    transition: background-color var(--motion-duration-press) var(--ease-out-strong), border-color var(--motion-duration-press) var(--ease-out-strong), box-shadow var(--motion-duration-press) var(--ease-out-strong), color var(--motion-duration-press) var(--ease-out-strong), opacity var(--motion-duration-press) var(--ease-out-strong), backdrop-filter var(--motion-duration-press) var(--ease-out-strong), -webkit-backdrop-filter var(--motion-duration-press) var(--ease-out-strong);
   }
   .glass-badge:hover {
     background: rgba(255, 255, 255, 0.96);
-    border-color: rgba(54, 111, 204, 0.62);
+    backdrop-filter: var(--hp-liquid-glass-hover-filter);
+    -webkit-backdrop-filter: var(--hp-liquid-glass-hover-filter);
+    border-color: var(--hp-liquid-glass-hover-border);
   }
   .glass-badge:focus-visible {
     outline: 2px solid rgba(54, 111, 204, 0.54);
@@ -485,20 +511,19 @@
     pointer-events: none;
   }
   .glass-badge--profile-tool {
+    --hp-liquid-glass-filter: blur(14px) saturate(1.35);
+    --hp-liquid-glass-hover-filter: blur(16px) saturate(1.39);
+    --hp-liquid-glass-hover-border: rgba(54, 111, 204, 0.42);
     background: rgba(255, 255, 255, 0.58);
-    backdrop-filter: blur(14px) saturate(1.35);
-    -webkit-backdrop-filter: blur(14px) saturate(1.35);
     border-color: rgba(255, 255, 255, 0.82);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.88),
       inset 0 -1px 0 rgba(255, 255, 255, 0.34),
       0 8px 18px rgba(30, 34, 42, 0.09);
     color: var(--text-primary);
-    transition: background-color var(--motion-duration-fast) var(--ease-out-strong), border-color var(--motion-duration-fast) var(--ease-out-strong);
   }
   .glass-badge--profile-tool:hover {
     background: rgba(255, 255, 255, 0.68);
-    border-color: rgba(54, 111, 204, 0.34);
   }
   .profile-tool-badge-wrap {
     position: relative;
@@ -534,16 +559,22 @@
     transition: none;
   }
   .glass-btn {
+    --hp-liquid-glass-filter: blur(8px);
+    --hp-liquid-glass-hover-filter: blur(10px) saturate(1.04);
+    --hp-liquid-glass-hover-border: rgba(255, 255, 255, 0.78);
     background: rgba(255, 255, 255, 0.52);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--hp-liquid-glass-filter);
+    -webkit-backdrop-filter: var(--hp-liquid-glass-filter);
     border: 1px solid rgba(255, 255, 255, 0.65);
     border-radius: var(--hp-radius-sm);
     color: var(--text-primary);
-    transition: background-color var(--motion-duration-press) var(--ease-out-strong), border-color var(--motion-duration-press) var(--ease-out-strong), box-shadow var(--motion-duration-press) var(--ease-out-strong), color var(--motion-duration-press) var(--ease-out-strong), opacity var(--motion-duration-press) var(--ease-out-strong), transform var(--motion-duration-press) var(--ease-out-strong);
+    transition: background-color var(--motion-duration-press) var(--ease-out-strong), border-color var(--motion-duration-press) var(--ease-out-strong), box-shadow var(--motion-duration-press) var(--ease-out-strong), color var(--motion-duration-press) var(--ease-out-strong), opacity var(--motion-duration-press) var(--ease-out-strong), transform var(--motion-duration-press) var(--ease-out-strong), backdrop-filter var(--motion-duration-press) var(--ease-out-strong), -webkit-backdrop-filter var(--motion-duration-press) var(--ease-out-strong);
   }
   .glass-btn:hover {
     background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: var(--hp-liquid-glass-hover-filter);
+    -webkit-backdrop-filter: var(--hp-liquid-glass-hover-filter);
+    border-color: var(--hp-liquid-glass-hover-border);
     box-shadow: 0 2px 8px rgba(54, 111, 204, 0.14);
   }
   .glass-btn:focus-visible {
@@ -570,20 +601,19 @@
     transform: none;
   }
   .glass-btn--profile-social {
+    --hp-liquid-glass-filter: blur(16px) saturate(1.38);
+    --hp-liquid-glass-hover-filter: blur(18px) saturate(1.42);
+    --hp-liquid-glass-hover-border: rgba(255, 255, 255, 0.94);
     background: rgba(255, 255, 255, 0.52);
-    backdrop-filter: blur(16px) saturate(1.38);
-    -webkit-backdrop-filter: blur(16px) saturate(1.38);
     border-color: rgba(255, 255, 255, 0.82);
     cursor: pointer;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.88),
       inset 0 -1px 0 rgba(255, 255, 255, 0.34),
       0 10px 24px rgba(30, 34, 42, 0.10);
-    transition: background-color var(--motion-duration-fast) var(--ease-out-strong), border-color var(--motion-duration-fast) var(--ease-out-strong);
   }
   .glass-btn--profile-social:hover {
     background: rgba(255, 255, 255, 0.66);
-    border-color: rgba(255, 255, 255, 0.94);
   }
   .glass-btn--profile-social > svg {
     transition: transform var(--motion-duration-fast) var(--ease-out-strong);
@@ -847,6 +877,8 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .glass-btn,
+    .glass-card,
+    .glass-card-sm,
     .glass-input,
     .glass-badge,
     .chatbot-message-liquid::before,
@@ -859,12 +891,23 @@
       transition: none;
     }
     .glass-btn:active,
+    .glass-card:hover,
+    .glass-card-sm:hover,
+    .glass-badge:hover,
+    .glass-btn:hover,
     .chatbot-message-liquid::before,
     .chatbot-message-liquid::after,
     .glass-btn--profile-social:hover,
     .glass-btn--profile-social:active {
       transform: none;
       will-change: auto;
+    }
+    .glass-card:hover,
+    .glass-card-sm:hover,
+    .glass-badge:hover,
+    .glass-btn:hover {
+      backdrop-filter: var(--hp-liquid-glass-filter);
+      -webkit-backdrop-filter: var(--hp-liquid-glass-filter);
     }
     .press-dialog-surface {
       transform: none;
