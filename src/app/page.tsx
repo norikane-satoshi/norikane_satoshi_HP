@@ -156,6 +156,8 @@ function ProfileForeground() {
 
 export default async function HomePage() {
   const notes = await listPublishedNotes()
+  // listPublishedNotes returns created_time ascending; feature the latest note first.
+  const orderedNotes = [...notes].reverse()
   return (
     <div className="hp-section-stack">
       <HeroSection />
@@ -180,31 +182,51 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <div className="mt-[var(--hp-space-4)] mx-[calc(var(--hp-section-padding-x)*-1)] overflow-x-auto">
-          <div className="flex snap-x snap-mandatory gap-4 px-[var(--hp-section-padding-x)] pb-4 md:gap-5">
-            {notes.map((note, idx) => (
-              <Link
-                key={note.id}
-                href={`/notes/${note.slug}`}
-                className="group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note p-6 md:p-7"
-                style={{ width: "min(84vw, 340px)", minHeight: 200 }}
-              >
-                <div className="flex items-baseline gap-3">
-                  <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
-                    {`Note ${String(idx + 1).padStart(2, "0")}`}
-                  </span>
-                </div>
-                <h3 className="hp-heading mt-3 text-base md:text-lg font-semibold text-hp">
-                  {note.title}
-                </h3>
-                <div className="mt-auto pt-6 flex justify-end">
-                  <ArrowRight
-                    className="h-5 w-5 transition-transform group-hover:translate-x-1"
-                    style={{ color: "var(--accent-primary)" }}
-                  />
-                </div>
-              </Link>
-            ))}
+        <div
+          className="mt-[var(--hp-space-4)] mx-[calc(var(--hp-section-padding-x)*-1)] overflow-x-auto"
+          style={{
+            WebkitMaskImage:
+              "linear-gradient(to right, transparent 0, black var(--hp-section-padding-x), black calc(100% - var(--hp-section-padding-x)), transparent 100%)",
+            maskImage:
+              "linear-gradient(to right, transparent 0, black var(--hp-section-padding-x), black calc(100% - var(--hp-section-padding-x)), transparent 100%)",
+          }}
+        >
+          <div className="flex snap-x snap-mandatory items-stretch gap-4 px-[var(--hp-section-padding-x)] pb-4 md:gap-5">
+            {orderedNotes.map((note, idx) => {
+              const isFeatured = idx === 0
+              return (
+                <Link
+                  key={note.id}
+                  href={`/notes/${note.slug}`}
+                  className={`group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note ${
+                    isFeatured ? "p-7 md:p-9" : "p-6 md:p-7"
+                  }`}
+                  style={{
+                    width: isFeatured ? "min(90vw, 460px)" : "min(84vw, 340px)",
+                    minHeight: isFeatured ? 260 : 200,
+                  }}
+                >
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
+                      {`Note ${String(idx + 1).padStart(2, "0")}`}
+                    </span>
+                  </div>
+                  <h3
+                    className={`hp-heading mt-3 font-semibold text-hp ${
+                      isFeatured ? "text-lg md:text-2xl" : "text-base md:text-lg"
+                    }`}
+                  >
+                    {note.title}
+                  </h3>
+                  <div className="mt-auto pt-6 flex justify-end">
+                    <ArrowRight
+                      className="h-5 w-5 transition-transform group-hover:translate-x-1"
+                      style={{ color: "var(--accent-primary)" }}
+                    />
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </section>
