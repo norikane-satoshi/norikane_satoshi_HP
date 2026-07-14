@@ -309,19 +309,19 @@ function CylinderFrame() {
       <group position={[0, -0.78, 0]}>
         <line>
           <primitive object={ringGeometry} attach="geometry" />
-          <lineBasicMaterial color="#8B7FFF" transparent opacity={0.42} />
+          <lineBasicMaterial color="#7FB0FF" transparent opacity={0.42} />
         </line>
       </group>
       <group position={[0, 0, 0]}>
         <line>
           <primitive object={ringGeometry} attach="geometry" />
-          <lineBasicMaterial color="#8B7FFF" transparent opacity={0.22} />
+          <lineBasicMaterial color="#7FB0FF" transparent opacity={0.22} />
         </line>
       </group>
       <group position={[0, 0.78, 0]}>
         <line>
           <primitive object={ringGeometry} attach="geometry" />
-          <lineBasicMaterial color="#8B7FFF" transparent opacity={0.42} />
+          <lineBasicMaterial color="#7FB0FF" transparent opacity={0.42} />
         </line>
       </group>
       <mesh material={axisMaterial}>

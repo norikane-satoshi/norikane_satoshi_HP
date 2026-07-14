@@ -896,7 +896,7 @@
 }
 
 .booking-calendar .fc-event.booking-calendar__booking-event--confirmed {
-  background: color-mix(in srgb, var(--text-primary) 72%, #312f49);
+  background: color-mix(in srgb, var(--text-primary) 72%, var(--hp-color-accent));
 }
 
 .booking-calendar .fc-event.booking-calendar__booking-event--clickable {

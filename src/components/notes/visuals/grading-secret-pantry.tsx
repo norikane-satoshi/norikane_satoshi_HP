@@ -13,7 +13,7 @@ const PREVIEW_W = 747
 const PREVIEW_H = 420
 const PREVIEW_CX = PREVIEW_X + PREVIEW_W / 2
 
-const GRID = "rgba(139,127,255,0.16)"
+const GRID = "rgba(127,176,255,0.16)"
 
 const MAGENTA = "rgb(192,74,142)"
 const NAVY = "rgb(42,79,143)"

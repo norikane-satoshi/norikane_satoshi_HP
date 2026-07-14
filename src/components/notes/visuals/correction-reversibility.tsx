@@ -55,8 +55,8 @@ const Y_RANGE = Y_MAX - Y_MIN
 
 const TEXT_PRIMARY = "rgba(28,15,110,0.95)"
 const TEXT_MUTED = "rgba(107,95,168,0.85)"
-const GRID = "rgba(139,127,255,0.18)"
-const Y_ONE_LINE = "rgba(139,127,255,0.32)"
+const GRID = "rgba(127,176,255,0.18)"
+const Y_ONE_LINE = "rgba(127,176,255,0.32)"
 
 const TINT_GAMMA = {
   title: "rgb(45,135,120)",
