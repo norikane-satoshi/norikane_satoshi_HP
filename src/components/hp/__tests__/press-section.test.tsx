@@ -2,6 +2,8 @@
 
 import "@testing-library/jest-dom/vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { PRESS_CATEGORIES, PressDialog } from "@/components/hp/press-section"
@@ -25,6 +27,15 @@ describe("PressSection", () => {
     expect(icons).toHaveLength(2)
     expect(icons[0]).toHaveAttribute("fill", "currentColor")
     expect(icons[1]).toHaveAttribute("fill", "currentColor")
+  })
+
+  it("uses the popover token for the dialog entry transition", () => {
+    const globalsCss = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8")
+
+    expect(globalsCss).toContain(".press-dialog-surface")
+    expect(globalsCss).toContain("--motion-duration-popover")
+    expect(globalsCss).toContain("transform: scale(0.97)")
+    expect(globalsCss).toContain("@starting-style")
   })
 
   it("opens the three SSOT categories and nine press items in a modal dialog", () => {

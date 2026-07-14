@@ -5,6 +5,7 @@ import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
+import { ProfileToolBadges } from "@/components/hp/profile-tool-badges"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
@@ -91,16 +92,7 @@ function ProfileForeground() {
             {hpPublicContent.profile.title}
           </p>
         </div>
-        <div className="flex flex-wrap justify-center gap-2 @[680px]/profile:justify-start">
-          {hpPublicContent.profile.tools.map((tool) => (
-            <span
-              key={tool}
-              className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
-            >
-              {tool}
-            </span>
-          ))}
-        </div>
+        <ProfileToolBadges tools={hpPublicContent.profile.tools} />
         <div className="mt-1 flex items-center justify-center gap-3 @[680px]/profile:justify-start">
           {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
             const Icon = socialIcons[label]

@@ -207,7 +207,7 @@ export function PressDialog() {
             role="dialog"
             aria-modal="true"
             aria-label="登壇・メディア掲載 / 実績"
-            className="glass-card flex max-h-[min(82vh,760px)] w-full max-w-5xl flex-col overflow-hidden p-6 md:p-8 xl:p-10"
+            className="glass-card press-dialog-surface flex max-h-[min(82vh,760px)] w-full max-w-5xl flex-col overflow-hidden p-6 md:p-8 xl:p-10"
           >
             <div className="flex items-start justify-between gap-5">
               <div>
