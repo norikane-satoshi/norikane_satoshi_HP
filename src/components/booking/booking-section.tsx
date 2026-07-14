@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState, type AnimationEvent, type ReactNode } from "react"
 
 import { AdminReconnectBanner } from "@/components/booking/admin-reconnect-banner"
 import { BookingCalendar } from "@/components/booking/booking-calendar"
@@ -38,6 +38,8 @@ type TeamOption = {
   name: string
   members: { userId: string; name: string | null; email: string | null }[]
 }
+
+type StepTransitionDirection = "forward" | "back"
 
 const steps: BookingStep[] = ["calendar", "form", "confirm", "done"]
 const FORCE_REFRESH_AFTER_SUBMIT_KEY = "booking:force-refresh-after-submit"
@@ -105,6 +107,8 @@ export function BookingSection({
 }: BookingSectionProps) {
   const defaultFormData = useMemo(() => createDefaultBookingFormData(userEmail), [userEmail])
   const [step, setStep] = useState<BookingStep>("calendar")
+  const [outgoingStep, setOutgoingStep] = useState<BookingStep | null>(null)
+  const [transitionDirection, setTransitionDirection] = useState<StepTransitionDirection>("forward")
   const [formData, setFormData] = useState<BookingFormData>(defaultFormData)
   const [selectedSlots, setSelectedSlots] = useState<BookingSlot[]>([])
   const [requestedDateSelection, setRequestedDateSelection] = useState<BookingDateSelection | null>(null)
@@ -196,11 +200,18 @@ export function BookingSection({
     return () => window.clearTimeout(timeout)
   }, [draftHydrated, formData, requestedDateSelection, selectedSlots, step, userId])
 
-  const goToStep = useCallback((nextStep: BookingStep) => {
-    setSubmitError(null)
-    setStep(nextStep)
-    pushStep(nextStep)
-  }, [])
+  const goToStep = useCallback(
+    (nextStep: BookingStep) => {
+      if (nextStep === step) return
+
+      setSubmitError(null)
+      setOutgoingStep(step)
+      setTransitionDirection(steps.indexOf(nextStep) > steps.indexOf(step) ? "forward" : "back")
+      setStep(nextStep)
+      pushStep(nextStep)
+    },
+    [step],
+  )
 
   const handleContinueDraft = () => {
     applyDraft(loadDraft(userId, "local"), true)
@@ -296,9 +307,36 @@ export function BookingSection({
   const hasScheduleRequest = selectedSlots.length > 0 || Boolean(requestedDateSelection)
   const canGoNext = (step === "form" && hasScheduleRequest && formValid) || step === "confirm"
 
+  const paneClassName = (paneStep: BookingStep) => {
+    if (paneStep === step) {
+      return [
+        "booking-section__pane",
+        "booking-section__pane--active",
+        outgoingStep ? `booking-section__pane--enter-${transitionDirection}` : "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+    }
+
+    if (paneStep === outgoingStep) {
+      return `booking-section__pane booking-section__pane--outgoing booking-section__pane--exit-${transitionDirection}`
+    }
+
+    return "booking-section__pane booking-section__pane--hidden"
+  }
+
+  const handlePaneAnimationEnd = (paneStep: BookingStep) => (event: AnimationEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || paneStep !== outgoingStep) return
+    setOutgoingStep((current) => (current === paneStep ? null : current))
+  }
+
   const body = (
     <>
-      <div className={step === "calendar" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>
+      <div
+        className={paneClassName("calendar")}
+        aria-hidden={outgoingStep === "calendar" ? "true" : undefined}
+        onAnimationEnd={handlePaneAnimationEnd("calendar")}
+      >
         <BookingCalendar
           viewerUserId={userId}
           viewerEmail={userEmail}
@@ -322,7 +360,11 @@ export function BookingSection({
           onCodeChange={setCalendarCode}
         />
       </div>
-      <div className={step === "form" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>
+      <div
+        className={paneClassName("form")}
+        aria-hidden={outgoingStep === "form" ? "true" : undefined}
+        onAnimationEnd={handlePaneAnimationEnd("form")}
+      >
         <BookingForm
           formData={formData}
           selectedSlots={selectedSlots}
@@ -334,7 +376,11 @@ export function BookingSection({
           sessionEmailOptional={sessionEmailOptional}
         />
       </div>
-      <div className={step === "confirm" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>
+      <div
+        className={paneClassName("confirm")}
+        aria-hidden={outgoingStep === "confirm" ? "true" : undefined}
+        onAnimationEnd={handlePaneAnimationEnd("confirm")}
+      >
         <BookingConfirm
           formData={formData}
           selectedSlots={selectedSlots}
@@ -345,7 +391,11 @@ export function BookingSection({
           sessionEmailOptional={sessionEmailOptional}
         />
       </div>
-      <div className={step === "done" ? "booking-section__pane" : "booking-section__pane booking-section__pane--hidden"}>
+      <div
+        className={paneClassName("done")}
+        aria-hidden={outgoingStep === "done" ? "true" : undefined}
+        onAnimationEnd={handlePaneAnimationEnd("done")}
+      >
         <BookingDone selectedSlots={selectedSlots} requestedDateSelection={requestedDateSelection} entryPoint={entryPoint} />
       </div>
     </>
