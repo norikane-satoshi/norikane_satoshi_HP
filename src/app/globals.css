@@ -524,6 +524,7 @@
   .glass-btn:active {
     background: rgba(54, 111, 204, 0.10);
     transform: scale(0.97);
+    transition: transform var(--motion-duration-press) var(--ease-out-strong);
   }
   .glass-btn[aria-invalid="true"],
   .glass-btn[data-invalid="true"] {
