@@ -179,7 +179,7 @@ describe("FeaturedWorks", () => {
     )
   })
 
-  it("keeps preview and metadata independent from hover while using a transform spotlight", () => {
+  it("keeps preview and metadata independent from hover while using a transform tilt reflection", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -194,7 +194,7 @@ describe("FeaturedWorks", () => {
     const thumbnail = card.querySelector("[data-featured-work-preview-thumbnail]")
     const styles = container.querySelector("style")?.textContent
 
-    expect(card).toHaveAttribute("data-featured-work-spotlight", "enabled")
+    expect(card).toHaveAttribute("data-featured-work-tilt", "enabled")
     expect(card).not.toHaveClass("hover:-translate-y-0.5")
     expect(card.querySelector(".featured-work-card-meta")).toBeInTheDocument()
     expect(thumbnail).toHaveClass("transition-opacity")
@@ -202,11 +202,16 @@ describe("FeaturedWorks", () => {
     expect(styles).toContain("transform: scale(0.985)")
     expect(styles).toContain(".featured-work-transparent-card::before")
     expect(styles).toContain("var(--hp-color-accent-focus-ring)")
-    expect(styles).toContain("--featured-work-spotlight-x")
+    expect(styles).toContain("rotateX(var(--featured-work-tilt-x))")
+    expect(styles).toContain("rotateY(var(--featured-work-tilt-y))")
+    expect(styles).toContain("--featured-work-reflection-x")
+    expect(styles).toContain("width: 390px")
 
     fireEvent.pointerMove(card, { clientX: 120, clientY: 80 })
-    expect(card).toHaveStyle("--featured-work-spotlight-x: 120px")
-    expect(card).toHaveStyle("--featured-work-spotlight-y: 80px")
+    expect(card).toHaveStyle("--featured-work-reflection-x: 120px")
+    expect(card).toHaveStyle("--featured-work-reflection-y: 80px")
+    expect(card).toHaveStyle("--featured-work-tilt-x: -1.5deg")
+    expect(card).toHaveStyle("--featured-work-tilt-y: 1.5deg")
   })
 
   it("pauses autoplay from input events without relying on scroll events", () => {

@@ -1412,7 +1412,7 @@ function VideoSurface({
   )
 }
 
-function updateFeaturedWorkSpotlight(
+function updateFeaturedWorkTilt(
   event: React.PointerEvent<HTMLDivElement>,
   prefersReducedMotion: boolean,
 ) {
@@ -1421,13 +1421,30 @@ function updateFeaturedWorkSpotlight(
   }
 
   const bounds = event.currentTarget.getBoundingClientRect()
+  const x = Math.min(
+    Math.max((event.clientX - bounds.left) / Math.max(bounds.width, 1), 0),
+    1,
+  )
+  const y = Math.min(
+    Math.max((event.clientY - bounds.top) / Math.max(bounds.height, 1), 0),
+    1,
+  )
+
   event.currentTarget.style.setProperty(
-    "--featured-work-spotlight-x",
+    "--featured-work-reflection-x",
     `${event.clientX - bounds.left}px`,
   )
   event.currentTarget.style.setProperty(
-    "--featured-work-spotlight-y",
+    "--featured-work-reflection-y",
     `${event.clientY - bounds.top}px`,
+  )
+  event.currentTarget.style.setProperty(
+    "--featured-work-tilt-x",
+    `${(0.5 - y) * 3}deg`,
+  )
+  event.currentTarget.style.setProperty(
+    "--featured-work-tilt-y",
+    `${(x - 0.5) * 3}deg`,
   )
 }
 
@@ -1458,13 +1475,12 @@ function FeaturedWorkCard({
     <div
       ref={cardRef}
       className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
-      style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : `${work.title} 作品カード`}
       data-featured-work-card={work.title}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
-      data-featured-work-spotlight={prefersReducedMotion ? "disabled" : "enabled"}
+      data-featured-work-tilt={prefersReducedMotion ? "disabled" : "enabled"}
       data-featured-work-marquee-segment-start={segmentStart}
-      onPointerMove={(event) => updateFeaturedWorkSpotlight(event, prefersReducedMotion)}
+      onPointerMove={(event) => updateFeaturedWorkTilt(event, prefersReducedMotion)}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         {work.youtubeId ? (
@@ -1762,16 +1778,15 @@ function PlaylistWorkCard({
     <div
       ref={cardRef}
       className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
-      style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : `${work.title}のランダムループ再生カード`}
       data-featured-work-card={work.title}
       data-featured-work-playlist-card={work.title}
       data-featured-work-playlist-video-count={work.videos.length}
       data-featured-work-playlist-video-ids={playlistVideoIds}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
-      data-featured-work-spotlight={prefersReducedMotion ? "disabled" : "enabled"}
+      data-featured-work-tilt={prefersReducedMotion ? "disabled" : "enabled"}
       data-featured-work-marquee-segment-start={segmentStart}
-      onPointerMove={(event) => updateFeaturedWorkSpotlight(event, prefersReducedMotion)}
+      onPointerMove={(event) => updateFeaturedWorkTilt(event, prefersReducedMotion)}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <PreviewFrame>
@@ -1889,8 +1904,10 @@ export function FeaturedWorks() {
     <div className="hp-featured-works-block">
       <style>{`
         .featured-work-transparent-card {
-          --featured-work-spotlight-x: 50%;
-          --featured-work-spotlight-y: 50%;
+          --featured-work-reflection-x: 50%;
+          --featured-work-reflection-y: 50%;
+          --featured-work-tilt-x: 0deg;
+          --featured-work-tilt-y: 0deg;
           border: 1px solid transparent;
           box-shadow: none;
           isolation: isolate;
@@ -1899,15 +1916,21 @@ export function FeaturedWorks() {
             border-color 150ms var(--ease-out-strong),
             box-shadow 150ms var(--ease-out-strong),
             transform var(--motion-duration-press) var(--ease-out-strong);
+          width: min(72vw, 260px);
         }
 
         .featured-work-transparent-card:is(:hover, :focus-within) {
           border-color: var(--glass-border);
           box-shadow: var(--hp-shadow-soft);
+          transform: perspective(800px) rotateX(var(--featured-work-tilt-x)) rotateY(var(--featured-work-tilt-y));
         }
 
         .featured-work-transparent-card:active {
           transform: scale(0.985);
+        }
+
+        .featured-work-transparent-card:hover:active {
+          transform: perspective(800px) rotateX(var(--featured-work-tilt-x)) rotateY(var(--featured-work-tilt-y)) scale(0.985);
         }
 
         .featured-work-transparent-card::before {
@@ -1924,8 +1947,8 @@ export function FeaturedWorks() {
           position: absolute;
           top: 0;
           transform: translate(
-            calc(var(--featured-work-spotlight-x) - 50%),
-            calc(var(--featured-work-spotlight-y) - 50%)
+            calc(var(--featured-work-reflection-x) - 50%),
+            calc(var(--featured-work-reflection-y) - 50%)
           );
           transition:
             opacity var(--motion-duration-fast) var(--ease-out-strong),
@@ -1936,6 +1959,12 @@ export function FeaturedWorks() {
 
         .featured-work-transparent-card:hover::before {
           opacity: 1;
+        }
+
+        @media (min-width: 1280px) {
+          .featured-work-transparent-card {
+            width: 390px;
+          }
         }
 
         @media (prefers-reduced-motion: reduce) {
