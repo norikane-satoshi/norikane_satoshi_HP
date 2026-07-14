@@ -179,6 +179,27 @@ describe("FeaturedWorks", () => {
     )
   })
 
+  it("uses hover-revealed blurred preview crossfades and restrained card feedback", () => {
+    const { container } = render(<FeaturedWorks />)
+    const card = screen.getByLabelText("十角館の殺人 / 時計館の殺人 作品カード")
+    const thumbnail = card.querySelector("[data-featured-work-preview-thumbnail]")
+    const styles = container.querySelector("style")?.textContent
+
+    expect(card).toHaveAttribute("data-featured-work-preview-revealed", "false")
+    expect(card).not.toHaveClass("hover:-translate-y-0.5")
+    expect(card.querySelector(".featured-work-card-meta")).toBeInTheDocument()
+    expect(thumbnail).toHaveClass("transition-[opacity,filter]")
+    expect(thumbnail).toHaveClass("blur-0")
+    expect(styles).toContain("border-color 150ms var(--ease-out-strong)")
+    expect(styles).toContain("transform: scale(0.985)")
+    expect(styles).toContain("mask-image: linear-gradient")
+
+    fireEvent.pointerEnter(card)
+    expect(card).toHaveAttribute("data-featured-work-preview-revealed", "true")
+    fireEvent.pointerLeave(card)
+    expect(card).toHaveAttribute("data-featured-work-preview-revealed", "false")
+  })
+
   it("pauses autoplay from input events without relying on scroll events", () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
@@ -725,6 +746,11 @@ describe("FeaturedWorks", () => {
     await act(async () => {
       vi.advanceTimersByTime(1)
     })
+    expectCovers("preparing")
+
+    for (const label of previewLabels) {
+      fireEvent.pointerEnter(screen.getByLabelText(label))
+    }
     expectCovers("playing")
   })
 
@@ -1308,6 +1334,7 @@ describe("FeaturedWorks", () => {
     act(() => {
       vi.advanceTimersByTime(5000)
     })
+    fireEvent.pointerEnter(card as HTMLElement)
     expectSingleCover("playing")
 
     act(() => {
@@ -1489,12 +1516,14 @@ describe("FeaturedWorks", () => {
       const client = Array.from(card.querySelectorAll("p")).find(
         (element) => element.textContent === work.client,
       )
+      const meta = title?.parentElement
       const metaRow = title?.nextElementSibling
       expect(title).toBeInTheDocument()
       expect(client).toBeInTheDocument()
+      expect(meta).toHaveClass("featured-work-card-meta")
       expect(metaRow).toBe(client?.parentElement)
       expect(badges?.parentElement).toBe(client?.parentElement)
-      expect(metaRow).toHaveClass("mt-auto")
+      expect(metaRow).toHaveClass("mt-3")
       expect(metaRow).toHaveClass("flex")
     }
 
@@ -1542,7 +1571,7 @@ describe("FeaturedWorks", () => {
     expect(badges).toBeInTheDocument()
     expect(badges).toHaveAttribute("data-featured-work-link-badges-layout", "two-row")
     expect(title).toBeInTheDocument()
-    expect(abstractCover?.nextElementSibling).toBe(title)
+    expect(abstractCover?.nextElementSibling).toBe(title?.parentElement)
     expect(client).toBeInTheDocument()
     expect(metaRow).toBe(client?.parentElement)
     expect(metaRow?.querySelector("[data-featured-work-link-badges]")).toBeNull()

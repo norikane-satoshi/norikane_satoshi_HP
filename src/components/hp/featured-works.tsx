@@ -714,8 +714,8 @@ function PreviewThumbnail({
         useDefaultThumbnail ? "default" : thumbnailSelection.variant,
       )}
       alt=""
-      className={`pointer-events-none absolute inset-0 z-20 h-full w-full rounded-none object-cover transition-opacity duration-300 ${
-        isVisible ? "opacity-100" : "opacity-0"
+      className={`featured-work-preview-thumbnail pointer-events-none absolute inset-0 z-20 h-full w-full rounded-none object-cover transition-[opacity,filter] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
+        isVisible ? "opacity-100 blur-0" : "opacity-0 blur-[2px]"
       }`}
       loading="lazy"
       decoding="async"
@@ -1119,6 +1119,7 @@ function VideoSurface({
   clipExcludeEnd,
   title,
   isActive,
+  isPreviewRevealed,
   prefersReducedMotion,
   clone,
   onOpenVideo,
@@ -1132,6 +1133,7 @@ function VideoSurface({
   clipExcludeEnd?: number
   title: string
   isActive: boolean
+  isPreviewRevealed: boolean
   prefersReducedMotion: boolean
   clone: boolean
   onOpenVideo: (
@@ -1157,6 +1159,7 @@ function VideoSurface({
   const [activeClip, setActiveClip] = useState<ClipWindow | null>(null)
   const [isCoverVisible, setIsCoverVisible] = useState(true)
   const shouldPlay = isActive && !prefersReducedMotion
+  const shouldRevealPreview = !isCoverVisible && isPreviewRevealed
 
   useEffect(() => {
     previewVideoRef.current = {
@@ -1369,11 +1372,13 @@ function VideoSurface({
     <>
       {shouldPlay ? (
         <div
-          className={`pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-300 ${
-            isCoverVisible ? "opacity-0" : "opacity-100"
+          className={`featured-work-preview-media pointer-events-none absolute inset-0 h-full w-full rounded-none transition-[opacity,filter] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
+            shouldRevealPreview ? "opacity-100 blur-0" : "opacity-0 blur-[2px]"
           }`}
           aria-hidden="true"
-          data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
+          data-featured-work-preview-media={
+            shouldRevealPreview ? "playing" : "preparing"
+          }
           data-featured-work-current-video-id={videoId}
           data-featured-work-clip-start={activeClip?.startSeconds}
           data-featured-work-clip-seconds={activeClip?.playSeconds}
@@ -1391,7 +1396,7 @@ function VideoSurface({
           />
         </div>
       ) : null}
-      <PreviewThumbnail videoId={videoId} isVisible={isCoverVisible} />
+      <PreviewThumbnail videoId={videoId} isVisible={!shouldRevealPreview} />
       <VideoOpenButton
         label={`${title} の動画をモーダルで再生`}
         clone={clone}
@@ -1431,16 +1436,28 @@ function FeaturedWorkCard({
     shouldStartVideo && !prefersReducedMotion,
   )
   const shouldPlayVideo = shouldStartVideo && isNearViewport
+  const [isPreviewRevealed, setIsPreviewRevealed] = useState(false)
+
+  const hidePreviewIfFocusLeaves = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setIsPreviewRevealed(false)
+    }
+  }
 
   return (
     <div
       ref={cardRef}
-      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 transition-transform hover:-translate-y-0.5 md:p-5"
+      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
       style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : `${work.title} 作品カード`}
       data-featured-work-card={work.title}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
+      data-featured-work-preview-revealed={isPreviewRevealed ? "true" : "false"}
       data-featured-work-marquee-segment-start={segmentStart}
+      onPointerEnter={() => setIsPreviewRevealed(true)}
+      onPointerLeave={() => setIsPreviewRevealed(false)}
+      onFocusCapture={() => setIsPreviewRevealed(true)}
+      onBlurCapture={hidePreviewIfFocusLeaves}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         {work.youtubeId ? (
@@ -1455,6 +1472,7 @@ function FeaturedWorkCard({
               clipExcludeEnd={work.clipExcludeEnd}
               title={work.title}
               isActive={shouldPlayVideo}
+              isPreviewRevealed={isPreviewRevealed}
               prefersReducedMotion={prefersReducedMotion}
               clone={clone}
               onOpenVideo={onOpenVideo}
@@ -1472,19 +1490,21 @@ function FeaturedWorkCard({
             </div>
           </PreviewFrame>
         )}
-        <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
-          {work.title}
-        </p>
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
-          <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
-          {work.youtubeId ? (
-            <WorkLinkBadges
-              links={work.links}
-              workTitle={work.title}
-              clone={clone}
-              hideYouTube
-            />
-          ) : null}
+        <div className="featured-work-card-meta mt-4">
+          <p className="text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
+            {work.title}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
+            {work.youtubeId ? (
+              <WorkLinkBadges
+                links={work.links}
+                workTitle={work.title}
+                clone={clone}
+                hideYouTube
+              />
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
@@ -1527,6 +1547,14 @@ function PlaylistWorkCard({
   const [isCoverVisible, setIsCoverVisible] = useState(true)
   const playlistVideoIds = work.videos.map((video) => video.videoId).join(",")
   const shouldPlayVideo = shouldStartVideo && isNearViewport
+  const [isPreviewRevealed, setIsPreviewRevealed] = useState(false)
+  const shouldRevealPreview = !isCoverVisible && isPreviewRevealed
+
+  const hidePreviewIfFocusLeaves = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setIsPreviewRevealed(false)
+    }
+  }
 
   useEffect(() => {
     previewVideoRef.current = previewVideo
@@ -1734,7 +1762,7 @@ function PlaylistWorkCard({
   return (
     <div
       ref={cardRef}
-      className="featured-work-transparent-card flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
+      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
       style={{ width: "min(72vw, 260px)" }}
       aria-label={clone ? undefined : `${work.title}のランダムループ再生カード`}
       data-featured-work-card={work.title}
@@ -1742,17 +1770,24 @@ function PlaylistWorkCard({
       data-featured-work-playlist-video-count={work.videos.length}
       data-featured-work-playlist-video-ids={playlistVideoIds}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
+      data-featured-work-preview-revealed={isPreviewRevealed ? "true" : "false"}
       data-featured-work-marquee-segment-start={segmentStart}
+      onPointerEnter={() => setIsPreviewRevealed(true)}
+      onPointerLeave={() => setIsPreviewRevealed(false)}
+      onFocusCapture={() => setIsPreviewRevealed(true)}
+      onBlurCapture={hidePreviewIfFocusLeaves}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <PreviewFrame>
           {shouldPlayVideo && !prefersReducedMotion ? (
             <div
-              className={`pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-300 ${
-                isCoverVisible ? "opacity-0" : "opacity-100"
+              className={`featured-work-preview-media pointer-events-none absolute inset-0 h-full w-full rounded-none transition-[opacity,filter] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
+                shouldRevealPreview ? "opacity-100 blur-0" : "opacity-0 blur-[2px]"
               }`}
               aria-hidden="true"
-              data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
+              data-featured-work-preview-media={
+                shouldRevealPreview ? "playing" : "preparing"
+              }
               data-featured-work-current-video-id={previewVideo.videoId}
               data-featured-work-clip-start={activeClip?.startSeconds}
               data-featured-work-clip-seconds={activeClip?.playSeconds}
@@ -1766,7 +1801,10 @@ function PlaylistWorkCard({
               <div ref={playerHostRef} className="h-full w-full" />
             </div>
           ) : null}
-          <PreviewThumbnail videoId={previewVideo.videoId} isVisible={isCoverVisible} />
+          <PreviewThumbnail
+            videoId={previewVideo.videoId}
+            isVisible={!shouldRevealPreview}
+          />
           <VideoOpenButton
             label={`${work.title}をモーダルで再生`}
             clone={clone}
@@ -1781,12 +1819,14 @@ function PlaylistWorkCard({
             }}
           />
         </PreviewFrame>
-        <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
-          {work.title}
-        </p>
-        {work.client ? (
-          <p className="mt-auto pt-3 text-xs text-hp-muted md:text-sm">{work.client}</p>
-        ) : null}
+        <div className="featured-work-card-meta mt-4">
+          <p className="text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
+            {work.title}
+          </p>
+          {work.client ? (
+            <p className="mt-3 text-xs text-hp-muted md:text-sm">{work.client}</p>
+          ) : null}
+        </div>
       </div>
     </div>
   )
@@ -1852,6 +1892,55 @@ export function FeaturedWorks() {
   return (
     <div className="hp-featured-works-block">
       <style>{`
+        .featured-work-transparent-card {
+          border: 1px solid transparent;
+          box-shadow: none;
+          transition:
+            border-color 150ms var(--ease-out-strong),
+            box-shadow 150ms var(--ease-out-strong),
+            transform var(--motion-duration-press) var(--ease-out-strong);
+        }
+
+        .featured-work-transparent-card:is(:hover, :focus-within) {
+          border-color: var(--glass-border);
+          box-shadow: var(--hp-shadow-soft);
+        }
+
+        .featured-work-transparent-card:active {
+          transform: scale(0.985);
+        }
+
+        .featured-work-card-meta {
+          -webkit-mask-image: linear-gradient(to bottom, transparent, black 22%);
+          mask-image: linear-gradient(to bottom, transparent, black 22%);
+        }
+
+        @media (min-width: 768px) {
+          .featured-work-card-meta {
+            opacity: 0;
+            transform: translateY(4px);
+            transition:
+              opacity var(--motion-duration-press) var(--ease-out-strong),
+              transform var(--motion-duration-press) var(--ease-out-strong);
+          }
+
+          .featured-work-transparent-card:is(:hover, :focus-within) .featured-work-card-meta {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .featured-work-transparent-card,
+          .featured-work-card-meta {
+            transition: none;
+          }
+
+          .featured-work-transparent-card:active {
+            transform: none;
+          }
+        }
+
         [data-featured-work-marquee-segment] {
           display: contents;
         }
