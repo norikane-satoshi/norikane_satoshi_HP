@@ -179,25 +179,34 @@ describe("FeaturedWorks", () => {
     )
   })
 
-  it("uses hover-revealed blurred preview crossfades and restrained card feedback", () => {
+  it("keeps preview and metadata independent from hover while using a transform spotlight", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
     const { container } = render(<FeaturedWorks />)
     const card = screen.getByLabelText("十角館の殺人 / 時計館の殺人 作品カード")
     const thumbnail = card.querySelector("[data-featured-work-preview-thumbnail]")
     const styles = container.querySelector("style")?.textContent
 
-    expect(card).toHaveAttribute("data-featured-work-preview-revealed", "false")
+    expect(card).toHaveAttribute("data-featured-work-spotlight", "enabled")
     expect(card).not.toHaveClass("hover:-translate-y-0.5")
     expect(card.querySelector(".featured-work-card-meta")).toBeInTheDocument()
-    expect(thumbnail).toHaveClass("transition-[opacity,filter]")
-    expect(thumbnail).toHaveClass("blur-0")
+    expect(thumbnail).toHaveClass("transition-opacity")
     expect(styles).toContain("border-color 150ms var(--ease-out-strong)")
     expect(styles).toContain("transform: scale(0.985)")
-    expect(styles).toContain("mask-image: linear-gradient")
+    expect(styles).toContain(".featured-work-transparent-card::before")
+    expect(styles).toContain("var(--hp-color-accent-focus-ring)")
+    expect(styles).toContain("--featured-work-spotlight-x")
 
-    fireEvent.pointerEnter(card)
-    expect(card).toHaveAttribute("data-featured-work-preview-revealed", "true")
-    fireEvent.pointerLeave(card)
-    expect(card).toHaveAttribute("data-featured-work-preview-revealed", "false")
+    fireEvent.pointerMove(card, { clientX: 120, clientY: 80 })
+    expect(card).toHaveStyle("--featured-work-spotlight-x: 120px")
+    expect(card).toHaveStyle("--featured-work-spotlight-y: 80px")
   })
 
   it("pauses autoplay from input events without relying on scroll events", () => {
@@ -746,11 +755,6 @@ describe("FeaturedWorks", () => {
     await act(async () => {
       vi.advanceTimersByTime(1)
     })
-    expectCovers("preparing")
-
-    for (const label of previewLabels) {
-      fireEvent.pointerEnter(screen.getByLabelText(label))
-    }
     expectCovers("playing")
   })
 
@@ -1334,7 +1338,6 @@ describe("FeaturedWorks", () => {
     act(() => {
       vi.advanceTimersByTime(5000)
     })
-    fireEvent.pointerEnter(card as HTMLElement)
     expectSingleCover("playing")
 
     act(() => {
