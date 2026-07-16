@@ -75,7 +75,7 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
               className={[
                 "glass-btn inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold",
                 isSelected
-                  ? "border-[var(--accent-primary)] bg-white/75 text-hp ring-2 ring-[rgba(54,111,204,0.22)]"
+                  ? "border-[var(--accent-primary)] bg-white/75 text-hp ring-2 ring-[var(--hp-color-chatbot-choice-ring)]"
                   : "text-hp-muted",
               ].join(" ")}
               aria-pressed={isSelected}

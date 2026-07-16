@@ -1247,7 +1247,7 @@ export function WidgetShell({
       onPointerUp={stopShellEventPropagation}
       onPointerCancel={stopShellEventPropagation}
       style={{
-        background: "rgba(255, 255, 255, 0.72)",
+        background: "var(--hp-color-chatbot-shell-bg)",
         backdropFilter: "blur(32px) saturate(130%)",
         WebkitBackdropFilter: "blur(32px) saturate(130%)",
       }}

@@ -520,7 +520,7 @@ export function ChatbotBookingCard({
                       type="button"
                       disabled
                       className={[
-                        "relative min-h-11 cursor-default overflow-hidden rounded-[12px] border border-[var(--text-muted)] bg-[var(--text-muted)] px-1.5 py-2 text-xs text-white/95 opacity-85",
+                        "relative min-h-11 cursor-default overflow-hidden rounded-[var(--hp-radius-calendar-cell)] border border-[var(--text-muted)] bg-[var(--text-muted)] px-1.5 py-2 text-xs text-white/95 opacity-85",
                         selected ? "ring-2 ring-[var(--accent-primary)] ring-offset-1 ring-offset-white/60" : "",
                       ].join(" ")}
                       data-calendar-state="busy"
@@ -541,7 +541,7 @@ export function ChatbotBookingCard({
                       type="button"
                       disabled
                       className={[
-                        "relative min-h-11 cursor-default rounded-[12px] border px-1.5 py-2 text-xs transition",
+                        "relative min-h-11 cursor-default rounded-[var(--hp-radius-calendar-cell)] border px-1.5 py-2 text-xs transition",
                         selected
                           ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset"
                           : past
@@ -563,7 +563,7 @@ export function ChatbotBookingCard({
                     key={dateKey}
                     type="button"
                     className={[
-                      "min-h-11 rounded-[12px] border px-1.5 py-2 text-xs transition-[transform,box-shadow,opacity,background-color,border-color,color] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97]",
+                      "min-h-11 rounded-[var(--hp-radius-calendar-cell)] border px-1.5 py-2 text-xs transition-[transform,box-shadow,opacity,background-color,border-color,color] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97]",
                       selected
                         ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset"
                         : "border-white/65 bg-white/55 text-hp hover:-translate-y-0.5 hover:scale-[1.02] hover:border-[var(--accent-primary)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--accent-primary)]/45 hover:ring-inset focus-visible:border-[var(--accent-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/45 focus-visible:ring-inset",
