@@ -179,17 +179,14 @@ describe("chatbot widget shell", () => {
     expect(screen.getByRole("complementary", { name: "AI 相談窓口" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveAttribute("data-attention", "true")
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveClass("chatbot-minimized-attention")
-    expect(screen.getByRole("link", { name: "公式LINEを友だち追加" })).toHaveAttribute(
-      "href",
-      "https://line.me/R/ti/p/%40044ucnym",
-    )
-    expect(screen.getByRole("link", { name: "公式LINEを友だち追加" })).toHaveClass(
+    expect(screen.getByRole("button", { name: "公式LINEを友だち追加" })).toHaveAttribute("aria-haspopup", "dialog")
+    expect(screen.getByRole("button", { name: "公式LINEを友だち追加" })).toHaveClass(
       "glass-badge",
       "glass-badge--profile-tool",
       "h-12",
       "w-12",
     )
-    const lineLogo = screen.getByRole("link", { name: "公式LINEを友だち追加" }).querySelector("svg")
+    const lineLogo = screen.getByRole("button", { name: "公式LINEを友だち追加" }).querySelector("svg")
     expect(lineLogo).toHaveClass(
       "h-9",
       "w-9",
