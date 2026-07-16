@@ -734,7 +734,33 @@ export function BookingCalendar({
   )
   const prefetchingRangesRef = useRef<Set<string>>(new Set())
   const refreshingRangesRef = useRef<Set<string>>(new Set())
+  const calendarLoadingCountRef = useRef(0)
+  const calendarLoadingDelayRef = useRef<number | null>(null)
   const lastEmittedCodeRef = useRef<string | null>(null)
+  const [isCalendarLoading, setIsCalendarLoading] = useState(false)
+
+  const beginCalendarLoading = useCallback(() => {
+    calendarLoadingCountRef.current += 1
+    if (calendarLoadingCountRef.current !== 1) return
+    calendarLoadingDelayRef.current = window.setTimeout(() => {
+      calendarLoadingDelayRef.current = null
+      if (calendarLoadingCountRef.current > 0) setIsCalendarLoading(true)
+    }, 150)
+  }, [])
+
+  const finishCalendarLoading = useCallback(() => {
+    calendarLoadingCountRef.current = Math.max(0, calendarLoadingCountRef.current - 1)
+    if (calendarLoadingCountRef.current !== 0) return
+    if (calendarLoadingDelayRef.current !== null) {
+      window.clearTimeout(calendarLoadingDelayRef.current)
+      calendarLoadingDelayRef.current = null
+    }
+    setIsCalendarLoading(false)
+  }, [])
+
+  useEffect(() => () => {
+    if (calendarLoadingDelayRef.current !== null) window.clearTimeout(calendarLoadingDelayRef.current)
+  }, [])
 
   const markLockVisible = useCallback(() => {
     if (lockVisibleMeasuredRef.current) return
@@ -926,6 +952,7 @@ export function BookingCalendar({
     const key = `${teamId ?? "self"}:${startMs}:${endMs}`
     if (refreshingRangesRef.current.has(key)) return
     refreshingRangesRef.current.add(key)
+    beginCalendarLoading()
     void fetchFreeBusy(new Date(startMs).toISOString(), new Date(endMs).toISOString(), teamId, true)
       .then((data) => {
         upsertFetchedRange(teamId, startMs, endMs, data)
@@ -933,8 +960,9 @@ export function BookingCalendar({
       })
       .finally(() => {
         refreshingRangesRef.current.delete(key)
+        finishCalendarLoading()
       })
-  }, [refreshRemoteEventsFromCache, upsertFetchedRange])
+  }, [beginCalendarLoading, finishCalendarLoading, refreshRemoteEventsFromCache, upsertFetchedRange])
 
   const prefetchRangeWhenIdle = useCallback((startMs: number, endMs: number, teamId: string | null) => {
     const key = `${teamId ?? "self"}:${startMs}:${endMs}`
@@ -1049,13 +1077,20 @@ export function BookingCalendar({
     const endMs = arg.end.getTime()
     const teamRanges = fetchedRef.current.filter((range) => range.teamId === selectedTeamId)
     const rangesToFetch = missingRanges(startMs, endMs, teamRanges)
-    for (const range of rangesToFetch) {
-      const data = await fetchFreeBusy(
-        new Date(range.startMs).toISOString(),
-        new Date(range.endMs).toISOString(),
-        selectedTeamId,
-      )
-      upsertFetchedRange(selectedTeamId, range.startMs, range.endMs, data)
+    if (rangesToFetch.length > 0) {
+      beginCalendarLoading()
+      try {
+        for (const range of rangesToFetch) {
+          const data = await fetchFreeBusy(
+            new Date(range.startMs).toISOString(),
+            new Date(range.endMs).toISOString(),
+            selectedTeamId,
+          )
+          upsertFetchedRange(selectedTeamId, range.startMs, range.endMs, data)
+        }
+      } finally {
+        finishCalendarLoading()
+      }
     }
     if (rangesToFetch.length === 0) {
       const staleCutoff = Date.now() - 15_000
@@ -1182,6 +1217,8 @@ export function BookingCalendar({
     return [...busyEvents, ...lockedDateEvents, ...bookingEvents, ...bufferEvents]
   }, [
     adjustingGroupId,
+    beginCalendarLoading,
+    finishCalendarLoading,
     isCalendarAdmin,
     markFullCalendarReadyIfSettled,
     modeKind,
@@ -2376,6 +2413,12 @@ export function BookingCalendar({
                 eventResize={handleEventResize}
               />
             </div>
+            {isCalendarLoading ? (
+              <div className="booking-calendar__loading-overlay" role="status" data-testid="booking-calendar-loading">
+                <span className="booking-calendar__loading-spinner" aria-hidden="true" />
+                <span>空き状況を更新しています</span>
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="booking-calendar__date-request glass-flat" data-testid="booking-date-request-panel">

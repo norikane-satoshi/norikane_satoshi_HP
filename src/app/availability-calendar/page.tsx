@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
-import Link from "next/link"
-import { Clock3, ExternalLink, Lock } from "lucide-react"
+import { Clock3, Lock } from "lucide-react"
 
 import styles from "./availability-calendar.module.css"
+import { AvailabilityCalendarFrame } from "./availability-calendar-frame"
 import { buildPublicAvailabilityBlockMarkers, PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
 import { loadPublicAvailabilityMonth } from "@/lib/booking/server/public-availability"
 
@@ -51,84 +51,70 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
   return (
     <section className={styles.shell}>
       <div className={`glass-card ${styles.card}`}>
-        <div className={styles.header}>
-          <div>
+        <AvailabilityCalendarFrame
+          currentHref={monthParam(currentMonth)}
+          currentMonth={currentMonth}
+          displayedMonth={availability.month}
+          previousHref={monthParam(availability.prevMonth)}
+          nextHref={monthParam(availability.nextMonth)}
+          heading={(
+            <>
             <p className={styles.eyebrow}>Availability</p>
             <h1 className={styles.title}>{availability.monthLabel}</h1>
             <p className={styles.lead}>予約可否の目安だけを表示しています。案件名や予定の詳細は表示しません。</p>
+            </>
+          )}
+        >
+          <div className={styles.calendar} data-testid="public-availability-calendar">
+            <div className={styles.weekdays} aria-hidden="true">
+              {WEEKDAYS.map((weekday) => (
+                <div key={weekday} className={styles.weekday}>
+                  {weekday}
+                </div>
+              ))}
+            </div>
+            <div className={styles.grid}>
+              {availability.days.map((day) => {
+                const stateText = statusText(day.status)
+                const blockMarker = blockMarkers.get(day.dateKey)
+                return (
+                  <div
+                    key={day.dateKey}
+                    className={[
+                      styles.day,
+                      !day.inMonth ? styles.dayMuted : "",
+                      day.isTodayOrPast ? styles.dayPast : "",
+                      day.isBusy ? styles.dayBusy : "",
+                      day.isTentative ? styles.dayTentative : "",
+                      blockMarker?.isStart ? styles.dayBlockStart : "",
+                      blockMarker?.isEnd ? styles.dayBlockEnd : "",
+                      blockMarker?.isMiddle ? styles.dayBlockMiddle : "",
+                    ].filter(Boolean).join(" ")}
+                    data-date={day.dateKey}
+                    data-busy={day.isBusy ? "true" : "false"}
+                    data-status={day.status}
+                    aria-label={`${day.dateKey} ${stateText}`}
+                  >
+                    <span className={styles.dayNumber}>{day.day}</span>
+                    {blockMarker?.isStart ? (
+                      <span className={styles.status}>
+                        {day.status === "busy" ? <Lock className={styles.lock} size={14} aria-hidden="true" /> : null}
+                        {day.status === "tentative" ? <Clock3 className={styles.tentativeIcon} size={14} aria-hidden="true" /> : null}
+                        {day.status === "tentative" ? "仮キープ" : null}
+                      </span>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <div className={styles.actions}>
-            <Link className={`glass-card-sm ${styles.homeLink}`} href="/">
-              <ExternalLink size={16} aria-hidden="true" />
-              本体サイトへ移動
-            </Link>
-            <nav className={styles.monthNav} aria-label="表示月">
-              <Link
-                className={`glass-card-sm ${styles.monthLink}`}
-                href={monthParam(currentMonth)}
-                aria-current={availability.month === currentMonth ? "page" : undefined}
-              >
-                今月
-              </Link>
-              <Link className={`glass-card-sm ${styles.monthLink}`} href={monthParam(availability.prevMonth)}>
-                前月
-              </Link>
-              <Link className={`glass-card-sm ${styles.monthLink}`} href={monthParam(availability.nextMonth)}>
-                翌月
-              </Link>
-            </nav>
-          </div>
-        </div>
+        </AvailabilityCalendarFrame>
 
         {hasIssue ? (
           <p className={styles.warning} role="status">
             空き状況を取得できませんでした。
           </p>
         ) : null}
-
-        <div className={styles.calendar} data-testid="public-availability-calendar">
-          <div className={styles.weekdays} aria-hidden="true">
-            {WEEKDAYS.map((weekday) => (
-              <div key={weekday} className={styles.weekday}>
-                {weekday}
-              </div>
-            ))}
-          </div>
-          <div className={styles.grid}>
-            {availability.days.map((day) => {
-              const stateText = statusText(day.status)
-              const blockMarker = blockMarkers.get(day.dateKey)
-              return (
-                <div
-                  key={day.dateKey}
-                  className={[
-                    styles.day,
-                    !day.inMonth ? styles.dayMuted : "",
-                    day.isTodayOrPast ? styles.dayPast : "",
-                    day.isBusy ? styles.dayBusy : "",
-                    day.isTentative ? styles.dayTentative : "",
-                    blockMarker?.isStart ? styles.dayBlockStart : "",
-                    blockMarker?.isEnd ? styles.dayBlockEnd : "",
-                    blockMarker?.isMiddle ? styles.dayBlockMiddle : "",
-                  ].filter(Boolean).join(" ")}
-                  data-date={day.dateKey}
-                  data-busy={day.isBusy ? "true" : "false"}
-                  data-status={day.status}
-                  aria-label={`${day.dateKey} ${stateText}`}
-                >
-                  <span className={styles.dayNumber}>{day.day}</span>
-                  {blockMarker?.isStart ? (
-                    <span className={styles.status}>
-                      {day.status === "busy" ? <Lock className={styles.lock} size={14} aria-hidden="true" /> : null}
-                      {day.status === "tentative" ? <Clock3 className={styles.tentativeIcon} size={14} aria-hidden="true" /> : null}
-                      {day.status === "tentative" ? "仮キープ" : null}
-                    </span>
-                  ) : null}
-                </div>
-              )
-            })}
-          </div>
-        </div>
       </div>
     </section>
   )

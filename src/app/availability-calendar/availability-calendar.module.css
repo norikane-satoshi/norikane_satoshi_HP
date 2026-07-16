@@ -77,6 +77,43 @@
   gap: 8px;
 }
 
+.calendarFrame {
+  position: relative;
+  min-width: 0;
+}
+
+.loadingOverlay {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: var(--hp-radius-sm);
+  background: color-mix(in srgb, var(--glass-bg) 84%, transparent);
+  backdrop-filter: blur(2px);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.loadingSpinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--accent-primary) 26%, transparent);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: calendarLoadingSpin 700ms linear infinite;
+}
+
+@keyframes calendarLoadingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .weekdays,
 .grid {
   display: grid;
