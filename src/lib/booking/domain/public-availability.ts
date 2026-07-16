@@ -33,6 +33,12 @@ export type PublicAvailabilityMonth = {
   tentativeDateKeys: string[]
 }
 
+export type PublicAvailabilityBlockMarker = {
+  isStart: boolean
+  isEnd: boolean
+  isMiddle: boolean
+}
+
 const MONTH_PATTERN = /^\d{4}-\d{2}$/
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const JST_TIME_ZONE = "Asia/Tokyo"
@@ -227,4 +233,28 @@ export function buildPublicAvailabilityMonth(input: {
     busyDateKeys: Array.from(busyDateKeys).sort(),
     tentativeDateKeys: Array.from(tentativeDateKeys).sort(),
   }
+}
+
+export function buildPublicAvailabilityBlockMarkers(
+  days: PublicAvailabilityDay[],
+): Map<string, PublicAvailabilityBlockMarker> {
+  const markers = new Map<string, PublicAvailabilityBlockMarker>()
+
+  for (let index = 0; index < days.length; index += 1) {
+    const day = days[index]
+    if (!day || day.status === "available") continue
+
+    const previous = days[index - 1]
+    const next = days[index + 1]
+    const sameAsPrevious = index % 7 !== 0 && previous?.status === day.status
+    const sameAsNext = index % 7 !== 6 && next?.status === day.status
+
+    markers.set(day.dateKey, {
+      isStart: !sameAsPrevious,
+      isEnd: !sameAsNext,
+      isMiddle: sameAsPrevious && sameAsNext,
+    })
+  }
+
+  return markers
 }

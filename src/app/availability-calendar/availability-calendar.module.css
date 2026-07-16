@@ -72,39 +72,6 @@
   text-decoration: none;
 }
 
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  font-weight: 700;
-}
-
-.legendItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.legendMark {
-  width: 14px;
-  height: 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: 9999px;
-  background: var(--glass-bg);
-}
-
-.legendMarkBusy {
-  background: var(--accent-primary);
-  border-color: var(--accent-primary);
-}
-
-.legendMarkTentative {
-  background: color-mix(in srgb, #d9a514 28%, rgba(255, 255, 255, 0.5));
-  border-color: color-mix(in srgb, #d9a514 42%, var(--glass-border));
-}
-
 .calendar {
   display: grid;
   gap: 8px;
@@ -155,6 +122,31 @@
   background: color-mix(in srgb, #f7d86a 18%, rgba(255, 255, 255, 0.46));
 }
 
+.dayBlockStart:not(.dayBlockEnd) {
+  z-index: 1;
+  margin-right: -8px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.dayBlockStart:not(.dayBlockEnd) + .day {
+  border-left-width: 0;
+}
+
+.dayBlockMiddle {
+  z-index: 1;
+  margin-right: -8px;
+  border-left-width: 0;
+  border-right-width: 0;
+  border-radius: 0;
+}
+
+.dayBlockEnd:not(.dayBlockStart) {
+  border-left-width: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
 .dayNumber {
   font-family: var(--font-inter), sans-serif;
   font-size: 0.95rem;
@@ -177,7 +169,7 @@
   color: var(--accent-primary);
 }
 
-.dayTentative .lock {
+.tentativeIcon {
   color: color-mix(in srgb, #b98500 72%, var(--text-primary));
 }
 
@@ -260,6 +252,11 @@
   .status {
     font-size: 0.68rem;
   }
+
+  .dayBlockStart:not(.dayBlockEnd),
+  .dayBlockMiddle {
+    margin-right: -5px;
+  }
 }
 
 @media (max-width: 420px) {
@@ -282,7 +279,8 @@
     font-size: 0.62rem;
   }
 
-  .lock {
+  .lock,
+  .tentativeIcon {
     width: 12px;
     height: 12px;
   }

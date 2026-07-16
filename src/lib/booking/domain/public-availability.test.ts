@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildPublicAvailabilityMonth } from "./public-availability"
+import { buildPublicAvailabilityBlockMarkers, buildPublicAvailabilityMonth } from "./public-availability"
 
 describe("buildPublicAvailabilityMonth", () => {
   it("marks only timed busy slots and timed bookings as busy", () => {
@@ -74,5 +74,27 @@ describe("buildPublicAvailabilityMonth", () => {
     expect(month.days[0]).toMatchObject({ dateKey: "2026-07-26", inMonth: false })
     expect(month.days.find((day) => day.dateKey === "2026-08-04")?.isTodayOrPast).toBe(true)
     expect(month.days.find((day) => day.dateKey === "2026-08-05")?.isTodayOrPast).toBe(false)
+  })
+
+  it("marks only same-status days in a week as one visual block without changing availability", () => {
+    const month = buildPublicAvailabilityMonth({
+      month: "2026-07",
+      now: new Date("2026-07-10T00:00:00.000+09:00"),
+      busy: [
+        { start: "2026-07-14T10:00:00+09:00", end: "2026-07-16T11:00:00+09:00" },
+      ],
+      tentative: [
+        { start: "2026-07-17", end: "2026-07-19" },
+      ],
+    })
+    const markers = buildPublicAvailabilityBlockMarkers(month.days)
+
+    expect(month.busyDateKeys).toEqual(["2026-07-14", "2026-07-15", "2026-07-16"])
+    expect(month.tentativeDateKeys).toEqual(["2026-07-17", "2026-07-18"])
+    expect(markers.get("2026-07-14")).toEqual({ isStart: true, isEnd: false, isMiddle: false })
+    expect(markers.get("2026-07-15")).toEqual({ isStart: false, isEnd: false, isMiddle: true })
+    expect(markers.get("2026-07-16")).toEqual({ isStart: false, isEnd: true, isMiddle: false })
+    expect(markers.get("2026-07-17")).toEqual({ isStart: true, isEnd: false, isMiddle: false })
+    expect(markers.get("2026-07-18")).toEqual({ isStart: false, isEnd: true, isMiddle: false })
   })
 })

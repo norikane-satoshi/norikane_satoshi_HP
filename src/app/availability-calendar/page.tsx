@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ExternalLink, Lock } from "lucide-react"
+import { Clock3, ExternalLink, Lock } from "lucide-react"
 
 import styles from "./availability-calendar.module.css"
-import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
+import { buildPublicAvailabilityBlockMarkers, PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
 import { loadPublicAvailabilityMonth } from "@/lib/booking/server/public-availability"
 
 export const dynamic = "force-dynamic"
@@ -24,9 +24,20 @@ function monthParam(value: string) {
 }
 
 function statusText(status: "available" | "busy" | "tentative") {
-  if (status === "busy") return "予定あり"
-  if (status === "tentative") return "仮押さえ"
+  if (status === "busy") return "予約済み（本予約）"
+  if (status === "tentative") return "仮キープ"
   return "空き"
+}
+
+function currentMonthParam(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now)
+  const year = parts.find((part) => part.type === "year")?.value
+  const month = parts.find((part) => part.type === "month")?.value
+  return year && month ? `${year}-${month}` : ""
 }
 
 export default async function PublicAvailabilityCalendarPage({ searchParams }: PageProps) {
@@ -34,6 +45,8 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
   const month = Array.isArray(params?.month) ? params?.month[0] : params?.month
   const availability = await loadPublicAvailabilityMonth({ month })
   const hasIssue = availability.status !== 200 || Boolean(availability.code)
+  const currentMonth = currentMonthParam()
+  const blockMarkers = buildPublicAvailabilityBlockMarkers(availability.days)
 
   return (
     <section className={styles.shell}>
@@ -50,6 +63,13 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
               本体サイトへ移動
             </Link>
             <nav className={styles.monthNav} aria-label="表示月">
+              <Link
+                className={`glass-card-sm ${styles.monthLink}`}
+                href={monthParam(currentMonth)}
+                aria-current={availability.month === currentMonth ? "page" : undefined}
+              >
+                今月
+              </Link>
               <Link className={`glass-card-sm ${styles.monthLink}`} href={monthParam(availability.prevMonth)}>
                 前月
               </Link>
@@ -58,21 +78,6 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
               </Link>
             </nav>
           </div>
-        </div>
-
-        <div className={styles.legend} aria-label="凡例">
-          <span className={styles.legendItem}>
-            <span className={styles.legendMark} aria-hidden="true" />
-            空き
-          </span>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendMark} ${styles.legendMarkBusy}`} aria-hidden="true" />
-            予定あり
-          </span>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendMark} ${styles.legendMarkTentative}`} aria-hidden="true" />
-            仮押さえ
-          </span>
         </div>
 
         {hasIssue ? (
@@ -92,6 +97,7 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
           <div className={styles.grid}>
             {availability.days.map((day) => {
               const stateText = statusText(day.status)
+              const blockMarker = blockMarkers.get(day.dateKey)
               return (
                 <div
                   key={day.dateKey}
@@ -101,6 +107,9 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
                     day.isTodayOrPast ? styles.dayPast : "",
                     day.isBusy ? styles.dayBusy : "",
                     day.isTentative ? styles.dayTentative : "",
+                    blockMarker?.isStart ? styles.dayBlockStart : "",
+                    blockMarker?.isEnd ? styles.dayBlockEnd : "",
+                    blockMarker?.isMiddle ? styles.dayBlockMiddle : "",
                   ].filter(Boolean).join(" ")}
                   data-date={day.dateKey}
                   data-busy={day.isBusy ? "true" : "false"}
@@ -108,10 +117,13 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
                   aria-label={`${day.dateKey} ${stateText}`}
                 >
                   <span className={styles.dayNumber}>{day.day}</span>
-                  <span className={styles.status}>
-                    {day.status !== "available" ? <Lock className={styles.lock} size={14} aria-hidden="true" /> : null}
-                    {stateText}
-                  </span>
+                  {blockMarker?.isStart ? (
+                    <span className={styles.status}>
+                      {day.status === "busy" ? <Lock className={styles.lock} size={14} aria-hidden="true" /> : null}
+                      {day.status === "tentative" ? <Clock3 className={styles.tentativeIcon} size={14} aria-hidden="true" /> : null}
+                      {day.status === "tentative" ? "仮キープ" : null}
+                    </span>
+                  ) : null}
                 </div>
               )
             })}
