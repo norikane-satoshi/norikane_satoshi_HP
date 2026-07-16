@@ -86,15 +86,17 @@ describe("buildPublicAvailabilityMonth", () => {
       tentative: [
         { start: "2026-07-17", end: "2026-07-19" },
       ],
+      tentativeDateKeys: ["2026-07-20"],
     })
     const markers = buildPublicAvailabilityBlockMarkers(month.days)
 
     expect(month.busyDateKeys).toEqual(["2026-07-14", "2026-07-15", "2026-07-16"])
-    expect(month.tentativeDateKeys).toEqual(["2026-07-17", "2026-07-18"])
+    expect(month.tentativeDateKeys).toEqual(["2026-07-17", "2026-07-18", "2026-07-20"])
     expect(markers.get("2026-07-14")).toEqual({ isStart: true, isEnd: false, isMiddle: false })
     expect(markers.get("2026-07-15")).toEqual({ isStart: false, isEnd: false, isMiddle: true })
     expect(markers.get("2026-07-16")).toEqual({ isStart: false, isEnd: true, isMiddle: false })
     expect(markers.get("2026-07-17")).toEqual({ isStart: true, isEnd: false, isMiddle: false })
     expect(markers.get("2026-07-18")).toEqual({ isStart: false, isEnd: true, isMiddle: false })
+    expect(markers.get("2026-07-20")).toEqual({ isStart: true, isEnd: true, isMiddle: false })
   })
 })
