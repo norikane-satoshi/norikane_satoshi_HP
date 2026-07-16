@@ -182,7 +182,7 @@ export function BookingEditForm({
         <p className="glass-flat rounded-2xl px-4 py-3 text-sm font-medium text-hp">{readOnlyMessage}</p>
       ) : null}
       {error ? (
-        <p className="glass-flat rounded-2xl px-4 py-3 text-sm font-medium text-[var(--accent-pink)]" role="alert">
+        <p className="glass-flat rounded-2xl px-4 py-3 text-sm font-medium text-[var(--hp-color-error)]" role="alert">
           {error}
         </p>
       ) : null}
@@ -254,7 +254,7 @@ export function BookingEditForm({
       {canOperate ? (
         <section className="glass-flat rounded-3xl p-5 md:p-6">
           <p className="text-sm leading-7 text-hp-muted">{POLICY_TEXT}</p>
-          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--accent-pink)] px-5 py-3 text-sm font-semibold text-[var(--accent-pink)] disabled:opacity-50" type="button" onClick={cancelBooking} disabled={saving}>
+          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--hp-color-error)] px-5 py-3 text-sm font-semibold text-[var(--hp-color-error)] disabled:opacity-50" type="button" onClick={cancelBooking} disabled={saving}>
             <XCircle aria-hidden="true" size={18} />
             <span>予約をキャンセル</span>
           </button>
@@ -264,7 +264,7 @@ export function BookingEditForm({
       {isCalendarAdmin ? (
         <section className="glass-flat rounded-3xl p-5 md:p-6">
           <p className="text-sm text-hp-muted">{bookingGroupId}</p>
-          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--accent-pink)] px-5 py-3 text-sm font-semibold text-[var(--accent-pink)] disabled:opacity-50" type="button" onClick={hardDeleteBooking} disabled={saving}>
+          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--hp-color-error)] px-5 py-3 text-sm font-semibold text-[var(--hp-color-error)] disabled:opacity-50" type="button" onClick={hardDeleteBooking} disabled={saving}>
             <Trash2 aria-hidden="true" size={18} />
             <span>DB から完全削除</span>
           </button>

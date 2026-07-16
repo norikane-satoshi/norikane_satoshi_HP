@@ -139,7 +139,7 @@ export function ChatInput({
         {stoppingEnabled ? (
           <button
             type="button"
-            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
             aria-label="停止"
             onClick={onStop}
           >
@@ -148,7 +148,7 @@ export function ChatInput({
         ) : (
           <button
             type="submit"
-            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] disabled:opacity-50"
+            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] disabled:opacity-50"
             aria-label="送信"
             disabled={disabled}
           >

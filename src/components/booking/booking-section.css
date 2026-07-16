@@ -33,7 +33,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--glass-border);
-  border-radius: 9999px;
+  border-radius: var(--hp-radius-pill);
   color: var(--text-muted);
   font-size: 0.75rem;
 }
@@ -165,6 +165,7 @@
   display: flex;
   min-height: 0;
   flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .booking-settings {
@@ -306,8 +307,116 @@
   flex-direction: column;
 }
 
+.booking-section__pane--active {
+  position: relative;
+  z-index: 1;
+}
+
+.booking-section__pane--outgoing {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.booking-section__pane--enter-forward {
+  animation: booking-section-pane-enter-forward var(--motion-duration-modal) var(--ease-in-out-strong) both;
+}
+
+.booking-section__pane--exit-forward {
+  animation: booking-section-pane-exit-forward var(--motion-duration-modal) var(--ease-in-out-strong) both;
+}
+
+.booking-section__pane--enter-back {
+  animation: booking-section-pane-enter-back var(--motion-duration-modal) var(--ease-in-out-strong) both;
+}
+
+.booking-section__pane--exit-back {
+  animation: booking-section-pane-exit-back var(--motion-duration-modal) var(--ease-in-out-strong) both;
+}
+
+@keyframes booking-section-pane-enter-forward {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes booking-section-pane-exit-forward {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
+}
+
+@keyframes booking-section-pane-enter-back {
+  from {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes booking-section-pane-exit-back {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+
 .booking-section__pane--hidden {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-section__pane--enter-forward,
+  .booking-section__pane--enter-back {
+    animation: booking-section-pane-fade-in var(--motion-duration-modal) linear both !important;
+  }
+
+  .booking-section__pane--exit-forward,
+  .booking-section__pane--exit-back {
+    animation: booking-section-pane-fade-out var(--motion-duration-modal) linear both !important;
+  }
+}
+
+@keyframes booking-section-pane-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes booking-section-pane-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 .booking-section__pane > .booking-calendar {
@@ -406,7 +515,7 @@ button.booking-form__slot-pill {
 
 button.booking-form__slot-pill:hover,
 button.booking-form__slot-pill:focus-visible {
-  border-color: color-mix(in srgb, var(--hp-accent) 40%, transparent);
+  border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent);
   color: var(--text-primary);
 }
 

@@ -11,7 +11,12 @@ export const defaultChatbotKnowledgeManifestPageId = "3088971f957b481baff8499ff9
 const knowledgeSnapshotKey = "chatbot-notion-knowledge"
 const knowledgeSnapshotVersion = 1
 
-export type ChatbotKnowledgeEntryUsage = "workflow-duration" | "color-correction" | "color-grading" | "film-look"
+export type ChatbotKnowledgeEntryUsage =
+  | "workflow-duration"
+  | "color-correction"
+  | "color-grading"
+  | "film-look"
+  | "site-rule"
 
 export type ChatbotKnowledgeManifestEntry = {
   id: string
@@ -128,7 +133,10 @@ export async function syncChatbotNotionKnowledge(input: {
     if (!client) throw new Error("NOTION_TOKEN is not configured")
 
     const manifestBlocks = await listAllChildren(client, manifestPageId)
-    const entries = parseKnowledgeManifestEntries(manifestBlocks)
+    const entries = [
+      ...parseManifestPageSelfEntries(manifestBlocks, manifestPageId),
+      ...parseKnowledgeManifestEntries(manifestBlocks),
+    ]
     const changedPageId = normalizePageId(input.changedPageId)
     const shouldSync =
       !changedPageId ||
@@ -159,6 +167,21 @@ export async function syncChatbotNotionKnowledge(input: {
           workflowPresets,
           extractWorkflowDurationPresets(sourceBlocks, entry.referenceRange),
         )
+      } else if (entry.usage === "site-rule") {
+        const sourceBlocks = entry.pageId === manifestPageId ? manifestBlocks : await listAllChildren(client, entry.pageId)
+        const content = extractSiteRuleKnowledge(sourceBlocks, entry.referenceRange)
+        const includedInPrompt = content.trim().length > 0
+        noteKnowledge.push({
+          usage: entry.usage,
+          pageId: entry.pageId,
+          ...(entry.pageTitle ? { pageTitle: entry.pageTitle } : {}),
+          referenceRange: entry.referenceRange,
+          content,
+          source: "notion-sync",
+          status: "planned",
+          statusReason: "site-rule-reference",
+          includedInPrompt,
+        })
       } else {
         const noteStatus = await resolveNoteKnowledgeStatus(client, entry)
         const content = extractPublicNoteKnowledge(await listAllChildren(client, entry.pageId), entry.referenceRange)
@@ -413,6 +436,21 @@ function blockIdOf(block: unknown): string {
 
 type SectionRow = { id?: string; parentId?: string; text: string; pageReference?: string; cells: string[] }
 
+function parseManifestPageSelfEntries(blocks: unknown[], manifestPageId: string): ChatbotKnowledgeManifestEntry[] {
+  const sections = ["現在値", "未来ルール"]
+  return sections
+    .filter((section) => collectSectionRows(blocks, section).length > 0)
+    .map((section, index) => ({
+      id: `${manifestPageId}:site-rule:${section}`,
+      pageId: manifestPageId,
+      pageTitle: "AIチャットボット相談窓口の設計・実装",
+      usage: "site-rule" as const,
+      referenceRange: section,
+      priority: index,
+      reflectionTiming: "page-update" as const,
+    }))
+}
+
 function parseKnowledgeManifestEntries(blocks: unknown[]): ChatbotKnowledgeManifestEntry[] {
   const rows = collectSectionRows(blocks, "ナレッジ正本リスト")
   const entries: ChatbotKnowledgeManifestEntry[] = []
@@ -492,6 +530,14 @@ function extractPublicNoteKnowledge(blocks: unknown[], referenceRange: string): 
   const lines = rows
     .map((row) => sanitizePublicNoteLine(row.text))
     .filter((line): line is string => Boolean(line))
+
+  return Array.from(new Set(lines)).join("\n").slice(0, 6000)
+}
+
+function extractSiteRuleKnowledge(blocks: unknown[], referenceRange: string): string {
+  const lines = collectSectionRows(blocks, referenceRange)
+    .map((row) => row.text.replace(/\s+/g, " ").trim())
+    .filter((line) => line.length > 0)
 
   return Array.from(new Set(lines)).join("\n").slice(0, 6000)
 }

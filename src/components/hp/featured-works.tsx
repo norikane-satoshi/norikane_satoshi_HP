@@ -714,7 +714,7 @@ function PreviewThumbnail({
         useDefaultThumbnail ? "default" : thumbnailSelection.variant,
       )}
       alt=""
-      className={`pointer-events-none absolute inset-0 z-20 h-full w-full rounded-none object-cover transition-opacity duration-300 ${
+      className={`featured-work-preview-thumbnail pointer-events-none absolute inset-0 z-20 h-full w-full rounded-none object-cover transition-opacity duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
       loading="lazy"
@@ -1157,6 +1157,7 @@ function VideoSurface({
   const [activeClip, setActiveClip] = useState<ClipWindow | null>(null)
   const [isCoverVisible, setIsCoverVisible] = useState(true)
   const shouldPlay = isActive && !prefersReducedMotion
+  const isPreviewReady = !isCoverVisible
 
   useEffect(() => {
     previewVideoRef.current = {
@@ -1369,11 +1370,13 @@ function VideoSurface({
     <>
       {shouldPlay ? (
         <div
-          className={`pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-300 ${
-            isCoverVisible ? "opacity-0" : "opacity-100"
+          className={`featured-work-preview-media pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
+            isPreviewReady ? "opacity-100" : "opacity-0"
           }`}
           aria-hidden="true"
-          data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
+          data-featured-work-preview-media={
+            isPreviewReady ? "playing" : "preparing"
+          }
           data-featured-work-current-video-id={videoId}
           data-featured-work-clip-start={activeClip?.startSeconds}
           data-featured-work-clip-seconds={activeClip?.playSeconds}
@@ -1391,7 +1394,7 @@ function VideoSurface({
           />
         </div>
       ) : null}
-      <PreviewThumbnail videoId={videoId} isVisible={isCoverVisible} />
+      <PreviewThumbnail videoId={videoId} isVisible={!isPreviewReady} />
       <VideoOpenButton
         label={`${title} の動画をモーダルで再生`}
         clone={clone}
@@ -1406,6 +1409,34 @@ function VideoSurface({
         }}
       />
     </>
+  )
+}
+
+function updateFeaturedWorkTilt(
+  event: React.PointerEvent<HTMLDivElement>,
+  prefersReducedMotion: boolean,
+) {
+  if (prefersReducedMotion) {
+    return
+  }
+
+  const bounds = event.currentTarget.getBoundingClientRect()
+  const x = Math.min(
+    Math.max((event.clientX - bounds.left) / Math.max(bounds.width, 1), 0),
+    1,
+  )
+  const y = Math.min(
+    Math.max((event.clientY - bounds.top) / Math.max(bounds.height, 1), 0),
+    1,
+  )
+
+  event.currentTarget.style.setProperty(
+    "--featured-work-tilt-x",
+    `${(0.5 - y) * 3}deg`,
+  )
+  event.currentTarget.style.setProperty(
+    "--featured-work-tilt-y",
+    `${(x - 0.5) * 3}deg`,
   )
 }
 
@@ -1435,12 +1466,13 @@ function FeaturedWorkCard({
   return (
     <div
       ref={cardRef}
-      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 transition-transform hover:-translate-y-0.5 md:p-5"
-      style={{ width: "min(72vw, 260px)" }}
+      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
       aria-label={clone ? undefined : `${work.title} 作品カード`}
       data-featured-work-card={work.title}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
+      data-featured-work-tilt={prefersReducedMotion ? "disabled" : "enabled"}
       data-featured-work-marquee-segment-start={segmentStart}
+      onPointerMove={(event) => updateFeaturedWorkTilt(event, prefersReducedMotion)}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         {work.youtubeId ? (
@@ -1472,19 +1504,21 @@ function FeaturedWorkCard({
             </div>
           </PreviewFrame>
         )}
-        <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
-          {work.title}
-        </p>
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
-          <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
-          {work.youtubeId ? (
-            <WorkLinkBadges
-              links={work.links}
-              workTitle={work.title}
-              clone={clone}
-              hideYouTube
-            />
-          ) : null}
+        <div className="featured-work-card-meta mt-4">
+          <p className="text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
+            {work.title}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
+            {work.youtubeId ? (
+              <WorkLinkBadges
+                links={work.links}
+                workTitle={work.title}
+                clone={clone}
+                hideYouTube
+              />
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
@@ -1527,6 +1561,7 @@ function PlaylistWorkCard({
   const [isCoverVisible, setIsCoverVisible] = useState(true)
   const playlistVideoIds = work.videos.map((video) => video.videoId).join(",")
   const shouldPlayVideo = shouldStartVideo && isNearViewport
+  const isPreviewReady = !isCoverVisible
 
   useEffect(() => {
     previewVideoRef.current = previewVideo
@@ -1734,25 +1769,28 @@ function PlaylistWorkCard({
   return (
     <div
       ref={cardRef}
-      className="featured-work-transparent-card flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
-      style={{ width: "min(72vw, 260px)" }}
+      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
       aria-label={clone ? undefined : `${work.title}のランダムループ再生カード`}
       data-featured-work-card={work.title}
       data-featured-work-playlist-card={work.title}
       data-featured-work-playlist-video-count={work.videos.length}
       data-featured-work-playlist-video-ids={playlistVideoIds}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
+      data-featured-work-tilt={prefersReducedMotion ? "disabled" : "enabled"}
       data-featured-work-marquee-segment-start={segmentStart}
+      onPointerMove={(event) => updateFeaturedWorkTilt(event, prefersReducedMotion)}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <PreviewFrame>
           {shouldPlayVideo && !prefersReducedMotion ? (
             <div
-              className={`pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-300 ${
-                isCoverVisible ? "opacity-0" : "opacity-100"
+              className={`featured-work-preview-media pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
+                isPreviewReady ? "opacity-100" : "opacity-0"
               }`}
               aria-hidden="true"
-              data-featured-work-preview-media={isCoverVisible ? "preparing" : "playing"}
+              data-featured-work-preview-media={
+                isPreviewReady ? "playing" : "preparing"
+              }
               data-featured-work-current-video-id={previewVideo.videoId}
               data-featured-work-clip-start={activeClip?.startSeconds}
               data-featured-work-clip-seconds={activeClip?.playSeconds}
@@ -1766,7 +1804,10 @@ function PlaylistWorkCard({
               <div ref={playerHostRef} className="h-full w-full" />
             </div>
           ) : null}
-          <PreviewThumbnail videoId={previewVideo.videoId} isVisible={isCoverVisible} />
+          <PreviewThumbnail
+            videoId={previewVideo.videoId}
+            isVisible={!isPreviewReady}
+          />
           <VideoOpenButton
             label={`${work.title}をモーダルで再生`}
             clone={clone}
@@ -1781,12 +1822,14 @@ function PlaylistWorkCard({
             }}
           />
         </PreviewFrame>
-        <p className="mt-4 text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
-          {work.title}
-        </p>
-        {work.client ? (
-          <p className="mt-auto pt-3 text-xs text-hp-muted md:text-sm">{work.client}</p>
-        ) : null}
+        <div className="featured-work-card-meta mt-4">
+          <p className="text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
+            {work.title}
+          </p>
+          {work.client ? (
+            <p className="mt-3 text-xs text-hp-muted md:text-sm">{work.client}</p>
+          ) : null}
+        </div>
       </div>
     </div>
   )
@@ -1852,6 +1895,51 @@ export function FeaturedWorks() {
   return (
     <div className="hp-featured-works-block">
       <style>{`
+        .featured-work-transparent-card {
+          --featured-work-tilt-x: 0deg;
+          --featured-work-tilt-y: 0deg;
+          box-shadow: none;
+          isolation: isolate;
+          outline: 1px solid transparent;
+          outline-offset: -1px;
+          position: relative;
+          transition:
+            outline-color 150ms var(--ease-out-strong),
+            box-shadow 150ms var(--ease-out-strong),
+            transform var(--motion-duration-press) var(--ease-out-strong);
+          width: min(72vw, 260px);
+        }
+
+        .featured-work-transparent-card:is(:hover, :focus-within) {
+          box-shadow: var(--hp-shadow-soft);
+          outline-color: var(--glass-border);
+          transform: perspective(800px) rotateX(var(--featured-work-tilt-x)) rotateY(var(--featured-work-tilt-y));
+        }
+
+        .featured-work-transparent-card:active {
+          transform: scale(0.985);
+        }
+
+        .featured-work-transparent-card:hover:active {
+          transform: perspective(800px) rotateX(var(--featured-work-tilt-x)) rotateY(var(--featured-work-tilt-y)) scale(0.985);
+        }
+
+        @media (min-width: 1280px) {
+          .featured-work-transparent-card {
+            width: 390px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .featured-work-transparent-card {
+            transition: none;
+          }
+
+          .featured-work-transparent-card:active {
+            transform: none;
+          }
+        }
+
         [data-featured-work-marquee-segment] {
           display: contents;
         }

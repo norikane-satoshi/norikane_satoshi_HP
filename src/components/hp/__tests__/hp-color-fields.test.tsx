@@ -41,7 +41,7 @@ describe("HP three-hue color fields", () => {
     vi.restoreAllMocks()
   })
 
-  it("restores the page aurora to subdued purple pink sky slots", () => {
+  it("keeps the page aurora in subdued blue pink sky slots", () => {
     const purple = readRgbaVariable("--aurora-purple")
     const pink = readRgbaVariable("--aurora-pink")
     const sky = readRgbaVariable("--aurora-sky")
@@ -62,7 +62,7 @@ describe("HP three-hue color fields", () => {
     expect(pink.alpha).toBeGreaterThan(sky.alpha)
 
     expect(rgbDistance(purple, pink)).toBeGreaterThan(60)
-    expect(rgbDistance(purple, sky)).toBeGreaterThan(45)
+    expect(rgbDistance(purple, sky)).toBeGreaterThan(25)
     expect(rgbDistance(pink, sky)).toBeGreaterThan(70)
   })
 

@@ -28,8 +28,6 @@ export const jobKindChoices = {
     { id: "corporate-video", label: "企業VP / 採用動画 / 広報動画" },
     { id: "event-video", label: "イベント映像" },
     { id: "lecture-training", label: "講演会 / 講習会 / 教育 / 研修 / 講師依頼" },
-    { id: "grading-consultation", label: "カラーグレーディング相談" },
-    { id: "correction-consultation", label: "カラーコレクション相談" },
     { id: "film-look-consultation", label: "フィルムルック / ルック設計相談" },
     { id: "other", label: "その他" },
   ],
@@ -226,7 +224,6 @@ export const lectureTrainingContentChoices = {
   selectionMode: "multiple",
   choices: [
     { id: "grading", label: "カラーグレーディング" },
-    { id: "correction", label: "カラーコレクション" },
     { id: "resolve-basic", label: "DaVinci Resolve 基礎" },
     { id: "look-design", label: "フィルムルック / ルック設計" },
     { id: "workflow", label: "ワークフロー相談" },

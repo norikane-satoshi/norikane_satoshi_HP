@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  Fragment,
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -10,6 +11,7 @@ import {
   useState,
 } from "react"
 import { ChevronDown, GripHorizontal, Maximize2, Minimize2, Minus, PanelRightOpen, Sparkles } from "lucide-react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
@@ -53,6 +55,7 @@ type WidgetMessage = {
   role: ChatbotMessageRole
   content: string
   createdAt: Date
+  embeddedUi?: WidgetUi
 }
 
 const initialMessage = {
@@ -260,6 +263,37 @@ function getCustomerDisplayNameFromUi(ui: WidgetUi): string | undefined {
   return normalizeDisplayName(ui.completedBooking?.contactName) ?? normalizeDisplayName(ui.bookingPrefill?.contactName)
 }
 
+function isCompletedBookingUi(ui: WidgetUi): ui is Extract<WidgetUi, { kind: "booking-card" }> & {
+  completedBooking: BookingCompletionSummary
+} {
+  return ui.kind === "booking-card" && Boolean(ui.completedBooking)
+}
+
+function hasEmbeddedCompletedBooking(messages: WidgetMessage[], bookingGroupId: string): boolean {
+  return messages.some((message) => {
+    const embeddedUi = message.embeddedUi
+    return embeddedUi?.kind === "booking-card" && embeddedUi.completedBooking?.bookingGroupId === bookingGroupId
+  })
+}
+
+function appendCompletedBookingMessage(
+  messages: WidgetMessage[],
+  ui: Extract<WidgetUi, { kind: "booking-card" }> & { completedBooking: BookingCompletionSummary },
+  createdAt = new Date(),
+): WidgetMessage[] {
+  if (hasEmbeddedCompletedBooking(messages, ui.completedBooking.bookingGroupId)) return messages
+  return [
+    ...messages,
+    {
+      id: `booking-summary-${ui.completedBooking.bookingGroupId}`,
+      role: "system",
+      content: "",
+      createdAt,
+      embeddedUi: ui,
+    },
+  ]
+}
+
 const assistantNameQuestionPattern = /(名前|なんて呼|どう呼|呼べば|あなた.*誰|誰.*あなた|何者)/u
 
 function isAssistantNameIntroduced(messages: WidgetMessage[]): boolean {
@@ -277,6 +311,7 @@ function serializeWidgetMessages(messages: WidgetMessage[]): StoredWidgetSession
     role: message.role,
     content: message.content,
     createdAt: message.createdAt.toISOString(),
+    ...(message.embeddedUi ? { embeddedUi: message.embeddedUi } : {}),
   }))
 }
 
@@ -316,9 +351,16 @@ function loadStoredWidgetSession(): {
             role: message.role,
             content: message.content,
             createdAt: new Date(message.createdAt),
+            ...(message.embeddedUi ? { embeddedUi: message.embeddedUi } : {}),
           }))
       : []
-    const restoredMessages = messages.length > 0 ? messages : [initialMessage]
+    const restoredActiveUi = pendingRequest || recoverableRequest ? noUi : parsed.activeUi ?? noUi
+    const restoredMessages =
+      messages.length > 0
+        ? isCompletedBookingUi(restoredActiveUi)
+          ? appendCompletedBookingMessage(messages, restoredActiveUi)
+          : messages
+        : [initialMessage]
     const messagesWithRecoveryNotice =
       recoverableRequest && !pendingRequest && restoredMessages[restoredMessages.length - 1]?.role !== "system"
         ? [...restoredMessages, { role: "system" as const, content: communicationFallbackMessage, createdAt: new Date() }]
@@ -328,10 +370,10 @@ function loadStoredWidgetSession(): {
       messages: messagesWithRecoveryNotice,
       clientSessionId: parsed.clientSessionId,
       conversationId: parsed.conversationId,
-      activeUi: pendingRequest || recoverableRequest ? noUi : parsed.activeUi ?? noUi,
+      activeUi: isCompletedBookingUi(restoredActiveUi) ? noUi : restoredActiveUi,
       customerDisplayName:
         normalizeDisplayName(parsed.customerDisplayName) ??
-        getCustomerDisplayNameFromUi(pendingRequest || recoverableRequest ? noUi : parsed.activeUi ?? noUi),
+        getCustomerDisplayNameFromUi(restoredActiveUi),
       lastResponseTier: parsed.lastResponseTier,
       pendingRequest,
       recoverableRequest: pendingRequest ? undefined : recoverableRequest,
@@ -404,6 +446,8 @@ export function WidgetShell({
   onSidePeekResizePointerDown,
   onToggleDisplayMode,
 }: WidgetShellProps) {
+  const shouldReduceMotion = useReducedMotion()
+  const [isPanelVisible, setIsPanelVisible] = useState(true)
   const [messages, setMessages] = useState<WidgetMessage[]>(() => getInitialWidgetSession().messages)
   const [conversationId, setConversationId] = useState<string | undefined>(undefined)
   const [clientSessionId, setClientSessionId] = useState<string>(() => createClientSessionId())
@@ -416,6 +460,7 @@ export function WidgetShell({
   const [recoverableRequest, setRecoverableRequest] = useState<StoredPendingRequest | undefined>(undefined)
   const [hasRestoredSession, setHasRestoredSession] = useState(false)
   const activeRequestControllerRef = useRef<AbortController | null>(null)
+  const minimizeTimerRef = useRef<number | null>(null)
   const pendingRecoveryStartedRef = useRef(false)
   const restoredPendingRequestRef = useRef<StoredPendingRequest | undefined>(undefined)
   const shellRef = useRef<HTMLElement | null>(null)
@@ -751,8 +796,16 @@ export function WidgetShell({
   useEffect(() => {
     return () => {
       activeRequestControllerRef.current?.abort()
+      if (minimizeTimerRef.current !== null) {
+        window.clearTimeout(minimizeTimerRef.current)
+      }
     }
   }, [])
+
+  const handleMinimize = () => {
+    setIsPanelVisible(false)
+    minimizeTimerRef.current = window.setTimeout(onMinimize, shouldReduceMotion ? 200 : 500)
+  }
 
   const finishRequest = (controller: AbortController) => {
     if (activeRequestControllerRef.current !== controller) return
@@ -829,6 +882,7 @@ export function WidgetShell({
           ),
         )
       }
+      const nextActiveUi = payload.ui
       setMessages((currentMessages) => {
         const nextMessages = [
           ...currentMessages,
@@ -843,13 +897,13 @@ export function WidgetShell({
           messages: serializeWidgetMessages(nextMessages),
           clientSessionId,
           conversationId: payload.conversationId,
-          activeUi: payload.ui,
+          activeUi: nextActiveUi,
           lastResponseTier: payload.tier,
         })
         return nextMessages
       })
-      setActiveUi(payload.ui)
-      rememberCustomerDisplayNameFromUi(payload.ui)
+      setActiveUi(nextActiveUi)
+      rememberCustomerDisplayNameFromUi(nextActiveUi)
       setRecoverableRequest(undefined)
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) return
@@ -1042,13 +1096,28 @@ export function WidgetShell({
     if (nextCustomerDisplayName) {
       setCustomerDisplayName(nextCustomerDisplayName)
     }
-    setActiveUi((currentUi) => {
-      if (currentUi.kind !== "booking-card") return currentUi
-      return {
-        ...currentUi,
-        completedBooking: booking,
-      }
+    if (activeUi.kind !== "booking-card") return
+    const completedBookingUi = {
+      ...activeUi,
+      completedBooking: booking,
+    } satisfies Extract<WidgetUi, { kind: "booking-card" }>
+    setMessages((currentMessages) => {
+      const nextMessages = appendCompletedBookingMessage(currentMessages, completedBookingUi)
+      persistWidgetSession({
+        messages: serializeWidgetMessages(nextMessages),
+        clientSessionId,
+        conversationId,
+        activeUi: noUi,
+        ...(nextCustomerDisplayName
+          ? { customerDisplayName: nextCustomerDisplayName }
+          : customerDisplayName
+            ? { customerDisplayName }
+            : {}),
+        lastResponseTier,
+      })
+      return nextMessages
     })
+    setActiveUi(noUi)
   }
 
   const isSidePeek = isDesktopLayout && displayMode === "side-peek"
@@ -1056,10 +1125,10 @@ export function WidgetShell({
   const isFullScreen = !isDesktopLayout && displayMode === "full-screen"
   const assistantDisplayName = isAssistantNameIntroduced(messages) ? "のーちゃん" : "AI アシスタント"
   const shellSizeClassName = isDesktopLayout
-    ? "h-full w-full max-w-none rounded-[20px]"
+    ? "h-full w-full max-w-none rounded-[var(--hp-radius)]"
     : isFullScreen
       ? "h-[100dvh] w-screen max-w-none rounded-none pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]"
-      : "h-[min(560px,calc(100dvh-2rem))] w-full max-w-[384px] rounded-t-[20px] md:rounded-[20px]"
+      : "h-[min(560px,calc(100dvh-2rem))] w-full max-w-[384px] rounded-t-[var(--hp-radius)] md:rounded-[var(--hp-radius)]"
 
   const handleHeaderPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (!isFloating || isInteractiveTarget(event.target)) return
@@ -1159,15 +1228,26 @@ export function WidgetShell({
   }, [conversationContentKey, displayMode, scheduleScrollIndicatorUpdate])
 
   return (
-    <section
+    <AnimatePresence mode="wait">
+      {isPanelVisible ? (
+    <motion.section
+      key="widget-shell"
       ref={shellRef}
-      className={`chatbot-widget-shell glass-card glass-card--chat-frost pointer-events-auto relative flex animate-in fade-in slide-in-from-bottom-2 flex-col overflow-hidden duration-300 ${shellSizeClassName}`}
+      initial={{ scale: 0.95, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      transition={
+        shouldReduceMotion
+          ? { duration: 0.2, ease: "easeOut" }
+          : { type: "spring", stiffness: 380, damping: 30 }
+      }
+      className={`chatbot-widget-shell glass-card glass-card--chat-frost pointer-events-auto relative flex flex-col overflow-hidden ${shellSizeClassName}`}
       onPointerDown={stopShellEventPropagation}
       onPointerMove={stopShellEventPropagation}
       onPointerUp={stopShellEventPropagation}
       onPointerCancel={stopShellEventPropagation}
       style={{
-        background: "rgba(255, 255, 255, 0.72)",
+        background: "var(--hp-color-chatbot-shell-bg)",
         backdropFilter: "blur(32px) saturate(130%)",
         WebkitBackdropFilter: "blur(32px) saturate(130%)",
       }}
@@ -1204,7 +1284,7 @@ export function WidgetShell({
             <button
               type="button"
               onClick={onToggleDisplayMode}
-              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
               aria-label={displayMode === "side-peek" ? "フローティング表示に切り替え" : "サイドピーク表示に切り替え"}
             >
               <PanelRightOpen className={`h-4 w-4 ${displayMode === "side-peek" ? "rotate-180" : ""}`} aria-hidden="true" />
@@ -1213,7 +1293,7 @@ export function WidgetShell({
             <button
               type="button"
               onClick={onToggleDisplayMode}
-              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
               aria-label={isFullScreen ? "通常表示に戻す" : "全画面表示に切り替え"}
             >
               {isFullScreen ? (
@@ -1225,8 +1305,8 @@ export function WidgetShell({
           )}
           <button
             type="button"
-            onClick={onMinimize}
-            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+            onClick={handleMinimize}
+            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
             aria-label="最小化"
           >
             <Minus className="h-4 w-4" aria-hidden="true" />
@@ -1258,22 +1338,34 @@ export function WidgetShell({
           <SecurityNote defaultOpen={false} />
           <div className="space-y-3" role="log" aria-live="polite">
             {messages.map((message, index) => (
-              <ChatMessage
-                key={message.id ?? `${message.role}-${message.createdAt.toISOString()}-${index}`}
-                id={message.id}
-                role={message.role}
-                content={message.content}
-                createdAt={message.createdAt}
-                displayName={
-                  message.role === "user"
-                    ? customerDisplayName
-                    : message.role === "assistant"
-                      ? assistantDisplayName
-                      : undefined
-                }
-                editingDisabled={submitting}
-                onEdit={handleEditMessage}
-              />
+              <Fragment key={message.id ?? `${message.role}-${message.createdAt.toISOString()}-${index}`}>
+                {message.content ? (
+                  <ChatMessage
+                    id={message.id}
+                    role={message.role}
+                    content={message.content}
+                    createdAt={message.createdAt}
+                    displayName={
+                      message.role === "user"
+                        ? customerDisplayName
+                        : message.role === "assistant"
+                          ? assistantDisplayName
+                          : undefined
+                    }
+                    editingDisabled={submitting}
+                    onEdit={handleEditMessage}
+                  />
+                ) : null}
+                {message.embeddedUi ? (
+                  <ActiveWidgetUi
+                    ui={message.embeddedUi}
+                    conversationId={conversationId}
+                    onSubmit={handleSubmit}
+                    onInquirySubmit={handleInquirySubmit}
+                    onBookingCompleted={handleBookingCompleted}
+                  />
+                ) : null}
+              </Fragment>
             ))}
             {submitting ? <ThinkingIndicator showDelayNotice={showThinkingDelayNotice} /> : null}
           </div>
@@ -1335,7 +1427,7 @@ export function WidgetShell({
           <button
             type="button"
             onClick={scrollToLatest}
-            className="glass-badge absolute bottom-4 left-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center border border-[var(--glass-border)] p-0 text-[var(--accent-primary)] shadow-[var(--glass-shadow)] transition hover:shadow-[0_0_24px_rgba(139,127,255,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+            className="glass-badge absolute bottom-4 left-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center border border-[var(--glass-border)] p-0 text-[var(--accent-primary)] shadow-[var(--glass-shadow)] transition-[transform,box-shadow,opacity] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
             style={{
               background: "rgba(255, 255, 255, 0.42)",
               backdropFilter: "blur(18px) saturate(140%)",
@@ -1363,7 +1455,9 @@ export function WidgetShell({
           aria-label="パネルを拡大・縮小"
         />
       ) : null}
-    </section>
+    </motion.section>
+      ) : null}
+    </AnimatePresence>
   )
 }
 

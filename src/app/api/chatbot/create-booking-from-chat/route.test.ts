@@ -82,6 +82,7 @@ async function loadPost() {
 afterEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  vi.unstubAllEnvs()
 })
 
 describe("POST /api/chatbot/create-booking-from-chat", () => {
@@ -277,6 +278,32 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       ],
       submittedAt: expect.any(Date),
     })
+  })
+
+  it("returns the owner notification ID only in local development", async () => {
+    vi.stubEnv("NODE_ENV", "development")
+    vi.stubEnv("VERCEL", "")
+    vi.stubEnv("VERCEL_ENV", "development")
+    const route = await loadPost()
+
+    const response = await route.POST(request(validChatBooking()))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      emailDebug: { chatbotOwnerNotificationId: "email_1" },
+    })
+  })
+
+  it("does not return the owner notification ID outside local development", async () => {
+    vi.stubEnv("NODE_ENV", "development")
+    vi.stubEnv("VERCEL", "1")
+    vi.stubEnv("VERCEL_ENV", "production")
+    const route = await loadPost()
+
+    const response = await route.POST(request(validChatBooking()))
+    const payload = await response.json()
+
+    expect(payload).not.toHaveProperty("emailDebug")
   })
 
   it("keeps the booking response successful and logs when owner notification fails", async () => {

@@ -61,8 +61,7 @@ function SignupCard() {
   if (sentTo) {
     return (
       <div className="glass-card p-8 md:p-10 text-center">
-        <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Sign up</p>
-        <h1 className="mt-2 text-3xl font-bold text-hp md:text-4xl">確認メールを送信しました</h1>
+        <h1 className="text-3xl font-bold text-hp md:text-4xl">確認メールを送信しました</h1>
         <p className="mt-6 text-sm text-hp-muted">
           <span className="text-hp font-medium">{sentTo}</span>{" "}
           に確認メールを送信しました。
@@ -81,8 +80,7 @@ function SignupCard() {
 
   return (
     <div className="glass-card p-8 md:p-10">
-      <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Sign up</p>
-      <h1 className="mt-2 text-3xl font-bold text-hp md:text-4xl">新規登録</h1>
+      <h1 className="text-3xl font-bold text-hp md:text-4xl">新規登録</h1>
       <p className="mt-3 text-sm text-hp-muted">
         メールアドレスとパスワードでアカウントを作成するか、ソーシャルログインから始められます。
       </p>

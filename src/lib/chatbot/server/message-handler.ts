@@ -76,7 +76,6 @@ import {
   isBookingFinalConfirmationPrompt,
   isLlmNoAdditionalBookingConcernSignal,
   isNoAdditionalBookingConcern,
-  isSubmittedBookingTerminalAcknowledgement,
   wasBookingFinalQuestionOffered,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
@@ -305,10 +304,13 @@ export async function handleChatbotMessage(
     })
   }
   if (isAssistantNameQuestion(input.message)) {
+    const assistantNameContent = sanitizeChatbotLlmTextWithReport(assistantNameAnswer, {
+      trustedDisplayText: true,
+    }).text
     const assistantMessage = await repository.appendMessage({
       conversationId: conversation.id,
       role: "assistant",
-      content: assistantNameAnswer,
+      content: assistantNameContent,
     })
     return {
       conversationId: conversation.id,
@@ -375,74 +377,12 @@ export async function handleChatbotMessage(
     recoverBookingContextFromHistory([...conversation.messages, userMessage]),
   ) as ConversationState
   const submittedBooking = getSubmittedBooking(conversationState)
-  if (submittedBooking && isSubmittedBookingTerminalAcknowledgement(input.message)) {
-    const nextQuestion = buildSubmittedBookingFollowup(submittedBooking)
-    const routingDecision: Extract<RoutingDecision, { kind: "continue" }> = {
-      kind: "continue",
-      nextQuestion,
-    }
-    const assistantMessage = await repository.appendMessage({
-      conversationId: conversation.id,
-      role: "assistant",
-      content: nextQuestion,
-    })
-    try {
-      await repository.updateConversationRouting({
-        conversationId: conversation.id,
-        routingDecision: routingDecision.kind,
-        currentQuestion: routingDecision.nextQuestion,
-        activeChoices: null,
-        conversationState,
-        jobContext,
-      })
-    } catch (error) {
-      throw new ChatbotMessagePersistenceError({
-        cause: error,
-        conversationId: conversation.id,
-        tier: "local-deterministic",
-        routingDecisionKind: routingDecision.kind,
-        uiKind: "none",
-      })
-    }
-    await notifySlackForChatbotResponse({
-      notifier: slackNotifier,
-      repository,
-      requestId: input.requestId,
-      conversation,
-      userText: userMessage.content,
-      assistantText: assistantMessage.content,
-      tier: "local-deterministic",
-      routingDecisionKind: routingDecision.kind,
-      uiKind: "none",
-      choiceSetId: undefined,
-      bookingProgress: false,
-      flowStep: "conversation",
-      flowStepReason: conversationState.activeIntakeClarification?.reason,
-      issueReasons: [],
-      retryDiagnostics: undefined,
-      pendingRecovery: input.pendingRequestKind === "message" || input.pendingRequestKind === "edit",
-      pendingRequestKind: input.pendingRequestKind,
-    })
-
-    return {
-      conversationId: conversation.id,
-      userMessage: {
-        id: userMessage.id,
-        role: userMessage.role,
-        content: userMessage.content,
-        createdAt: userMessage.createdAt,
-      },
-      assistantMessage: {
-        id: assistantMessage.id,
-        role: assistantMessage.role,
-        content: assistantMessage.content,
-        createdAt: assistantMessage.createdAt,
-      },
-      tier: "local-deterministic",
-      ui: { kind: "none" },
-      routingDecision,
-    }
-  }
+  logChatbotBookingCompletedContextBoundary({
+    requestId: input.requestId,
+    conversation,
+    latestUserMessage: input.message,
+    submittedBooking,
+  })
   const systemPrompt = buildChatbotSystemPrompt(
     userContext,
     userContextFormatter,
@@ -556,6 +496,7 @@ export async function handleChatbotMessage(
     jobContext,
     uiKind: ui.kind,
     latestUserMessage: input.message,
+    conversationState: persistedConversationState,
     submittedBooking,
   })
   const assistantContent = assistantDisplay.content
@@ -610,13 +551,13 @@ export async function handleChatbotMessage(
     pendingRecovery: isPendingRequestRecovery,
     pendingRequestKind: input.pendingRequestKind,
   })
-  if (routingDecision) {
+  if (routingDecision || submittedBooking) {
     try {
       await repository.updateConversationRouting({
         conversationId: conversation.id,
-        routingDecision: routingDecision.kind,
-        currentQuestion: routingDecision.kind === "continue" ? routingDecision.nextQuestion : null,
-        activeChoices: routingDecision.kind === "continue" ? routingDecision.presentChoices ?? null : null,
+        routingDecision: routingDecision?.kind ?? "continue",
+        currentQuestion: routingDecision?.kind === "continue" ? routingDecision.nextQuestion : null,
+        activeChoices: routingDecision?.kind === "continue" ? routingDecision.presentChoices ?? null : null,
         conversationState: persistedConversationState,
         jobContext,
       })
@@ -625,7 +566,7 @@ export async function handleChatbotMessage(
         cause: error,
         conversationId: conversation.id,
         tier: llmResponse.tier,
-        routingDecisionKind: routingDecision.kind,
+        routingDecisionKind: routingDecision?.kind ?? "continue",
         uiKind: ui.kind,
       })
     }
@@ -1765,6 +1706,7 @@ function buildChatbotSystemPrompt(
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、JSON 出力の説明だけを返しません。",
     "最終出力は必ず <customer_reply> と </customer_reply> の内側だけに、お客様へ表示してよい本文を書きます。内部推論、確認メモ、英語の思考、モデル名、署名、ラベル説明、タグ外の本文は一切書きません。",
+    "お客様向け本文では、UI制御理由や内部状態説明としての「カードを再表示しない」「予約候補カードは作成済み」「受付済み」「UI」などを説明しません。予約送信後は、直近ユーザー入力に合わせてその場で自然に返し、送信済み・本人確認・則兼からの連絡に触れる必要がある時だけ短く添えます。",
     "show_choice_panel / show_booking_card の JSON を出す場合も、表示してよい短い本文と同じ <customer_reply> 内に1個だけ置きます。タグ外には何も書きません。",
     '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD","memo":"..."}} を 1 個だけ含めます。',
     "予約候補カードを出す直前には、これまでの文脈を短く踏まえて、ほかに確認したいこと、伝えておきたいこと、不安な点がないかを1回だけ確認します。その最終確認ターンでは show_booking_card を同時に出さず、1ターン1問いかけにします。",
@@ -1873,6 +1815,7 @@ function buildAssistantDisplayContent(input: {
   jobContext: JobContext
   uiKind: ChatbotMessageUi["kind"]
   latestUserMessage: string
+  conversationState: ConversationState
   submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
 }): {
   content: string
@@ -1886,15 +1829,19 @@ function buildAssistantDisplayContent(input: {
     ? buildSubmittedBookingActionableFallback({
         latestUserMessage: input.latestUserMessage,
         jobContext: input.jobContext,
-        submission: input.submittedBooking,
       })
     : undefined
+  const finalConfirmationFallback =
+    input.conversationState.bookingFinalConfirmation?.status === "supplemental-received"
+      ? buildFinalConfirmationSupplementalFollowup(input.latestUserMessage)
+      : undefined
+  const contextualFallback = submittedBookingFallback ?? finalConfirmationFallback
   const sanitize = (content: string, trustedDisplayText = false, fallbackText?: string) => {
     const result = sanitizeChatbotLlmTextWithReport(content, {
       routingDecision: input.routingDecision,
       jobContext: input.jobContext,
       trustedDisplayText,
-      fallbackText,
+      fallbackText: fallbackText ?? contextualFallback,
       ...(content === text && !trustedDisplayText ? { displayEnvelope: input.displayEnvelope } : {}),
     })
     return { content: result.text, sanitizationReport: result.report }
@@ -1915,6 +1862,9 @@ function buildAssistantDisplayContent(input: {
       uiKind: input.uiKind,
       ...(guardedContent.choiceSetId ? { choiceSetId: guardedContent.choiceSetId } : {}),
     })
+  }
+  if (input.submittedBooking && isPostBookingOffTopicSmallTalk(input.latestUserMessage)) {
+    return withGuardReport(sanitize(submittedBookingFallback ?? buildSubmittedBookingFollowup(), true))
   }
 
   if (input.routingDecision?.kind === "to-booking-inline" && toolFreeText.length === 0) {
@@ -2216,6 +2166,39 @@ function getMissingBookingPrefillFields(prefill: BookingCardPrefill): Array<(typ
   return trackedBookingPrefillFields.filter((field) => !prefill[field]?.trim())
 }
 
+function logChatbotBookingCompletedContextBoundary(input: {
+  requestId?: string
+  conversation: ChatbotConversation
+  latestUserMessage: string
+  submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
+}): void {
+  if (process.env.NODE_ENV === "test") return
+  if (!input.submittedBooking) return
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_booking_completed_context_boundary",
+      requestId: input.requestId,
+      buildSha: getChatbotBuildSha(),
+      conversationId: input.conversation.id,
+      sessionId: input.conversation.context.sessionId,
+      boundary: "booking-completed-context",
+      input: {
+        latestUserMessagePreview: redactForChatbotLog(input.latestUserMessage),
+        bookingSubmissionStatus: input.submittedBooking.status,
+        hasReservationNumber: Boolean(input.submittedBooking.reservationNumber),
+      },
+      output: {
+        structuredContext: "booking-submitted",
+        promptContextIncluded: true,
+        uiKind: "none",
+      },
+      decision: "continue-llm-route",
+      reason: "submitted-booking-is-context-not-display-template",
+    }),
+  )
+}
+
 function summarizeBookingReadinessReason(input: {
   beforeMissing: ReturnType<typeof getMissingBookingReadinessSlots>
   afterMissing: ReturnType<typeof getMissingBookingReadinessSlots>
@@ -2513,11 +2496,8 @@ async function resolveRoutingDecision(input: {
   const toolCall = parseShowBookingCardToolCall(rawDisplayText)
   const choicePanelToolCall = parseShowChoicePanelToolCall(rawDisplayText)
   const submittedBooking = getSubmittedBooking(input.conversationState)
-  if (submittedBooking && (toolCall || input.fallbackRoutingDecision.kind !== "continue")) {
-    return {
-      kind: "continue",
-      nextQuestion: buildSubmittedBookingFollowup(submittedBooking),
-    }
+  if (submittedBooking) {
+    return undefined
   }
   if (input.fallbackRoutingDecision.kind === "to-direct-contact") {
     if (
@@ -2671,8 +2651,8 @@ function getSubmittedBooking(
   return submission.reservationNumber.trim() ? submission : undefined
 }
 
-function buildSubmittedBookingFollowup(submission: NonNullable<ConversationState["bookingSubmission"]>): string {
-  return `予約番号 ${submission.reservationNumber} は送信完了済みです。内容は受け付け済みなので、同じ予約カードは再表示しません。則兼が内容を確認してご連絡します。`
+function buildSubmittedBookingFollowup(): string {
+  return "ありがとうございます。案件の続きや追記があれば、このまま送ってください。"
 }
 
 function buildSubmittedBookingPromptContext(
@@ -2680,9 +2660,12 @@ function buildSubmittedBookingPromptContext(
 ): string {
   return [
     "予約送信後の会話状態:",
-    `- 予約番号 ${submission.reservationNumber} は送信完了済みです。`,
+    `- 予約番号 ${submission.reservationNumber} は送信完了済みです。この事実だけを背景にし、毎回お客様向け本文へ入れません。`,
     "- この状態では show_booking_card、予約候補カード、予約前の不足項目確認、選択パネルへ戻しません。",
-    "- 具体的な質問、追加相談、予約内容の変更希望には、予約済みであることを前提に自然に答えます。本人確認が必要な変更や確約は、則兼が確認して連絡する案内にします。",
+    "- 直近ユーザー入力への返答本文をその場で自由に組み立てます。感謝、雑談、追加質問、変更相談で言い回しと情報量を変えます。",
+    "- 予約済み、連絡待ち、則兼確認、予約番号を固定サフィックスとして付けません。",
+    "- 予約済みである事実は、ユーザーが受付状況・変更・キャンセル・場所・準備物などを聞いた時だけ必要最小限で触れます。",
+    "- 本人確認が必要な変更や確約だけ、必要最小限で確認後の扱いだと添えます。",
     "- 「次に必要な情報を1つずつ確認します」のような予約前の案内へ戻しません。",
   ].join("\n")
 }
@@ -2690,27 +2673,63 @@ function buildSubmittedBookingPromptContext(
 function buildSubmittedBookingActionableFallback(input: {
   latestUserMessage: string
   jobContext: JobContext
-  submission: NonNullable<ConversationState["bookingSubmission"]>
 }): string {
   const normalized = input.latestUserMessage.normalize("NFKC").toLowerCase()
-  const reservationPrefix = `予約番号 ${input.submission.reservationNumber} の相談として受け付け済みです。`
+  if (/(いい名前|良い名前)/u.test(normalized)) {
+    return "ありがとうございます。名前も気に入ってもらえてうれしいです。"
+  }
+  if (/(暑い|寒い|天気|雨|晴れ|蒸し暑|涼しい)/u.test(normalized)) {
+    return "天気や気温の変化が大きいですね。体調に気をつけてお過ごしください。"
+  }
+  if (/(映画|音楽|本|漫画|ゲーム|ご飯|ランチ|おすすめ|雑談|関係ない|最近)/u.test(normalized)) {
+    return "雑談もありがとうございます。ここでは案件相談の続きに絞っているので、相談に関係することがあればこのまま送ってください。"
+  }
+  if (/(助か|また相談)/u.test(normalized)) {
+    return "そう言っていただけてうれしいです。気になることが出てきたら、このまま気軽に送ってください。"
+  }
+  if (/(ありがとう|よろしく|助か|お世話|うれしい|嬉しい)/u.test(normalized)) {
+    return "こちらこそありがとうございます。必要なことが出てきたら、このまま気軽に送ってください。"
+  }
+  if (/(聞きたい|質問|相談|確認|教えて|追加)/u.test(normalized)) {
+    return "もちろんです。このまま聞きたいことを書いてください。"
+  }
   if (/(持ち物|必要なもの|準備|用意)/u.test(normalized)) {
     const remoteNote =
       input.jobContext.workSite === "remote-grading"
         ? "リモート作業なので、来訪用の持ち物は基本的に不要です。"
         : ""
-    return `${remoteNote}素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。${reservationPrefix}則兼が内容を確認して、追加で必要なものがあれば連絡します。`
+    return `${remoteNote}素材データ、参考資料、確認ポイントのメモ、納品仕様があると進行がスムーズです。`
   }
   if (/(集合|場所|アクセス|住所|どこ)/u.test(normalized)) {
     if (input.jobContext.workSite === "remote-grading") {
-      return `リモート作業として受け付けているため、現地の集合場所はありません。${reservationPrefix}受け渡し方法や連絡手段は則兼が内容を確認して案内します。`
+      return "今回はリモート作業の相談として受けています。対面に変えたい場合や場所の確認が必要な場合は、その旨をこのまま送ってください。"
     }
-    return `${reservationPrefix}集合場所や当日の詳細は則兼が内容を確認して案内します。`
+    return "場所や入館方法などの詳細確認も、このまま続けて送れます。"
   }
-  if (/(変更|修正|追加|キャンセル|取り消)/u.test(normalized)) {
-    return `${reservationPrefix}変更希望もこの会話に残しておいてください。確定可否や反映方法は則兼が内容を確認して連絡します。`
+  if (/(変更|修正|キャンセル|取り消し|日時|日程|時間)/u.test(normalized)) {
+    return "変更希望もこのまま送れます。日時など確約が必要な内容は、確認してからの扱いになります。"
   }
-  return `${reservationPrefix}追加の質問として確認しました。則兼が内容を確認して、必要があれば連絡します。`
+  return buildSubmittedBookingFollowup()
+}
+
+function isPostBookingOffTopicSmallTalk(latestUserMessage: string): boolean {
+  return /(映画|音楽|本|漫画|ゲーム|ご飯|ランチ|おすすめ|雑談|関係ない|最近)/u.test(
+    latestUserMessage.normalize("NFKC").toLowerCase(),
+  )
+}
+
+function buildFinalConfirmationSupplementalFollowup(latestUserMessage: string): string {
+  const normalized = latestUserMessage.normalize("NFKC").toLowerCase()
+  if (/(助か|また相談)/u.test(normalized)) {
+    return "そう言っていただけてうれしいです。気になる点があれば、このまま送ってください。"
+  }
+  if (/(ありがとう|よろしく|助か|いい名前|良い名前|うれしい|嬉しい)/u.test(normalized)) {
+    return "ありがとうございます。こちらこそ、よろしくお願いします。"
+  }
+  if (/(聞きたい|質問|相談|確認|教えて|追加)/u.test(normalized)) {
+    return "はい、このまま追加で聞きたいことを書いてください。内容を見ながら整理します。"
+  }
+  return "ありがとうございます。気になる点があれば、このまま送ってください。"
 }
 
 async function buildBookingInlineRoutingDecision(input: {

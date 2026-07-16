@@ -60,7 +60,7 @@ const COLUMNS = [
   { label: "作品単位", borderOp: 0.32, fillOp: 0.04 },
 ]
 
-const TINT_VIOLET = { border: "rgba(139,127,255,0.85)", bg: "rgba(139,127,255,0.10)", iconStroke: "rgba(95,80,210,0.92)" }
+const TINT_VIOLET = { border: "rgba(127,176,255,0.85)", bg: "rgba(127,176,255,0.10)", iconStroke: "rgba(80,129,210,0.92)" }
 const TINT_AMBER = { border: "rgba(214,162,108,0.85)", bg: "rgba(214,162,108,0.10)", iconStroke: "rgba(160,108,60,0.92)" }
 const TINT_CORAL = { border: "rgba(214,127,140,0.85)", bg: "rgba(214,127,140,0.10)", iconStroke: "rgba(160,75,90,0.92)" }
 const TINT_ROSE = { border: "rgba(214,140,180,0.85)", bg: "rgba(214,140,180,0.10)", iconStroke: "rgba(160,80,120,0.92)" }

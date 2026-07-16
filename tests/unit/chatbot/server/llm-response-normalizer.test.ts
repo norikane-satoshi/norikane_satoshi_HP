@@ -18,7 +18,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const result = sanitizeChatbotLlmTextWithReport(item.rawText, {
       routingDecision: {
         kind: "continue",
-        nextQuestion: chatbotLeakCorpusFallbackText,
+        nextQuestion: item.fallbackText ?? chatbotLeakCorpusFallbackText,
       },
     })
 
@@ -338,6 +338,20 @@ describe("normalizeChatbotLlmResponse", () => {
       fallbackApplied: true,
       reasons: ["missing-explicit-display-boundary"],
     })
+  })
+
+  it("rejects unsafe server fallback text before final display", () => {
+    const result = sanitizeChatbotLlmTextWithReport("<customer_reply>内容は受付済みなので同じ予約カードを再表示しません。</customer_reply>", {
+      fallbackText: "補足を反映しました。必要な点を確認してから進めます。",
+    })
+
+    expect(result.text).toBe("内容を確認しました。続けて相談内容を送ってください。")
+    expect(result.report.displayBoundary).toMatchObject({
+      outcome: "fallback",
+      fallbackApplied: true,
+      reasons: expect.arrayContaining(["unsafe-display-candidate", "unsafe-fallback-text"]),
+    })
+    expect(result.report.unsafeArtifacts?.reasons).toEqual(expect.arrayContaining(["internal-booking-ui-state"]))
   })
 
   it("replaces overlarge live day ranges with the 150m anchor wording", () => {

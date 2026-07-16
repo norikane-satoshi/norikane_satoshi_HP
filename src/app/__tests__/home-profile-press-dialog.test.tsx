@@ -21,14 +21,6 @@ vi.mock("@/components/hp/hero-section", () => ({
   HeroSection: () => <section data-testid="hero-section" />,
 }))
 
-vi.mock("@/components/hp/home-schedule-section", () => ({
-  HomeScheduleSection: () => <section data-testid="home-schedule-section" />,
-}))
-
-vi.mock("@/lib/feature-flags", () => ({
-  isBookingEnabled: () => false,
-}))
-
 vi.mock("@/lib/notion/server/fetch-note", () => ({
   listPublishedNotes: vi.fn(async () => [
     {
@@ -58,10 +50,7 @@ describe("HomePage profile press dialog trigger", () => {
     const { container } = render(await HomePage())
 
     expect(container.firstElementChild).toHaveClass("hp-section-stack")
-    expect(screen.getByRole("link", { name: "公式LINEを友だち追加" })).toHaveAttribute(
-      "href",
-      "https://line.me/R/ti/p/%40044ucnym",
-    )
+    expect(screen.queryByRole("link", { name: "公式LINEを友だち追加" })).not.toBeInTheDocument()
 
     const philosophy = container.querySelector("#philosophy")
     expect(philosophy).toHaveClass("hp-section-shell")
@@ -73,7 +62,15 @@ describe("HomePage profile press dialog trigger", () => {
     const profile = container.querySelector("#profile")
     expect(profile).toHaveClass("hp-section-shell")
     expect(profile?.querySelector(".hp-profile-grid")).toHaveClass("hp-grid")
+    expect(profile?.querySelector(".hp-profile-grid")?.parentElement).toHaveClass(
+      "mt-[var(--hp-space-4)]",
+    )
+    const profileSidebar = profile?.querySelector(".hp-profile-sidebar")
+    expect(profileSidebar).toContainElement(screen.getByText(hpPublicContent.profile.name))
+    expect(profileSidebar).toContainElement(screen.getByText(hpPublicContent.profile.title))
     expect(profile?.querySelector(".hp-career-item")).toBeInTheDocument()
+    expect(container.querySelector("#schedule")).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "予約カレンダー" })).not.toBeInTheDocument()
   })
 
   it("renders the DaVinci Resolve certified trainer intro text as a direct official link", async () => {

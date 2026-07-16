@@ -181,8 +181,8 @@ function VisibleSectionSvg() {
     >
       <defs>
         <radialGradient id="gvh-aurora-purple" cx="14%" cy="10%" r="60%">
-          <stop offset="0%" stopColor="#8B7FFF" stopOpacity={0.18} />
-          <stop offset="72%" stopColor="#8B7FFF" stopOpacity={0} />
+          <stop offset="0%" stopColor="#7FB0FF" stopOpacity={0.18} />
+          <stop offset="72%" stopColor="#7FB0FF" stopOpacity={0} />
         </radialGradient>
         <radialGradient id="gvh-aurora-pink" cx="88%" cy="6%" r="48%">
           <stop offset="0%" stopColor="#FF8FAB" stopOpacity={0.12} />
@@ -193,10 +193,10 @@ function VisibleSectionSvg() {
           <stop offset="72%" stopColor="#7DD3FC" stopOpacity={0} />
         </radialGradient>
         <filter id="gvh-card-shadow" x="-6%" y="-12%" width="112%" height="128%">
-          <feDropShadow dx={0} dy={6} stdDeviation={12} floodColor="#8B7FFF" floodOpacity={0.13} />
+          <feDropShadow dx={0} dy={6} stdDeviation={12} floodColor="#7FB0FF" floodOpacity={0.13} />
         </filter>
         <filter id="gvh-badge-shadow" x="-6%" y="-30%" width="112%" height="160%">
-          <feDropShadow dx={0} dy={4} stdDeviation={10} floodColor="#8B7FFF" floodOpacity={0.12} />
+          <feDropShadow dx={0} dy={4} stdDeviation={10} floodColor="#7FB0FF" floodOpacity={0.12} />
         </filter>
       </defs>
 
@@ -244,8 +244,8 @@ function HiddenSectionSvg() {
     >
       <defs>
         <radialGradient id="gvh-hidden-aurora-purple" cx="14%" cy="10%" r="60%">
-          <stop offset="0%" stopColor="#8B7FFF" stopOpacity={0.16} />
-          <stop offset="72%" stopColor="#8B7FFF" stopOpacity={0} />
+          <stop offset="0%" stopColor="#7FB0FF" stopOpacity={0.16} />
+          <stop offset="72%" stopColor="#7FB0FF" stopOpacity={0} />
         </radialGradient>
         <radialGradient id="gvh-hidden-aurora-magenta" cx="88%" cy="6%" r="48%">
           <stop offset="0%" stopColor="#FF8FAB" stopOpacity={0.14} />
@@ -256,10 +256,10 @@ function HiddenSectionSvg() {
           <stop offset="72%" stopColor="#7DD3FC" stopOpacity={0} />
         </radialGradient>
         <filter id="gvh-hidden-card-shadow" x="-6%" y="-12%" width="112%" height="128%">
-          <feDropShadow dx={0} dy={6} stdDeviation={12} floodColor="#8B7FFF" floodOpacity={0.13} />
+          <feDropShadow dx={0} dy={6} stdDeviation={12} floodColor="#7FB0FF" floodOpacity={0.13} />
         </filter>
         <filter id="gvh-hidden-badge-shadow" x="-6%" y="-30%" width="112%" height="160%">
-          <feDropShadow dx={0} dy={4} stdDeviation={10} floodColor="#8B7FFF" floodOpacity={0.12} />
+          <feDropShadow dx={0} dy={4} stdDeviation={10} floodColor="#7FB0FF" floodOpacity={0.12} />
         </filter>
       </defs>
 

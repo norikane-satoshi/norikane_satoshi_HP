@@ -6,9 +6,9 @@ import type { VideoVisualProps } from "@/components/notes/note-visual"
 const LOOP = 14
 const W = 1600
 const H = 500
-const PURPLE = "#8B7FFF"
+const PURPLE = "#7FB0FF"
 const ACCENT_RED = "rgb(220,80,80)"
-const AXIS_STROKE = "rgba(139,127,255,0.4)"
+const AXIS_STROKE = "rgba(127,176,255,0.4)"
 const GRAPH_FILL = "rgba(255,255,255,0.08)"
 const GRAPH_STROKE = "rgba(255,255,255,0.4)"
 
@@ -278,7 +278,7 @@ function ToneCurveGraph({ shift, opacity }: { shift: number; opacity: number }) 
         width={GRAPH.w + 16}
         height={GRAPH.h + 16}
         rx={14}
-        fill="rgba(139,127,255,0.18)"
+        fill="rgba(127,176,255,0.18)"
         stroke={PURPLE}
         strokeOpacity={0.6}
         strokeWidth={1}
@@ -520,8 +520,8 @@ export default function GradingMixVsSplit({ isPlaying, reducedMotion }: VideoVis
     <svg viewBox="0 0 1600 500" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
       <defs>
         <radialGradient id="gmvs-aurora-purple" cx="20%" cy="8%" r="58%">
-          <stop offset="0%" stopColor="rgba(139,127,255,0.42)" />
-          <stop offset="100%" stopColor="rgba(139,127,255,0)" />
+          <stop offset="0%" stopColor="rgba(127,176,255,0.42)" />
+          <stop offset="100%" stopColor="rgba(127,176,255,0)" />
         </radialGradient>
         <radialGradient id="gmvs-aurora-pink" cx="88%" cy="10%" r="48%">
           <stop offset="0%" stopColor="rgba(210,126,188,0.28)" />

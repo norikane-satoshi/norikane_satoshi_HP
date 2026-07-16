@@ -231,6 +231,78 @@ describe("Notion chatbot knowledge sync", () => {
     })
   })
 
+  it("syncs the manifest page's own current values and future rules as snapshot knowledge", async () => {
+    const repo = repository()
+    const manifestPageId = "3088971f957b481baff8499ff911051b"
+    const client = {
+      blocks: {
+        children: {
+          list: vi.fn(async ({ block_id }: { block_id: string }) => {
+            if (block_id === manifestPageId) {
+              return {
+                results: [
+                  heading("current-heading", "現在値"),
+                  paragraph("current-tier2", "Tier2 成功は通常成功として扱い、Tier3 / Tier4 は incident として検知する。"),
+                  paragraph("current-booking", "Booking Order は予約確定ではなく仮キープとして扱う。"),
+                  paragraph("current-name", "顧客向けの本人表記は則兼に統一する。"),
+                  heading("future-heading", "未来ルール"),
+                  paragraph("future-live", "ライブ 2.5 時間の納期目安は 7〜8 日程度として案内する。"),
+                  heading("next-heading", "ナレッジ正本リスト"),
+                ],
+                has_more: false,
+              }
+            }
+            return { results: [], has_more: false }
+          }),
+        },
+      },
+    }
+
+    const result = await syncChatbotNotionKnowledge({
+      client,
+      repository: repo,
+      manifestPageId,
+      changedPageId: manifestPageId,
+      now: new Date("2026-07-01T15:30:00.000Z"),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.snapshot.entries).toEqual([
+      expect.objectContaining({
+        pageId: manifestPageId,
+        pageTitle: "AIチャットボット相談窓口の設計・実装",
+        usage: "site-rule",
+        referenceRange: "現在値",
+        status: "synced",
+      }),
+      expect.objectContaining({
+        pageId: manifestPageId,
+        pageTitle: "AIチャットボット相談窓口の設計・実装",
+        usage: "site-rule",
+        referenceRange: "未来ルール",
+        status: "synced",
+      }),
+    ])
+    expect(result.snapshot.noteKnowledge).toEqual([
+      expect.objectContaining({
+        usage: "site-rule",
+        pageId: manifestPageId,
+        referenceRange: "現在値",
+        content: expect.stringContaining("Tier2 成功は通常成功"),
+        includedInPrompt: true,
+      }),
+      expect.objectContaining({
+        usage: "site-rule",
+        pageId: manifestPageId,
+        referenceRange: "未来ルール",
+        content: expect.stringContaining("ライブ 2.5 時間"),
+        includedInPrompt: true,
+      }),
+    ])
+    expect(result.snapshot.noteKnowledge.map((entry) => entry.content).join("\n")).toContain("Booking Order")
+    expect(result.snapshot.noteKnowledge.map((entry) => entry.content).join("\n")).toContain("則兼")
+  })
+
   it("syncs registered workflow and customer-facing published or planned note knowledge", async () => {
     const repo = repository()
     const manifestPageId = "3088971f957b481baff8499ff911051b"

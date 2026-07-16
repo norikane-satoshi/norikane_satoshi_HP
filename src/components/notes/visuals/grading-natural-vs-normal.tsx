@@ -16,11 +16,11 @@ const CROSS_Y = H / 2
 
 const CORNER_R = 18
 const BG_BASE = "#F8F6FF"
-const ACCENT = "#8B7FFF"
+const ACCENT = "#7FB0FF"
 const TEXT_PRIMARY = "#1C0F6E"
 const GLASS_FILL = "rgba(255,255,255,0.65)"
 const GLASS_STROKE = "rgba(255,255,255,0.78)"
-const AXIS_STROKE = "rgba(139,127,255,0.4)"
+const AXIS_STROKE = "rgba(127,176,255,0.4)"
 
 const AXIS_W = 150
 const AXIS_H = 44
@@ -155,8 +155,8 @@ export default function GradingNaturalVsNormal() {
     >
       <defs>
         <radialGradient id="gnvn-aurora-purple" cx="16%" cy="12%" r="48%">
-          <stop offset="0%" stopColor="#8B7FFF" stopOpacity={0.18} />
-          <stop offset="72%" stopColor="#8B7FFF" stopOpacity={0} />
+          <stop offset="0%" stopColor="#7FB0FF" stopOpacity={0.18} />
+          <stop offset="72%" stopColor="#7FB0FF" stopOpacity={0} />
         </radialGradient>
         <radialGradient id="gnvn-aurora-pink" cx="86%" cy="8%" r="42%">
           <stop offset="0%" stopColor="#FF8FAB" stopOpacity={0.12} />
@@ -167,10 +167,10 @@ export default function GradingNaturalVsNormal() {
           <stop offset="72%" stopColor="#7DD3FC" stopOpacity={0} />
         </radialGradient>
         <filter id="gnvn-card-shadow" x="-8%" y="-8%" width="116%" height="122%">
-          <feDropShadow dx={0} dy={8} stdDeviation={16} floodColor="#8B7FFF" floodOpacity={0.15} />
+          <feDropShadow dx={0} dy={8} stdDeviation={16} floodColor="#7FB0FF" floodOpacity={0.15} />
         </filter>
         <filter id="gnvn-badge-shadow" x="-12%" y="-40%" width="124%" height="190%">
-          <feDropShadow dx={0} dy={4} stdDeviation={10} floodColor="#8B7FFF" floodOpacity={0.12} />
+          <feDropShadow dx={0} dy={4} stdDeviation={10} floodColor="#7FB0FF" floodOpacity={0.12} />
         </filter>
         <clipPath id="gnvn-cell-clip">
           <rect x={0} y={0} width={CELL_W} height={CELL_H} rx={CORNER_R} />
@@ -211,7 +211,7 @@ export default function GradingNaturalVsNormal() {
           ) : null}
           <g clipPath="url(#gnvn-cell-clip)">
             <image href={q.href} x={0} y={0} width={CELL_W} height={CELL_H} preserveAspectRatio="xMidYMid slice" />
-            <rect x={0} y={0} width={CELL_W} height={CELL_H} fill={q.role === "hero" ? "rgba(139,127,255,0.04)" : "rgba(28,15,110,0.04)"} />
+            <rect x={0} y={0} width={CELL_W} height={CELL_H} fill={q.role === "hero" ? "rgba(127,176,255,0.04)" : "rgba(28,15,110,0.04)"} />
           </g>
           <rect
             x={0}

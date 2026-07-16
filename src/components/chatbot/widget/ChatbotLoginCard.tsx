@@ -55,8 +55,7 @@ export function ChatbotLoginCard({
   return (
     <section className="glass-card space-y-4 p-5" aria-label="ログイン">
       <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-hp-muted">Login</p>
-        <h2 className="mt-1 text-base font-semibold text-hp">ログインして予約に進む</h2>
+        <h2 className="text-base font-semibold text-hp">ログインして予約に進む</h2>
         <p className="mt-2 text-sm text-hp-muted">
           メールリンク、または外部アカウントでログインできます。
         </p>
@@ -109,4 +108,3 @@ export function ChatbotLoginCard({
     </section>
   )
 }
-

@@ -43,7 +43,7 @@ const VALUE_X = 372
 const VALUE_Y = 460
 
 const TEXT_PRIMARY = "rgba(28,15,110,0.95)"
-const GRID = "rgba(139,127,255,0.18)"
+const GRID = "rgba(127,176,255,0.18)"
 
 // 配色 (前作 correction-labyrinth-to-factor.tsx の TINT パレットと整合)
 const TINT_GAIN = {

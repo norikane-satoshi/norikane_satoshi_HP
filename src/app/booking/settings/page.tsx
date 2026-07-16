@@ -13,10 +13,7 @@ export default async function BookingSettingsPage() {
       <div className="glass-card p-8 md:p-10 xl:p-14">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-              Booking Settings
-            </p>
-            <h1 className="mt-2 text-4xl font-bold text-hp md:text-5xl xl:text-6xl">
+            <h1 className="text-4xl font-bold text-hp md:text-5xl xl:text-6xl">
               予約カレンダー設定
             </h1>
           </div>

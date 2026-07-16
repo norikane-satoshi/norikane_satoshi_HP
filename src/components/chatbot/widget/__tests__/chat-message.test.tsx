@@ -167,7 +167,7 @@ describe("ChatMessage", () => {
     expect(onEdit).not.toHaveBeenCalled()
   })
 
-  it("marks the edit truncation confirmation as destructive on the desktop edit path", () => {
+  it("uses an error-tinted surface with standard warning text on the desktop edit path", () => {
     render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
 
     fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
@@ -178,8 +178,10 @@ describe("ChatMessage", () => {
     const confirmRegion = warning.closest("[data-edit-confirm-pending='true']")
     const okButton = screen.getByRole("button", { name: "OK" })
 
-    expect(confirmRegion).toHaveClass("border-red-300")
-    expect(warning).toHaveClass("text-red-600")
+    expect(confirmRegion).toHaveClass("bg-[color-mix(in_srgb,var(--hp-color-error)_10%,transparent)]")
+    expect(confirmRegion).not.toHaveClass("border-red-300")
+    expect(warning).toHaveClass("text-hp")
+    expect(warning).not.toHaveClass("text-red-600")
     expect(okButton).toHaveClass("border-red-300")
     expect(okButton).toHaveClass("text-red-700")
   })
@@ -724,16 +726,13 @@ describe("ChatMessage", () => {
     expect(assistantMessage).not.toHaveAttribute("data-chatbot-user-message")
   })
 
-  it("keeps chatbot liquid feedback disabled or static for reduced motion users", () => {
+  it("keeps chatbot liquid feedback static", () => {
     const css = readFileSync("src/app/globals.css", "utf8")
 
     expect(css).toContain(".chatbot-message-liquid[data-chatbot-touch-state=\"active\"]::before")
-    expect(css).toContain(".chatbot-message-liquid[data-chatbot-touch-state=\"release\"]::after")
     expect(css).toContain("@media (prefers-reduced-motion: reduce)")
+    expect(css).not.toMatch(/chatbot-message-liquid-(enter|flow|release|ripple)/)
     expect(css).toMatch(/\.chatbot-message-liquid::before,[\s\S]*?\.chatbot-message-liquid::after,[\s\S]*?animation: none;/)
-    expect(css).toMatch(
-      /\.chatbot-message-liquid\[data-chatbot-touch-state="active"\]::before,[\s\S]*?\.chatbot-message-liquid\[data-chatbot-touch-state="release"\]::after[\s\S]*?opacity: 0\.18;/,
-    )
   })
 
   it("enters edit mode from a mobile long press on user messages", () => {

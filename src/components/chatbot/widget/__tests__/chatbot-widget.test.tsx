@@ -186,6 +186,22 @@ describe("chatbot widget shell", () => {
     expect(screen.getByRole("complementary", { name: "AI 相談窓口" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveAttribute("data-attention", "true")
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveClass("chatbot-minimized-attention")
+    expect(screen.getByRole("button", { name: "公式LINEを友だち追加" })).toHaveAttribute("aria-haspopup", "dialog")
+    expect(screen.getByRole("button", { name: "公式LINEを友だち追加" })).toHaveClass(
+      "glass-badge",
+      "glass-badge--profile-tool",
+      "h-12",
+      "w-12",
+    )
+    const lineLogo = screen.getByRole("button", { name: "公式LINEを友だち追加" }).querySelector("svg")
+    expect(lineLogo).toHaveClass(
+      "h-9",
+      "w-9",
+      "text-[#06C755]",
+    )
+    expect(lineLogo).toHaveAttribute("viewBox", "0 0 24 24")
+    expect(lineLogo?.querySelector("text")).toBeNull()
+    expect(screen.queryByText("LINE予約")).not.toBeInTheDocument()
     expect(screen.queryByText("のりかね映像設計室のご相談窓口")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("相談内容")).not.toBeInTheDocument()
     expect(JSON.parse(window.localStorage.getItem(CHATBOT_WIDGET_STORAGE_KEY) ?? "{}")).toMatchObject({
@@ -220,6 +236,7 @@ describe("chatbot widget shell", () => {
 
     await act(async () => {
       screen.getByRole("button", { name: "最小化" }).click()
+      await vi.runAllTimersAsync()
     })
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toHaveAttribute("data-attention", "false")
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).not.toHaveClass("chatbot-minimized-attention")
@@ -503,7 +520,7 @@ describe("chatbot widget shell", () => {
     expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toBeInTheDocument()
   })
 
-  it("renders shell a11y labels and minimize behavior", () => {
+  it("renders shell a11y labels and completes minimize after the exit motion", async () => {
     const onMinimize = vi.fn()
     render(<WidgetShell onMinimize={onMinimize} />)
 
@@ -512,7 +529,10 @@ describe("chatbot widget shell", () => {
     expect(screen.getByRole("button", { name: "送信" })).toBeInTheDocument()
     expect(screen.getByLabelText("相談内容")).toBeEnabled()
 
-    screen.getByRole("button", { name: "最小化" }).click()
+    await act(async () => {
+      screen.getByRole("button", { name: "最小化" }).click()
+      await vi.runAllTimersAsync()
+    })
     expect(onMinimize).toHaveBeenCalledTimes(1)
   })
 
@@ -730,20 +750,11 @@ describe("chatbot widget hooks", () => {
     })
   })
 
-  it("keeps reduced motion users out of minimized attention animation", () => {
+  it("removes the superseded minimized attention keyframe", () => {
     const css = readFileSync("src/app/globals.css", "utf8")
 
-    expect(css).toContain(".chatbot-minimized-attention")
-    expect(css).toContain("@media (prefers-reduced-motion: reduce)")
-    expect(css).toMatch(/\.chatbot-minimized-attention,[\s\S]*?animation: none;/)
-  })
-
-  it("keeps minimized attention bouncing until the first open", () => {
-    const css = readFileSync("src/app/globals.css", "utf8")
-
-    expect(css).toMatch(/chatbot-minimized-pop 420ms cubic-bezier\(0\.2, 0\.9, 0\.2, 1\.2\) both/)
-    expect(css).toMatch(/chatbot-minimized-bounce 3\.2s ease-in-out 900ms infinite/)
-    expect(css).not.toMatch(/chatbot-minimized-bounce 3\.2s ease-in-out 900ms 3\b/)
+    expect(css).not.toContain("chatbot-minimized-attention")
+    expect(css).not.toContain("chatbot-minimized-pop")
   })
 
   it("clamps invalid restored layout values to the desktop viewport", () => {

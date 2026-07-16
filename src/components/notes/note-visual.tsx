@@ -144,7 +144,7 @@ export function NoteVisual({ slug }: { slug: string }) {
         </p>
         {config.intro ? (
           <p className="mt-3 rounded-[12px] border border-white/55 bg-white/35 px-3 py-2 text-[12px] leading-relaxed text-hp md:text-[0.85rem]">
-            <span className="mr-1.5 inline-flex items-center rounded-full bg-[var(--accent-primary,#8B7FFF)]/15 px-1.5 py-0.5 font-[var(--font-geist-mono)] text-[10px] tracking-[0.2em] text-[var(--accent-primary,#8B7FFF)]">
+            <span className="mr-1.5 inline-flex items-center rounded-full bg-[var(--hp-color-accent)]/15 px-1.5 py-0.5 font-[var(--font-geist-mono)] text-[10px] tracking-[0.2em] text-[var(--hp-color-accent)]">
               5SEC
             </span>
             {config.intro}

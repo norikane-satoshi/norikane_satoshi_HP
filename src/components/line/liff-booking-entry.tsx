@@ -150,8 +150,10 @@ export function LiffBookingEntry({
       <div className="glass-card p-8 md:p-10 xl:p-14">
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">LINE LIFF</p>
-            <h1 className="mt-2 text-4xl font-bold text-hp md:text-5xl xl:text-6xl">
+            <h1
+              aria-label="LINE予約カレンダー"
+              className="text-4xl font-bold text-hp md:text-5xl xl:text-6xl"
+            >
               予約カレンダー
             </h1>
             {state.status === "ready" && state.profile ? (

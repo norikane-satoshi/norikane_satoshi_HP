@@ -10,7 +10,7 @@ import { getVisualConfig } from "@/lib/notes/domain/visuals"
 import type { BlockWithChildren } from "./types"
 
 const LINK_CLASS =
-  "underline underline-offset-4 decoration-[rgba(139,127,255,0.5)] hover:text-[var(--accent-primary)] hover:decoration-[var(--accent-primary)] transition-colors"
+  "underline underline-offset-4 decoration-[color-mix(in_srgb,var(--hp-color-accent)_50%,transparent)] hover:text-[var(--accent-primary)] hover:decoration-[var(--accent-primary)] transition-colors"
 
 function normalizeId(id: string): string {
   return id.replace(/-/g, "").toLowerCase()
@@ -37,7 +37,7 @@ function applyAnnotations(
     node = (
       <code
         key={`${key}-c`}
-        className="rounded bg-[rgba(139,127,255,0.10)] px-1.5 py-0.5 font-[var(--font-geist-mono)] text-[0.9em] text-hp"
+        className="rounded bg-[color-mix(in_srgb,var(--hp-color-accent)_10%,transparent)] px-1.5 py-0.5 font-[var(--font-geist-mono)] text-[0.9em] text-hp"
       >
         {node}
       </code>
@@ -327,7 +327,7 @@ function renderBlock(
     return (
       <hr
         key={key}
-        className="my-10 border-0 border-t border-t-[rgba(139,127,255,0.2)] md:my-12"
+        className="my-10 border-0 border-t border-t-[color-mix(in_srgb,var(--hp-color-accent)_20%,transparent)] md:my-12"
       />
     )
   }

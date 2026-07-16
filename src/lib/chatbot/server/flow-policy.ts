@@ -67,7 +67,7 @@ export function applyBookingFinalConfirmationPolicy(input: {
   if (input.conversationState.bookingSubmission?.status === "submitted") {
     return {
       routingDecision:
-        input.routingDecision?.kind === "continue" && /予約番号|送信完了|受け付け済み/u.test(input.routingDecision.nextQuestion)
+        input.routingDecision?.kind === "continue" && /予約番号|送信完了/u.test(input.routingDecision.nextQuestion)
           ? input.routingDecision
           : undefined,
       conversationState: input.conversationState,
@@ -119,9 +119,8 @@ export function applyBookingFinalConfirmationPolicy(input: {
   }
 
   if (
-    (input.conversationState.bookingFinalConfirmation?.status === "pending" &&
-      !hasNoAdditionalBookingConcern(input.conversationState, input.latestUserMessage)) ||
-    input.conversationState.bookingFinalConfirmation?.status === "supplemental-received"
+    input.conversationState.bookingFinalConfirmation?.status === "pending" &&
+    !hasNoAdditionalBookingConcern(input.conversationState, input.latestUserMessage)
   ) {
     return {
       routingDecision: {
@@ -129,6 +128,13 @@ export function applyBookingFinalConfirmationPolicy(input: {
         nextQuestion: "補足を反映しました。必要な点を確認してから進めます。",
       },
       conversationState: markBookingFinalConfirmationSupplemental(input.conversationState, input.latestUserMessage),
+    }
+  }
+
+  if (input.conversationState.bookingFinalConfirmation?.status === "supplemental-received") {
+    return {
+      routingDecision: input.routingDecision?.kind === "continue" ? undefined : input.routingDecision,
+      conversationState: input.conversationState,
     }
   }
 

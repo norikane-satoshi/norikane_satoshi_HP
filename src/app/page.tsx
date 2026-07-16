@@ -1,11 +1,11 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowRight, MessageCircle } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
-import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
+import { ProfileToolBadges } from "@/components/hp/profile-tool-badges"
 import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
@@ -82,93 +82,74 @@ function renderIntroTextWithTrainerLink() {
 
 function ProfileForeground() {
   return (
-    <>
-      <div className="hp-section-title-stack">
-        <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Profile</p>
-        <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
-          {hpPublicContent.profile.sectionTitle}
-        </h2>
-      </div>
-
-      <div className="@container/profile">
-        <div className="hp-grid hp-profile-grid mt-[var(--hp-space-4)]">
-          {/* Left: photo + identity + tools */}
-          <div className="hp-profile-sidebar flex flex-col items-center gap-5 @[680px]/profile:items-start">
-            <ProfilePhoto />
-            <div className="text-center @[680px]/profile:text-left">
-              <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
-              <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
-                {hpPublicContent.profile.title}
-              </p>
-            </div>
-            <div className="flex flex-wrap justify-center gap-2 @[680px]/profile:justify-start">
-              {hpPublicContent.profile.tools.map((tool) => (
-                <span
-                  key={tool}
-                  className="glass-badge glass-badge--profile-tool px-3 py-1 text-xs font-medium"
-                >
-                  {tool}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-1 flex items-center justify-center gap-3 @[680px]/profile:justify-start">
-              {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
-                const Icon = socialIcons[label]
-                return (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="glass-btn glass-btn--profile-social flex h-10 w-10 items-center justify-center text-hp"
-                    aria-label={label}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </a>
-                )
-              })}
-              <PressDialog />
-            </div>
-          </div>
-
-          {/* Right: career timeline */}
-          <div className="hp-profile-main">
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-              Career
-            </p>
-            <div className="hp-career-list">
-              {hpPublicContent.profile.timeline.map((item) => (
-                <div
-                  key={item.year}
-                  className="hp-career-item"
-                >
-                  <span
-                    className="hp-career-year font-[var(--font-inter)] text-sm font-bold"
-                    style={{ color: "var(--accent-primary)" }}
-                  >
-                    {item.year}
-                  </span>
-                  <div className="hp-career-body">
-                    <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
-                      {item.event}
-                    </p>
-                    <p className="hp-body mt-2 text-xs text-hp-muted md:text-sm">
-                      {item.detail}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+    <div className="hp-grid hp-profile-grid min-w-0">
+      {/* Left: profile photo + social links */}
+      <div className="hp-profile-sidebar flex min-w-0 max-w-full flex-col items-center gap-5 @[680px]/profile:items-start">
+        <ProfilePhoto />
+        <div className="min-w-0 text-center @[680px]/profile:text-left">
+          <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
+          <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
+            {hpPublicContent.profile.title}
+          </p>
+        </div>
+        <ProfileToolBadges tools={hpPublicContent.profile.tools} />
+        <div className="mt-1 flex items-center justify-center gap-3 @[680px]/profile:justify-start">
+          {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
+            const Icon = socialIcons[label]
+            return (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="glass-btn glass-btn--profile-social flex h-10 w-10 items-center justify-center text-hp"
+                aria-label={label}
+              >
+                <Icon className="h-4 w-4" />
+              </a>
+            )
+          })}
+          <PressDialog />
         </div>
       </div>
-    </>
+
+      {/* Right: career timeline */}
+      <div className="hp-profile-main">
+        <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
+          Career
+        </p>
+        <div className="hp-career-list">
+          {hpPublicContent.profile.timeline.map((item) => (
+            <div
+              key={item.year}
+              className="hp-career-item"
+            >
+              <span
+                className="hp-career-year font-[var(--font-inter)] text-sm font-bold"
+                style={{ color: "var(--accent-primary)" }}
+              >
+                {item.year}
+              </span>
+              <div className="hp-career-body">
+                <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
+                  {item.event}
+                </p>
+                <p className="hp-body mt-2 text-xs text-hp-muted md:text-sm">
+                  {item.detail}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
 export default async function HomePage() {
   const notes = await listPublishedNotes()
+  // listPublishedNotes returns created_time ascending; feature the latest note first.
+  const orderedNotes = [...notes].reverse()
   return (
     <div className="hp-section-stack">
       <HeroSection />
@@ -187,38 +168,57 @@ export default async function HomePage() {
       >
         <div className="hp-grid">
           <div className="hp-section-heading hp-section-title-stack">
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">Notes</p>
             <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
               ノート
             </h2>
           </div>
         </div>
 
-        <div className="mt-[var(--hp-space-4)] mx-[calc(var(--hp-section-padding-x)*-1)] overflow-x-auto">
-          <div className="flex snap-x snap-mandatory gap-4 px-[var(--hp-section-padding-x)] pb-4 md:gap-5">
-            {notes.map((note, idx) => (
-              <Link
-                key={note.id}
-                href={`/notes/${note.slug}`}
-                className="group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note p-6 md:p-7"
-                style={{ width: "min(84vw, 340px)", minHeight: 200 }}
-              >
-                <div className="flex items-baseline gap-3">
-                  <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
-                    {`Note ${String(idx + 1).padStart(2, "0")}`}
-                  </span>
-                </div>
-                <h3 className="hp-heading mt-3 text-base md:text-lg font-semibold text-hp">
-                  {note.title}
-                </h3>
-                <div className="mt-auto pt-6 flex justify-end">
-                  <ArrowRight
-                    className="h-5 w-5 transition-transform group-hover:translate-x-1"
-                    style={{ color: "var(--accent-primary)" }}
-                  />
-                </div>
-              </Link>
-            ))}
+        <div
+          className="mt-[var(--hp-space-4)] mx-[calc(var(--hp-section-padding-x)*-1)] overflow-x-auto"
+          style={{
+            WebkitMaskImage:
+              "linear-gradient(to right, transparent 0, black var(--hp-section-padding-x), black calc(100% - var(--hp-section-padding-x)), transparent 100%)",
+            maskImage:
+              "linear-gradient(to right, transparent 0, black var(--hp-section-padding-x), black calc(100% - var(--hp-section-padding-x)), transparent 100%)",
+          }}
+        >
+          <div className="flex snap-x snap-mandatory items-stretch gap-4 px-[var(--hp-section-padding-x)] pb-4 md:gap-5">
+            {orderedNotes.map((note, idx) => {
+              const isFeatured = idx === 0
+              return (
+                <Link
+                  key={note.id}
+                  href={`/notes/${note.slug}`}
+                  className={`group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note ${
+                    isFeatured ? "p-7 md:p-9" : "p-6 md:p-7"
+                  }`}
+                  style={{
+                    width: isFeatured ? "min(90vw, 460px)" : "min(84vw, 340px)",
+                    minHeight: isFeatured ? 260 : 200,
+                  }}
+                >
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
+                      {`Note ${String(idx + 1).padStart(2, "0")}`}
+                    </span>
+                  </div>
+                  <h3
+                    className={`hp-heading mt-3 font-semibold text-hp ${
+                      isFeatured ? "text-lg md:text-2xl" : "text-base md:text-lg"
+                    }`}
+                  >
+                    {note.title}
+                  </h3>
+                  <div className="mt-auto pt-6 flex justify-end">
+                    <ArrowRight
+                      className="h-5 w-5 transition-transform group-hover:translate-x-1"
+                      style={{ color: "var(--accent-primary)" }}
+                    />
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -228,31 +228,24 @@ export default async function HomePage() {
         id="profile"
         className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
       >
-        <div className="glass-card glass-card--hp-profile p-8 md:p-10 xl:p-12">
-          <ProfileForeground />
-          <FeaturedWorks />
+        <div className="@container/profile">
+          <div className="glass-card glass-card--hp-profile p-8 md:p-10 xl:p-12">
+            <div className="hp-section-title-stack">
+              <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
+                {hpPublicContent.profile.sectionTitle}
+              </h2>
+            </div>
+            <div className="mt-[var(--hp-space-4)]">
+              <ProfileForeground />
+            </div>
+          </div>
         </div>
       </section>
-
-      <HomeScheduleSection />
 
       <section className="hp-section-shell">
-        <div className="glass-card-sm flex min-w-0 flex-col items-start justify-between gap-4 overflow-hidden p-6 md:flex-row md:items-center md:p-7">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">LINE</p>
-            <h2 className="mt-2 text-lg font-semibold text-hp md:text-xl">公式LINEから予約する</h2>
-          </div>
-          <a
-            className="glass-btn inline-flex min-h-11 max-w-full items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-hp"
-            href="https://line.me/R/ti/p/%40044ucnym"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <MessageCircle aria-hidden="true" size={18} />
-            <span className="min-w-0 break-words">公式LINEを友だち追加</span>
-          </a>
-        </div>
+        <FeaturedWorks />
       </section>
+
     </div>
   )
 }

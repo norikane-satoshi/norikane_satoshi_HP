@@ -183,8 +183,7 @@ function BookingCompletionView({ booking }: { booking: BookingCompletionSummary 
   return (
     <section className="glass-card min-w-0 space-y-5 overflow-hidden p-5" aria-label="予約送信完了">
       <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-hp-muted">Booking</p>
-        <h2 className="mt-1 break-words text-base font-semibold text-hp">予約を受け付けました</h2>
+        <h2 className="break-words text-base font-semibold text-hp">予約を受け付けました</h2>
       </div>
 
       <div className="glass-inset min-w-0 space-y-3 overflow-hidden p-4" role="status">
@@ -445,8 +444,7 @@ export function ChatbotBookingCard({
   const body = (
     <section className="glass-card space-y-5 p-5" aria-label="チャット内予約">
       <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-hp-muted">Booking</p>
-        <h2 className="mt-1 text-base font-semibold text-hp">候補日時から予約する</h2>
+        <h2 className="text-base font-semibold text-hp">候補日時から予約する</h2>
         <p
           className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-2 text-sm text-hp-muted`}
           style={CHATBOT_CONVERSATION_CONTENT_STYLE}
@@ -468,7 +466,7 @@ export function ChatbotBookingCard({
           <legend className="text-sm font-semibold text-hp">
             仮キープ候補
           </legend>
-          <div className="rounded-[16px] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
+          <div className="rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
             <div className="mb-3 flex items-center justify-between gap-3">
               <button
                 type="button"
@@ -522,7 +520,7 @@ export function ChatbotBookingCard({
                       type="button"
                       disabled
                       className={[
-                        "relative min-h-11 cursor-default overflow-hidden rounded-[12px] border border-[var(--text-muted)] bg-[var(--text-muted)] px-1.5 py-2 text-xs text-white/95 opacity-85",
+                        "relative min-h-11 cursor-default overflow-hidden rounded-[var(--hp-radius-calendar-cell)] border border-[var(--text-muted)] bg-[var(--text-muted)] px-1.5 py-2 text-xs text-white/95 opacity-85",
                         selected ? "ring-2 ring-[var(--accent-primary)] ring-offset-1 ring-offset-white/60" : "",
                       ].join(" ")}
                       data-calendar-state="busy"
@@ -543,7 +541,7 @@ export function ChatbotBookingCard({
                       type="button"
                       disabled
                       className={[
-                        "relative min-h-11 cursor-default rounded-[12px] border px-1.5 py-2 text-xs transition",
+                        "relative min-h-11 cursor-default rounded-[var(--hp-radius-calendar-cell)] border px-1.5 py-2 text-xs transition",
                         selected
                           ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset"
                           : past
@@ -565,10 +563,10 @@ export function ChatbotBookingCard({
                     key={dateKey}
                     type="button"
                     className={[
-                      "min-h-11 rounded-[12px] border px-1.5 py-2 text-xs transition duration-150 ease-out",
+                      "min-h-11 rounded-[var(--hp-radius-calendar-cell)] border px-1.5 py-2 text-xs transition-[transform,box-shadow,opacity,background-color,border-color,color] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97]",
                       selected
-                        ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset shadow-[0_0_24px_rgba(117,104,214,0.24)]"
-                        : "border-white/65 bg-white/55 text-hp hover:-translate-y-0.5 hover:scale-[1.04] hover:border-[var(--accent-primary)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--accent-primary)]/45 hover:ring-inset hover:shadow-[0_0_24px_rgba(139,127,255,0.24)] focus-visible:border-[var(--accent-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/45 focus-visible:ring-inset",
+                        ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] font-bold text-white ring-2 ring-[var(--accent-primary)]/35 ring-inset"
+                        : "border-white/65 bg-white/55 text-hp hover:-translate-y-0.5 hover:scale-[1.02] hover:border-[var(--accent-primary)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--accent-primary)]/45 hover:ring-inset focus-visible:border-[var(--accent-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/45 focus-visible:ring-inset",
                     ].join(" ")}
                     data-selected={selected ? "true" : undefined}
                     data-calendar-state="startable"

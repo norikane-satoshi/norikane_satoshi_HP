@@ -61,7 +61,7 @@ const VALUE_Y = VERDICT_Y + PILL_H / 2 + 8 // 448
 
 const TEXT_PRIMARY = "rgba(28,15,110,0.95)"
 const TEXT_MUTED = "rgba(28,15,110,0.55)"
-const GRID = "rgba(139,127,255,0.18)"
+const GRID = "rgba(127,176,255,0.18)"
 const REF_LINE = "rgba(28,15,110,0.30)"
 const OUT_OF_RANGE_FILL = "rgba(214,95,95,0.10)"
 const OUT_OF_RANGE_STROKE = "rgba(214,95,95,0.45)"

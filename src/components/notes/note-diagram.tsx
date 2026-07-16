@@ -60,7 +60,7 @@ export function NoteDiagram({ config }: { config: DiagramConfig }) {
         </p>
         {config.intro ? (
           <p className="mt-3 rounded-[12px] border border-white/55 bg-white/35 px-3 py-2 text-[12px] leading-relaxed text-hp md:text-[0.85rem]">
-            <span className="mr-1.5 inline-flex items-center rounded-full bg-[var(--accent-primary,#8B7FFF)]/15 px-1.5 py-0.5 font-[var(--font-geist-mono)] text-[10px] tracking-[0.2em] text-[var(--accent-primary,#8B7FFF)]">
+            <span className="mr-1.5 inline-flex items-center rounded-full bg-[var(--hp-color-accent)]/15 px-1.5 py-0.5 font-[var(--font-geist-mono)] text-[10px] tracking-[0.2em] text-[var(--hp-color-accent)]">
               5SEC
             </span>
             {config.intro}
@@ -106,7 +106,7 @@ function StepIcon({ glyph }: { glyph: KeypointRowGlyph }) {
         <svg
           viewBox="0 0 24 24"
           aria-hidden="true"
-          className="h-4 w-4 text-[var(--accent-primary,#8B7FFF)]"
+          className="h-4 w-4 text-[var(--hp-color-accent)]"
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
@@ -121,7 +121,7 @@ function StepIcon({ glyph }: { glyph: KeypointRowGlyph }) {
         <svg
           viewBox="0 0 24 24"
           aria-hidden="true"
-          className="h-4 w-4 text-[var(--accent-primary,#8B7FFF)]"
+          className="h-4 w-4 text-[var(--hp-color-accent)]"
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
@@ -138,7 +138,7 @@ function StepIcon({ glyph }: { glyph: KeypointRowGlyph }) {
         <svg
           viewBox="0 0 24 24"
           aria-hidden="true"
-          className="h-4 w-4 text-[var(--accent-primary,#8B7FFF)]"
+          className="h-4 w-4 text-[var(--hp-color-accent)]"
           fill="currentColor"
         >
           <rect x="4" y="4" width="4" height="16" opacity="0.25" />
@@ -151,7 +151,7 @@ function StepIcon({ glyph }: { glyph: KeypointRowGlyph }) {
         <svg
           viewBox="0 0 24 24"
           aria-hidden="true"
-          className="h-4 w-4 text-[var(--accent-primary,#8B7FFF)]"
+          className="h-4 w-4 text-[var(--hp-color-accent)]"
           fill="currentColor"
         >
           <circle cx="9" cy="10" r="5" opacity="0.45" />
@@ -333,7 +333,7 @@ function HorizontalFlow8Body({ config }: { config: HorizontalFlow8Diagram }) {
                 </span>
                 <span
                   aria-hidden="true"
-                  className={`inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-primary,#8B7FFF)] ${
+                  className={`inline-block h-1.5 w-1.5 rounded-full bg-[var(--hp-color-accent)] ${
                     groupChanged ? "opacity-90" : "opacity-30"
                   }`}
                 />
@@ -419,7 +419,7 @@ function QuadCardsBody({ config }: { config: QuadCardsDiagram }) {
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span>{item.label}</span>
-              <span className="font-[var(--font-geist-mono)] text-[10px] text-[var(--accent-primary,#8B7FFF)] md:text-[11px]">
+              <span className="font-[var(--font-geist-mono)] text-[10px] text-[var(--hp-color-accent)] md:text-[11px]">
                 {item.opLabel}
               </span>
             </p>
@@ -453,7 +453,7 @@ function ComparePairBody({ config }: { config: ComparePairDiagram }) {
         <span
           className={`inline-flex items-center rounded-full border border-white/55 bg-white/55 px-2 py-0.5 font-[var(--font-geist-mono)] text-[10px] tracking-[0.18em] md:text-[11px] ${
             sideKey === "clean"
-              ? "text-[var(--accent-primary,#8B7FFF)]"
+              ? "text-[var(--hp-color-accent)]"
               : "text-hp-muted"
           }`}
         >
