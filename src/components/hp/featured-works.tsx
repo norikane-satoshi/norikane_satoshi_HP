@@ -90,6 +90,7 @@ type YouTubePlayerVarsOptions = {
 }
 
 let youtubeApiPromise: Promise<void> | null = null
+const YOUTUBE_ORIGIN = "https://www.youtube.com"
 const STARTUP_COVER_HOLD_MS = 5000
 const MARQUEE_LOOP_SECONDS = 72
 const MARQUEE_INPUT_IDLE_MS = 1300
@@ -167,6 +168,14 @@ function loadYouTubeIframeApi() {
     return Promise.resolve()
   }
 
+  if (!document.querySelector(`link[rel="preconnect"][href="${YOUTUBE_ORIGIN}"]`)) {
+    const preconnect = document.createElement("link")
+    preconnect.rel = "preconnect"
+    preconnect.href = YOUTUBE_ORIGIN
+    preconnect.crossOrigin = "anonymous"
+    document.head.appendChild(preconnect)
+  }
+
   if (window.YT?.Player) {
     return Promise.resolve()
   }
@@ -178,9 +187,9 @@ function loadYouTubeIframeApi() {
       resolve()
     }
 
-    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+    if (!document.querySelector(`script[src="${YOUTUBE_ORIGIN}/iframe_api"]`)) {
       const script = document.createElement("script")
-      script.src = "https://www.youtube.com/iframe_api"
+      script.src = `${YOUTUBE_ORIGIN}/iframe_api`
       script.async = true
       document.head.appendChild(script)
     }

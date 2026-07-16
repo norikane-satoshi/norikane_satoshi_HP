@@ -25,7 +25,7 @@ describe("note page typography scope", () => {
     expect(globals).toMatch(
       /article\.glass-card--hp-note-page > div :where\(p, li, blockquote\)\s*\{\s*font-family: var\(--font-mincho\), serif;\s*font-weight: 400;/
     )
-    expect(layout).toMatch(/Noto_Sans_JP\(\{[\s\S]*weight: \["300", "400", "500", "600", "700"\]/)
+    expect(layout).toMatch(/Noto_Sans_JP\(\{[\s\S]*weight: \["400", "500", "600", "700"\]/)
     expect(renderBlocks).toContain('className="font-semibold text-hp"')
     expect(globals).not.toMatch(
       /article\.glass-card--hp-note-page\s*\{[^}]*font-family: var\(--font-gothic\)/

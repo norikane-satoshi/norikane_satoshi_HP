@@ -975,6 +975,11 @@ describe("FeaturedWorks", () => {
     await waitFor(() => {
       expect(players).toHaveLength(1)
     })
+    expect(
+      document.head.querySelectorAll(
+        'link[rel="preconnect"][href="https://www.youtube.com"]',
+      ),
+    ).toHaveLength(1)
     expect(players[0]?.options.videoId).toBe("-2kSMEiw0wA")
     expect(
       container.querySelectorAll("[data-featured-work-preview-media]"),
