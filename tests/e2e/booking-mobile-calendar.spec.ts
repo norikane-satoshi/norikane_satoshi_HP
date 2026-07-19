@@ -389,6 +389,7 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
   expect(oneDayBox).not.toBeNull()
   expect(weekBlockBox!.width).toBeGreaterThan(oneDayBox!.width * 6)
   expect(weekBlockBox!.y + weekBlockBox!.height).toBeLessThanOrEqual(oneDayBox!.y + oneDayBox!.height + 1)
+  await expect(page.locator('.fc-daygrid-day[data-date="2026-09-20"] .fc-daygrid-day-frame')).toHaveCSS("overflow", "visible")
   await page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-number').click()
   await expect(page.locator('.fc-daygrid-day[data-date="2026-09-19"].booking-calendar__selected-date')).toHaveCount(0)
 

@@ -1326,6 +1326,7 @@
   .booking-calendar[data-availability-status-blocks="true"] .fc-daygrid-day-frame {
     min-height: 58px;
     height: 58px;
+    overflow: visible;
   }
 
   .booking-calendar__day-cell {
