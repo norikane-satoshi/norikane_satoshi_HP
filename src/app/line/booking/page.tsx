@@ -3,6 +3,7 @@ import { BookingMonthSkeleton } from "@/components/booking/booking-month-skeleto
 import { LiffBookingEntry } from "@/components/line/liff-booking-entry"
 import { isAdmin } from "@/lib/auth/server/is-admin"
 import { getCalendarFreeBusyForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
+import { loadTentativeAvailabilityDateKeys } from "@/lib/booking/server/tentative-availability"
 import type { Metadata } from "next"
 
 export const dynamic = "force-dynamic"
@@ -12,6 +13,9 @@ export const metadata: Metadata = {
 }
 
 type InitialFreeBusy = Awaited<ReturnType<typeof getCalendarFreeBusyForUser>>
+type InitialLineAvailability = Pick<InitialFreeBusy, "busy" | "bookings"> & {
+  tentativeDateKeys: string[]
+}
 
 function initialBusyRange(now = new Date()) {
   const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -26,8 +30,8 @@ async function loadInitialFreeBusy(input: {
   userId?: string
   isCalendarAdmin: boolean
   initialRange: { start: string; end: string }
-}): Promise<Pick<InitialFreeBusy, "busy" | "bookings">> {
-  if (!input.userId) return { busy: [], bookings: [] }
+}): Promise<InitialLineAvailability> {
+  if (!input.userId) return { busy: [], bookings: [], tentativeDateKeys: [] }
   const result = await getCalendarFreeBusyForUser({
     userId: input.userId,
     teamId: null,
@@ -36,7 +40,19 @@ async function loadInitialFreeBusy(input: {
     calendarId: process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID,
     isCalendarAdmin: input.isCalendarAdmin,
   })
-  return { busy: result.busy, bookings: result.bookings }
+  let tentativeDateKeys: string[] = []
+  if (result.status === 200 && !result.code) {
+    try {
+      tentativeDateKeys = await loadTentativeAvailabilityDateKeys({
+        cacheUserId: input.userId,
+        timeMin: input.initialRange.start,
+        timeMax: input.initialRange.end,
+      })
+    } catch (error) {
+      console.warn("[line-booking] tentative availability load failed", error)
+    }
+  }
+  return { busy: result.busy, bookings: result.bookings, tentativeDateKeys }
 }
 
 export default async function LineBookingPage() {
@@ -56,6 +72,7 @@ export default async function LineBookingPage() {
       initialSession={session}
       initialBusy={initialFreeBusy.busy}
       initialBookings={initialFreeBusy.bookings}
+      initialTentativeDateKeys={initialFreeBusy.tentativeDateKeys}
       initialRange={initialRange}
       monthSkeleton={(
         <BookingMonthSkeleton

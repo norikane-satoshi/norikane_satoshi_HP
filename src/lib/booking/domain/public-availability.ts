@@ -39,6 +39,8 @@ export type PublicAvailabilityBlockMarker = {
   isMiddle: boolean
 }
 
+type PublicAvailabilityBlockDay = Pick<PublicAvailabilityDay, "dateKey" | "status">
+
 const MONTH_PATTERN = /^\d{4}-\d{2}$/
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const JST_TIME_ZONE = "Asia/Tokyo"
@@ -160,6 +162,23 @@ function dateKeysForTentativeSlot(slot: PublicAvailabilityBusySlot): string[] {
   return [...dateKeysForTimedSlot(slot), ...dateKeysForDateOnlySlot(slot)]
 }
 
+export function buildTentativeAvailabilityDateKeys(input: {
+  tentative?: PublicAvailabilityBusySlot[]
+  tentativeDateKeys?: string[]
+}): string[] {
+  const dateKeys = new Set(
+    (input.tentativeDateKeys ?? []).filter((dateKey) => DATE_PATTERN.test(dateKey)),
+  )
+
+  for (const slot of input.tentative ?? []) {
+    for (const dateKey of dateKeysForTentativeSlot(slot)) {
+      dateKeys.add(dateKey)
+    }
+  }
+
+  return Array.from(dateKeys).sort()
+}
+
 function monthLabel(month: string): string {
   const [year = "", monthNumber = ""] = month.split("-")
   return `${year}年${Number(monthNumber)}月`
@@ -193,19 +212,13 @@ export function buildPublicAvailabilityMonth(input: {
   const todayDateKey = toTokyoDateKey(now)
   const range = rangeForMonth(month)
   const busyDateKeys = new Set<string>()
-  const tentativeDateKeys = new Set(input.tentativeDateKeys ?? [])
+  const tentativeDateKeys = new Set(buildTentativeAvailabilityDateKeys(input))
 
   for (const slot of [...(input.busy ?? []), ...(input.bookings ?? [])]) {
     for (const dateKey of dateKeysForTimedSlot(slot)) {
       busyDateKeys.add(dateKey)
     }
   }
-  for (const slot of input.tentative ?? []) {
-    for (const dateKey of dateKeysForTentativeSlot(slot)) {
-      tentativeDateKeys.add(dateKey)
-    }
-  }
-
   const days: PublicAvailabilityDay[] = []
   for (let cursor = range.start; cursor < range.end; cursor = addDays(cursor, 1)) {
     if (!DATE_PATTERN.test(cursor)) break
@@ -236,7 +249,7 @@ export function buildPublicAvailabilityMonth(input: {
 }
 
 export function buildPublicAvailabilityBlockMarkers(
-  days: PublicAvailabilityDay[],
+  days: readonly PublicAvailabilityBlockDay[],
 ): Map<string, PublicAvailabilityBlockMarker> {
   const markers = new Map<string, PublicAvailabilityBlockMarker>()
 

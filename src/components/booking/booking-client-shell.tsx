@@ -19,6 +19,7 @@ type BookingClientShellProps = {
   initialSession?: SessionPayload | null
   initialBusy?: CalendarBusyEventWithBuffer[]
   initialBookings?: CalendarBookingFromApi[]
+  initialTentativeDateKeys?: string[]
   initialRange?: { start: string; end: string }
   callbackUrl?: string
   entryPoint?: "web" | "line_liff"
@@ -36,6 +37,7 @@ export function BookingClientShell({
   initialSession,
   initialBusy = [],
   initialBookings = [],
+  initialTentativeDateKeys = [],
   initialRange,
   callbackUrl = "/booking",
   entryPoint = "web",
@@ -88,6 +90,7 @@ export function BookingClientShell({
       lineUserId={lineUserId}
       initialBusy={initialBusy}
       initialBookings={initialBookings}
+      initialTentativeDateKeys={initialTentativeDateKeys}
       initialRange={initialRange}
       monthSkeleton={monthSkeleton}
     />

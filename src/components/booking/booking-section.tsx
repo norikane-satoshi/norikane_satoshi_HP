@@ -27,6 +27,7 @@ type BookingSectionProps = {
   isCalendarAdmin?: boolean
   initialBusy?: CalendarBusyEventWithBuffer[]
   initialBookings?: CalendarBookingFromApi[]
+  initialTentativeDateKeys?: string[]
   initialRange?: { start: string; end: string }
   monthSkeleton?: ReactNode
   entryPoint?: "web" | "line_liff"
@@ -100,6 +101,7 @@ export function BookingSection({
   isCalendarAdmin = false,
   initialBusy = [],
   initialBookings = [],
+  initialTentativeDateKeys = [],
   initialRange,
   monthSkeleton,
   entryPoint = "web",
@@ -353,7 +355,9 @@ export function BookingSection({
           onSelectedTeamIdChange={setSelectedTeamId}
           initialBusy={initialBusy}
           initialBookings={initialBookings}
+          initialTentativeDateKeys={initialTentativeDateKeys}
           initialRange={initialRange}
+          showAvailabilityStatusBlocks={entryPoint === "line_liff"}
           monthSkeleton={monthSkeleton}
           remoteRefreshRequestKey={remoteRefreshRequestKey}
           onCommit={handleCommitSlot}

@@ -26,6 +26,7 @@ type LiffBookingEntryProps = {
   initialSession?: SessionPayload | null
   initialBusy?: CalendarBusyEventWithBuffer[]
   initialBookings?: CalendarBookingFromApi[]
+  initialTentativeDateKeys?: string[]
   initialRange?: { start: string; end: string }
 }
 
@@ -59,6 +60,7 @@ export function LiffBookingEntry({
   initialSession,
   initialBusy = [],
   initialBookings = [],
+  initialTentativeDateKeys = [],
   initialRange,
 }: LiffBookingEntryProps) {
   const [state, setState] = useState<LiffState>(
@@ -198,6 +200,7 @@ export function LiffBookingEntry({
           initialSession={initialSession}
           initialBusy={initialBusy}
           initialBookings={initialBookings}
+          initialTentativeDateKeys={initialTentativeDateKeys}
           initialRange={initialRange}
           lineUserId={state.status === "ready" ? state.profile?.userId : undefined}
           monthSkeleton={monthSkeleton}

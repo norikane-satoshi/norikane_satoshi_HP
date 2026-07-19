@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   listTeamMemberUserIds: vi.fn(),
   listBusyEventsWithBuffer: vi.fn(),
   getNotionWorkScheduleBusyIntervals: vi.fn(),
+  loadTentativeAvailabilityDateKeys: vi.fn(),
   refreshCalendarAccessToken: vi.fn(),
   prisma: {
     bookingTimeSlot: {
@@ -38,6 +39,9 @@ vi.mock("@/lib/google-calendar/server", () => ({
 vi.mock("@/lib/chatbot/server/notion-work-schedule-busy", () => ({
   getNotionWorkScheduleBusyIntervals: mocks.getNotionWorkScheduleBusyIntervals,
 }))
+vi.mock("@/lib/booking/server/tentative-availability", () => ({
+  loadTentativeAvailabilityDateKeys: mocks.loadTentativeAvailabilityDateKeys,
+}))
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }))
 
 import { GET } from "@/app/api/calendar/free-busy/route"
@@ -48,12 +52,13 @@ import {
   invalidateCalendarFreeBusyCacheForUser,
 } from "@/lib/booking/server/calendar-free-busy/free-busy"
 
-function request(teamId?: string, refresh?: string) {
+function request(teamId?: string, refresh?: string, includeTentative = false) {
   const url = new URL("http://localhost/api/calendar/free-busy")
   url.searchParams.set("start", "2026-06-01T00:00:00.000Z")
   url.searchParams.set("end", "2026-06-30T00:00:00.000Z")
   if (teamId) url.searchParams.set("teamId", teamId)
   if (refresh) url.searchParams.set("refresh", refresh)
+  if (includeTentative) url.searchParams.set("includeTentative", "true")
   return new NextRequest(url)
 }
 
@@ -104,6 +109,7 @@ describe("GET /api/calendar/free-busy", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearCalendarFreeBusyCachesForTest()
+    mocks.loadTentativeAvailabilityDateKeys.mockResolvedValue([])
     delete process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   })
 
@@ -131,6 +137,39 @@ describe("GET /api/calendar/free-busy", () => {
       "access_token",
     )
     expect(response.headers.get("cache-control")).toBe("private, max-age=15, stale-while-revalidate=60")
+  })
+
+  it("includes normalized tentative date keys only when requested", async () => {
+    mockCalendar()
+    mocks.loadTentativeAvailabilityDateKeys.mockResolvedValue(["2026-06-18", "2026-06-19"])
+
+    const response = await GET(request(undefined, undefined, true))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      tentativeDateKeys: ["2026-06-18", "2026-06-19"],
+    })
+    expect(mocks.loadTentativeAvailabilityDateKeys).toHaveBeenCalledWith({
+      cacheUserId: "user_1",
+      timeMin: "2026-06-01T00:00:00.000Z",
+      timeMax: "2026-06-30T00:00:00.000Z",
+      calendarId: "calendar_1",
+    })
+  })
+
+  it("keeps confirmed availability usable when tentative loading fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    mockCalendar()
+    mocks.loadTentativeAvailabilityDateKeys.mockRejectedValue(new Error("tentative source unavailable"))
+
+    const response = await GET(request(undefined, undefined, true))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      busy: [expect.objectContaining({ start: "2026-06-10T01:00:00.000Z" })],
+      tentativeDateKeys: [],
+    })
+    warn.mockRestore()
   })
 
   it("returns 401 for unauthenticated requests", async () => {

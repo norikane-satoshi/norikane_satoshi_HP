@@ -62,6 +62,7 @@ async function stubBookingCalendarApis(
     notionWorkBusyDateKeys?: string[]
     notionWorkBusyRanges?: { start: string; end: string }[]
     dateOnlyBusyDateKeys?: string[]
+    tentativeDateKeys?: string[]
   } = {},
 ) {
   await page.route("**/api/calendar/free-busy**", async (route) => {
@@ -109,6 +110,7 @@ async function stubBookingCalendarApis(
           ...dateOnlyBusy,
         ],
         bookings: [],
+        tentativeDateKeys: options.tentativeDateKeys ?? [],
       }),
     })
   })
@@ -129,6 +131,7 @@ async function openAuthenticatedBooking(
     notionWorkBusyDateKeys?: string[]
     notionWorkBusyRanges?: { start: string; end: string }[]
     dateOnlyBusyDateKeys?: string[]
+    tentativeDateKeys?: string[]
     path?: string
   } = {},
 ) {
@@ -366,6 +369,15 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
     await expect(cell).toHaveClass(/booking-calendar__locked-date/)
     await expect(cell).toHaveAttribute("aria-disabled", "true")
   }
+  const septemberBusyBlocks = page.locator(".booking-calendar__availability-block--busy")
+  await expect(septemberBusyBlocks).toHaveCount(3)
+  await expect(septemberBusyBlocks.locator("svg")).toHaveCount(3)
+  await expect(septemberBusyBlocks).not.toContainText(/予約|本予約|予約不可/)
+  const weekBlockBox = await page.locator('[data-block-start="2026-09-20"]').boundingBox()
+  const oneDayBox = await page.locator('.fc-daygrid-day[data-date="2026-09-20"] .fc-daygrid-day-frame').boundingBox()
+  expect(weekBlockBox).not.toBeNull()
+  expect(oneDayBox).not.toBeNull()
+  expect(weekBlockBox!.width).toBeGreaterThan(oneDayBox!.width * 6)
   await page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-number').click()
   await expect(page.locator('.fc-daygrid-day[data-date="2026-09-19"].booking-calendar__selected-date')).toHaveCount(0)
 
@@ -379,6 +391,9 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
     await expect(cell).toHaveClass(/booking-calendar__locked-date/)
     await expect(cell).toHaveAttribute("aria-disabled", "true")
   }
+  const decemberBusyBlocks = page.locator(".booking-calendar__availability-block--busy")
+  await expect(decemberBusyBlocks).toHaveCount(5)
+  await expect(decemberBusyBlocks.locator("svg")).toHaveCount(5)
   await page.locator('.fc-daygrid-day[data-date="2026-12-31"] .fc-daygrid-day-number').click()
   await expect(page.locator('.fc-daygrid-day[data-date="2026-12-31"].booking-calendar__selected-date')).toHaveCount(0)
   const requestedRanges = freeBusyRequests.map((requestUrl) => {
@@ -396,4 +411,31 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
     range.start < new Date("2027-01-01T00:00:00+09:00").getTime() &&
     range.end > new Date("2026-12-01T00:00:00+09:00").getTime()
   ))).toBe(true)
+  expect(freeBusyRequests.every((requestUrl) => new URL(requestUrl).searchParams.get("includeTentative") === "true")).toBe(true)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test("LINE LIFF booking entry shows tentative holds as selectable connected blocks", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-19T12:00:00+09:00"))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openAuthenticatedBooking(page, {
+    path: "/line/booking",
+    tentativeDateKeys: ["2026-07-21", "2026-07-22", "2026-07-23", "2026-07-27"],
+  })
+
+  await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年7月")
+  const tentativeBlocks = page.locator(".booking-calendar__availability-block--tentative")
+  await expect(tentativeBlocks).toHaveCount(2)
+  await expect(tentativeBlocks.locator("svg")).toHaveCount(2)
+  await expect(tentativeBlocks).toHaveText(["仮キープ", "仮キープ"])
+  await expect(page.locator('[data-block-start="2026-07-21"]')).toHaveAttribute("data-block-end", "2026-07-23")
+
+  const tentativeCell = page.locator('.fc-daygrid-day[data-date="2026-07-21"]')
+  await expect(tentativeCell).toHaveAttribute("data-booking-tentative", "true")
+  await expect(tentativeCell).not.toHaveClass(/booking-calendar__locked-date/)
+  await expect(tentativeCell).toHaveAttribute("aria-disabled", "false")
+  await tentativeCell.locator(".fc-daygrid-day-number").click()
+  await expect(tentativeCell).toHaveClass(/booking-calendar__selected-date/)
+  await expect(page.getByTestId("booking-date-request-summary")).toContainText("7/21")
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

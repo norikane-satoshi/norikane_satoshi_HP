@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { buildPublicAvailabilityBlockMarkers, buildPublicAvailabilityMonth } from "./public-availability"
+import {
+  buildPublicAvailabilityBlockMarkers,
+  buildPublicAvailabilityMonth,
+  buildTentativeAvailabilityDateKeys,
+} from "./public-availability"
 
 describe("buildPublicAvailabilityMonth", () => {
   it("marks only timed busy slots and timed bookings as busy", () => {
@@ -56,6 +60,16 @@ describe("buildPublicAvailabilityMonth", () => {
       isTentative: false,
       status: "available",
     })
+  })
+
+  it("normalizes calendar and Notion tentative dates into one scrubbed set", () => {
+    expect(buildTentativeAvailabilityDateKeys({
+      tentative: [
+        { start: "2026-07-16", end: "2026-07-18" },
+        { start: "2026-07-20T10:00:00+09:00", end: "2026-07-20T11:00:00+09:00" },
+      ],
+      tentativeDateKeys: ["2026-07-17", "invalid", "2026-07-22"],
+    })).toEqual(["2026-07-16", "2026-07-17", "2026-07-20", "2026-07-22"])
   })
 
   it("uses a stable Sunday-start month grid and JST today/past state", () => {

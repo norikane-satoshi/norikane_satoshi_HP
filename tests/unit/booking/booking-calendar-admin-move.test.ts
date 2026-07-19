@@ -37,7 +37,12 @@ vi.mock("@fullcalendar/timegrid", () => ({ default: {} }))
 vi.mock("@fullcalendar/core/locales/ja", () => ({ default: {} }))
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }))
 
-import { BookingCalendar, isDateKeyTodayOrPast, shouldConfirmAdminMove } from "@/components/booking/booking-calendar"
+import {
+  BookingCalendar,
+  buildBookingAvailabilityBlockEvents,
+  isDateKeyTodayOrPast,
+  shouldConfirmAdminMove,
+} from "@/components/booking/booking-calendar"
 
 type BookingCalendarTestProps = React.ComponentProps<typeof BookingCalendar>
 
@@ -223,6 +228,36 @@ describe("BookingCalendar date request guards", () => {
     expect(isDateKeyTodayOrPast("2026-07-01", "2026-07-01")).toBe(true)
     expect(isDateKeyTodayOrPast("2026-06-30", "2026-07-01")).toBe(true)
     expect(isDateKeyTodayOrPast("2026-07-02", "2026-07-01")).toBe(false)
+  })
+})
+
+describe("BookingCalendar availability blocks", () => {
+  it("reuses week-boundary markers and gives confirmed dates priority over tentative dates", () => {
+    const events = buildBookingAvailabilityBlockEvents(
+      {
+        busy: [{
+          start: "2026-09-19T00:00:00+09:00",
+          end: "2026-10-03T23:59:00+09:00",
+        }],
+        bookings: [],
+        tentativeDateKeys: ["2026-09-20", "2026-10-05", "2026-10-06"],
+      },
+      new Date("2026-09-13T00:00:00+09:00"),
+      new Date("2026-10-11T00:00:00+09:00"),
+    )
+
+    expect(events.map((event) => event.extendedProps)).toEqual([
+      expect.objectContaining({ availabilityStatus: "busy", blockStartDateKey: "2026-09-19", blockEndDateKey: "2026-09-19" }),
+      expect.objectContaining({ availabilityStatus: "busy", blockStartDateKey: "2026-09-20", blockEndDateKey: "2026-09-26" }),
+      expect.objectContaining({ availabilityStatus: "busy", blockStartDateKey: "2026-09-27", blockEndDateKey: "2026-10-03" }),
+      expect.objectContaining({ availabilityStatus: "tentative", blockStartDateKey: "2026-10-05", blockEndDateKey: "2026-10-06" }),
+    ])
+    expect(events.map((event) => event.end)).toEqual([
+      "2026-09-20",
+      "2026-09-27",
+      "2026-10-04",
+      "2026-10-07",
+    ])
   })
 })
 

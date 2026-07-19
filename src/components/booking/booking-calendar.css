@@ -718,6 +718,11 @@
   background: color-mix(in srgb, var(--accent-primary) 6%, var(--glass-bg));
 }
 
+.booking-calendar .booking-calendar__tentative-date .fc-daygrid-day-frame {
+  border-color: color-mix(in srgb, var(--text-muted) 28%, var(--glass-border));
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--glass-bg));
+}
+
 .booking-calendar .booking-calendar__selected-date .fc-daygrid-day-frame {
   border-color: color-mix(in srgb, var(--accent-primary) 58%, var(--glass-border));
   background: color-mix(in srgb, var(--accent-primary) 16%, var(--glass-bg));
@@ -875,6 +880,54 @@
 
 .booking-calendar .fc-event.booking-calendar__date-lock .booking-calendar__busy-pill-content--lock-only {
   color: var(--text-muted);
+}
+
+.booking-calendar .fc-event.booking-calendar__availability-block {
+  min-height: 20px;
+  margin: 2px 0 0;
+  border: 0;
+  border-radius: var(--hp-radius-sm);
+  color: var(--text-primary);
+  cursor: default;
+  pointer-events: none;
+}
+
+.booking-calendar .fc-event.booking-calendar__availability-block--busy {
+  background: color-mix(in srgb, var(--text-muted) 22%, var(--glass-bg));
+  color: var(--text-muted);
+}
+
+.booking-calendar .fc-event.booking-calendar__availability-block--tentative {
+  background: color-mix(in srgb, var(--accent-primary) 12%, var(--glass-bg));
+  color: var(--text-primary);
+}
+
+.booking-calendar .fc-event.booking-calendar__availability-block .fc-event-main {
+  color: inherit;
+}
+
+.booking-calendar__availability-content {
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 5px;
+  color: inherit;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.booking-calendar__availability-content svg {
+  flex: 0 0 auto;
+}
+
+.booking-calendar__availability-content--tentative {
+  justify-content: flex-start;
 }
 
 .booking-calendar .fc-event.booking-calendar__busy .fc-event-main,
@@ -1336,6 +1389,22 @@
     gap: 4px;
     padding: 4px 6px;
     font-size: 0.6875rem;
+  }
+
+  .booking-calendar .fc-event.booking-calendar__availability-block,
+  .booking-calendar__availability-content {
+    min-height: 16px;
+  }
+
+  .booking-calendar__availability-content {
+    gap: 2px;
+    padding: 1px 2px;
+    font-size: 0.5rem;
+  }
+
+  .booking-calendar__availability-content svg {
+    width: 10px;
+    height: 10px;
   }
 }
 

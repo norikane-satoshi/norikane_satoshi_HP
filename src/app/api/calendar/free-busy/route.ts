@@ -7,6 +7,7 @@ import {
   getCalendarFreeBusyForUser,
   type CalendarBookingFromApi,
 } from "@/lib/booking/server/calendar-free-busy/free-busy"
+import { loadTentativeAvailabilityDateKeys } from "@/lib/booking/server/tentative-availability"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -18,7 +19,12 @@ function isValidDateTime(value: string): boolean {
 }
 
 function freeBusyResponse(
-  body: { busy: unknown[]; bookings: CalendarBookingFromApi[]; code?: string },
+  body: {
+    busy: unknown[]
+    bookings: CalendarBookingFromApi[]
+    tentativeDateKeys?: string[]
+    code?: string
+  },
   status = 200,
   serverTiming?: string,
 ) {
@@ -32,6 +38,7 @@ export async function GET(request: NextRequest) {
   const timeMin = request.nextUrl.searchParams.get("timeMin") ?? request.nextUrl.searchParams.get("start")
   const timeMax = request.nextUrl.searchParams.get("timeMax") ?? request.nextUrl.searchParams.get("end")
   const teamId = request.nextUrl.searchParams.get("teamId")
+  const includeTentative = request.nextUrl.searchParams.get("includeTentative") === "true"
   const useCache = !request.nextUrl.searchParams.has("refresh")
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   const session = await auth()
@@ -67,8 +74,27 @@ export async function GET(request: NextRequest) {
     if (result.code === "team_not_found") {
       return NextResponse.json({ error: "team_not_found" }, { status: 404 })
     }
+    let tentativeDateKeys: string[] | undefined
+    if (includeTentative && result.status === 200 && !result.code) {
+      try {
+        tentativeDateKeys = await loadTentativeAvailabilityDateKeys({
+          cacheUserId: userId,
+          timeMin,
+          timeMax,
+          calendarId,
+        })
+      } catch (error) {
+        console.warn("[calendar-free-busy] tentative availability load failed", error)
+        tentativeDateKeys = []
+      }
+    }
     return freeBusyResponse(
-      { code: result.code, busy: result.busy, bookings: result.bookings },
+      {
+        code: result.code,
+        busy: result.busy,
+        bookings: result.bookings,
+        ...(includeTentative ? { tentativeDateKeys: tentativeDateKeys ?? [] } : {}),
+      },
       result.status,
       serverTiming,
     )

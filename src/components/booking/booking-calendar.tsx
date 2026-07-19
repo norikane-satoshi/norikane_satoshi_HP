@@ -26,6 +26,7 @@ import type {
   EventSourceFuncArg,
 } from "@fullcalendar/core"
 import { format } from "date-fns"
+import { Clock3 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from "react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
@@ -37,6 +38,10 @@ import {
   type BookingDateSelection,
   type BookingSlot,
 } from "@/lib/booking/domain/form-schema"
+import {
+  buildPublicAvailabilityBlockMarkers,
+  type PublicAvailabilityDayStatus,
+} from "@/lib/booking/domain/public-availability"
 
 type TeamOption = {
   id: string
@@ -71,6 +76,7 @@ type BookingFromApi = {
 type FreeBusyResponse = {
   busy?: BusySlot[]
   bookings?: BookingFromApi[]
+  tentativeDateKeys?: string[]
   code?: string
 }
 
@@ -119,8 +125,16 @@ type BufferEventProps = {
   canEdit?: boolean
 }
 
+type AvailabilityEventProps = {
+  kind: "availability"
+  availabilityStatus: Exclude<PublicAvailabilityDayStatus, "available">
+  blockStartDateKey: string
+  blockEndDateKey: string
+  lockedDate: boolean
+}
+
 type AnyEventProps = {
-  kind?: "draft" | "busy" | "buffer"
+  kind?: "draft" | "busy" | "buffer" | "availability"
   label?: string
   status?: BookingStatus
   bookingId?: string
@@ -135,6 +149,9 @@ type AnyEventProps = {
   bookingEnd?: string
   lockedDate?: boolean
   source?: BusySlot["source"]
+  availabilityStatus?: AvailabilityEventProps["availabilityStatus"]
+  blockStartDateKey?: string
+  blockEndDateKey?: string
 }
 
 type BufferEdgeAllowProps = Pick<AnyEventProps, "side" | "bookingStart" | "bookingEnd">
@@ -328,7 +345,17 @@ function dateKeysForBusySlot(slot: BusySlot): string[] {
   return keys
 }
 
-function getLockedDateKeys(data: FreeBusyResponse): string[] {
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const [year = 0, month = 1, day = 1] = dateKey.split("-").map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day + days))
+  return [
+    String(date.getUTCFullYear()).padStart(4, "0"),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+  ].join("-")
+}
+
+function getLockedDateKeys(data: FreeBusyResponse, includeBookings = false): string[] {
   const keys = new Set<string>()
   for (const slot of data.busy ?? []) {
     if (!isDateLockBusySlot(slot)) continue
@@ -336,7 +363,23 @@ function getLockedDateKeys(data: FreeBusyResponse): string[] {
       keys.add(dateKey)
     }
   }
+  if (includeBookings) {
+    for (const booking of data.bookings ?? []) {
+      for (const dateKey of dateKeysForBusySlot(booking)) {
+        keys.add(dateKey)
+      }
+    }
+  }
   return Array.from(keys).sort()
+}
+
+function getTentativeDateKeys(data: FreeBusyResponse, lockedDateKeys: readonly string[]): string[] {
+  const locked = new Set(lockedDateKeys)
+  return Array.from(new Set(
+    (data.tentativeDateKeys ?? []).filter((dateKey) => (
+      /^\d{4}-\d{2}-\d{2}$/.test(dateKey) && !locked.has(dateKey)
+    )),
+  )).sort()
 }
 
 function toLockedDateEvent(dateKey: string): EventInput {
@@ -358,6 +401,78 @@ function toLockedDateEvent(dateKey: string): EventInput {
       source: "notion_work",
     } satisfies BusyEventProps,
   }
+}
+
+function toAvailabilityBlockEvent(input: {
+  status: AvailabilityEventProps["availabilityStatus"]
+  startDateKey: string
+  endDateKey: string
+}): EventInput {
+  const extendedProps: AvailabilityEventProps = {
+    kind: "availability",
+    availabilityStatus: input.status,
+    blockStartDateKey: input.startDateKey,
+    blockEndDateKey: input.endDateKey,
+    lockedDate: input.status === "busy",
+  }
+  return {
+    id: `availability-${input.status}-${input.startDateKey}-${input.endDateKey}`,
+    title: "",
+    start: input.startDateKey,
+    end: addDaysToDateKey(input.endDateKey, 1),
+    allDay: true,
+    display: "block",
+    classNames: [
+      "booking-calendar__availability-block",
+      `booking-calendar__availability-block--${input.status}`,
+    ],
+    editable: false,
+    startEditable: false,
+    durationEditable: false,
+    extendedProps,
+  }
+}
+
+export function buildBookingAvailabilityBlockEvents(
+  data: FreeBusyResponse,
+  rangeStart: Date,
+  rangeEnd: Date,
+): EventInput[] {
+  const lockedDateKeys = getLockedDateKeys(data, true)
+  const locked = new Set(lockedDateKeys)
+  const tentative = new Set(getTentativeDateKeys(data, lockedDateKeys))
+  const days: { dateKey: string; status: PublicAvailabilityDayStatus }[] = []
+  const cursor = new Date(rangeStart)
+
+  while (cursor.getTime() < rangeEnd.getTime()) {
+    const dateKey = toDateKey(cursor)
+    days.push({
+      dateKey,
+      status: locked.has(dateKey) ? "busy" : tentative.has(dateKey) ? "tentative" : "available",
+    })
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  const markers = buildPublicAvailabilityBlockMarkers(days)
+  const events: EventInput[] = []
+  for (let index = 0; index < days.length; index += 1) {
+    const day = days[index]
+    const marker = day ? markers.get(day.dateKey) : undefined
+    if (!day || day.status === "available" || !marker?.isStart) continue
+
+    let endIndex = index
+    while (endIndex < days.length - 1 && !markers.get(days[endIndex]!.dateKey)?.isEnd) {
+      endIndex += 1
+    }
+    events.push(toAvailabilityBlockEvent({
+      status: day.status,
+      startDateKey: day.dateKey,
+      endDateKey: days[endIndex]!.dateKey,
+    }))
+    index = endIndex
+  }
+
+  return events
 }
 
 function toBookingEvent(
@@ -408,7 +523,7 @@ function toBookingEvent(
 
 export function shouldConfirmAdminMove(
   props: {
-    kind?: "draft" | "busy" | "buffer"
+    kind?: "draft" | "busy" | "buffer" | "availability"
     status?: BookingStatus
     bookingGroupId?: string
     customerUserId?: string
@@ -457,6 +572,7 @@ async function fetchFreeBusy(
   end: string,
   teamId: string | null,
   refresh = false,
+  includeTentative = false,
 ): Promise<FreeBusyResponse> {
   const params = new URLSearchParams({
     start,
@@ -464,6 +580,7 @@ async function fetchFreeBusy(
   })
   if (teamId) params.set("teamId", teamId)
   if (refresh) params.set("refresh", String(Date.now()))
+  if (includeTentative) params.set("includeTentative", "true")
   const response = await fetch(`/api/calendar/free-busy?${params.toString()}`)
 
   if (!response.ok) {
@@ -488,10 +605,16 @@ function overlapsRange(item: { start: string; end: string }, startMs: number, en
   return toTime(item.start) < endMs && toTime(item.end) > startMs
 }
 
+function dateKeyOverlapsRange(dateKey: string, startMs: number, endMs: number): boolean {
+  const dateStartMs = new Date(`${dateKey}T00:00:00+09:00`).getTime()
+  return Number.isFinite(dateStartMs) && dateStartMs < endMs && dateStartMs + 24 * 60 * 60 * 1000 > startMs
+}
+
 function filterResponseToRange(data: FreeBusyResponse, startMs: number, endMs: number): FreeBusyResponse {
   return {
     busy: (data.busy ?? []).filter((slot) => overlapsRange(slot, startMs, endMs)),
     bookings: (data.bookings ?? []).filter((booking) => overlapsRange(booking, startMs, endMs)),
+    tentativeDateKeys: (data.tentativeDateKeys ?? []).filter((dateKey) => dateKeyOverlapsRange(dateKey, startMs, endMs)),
     code: data.code,
   }
 }
@@ -499,6 +622,7 @@ function filterResponseToRange(data: FreeBusyResponse, startMs: number, endMs: n
 function mergeResponses(responses: FreeBusyResponse[], startMs: number, endMs: number): FreeBusyResponse {
   const busy = new Map<string, BusySlot>()
   const bookings = new Map<string, BookingFromApi>()
+  const tentativeDateKeys = new Set<string>()
   let code: string | undefined
 
   for (const response of responses) {
@@ -513,11 +637,15 @@ function mergeResponses(responses: FreeBusyResponse[], startMs: number, endMs: n
     for (const booking of filtered.bookings ?? []) {
       bookings.set(booking.id, booking)
     }
+    for (const dateKey of filtered.tentativeDateKeys ?? []) {
+      tentativeDateKeys.add(dateKey)
+    }
   }
 
   return {
     busy: Array.from(busy.values()),
     bookings: Array.from(bookings.values()),
+    tentativeDateKeys: Array.from(tentativeDateKeys).sort(),
     code,
   }
 }
@@ -639,6 +767,7 @@ type BookingCalendarProps = {
   initialSlots?: { start: string; end: string }[]
   initialBusy?: BusySlot[]
   initialBookings?: BookingFromApi[]
+  initialTentativeDateKeys?: string[]
   initialRange?: { start: string; end: string }
   projectTitle?: string
   adjustRequestKey?: number
@@ -651,6 +780,7 @@ type BookingCalendarProps = {
   selectedTeamId?: string | null
   onSelectedTeamIdChange?: (teamId: string | null) => void
   monthSkeleton?: ReactNode
+  showAvailabilityStatusBlocks?: boolean
   onCommit: (input: { slots: { start: string; end: string }[]; requestedDateSelection?: BookingDateSelection | null }) => void
   onCodeChange?: (code: string | null) => void
 }
@@ -668,6 +798,7 @@ export function BookingCalendar({
   initialSlots = [],
   initialBusy = [],
   initialBookings = [],
+  initialTentativeDateKeys = [],
   initialRange,
   projectTitle,
   adjustRequestKey = 0,
@@ -680,6 +811,7 @@ export function BookingCalendar({
   selectedTeamId = null,
   onSelectedTeamIdChange,
   monthSkeleton,
+  showAvailabilityStatusBlocks = false,
   onCommit,
   onCodeChange,
 }: BookingCalendarProps) {
@@ -697,7 +829,17 @@ export function BookingCalendar({
     return firstSlot ? toDateKey(new Date(firstSlot.start)) : null
   })
   const [selectedDateSelection, setSelectedDateSelection] = useState<BookingDateSelection | null>(initialDateSelectionState)
-  const [lockedDateKeys, setLockedDateKeys] = useState<string[]>(() => getLockedDateKeys({ busy: initialBusy, bookings: initialBookings }))
+  const [lockedDateKeys, setLockedDateKeys] = useState<string[]>(() => getLockedDateKeys(
+    { busy: initialBusy, bookings: initialBookings },
+    showAvailabilityStatusBlocks,
+  ))
+  const [tentativeDateKeys, setTentativeDateKeys] = useState<string[]>(() => {
+    const initialLockedDateKeys = getLockedDateKeys(
+      { busy: initialBusy, bookings: initialBookings },
+      showAvailabilityStatusBlocks,
+    )
+    return getTentativeDateKeys({ tentativeDateKeys: initialTentativeDateKeys }, initialLockedDateKeys)
+  })
   const [modeKind, setModeKind] = useState<ModeKind>("normal")
   const [adjustingGroupId, setAdjustingGroupId] = useState<string | null>(null)
   const [adjustingTitle, setAdjustingTitle] = useState<string | null>(null)
@@ -727,7 +869,7 @@ export function BookingCalendar({
           teamId: null,
           startMs: toTime(initialRange.start),
           endMs: toTime(initialRange.end),
-          data: { busy: initialBusy, bookings: initialBookings },
+          data: { busy: initialBusy, bookings: initialBookings, tentativeDateKeys: initialTentativeDateKeys },
           fetchedAt: 0,
         }]
       : [],
@@ -953,7 +1095,13 @@ export function BookingCalendar({
     if (refreshingRangesRef.current.has(key)) return
     refreshingRangesRef.current.add(key)
     beginCalendarLoading()
-    void fetchFreeBusy(new Date(startMs).toISOString(), new Date(endMs).toISOString(), teamId, true)
+    void fetchFreeBusy(
+      new Date(startMs).toISOString(),
+      new Date(endMs).toISOString(),
+      teamId,
+      true,
+      showAvailabilityStatusBlocks,
+    )
       .then((data) => {
         upsertFetchedRange(teamId, startMs, endMs, data)
         refreshRemoteEventsFromCache()
@@ -962,7 +1110,7 @@ export function BookingCalendar({
         refreshingRangesRef.current.delete(key)
         finishCalendarLoading()
       })
-  }, [beginCalendarLoading, finishCalendarLoading, refreshRemoteEventsFromCache, upsertFetchedRange])
+  }, [beginCalendarLoading, finishCalendarLoading, refreshRemoteEventsFromCache, showAvailabilityStatusBlocks, upsertFetchedRange])
 
   const prefetchRangeWhenIdle = useCallback((startMs: number, endMs: number, teamId: string | null) => {
     const key = `${teamId ?? "self"}:${startMs}:${endMs}`
@@ -970,7 +1118,13 @@ export function BookingCalendar({
     if (missingRanges(startMs, endMs, fetchedRef.current.filter((range) => range.teamId === teamId)).length === 0) return
     prefetchingRangesRef.current.add(key)
     const run = () => {
-      void fetchFreeBusy(new Date(startMs).toISOString(), new Date(endMs).toISOString(), teamId)
+      void fetchFreeBusy(
+        new Date(startMs).toISOString(),
+        new Date(endMs).toISOString(),
+        teamId,
+        false,
+        showAvailabilityStatusBlocks,
+      )
         .then((data) => {
           upsertFetchedRange(teamId, startMs, endMs, data)
         })
@@ -983,7 +1137,7 @@ export function BookingCalendar({
     } else {
       globalThis.setTimeout(run, 250)
     }
-  }, [upsertFetchedRange])
+  }, [showAvailabilityStatusBlocks, upsertFetchedRange])
 
   const getCachedBooking = useCallback((bookingId: string): BookingFromApi | null => {
     for (const range of fetchedRef.current) {
@@ -1085,6 +1239,8 @@ export function BookingCalendar({
             new Date(range.startMs).toISOString(),
             new Date(range.endMs).toISOString(),
             selectedTeamId,
+            false,
+            showAvailabilityStatusBlocks,
           )
           upsertFetchedRange(selectedTeamId, range.startMs, range.endMs, data)
         }
@@ -1114,14 +1270,22 @@ export function BookingCalendar({
       lastEmittedCodeRef.current = nextCode
       onCodeChange?.(nextCode)
     }
-    const nextLockedDateKeys = getLockedDateKeys(data)
+    const nextLockedDateKeys = getLockedDateKeys(data, showAvailabilityStatusBlocks)
+    const nextTentativeDateKeys = showAvailabilityStatusBlocks
+      ? getTentativeDateKeys(data, nextLockedDateKeys)
+      : []
     setLockedDateKeys(nextLockedDateKeys)
+    setTentativeDateKeys(nextTentativeDateKeys)
     const isMonthView = selectedViewRef.current === "dayGridMonth"
     const busyEvents = (data.busy ?? [])
       .filter((slot) => !(isMonthView && (isDateLockBusySlot(slot) || isFullDayBusySlot(slot))))
       .map((slot) => toBusyEvent(slot, isCalendarAdmin))
-    const lockedDateEvents = isMonthView ? nextLockedDateKeys.map(toLockedDateEvent) : []
-    const bookingEvents = (data.bookings ?? []).map((booking) =>
+    const lockedDateEvents = isMonthView
+      ? showAvailabilityStatusBlocks
+        ? buildBookingAvailabilityBlockEvents(data, arg.start, arg.end)
+        : nextLockedDateKeys.map(toLockedDateEvent)
+      : []
+    const bookingEvents = (isMonthView && showAvailabilityStatusBlocks ? [] : data.bookings ?? []).map((booking) =>
       toBookingEvent(
         booking,
         modeKind === "adjust" && booking.bookingGroupId === adjustingGroupId,
@@ -1226,6 +1390,7 @@ export function BookingCalendar({
     prefetchRangeWhenIdle,
     refreshCachedRangeInBackground,
     selectedTeamId,
+    showAvailabilityStatusBlocks,
     teamMemberUserIds,
     upsertFetchedRange,
     viewerUserId,
@@ -1697,6 +1862,7 @@ export function BookingCalendar({
 
   const selectedDateSelectionLabel = selectedDateSelection ? formatBookingDateSelection(selectedDateSelection) : null
   const lockedDateKeySet = useMemo(() => new Set(lockedDateKeys), [lockedDateKeys])
+  const tentativeDateKeySet = useMemo(() => new Set(tentativeDateKeys), [tentativeDateKeys])
   const todayDateKey = toTokyoDateKey()
 
   const isSelectableMonthDateKey = useCallback((dateKey: string) => {
@@ -1972,6 +2138,7 @@ export function BookingCalendar({
     const unavailable = !isSelectableMonthDateKey(dateKey)
     if (isDateKeyTodayOrPast(dateKey, todayDateKey)) classes.push("booking-calendar__past-or-today-date")
     if (lockedDateKeySet.has(dateKey)) classes.push("booking-calendar__locked-date")
+    if (tentativeDateKeySet.has(dateKey)) classes.push("booking-calendar__tentative-date")
     if (selectedMonthDate === dateKey && selectedDates.includes(dateKey) && !unavailable) classes.push("booking-calendar__selected-day")
     if (selectedDates.includes(dateKey) && !unavailable) {
       classes.push("booking-calendar__selected-date")
@@ -1999,10 +2166,12 @@ export function BookingCalendar({
       cell.setAttribute("aria-disabled", unavailable ? "true" : "false")
       if (locked) cell.setAttribute("data-booking-locked", "true")
       else cell.removeAttribute("data-booking-locked")
+      if (dateKey && tentativeDateKeySet.has(dateKey)) cell.setAttribute("data-booking-tentative", "true")
+      else cell.removeAttribute("data-booking-tentative")
       if (dateKey && isDateKeyTodayOrPast(dateKey, todayDateKey)) cell.setAttribute("data-booking-past-or-today", "true")
       else cell.removeAttribute("data-booking-past-or-today")
     })
-  }, [isSelectableMonthDateKey, lockedDateKeySet, todayDateKey])
+  }, [isSelectableMonthDateKey, lockedDateKeySet, tentativeDateKeySet, todayDateKey])
 
   const renderDayCellContent = (arg: DayCellContentArg) => {
     if (arg.view.type !== "dayGridMonth") return undefined
@@ -2024,6 +2193,14 @@ export function BookingCalendar({
 
   const handleEventDidMount = (arg: EventMountArg) => {
     const props = arg.event.extendedProps as AnyEventProps
+    if (props.kind === "availability" && props.availabilityStatus) {
+      arg.el.dataset.availabilityStatus = props.availabilityStatus
+      if (props.blockStartDateKey) arg.el.dataset.blockStart = props.blockStartDateKey
+      if (props.blockEndDateKey) arg.el.dataset.blockEnd = props.blockEndDateKey
+      arg.el.removeAttribute("title")
+      if (props.lockedDate) markLockVisible()
+      return
+    }
     if (props.kind === "draft") {
       arg.el.setAttribute("data-active-draft", props.draftId === activeDraftId ? "true" : "false")
       if (props.draftId) arg.el.setAttribute("data-draft-id", props.draftId)
@@ -2074,6 +2251,12 @@ export function BookingCalendar({
 
   const renderEventContent = (arg: EventContentArg) => {
     const props = arg.event.extendedProps as AnyEventProps
+    const lockIcon = (
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    )
     if (props.kind === "draft") {
       return (
         <span className="booking-calendar__draft-range">
@@ -2081,14 +2264,20 @@ export function BookingCalendar({
         </span>
       )
     }
+    if (props.kind === "availability" && props.availabilityStatus) {
+      const isTentative = props.availabilityStatus === "tentative"
+      return (
+        <span
+          className={`booking-calendar__availability-content booking-calendar__availability-content--${props.availabilityStatus}`}
+          aria-label={isTentative ? "仮キープ" : "予約済み（本予約）"}
+        >
+          {isTentative ? <Clock3 aria-hidden="true" size={14} strokeWidth={2.4} /> : lockIcon}
+          {isTentative ? <span>仮キープ</span> : null}
+        </span>
+      )
+    }
     if (props.kind === "busy") {
       const isMonthView = arg.view.type === "dayGridMonth"
-      const lockIcon = (
-        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-        </svg>
-      )
       const statusLabel = props.status === "CONFIRMED" ? "本予約" : "予約不可"
       const shortLabel = props.status === "CONFIRMED" ? "本" : "不"
       const rangeLabel = props.label ?? (arg.event.start && arg.event.end ? `${format(arg.event.start, "HH:mm")}-${format(arg.event.end, "HH:mm")}` : "")
@@ -2272,6 +2461,7 @@ export function BookingCalendar({
   return (
     <div
       className="booking-calendar"
+      data-availability-status-blocks={showAvailabilityStatusBlocks ? "true" : "false"}
       ref={rootRef}
       onMouseDownCapture={handleCalendarMouseDownCapture}
       onMouseMoveCapture={handleCalendarMouseMoveCapture}
