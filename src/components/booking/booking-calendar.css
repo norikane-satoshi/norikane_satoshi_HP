@@ -1323,6 +1323,11 @@
     height: clamp(42px, 10.5vw, 52px);
   }
 
+  .booking-calendar[data-availability-status-blocks="true"] .fc-daygrid-day-frame {
+    min-height: 64px;
+    height: 64px;
+  }
+
   .booking-calendar__day-cell {
     padding: 4px 6px 2px;
   }

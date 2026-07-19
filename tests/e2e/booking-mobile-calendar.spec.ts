@@ -388,6 +388,7 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
   expect(weekBlockBox).not.toBeNull()
   expect(oneDayBox).not.toBeNull()
   expect(weekBlockBox!.width).toBeGreaterThan(oneDayBox!.width * 6)
+  expect(weekBlockBox!.y + weekBlockBox!.height).toBeLessThanOrEqual(oneDayBox!.y + oneDayBox!.height + 1)
   await page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-number').click()
   await expect(page.locator('.fc-daygrid-day[data-date="2026-09-19"].booking-calendar__selected-date')).toHaveCount(0)
 
@@ -442,6 +443,11 @@ test("LINE LIFF booking entry shows tentative holds as selectable connected bloc
   await expect(tentativeBlocks.locator("svg")).toHaveCount(2)
   await expect(tentativeBlocks).toHaveText(["仮キープ", "仮キープ"])
   await expect(page.locator('[data-block-start="2026-10-05"]')).toHaveAttribute("data-block-end", "2026-10-07")
+  const tentativeBlockBox = await page.locator('[data-block-start="2026-10-05"]').boundingBox()
+  const tentativeFrameBox = await page.locator('.fc-daygrid-day[data-date="2026-10-05"] .fc-daygrid-day-frame').boundingBox()
+  expect(tentativeBlockBox).not.toBeNull()
+  expect(tentativeFrameBox).not.toBeNull()
+  expect(tentativeBlockBox!.y + tentativeBlockBox!.height).toBeLessThanOrEqual(tentativeFrameBox!.y + tentativeFrameBox!.height + 1)
 
   const tentativeCell = page.locator('.fc-daygrid-day[data-date="2026-10-05"]')
   await expect(tentativeCell).toHaveAttribute("data-booking-tentative", "true")
