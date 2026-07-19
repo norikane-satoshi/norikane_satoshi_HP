@@ -60,6 +60,7 @@ async function stubBookingCalendarApis(
     dailyBusy?: boolean
     googleBusyDateKeys?: string[]
     notionWorkBusyDateKeys?: string[]
+    notionWorkBusyRanges?: { start: string; end: string }[]
     dateOnlyBusyDateKeys?: string[]
   } = {},
 ) {
@@ -81,6 +82,13 @@ async function stubBookingCalendarApis(
       bufferBeforeHours: 0,
       bufferAfterHours: 0,
     }))
+    const notionWorkBusyRanges = (options.notionWorkBusyRanges ?? []).map((range) => ({
+      ...range,
+      summary: "IB_仕事",
+      source: "notion_work",
+      bufferBeforeHours: 0,
+      bufferAfterHours: 0,
+    }))
     const dateOnlyBusy = (options.dateOnlyBusyDateKeys ?? []).map((date) => ({
       start: date,
       end: addDaysToDateKey(date, 1),
@@ -97,6 +105,7 @@ async function stubBookingCalendarApis(
           ...(options.dailyBusy ? buildDailyBusySlots(url.searchParams.get("start") ?? "", url.searchParams.get("end") ?? "") : []),
           ...googleBusy,
           ...notionWorkBusy,
+          ...notionWorkBusyRanges,
           ...dateOnlyBusy,
         ],
         bookings: [],
@@ -118,15 +127,19 @@ async function openAuthenticatedBooking(
     dailyBusy?: boolean
     googleBusyDateKeys?: string[]
     notionWorkBusyDateKeys?: string[]
+    notionWorkBusyRanges?: { start: string; end: string }[]
     dateOnlyBusyDateKeys?: string[]
     path?: string
   } = {},
 ) {
   await stubBookingCalendarApis(page, options)
-  const prisma = prismaForE2E()
-  await upsertUser(prisma, testUserEmail, "E2E Satoshi")
-  await prisma.$disconnect()
-  const authResponse = await page.goto("/api/dev/auth-bypass")
+  let authResponse = await page.goto("/api/dev/auth-bypass")
+  if (authResponse?.status() === 404) {
+    const prisma = prismaForE2E()
+    await upsertUser(prisma, testUserEmail, "E2E Satoshi")
+    await prisma.$disconnect()
+    authResponse = await page.goto("/api/dev/auth-bypass")
+  }
   expect(authResponse?.status()).toBe(200)
   await page.goto(options.path ?? "/booking")
   await expect(page.getByTestId("booking-month-skeleton")).toHaveCount(0)
@@ -323,4 +336,64 @@ test("LINE LIFF booking entry uses the same month-only candidate flow", async ({
   await expect(page.getByLabel("案件名")).toBeVisible()
   await page.locator(".booking-choice--terms").getByRole("link", { name: /利用規約/ }).click()
   await expect(page).toHaveURL(/\/terms$/)
+})
+
+test("LINE LIFF booking entry locks the confirmed IB work ranges through free-busy", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-19T12:00:00+09:00"))
+  await page.setViewportSize({ width: 390, height: 844 })
+  const freeBusyRequests: string[] = []
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/calendar/free-busy") {
+      freeBusyRequests.push(request.url())
+    }
+  })
+
+  await openAuthenticatedBooking(page, {
+    path: "/line/booking",
+    notionWorkBusyRanges: [
+      { start: "2026-09-19T00:00:00+09:00", end: "2026-10-03T23:59:00+09:00" },
+      { start: "2026-12-01T00:00:00+09:00", end: "2026-12-31T23:59:00+09:00" },
+    ],
+  })
+
+  for (let index = 0; index < 2; index += 1) {
+    await page.locator(".fc-next-button").click()
+  }
+  await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年9月")
+  const sepOctDates = Array.from({ length: 15 }, (_, index) => addDaysToDateKey("2026-09-19", index))
+  for (const date of sepOctDates) {
+    const cell = page.locator(`.fc-daygrid-day[data-date="${date}"]`)
+    await expect(cell).toHaveClass(/booking-calendar__locked-date/)
+    await expect(cell).toHaveAttribute("aria-disabled", "true")
+  }
+  await page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-number').click()
+  await expect(page.locator('.fc-daygrid-day[data-date="2026-09-19"].booking-calendar__selected-date')).toHaveCount(0)
+
+  for (let index = 0; index < 3; index += 1) {
+    await page.locator(".fc-next-button").click()
+  }
+  await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年12月")
+  const decemberDates = Array.from({ length: 31 }, (_, index) => addDaysToDateKey("2026-12-01", index))
+  for (const date of decemberDates) {
+    const cell = page.locator(`.fc-daygrid-day[data-date="${date}"]`)
+    await expect(cell).toHaveClass(/booking-calendar__locked-date/)
+    await expect(cell).toHaveAttribute("aria-disabled", "true")
+  }
+  await page.locator('.fc-daygrid-day[data-date="2026-12-31"] .fc-daygrid-day-number').click()
+  await expect(page.locator('.fc-daygrid-day[data-date="2026-12-31"].booking-calendar__selected-date')).toHaveCount(0)
+  const requestedRanges = freeBusyRequests.map((requestUrl) => {
+    const url = new URL(requestUrl)
+    return {
+      start: new Date(url.searchParams.get("start") ?? "").getTime(),
+      end: new Date(url.searchParams.get("end") ?? "").getTime(),
+    }
+  })
+  expect(requestedRanges.some((range) => (
+    range.start < new Date("2026-10-04T00:00:00+09:00").getTime() &&
+    range.end > new Date("2026-09-19T00:00:00+09:00").getTime()
+  ))).toBe(true)
+  expect(requestedRanges.some((range) => (
+    range.start < new Date("2027-01-01T00:00:00+09:00").getTime() &&
+    range.end > new Date("2026-12-01T00:00:00+09:00").getTime()
+  ))).toBe(true)
 })
