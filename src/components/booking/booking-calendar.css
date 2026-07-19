@@ -1401,6 +1401,10 @@
     min-height: 12px;
   }
 
+  .booking-calendar .fc-event.booking-calendar__availability-block {
+    transform: translateY(-4px);
+  }
+
   .booking-calendar__availability-content {
     gap: 2px;
     padding: 1px 2px;
