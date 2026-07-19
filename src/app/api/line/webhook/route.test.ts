@@ -42,7 +42,7 @@ describe("POST /api/line/webhook", () => {
     expect(response.status).toBe(200)
   })
 
-  it("replies with the LIFF booking URL when a token is configured", async () => {
+  it("replies with the LIFF booking URL for a follow event", async () => {
     process.env.LINE_WEBHOOK_CHANNEL_SECRET = "test-secret"
     process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN = "test-token"
     process.env.NEXT_PUBLIC_LINE_LIFF_URL = "https://liff.line.me/test"
@@ -50,7 +50,7 @@ describe("POST /api/line/webhook", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     const response = await route.POST(signedRequest(
-      JSON.stringify({ events: [{ type: "message", replyToken: "reply-token" }] }),
+      JSON.stringify({ events: [{ type: "follow", replyToken: "reply-token" }] }),
       "test-secret",
     ))
 
@@ -66,5 +66,34 @@ describe("POST /api/line/webhook", () => {
     )
     const [, init] = fetchMock.mock.calls[0]
     expect(JSON.parse(init.body as string).messages[0].text).toContain("https://liff.line.me/test")
+  })
+
+  it.each([
+    {
+      name: "text message",
+      event: { type: "message", replyToken: "reply-token", message: { type: "text", text: "予約" } },
+    },
+    {
+      name: "sticker message",
+      event: { type: "message", replyToken: "reply-token", message: { type: "sticker", stickerId: "1" } },
+    },
+    {
+      name: "postback",
+      event: { type: "postback", replyToken: "reply-token", postback: { data: "action=booking" } },
+    },
+  ])("does not reply with the booking URL for $name events", async ({ event }) => {
+    process.env.LINE_WEBHOOK_CHANNEL_SECRET = "test-secret"
+    process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN = "test-token"
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const response = await route.POST(signedRequest(
+      JSON.stringify({ events: [event] }),
+      "test-secret",
+    ))
+
+    await expect(response.json()).resolves.toEqual({ ok: true, eventCount: 1 })
+    expect(response.status).toBe(200)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

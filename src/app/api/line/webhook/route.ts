@@ -30,11 +30,11 @@ function verifyLineSignature(body: string, signature: string | null, secret: str
   return signatureBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
 }
 
-function shouldReply(event: LineWebhookEvent): event is LineWebhookEvent & { replyToken: string } {
+function shouldReplyWithBookingLink(event: LineWebhookEvent): event is LineWebhookEvent & { replyToken: string } {
   return Boolean(
     event.replyToken &&
       event.replyToken !== "00000000000000000000000000000000" &&
-      ["follow", "message", "postback"].includes(event.type ?? ""),
+      event.type === "follow",
   )
 }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
   }
 
   const events = Array.isArray(payload.events) ? payload.events : []
-  await Promise.all(events.filter(shouldReply).map((event) => replyWithBookingLink(event.replyToken)))
+  await Promise.all(events.filter(shouldReplyWithBookingLink).map((event) => replyWithBookingLink(event.replyToken)))
 
   return NextResponse.json({ ok: true, eventCount: events.length })
 }
