@@ -1324,8 +1324,8 @@
   }
 
   .booking-calendar[data-availability-status-blocks="true"] .fc-daygrid-day-frame {
-    min-height: 64px;
-    height: 64px;
+    min-height: 58px;
+    height: 58px;
   }
 
   .booking-calendar__day-cell {
@@ -1398,7 +1398,7 @@
 
   .booking-calendar .fc-event.booking-calendar__availability-block,
   .booking-calendar__availability-content {
-    min-height: 16px;
+    min-height: 12px;
   }
 
   .booking-calendar__availability-content {
