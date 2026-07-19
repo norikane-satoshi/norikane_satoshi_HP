@@ -325,7 +325,10 @@ test("LINE LIFF booking entry uses the same month-only candidate flow", async ({
   await expect(page.getByLabel("表示対象")).toHaveCount(0)
   await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
-  await page.locator(`.fc-daygrid-day[data-date="${addDaysToDateKey(currentDateKey(), 1)}"] .fc-daygrid-day-number`).click()
+  const selectableDate = page.locator(
+    '.fc-daygrid-day:not(.fc-day-other):not(.booking-calendar__locked-date):not(.booking-calendar__past-or-today-date)[aria-disabled="false"]',
+  ).first()
+  await selectableDate.locator(".fc-daygrid-day-number").click()
   await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
   await expect(page.getByTestId("booking-date-request-panel")).toBeVisible()
   await expect(page.getByTestId("booking-month-slot-option")).toHaveCount(0)
@@ -369,10 +372,17 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
     await expect(cell).toHaveClass(/booking-calendar__locked-date/)
     await expect(cell).toHaveAttribute("aria-disabled", "true")
   }
-  const septemberBusyBlocks = page.locator(".booking-calendar__availability-block--busy")
+  const septemberBusyBlocks = page.locator([
+    '[data-block-start="2026-09-19"]',
+    '[data-block-start="2026-09-20"]',
+    '[data-block-start="2026-09-27"]',
+  ].join(", "))
   await expect(septemberBusyBlocks).toHaveCount(3)
   await expect(septemberBusyBlocks.locator("svg")).toHaveCount(3)
-  await expect(septemberBusyBlocks).not.toContainText(/予約|本予約|予約不可/)
+  await expect(septemberBusyBlocks).toHaveText(["", "", ""])
+  await expect(page.locator('[data-block-start="2026-09-19"]')).toHaveAttribute("data-block-end", "2026-09-19")
+  await expect(page.locator('[data-block-start="2026-09-20"]')).toHaveAttribute("data-block-end", "2026-09-26")
+  await expect(page.locator('[data-block-start="2026-09-27"]')).toHaveAttribute("data-block-end", "2026-10-03")
   const weekBlockBox = await page.locator('[data-block-start="2026-09-20"]').boundingBox()
   const oneDayBox = await page.locator('.fc-daygrid-day[data-date="2026-09-20"] .fc-daygrid-day-frame').boundingBox()
   expect(weekBlockBox).not.toBeNull()
@@ -420,22 +430,25 @@ test("LINE LIFF booking entry shows tentative holds as selectable connected bloc
   await page.setViewportSize({ width: 390, height: 844 })
   await openAuthenticatedBooking(page, {
     path: "/line/booking",
-    tentativeDateKeys: ["2026-07-21", "2026-07-22", "2026-07-23", "2026-07-27"],
+    tentativeDateKeys: ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-12"],
   })
 
-  await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年7月")
+  for (let index = 0; index < 3; index += 1) {
+    await page.locator(".fc-next-button").click()
+  }
+  await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年10月")
   const tentativeBlocks = page.locator(".booking-calendar__availability-block--tentative")
   await expect(tentativeBlocks).toHaveCount(2)
   await expect(tentativeBlocks.locator("svg")).toHaveCount(2)
   await expect(tentativeBlocks).toHaveText(["仮キープ", "仮キープ"])
-  await expect(page.locator('[data-block-start="2026-07-21"]')).toHaveAttribute("data-block-end", "2026-07-23")
+  await expect(page.locator('[data-block-start="2026-10-05"]')).toHaveAttribute("data-block-end", "2026-10-07")
 
-  const tentativeCell = page.locator('.fc-daygrid-day[data-date="2026-07-21"]')
+  const tentativeCell = page.locator('.fc-daygrid-day[data-date="2026-10-05"]')
   await expect(tentativeCell).toHaveAttribute("data-booking-tentative", "true")
   await expect(tentativeCell).not.toHaveClass(/booking-calendar__locked-date/)
   await expect(tentativeCell).toHaveAttribute("aria-disabled", "false")
   await tentativeCell.locator(".fc-daygrid-day-number").click()
   await expect(tentativeCell).toHaveClass(/booking-calendar__selected-date/)
-  await expect(page.getByTestId("booking-date-request-summary")).toContainText("7/21")
+  await expect(page.getByTestId("booking-date-request-summary")).toContainText("10/5")
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
