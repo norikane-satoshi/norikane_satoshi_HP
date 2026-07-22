@@ -1,6 +1,6 @@
 "use client"
 
-import type { MouseEvent, ReactNode } from "react"
+import type { ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useTransition } from "react"
@@ -10,8 +10,6 @@ import styles from "./availability-calendar.module.css"
 
 type AvailabilityCalendarFrameProps = {
   currentHref: string
-  currentMonth: string
-  displayedMonth: string
   nextHref: string
   previousHref: string
   heading: ReactNode
@@ -22,8 +20,6 @@ const LOADING_DELAY_MS = 150
 
 export function AvailabilityCalendarFrame({
   currentHref,
-  currentMonth,
-  displayedMonth,
   nextHref,
   previousHref,
   heading,
@@ -42,9 +38,7 @@ export function AvailabilityCalendarFrame({
     return () => window.clearTimeout(timer)
   }, [isPending])
 
-  const navigate = (href: string) => (event: MouseEvent<HTMLAnchorElement>) => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-    event.preventDefault()
+  const navigate = (href: string) => {
     setShowLoading(false)
     startTransition(() => router.push(href))
   }
@@ -59,30 +53,30 @@ export function AvailabilityCalendarFrame({
             本体サイトへ移動
           </Link>
           <nav className={styles.monthNav} aria-label="表示月">
-            <Link
-              className={`glass-card-sm ${styles.monthLink} ${styles.monthLinkIcon}`}
-              href={previousHref}
+            <button
+              className={`glass-card-sm ${styles.monthButton} ${styles.monthButtonIcon}`}
+              type="button"
               aria-label="前月"
-              onClick={navigate(previousHref)}
+              onClick={() => navigate(previousHref)}
             >
               <ChevronLeft size={16} aria-hidden="true" />
-            </Link>
-            <Link
-              className={`glass-card-sm ${styles.monthLink} ${styles.monthLinkIcon}`}
-              href={nextHref}
+            </button>
+            <button
+              className={`glass-card-sm ${styles.monthButton} ${styles.monthButtonIcon}`}
+              type="button"
               aria-label="翌月"
-              onClick={navigate(nextHref)}
+              onClick={() => navigate(nextHref)}
             >
               <ChevronRight size={16} aria-hidden="true" />
-            </Link>
-            <Link
-              className={`glass-card-sm ${styles.monthLink}`}
-              href={currentHref}
-              aria-current={displayedMonth === currentMonth ? "page" : undefined}
-              onClick={navigate(currentHref)}
+            </button>
+            <button
+              className={`glass-card-sm ${styles.monthButton}`}
+              type="button"
+              aria-label="今月へ移動"
+              onClick={() => navigate(currentHref)}
             >
               今月
-            </Link>
+            </button>
           </nav>
         </div>
       </div>

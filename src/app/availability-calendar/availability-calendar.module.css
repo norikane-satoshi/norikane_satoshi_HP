@@ -57,7 +57,7 @@
 }
 
 .homeLink,
-.monthLink {
+.monthButton {
   display: inline-flex;
   min-height: 40px;
   align-items: center;
@@ -69,22 +69,24 @@
   color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 700;
+  font-family: inherit;
   text-decoration: none;
 }
 
-.monthLink {
+.monthButton {
+  cursor: pointer;
   border-color: color-mix(in srgb, var(--hp-color-accent) 22%, transparent);
   background: var(--hp-color-calendar-control-bg);
 }
 
-.monthLink:hover,
-.monthLink:focus-visible {
+.monthButton:hover,
+.monthButton:focus-visible {
   background: var(--hp-color-calendar-control-hover-bg);
   color: var(--hp-color-accent);
   box-shadow: var(--hp-shadow-calendar-control-hover);
 }
 
-.monthLinkIcon {
+.monthButtonIcon {
   width: 40px;
   padding: 0;
 }
@@ -310,7 +312,7 @@
     width: 100%;
   }
 
-  .monthLink {
+  .monthButton {
     flex: 1 1 0;
   }
 
