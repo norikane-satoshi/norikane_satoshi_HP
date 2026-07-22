@@ -1484,7 +1484,7 @@
 
   .booking-calendar .fc-event.booking-calendar__availability-block,
   .booking-calendar__availability-content {
-    min-height: 24px;
+    min-height: 19px;
   }
 
   .booking-calendar .fc-event.booking-calendar__availability-block {

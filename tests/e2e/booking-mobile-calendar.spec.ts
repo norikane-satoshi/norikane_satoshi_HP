@@ -398,7 +398,9 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
   await expect(septemberBusyBlocks).toHaveCount(3)
   await expect(septemberBusyBlocks.locator("svg")).toHaveCount(3)
   await expect(septemberBusyBlocks).toHaveText(["", "", ""])
-  await expect(septemberBusyBlocks).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+  for (let index = 0; index < 3; index += 1) {
+    await expect(septemberBusyBlocks.nth(index)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+  }
   await expect(page.locator(".booking-calendar__confirmed-buffer")).toHaveCount(0)
   const hatchedElements = await page.locator(".booking-calendar").evaluate((root) => (
     Array.from(root.querySelectorAll("*")).filter((element) => (
@@ -481,7 +483,9 @@ test("LINE LIFF booking entry shows tentative holds as selectable connected bloc
   await expect(tentativeBlocks).toHaveCount(2)
   await expect(tentativeBlocks.locator("svg")).toHaveCount(2)
   await expect(tentativeBlocks).toHaveText(["仮キープ", "仮キープ"])
-  await expect(tentativeBlocks).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+  for (let index = 0; index < 2; index += 1) {
+    await expect(tentativeBlocks.nth(index)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+  }
   await expect(page.locator('[data-block-start="2026-10-05"]')).toHaveAttribute("data-block-end", "2026-10-07")
   const tentativeBlockBox = await page.locator('[data-block-start="2026-10-05"]').boundingBox()
   const tentativeFrameBox = await page.locator('.fc-daygrid-day[data-date="2026-10-05"] .fc-daygrid-day-frame').boundingBox()
