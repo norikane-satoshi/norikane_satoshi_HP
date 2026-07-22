@@ -194,9 +194,9 @@ describe("week calendar utilities", () => {
 
 describe("booking display helpers", () => {
   it("formats booking colors and labels", () => {
-    expect(getBookingCSSColor({ status: "AVAILABLE" })).toContain("accent-primary")
+    expect(getBookingCSSColor({ status: "AVAILABLE" })).toContain("hp-color-accent")
     expect(getBookingCSSColor({ status: "MEETING" })).toContain("text-primary")
-    expect(getBookingCSSColor({ status: "CONFIRMED" })).toBe("var(--accent-primary)")
+    expect(getBookingCSSColor({ status: "CONFIRMED" })).toBe("var(--hp-color-accent)")
     expect(getBookingCSSColor({ status: "CANCELLED" })).toBe("transparent")
     expect(getBookingColorLabel({ status: "CONFIRMED", hasAttendance: true })).toBe("確定（立会いあり）")
     expect(getBookingColorLabel({ status: "CONFIRMED" })).toBe("確定")

@@ -61,7 +61,7 @@ function PressDialogContent() {
               >
                 <p
                   className="font-[var(--font-inter)] text-xs font-semibold"
-                  style={{ color: "var(--accent-primary)" }}
+                  style={{ color: "var(--hp-color-accent)" }}
                 >
                   {item.period}
                 </p>

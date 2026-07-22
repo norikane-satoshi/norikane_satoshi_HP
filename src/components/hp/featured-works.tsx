@@ -761,7 +761,7 @@ function WorkLinkBadges({
       target="_blank"
       rel="noopener noreferrer"
       tabIndex={clone ? -1 : undefined}
-      className="glass-badge px-2.5 py-1 text-[0.64rem] leading-none transition-colors hover:bg-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+      className="glass-badge px-2.5 py-1 text-[0.64rem] leading-none transition-colors hover:bg-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
       aria-label={clone ? undefined : `${workTitle} ${link.label}を新しいタブで開く`}
       data-featured-work-link-badge={link.label}
     >
@@ -810,7 +810,7 @@ function VideoOpenButton({
   return (
     <button
       type="button"
-      className="absolute inset-0 z-30 cursor-pointer rounded-none bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent-primary)]"
+      className="absolute inset-0 z-30 cursor-pointer rounded-none bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
       aria-label={clone ? undefined : label}
       tabIndex={clone ? -1 : undefined}
       data-featured-work-video-trigger="true"
@@ -1985,7 +1985,7 @@ export function FeaturedWorks() {
         <div
           id={marqueeViewportId}
           ref={marqueeRef}
-          className="featured-work-content-viewport relative overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+          className="featured-work-content-viewport relative overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
           aria-label="Featured Works"
           tabIndex={0}
           data-featured-work-marquee-viewport="true"
@@ -2033,7 +2033,7 @@ export function FeaturedWorks() {
           >
             <div
               ref={progressThumbRef}
-              className="h-full touch-none rounded-full bg-[var(--accent-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+              className="h-full touch-none rounded-full bg-[var(--hp-color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
               role="scrollbar"
               tabIndex={0}
               aria-label="Featured Works scrollbar"

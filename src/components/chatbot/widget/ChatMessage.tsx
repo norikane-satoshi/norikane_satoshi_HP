@@ -572,7 +572,7 @@ export function ChatMessage({
         "group max-w-[88%] px-4 py-3 text-sm leading-relaxed",
         canEdit && !isEditing ? "chatbot-message-no-select" : "",
         isUser
-          ? `${touchFeedbackState !== "idle" ? "chatbot-message-liquid " : ""}glass-flat ml-auto border border-[var(--accent-primary)]/40 text-hp`
+          ? `${touchFeedbackState !== "idle" ? "chatbot-message-liquid " : ""}glass-flat ml-auto border border-[var(--hp-color-accent)]/40 text-hp`
           : "glass-inset mr-auto text-hp",
         isSystem ? "mx-auto max-w-full text-xs text-hp-muted" : "",
       ].join(" ")}
@@ -583,7 +583,7 @@ export function ChatMessage({
           {canEdit && !isEditing ? (
             <button
               type="button"
-              className="glass-btn inline-flex h-8 w-8 items-center justify-center opacity-0 transition-[transform,box-shadow,opacity,background-color,border-color,color] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] group-hover:opacity-100 group-focus-within:opacity-100"
+              className="glass-btn inline-flex h-8 w-8 items-center justify-center opacity-0 transition-[transform,box-shadow,opacity,background-color,border-color,color] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)] group-hover:opacity-100 group-focus-within:opacity-100"
               onClick={startEditing}
               aria-label="メッセージを編集"
             >

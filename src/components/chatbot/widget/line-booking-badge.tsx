@@ -135,7 +135,7 @@ export function LineBookingBadge() {
       <button
         ref={triggerRef}
         type="button"
-        className="glass-badge glass-badge--profile-tool pointer-events-auto inline-flex h-12 w-12 items-center justify-center p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+        className="glass-badge glass-badge--profile-tool pointer-events-auto inline-flex h-12 w-12 items-center justify-center p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
         aria-label="公式LINEを友だち追加"
         aria-haspopup="dialog"
         aria-expanded={open}

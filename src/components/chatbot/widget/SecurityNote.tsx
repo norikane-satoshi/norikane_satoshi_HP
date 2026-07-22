@@ -35,7 +35,7 @@ export function SecurityNote({ defaultOpen = false }: SecurityNoteProps) {
           onClick={() => setIsOpen((current) => !current)}
         >
           <span className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-[var(--accent-primary)]" aria-hidden="true" />
+            <ShieldCheck className="h-4 w-4 text-[var(--hp-color-accent)]" aria-hidden="true" />
             安全に扱います
           </span>
           <ChevronDown

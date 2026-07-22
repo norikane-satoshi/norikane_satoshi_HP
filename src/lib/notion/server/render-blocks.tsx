@@ -10,7 +10,7 @@ import { getVisualConfig } from "@/lib/notes/domain/visuals"
 import type { BlockWithChildren } from "./types"
 
 const LINK_CLASS =
-  "underline underline-offset-4 decoration-[color-mix(in_srgb,var(--hp-color-accent)_50%,transparent)] hover:text-[var(--accent-primary)] hover:decoration-[var(--accent-primary)] transition-colors"
+  "underline underline-offset-4 decoration-[color-mix(in_srgb,var(--hp-color-accent)_50%,transparent)] hover:text-[var(--hp-color-accent)] hover:decoration-[var(--hp-color-accent)] transition-colors"
 
 function normalizeId(id: string): string {
   return id.replace(/-/g, "").toLowerCase()
@@ -377,7 +377,7 @@ function renderBlock(
     return (
       <blockquote
         key={key}
-        className="border-l-4 border-[var(--accent-primary)]/40 pl-4 italic text-hp"
+        className="border-l-4 border-[var(--hp-color-accent)]/40 pl-4 italic text-hp"
       >
         {renderRichText(block.quote.rich_text, key, slugIndex)}
         {childrenOf(block).length > 0 ? (

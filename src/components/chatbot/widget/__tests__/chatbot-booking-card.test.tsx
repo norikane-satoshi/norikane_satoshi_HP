@@ -150,7 +150,7 @@ describe("ChatbotBookingCard", () => {
     expect(dateCell).toHaveClass("hover:scale-[1.02]")
     expect(dateCell).toHaveClass("active:scale-[0.97]")
     expect(dateCell).toHaveClass("hover:ring-2")
-    expect(dateCell).not.toHaveClass("bg-[var(--accent-primary)]")
+    expect(dateCell).not.toHaveClass("bg-[var(--hp-color-accent)]")
   })
 
   it("keeps past date cells inert even when stale candidate data includes them", () => {
@@ -573,7 +573,7 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(firstDate)
 
     expect(firstDate).toHaveAttribute("aria-pressed", "true")
-    expect(firstDate).toHaveClass("bg-[var(--accent-primary)]")
+    expect(firstDate).toHaveClass("bg-[var(--hp-color-accent)]")
     expect(firstDate).toHaveClass("font-bold")
     expect(firstDate.querySelector("svg")).toBeNull()
     expect(firstDate.querySelector(".rounded-full")).toBeNull()

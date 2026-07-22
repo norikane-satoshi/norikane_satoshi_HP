@@ -39,7 +39,7 @@
 }
 
 .booking-progress__dot--reached {
-  background: var(--accent-primary);
+  background: var(--hp-color-accent);
   color: var(--glass-bg);
 }
 
@@ -65,14 +65,14 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--accent-primary);
+  border: 1px solid var(--hp-color-accent);
   padding: 12px 14px;
   color: var(--text-primary);
 }
 
 .admin-reconnect-banner__icon {
   flex: 0 0 auto;
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
 }
 
 .admin-reconnect-banner__body {
@@ -88,7 +88,7 @@
 }
 
 .admin-reconnect-banner__message strong {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
   font-weight: 700;
 }
 
@@ -153,7 +153,7 @@
 .booking-form__text-link {
   border: 0;
   background: transparent;
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
   font: inherit;
   font-weight: 700;
   text-decoration: underline;
@@ -468,7 +468,7 @@
 }
 
 .booking-footer__primary {
-  background: var(--accent-primary);
+  background: var(--hp-color-accent);
   color: var(--glass-bg);
 }
 
@@ -515,7 +515,7 @@ button.booking-form__slot-pill {
 
 button.booking-form__slot-pill:hover,
 button.booking-form__slot-pill:focus-visible {
-  border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  border-color: color-mix(in srgb, var(--hp-color-accent) 40%, transparent);
   color: var(--text-primary);
 }
 
@@ -596,11 +596,11 @@ button.booking-form__slot-pill:focus-visible {
 }
 
 .booking-choice input {
-  accent-color: var(--accent-primary);
+  accent-color: var(--hp-color-accent);
 }
 
 .booking-choice--terms a {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -608,7 +608,7 @@ button.booking-form__slot-pill:focus-visible {
 
 .booking-form__callout {
   min-width: 0;
-  border: 1px solid var(--accent-primary);
+  border: 1px solid var(--hp-color-accent);
   padding: 12px 14px;
   color: var(--text-primary);
   font-size: 0.875rem;
@@ -634,7 +634,7 @@ button.booking-form__slot-pill:focus-visible {
   min-width: 0;
   align-items: flex-start;
   gap: 10px;
-  border: 1px solid var(--accent-primary);
+  border: 1px solid var(--hp-color-accent);
   padding: 12px 14px;
   color: var(--text-primary);
   font-size: 0.875rem;

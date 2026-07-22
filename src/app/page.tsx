@@ -71,7 +71,7 @@ function renderIntroTextWithTrainerLink() {
         href={DAVINCI_RESOLVE_TRAINING_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline text-inherit underline decoration-current decoration-1 underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+        className="inline text-inherit underline decoration-current decoration-1 underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
       >
         {DAVINCI_RESOLVE_TRAINER_TEXT}
       </a>
@@ -126,7 +126,7 @@ function ProfileForeground() {
             >
               <span
                 className="hp-career-year font-[var(--font-inter)] text-sm font-bold"
-                style={{ color: "var(--accent-primary)" }}
+                style={{ color: "var(--hp-color-accent)" }}
               >
                 {item.year}
               </span>
@@ -213,7 +213,7 @@ export default async function HomePage() {
                   <div className="mt-auto pt-6 flex justify-end">
                     <ArrowRight
                       className="h-5 w-5 transition-transform group-hover:translate-x-1"
-                      style={{ color: "var(--accent-primary)" }}
+                      style={{ color: "var(--hp-color-accent)" }}
                     />
                   </div>
                 </Link>

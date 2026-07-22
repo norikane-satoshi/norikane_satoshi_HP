@@ -12,7 +12,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border: 1px solid var(--accent-primary);
+  border: 1px solid var(--hp-color-accent);
   border-radius: var(--hp-radius-sm);
   padding: 12px 14px;
   color: var(--text-primary);
@@ -66,7 +66,7 @@
 }
 
 .booking-calendar__action-button:hover:not(:disabled) {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
 }
 
 .booking-calendar__action-button:disabled {
@@ -75,9 +75,9 @@
 }
 
 .booking-calendar__action-button--primary {
-  background: var(--accent-primary);
+  background: var(--hp-color-accent);
   color: var(--glass-bg);
-  border-color: var(--accent-primary);
+  border-color: var(--hp-color-accent);
 }
 
 .booking-calendar__action-button--primary:hover:not(:disabled) {
@@ -100,7 +100,7 @@
 
 .booking-calendar__adjust-badge {
   width: fit-content;
-  border: 1px solid var(--accent-primary);
+  border: 1px solid var(--hp-color-accent);
   border-radius: var(--hp-radius-sm);
   padding: 10px 18px;
   color: var(--text-primary);
@@ -114,7 +114,7 @@
   z-index: 60;
   display: flex;
   gap: 8px;
-  border: 1px solid var(--accent-primary);
+  border: 1px solid var(--hp-color-accent);
   border-radius: var(--hp-radius-sm);
   padding: 8px;
 }
@@ -136,7 +136,7 @@
   width: 100%;
   max-width: 480px;
   padding: 24px;
-  border: 1px solid var(--accent-primary);
+  border: 1px solid var(--hp-color-accent);
   border-radius: var(--hp-radius-lg);
   color: var(--text-primary);
 }
@@ -196,7 +196,7 @@
 }
 
 .booking-calendar__slot-remove:hover {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
 }
 
 .booking-calendar__busy-pill-tag {
@@ -297,12 +297,12 @@
 }
 
 .booking-calendar__tab[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  background: color-mix(in srgb, var(--hp-color-accent) 14%, transparent);
   border-color: color-mix(in srgb, var(--hp-color-accent) 20%, transparent);
 }
 
 .booking-calendar__tab:hover {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
 }
 
 .booking-calendar__month-layout {
@@ -461,9 +461,9 @@
 
 .booking-calendar__month-slot:hover:not(:disabled),
 .booking-calendar__month-slot:focus-visible:not(:disabled) {
-  border-color: var(--accent-primary);
-  color: var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 10%, var(--glass-bg));
+  border-color: var(--hp-color-accent);
+  color: var(--hp-color-accent);
+  background: color-mix(in srgb, var(--hp-color-accent) 10%, var(--glass-bg));
 }
 
 .booking-calendar__month-slot:disabled {
@@ -558,8 +558,8 @@
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
-  border: 2px solid color-mix(in srgb, var(--accent-primary) 26%, transparent);
-  border-top-color: var(--accent-primary);
+  border: 2px solid color-mix(in srgb, var(--hp-color-accent) 26%, transparent);
+  border-top-color: var(--hp-color-accent);
   border-radius: 50%;
   animation: booking-calendar-loading-spin 700ms linear infinite;
 }
@@ -629,7 +629,7 @@
 .booking-calendar .fc .fc-button:hover,
 .booking-calendar .fc .fc-button:focus-visible {
   background: var(--hp-color-calendar-control-hover-bg);
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
   box-shadow: var(--hp-shadow-calendar-control-hover);
 }
 
@@ -664,8 +664,8 @@
 
 .booking-calendar .fc-col-header-cell-cushion:hover,
 .booking-calendar .fc-col-header-cell-cushion:focus-visible {
-  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, transparent);
+  color: var(--hp-color-accent);
 }
 
 .booking-calendar .fc-daygrid-day-frame,
@@ -706,16 +706,16 @@
 }
 
 .booking-calendar .fc-day-today .booking-calendar__day-number {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
   text-decoration-line: underline;
-  text-decoration-color: var(--accent-primary);
+  text-decoration-color: var(--hp-color-accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
 }
 
 .booking-calendar .booking-calendar__weekend .fc-daygrid-day-frame,
 .booking-calendar .booking-calendar__weekend.fc-timegrid-col {
-  background: color-mix(in srgb, var(--accent-primary) 6%, var(--glass-bg));
+  background: color-mix(in srgb, var(--hp-color-accent) 6%, var(--glass-bg));
 }
 
 .booking-calendar .booking-calendar__tentative-date .fc-daygrid-day-frame {
@@ -724,8 +724,8 @@
 }
 
 .booking-calendar .booking-calendar__selected-date .fc-daygrid-day-frame {
-  border-color: color-mix(in srgb, var(--accent-primary) 58%, var(--glass-border));
-  background: color-mix(in srgb, var(--accent-primary) 16%, var(--glass-bg));
+  border-color: color-mix(in srgb, var(--hp-color-accent) 58%, var(--glass-border));
+  background: color-mix(in srgb, var(--hp-color-accent) 16%, var(--glass-bg));
 }
 
 .booking-calendar .booking-calendar__locked-date .fc-daygrid-day-frame {
@@ -758,8 +758,8 @@
 }
 
 .booking-calendar .booking-calendar__selected-day .fc-daygrid-day-frame {
-  border-color: var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 24%, var(--glass-bg));
+  border-color: var(--hp-color-accent);
+  background: color-mix(in srgb, var(--hp-color-accent) 24%, var(--glass-bg));
 }
 
 .booking-calendar__day-cell {
@@ -898,7 +898,7 @@
 }
 
 .booking-calendar .fc-event.booking-calendar__availability-block--tentative {
-  background: color-mix(in srgb, var(--accent-primary) 12%, var(--glass-bg));
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, var(--glass-bg));
   color: var(--text-primary);
 }
 
@@ -938,20 +938,20 @@
 .booking-calendar .fc-event.booking-calendar__draft {
   border: 2px solid var(--hp-color-accent);
   border-radius: var(--hp-radius-sm);
-  background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  background: color-mix(in srgb, var(--hp-color-accent) 18%, transparent);
   color: var(--text-primary);
 }
 
 .booking-calendar .fc-event.booking-calendar__draft--active,
 .booking-calendar .fc-event.booking-calendar__draft[data-active-draft="true"] {
   border: 2px solid var(--hp-color-accent);
-  background: color-mix(in srgb, var(--accent-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--hp-color-accent) 42%, transparent);
   box-shadow: var(--hp-shadow-calendar-draft-active);
 }
 
 .booking-calendar .fc-event.booking-calendar__draft[data-active-draft="false"] {
   border: 2px solid var(--hp-color-accent);
-  background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  background: color-mix(in srgb, var(--hp-color-accent) 18%, transparent);
   box-shadow: none;
 }
 
@@ -1138,7 +1138,7 @@
 
 .booking-month-skeleton__day:nth-child(7n + 1),
 .booking-month-skeleton__day:nth-child(7n) {
-  background: color-mix(in srgb, var(--accent-primary) 6%, var(--glass-bg));
+  background: color-mix(in srgb, var(--hp-color-accent) 6%, var(--glass-bg));
 }
 
 .booking-month-skeleton__day-head {
@@ -1155,9 +1155,9 @@
 }
 
 .booking-month-skeleton__day--today .booking-month-skeleton__day-number {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
   text-decoration-line: underline;
-  text-decoration-color: var(--accent-primary);
+  text-decoration-color: var(--hp-color-accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
 }
@@ -1224,7 +1224,7 @@
 
 .booking-calendar .fc-highlight {
   border-radius: var(--hp-radius-sm);
-  background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  background: color-mix(in srgb, var(--hp-color-accent) 18%, transparent);
 }
 
 @media (max-width: 767px) {
@@ -1433,7 +1433,7 @@
 }
 
 .booking-calendar__logout-button:hover:not(:disabled) {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
 }
 
 .booking-calendar__logout-button:disabled {

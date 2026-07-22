@@ -102,8 +102,8 @@
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
-  border: 2px solid color-mix(in srgb, var(--accent-primary) 26%, transparent);
-  border-top-color: var(--accent-primary);
+  border: 2px solid color-mix(in srgb, var(--hp-color-accent) 26%, transparent);
+  border-top-color: var(--hp-color-accent);
   border-radius: 50%;
   animation: calendarLoadingSpin 700ms linear infinite;
 }
@@ -150,8 +150,8 @@
 }
 
 .dayBusy {
-  border-color: color-mix(in srgb, var(--accent-primary) 40%, var(--glass-border));
-  background: color-mix(in srgb, var(--accent-primary) 12%, rgba(255, 255, 255, 0.34));
+  border-color: color-mix(in srgb, var(--hp-color-accent) 40%, var(--glass-border));
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, rgba(255, 255, 255, 0.34));
 }
 
 .dayTentative {
@@ -203,7 +203,7 @@
 }
 
 .lock {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
 }
 
 .tentativeIcon {
