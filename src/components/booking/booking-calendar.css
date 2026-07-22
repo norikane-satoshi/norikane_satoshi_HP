@@ -90,7 +90,7 @@
 }
 
 .booking-calendar__action-error {
-  border: 1px solid var(--accent-primary);
+  border: 1px solid var(--hp-color-error);
   border-radius: var(--hp-radius-sm);
   padding: 10px 14px;
   color: var(--text-primary);

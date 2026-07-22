@@ -232,7 +232,7 @@
 }
 
 .booking-settings__error {
-  color: var(--accent-primary);
+  color: var(--hp-color-error);
 }
 
 .booking-settings__grid {
@@ -634,7 +634,7 @@ button.booking-form__slot-pill:focus-visible {
   min-width: 0;
   align-items: flex-start;
   gap: 10px;
-  border: 1px solid var(--hp-color-accent);
+  border: 1px solid var(--hp-color-error);
   padding: 12px 14px;
   color: var(--text-primary);
   font-size: 0.875rem;
