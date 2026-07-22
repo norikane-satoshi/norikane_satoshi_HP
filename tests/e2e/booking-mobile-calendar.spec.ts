@@ -362,8 +362,8 @@ test("LINE LIFF booking entry separates today and candidate colors and connects 
   await page.setViewportSize({ width: 390, height: 844 })
   await openAuthenticatedBooking(page, {
     path: "/line/booking",
-    notionWorkBusyDateKeys: ["2026-07-25"],
-    tentativeDateKeys: ["2026-07-26", "2026-07-29", "2026-07-30", "2026-07-31"],
+    notionWorkBusyDateKeys: ["2026-09-19"],
+    tentativeDateKeys: ["2026-09-20", "2026-09-23", "2026-09-24", "2026-09-25"],
   })
 
   await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年7月")
@@ -385,11 +385,23 @@ test("LINE LIFF booking entry separates today and candidate colors and connects 
   expect(new Set(Object.values(stateColors)).size).toBe(4)
 
   const todayFrame = page.locator('.fc-daygrid-day[data-date="2026-07-19"] .fc-daygrid-day-frame')
-  const busyFrame = page.locator('.fc-daygrid-day[data-date="2026-07-25"] .fc-daygrid-day-frame')
-  const tentativeFrame = page.locator('.fc-daygrid-day[data-date="2026-07-26"] .fc-daygrid-day-frame')
-  const candidateStartCell = page.locator('.fc-daygrid-day[data-date="2026-07-27"]')
-  const candidateEndCell = page.locator('.fc-daygrid-day[data-date="2026-07-28"]')
-  const isolatedCandidateCell = page.locator('.fc-daygrid-day[data-date="2026-07-30"]')
+  const todayVisual = await todayFrame.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { background: style.backgroundColor, border: style.borderTopColor }
+  })
+  await expect(page.locator('.fc-daygrid-day[data-date="2026-07-19"] .booking-calendar__today-label')).toHaveCSS("color", "rgb(177, 63, 120)")
+
+  for (let index = 0; index < 2; index += 1) {
+    await page.locator(".fc-next-button").click()
+  }
+  await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年9月")
+  await expect(page.getByTestId("booking-calendar-loading")).toHaveCount(0)
+
+  const busyFrame = page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-frame')
+  const tentativeFrame = page.locator('.fc-daygrid-day[data-date="2026-09-20"] .fc-daygrid-day-frame')
+  const candidateStartCell = page.locator('.fc-daygrid-day[data-date="2026-09-21"]')
+  const candidateEndCell = page.locator('.fc-daygrid-day[data-date="2026-09-22"]')
+  const isolatedCandidateCell = page.locator('.fc-daygrid-day[data-date="2026-09-24"]')
 
   for (const cell of [candidateStartCell, candidateEndCell, isolatedCandidateCell]) {
     await cell.locator(".fc-daygrid-day-number").click()
@@ -417,22 +429,23 @@ test("LINE LIFF booking entry separates today and candidate colors and connects 
   expect(candidateEndBox).not.toBeNull()
   expect(Math.abs(candidateStartBox!.x + candidateStartBox!.width - candidateEndBox!.x)).toBeLessThanOrEqual(1)
 
-  const candidateBridgeCell = page.locator('.fc-daygrid-day[data-date="2026-07-29"]')
-  const followingTentativeFrame = page.locator('.fc-daygrid-day[data-date="2026-07-31"] .fc-daygrid-day-frame')
+  const candidateBridgeCell = page.locator('.fc-daygrid-day[data-date="2026-09-23"]')
+  const followingTentativeFrame = page.locator('.fc-daygrid-day[data-date="2026-09-25"] .fc-daygrid-day-frame')
   await candidateBridgeCell.locator(".fc-daygrid-day-number").click()
   await expect(isolatedCandidateCell).toHaveClass(/booking-calendar__selected-day-block-end/)
   await expect(isolatedCandidateFrame).toHaveCSS("border-right-width", "1px")
   await expect(followingTentativeFrame).toHaveCSS("border-left-width", "1px")
   await expect(followingTentativeFrame).toHaveCSS("border-radius", "16px")
 
-  const backgrounds = await Promise.all([
-    todayFrame,
+  const visuals = await Promise.all([
     busyFrame,
     tentativeFrame,
     candidateStartFrame,
-  ].map((locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor)))
-  expect(new Set(backgrounds).size).toBe(4)
-  await expect(page.locator('.fc-daygrid-day[data-date="2026-07-19"] .booking-calendar__today-label')).toHaveCSS("color", "rgb(177, 63, 120)")
+  ].map((locator) => locator.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { background: style.backgroundColor, border: style.borderTopColor }
+  })))
+  expect(new Set([todayVisual, ...visuals].map((visual) => JSON.stringify(visual))).size).toBe(4)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
