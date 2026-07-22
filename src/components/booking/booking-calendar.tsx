@@ -334,13 +334,11 @@ function dateKeysForBusySlot(slot: BusySlot): string[] {
   const end = new Date(slot.end)
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end.getTime() <= start.getTime()) return []
   const inclusiveEnd = new Date(end.getTime() - 1)
+  const startKey = toTokyoDateKey(start)
+  const lastKey = toTokyoDateKey(inclusiveEnd)
   const keys: string[] = []
-  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0)
-  const last = new Date(inclusiveEnd.getFullYear(), inclusiveEnd.getMonth(), inclusiveEnd.getDate(), 0, 0, 0, 0)
-
-  while (cursor.getTime() <= last.getTime()) {
-    keys.push(toDateKey(cursor))
-    cursor.setDate(cursor.getDate() + 1)
+  for (let cursor = startKey; cursor <= lastKey; cursor = addDaysToDateKey(cursor, 1)) {
+    keys.push(cursor)
   }
   return keys
 }

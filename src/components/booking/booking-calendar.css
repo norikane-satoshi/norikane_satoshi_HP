@@ -914,7 +914,7 @@
 
 .booking-calendar .fc-event.booking-calendar__availability-block {
   min-height: 20px;
-  margin: 2px 0 0;
+  margin: 0;
   border: 0;
   border-radius: var(--hp-radius-sm);
   color: var(--text-primary);

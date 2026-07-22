@@ -236,8 +236,8 @@ describe("BookingCalendar availability blocks", () => {
     const events = buildBookingAvailabilityBlockEvents(
       {
         busy: [{
-          start: "2026-09-19T00:00:00",
-          end: "2026-10-03T23:59:00",
+          start: "2026-09-19T00:00:00+09:00",
+          end: "2026-10-03T23:59:00+09:00",
         }],
         bookings: [],
         tentativeDateKeys: ["2026-09-20", "2026-10-05", "2026-10-06"],
