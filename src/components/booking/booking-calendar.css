@@ -706,7 +706,7 @@
 }
 
 .booking-calendar .fc-day-today .booking-calendar__day-number {
-  color: var(--hp-color-accent);
+  color: var(--hp-color-calendar-today);
 }
 
 .booking-calendar .booking-calendar__weekend .fc-daygrid-day-frame,
@@ -720,8 +720,8 @@
 }
 
 .booking-calendar .booking-calendar__selected-date .fc-daygrid-day-frame {
-  border-color: color-mix(in srgb, var(--hp-color-accent) 58%, var(--glass-border));
-  background: color-mix(in srgb, var(--hp-color-accent) 16%, var(--glass-bg));
+  border-color: color-mix(in srgb, var(--hp-color-calendar-candidate) 58%, var(--glass-border));
+  background: color-mix(in srgb, var(--hp-color-calendar-candidate) 16%, var(--glass-bg));
 }
 
 .booking-calendar .booking-calendar__locked-date .fc-daygrid-day-frame {
@@ -745,6 +745,7 @@
 }
 
 .booking-calendar[data-availability-status-blocks="true"] .booking-calendar__availability-day-block-start:not(.booking-calendar__availability-day-block-end) .fc-daygrid-day-frame {
+  border-right-width: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -785,12 +786,12 @@
 
 .booking-calendar .booking-calendar__today-date .fc-daygrid-day-frame,
 .booking-calendar .fc-timegrid-col.booking-calendar__today-date {
-  border-color: var(--hp-color-accent);
-  background: color-mix(in srgb, var(--hp-color-accent) 12%, var(--glass-bg));
+  border-color: var(--hp-color-calendar-today);
+  background: color-mix(in srgb, var(--hp-color-calendar-today) 12%, var(--glass-bg));
 }
 
 .booking-calendar .booking-calendar__today-date .booking-calendar__day-number {
-  color: var(--hp-color-accent);
+  color: var(--hp-color-calendar-today);
 }
 
 .booking-calendar[data-availability-status-blocks="true"] .booking-calendar__locked-date .fc-daygrid-day-frame {
@@ -804,8 +805,11 @@
 }
 
 .booking-calendar[data-availability-status-blocks="true"] .booking-calendar__today-date .fc-daygrid-day-frame {
-  border-color: var(--hp-color-accent);
-  background: color-mix(in srgb, var(--hp-color-accent) 12%, rgba(255, 255, 255, 0.46));
+  border-color: var(--hp-color-calendar-today);
+}
+
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__today-date:not(.booking-calendar__locked-date):not(.booking-calendar__tentative-date) .fc-daygrid-day-frame {
+  background: color-mix(in srgb, var(--hp-color-calendar-today) 12%, rgba(255, 255, 255, 0.46));
 }
 
 .booking-calendar .booking-calendar__locked-date .booking-calendar__day-number {
@@ -816,9 +820,48 @@
   color: var(--text-primary);
 }
 
-.booking-calendar .booking-calendar__selected-day .fc-daygrid-day-frame {
-  border-color: var(--hp-color-accent);
-  background: color-mix(in srgb, var(--hp-color-accent) 24%, var(--glass-bg));
+.booking-calendar .booking-calendar__selected-day .fc-daygrid-day-frame,
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__selected-date .fc-daygrid-day-frame {
+  border-color: color-mix(in srgb, var(--hp-color-calendar-candidate) 58%, var(--glass-border));
+  background: color-mix(in srgb, var(--hp-color-calendar-candidate) 16%, var(--glass-bg));
+}
+
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__selected-date {
+  position: relative;
+  z-index: 2;
+  padding-right: 6px;
+  padding-left: 6px;
+}
+
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__selected-day-block-start:not(.booking-calendar__selected-day-block-end) {
+  padding-right: 0;
+}
+
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__selected-day-block-start:not(.booking-calendar__selected-day-block-end) .fc-daygrid-day-frame {
+  border-right-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__selected-day-block-middle {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__selected-day-block-middle .fc-daygrid-day-frame {
+  border-right-width: 0;
+  border-left-width: 0;
+  border-radius: 0;
+}
+
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__selected-day-block-end:not(.booking-calendar__selected-day-block-start) {
+  padding-left: 0;
+}
+
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__selected-day-block-end:not(.booking-calendar__selected-day-block-start) .fc-daygrid-day-frame {
+  border-left-width: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .booking-calendar__day-cell {
@@ -841,8 +884,8 @@
   margin-left: 4px;
   padding: 1px 5px;
   border-radius: var(--hp-radius-pill);
-  background: color-mix(in srgb, var(--hp-color-accent) 14%, transparent);
-  color: var(--hp-color-accent);
+  background: color-mix(in srgb, var(--hp-color-calendar-today) 14%, transparent);
+  color: var(--hp-color-calendar-today);
   font-size: 0.5625rem;
   font-weight: 700;
   line-height: 1;
@@ -1235,9 +1278,9 @@
 }
 
 .booking-month-skeleton__day--today .booking-month-skeleton__day-number {
-  color: var(--hp-color-accent);
+  color: var(--hp-color-calendar-today);
   text-decoration-line: underline;
-  text-decoration-color: var(--hp-color-accent);
+  text-decoration-color: var(--hp-color-calendar-today);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
 }

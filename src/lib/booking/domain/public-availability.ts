@@ -40,7 +40,10 @@ export type PublicAvailabilityBlockMarker = {
   isMiddle: boolean
 }
 
-type PublicAvailabilityBlockDay = Pick<PublicAvailabilityDay, "dateKey" | "status">
+type PublicAvailabilityBlockDay = {
+  dateKey: string
+  status: string
+}
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/

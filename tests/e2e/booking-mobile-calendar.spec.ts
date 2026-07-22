@@ -357,6 +357,85 @@ test("LINE LIFF booking entry uses the same month-only candidate flow", async ({
   await expect(page).toHaveURL(/\/terms$/)
 })
 
+test("LINE LIFF booking entry separates today and candidate colors and connects only adjacent candidates", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-19T12:00:00+09:00"))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openAuthenticatedBooking(page, {
+    path: "/line/booking",
+    notionWorkBusyDateKeys: ["2026-07-25"],
+    tentativeDateKeys: ["2026-07-26", "2026-07-29", "2026-07-30", "2026-07-31"],
+  })
+
+  await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年7月")
+  const stateColors = await page.evaluate(() => {
+    const rootStyle = getComputedStyle(document.documentElement)
+    return {
+      today: rootStyle.getPropertyValue("--hp-color-calendar-today").trim().toLowerCase(),
+      candidate: rootStyle.getPropertyValue("--hp-color-calendar-candidate").trim().toLowerCase(),
+      busy: rootStyle.getPropertyValue("--hp-color-accent").trim().toLowerCase(),
+      tentative: "#d9a514",
+    }
+  })
+  expect(stateColors).toEqual({
+    today: "#b13f78",
+    candidate: "#0f8a72",
+    busy: "#366fcc",
+    tentative: "#d9a514",
+  })
+  expect(new Set(Object.values(stateColors)).size).toBe(4)
+
+  const todayFrame = page.locator('.fc-daygrid-day[data-date="2026-07-19"] .fc-daygrid-day-frame')
+  const busyFrame = page.locator('.fc-daygrid-day[data-date="2026-07-25"] .fc-daygrid-day-frame')
+  const tentativeFrame = page.locator('.fc-daygrid-day[data-date="2026-07-26"] .fc-daygrid-day-frame')
+  const candidateStartCell = page.locator('.fc-daygrid-day[data-date="2026-07-27"]')
+  const candidateEndCell = page.locator('.fc-daygrid-day[data-date="2026-07-28"]')
+  const isolatedCandidateCell = page.locator('.fc-daygrid-day[data-date="2026-07-30"]')
+
+  for (const cell of [candidateStartCell, candidateEndCell, isolatedCandidateCell]) {
+    await cell.locator(".fc-daygrid-day-number").click()
+  }
+
+  await expect(candidateStartCell).toHaveClass(/booking-calendar__selected-day-block-start/)
+  await expect(candidateStartCell).not.toHaveClass(/booking-calendar__selected-day-block-end/)
+  await expect(candidateEndCell).toHaveClass(/booking-calendar__selected-day-block-end/)
+  await expect(candidateEndCell).not.toHaveClass(/booking-calendar__selected-day-block-start/)
+  await expect(isolatedCandidateCell).toHaveClass(/booking-calendar__selected-day-block-start/)
+  await expect(isolatedCandidateCell).toHaveClass(/booking-calendar__selected-day-block-end/)
+
+  const candidateStartFrame = candidateStartCell.locator(".fc-daygrid-day-frame")
+  const candidateEndFrame = candidateEndCell.locator(".fc-daygrid-day-frame")
+  const isolatedCandidateFrame = isolatedCandidateCell.locator(".fc-daygrid-day-frame")
+  await expect(candidateStartFrame).toHaveCSS("border-right-width", "0px")
+  await expect(candidateEndFrame).toHaveCSS("border-left-width", "0px")
+  await expect(isolatedCandidateFrame).toHaveCSS("border-left-width", "1px")
+  await expect(isolatedCandidateFrame).toHaveCSS("border-right-width", "1px")
+  await expect(isolatedCandidateFrame).toHaveCSS("border-radius", "16px")
+
+  const candidateStartBox = await candidateStartFrame.boundingBox()
+  const candidateEndBox = await candidateEndFrame.boundingBox()
+  expect(candidateStartBox).not.toBeNull()
+  expect(candidateEndBox).not.toBeNull()
+  expect(Math.abs(candidateStartBox!.x + candidateStartBox!.width - candidateEndBox!.x)).toBeLessThanOrEqual(1)
+
+  const candidateBridgeCell = page.locator('.fc-daygrid-day[data-date="2026-07-29"]')
+  const followingTentativeFrame = page.locator('.fc-daygrid-day[data-date="2026-07-31"] .fc-daygrid-day-frame')
+  await candidateBridgeCell.locator(".fc-daygrid-day-number").click()
+  await expect(isolatedCandidateCell).toHaveClass(/booking-calendar__selected-day-block-end/)
+  await expect(isolatedCandidateFrame).toHaveCSS("border-right-width", "1px")
+  await expect(followingTentativeFrame).toHaveCSS("border-left-width", "1px")
+  await expect(followingTentativeFrame).toHaveCSS("border-radius", "16px")
+
+  const backgrounds = await Promise.all([
+    todayFrame,
+    busyFrame,
+    tentativeFrame,
+    candidateStartFrame,
+  ].map((locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor)))
+  expect(new Set(backgrounds).size).toBe(4)
+  await expect(page.locator('.fc-daygrid-day[data-date="2026-07-19"] .booking-calendar__today-label')).toHaveCSS("color", "rgb(177, 63, 120)")
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
 test("LINE LIFF booking entry locks the confirmed IB work ranges through free-busy", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-07-19T12:00:00+09:00"))
   await page.setViewportSize({ width: 390, height: 844 })
@@ -426,9 +505,13 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
   expect(mondayBox).not.toBeNull()
   expect(Math.abs(sundayBox!.x + sundayBox!.width - mondayBox!.x)).toBeLessThanOrEqual(1)
   await expect(sundayFrame).toHaveCSS("border-top-right-radius", "0px")
+  await expect(sundayFrame).toHaveCSS("border-right-width", "0px")
   await expect(mondayFrame).toHaveCSS("border-top-left-radius", "0px")
+  await expect(mondayFrame).toHaveCSS("border-left-width", "0px")
   await expect(mondayFrame).toHaveCSS("border-top-right-radius", "0px")
+  await expect(mondayFrame).toHaveCSS("border-right-width", "0px")
   await expect(saturdayFrame).toHaveCSS("border-top-left-radius", "0px")
+  await expect(saturdayFrame).toHaveCSS("border-left-width", "0px")
   await expect(page.locator('.fc-daygrid-day[data-date="2026-09-20"] .fc-daygrid-day-frame')).toHaveCSS("overflow", "visible")
   await page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-number').click()
   await expect(page.locator('.fc-daygrid-day[data-date="2026-09-19"].booking-calendar__selected-date')).toHaveCount(0)
@@ -495,6 +578,8 @@ test("LINE LIFF booking entry shows tentative holds as selectable connected bloc
   const tentativeNextFrameBox = await page.locator('.fc-daygrid-day[data-date="2026-10-06"] .fc-daygrid-day-frame').boundingBox()
   expect(tentativeNextFrameBox).not.toBeNull()
   expect(Math.abs(tentativeFrameBox!.x + tentativeFrameBox!.width - tentativeNextFrameBox!.x)).toBeLessThanOrEqual(1)
+  await expect(page.locator('.fc-daygrid-day[data-date="2026-10-05"] .fc-daygrid-day-frame')).toHaveCSS("border-right-width", "0px")
+  await expect(page.locator('.fc-daygrid-day[data-date="2026-10-06"] .fc-daygrid-day-frame')).toHaveCSS("border-left-width", "0px")
 
   const tentativeCell = page.locator('.fc-daygrid-day[data-date="2026-10-05"]')
   await expect(tentativeCell).toHaveAttribute("data-booking-tentative", "true")

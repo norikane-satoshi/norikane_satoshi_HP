@@ -48,6 +48,8 @@ Do not invent parallel tokens unless the user explicitly asks for a design-syste
 | `--glass-bg` | `rgba(255, 255, 255, 0.45)` | Standard glass card fill |
 | `--glass-border` | `rgba(255, 255, 255, 0.62)` | Standard glass card border |
 | `--glass-shadow` | `var(--hp-shadow-soft)` | Standard glass card shadow alias |
+| `--hp-color-calendar-today` | `#B13F78` | Calendar today marker |
+| `--hp-color-calendar-candidate` | `#0F8A72` | Booking candidate selection |
 | `--hp-radius-sm` | `16px` | Small cards, inputs, tags, buttons |
 | `--hp-radius` | `20px` | Standard cards and figure shells |
 | `--hp-radius-lg` | `24px` | Larger cards |
