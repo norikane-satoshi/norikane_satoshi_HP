@@ -933,6 +933,7 @@
 }
 
 .booking-calendar .fc-event.booking-calendar__availability-block .fc-event-main {
+  display: flex;
   color: inherit;
 }
 
