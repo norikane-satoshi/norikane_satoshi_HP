@@ -58,7 +58,7 @@ test("public availability shows a delayed navigation overlay without layout shif
     await route.continue()
   })
   shouldDelay = true
-  await page.getByRole("link", { name: "翌月" }).click()
+  await page.getByRole("button", { name: "翌月" }).click()
   const overlay = page.getByTestId("public-availability-calendar-loading")
   await expect(overlay).toBeVisible()
   const during = await calendar.boundingBox()
@@ -91,7 +91,7 @@ test("calendar loading overlays preserve the 390px layouts", async ({ page }) =>
     await route.continue()
   })
   shouldDelay = true
-  await page.getByRole("link", { name: "翌月" }).click()
+  await page.getByRole("button", { name: "翌月" }).click()
   await expect(page.getByTestId("public-availability-calendar-loading")).toBeVisible()
   expect(await page.getByTestId("public-availability-calendar").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true)
   await expect(page.getByTestId("public-availability-calendar-loading")).toHaveCount(0)

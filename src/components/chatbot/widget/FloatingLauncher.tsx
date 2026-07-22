@@ -11,7 +11,7 @@ export function FloatingLauncher({ onOpen }: FloatingLauncherProps) {
     <button
       type="button"
       onClick={onOpen}
-      className="glass-btn pointer-events-auto flex animate-in fade-in duration-300 items-center gap-2 px-4 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+      className="glass-btn pointer-events-auto flex animate-in fade-in duration-300 items-center gap-2 px-4 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
       aria-label="AI 相談窓口を開く"
     >
       <MessageCircle className="h-5 w-5" aria-hidden="true" />

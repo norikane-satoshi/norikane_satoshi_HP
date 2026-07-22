@@ -57,7 +57,7 @@
 }
 
 .homeLink,
-.monthLink {
+.monthButton {
   display: inline-flex;
   min-height: 40px;
   align-items: center;
@@ -69,7 +69,26 @@
   color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 700;
+  font-family: inherit;
   text-decoration: none;
+}
+
+.monthButton {
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--hp-color-accent) 22%, transparent);
+  background: var(--hp-color-calendar-control-bg);
+}
+
+.monthButton:hover,
+.monthButton:focus-visible {
+  background: var(--hp-color-calendar-control-hover-bg);
+  color: var(--hp-color-accent);
+  box-shadow: var(--hp-shadow-calendar-control-hover);
+}
+
+.monthButtonIcon {
+  width: 40px;
+  padding: 0;
 }
 
 .calendar {
@@ -102,8 +121,8 @@
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
-  border: 2px solid color-mix(in srgb, var(--accent-primary) 26%, transparent);
-  border-top-color: var(--accent-primary);
+  border: 2px solid color-mix(in srgb, var(--hp-color-accent) 26%, transparent);
+  border-top-color: var(--hp-color-accent);
   border-radius: 50%;
   animation: calendarLoadingSpin 700ms linear infinite;
 }
@@ -150,13 +169,18 @@
 }
 
 .dayBusy {
-  border-color: color-mix(in srgb, var(--accent-primary) 40%, var(--glass-border));
-  background: color-mix(in srgb, var(--accent-primary) 12%, rgba(255, 255, 255, 0.34));
+  border-color: color-mix(in srgb, var(--hp-color-accent) 40%, var(--glass-border));
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, rgba(255, 255, 255, 0.34));
 }
 
 .dayTentative {
   border-color: color-mix(in srgb, #d9a514 36%, var(--glass-border));
   background: color-mix(in srgb, #f7d86a 18%, rgba(255, 255, 255, 0.46));
+}
+
+.dayToday {
+  border-color: var(--hp-color-accent);
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, rgba(255, 255, 255, 0.46));
 }
 
 .dayBlockStart:not(.dayBlockEnd) {
@@ -190,6 +214,22 @@
   font-weight: 700;
 }
 
+.todayLabel {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 6px;
+  border-radius: var(--hp-radius-pill);
+  background: color-mix(in srgb, var(--hp-color-accent) 14%, transparent);
+  color: var(--hp-color-accent);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .status {
   display: inline-flex;
   min-height: 24px;
@@ -203,7 +243,7 @@
 }
 
 .lock {
-  color: var(--accent-primary);
+  color: var(--hp-color-accent);
 }
 
 .tentativeIcon {
@@ -272,7 +312,7 @@
     width: 100%;
   }
 
-  .monthLink {
+  .monthButton {
     flex: 1 1 0;
   }
 
@@ -284,6 +324,11 @@
   .day {
     min-height: 66px;
     padding: 7px;
+  }
+
+  .todayLabel {
+    top: 6px;
+    right: 6px;
   }
 
   .status {
@@ -309,6 +354,14 @@
   .day {
     min-height: 58px;
     padding: 6px 4px;
+  }
+
+  .todayLabel {
+    top: 4px;
+    right: 4px;
+    min-height: 16px;
+    padding-inline: 4px;
+    font-size: 0.56rem;
   }
 
   .status {

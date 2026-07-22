@@ -1258,7 +1258,7 @@ export function WidgetShell({
           type="button"
           onPointerDown={onSidePeekResizePointerDown}
           onKeyDown={handleSidePeekResizeKeyDown}
-          className="absolute inset-y-0 left-0 z-20 flex w-4 cursor-ew-resize items-center justify-center text-hp-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent-primary)]"
+          className="absolute inset-y-0 left-0 z-20 flex w-4 cursor-ew-resize items-center justify-center text-hp-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
           aria-label="サイドピーク幅を変更"
         >
           <GripHorizontal className="h-5 w-5 rotate-90" aria-hidden="true" />
@@ -1284,7 +1284,7 @@ export function WidgetShell({
             <button
               type="button"
               onClick={onToggleDisplayMode}
-              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
               aria-label={displayMode === "side-peek" ? "フローティング表示に切り替え" : "サイドピーク表示に切り替え"}
             >
               <PanelRightOpen className={`h-4 w-4 ${displayMode === "side-peek" ? "rotate-180" : ""}`} aria-hidden="true" />
@@ -1293,7 +1293,7 @@ export function WidgetShell({
             <button
               type="button"
               onClick={onToggleDisplayMode}
-              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
               aria-label={isFullScreen ? "通常表示に戻す" : "全画面表示に切り替え"}
             >
               {isFullScreen ? (
@@ -1306,7 +1306,7 @@ export function WidgetShell({
           <button
             type="button"
             onClick={handleMinimize}
-            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
             aria-label="最小化"
           >
             <Minus className="h-4 w-4" aria-hidden="true" />
@@ -1427,7 +1427,7 @@ export function WidgetShell({
           <button
             type="button"
             onClick={scrollToLatest}
-            className="glass-badge absolute bottom-4 left-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center border border-[var(--glass-border)] p-0 text-[var(--accent-primary)] shadow-[var(--glass-shadow)] transition-[transform,box-shadow,opacity] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+          className="glass-badge absolute bottom-4 left-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center border border-[var(--glass-border)] p-0 text-[var(--hp-color-accent)] shadow-[var(--glass-shadow)] transition-[transform,box-shadow,opacity] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
             style={{
               background: "rgba(255, 255, 255, 0.42)",
               backdropFilter: "blur(18px) saturate(140%)",
@@ -1451,7 +1451,7 @@ export function WidgetShell({
           type="button"
           onPointerDown={onFloatingResizePointerDown}
           onKeyDown={handleFloatingResizeKeyDown}
-          className="absolute bottom-0 right-0 z-20 h-8 w-8 cursor-nwse-resize bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent-primary)]"
+          className="absolute bottom-0 right-0 z-20 h-8 w-8 cursor-nwse-resize bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
           aria-label="パネルを拡大・縮小"
         />
       ) : null}

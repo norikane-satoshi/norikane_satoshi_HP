@@ -29,7 +29,7 @@ export function DemoCursor({ point, active = true, clicking = false, label }: De
       <span className="relative block h-7 w-7">
         <span
           className={[
-            "absolute left-0 top-0 h-7 w-7 rounded-full border border-[var(--accent-primary)]/60",
+            "absolute left-0 top-0 h-7 w-7 rounded-full border border-[var(--hp-color-accent)]/60",
             clicking ? "scale-125 opacity-90" : "scale-100 opacity-55",
             "motion-safe:animate-ping motion-reduce:animate-none",
           ].join(" ")}

@@ -242,8 +242,8 @@ describe("BookingCalendar availability blocks", () => {
         bookings: [],
         tentativeDateKeys: ["2026-09-20", "2026-10-05", "2026-10-06"],
       },
-      new Date("2026-09-13T00:00:00+09:00"),
-      new Date("2026-10-11T00:00:00+09:00"),
+      new Date("2026-09-13T00:00:00"),
+      new Date("2026-10-11T00:00:00"),
     )
 
     expect(events.map((event) => event.extendedProps)).toEqual([

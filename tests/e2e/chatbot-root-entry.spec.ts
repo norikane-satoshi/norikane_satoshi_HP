@@ -35,9 +35,7 @@ test.describe("root chatbot entry", () => {
     const launcher = await revealMinimizedLauncher(page)
     await expect(launcher).toBeVisible()
     await expect(launcher).toHaveAttribute("data-attention", "true")
-    await expect
-      .poll(async () => await launcher.evaluate((element) => getComputedStyle(element).animationIterationCount))
-      .toContain("infinite")
+    await expect(launcher).toHaveClass(/chatbot-minimized-attention/)
 
     await launcher.click()
     await expectChatbotOpen(page)

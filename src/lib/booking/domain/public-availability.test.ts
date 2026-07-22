@@ -72,6 +72,20 @@ describe("buildPublicAvailabilityMonth", () => {
     })).toEqual(["2026-07-16", "2026-07-17", "2026-07-20", "2026-07-22"])
   })
 
+  it("drops reversed timed holds and derives the month from the current Tokyo date", () => {
+    expect(buildTentativeAvailabilityDateKeys({
+      tentative: [{
+        start: "2026-07-20T10:00:00+09:00",
+        end: "2026-07-20T09:00:00+09:00",
+      }],
+    })).toEqual([])
+
+    expect(buildPublicAvailabilityMonth({
+      month: "invalid",
+      now: new Date("2026-08-03T15:00:00.000Z"),
+    }).month).toBe("2026-08")
+  })
+
   it("uses a stable Sunday-start month grid and JST today/past state", () => {
     const month = buildPublicAvailabilityMonth({
       month: "2026-08",
@@ -86,7 +100,10 @@ describe("buildPublicAvailabilityMonth", () => {
     })
     expect(month.days).toHaveLength(42)
     expect(month.days[0]).toMatchObject({ dateKey: "2026-07-26", inMonth: false })
-    expect(month.days.find((day) => day.dateKey === "2026-08-04")?.isTodayOrPast).toBe(true)
+    expect(month.days.find((day) => day.dateKey === "2026-08-04")).toMatchObject({
+      isToday: true,
+      isTodayOrPast: true,
+    })
     expect(month.days.find((day) => day.dateKey === "2026-08-05")?.isTodayOrPast).toBe(false)
   })
 

@@ -161,9 +161,9 @@ test.describe("booking calendar mobile layout and selection", () => {
 
     await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
     await expect(page.getByRole("button", { name: "日", exact: true })).toHaveCount(0)
-    const dayNumberTexts = await page.locator(".fc-daygrid-day-number").allTextContents()
+    const dayNumberTexts = await page.locator(".fc-daygrid-day-number > span:first-child").allTextContents()
     expect(dayNumberTexts.length).toBeGreaterThan(0)
-    expect(dayNumberTexts.every((text) => !text.includes("日"))).toBe(true)
+    expect(dayNumberTexts.every((text) => /^\d{1,2}$/.test(text.trim()))).toBe(true)
     const calendarSurfaceBox = await page.locator(".booking-calendar__surface").boundingBox()
     expect(calendarSurfaceBox).not.toBeNull()
     expect(calendarSurfaceBox!.width).toBeGreaterThanOrEqual(374)
@@ -372,14 +372,18 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
     await expect(cell).toHaveClass(/booking-calendar__locked-date/)
     await expect(cell).toHaveAttribute("aria-disabled", "true")
   }
+  await expect(page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-frame')).toHaveCSS("background-image", "none")
   const septemberBusyBlocks = page.locator([
     '[data-block-start="2026-09-19"]',
     '[data-block-start="2026-09-20"]',
     '[data-block-start="2026-09-27"]',
   ].join(", "))
+  await expect(page.locator('[data-block-start="2026-09-19"]')).toHaveCount(1)
+  await expect(page.locator('[data-block-start="2026-09-20"]')).toHaveCount(1)
+  await expect(page.locator('[data-block-start="2026-09-27"]')).toHaveCount(1)
   await expect(septemberBusyBlocks).toHaveCount(3)
   await expect(septemberBusyBlocks.locator("svg")).toHaveCount(3)
-  await expect(septemberBusyBlocks).toHaveText(["", "", ""])
+  await expect(septemberBusyBlocks).toHaveText(["予約済み", "予約済み", "予約済み"])
   await expect(page.locator('[data-block-start="2026-09-19"]')).toHaveAttribute("data-block-end", "2026-09-19")
   await expect(page.locator('[data-block-start="2026-09-20"]')).toHaveAttribute("data-block-end", "2026-09-26")
   await expect(page.locator('[data-block-start="2026-09-27"]')).toHaveAttribute("data-block-end", "2026-10-03")

@@ -11,6 +11,7 @@ export type PublicAvailabilityDay = {
   dateKey: string
   day: number
   inMonth: boolean
+  isToday: boolean
   isTodayOrPast: boolean
   isBusy: boolean
   isTentative: boolean
@@ -229,6 +230,7 @@ export function buildPublicAvailabilityMonth(input: {
       dateKey: cursor,
       day,
       inMonth: cursor.startsWith(month),
+      isToday: cursor === todayDateKey,
       isTodayOrPast: cursor <= todayDateKey,
       isBusy,
       isTentative,

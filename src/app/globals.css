@@ -112,8 +112,8 @@
   --hp-color-surface: var(--glass-bg);
   --hp-color-border: var(--glass-border);
   --hp-color-accent: var(--accent-primary);
-  --hp-color-accent-focus-outline: rgba(54, 111, 204, 0.54);
-  --hp-color-accent-focus-ring: rgba(54, 111, 204, 0.10);
+  --hp-color-accent-focus-outline: var(--accent-primary);
+  --hp-color-accent-focus-ring: var(--accent-primary);
   --hp-color-error: var(--destructive);
   --hp-color-success: oklch(69.6% 0.17 162.48);
   --hp-color-calendar-backdrop: rgba(28, 15, 110, 0.45);
@@ -129,7 +129,7 @@
   --hp-shadow-soft: 0 8px 28px rgba(30,34,42,.06);
   --hp-shadow-modal: 0 14px 32px rgba(30,34,42,.08);
   --hp-shadow-calendar-control-hover: 0 4px 20px color-mix(in srgb, var(--hp-color-accent) 22%, transparent);
-  --hp-shadow-calendar-draft-active: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 24%, transparent), var(--glass-shadow);
+  --hp-shadow-calendar-draft-active: 0 0 0 2px color-mix(in srgb, var(--hp-color-accent) 24%, transparent), var(--glass-shadow);
   --hp-font-display: clamp(1.75rem, 5vw, 5.5rem);
   --hp-font-h2: 1.75rem;
   --hp-font-h3: 1.5rem;
@@ -758,7 +758,7 @@
     left: 50%;
     width: 6px;
     border-radius: 100px;
-    background: color-mix(in srgb, var(--accent-primary) 68%, transparent);
+    background: color-mix(in srgb, var(--hp-color-accent) 68%, transparent);
     box-shadow: var(--glass-shadow);
     transform: translateX(-50%);
   }
@@ -877,7 +877,7 @@
     color: var(--text-primary);
   }
   .hp-nav-dot {
-    background: var(--accent-primary);
+    background: var(--hp-color-accent);
     border-radius: var(--hp-radius-pill);
     display: inline-block;
     height: 0.375rem;

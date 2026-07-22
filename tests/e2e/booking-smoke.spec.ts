@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { bookingApiSchema } from "@/lib/booking/domain/api-schema"
+import { createBookingFromApiInput } from "@/lib/booking/server/create-booking"
 import {
   createBookingForUser,
   e2eCurrentWeekRange,
@@ -37,6 +39,30 @@ test.describe("booking personal smoke", () => {
       label: "existing",
       start: existingSlot.start,
       end: existingSlot.end,
+    })
+    await page.route("**/api/booking", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback()
+        return
+      }
+      const input = bookingApiSchema.parse(route.request().postDataJSON())
+      const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
+      delete process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
+      try {
+        const result = await createBookingFromApiInput({
+          input,
+          userId: user.id,
+          userEmail: user.email,
+        })
+        await route.fulfill({
+          status: result.status,
+          contentType: "application/json",
+          body: JSON.stringify(result.body),
+        })
+      } finally {
+        if (calendarId === undefined) delete process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
+        else process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID = calendarId
+      }
     })
 
     const authResponse = await page.goto("/api/dev/auth-bypass")

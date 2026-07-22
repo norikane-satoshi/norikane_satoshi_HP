@@ -75,12 +75,12 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
               className={[
                 "glass-btn inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold",
                 isSelected
-                  ? "border-[var(--accent-primary)] bg-white/75 text-hp ring-2 ring-[var(--hp-color-chatbot-choice-ring)]"
+                  ? "border-[var(--hp-color-accent)] bg-white/75 text-hp ring-2 ring-[var(--hp-color-chatbot-choice-ring)]"
                   : "text-hp-muted",
               ].join(" ")}
               aria-pressed={isSelected}
             >
-              {isSelected ? <Check aria-hidden="true" className="h-3.5 w-3.5 text-[var(--accent-primary)]" /> : null}
+              {isSelected ? <Check aria-hidden="true" className="h-3.5 w-3.5 text-[var(--hp-color-accent)]" /> : null}
               {choice.label}
             </button>
           )

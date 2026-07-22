@@ -91,7 +91,7 @@ export function ChatInput({
 
   return (
     <form className="border-t border-[var(--glass-border)] p-4" onSubmit={handleSubmit}>
-      <div className="glass-card-sm flex items-end gap-2 px-3 py-2 focus-within:border-[var(--accent-primary)]">
+      <div className="glass-card-sm flex items-end gap-2 px-3 py-2 focus-within:border-[var(--hp-color-accent)]">
         <div className={`relative min-w-0 flex-1 ${showsShortcutOverlay ? "min-h-[4.75rem]" : ""}`}>
           {showsShortcutOverlay ? (
             <div
@@ -139,7 +139,7 @@ export function ChatInput({
         {stoppingEnabled ? (
           <button
             type="button"
-            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
+            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
             aria-label="停止"
             onClick={onStop}
           >
@@ -148,7 +148,7 @@ export function ChatInput({
         ) : (
           <button
             type="submit"
-            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] disabled:opacity-50"
+            className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)] disabled:opacity-50"
             aria-label="送信"
             disabled={disabled}
           >

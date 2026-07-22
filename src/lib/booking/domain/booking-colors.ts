@@ -14,8 +14,8 @@ function getBookingColor(booking: BookingLike): BookingColor {
 
 export function getBookingCSSColor(booking: BookingLike): string {
   const colorMap: Record<BookingColor, string> = {
-    available: "color-mix(in srgb, var(--accent-primary) 12%, transparent)",
-    confirmed: "var(--accent-primary)",
+    available: "color-mix(in srgb, var(--hp-color-accent) 12%, transparent)",
+    confirmed: "var(--hp-color-accent)",
     unavailable: "color-mix(in srgb, var(--text-primary) 18%, transparent)",
     transparent: "transparent",
   }

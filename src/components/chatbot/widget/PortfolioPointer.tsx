@@ -9,7 +9,7 @@ export function PortfolioPointer({ worksSectionUrl = "/#works" }: PortfolioPoint
     <aside className="glass-inset p-4" aria-label="Works セクション案内">
       <p className="text-sm font-semibold text-hp">Works セクションも確認できます。</p>
       <a
-        className="mt-2 inline-flex text-sm font-semibold text-hp underline decoration-dotted underline-offset-4 hover:text-[var(--accent-primary)]"
+        className="mt-2 inline-flex text-sm font-semibold text-hp underline decoration-dotted underline-offset-4 hover:text-[var(--hp-color-accent)]"
         href={worksSectionUrl}
       >
         norikane.studio Works を見る

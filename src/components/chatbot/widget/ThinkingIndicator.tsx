@@ -20,7 +20,7 @@ export function ThinkingIndicator({ showDelayNotice }: ThinkingIndicatorProps) {
           {[0, 1, 2].map((index) => (
             <span
               key={index}
-              className="chatbot-thinking-dot h-1.5 w-1.5 rounded-full bg-[var(--accent-primary)]"
+              className="chatbot-thinking-dot h-1.5 w-1.5 rounded-full bg-[var(--hp-color-accent)]"
               style={{ animationDelay: `${index * 160}ms` }}
             />
           ))}

@@ -53,8 +53,6 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
       <div className={`glass-card ${styles.card}`}>
         <AvailabilityCalendarFrame
           currentHref={monthParam(currentMonth)}
-          currentMonth={currentMonth}
-          displayedMonth={availability.month}
           previousHref={monthParam(availability.prevMonth)}
           nextHref={monthParam(availability.nextMonth)}
           heading={(
@@ -84,6 +82,7 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
                       styles.day,
                       !day.inMonth ? styles.dayMuted : "",
                       day.isTodayOrPast ? styles.dayPast : "",
+                      day.isToday ? styles.dayToday : "",
                       day.isBusy ? styles.dayBusy : "",
                       day.isTentative ? styles.dayTentative : "",
                       blockMarker?.isStart ? styles.dayBlockStart : "",
@@ -93,9 +92,10 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
                     data-date={day.dateKey}
                     data-busy={day.isBusy ? "true" : "false"}
                     data-status={day.status}
-                    aria-label={`${day.dateKey} ${stateText}`}
+                    aria-label={`${day.dateKey}${day.isToday ? " 今日" : ""} ${stateText}`}
                   >
                     <span className={styles.dayNumber}>{day.day}</span>
+                    {day.isToday ? <span className={styles.todayLabel}>今日</span> : null}
                     {blockMarker?.isStart ? (
                       <span className={styles.status}>
                         {day.status === "busy" ? <Lock className={styles.lock} size={14} aria-hidden="true" /> : null}
