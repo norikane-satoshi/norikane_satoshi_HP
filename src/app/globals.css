@@ -121,6 +121,8 @@
   --hp-color-calendar-surface-muted: rgba(255, 255, 255, 0.35);
   --hp-color-calendar-control-bg: rgba(255, 255, 255, 0.52);
   --hp-color-calendar-control-hover-bg: rgba(255, 255, 255, 0.72);
+  --hp-color-calendar-today: #B13F78;
+  --hp-color-calendar-candidate: #0F8A72;
   --hp-color-calendar-on-strong: #fff;
   --hp-color-chatbot-shell-bg: rgba(255, 255, 255, 0.72);
   --hp-color-chatbot-choice-ring: rgba(54, 111, 204, 0.22);

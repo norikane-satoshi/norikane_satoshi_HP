@@ -179,13 +179,17 @@
 }
 
 .dayToday {
-  border-color: var(--hp-color-accent);
-  background: color-mix(in srgb, var(--hp-color-accent) 12%, rgba(255, 255, 255, 0.46));
+  border-color: var(--hp-color-calendar-today);
+}
+
+.dayToday:not(.dayBusy):not(.dayTentative) {
+  background: color-mix(in srgb, var(--hp-color-calendar-today) 12%, rgba(255, 255, 255, 0.46));
 }
 
 .dayBlockStart:not(.dayBlockEnd) {
   z-index: 1;
   margin-right: -8px;
+  border-right-width: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -223,8 +227,8 @@
   min-height: 20px;
   padding: 1px 6px;
   border-radius: var(--hp-radius-pill);
-  background: color-mix(in srgb, var(--hp-color-accent) 14%, transparent);
-  color: var(--hp-color-accent);
+  background: color-mix(in srgb, var(--hp-color-calendar-today) 14%, transparent);
+  color: var(--hp-color-calendar-today);
   font-size: 0.625rem;
   font-weight: 700;
   line-height: 1;

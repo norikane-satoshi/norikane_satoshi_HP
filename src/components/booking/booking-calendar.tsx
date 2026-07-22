@@ -50,6 +50,7 @@ type TeamOption = {
 }
 
 type CalendarView = "dayGridMonth" | "timeGridWeek" | "timeGridDay"
+type BookingVisualBlockStatus = Exclude<PublicAvailabilityDayStatus, "available"> | "candidate"
 
 type BusySlot = {
   start: string
@@ -1864,18 +1865,27 @@ export function BookingCalendar({
   const selectedDateSelectionLabel = selectedDateSelection ? formatBookingDateSelection(selectedDateSelection) : null
   const lockedDateKeySet = useMemo(() => new Set(lockedDateKeys), [lockedDateKeys])
   const tentativeDateKeySet = useMemo(() => new Set(tentativeDateKeys), [tentativeDateKeys])
-  const availabilityBlockMarkers = useMemo(() => {
-    if (!showAvailabilityStatusBlocks) return new Map()
-    return buildPublicAvailabilityBlockMarkers([
-      ...lockedDateKeys.map((dateKey) => ({ dateKey, status: "busy" as const })),
-      ...tentativeDateKeys.map((dateKey) => ({ dateKey, status: "tentative" as const })),
-    ])
-  }, [lockedDateKeys, showAvailabilityStatusBlocks, tentativeDateKeys])
   const todayDateKey = toTokyoDateKey()
 
   const isSelectableMonthDateKey = useCallback((dateKey: string) => {
     return !isDateKeyTodayOrPast(dateKey, todayDateKey) && !lockedDateKeySet.has(dateKey)
   }, [lockedDateKeySet, todayDateKey])
+  const visualBlockState = useMemo(() => {
+    const statusByDateKey = new Map<string, BookingVisualBlockStatus>()
+    if (showAvailabilityStatusBlocks) {
+      for (const dateKey of tentativeDateKeys) statusByDateKey.set(dateKey, "tentative")
+      for (const dateKey of selectedDateSelection?.dates ?? []) {
+        if (isSelectableMonthDateKey(dateKey)) statusByDateKey.set(dateKey, "candidate")
+      }
+      for (const dateKey of lockedDateKeys) statusByDateKey.set(dateKey, "busy")
+    }
+    return {
+      statusByDateKey,
+      markers: buildPublicAvailabilityBlockMarkers(
+        Array.from(statusByDateKey, ([dateKey, status]) => ({ dateKey, status })),
+      ),
+    }
+  }, [isSelectableMonthDateKey, lockedDateKeys, selectedDateSelection, showAvailabilityStatusBlocks, tentativeDateKeys])
 
   const selectMonthDate = useCallback((date: Date) => {
     const dateKey = toDateKey(date)
@@ -2148,10 +2158,13 @@ export function BookingCalendar({
     if (dateKey === todayDateKey) classes.push("booking-calendar__today-date")
     if (lockedDateKeySet.has(dateKey)) classes.push("booking-calendar__locked-date")
     if (tentativeDateKeySet.has(dateKey)) classes.push("booking-calendar__tentative-date")
-    const availabilityBlockMarker = availabilityBlockMarkers.get(dateKey)
-    if (availabilityBlockMarker?.isStart) classes.push("booking-calendar__availability-day-block-start")
-    if (availabilityBlockMarker?.isMiddle) classes.push("booking-calendar__availability-day-block-middle")
-    if (availabilityBlockMarker?.isEnd) classes.push("booking-calendar__availability-day-block-end")
+    const visualBlockMarker = visualBlockState.markers.get(dateKey)
+    const visualBlockClassPrefix = visualBlockState.statusByDateKey.get(dateKey) === "candidate"
+      ? "booking-calendar__selected-day-block"
+      : "booking-calendar__availability-day-block"
+    if (visualBlockMarker?.isStart) classes.push(`${visualBlockClassPrefix}-start`)
+    if (visualBlockMarker?.isMiddle) classes.push(`${visualBlockClassPrefix}-middle`)
+    if (visualBlockMarker?.isEnd) classes.push(`${visualBlockClassPrefix}-end`)
     if (selectedMonthDate === dateKey && selectedDates.includes(dateKey) && !unavailable) classes.push("booking-calendar__selected-day")
     if (selectedDates.includes(dateKey) && !unavailable) {
       classes.push("booking-calendar__selected-date")
