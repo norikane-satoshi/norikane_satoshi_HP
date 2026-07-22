@@ -54,6 +54,22 @@ describe("GET /api/booking/history", () => {
         customerEmail: "satoshi@example.com",
         timeSlots: [{ startTime: new Date("2026-07-12T01:00:00.000Z") }],
       },
+      ...[
+        ["PENDING_GCAL", "連携中"],
+        ["FAILED", "要確認"],
+        ["CANCELLED", "キャンセル"],
+        ["CUSTOM", "CUSTOM"],
+      ].map(([status], index) => ({
+        id: `group_${index + 3}`,
+        createdAt: new Date(`2026-07-${String(index + 3).padStart(2, "0")}T10:00:00.000Z`),
+        status,
+        projectTitle: status,
+        contactName: "Satoshi",
+        companyName: null,
+        memo: index === 0 ? "希望日:   " : null,
+        customerEmail: null,
+        timeSlots: [],
+      })),
     ])
 
     const response = await GET()
@@ -63,7 +79,7 @@ describe("GET /api/booking/history", () => {
     expect(mocks.prisma.bookingGroup.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { customer: { userId: "user_1" } },
     }))
-    expect(body.bookings).toMatchObject([
+    expect(body.bookings.slice(0, 2)).toMatchObject([
       {
         id: "group_1",
         statusLabel: "受付済み",
@@ -75,5 +91,12 @@ describe("GET /api/booking/history", () => {
         requestedDates: ["2026-07-12"],
       },
     ])
+    expect(body.bookings.slice(2).map((booking: { statusLabel: string }) => booking.statusLabel)).toEqual([
+      "連携中",
+      "要確認",
+      "キャンセル",
+      "CUSTOM",
+    ])
+    expect(body.bookings.slice(2).every((booking: { requestedDates: string[] }) => booking.requestedDates.length === 0)).toBe(true)
   })
 })

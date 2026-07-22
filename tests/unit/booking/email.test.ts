@@ -135,6 +135,36 @@ describe("booking email sender", () => {
     expect(message.text).not.toMatch(/予約確定|本予約として確定|確定しました/)
   })
 
+  it("summarizes single, ranged, and invalid requested date ranges", async () => {
+    process.env.RESEND_API_KEY = "resend_key"
+    mocks.send.mockResolvedValue({ data: { id: "email_date_range_1" }, error: null })
+    const { sendBookingConfirmedEmail } = await import("@/lib/booking/server/email")
+    const base = {
+      to: "client@example.com",
+      projectTitle: "Date range",
+      selectedSlots: [],
+      workScopes: [],
+    }
+
+    await sendBookingConfirmedEmail({
+      ...base,
+      requestedDateRange: { startDate: "2026-07-10", endDate: "2026-07-10" },
+    })
+    expect(mocks.send.mock.calls.at(-1)?.[0].text).toContain("希望日: 2026/07/10")
+
+    await sendBookingConfirmedEmail({
+      ...base,
+      requestedDateRange: { startDate: "2026-07-10", endDate: "2026-07-12" },
+    })
+    expect(mocks.send.mock.calls.at(-1)?.[0].text).toContain("3日間")
+
+    await sendBookingConfirmedEmail({
+      ...base,
+      requestedDateRange: { startDate: "invalid", endDate: "also-invalid" },
+    })
+    expect(mocks.send.mock.calls.at(-1)?.[0].text).toContain("invalid〜also-invalid")
+  })
+
   it("summarizes multiple non-contiguous selected dates as tentative candidates in customer mail", async () => {
     process.env.RESEND_API_KEY = "resend_key"
     mocks.send.mockResolvedValue({ data: { id: "email_multi_1" }, error: null })
@@ -263,5 +293,25 @@ describe("booking email sender", () => {
       end: "2026-06-10T02:00:00.000Z",
       workScopes: ["grading"],
     })).rejects.toThrow("Resend send failed: rate limited")
+  })
+
+  it("sends booking time change mail", async () => {
+    process.env.RESEND_API_KEY = "resend_key"
+    mocks.send.mockResolvedValue({ data: { id: "email_changed_1" }, error: null })
+    const { sendBookingTimeChangedEmail } = await import("@/lib/booking/server/email")
+
+    await expect(sendBookingTimeChangedEmail({
+      to: "client@example.com",
+      projectTitle: "Project",
+      oldStart: "2026-07-10T01:00:00.000Z",
+      oldEnd: "2026-07-10T02:00:00.000Z",
+      newStart: "2026-07-10T03:00:00.000Z",
+      newEnd: "2026-07-10T04:00:00.000Z",
+    })).resolves.toEqual({ skipped: false, id: "email_changed_1" })
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
+      subject: "【予約時間変更】Project のご予約時間を変更しました",
+      text: expect.stringContaining("変更前:"),
+    }))
+    expect(mocks.send.mock.calls[0][0].text).toContain("変更後:")
   })
 })
