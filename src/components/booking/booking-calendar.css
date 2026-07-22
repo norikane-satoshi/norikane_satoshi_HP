@@ -913,7 +913,7 @@
 }
 
 .booking-calendar .fc-event.booking-calendar__availability-block {
-  min-height: 20px;
+  min-height: 19px;
   margin: 0;
   border: 0;
   border-radius: var(--hp-radius-sm);
@@ -940,7 +940,7 @@
   display: inline-flex;
   width: 100%;
   min-width: 0;
-  min-height: 20px;
+  min-height: 19px;
   align-items: center;
   justify-content: center;
   gap: 4px;
@@ -1429,7 +1429,7 @@
 
   .booking-calendar .fc-event.booking-calendar__availability-block,
   .booking-calendar__availability-content {
-    min-height: 20px;
+    min-height: 19px;
   }
 
   .booking-calendar .fc-event.booking-calendar__availability-block {
