@@ -26,7 +26,7 @@ import type {
   EventSourceFuncArg,
 } from "@fullcalendar/core"
 import { format } from "date-fns"
-import { Clock3 } from "lucide-react"
+import { Clock3, Lock } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from "react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
@@ -2137,6 +2137,7 @@ export function BookingCalendar({
     const selectedDates = selectedDateSelection?.dates ?? []
     const unavailable = !isSelectableMonthDateKey(dateKey)
     if (isDateKeyTodayOrPast(dateKey, todayDateKey)) classes.push("booking-calendar__past-or-today-date")
+    if (dateKey === todayDateKey) classes.push("booking-calendar__today-date")
     if (lockedDateKeySet.has(dateKey)) classes.push("booking-calendar__locked-date")
     if (tentativeDateKeySet.has(dateKey)) classes.push("booking-calendar__tentative-date")
     if (selectedMonthDate === dateKey && selectedDates.includes(dateKey) && !unavailable) classes.push("booking-calendar__selected-day")
@@ -2175,7 +2176,13 @@ export function BookingCalendar({
 
   const renderDayCellContent = (arg: DayCellContentArg) => {
     if (arg.view.type !== "dayGridMonth") return undefined
-    return <span>{arg.date.getDate()}</span>
+    const isToday = toDateKey(arg.date) === todayDateKey
+    return (
+      <>
+        <span>{arg.date.getDate()}</span>
+        {isToday ? <span className="booking-calendar__today-label">今日</span> : null}
+      </>
+    )
   }
 
   const removeExistingSlot = useCallback(
@@ -2251,12 +2258,7 @@ export function BookingCalendar({
 
   const renderEventContent = (arg: EventContentArg) => {
     const props = arg.event.extendedProps as AnyEventProps
-    const lockIcon = (
-      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      </svg>
-    )
+    const lockIcon = <Lock aria-hidden="true" size={14} strokeWidth={2.4} />
     if (props.kind === "draft") {
       return (
         <span className="booking-calendar__draft-range">

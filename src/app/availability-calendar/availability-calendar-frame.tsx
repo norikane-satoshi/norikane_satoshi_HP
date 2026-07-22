@@ -4,7 +4,7 @@ import type { MouseEvent, ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useTransition } from "react"
-import { ExternalLink } from "lucide-react"
+import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
 
 import styles from "./availability-calendar.module.css"
 
@@ -60,18 +60,28 @@ export function AvailabilityCalendarFrame({
           </Link>
           <nav className={styles.monthNav} aria-label="表示月">
             <Link
+              className={`glass-card-sm ${styles.monthLink} ${styles.monthLinkIcon}`}
+              href={previousHref}
+              aria-label="前月"
+              onClick={navigate(previousHref)}
+            >
+              <ChevronLeft size={16} aria-hidden="true" />
+            </Link>
+            <Link
+              className={`glass-card-sm ${styles.monthLink} ${styles.monthLinkIcon}`}
+              href={nextHref}
+              aria-label="翌月"
+              onClick={navigate(nextHref)}
+            >
+              <ChevronRight size={16} aria-hidden="true" />
+            </Link>
+            <Link
               className={`glass-card-sm ${styles.monthLink}`}
               href={currentHref}
               aria-current={displayedMonth === currentMonth ? "page" : undefined}
               onClick={navigate(currentHref)}
             >
               今月
-            </Link>
-            <Link className={`glass-card-sm ${styles.monthLink}`} href={previousHref} onClick={navigate(previousHref)}>
-              前月
-            </Link>
-            <Link className={`glass-card-sm ${styles.monthLink}`} href={nextHref} onClick={navigate(nextHref)}>
-              翌月
             </Link>
           </nav>
         </div>

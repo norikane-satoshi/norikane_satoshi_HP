@@ -707,10 +707,6 @@
 
 .booking-calendar .fc-day-today .booking-calendar__day-number {
   color: var(--hp-color-accent);
-  text-decoration-line: underline;
-  text-decoration-color: var(--hp-color-accent);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
 }
 
 .booking-calendar .booking-calendar__weekend .fc-daygrid-day-frame,
@@ -753,6 +749,16 @@
   text-decoration-line: none;
 }
 
+.booking-calendar .booking-calendar__today-date .fc-daygrid-day-frame,
+.booking-calendar .fc-timegrid-col.booking-calendar__today-date {
+  border-color: var(--hp-color-accent);
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, var(--glass-bg));
+}
+
+.booking-calendar .booking-calendar__today-date .booking-calendar__day-number {
+  color: var(--hp-color-accent);
+}
+
 .booking-calendar .booking-calendar__locked-date .booking-calendar__day-number {
   color: var(--text-muted);
 }
@@ -773,6 +779,21 @@
 .booking-calendar__day-number {
   color: var(--text-primary);
   font-weight: 700;
+}
+
+.booking-calendar__today-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: var(--hp-radius-pill);
+  background: color-mix(in srgb, var(--hp-color-accent) 14%, transparent);
+  color: var(--hp-color-accent);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
 }
 
 .booking-calendar .fc-daygrid-day-events {
@@ -893,13 +914,13 @@
 }
 
 .booking-calendar .fc-event.booking-calendar__availability-block--busy {
-  background: color-mix(in srgb, var(--text-muted) 22%, var(--glass-bg));
-  color: var(--text-muted);
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, var(--glass-bg));
+  color: var(--hp-color-accent);
 }
 
 .booking-calendar .fc-event.booking-calendar__availability-block--tentative {
-  background: color-mix(in srgb, var(--hp-color-accent) 12%, var(--glass-bg));
-  color: var(--text-primary);
+  background: color-mix(in srgb, #f7d86a 18%, var(--glass-bg));
+  color: color-mix(in srgb, #b98500 72%, var(--text-primary));
 }
 
 .booking-calendar .fc-event.booking-calendar__availability-block .fc-event-main {

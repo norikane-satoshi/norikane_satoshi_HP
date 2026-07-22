@@ -72,6 +72,23 @@
   text-decoration: none;
 }
 
+.monthLink {
+  border-color: color-mix(in srgb, var(--hp-color-accent) 22%, transparent);
+  background: var(--hp-color-calendar-control-bg);
+}
+
+.monthLink:hover,
+.monthLink:focus-visible {
+  background: var(--hp-color-calendar-control-hover-bg);
+  color: var(--hp-color-accent);
+  box-shadow: var(--hp-shadow-calendar-control-hover);
+}
+
+.monthLinkIcon {
+  width: 40px;
+  padding: 0;
+}
+
 .calendar {
   display: grid;
   gap: 8px;
@@ -159,6 +176,11 @@
   background: color-mix(in srgb, #f7d86a 18%, rgba(255, 255, 255, 0.46));
 }
 
+.dayToday {
+  border-color: var(--hp-color-accent);
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, rgba(255, 255, 255, 0.46));
+}
+
 .dayBlockStart:not(.dayBlockEnd) {
   z-index: 1;
   margin-right: -8px;
@@ -188,6 +210,22 @@
   font-family: var(--font-inter), sans-serif;
   font-size: 0.95rem;
   font-weight: 700;
+}
+
+.todayLabel {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 6px;
+  border-radius: var(--hp-radius-pill);
+  background: color-mix(in srgb, var(--hp-color-accent) 14%, transparent);
+  color: var(--hp-color-accent);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .status {
@@ -286,6 +324,11 @@
     padding: 7px;
   }
 
+  .todayLabel {
+    top: 6px;
+    right: 6px;
+  }
+
   .status {
     font-size: 0.68rem;
   }
@@ -309,6 +352,14 @@
   .day {
     min-height: 58px;
     padding: 6px 4px;
+  }
+
+  .todayLabel {
+    top: 4px;
+    right: 4px;
+    min-height: 16px;
+    padding-inline: 4px;
+    font-size: 0.56rem;
   }
 
   .status {

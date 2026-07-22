@@ -86,7 +86,10 @@ describe("buildPublicAvailabilityMonth", () => {
     })
     expect(month.days).toHaveLength(42)
     expect(month.days[0]).toMatchObject({ dateKey: "2026-07-26", inMonth: false })
-    expect(month.days.find((day) => day.dateKey === "2026-08-04")?.isTodayOrPast).toBe(true)
+    expect(month.days.find((day) => day.dateKey === "2026-08-04")).toMatchObject({
+      isToday: true,
+      isTodayOrPast: true,
+    })
     expect(month.days.find((day) => day.dateKey === "2026-08-05")?.isTodayOrPast).toBe(false)
   })
 
