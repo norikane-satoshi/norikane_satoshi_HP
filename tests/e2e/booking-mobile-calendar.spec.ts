@@ -433,10 +433,10 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
   await page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-number').click()
   await expect(page.locator('.fc-daygrid-day[data-date="2026-09-19"].booking-calendar__selected-date')).toHaveCount(0)
 
-  for (let index = 0; index < 3; index += 1) {
+  for (const monthLabel of ["2026年10月", "2026年11月", "2026年12月"]) {
     await page.locator(".fc-next-button").click()
+    await expect(page.locator(".fc-toolbar-title")).toHaveText(monthLabel)
   }
-  await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年12月")
   const decemberDates = Array.from({ length: 31 }, (_, index) => addDaysToDateKey("2026-12-01", index))
   for (const date of decemberDates) {
     const cell = page.locator(`.fc-daygrid-day[data-date="${date}"]`)
