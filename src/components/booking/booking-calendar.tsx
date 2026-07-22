@@ -1275,6 +1275,7 @@ export function BookingCalendar({
     setLockedDateKeys(nextLockedDateKeys)
     setTentativeDateKeys(nextTentativeDateKeys)
     const isMonthView = selectedViewRef.current === "dayGridMonth"
+    const isAvailabilityMonthView = isMonthView && showAvailabilityStatusBlocks
     const busyEvents = (data.busy ?? [])
       .filter((slot) => !(isMonthView && (isDateLockBusySlot(slot) || isFullDayBusySlot(slot))))
       .map((slot) => toBusyEvent(slot, isCalendarAdmin))
@@ -1283,7 +1284,7 @@ export function BookingCalendar({
         ? buildBookingAvailabilityBlockEvents(data, arg.start, arg.end)
         : nextLockedDateKeys.map(toLockedDateEvent)
       : []
-    const bookingEvents = (isMonthView && showAvailabilityStatusBlocks ? [] : data.bookings ?? []).map((booking) =>
+    const bookingEvents = (isAvailabilityMonthView ? [] : data.bookings ?? []).map((booking) =>
       toBookingEvent(
         booking,
         modeKind === "adjust" && booking.bookingGroupId === adjustingGroupId,
@@ -1293,7 +1294,7 @@ export function BookingCalendar({
       ),
     )
     const bufferEvents: EventInput[] = []
-    if (isCalendarAdmin) {
+    if (isCalendarAdmin && !isAvailabilityMonthView) {
       for (const slot of data.busy ?? []) {
         if (isFullDayBusySlot(slot)) continue
         const { before, after } = resolveBusyBufferHours(slot)
@@ -1325,54 +1326,56 @@ export function BookingCalendar({
         })
       }
     }
-    for (const booking of data.bookings ?? []) {
-      if (booking.status !== "CONFIRMED") continue
-      const startMs = new Date(booking.start).getTime()
-      const endMs = new Date(booking.end).getTime()
-      const beforeHours = booking.bufferBeforeHours
-      const afterHours = booking.bufferAfterHours
-      const beforeProps: BufferEventProps = {
-        kind: "buffer",
-        side: "before",
-        bookingId: booking.id,
-        bookingGroupId: booking.bookingGroupId,
-        bookingStart: booking.start,
-        bookingEnd: booking.end,
-        canEdit: isCalendarAdmin,
+    if (!isAvailabilityMonthView) {
+      for (const booking of data.bookings ?? []) {
+        if (booking.status !== "CONFIRMED") continue
+        const startMs = new Date(booking.start).getTime()
+        const endMs = new Date(booking.end).getTime()
+        const beforeHours = booking.bufferBeforeHours
+        const afterHours = booking.bufferAfterHours
+        const beforeProps: BufferEventProps = {
+          kind: "buffer",
+          side: "before",
+          bookingId: booking.id,
+          bookingGroupId: booking.bookingGroupId,
+          bookingStart: booking.start,
+          bookingEnd: booking.end,
+          canEdit: isCalendarAdmin,
+        }
+        const afterProps: BufferEventProps = {
+          kind: "buffer",
+          side: "after",
+          bookingId: booking.id,
+          bookingGroupId: booking.bookingGroupId,
+          bookingStart: booking.start,
+          bookingEnd: booking.end,
+          canEdit: isCalendarAdmin,
+        }
+        bufferEvents.push({
+          id: `buffer-before-${booking.id}`,
+          title: `本予約前 ${beforeHours} 時間は保護領域`,
+          start: new Date(startMs - toBufferMs(beforeHours)).toISOString(),
+          end: booking.start,
+          ...(isCalendarAdmin ? {} : { display: "background" as const }),
+          classNames: ["booking-calendar__confirmed-buffer", "booking-calendar__confirmed-buffer--before"],
+          editable: isCalendarAdmin,
+          startEditable: isCalendarAdmin,
+          durationEditable: isCalendarAdmin,
+          extendedProps: beforeProps,
+        })
+        bufferEvents.push({
+          id: `buffer-after-${booking.id}`,
+          title: `本予約後 ${afterHours} 時間は保護領域`,
+          start: booking.end,
+          end: new Date(endMs + toBufferMs(afterHours)).toISOString(),
+          ...(isCalendarAdmin ? {} : { display: "background" as const }),
+          classNames: ["booking-calendar__confirmed-buffer", "booking-calendar__confirmed-buffer--after"],
+          editable: isCalendarAdmin,
+          startEditable: false,
+          durationEditable: isCalendarAdmin,
+          extendedProps: afterProps,
+        })
       }
-      const afterProps: BufferEventProps = {
-        kind: "buffer",
-        side: "after",
-        bookingId: booking.id,
-        bookingGroupId: booking.bookingGroupId,
-        bookingStart: booking.start,
-        bookingEnd: booking.end,
-        canEdit: isCalendarAdmin,
-      }
-      bufferEvents.push({
-        id: `buffer-before-${booking.id}`,
-        title: `本予約前 ${beforeHours} 時間は保護領域`,
-        start: new Date(startMs - toBufferMs(beforeHours)).toISOString(),
-        end: booking.start,
-        ...(isCalendarAdmin ? {} : { display: "background" as const }),
-        classNames: ["booking-calendar__confirmed-buffer", "booking-calendar__confirmed-buffer--before"],
-        editable: isCalendarAdmin,
-        startEditable: isCalendarAdmin,
-        durationEditable: isCalendarAdmin,
-        extendedProps: beforeProps,
-      })
-      bufferEvents.push({
-        id: `buffer-after-${booking.id}`,
-        title: `本予約後 ${afterHours} 時間は保護領域`,
-        start: booking.end,
-        end: new Date(endMs + toBufferMs(afterHours)).toISOString(),
-        ...(isCalendarAdmin ? {} : { display: "background" as const }),
-        classNames: ["booking-calendar__confirmed-buffer", "booking-calendar__confirmed-buffer--after"],
-        editable: isCalendarAdmin,
-        startEditable: false,
-        durationEditable: isCalendarAdmin,
-        extendedProps: afterProps,
-      })
     }
     fullCalendarEventsSettledRef.current = true
     markFullCalendarReadyIfSettled()
@@ -1861,6 +1864,13 @@ export function BookingCalendar({
   const selectedDateSelectionLabel = selectedDateSelection ? formatBookingDateSelection(selectedDateSelection) : null
   const lockedDateKeySet = useMemo(() => new Set(lockedDateKeys), [lockedDateKeys])
   const tentativeDateKeySet = useMemo(() => new Set(tentativeDateKeys), [tentativeDateKeys])
+  const availabilityBlockMarkers = useMemo(() => {
+    if (!showAvailabilityStatusBlocks) return new Map()
+    return buildPublicAvailabilityBlockMarkers([
+      ...lockedDateKeys.map((dateKey) => ({ dateKey, status: "busy" as const })),
+      ...tentativeDateKeys.map((dateKey) => ({ dateKey, status: "tentative" as const })),
+    ])
+  }, [lockedDateKeys, showAvailabilityStatusBlocks, tentativeDateKeys])
   const todayDateKey = toTokyoDateKey()
 
   const isSelectableMonthDateKey = useCallback((dateKey: string) => {
@@ -2138,6 +2148,10 @@ export function BookingCalendar({
     if (dateKey === todayDateKey) classes.push("booking-calendar__today-date")
     if (lockedDateKeySet.has(dateKey)) classes.push("booking-calendar__locked-date")
     if (tentativeDateKeySet.has(dateKey)) classes.push("booking-calendar__tentative-date")
+    const availabilityBlockMarker = availabilityBlockMarkers.get(dateKey)
+    if (availabilityBlockMarker?.isStart) classes.push("booking-calendar__availability-day-block-start")
+    if (availabilityBlockMarker?.isMiddle) classes.push("booking-calendar__availability-day-block-middle")
+    if (availabilityBlockMarker?.isEnd) classes.push("booking-calendar__availability-day-block-end")
     if (selectedMonthDate === dateKey && selectedDates.includes(dateKey) && !unavailable) classes.push("booking-calendar__selected-day")
     if (selectedDates.includes(dateKey) && !unavailable) {
       classes.push("booking-calendar__selected-date")
@@ -2272,7 +2286,7 @@ export function BookingCalendar({
           aria-label={isTentative ? "仮キープ" : "予約済み（本予約）"}
         >
           {isTentative ? <Clock3 aria-hidden="true" size={14} strokeWidth={2.4} /> : lockIcon}
-          <span>{isTentative ? "仮キープ" : "予約済み"}</span>
+          {isTentative ? <span>仮キープ</span> : null}
         </span>
       )
     }

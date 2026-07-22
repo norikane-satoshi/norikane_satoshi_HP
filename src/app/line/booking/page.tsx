@@ -82,6 +82,7 @@ export default async function LineBookingPage() {
           now={now}
           teamId={null}
           pending={!session?.user?.id}
+          showAvailabilityStatusBlocks
         />
       )}
     />

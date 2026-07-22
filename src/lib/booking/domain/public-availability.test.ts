@@ -130,4 +130,22 @@ describe("buildPublicAvailabilityMonth", () => {
     expect(markers.get("2026-07-18")).toEqual({ isStart: false, isEnd: true, isMiddle: false })
     expect(markers.get("2026-07-20")).toEqual({ isStart: true, isEnd: true, isMiddle: false })
   })
+
+  it("keeps week-boundary markers correct for sparse status-only input", () => {
+    const markers = buildPublicAvailabilityBlockMarkers([
+      { dateKey: "2026-09-19", status: "busy" },
+      { dateKey: "2026-09-20", status: "busy" },
+      { dateKey: "2026-09-21", status: "busy" },
+      { dateKey: "2026-09-22", status: "busy" },
+      { dateKey: "2026-09-23", status: "tentative" },
+      { dateKey: "2026-09-24", status: "tentative" },
+    ])
+
+    expect(markers.get("2026-09-19")).toEqual({ isStart: true, isEnd: true, isMiddle: false })
+    expect(markers.get("2026-09-20")).toEqual({ isStart: true, isEnd: false, isMiddle: false })
+    expect(markers.get("2026-09-21")).toEqual({ isStart: false, isEnd: false, isMiddle: true })
+    expect(markers.get("2026-09-22")).toEqual({ isStart: false, isEnd: true, isMiddle: false })
+    expect(markers.get("2026-09-23")).toEqual({ isStart: true, isEnd: false, isMiddle: false })
+    expect(markers.get("2026-09-24")).toEqual({ isStart: false, isEnd: true, isMiddle: false })
+  })
 })

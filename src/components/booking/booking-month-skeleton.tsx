@@ -25,6 +25,7 @@ type BookingMonthSkeletonProps = {
   now: Date | string
   teamId: string | null
   pending?: boolean
+  showAvailabilityStatusBlocks?: boolean
 }
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"]
@@ -201,6 +202,7 @@ export function BookingMonthSkeleton({
   now,
   teamId,
   pending = false,
+  showAvailabilityStatusBlocks = false,
 }: BookingMonthSkeletonProps) {
   const current = toDate(now)
   const days = buildBookingMonthSkeletonDays({ initialBusy, initialBookings, now })
@@ -213,6 +215,7 @@ export function BookingMonthSkeleton({
       data-team-scope={teamId ?? "self"}
       data-range-start={initialRange?.start ?? ""}
       data-range-end={initialRange?.end ?? ""}
+      data-availability-status-blocks={showAvailabilityStatusBlocks ? "true" : "false"}
       aria-hidden={pending ? undefined : "true"}
       aria-busy={pending ? "true" : undefined}
     >

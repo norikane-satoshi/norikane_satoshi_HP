@@ -62,6 +62,7 @@ async function stubBookingCalendarApis(
     notionWorkBusyDateKeys?: string[]
     notionWorkBusyRanges?: { start: string; end: string }[]
     dateOnlyBusyDateKeys?: string[]
+    confirmedBookingDateKeys?: string[]
     tentativeDateKeys?: string[]
   } = {},
 ) {
@@ -98,6 +99,17 @@ async function stubBookingCalendarApis(
       bufferBeforeHours: 0,
       bufferAfterHours: 0,
     }))
+    const confirmedBookings = (options.confirmedBookingDateKeys ?? []).map((date, index) => ({
+      id: `booking_${index}`,
+      bookingGroupId: `group_${index}`,
+      customerUserId: "other_user",
+      start: `${date}T14:00:00+09:00`,
+      end: `${date}T15:00:00+09:00`,
+      title: "Confirmed booking",
+      status: "CONFIRMED",
+      bufferBeforeHours: 1,
+      bufferAfterHours: 1,
+    }))
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -109,7 +121,7 @@ async function stubBookingCalendarApis(
           ...notionWorkBusyRanges,
           ...dateOnlyBusy,
         ],
-        bookings: [],
+        bookings: confirmedBookings,
         tentativeDateKeys: options.tentativeDateKeys ?? [],
       }),
     })
@@ -131,6 +143,7 @@ async function openAuthenticatedBooking(
     notionWorkBusyDateKeys?: string[]
     notionWorkBusyRanges?: { start: string; end: string }[]
     dateOnlyBusyDateKeys?: string[]
+    confirmedBookingDateKeys?: string[]
     tentativeDateKeys?: string[]
     path?: string
   } = {},
@@ -360,6 +373,7 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
       { start: "2026-09-19T00:00:00+09:00", end: "2026-10-03T23:59:00+09:00" },
       { start: "2026-12-01T00:00:00+09:00", end: "2026-12-31T23:59:00+09:00" },
     ],
+    confirmedBookingDateKeys: ["2026-09-22"],
   })
 
   for (let index = 0; index < 2; index += 1) {
@@ -383,7 +397,17 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
   await expect(page.locator('[data-block-start="2026-09-27"]')).toHaveCount(1)
   await expect(septemberBusyBlocks).toHaveCount(3)
   await expect(septemberBusyBlocks.locator("svg")).toHaveCount(3)
-  await expect(septemberBusyBlocks).toHaveText(["予約済み", "予約済み", "予約済み"])
+  await expect(septemberBusyBlocks).toHaveText(["", "", ""])
+  for (let index = 0; index < 3; index += 1) {
+    await expect(septemberBusyBlocks.nth(index)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+  }
+  await expect(page.locator(".booking-calendar__confirmed-buffer")).toHaveCount(0)
+  const hatchedElements = await page.locator(".booking-calendar").evaluate((root) => (
+    Array.from(root.querySelectorAll("*")).filter((element) => (
+      element.getClientRects().length > 0 && getComputedStyle(element).backgroundImage.includes("repeating-linear-gradient")
+    )).length
+  ))
+  expect(hatchedElements).toBe(0)
   await expect(page.locator('[data-block-start="2026-09-19"]')).toHaveAttribute("data-block-end", "2026-09-19")
   await expect(page.locator('[data-block-start="2026-09-20"]')).toHaveAttribute("data-block-end", "2026-09-26")
   await expect(page.locator('[data-block-start="2026-09-27"]')).toHaveAttribute("data-block-end", "2026-10-03")
@@ -393,14 +417,26 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
   expect(oneDayBox).not.toBeNull()
   expect(weekBlockBox!.width).toBeGreaterThan(oneDayBox!.width * 6)
   expect(weekBlockBox!.y + weekBlockBox!.height).toBeLessThanOrEqual(oneDayBox!.y + oneDayBox!.height + 1)
+  const sundayFrame = page.locator('.fc-daygrid-day[data-date="2026-09-20"] .fc-daygrid-day-frame')
+  const mondayFrame = page.locator('.fc-daygrid-day[data-date="2026-09-21"] .fc-daygrid-day-frame')
+  const saturdayFrame = page.locator('.fc-daygrid-day[data-date="2026-09-26"] .fc-daygrid-day-frame')
+  const sundayBox = await sundayFrame.boundingBox()
+  const mondayBox = await mondayFrame.boundingBox()
+  expect(sundayBox).not.toBeNull()
+  expect(mondayBox).not.toBeNull()
+  expect(Math.abs(sundayBox!.x + sundayBox!.width - mondayBox!.x)).toBeLessThanOrEqual(1)
+  await expect(sundayFrame).toHaveCSS("border-top-right-radius", "0px")
+  await expect(mondayFrame).toHaveCSS("border-top-left-radius", "0px")
+  await expect(mondayFrame).toHaveCSS("border-top-right-radius", "0px")
+  await expect(saturdayFrame).toHaveCSS("border-top-left-radius", "0px")
   await expect(page.locator('.fc-daygrid-day[data-date="2026-09-20"] .fc-daygrid-day-frame')).toHaveCSS("overflow", "visible")
   await page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-number').click()
   await expect(page.locator('.fc-daygrid-day[data-date="2026-09-19"].booking-calendar__selected-date')).toHaveCount(0)
 
-  for (let index = 0; index < 3; index += 1) {
+  for (const monthLabel of ["2026年10月", "2026年11月", "2026年12月"]) {
     await page.locator(".fc-next-button").click()
+    await expect(page.locator(".fc-toolbar-title")).toHaveText(monthLabel)
   }
-  await expect(page.locator(".fc-toolbar-title")).toHaveText("2026年12月")
   const decemberDates = Array.from({ length: 31 }, (_, index) => addDaysToDateKey("2026-12-01", index))
   for (const date of decemberDates) {
     const cell = page.locator(`.fc-daygrid-day[data-date="${date}"]`)
@@ -447,12 +483,18 @@ test("LINE LIFF booking entry shows tentative holds as selectable connected bloc
   await expect(tentativeBlocks).toHaveCount(2)
   await expect(tentativeBlocks.locator("svg")).toHaveCount(2)
   await expect(tentativeBlocks).toHaveText(["仮キープ", "仮キープ"])
+  for (let index = 0; index < 2; index += 1) {
+    await expect(tentativeBlocks.nth(index)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+  }
   await expect(page.locator('[data-block-start="2026-10-05"]')).toHaveAttribute("data-block-end", "2026-10-07")
   const tentativeBlockBox = await page.locator('[data-block-start="2026-10-05"]').boundingBox()
   const tentativeFrameBox = await page.locator('.fc-daygrid-day[data-date="2026-10-05"] .fc-daygrid-day-frame').boundingBox()
   expect(tentativeBlockBox).not.toBeNull()
   expect(tentativeFrameBox).not.toBeNull()
   expect(tentativeBlockBox!.y + tentativeBlockBox!.height).toBeLessThanOrEqual(tentativeFrameBox!.y + tentativeFrameBox!.height + 1)
+  const tentativeNextFrameBox = await page.locator('.fc-daygrid-day[data-date="2026-10-06"] .fc-daygrid-day-frame').boundingBox()
+  expect(tentativeNextFrameBox).not.toBeNull()
+  expect(Math.abs(tentativeFrameBox!.x + tentativeFrameBox!.width - tentativeNextFrameBox!.x)).toBeLessThanOrEqual(1)
 
   const tentativeCell = page.locator('.fc-daygrid-day[data-date="2026-10-05"]')
   await expect(tentativeCell).toHaveAttribute("data-booking-tentative", "true")
