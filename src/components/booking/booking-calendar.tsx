@@ -2274,7 +2274,7 @@ export function BookingCalendar({
           aria-label={isTentative ? "仮キープ" : "予約済み（本予約）"}
         >
           {isTentative ? <Clock3 aria-hidden="true" size={14} strokeWidth={2.4} /> : lockIcon}
-          {isTentative ? <span>仮キープ</span> : null}
+          <span>{isTentative ? "仮キープ" : "予約済み"}</span>
         </span>
       )
     }

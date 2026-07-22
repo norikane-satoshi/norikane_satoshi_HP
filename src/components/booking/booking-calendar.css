@@ -738,6 +738,11 @@
   cursor: not-allowed;
 }
 
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__locked-date .fc-daygrid-day-frame {
+  border-color: color-mix(in srgb, var(--hp-color-accent) 38%, var(--glass-border));
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, var(--glass-bg));
+}
+
 .booking-calendar .booking-calendar__past-or-today-date .fc-daygrid-day-frame {
   border-color: color-mix(in srgb, var(--text-muted) 28%, var(--glass-border));
   background: color-mix(in srgb, var(--text-muted) 14%, var(--glass-bg));
@@ -761,6 +766,10 @@
 
 .booking-calendar .booking-calendar__locked-date .booking-calendar__day-number {
   color: var(--text-muted);
+}
+
+.booking-calendar[data-availability-status-blocks="true"] .booking-calendar__locked-date .booking-calendar__day-number {
+  color: var(--text-primary);
 }
 
 .booking-calendar .booking-calendar__selected-day .fc-daygrid-day-frame {
@@ -1420,22 +1429,22 @@
 
   .booking-calendar .fc-event.booking-calendar__availability-block,
   .booking-calendar__availability-content {
-    min-height: 12px;
+    min-height: 20px;
   }
 
   .booking-calendar .fc-event.booking-calendar__availability-block {
-    transform: translateY(-4px);
+    transform: none;
   }
 
   .booking-calendar__availability-content {
-    gap: 2px;
-    padding: 1px 2px;
-    font-size: 0.5rem;
+    gap: 3px;
+    padding: 2px 4px;
+    font-size: 0.625rem;
   }
 
   .booking-calendar__availability-content svg {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
 }
 

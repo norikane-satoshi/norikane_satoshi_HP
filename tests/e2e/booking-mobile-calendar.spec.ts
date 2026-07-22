@@ -372,6 +372,7 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
     await expect(cell).toHaveClass(/booking-calendar__locked-date/)
     await expect(cell).toHaveAttribute("aria-disabled", "true")
   }
+  await expect(page.locator('.fc-daygrid-day[data-date="2026-09-19"] .fc-daygrid-day-frame')).toHaveCSS("background-image", "none")
   const septemberBusyBlocks = page.locator([
     '[data-block-start="2026-09-19"]',
     '[data-block-start="2026-09-20"]',
@@ -379,7 +380,7 @@ test("LINE LIFF booking entry locks the confirmed IB work ranges through free-bu
   ].join(", "))
   await expect(septemberBusyBlocks).toHaveCount(3)
   await expect(septemberBusyBlocks.locator("svg")).toHaveCount(3)
-  await expect(septemberBusyBlocks).toHaveText(["", "", ""])
+  await expect(septemberBusyBlocks).toHaveText(["予約済み", "予約済み", "予約済み"])
   await expect(page.locator('[data-block-start="2026-09-19"]')).toHaveAttribute("data-block-end", "2026-09-19")
   await expect(page.locator('[data-block-start="2026-09-20"]')).toHaveAttribute("data-block-end", "2026-09-26")
   await expect(page.locator('[data-block-start="2026-09-27"]')).toHaveAttribute("data-block-end", "2026-10-03")
