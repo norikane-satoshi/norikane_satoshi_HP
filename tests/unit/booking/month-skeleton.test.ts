@@ -81,12 +81,14 @@ describe("BookingMonthSkeleton", () => {
       },
       now: "2026-05-12T12:00:00.000Z",
       teamId: null,
+      showAvailabilityStatusBlocks: true,
     }))
 
     expect(html).toContain('data-testid="booking-month-skeleton"')
     expect(html).toContain('data-state="ready"')
     expect(html).toContain('data-date="2026-05-20"')
     expect(html).toContain('data-kind="lock"')
+    expect(html).toContain('data-availability-status-blocks="true"')
     expect(html).not.toContain(">予約不可<")
     expect(html).not.toContain(">不<")
     expect(html).not.toContain(">本<")

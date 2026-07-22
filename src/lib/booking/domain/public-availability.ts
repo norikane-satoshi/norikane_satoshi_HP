@@ -254,15 +254,16 @@ export function buildPublicAvailabilityBlockMarkers(
   days: readonly PublicAvailabilityBlockDay[],
 ): Map<string, PublicAvailabilityBlockMarker> {
   const markers = new Map<string, PublicAvailabilityBlockMarker>()
+  const daysByDateKey = new Map(days.map((day) => [day.dateKey, day]))
 
-  for (let index = 0; index < days.length; index += 1) {
-    const day = days[index]
+  for (const day of days) {
     if (!day || day.status === "available") continue
 
-    const previous = days[index - 1]
-    const next = days[index + 1]
-    const sameAsPrevious = index % 7 !== 0 && previous?.status === day.status
-    const sameAsNext = index % 7 !== 6 && next?.status === day.status
+    const weekday = dayOfWeek(day.dateKey)
+    const previous = daysByDateKey.get(addDays(day.dateKey, -1))
+    const next = daysByDateKey.get(addDays(day.dateKey, 1))
+    const sameAsPrevious = weekday !== 0 && previous?.status === day.status
+    const sameAsNext = weekday !== 6 && next?.status === day.status
 
     markers.set(day.dateKey, {
       isStart: !sameAsPrevious,
