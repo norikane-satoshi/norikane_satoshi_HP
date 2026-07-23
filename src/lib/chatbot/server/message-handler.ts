@@ -130,6 +130,10 @@ export type HandleChatbotMessageInput = {
   pendingRequestKind?: "message" | "edit"
   jobContext?: Partial<JobContext>
   conversationState?: Partial<ConversationState>
+  latencyTrace?: {
+    requestStartedAtEpochMs: number
+    requestStartedAtMonotonicMs: number
+  }
 }
 
 type ChatbotMessageRepository = {
@@ -206,6 +210,8 @@ export async function handleChatbotMessage(
   input: HandleChatbotMessageInput,
   options: HandleChatbotMessageOptions = {},
 ): Promise<ChatbotMessageApiResult> {
+  const requestStartedAtEpochMs = input.latencyTrace?.requestStartedAtEpochMs ?? Date.now()
+  const requestStartedAtMonotonicMs = input.latencyTrace?.requestStartedAtMonotonicMs ?? performance.now()
   const repository = options.repository ?? defaultRepository
   const userContextLoader = options.userContextLoader ?? loadUserChatbotContext
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
@@ -342,7 +348,9 @@ export async function handleChatbotMessage(
         currentConversationId: conversation.id,
       })
     : null
+  const knowledgeLoadStartedAtMonotonicMs = performance.now()
   const knowledgeSnapshot = await knowledgeSnapshotLoader()
+  const knowledgeLoadCompletedAtMonotonicMs = performance.now()
   const noteAccess = evaluateCustomerFacingNoteAccess(input.message, knowledgeSnapshot)
   const durationContext = resolveWorkflowDurationContext({
     inputJobContext: didTruncateForEdit ? undefined : input.jobContext,
@@ -411,6 +419,7 @@ export async function handleChatbotMessage(
     latestUserMessage: input.message,
     knowledgeSnapshot,
   })
+  const llmCallStartedAtMonotonicMs = performance.now()
   const llmResponse = await generateContractedLlmResponse({
     orchestrator,
     request: {
@@ -425,6 +434,7 @@ export async function handleChatbotMessage(
     },
     fallbackRoutingDecision,
   })
+  const llmCallCompletedAtMonotonicMs = performance.now()
   const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
   const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
   const resolvedRoutingDecision = await resolveRoutingDecision({
@@ -529,6 +539,17 @@ export async function handleChatbotMessage(
     rawText: llmResponse.rawText,
     finalText: assistantContent,
     report: assistantDisplay.sanitizationReport,
+  })
+  logChatbotLatencyBreakdown({
+    requestId: input.requestId,
+    tier: llmResponse.tier,
+    requestStartedAtEpochMs,
+    requestStartedAtMonotonicMs,
+    knowledgeLoadStartedAtMonotonicMs,
+    knowledgeLoadCompletedAtMonotonicMs,
+    llmCallStartedAtMonotonicMs,
+    llmCallCompletedAtMonotonicMs,
+    outputFormattedAtMonotonicMs: performance.now(),
   })
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
@@ -2086,6 +2107,77 @@ function logChatbotDisplayBoundary(input: {
       rawTextPreview: redactForChatbotLog(input.rawText),
       finalTextPreview: redactForChatbotLog(input.finalText),
       normalized: input.rawText !== input.finalText,
+    }),
+  )
+}
+
+function logChatbotLatencyBreakdown(input: {
+  requestId?: string
+  tier: ChatbotLlmTier
+  requestStartedAtEpochMs: number
+  requestStartedAtMonotonicMs: number
+  knowledgeLoadStartedAtMonotonicMs: number
+  knowledgeLoadCompletedAtMonotonicMs: number
+  llmCallStartedAtMonotonicMs: number
+  llmCallCompletedAtMonotonicMs: number
+  outputFormattedAtMonotonicMs: number
+}): void {
+  if (process.env.NODE_ENV === "test") return
+
+  const preKnowledgeMs =
+    input.knowledgeLoadStartedAtMonotonicMs - input.requestStartedAtMonotonicMs
+  const promptPreparationMs =
+    input.llmCallStartedAtMonotonicMs - input.knowledgeLoadCompletedAtMonotonicMs
+  const stageDurationMs = (startedAt: number, completedAt: number) =>
+    Number(Math.max(0, completedAt - startedAt).toFixed(3))
+  const timestamp = (monotonicMs: number) =>
+    new Date(
+      input.requestStartedAtEpochMs +
+        (monotonicMs - input.requestStartedAtMonotonicMs),
+    ).toISOString()
+
+  console.info(
+    JSON.stringify({
+      event: "chatbot_latency_breakdown",
+      requestId: input.requestId,
+      tier: input.tier,
+      marks: {
+        requestStartedAt: timestamp(input.requestStartedAtMonotonicMs),
+        knowledgeLoadStartedAt: timestamp(input.knowledgeLoadStartedAtMonotonicMs),
+        knowledgeLoadCompletedAt: timestamp(input.knowledgeLoadCompletedAtMonotonicMs),
+        llmCallStartedAt: timestamp(input.llmCallStartedAtMonotonicMs),
+        llmCallCompletedAt: timestamp(input.llmCallCompletedAtMonotonicMs),
+        outputFormattedAt: timestamp(input.outputFormattedAtMonotonicMs),
+      },
+      stages: {
+        preProcessing: {
+          durationMs: Number(Math.max(0, preKnowledgeMs + promptPreparationMs).toFixed(3)),
+          preKnowledgeMs: Number(Math.max(0, preKnowledgeMs).toFixed(3)),
+          promptPreparationMs: Number(Math.max(0, promptPreparationMs).toFixed(3)),
+        },
+        knowledgeLoad: {
+          durationMs: stageDurationMs(
+            input.knowledgeLoadStartedAtMonotonicMs,
+            input.knowledgeLoadCompletedAtMonotonicMs,
+          ),
+        },
+        tier1LlmGenerationCall: {
+          durationMs: stageDurationMs(
+            input.llmCallStartedAtMonotonicMs,
+            input.llmCallCompletedAtMonotonicMs,
+          ),
+        },
+        postProcessingAndOutputFormatting: {
+          durationMs: stageDurationMs(
+            input.llmCallCompletedAtMonotonicMs,
+            input.outputFormattedAtMonotonicMs,
+          ),
+        },
+      },
+      measuredPathMs: stageDurationMs(
+        input.requestStartedAtMonotonicMs,
+        input.outputFormattedAtMonotonicMs,
+      ),
     }),
   )
 }

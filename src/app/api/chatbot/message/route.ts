@@ -40,6 +40,8 @@ type ChatbotFailureTaggedError = Error & {
 }
 
 export async function POST(request: NextRequest) {
+  const requestStartedAtEpochMs = Date.now()
+  const requestStartedAtMonotonicMs = performance.now()
   const requestId = crypto.randomUUID()
   const bodyLimit = enforceBodyLimit(request)
   if (bodyLimit) return bodyLimit
@@ -81,6 +83,10 @@ export async function POST(request: NextRequest) {
       pendingRequestKind: parsed.data.pendingRequestKind,
       jobContext: parsed.data.jobContext,
       conversationState: parsed.data.conversationState,
+      latencyTrace: {
+        requestStartedAtEpochMs,
+        requestStartedAtMonotonicMs,
+      },
     })
     const response = NextResponse.json({
       ...result,
