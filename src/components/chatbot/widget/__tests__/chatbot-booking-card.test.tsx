@@ -464,6 +464,87 @@ describe("ChatbotBookingCard", () => {
     })
   })
 
+  it("re-fetches the same month when jobContext or workflowEstimate changes", async () => {
+    vi.setSystemTime(new Date("2026-06-12T12:00:00+09:00"))
+    const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/chatbot/booking-candidates") {
+        const payload = JSON.parse(String(init?.body))
+        const totalMaxDays = payload.workflowEstimate?.totalMaxDays
+        const candidatesByEstimate = totalMaxDays === 3
+          ? [
+              {
+                start: "2026-06-18T15:00:00.000Z",
+                end: "2026-06-19T15:00:00.000Z",
+                label: "6月19日 単日",
+              },
+            ]
+          : [
+              {
+                start: "2026-06-13T15:00:00.000Z",
+                end: "2026-06-14T15:00:00.000Z",
+                label: "6月14日 単日",
+              },
+            ]
+
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: vi.fn().mockResolvedValue({
+            candidates: candidatesByEstimate,
+            busyDateKeys: [],
+          }),
+        })
+      }
+
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ bookingGroupId: "group_1", bookingIds: ["slot_1"] }),
+      })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { rerender } = renderCard({
+      candidates: [],
+      estimate: undefined,
+      jobContext,
+    })
+
+    expect(await screen.findByRole("button", { name: "2026-06-14 選択可" })).toBeTruthy()
+
+    const updatedEstimate: WorkflowEstimate = {
+      stages: [],
+      totalMinDays: 3,
+      totalMaxDays: 3,
+      riskFlags: [],
+    }
+
+    rerender(
+      <ChatbotBookingCard
+        candidates={[]}
+        estimate={undefined}
+        defaultProjectTitle="CM grading"
+        defaultContactName="田中"
+        defaultCompanyName="株式会社サンプル"
+        conversationId="conv_1"
+        jobContext={{ ...jobContext, workflowEstimate: updatedEstimate }}
+      />,
+    )
+
+    expect(await screen.findByRole("button", { name: "2026-06-19 選択可" })).toBeTruthy()
+
+    const bookingCalls = fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/chatbot/booking-candidates")
+    expect(bookingCalls).toHaveLength(2)
+    expect(JSON.parse(String(bookingCalls[0]?.[1]?.body))).toMatchObject({
+      month: "2026-06",
+      workflowEstimate: expect.objectContaining({ totalMaxDays: 2 }),
+    })
+    expect(JSON.parse(String(bookingCalls[1]?.[1]?.body))).toMatchObject({
+      month: "2026-06",
+      workflowEstimate: expect.objectContaining({ totalMaxDays: 3 }),
+    })
+  })
+
   it("allows disjoint selected days around a busy day", () => {
     renderCard({
       candidates: [

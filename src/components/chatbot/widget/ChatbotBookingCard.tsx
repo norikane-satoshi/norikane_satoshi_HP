@@ -48,6 +48,12 @@ type CandidatesApiResponse = {
   busyDateKeys?: string[]
 }
 
+type CandidateRequestPayload = {
+  jobContext: JobContext
+  workflowEstimate: WorkflowEstimate
+  month: string
+}
+
 const API_PATH = "/api/chatbot/create-booking-from-chat"
 const CANDIDATES_API_PATH = "/api/chatbot/booking-candidates"
 const MAX_VISIBLE_CANDIDATES = 31
@@ -292,15 +298,33 @@ export function ChatbotBookingCard({
     () => addJstMonths(initialMonthKey, displayedMonthOffset),
     [displayedMonthOffset, initialMonthKey],
   )
+  const displayedMonthRequest = useMemo<CandidateRequestPayload | null>(
+    () => (jobContext && effectiveEstimate
+      ? {
+          jobContext,
+          workflowEstimate: effectiveEstimate,
+          month: displayedMonthKey,
+        }
+      : null),
+    [displayedMonthKey, effectiveEstimate, jobContext],
+  )
+  const displayedMonthRequestKey = useMemo(
+    () => (displayedMonthRequest ? JSON.stringify(displayedMonthRequest) : null),
+    [displayedMonthRequest],
+  )
   const [monthCandidateOverrides, setMonthCandidateOverrides] = useState<Record<string, CandidateWindow[]>>({})
   const [monthBusyDateKeyOverrides, setMonthBusyDateKeyOverrides] = useState<Record<string, string[]>>({})
   const displayedCandidates = useMemo(
-    () => monthCandidateOverrides[displayedMonthKey] ?? visibleCandidates.filter((candidate) => jstMonthKey(candidate.start) === displayedMonthKey),
-    [displayedMonthKey, monthCandidateOverrides, visibleCandidates],
+    () => (displayedMonthRequestKey
+      ? monthCandidateOverrides[displayedMonthRequestKey]
+      : undefined) ?? visibleCandidates.filter((candidate) => jstMonthKey(candidate.start) === displayedMonthKey),
+    [displayedMonthKey, displayedMonthRequestKey, monthCandidateOverrides, visibleCandidates],
   )
   const displayedBusyDateKeys = useMemo(
-    () => monthBusyDateKeyOverrides[displayedMonthKey] ?? busyDateKeys.filter((key) => key.startsWith(`${displayedMonthKey}-`)),
-    [busyDateKeys, displayedMonthKey, monthBusyDateKeyOverrides],
+    () => (displayedMonthRequestKey
+      ? monthBusyDateKeyOverrides[displayedMonthRequestKey]
+      : undefined) ?? busyDateKeys.filter((key) => key.startsWith(`${displayedMonthKey}-`)),
+    [busyDateKeys, displayedMonthKey, displayedMonthRequestKey, monthBusyDateKeyOverrides],
   )
   const candidateCalendar = useMemo(
     () => buildCandidateCalendar(displayedMonthKey, displayedCandidates, displayedBusyDateKeys),
@@ -337,19 +361,15 @@ export function ChatbotBookingCard({
   )
 
   useEffect(() => {
-    if (!jobContext || !effectiveEstimate) return
-    if (monthCandidateOverrides[displayedMonthKey]) return
+    if (!displayedMonthRequest || !displayedMonthRequestKey) return
+    if (monthCandidateOverrides[displayedMonthRequestKey]) return
 
     let cancelled = false
 
     fetch(CANDIDATES_API_PATH, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jobContext,
-        workflowEstimate: effectiveEstimate,
-        month: displayedMonthKey,
-      }),
+      body: JSON.stringify(displayedMonthRequest),
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("booking_candidates_failed")
@@ -359,11 +379,11 @@ export function ChatbotBookingCard({
         if (cancelled) return
         setMonthCandidateOverrides((current) => ({
           ...current,
-          [displayedMonthKey]: Array.isArray(payload.candidates) ? payload.candidates.slice(0, MAX_VISIBLE_CANDIDATES) : [],
+          [displayedMonthRequestKey]: Array.isArray(payload.candidates) ? payload.candidates.slice(0, MAX_VISIBLE_CANDIDATES) : [],
         }))
         setMonthBusyDateKeyOverrides((current) => ({
           ...current,
-          [displayedMonthKey]: Array.isArray(payload.busyDateKeys) ? payload.busyDateKeys : [],
+          [displayedMonthRequestKey]: Array.isArray(payload.busyDateKeys) ? payload.busyDateKeys : [],
         }))
         setMonthLoadError(null)
       })
@@ -374,7 +394,7 @@ export function ChatbotBookingCard({
     return () => {
       cancelled = true
     }
-  }, [displayedMonthKey, displayedMonthOffset, effectiveEstimate, jobContext, monthCandidateOverrides, monthBusyDateKeyOverrides])
+  }, [displayedMonthRequest, displayedMonthRequestKey, monthCandidateOverrides])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
