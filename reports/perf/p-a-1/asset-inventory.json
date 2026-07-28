@@ -1,0 +1,56 @@
+[
+  {
+    "assetPath": "/_next/image?url=%2Fprofile-hero.png&w=256&q=75",
+    "loading": [
+      "lazy"
+    ],
+    "fetchPriority": [
+      "auto"
+    ],
+    "decoding": [
+      "async"
+    ],
+    "naturalDimensions": [
+      "220x220"
+    ],
+    "routes": [
+      "chatbot",
+      "home"
+    ],
+    "profiles": [
+      "desktop"
+    ],
+    "finalUrls": [
+      "http://127.0.0.1:41238/",
+      "http://127.0.0.1:41238/#contact"
+    ]
+  },
+  {
+    "assetPath": "/nori_header_black.svg",
+    "loading": [
+      "auto"
+    ],
+    "fetchPriority": [
+      "auto"
+    ],
+    "decoding": [
+      "async"
+    ],
+    "naturalDimensions": [
+      "832x141"
+    ],
+    "routes": [
+      "chatbot",
+      "home",
+      "reservation"
+    ],
+    "profiles": [
+      "desktop"
+    ],
+    "finalUrls": [
+      "http://127.0.0.1:41238/",
+      "http://127.0.0.1:41238/#contact",
+      "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking"
+    ]
+  }
+]

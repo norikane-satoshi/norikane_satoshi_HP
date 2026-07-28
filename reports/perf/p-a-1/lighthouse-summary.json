@@ -1,0 +1,4058 @@
+{
+  "generatedAt": "2026-07-27T13:48:04.865Z",
+  "baseUrl": "http://127.0.0.1:41238",
+  "runsPerScenarioProfile": 3,
+  "profiles": {
+    "desktop": {
+      "chatbot": {
+        "scenario": "chatbot",
+        "routeId": "chatbot",
+        "reportRoute": "/#contact",
+        "targetUrl": "http://127.0.0.1:41238/#contact",
+        "requestedUrl": "http://127.0.0.1:41238/#contact",
+        "finalUrl": "http://127.0.0.1:41238/#contact",
+        "sampleCount": 3,
+        "runs": [
+          {
+            "run": 1,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/chatbot-desktop-run1.json",
+            "requestedUrl": "http://127.0.0.1:41238/#contact",
+            "finalUrl": "http://127.0.0.1:41238/#contact",
+            "performanceScore": 0.38,
+            "lcpMs": 5859.814350000001,
+            "inpMs": 32.452,
+            "cls": 0,
+            "ttfbMs": 55,
+            "routeTransfer": {
+              "totalTransferSize": 11225265,
+              "totalResourceSize": 40134785,
+              "byType": {
+                "Document": {
+                  "transferSize": 20329,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 939010,
+                  "resourceSize": 904328,
+                  "count": 34
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 2,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/chatbot-desktop-run2.json",
+            "requestedUrl": "http://127.0.0.1:41238/#contact",
+            "finalUrl": "http://127.0.0.1:41238/#contact",
+            "performanceScore": 0.32,
+            "lcpMs": 61939.579,
+            "inpMs": 30.113,
+            "cls": 0,
+            "ttfbMs": 49,
+            "routeTransfer": {
+              "totalTransferSize": 11225265,
+              "totalResourceSize": 40134785,
+              "byType": {
+                "Document": {
+                  "transferSize": 20329,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 939010,
+                  "resourceSize": 904328,
+                  "count": 34
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 3,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/chatbot-desktop-run3.json",
+            "requestedUrl": "http://127.0.0.1:41238/#contact",
+            "finalUrl": "http://127.0.0.1:41238/#contact",
+            "performanceScore": 0.3,
+            "lcpMs": 62059.15389999999,
+            "inpMs": 43.019,
+            "cls": 0,
+            "ttfbMs": 51,
+            "routeTransfer": {
+              "totalTransferSize": 11225266,
+              "totalResourceSize": 40134785,
+              "byType": {
+                "Document": {
+                  "transferSize": 20330,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 939010,
+                  "resourceSize": 904328,
+                  "count": 34
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          }
+        ],
+        "median": {
+          "lcpMs": 61939.6,
+          "inpMs": 32.5,
+          "cls": 0,
+          "ttfbMs": 51,
+          "totalTransferSize": 11225265
+        }
+      },
+      "home": {
+        "scenario": "top",
+        "routeId": "home",
+        "reportRoute": "/",
+        "targetUrl": "http://127.0.0.1:41238/",
+        "requestedUrl": "http://127.0.0.1:41238/",
+        "finalUrl": "http://127.0.0.1:41238/",
+        "sampleCount": 3,
+        "runs": [
+          {
+            "run": 1,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/home-desktop-run1.json",
+            "requestedUrl": "http://127.0.0.1:41238/",
+            "finalUrl": "http://127.0.0.1:41238/",
+            "performanceScore": 0.32,
+            "lcpMs": 7358.8407,
+            "inpMs": 79.674,
+            "cls": 0,
+            "ttfbMs": 52,
+            "routeTransfer": {
+              "totalTransferSize": 11225265,
+              "totalResourceSize": 40134785,
+              "byType": {
+                "Document": {
+                  "transferSize": 20329,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 939010,
+                  "resourceSize": 904328,
+                  "count": 34
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 2,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/home-desktop-run2.json",
+            "requestedUrl": "http://127.0.0.1:41238/",
+            "finalUrl": "http://127.0.0.1:41238/",
+            "performanceScore": 0.29,
+            "lcpMs": 12949.109750000001,
+            "inpMs": null,
+            "cls": 0,
+            "ttfbMs": 58,
+            "routeTransfer": {
+              "totalTransferSize": 11225267,
+              "totalResourceSize": 40134785,
+              "byType": {
+                "Document": {
+                  "transferSize": 20331,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 939010,
+                  "resourceSize": 904328,
+                  "count": 34
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 3,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/home-desktop-run3.json",
+            "requestedUrl": "http://127.0.0.1:41238/",
+            "finalUrl": "http://127.0.0.1:41238/",
+            "performanceScore": 0.32,
+            "lcpMs": 62153.2626,
+            "inpMs": 72.01,
+            "cls": 0,
+            "ttfbMs": 62,
+            "routeTransfer": {
+              "totalTransferSize": 11225265,
+              "totalResourceSize": 40134785,
+              "byType": {
+                "Document": {
+                  "transferSize": 20329,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 939010,
+                  "resourceSize": 904328,
+                  "count": 34
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          }
+        ],
+        "median": {
+          "lcpMs": 12949.1,
+          "inpMs": 75.8,
+          "cls": 0,
+          "ttfbMs": 58,
+          "totalTransferSize": 11225265
+        }
+      },
+      "reservation": {
+        "scenario": "reservation",
+        "routeId": "reservation",
+        "reportRoute": "/booking",
+        "targetUrl": "http://127.0.0.1:41238/booking",
+        "requestedUrl": "http://127.0.0.1:41238/booking",
+        "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+        "sampleCount": 3,
+        "runs": [
+          {
+            "run": 1,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/reservation-desktop-run1.json",
+            "requestedUrl": "http://127.0.0.1:41238/booking",
+            "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+            "performanceScore": 0.32,
+            "lcpMs": 12016.85025,
+            "inpMs": 69.226,
+            "cls": 0,
+            "ttfbMs": 42,
+            "routeTransfer": {
+              "totalTransferSize": 10903344,
+              "totalResourceSize": 40034924,
+              "byType": {
+                "other": {
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "count": 1
+                },
+                "Document": {
+                  "transferSize": 8425,
+                  "resourceSize": 18883,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 544778,
+                  "resourceSize": 526416,
+                  "count": 18
+                },
+                "Image": {
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "count": 1
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 10038201,
+                  "resourceSize": 38378391,
+                  "count": 6
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 2,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/reservation-desktop-run2.json",
+            "requestedUrl": "http://127.0.0.1:41238/booking",
+            "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+            "performanceScore": 0.32,
+            "lcpMs": 11994.9064,
+            "inpMs": 52.196,
+            "cls": 0,
+            "ttfbMs": 35,
+            "routeTransfer": {
+              "totalTransferSize": 10903348,
+              "totalResourceSize": 40034924,
+              "byType": {
+                "other": {
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "count": 1
+                },
+                "Document": {
+                  "transferSize": 8429,
+                  "resourceSize": 18883,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 544778,
+                  "resourceSize": 526416,
+                  "count": 18
+                },
+                "Image": {
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "count": 1
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 10038201,
+                  "resourceSize": 38378391,
+                  "count": 6
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 3,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/reservation-desktop-run3.json",
+            "requestedUrl": "http://127.0.0.1:41238/booking",
+            "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+            "performanceScore": 0.32,
+            "lcpMs": 11995.756150000001,
+            "inpMs": 47.647,
+            "cls": 0,
+            "ttfbMs": 36,
+            "routeTransfer": {
+              "totalTransferSize": 10903347,
+              "totalResourceSize": 40034924,
+              "byType": {
+                "other": {
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "count": 1
+                },
+                "Document": {
+                  "transferSize": 8428,
+                  "resourceSize": 18883,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 544778,
+                  "resourceSize": 526416,
+                  "count": 18
+                },
+                "Image": {
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "count": 1
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 10038201,
+                  "resourceSize": 38378391,
+                  "count": 6
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          }
+        ],
+        "median": {
+          "lcpMs": 11995.8,
+          "inpMs": 52.2,
+          "cls": 0,
+          "ttfbMs": 36,
+          "totalTransferSize": 10903347
+        }
+      }
+    },
+    "mobile": {
+      "chatbot": {
+        "scenario": "chatbot",
+        "routeId": "chatbot",
+        "reportRoute": "/#contact",
+        "targetUrl": "http://127.0.0.1:41238/#contact",
+        "requestedUrl": "http://127.0.0.1:41238/#contact",
+        "finalUrl": "http://127.0.0.1:41238/#contact",
+        "sampleCount": 3,
+        "runs": [
+          {
+            "run": 1,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/chatbot-mobile-run1.json",
+            "requestedUrl": "http://127.0.0.1:41238/#contact",
+            "finalUrl": "http://127.0.0.1:41238/#contact",
+            "performanceScore": 0.11,
+            "lcpMs": 12800.1587,
+            "inpMs": 34.384,
+            "cls": 0.3986509717990369,
+            "ttfbMs": 103,
+            "routeTransfer": {
+              "totalTransferSize": 11250072,
+              "totalResourceSize": 40158573,
+              "byType": {
+                "Document": {
+                  "transferSize": 20328,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 963818,
+                  "resourceSize": 928116,
+                  "count": 35
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 2,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/chatbot-mobile-run2.json",
+            "requestedUrl": "http://127.0.0.1:41238/#contact",
+            "finalUrl": "http://127.0.0.1:41238/#contact",
+            "performanceScore": 0.32,
+            "lcpMs": 62777.30625000001,
+            "inpMs": 42.165,
+            "cls": 0,
+            "ttfbMs": 64,
+            "routeTransfer": {
+              "totalTransferSize": 11225264,
+              "totalResourceSize": 40134785,
+              "byType": {
+                "Document": {
+                  "transferSize": 20328,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 939010,
+                  "resourceSize": 904328,
+                  "count": 34
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 3,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/chatbot-mobile-run3.json",
+            "requestedUrl": "http://127.0.0.1:41238/#contact",
+            "finalUrl": "http://127.0.0.1:41238/#contact",
+            "performanceScore": 0.31,
+            "lcpMs": 62398.82765,
+            "inpMs": 45.005,
+            "cls": 0,
+            "ttfbMs": 66,
+            "routeTransfer": {
+              "totalTransferSize": 11225265,
+              "totalResourceSize": 40134785,
+              "byType": {
+                "Document": {
+                  "transferSize": 20329,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 939010,
+                  "resourceSize": 904328,
+                  "count": 34
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          }
+        ],
+        "median": {
+          "lcpMs": 62398.8,
+          "inpMs": 42.2,
+          "cls": 0,
+          "ttfbMs": 66,
+          "totalTransferSize": 11225265
+        }
+      },
+      "home": {
+        "scenario": "top",
+        "routeId": "home",
+        "reportRoute": "/",
+        "targetUrl": "http://127.0.0.1:41238/",
+        "requestedUrl": "http://127.0.0.1:41238/",
+        "finalUrl": "http://127.0.0.1:41238/",
+        "sampleCount": 3,
+        "runs": [
+          {
+            "run": 1,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/home-mobile-run1.json",
+            "requestedUrl": "http://127.0.0.1:41238/",
+            "finalUrl": "http://127.0.0.1:41238/",
+            "performanceScore": 0.28,
+            "lcpMs": 14310.463549999997,
+            "inpMs": null,
+            "cls": 0,
+            "ttfbMs": 71,
+            "routeTransfer": {
+              "totalTransferSize": 11225266,
+              "totalResourceSize": 40134785,
+              "byType": {
+                "Document": {
+                  "transferSize": 20330,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 939010,
+                  "resourceSize": 904328,
+                  "count": 34
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 2,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/home-mobile-run2.json",
+            "requestedUrl": "http://127.0.0.1:41238/",
+            "finalUrl": "http://127.0.0.1:41238/",
+            "performanceScore": 0.31,
+            "lcpMs": 12221.8796,
+            "inpMs": null,
+            "cls": 0,
+            "ttfbMs": 81,
+            "routeTransfer": {
+              "totalTransferSize": 11250072,
+              "totalResourceSize": 40158573,
+              "byType": {
+                "Document": {
+                  "transferSize": 20328,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 963818,
+                  "resourceSize": 928116,
+                  "count": 35
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 3,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/home-mobile-run3.json",
+            "requestedUrl": "http://127.0.0.1:41238/",
+            "finalUrl": "http://127.0.0.1:41238/",
+            "performanceScore": 0.3,
+            "lcpMs": 12457.7076,
+            "inpMs": null,
+            "cls": 0,
+            "ttfbMs": 64,
+            "routeTransfer": {
+              "totalTransferSize": 11250072,
+              "totalResourceSize": 40158573,
+              "byType": {
+                "Document": {
+                  "transferSize": 20328,
+                  "resourceSize": 91584,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 963818,
+                  "resourceSize": 928116,
+                  "count": 35
+                },
+                "Image": {
+                  "transferSize": 53572,
+                  "resourceSize": 93805,
+                  "count": 2
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 9928500,
+                  "resourceSize": 38002389,
+                  "count": 5
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          }
+        ],
+        "median": {
+          "lcpMs": 12457.7,
+          "inpMs": null,
+          "cls": 0,
+          "ttfbMs": 71,
+          "totalTransferSize": 11250072
+        }
+      },
+      "reservation": {
+        "scenario": "reservation",
+        "routeId": "reservation",
+        "reportRoute": "/booking",
+        "targetUrl": "http://127.0.0.1:41238/booking",
+        "requestedUrl": "http://127.0.0.1:41238/booking",
+        "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+        "sampleCount": 3,
+        "runs": [
+          {
+            "run": 1,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/reservation-mobile-run1.json",
+            "requestedUrl": "http://127.0.0.1:41238/booking",
+            "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+            "performanceScore": 0.39,
+            "lcpMs": 5963.867200000001,
+            "inpMs": 57.445,
+            "cls": 0,
+            "ttfbMs": 615,
+            "routeTransfer": {
+              "totalTransferSize": 10928157,
+              "totalResourceSize": 40058712,
+              "byType": {
+                "other": {
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "count": 1
+                },
+                "Document": {
+                  "transferSize": 8430,
+                  "resourceSize": 18883,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 569586,
+                  "resourceSize": 550204,
+                  "count": 19
+                },
+                "Image": {
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "count": 1
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 10038201,
+                  "resourceSize": 38378391,
+                  "count": 6
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 2,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/reservation-mobile-run2.json",
+            "requestedUrl": "http://127.0.0.1:41238/booking",
+            "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+            "performanceScore": 0.32,
+            "lcpMs": 11993.54255,
+            "inpMs": 81.28,
+            "cls": 0,
+            "ttfbMs": 32,
+            "routeTransfer": {
+              "totalTransferSize": 10928155,
+              "totalResourceSize": 40058712,
+              "byType": {
+                "other": {
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "count": 1
+                },
+                "Document": {
+                  "transferSize": 8428,
+                  "resourceSize": 18883,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 569586,
+                  "resourceSize": 550204,
+                  "count": 19
+                },
+                "Image": {
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "count": 1
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 10038201,
+                  "resourceSize": 38378391,
+                  "count": 6
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          },
+          {
+            "run": 3,
+            "rawFile": "reports/perf/p-a-1/lighthouse-raw/reservation-mobile-run3.json",
+            "requestedUrl": "http://127.0.0.1:41238/booking",
+            "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+            "performanceScore": 0.32,
+            "lcpMs": 11965.56755,
+            "inpMs": 68.274,
+            "cls": 0,
+            "ttfbMs": 33,
+            "routeTransfer": {
+              "totalTransferSize": 10928159,
+              "totalResourceSize": 40058712,
+              "byType": {
+                "other": {
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "count": 1
+                },
+                "Document": {
+                  "transferSize": 8432,
+                  "resourceSize": 18883,
+                  "count": 1
+                },
+                "Font": {
+                  "transferSize": 569586,
+                  "resourceSize": 550204,
+                  "count": 19
+                },
+                "Image": {
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "count": 1
+                },
+                "Stylesheet": {
+                  "transferSize": 280908,
+                  "resourceSize": 1037028,
+                  "count": 1
+                },
+                "Script": {
+                  "transferSize": 10038201,
+                  "resourceSize": 38378391,
+                  "count": 6
+                },
+                "Other": {
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "count": 1
+                }
+              }
+            }
+          }
+        ],
+        "median": {
+          "lcpMs": 11965.6,
+          "inpMs": 68.3,
+          "cls": 0,
+          "ttfbMs": 33,
+          "totalTransferSize": 10928157
+        }
+      }
+    }
+  },
+  "routeTransfer": {
+    "chatbot:desktop": {
+      "routeId": "chatbot",
+      "profile": "desktop",
+      "reportRoute": "/#contact",
+      "targetUrl": "http://127.0.0.1:41238/#contact",
+      "medianTotalTransferSize": 11225265,
+      "samples": [
+        11225265,
+        11225265,
+        11225266
+      ],
+      "medianByType": {
+        "Document": 20329,
+        "Font": 939010,
+        "Image": 53572,
+        "Stylesheet": 280908,
+        "Script": 9928500,
+        "Other": 2946
+      }
+    },
+    "chatbot:mobile": {
+      "routeId": "chatbot",
+      "profile": "mobile",
+      "reportRoute": "/#contact",
+      "targetUrl": "http://127.0.0.1:41238/#contact",
+      "medianTotalTransferSize": 11225265,
+      "samples": [
+        11250072,
+        11225264,
+        11225265
+      ],
+      "medianByType": {
+        "Document": 20328,
+        "Font": 939010,
+        "Image": 53572,
+        "Stylesheet": 280908,
+        "Script": 9928500,
+        "Other": 2946
+      }
+    },
+    "home:desktop": {
+      "routeId": "home",
+      "profile": "desktop",
+      "reportRoute": "/",
+      "targetUrl": "http://127.0.0.1:41238/",
+      "medianTotalTransferSize": 11225265,
+      "samples": [
+        11225265,
+        11225267,
+        11225265
+      ],
+      "medianByType": {
+        "Document": 20329,
+        "Font": 939010,
+        "Image": 53572,
+        "Stylesheet": 280908,
+        "Script": 9928500,
+        "Other": 2946
+      }
+    },
+    "home:mobile": {
+      "routeId": "home",
+      "profile": "mobile",
+      "reportRoute": "/",
+      "targetUrl": "http://127.0.0.1:41238/",
+      "medianTotalTransferSize": 11250072,
+      "samples": [
+        11225266,
+        11250072,
+        11250072
+      ],
+      "medianByType": {
+        "Document": 20328,
+        "Font": 963818,
+        "Image": 53572,
+        "Stylesheet": 280908,
+        "Script": 9928500,
+        "Other": 2946
+      }
+    },
+    "reservation:desktop": {
+      "routeId": "reservation",
+      "profile": "desktop",
+      "reportRoute": "/booking",
+      "targetUrl": "http://127.0.0.1:41238/booking",
+      "medianTotalTransferSize": 10903347,
+      "samples": [
+        10903344,
+        10903348,
+        10903347
+      ],
+      "medianByType": {
+        "other": 908,
+        "Document": 8428,
+        "Font": 544778,
+        "Image": 27178,
+        "Stylesheet": 280908,
+        "Script": 10038201,
+        "Other": 2946
+      }
+    },
+    "reservation:mobile": {
+      "routeId": "reservation",
+      "profile": "mobile",
+      "reportRoute": "/booking",
+      "targetUrl": "http://127.0.0.1:41238/booking",
+      "medianTotalTransferSize": 10928157,
+      "samples": [
+        10928157,
+        10928155,
+        10928159
+      ],
+      "medianByType": {
+        "other": 908,
+        "Document": 8430,
+        "Font": 569586,
+        "Image": 27178,
+        "Stylesheet": 280908,
+        "Script": 10038201,
+        "Other": 2946
+      }
+    }
+  },
+  "assetInventory": {
+    "networkAssets": [
+      {
+        "assetPath": "/_next/static/chunks/app/layout.js",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 6212153,
+        "maxResourceSize": 21684959
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785157890245",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785157913712",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785157936810",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785157951323",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785157966553",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785157981069",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158005285",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158008857",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158031137",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158055773",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158077102",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158099152",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158338260",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158352176",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158365857",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158379256",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158401056",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/main-app.js?v=1785158423966",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 2720247,
+        "maxResourceSize": 11947843
+      },
+      {
+        "assetPath": "/_next/static/chunks/app/page.js",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 904289,
+        "maxResourceSize": 3982870
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785157890245",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785157913712",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785157936810",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785157951323",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785157966553",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785157981069",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158005285",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158008857",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158031137",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158055773",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158077102",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158099152",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158338260",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158352176",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158365857",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158379256",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158401056",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/css/app/layout.css?v=1785158423966",
+        "resourceTypes": [
+          "Stylesheet"
+        ],
+        "mimeTypes": [
+          "text/css"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 280908,
+        "maxResourceSize": 1037028
+      },
+      {
+        "assetPath": "/_next/static/chunks/app/login/page.js",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 109701,
+        "maxResourceSize": 376002
+      },
+      {
+        "assetPath": "/_next/static/media/567a398e86416ddb-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 109090,
+        "maxResourceSize": 108068
+      },
+      {
+        "assetPath": "/_next/static/chunks/app-pages-internals.js",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 62278,
+        "maxResourceSize": 243954
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785157890245",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785157913712",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785157936810",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785157951323",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785157966553",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785157981069",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158005285",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158008857",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158031137",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158055773",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158077102",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158099152",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158338260",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158352176",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158365857",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158379256",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158401056",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1785158423966",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 49452,
+        "maxResourceSize": 48432
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785157890245",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785157913712",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785157936810",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785157951323",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785157966553",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785157981069",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158005285",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158008857",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158031137",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158055773",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158077102",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158099152",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158338260",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158352176",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158365857",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158379256",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158401056",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1785158423966",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 34408,
+        "maxResourceSize": 33388
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785157890245",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785157913712",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785157936810",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785157951323",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785157966553",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785157981069",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158005285",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158008857",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158031137",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158055773",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158077102",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158099152",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158338260",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158352176",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158365857",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158379256",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158401056",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/chunks/webpack.js?v=1785158423966",
+        "resourceTypes": [
+          "Script"
+        ],
+        "mimeTypes": [
+          "application/javascript"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 29533,
+        "maxResourceSize": 142763
+      },
+      {
+        "assetPath": "/_next/static/media/f3f29441bd95e5ee-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 27368,
+        "maxResourceSize": 26348
+      },
+      {
+        "assetPath": "/nori_header_black.svg",
+        "resourceTypes": [
+          "Image"
+        ],
+        "mimeTypes": [
+          "image/svg+xml"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 27178,
+        "maxResourceSize": 68555
+      },
+      {
+        "assetPath": "/_next/static/media/0a6ee41deef7731a-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 26736,
+        "maxResourceSize": 25716
+      },
+      {
+        "assetPath": "/_next/static/media/f994f9aa3b46ec1e-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 26572,
+        "maxResourceSize": 25552
+      },
+      {
+        "assetPath": "/_next/image?url=%2Fprofile-hero.png&w=640&q=75",
+        "resourceTypes": [
+          "Image"
+        ],
+        "mimeTypes": [
+          "image/webp"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 26394,
+        "maxResourceSize": 25250
+      },
+      {
+        "assetPath": "/_next/static/media/bd15dd15f52d820b-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 26064,
+        "maxResourceSize": 25044
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785157890245",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785157913712",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785157936810",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785157951323",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785157966553",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785157981069",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158005285",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158008857",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158031137",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158055773",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158077102",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158099152",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158338260",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158352176",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158365857",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158379256",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158401056",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1785158423966",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 26016,
+        "maxResourceSize": 24996
+      },
+      {
+        "assetPath": "/_next/static/media/42b1d6c067776aa1-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 25804,
+        "maxResourceSize": 24784
+      },
+      {
+        "assetPath": "/_next/static/media/59b86cab0a7ba6b6-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 25488,
+        "maxResourceSize": 24468
+      },
+      {
+        "assetPath": "/_next/static/media/6123c6d99e7c572a-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 25432,
+        "maxResourceSize": 24412
+      },
+      {
+        "assetPath": "/_next/static/media/5e7ebfb2a5b7e589-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 25224,
+        "maxResourceSize": 24204
+      },
+      {
+        "assetPath": "/_next/static/media/9a3229bd6a429b20-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 24944,
+        "maxResourceSize": 23924
+      },
+      {
+        "assetPath": "/_next/static/media/ef89422046fbf1c1-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 24876,
+        "maxResourceSize": 23856
+      },
+      {
+        "assetPath": "/_next/static/media/435882185bb009c6-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24808,
+        "maxResourceSize": 23788
+      },
+      {
+        "assetPath": "/_next/static/media/cd6a1bcbefbffc9c-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 24584,
+        "maxResourceSize": 23564
+      },
+      {
+        "assetPath": "/_next/static/media/04424961f8d1ce45-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 24284,
+        "maxResourceSize": 23264
+      },
+      {
+        "assetPath": "/_next/static/media/f0a2924f8fc8fcc8-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 24176,
+        "maxResourceSize": 23156
+      },
+      {
+        "assetPath": "/_next/static/media/f937707de96f340b-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 24156,
+        "maxResourceSize": 23136
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785157890245",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785157913712",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785157936810",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785157951323",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785157966553",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785157981069",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158005285",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158008857",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158031137",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "mobile"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158055773",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158077102",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158099152",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "home"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158338260",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158352176",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158365857",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158379256",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158401056",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1785158423966",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot"
+        ],
+        "profiles": [
+          "desktop"
+        ],
+        "maxTransferSize": 24128,
+        "maxResourceSize": 23108
+      },
+      {
+        "assetPath": "/_next/static/media/04d649a37aec0de8-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 24000,
+        "maxResourceSize": 22980
+      },
+      {
+        "assetPath": "/_next/static/media/b143c36cd5f46f36-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 23824,
+        "maxResourceSize": 22804
+      },
+      {
+        "assetPath": "/_next/static/media/1896bb7d54ce0e89-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 23420,
+        "maxResourceSize": 22400
+      },
+      {
+        "assetPath": "/_next/static/media/51fa7b78fc345a6d-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 23056,
+        "maxResourceSize": 22036
+      },
+      {
+        "assetPath": "/_next/static/media/b89b3a1543afbd63-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 22632,
+        "maxResourceSize": 21612
+      },
+      {
+        "assetPath": "/_next/static/media/cebea4a751de71ad-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 22616,
+        "maxResourceSize": 21596
+      },
+      {
+        "assetPath": "/_next/static/media/1405f5f79d588b43-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 22452,
+        "maxResourceSize": 21432
+      },
+      {
+        "assetPath": "/_next/static/media/7774adb8ba58ad99-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 22128,
+        "maxResourceSize": 21108
+      },
+      {
+        "assetPath": "/_next/static/media/2b73c85e22059d73-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 22112,
+        "maxResourceSize": 21092
+      },
+      {
+        "assetPath": "/_next/static/media/6cb25664ee39a8d1-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 21568,
+        "maxResourceSize": 20548
+      },
+      {
+        "assetPath": "/_next/static/media/0505a94262dfcd54-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 20768,
+        "maxResourceSize": 19748
+      },
+      {
+        "assetPath": "/_next/static/media/fdf7a15abc241bad-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 20768,
+        "maxResourceSize": 19748
+      },
+      {
+        "assetPath": "/",
+        "resourceTypes": [
+          "Document"
+        ],
+        "mimeTypes": [
+          "text/html"
+        ],
+        "routes": [
+          "chatbot",
+          "home"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 20331,
+        "maxResourceSize": 91584
+      },
+      {
+        "assetPath": "/_next/static/media/a27a10fb9ec719b7-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 19996,
+        "maxResourceSize": 18976
+      },
+      {
+        "assetPath": "/_next/static/media/695f2f57bf3e1528-s.woff2",
+        "resourceTypes": [
+          "Font"
+        ],
+        "mimeTypes": [
+          "font/woff2"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 16460,
+        "maxResourceSize": 15440
+      },
+      {
+        "assetPath": "/login?callbackUrl=%2Fbooking",
+        "resourceTypes": [
+          "Document"
+        ],
+        "mimeTypes": [
+          "text/html"
+        ],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 8432,
+        "maxResourceSize": 18883
+      },
+      {
+        "assetPath": "/icon.svg?6fcb668b2bb0818e",
+        "resourceTypes": [
+          "Other"
+        ],
+        "mimeTypes": [
+          "image/svg+xml"
+        ],
+        "routes": [
+          "chatbot",
+          "home",
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 2946,
+        "maxResourceSize": 5651
+      },
+      {
+        "assetPath": "/booking",
+        "resourceTypes": [
+          "other"
+        ],
+        "mimeTypes": [],
+        "routes": [
+          "reservation"
+        ],
+        "profiles": [
+          "desktop",
+          "mobile"
+        ],
+        "maxTransferSize": 908,
+        "maxResourceSize": 0
+      }
+    ]
+  }
+}
