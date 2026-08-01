@@ -12,12 +12,12 @@ import {
   getNotionAiChatbotThreadUrl,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 import { isNotionAiChatbotTargetUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
+import { createTier3GeminiFlashClient } from "@/lib/chatbot/server/llm-clients/tier3-gemini-flash"
 import { createTier4FormFallbackClient } from "@/lib/chatbot/server/llm-clients/tier4-form-fallback"
-import { tier3OllamaDeepSeekDefaults } from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
 
 type TierName =
   | "tier-1-chrome-notion-ai"
-  | "tier-3-ollama-deepseek"
+  | "tier-3-gemini-flash"
   | "tier-4-form-fallback"
   | "local-41238-runtime"
 type GuardStatus = "green" | "yellow" | "red"
@@ -57,7 +57,6 @@ const defaultIntervalMs = 120_000
 const fetchTimeoutMs = 3000
 const waitForTier1Ms = 30_000
 const oneSecondMs = 1000
-const labelOllama = "homebrew.mxcl.ollama"
 const tier1DefaultCdpBaseUrl = "http://127.0.0.1:9223"
 const defaultLogPath = path.join(homedir(), "Library", "Logs", "norikane_satoshi_hp", "local-tier-guard.jsonl")
 const liveRepoEnvPath = path.join(homedir(), "projects", "norikane_satoshi_HP", ".env.local")
@@ -294,110 +293,24 @@ async function waitForTier1Ready(cdpBaseUrl: string, threadUrl: string): Promise
 }
 
 async function guardTier3(options: GuardOptions): Promise<TierResult> {
-  const baseUrl = process.env.CHATBOT_TIER3_OLLAMA_BASE_URL ?? tier3OllamaDeepSeekDefaults.baseUrl
-  const modelName = process.env.CHATBOT_TIER3_OLLAMA_MODEL ?? tier3OllamaDeepSeekDefaults.modelName
-  const before = options.simulateTier3Absent
-    ? { reachable: false, status: 0, hasModel: false, modelCount: 0 }
-    : await inspectTier3(baseUrl, modelName)
-
-  if (before.reachable && before.hasModel) {
+  const client = createTier3GeminiFlashClient()
+  const healthy = !options.simulateTier3Absent && (await client.isHealthy())
+  if (healthy) {
     return {
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-3-gemini-flash",
       status: "green",
       action: "none",
-      httpStatus: before.status,
-      detail: `model_present:${before.modelCount}`,
+      detail: "model_ready",
     }
   }
 
-  if (!options.repair) {
-    return tier3NeedsRepair(before)
-  }
-
-  if (!before.reachable) {
-    await startOllama()
-    const after = await waitForTier3Ready(baseUrl, modelName)
-    if (after.reachable && after.hasModel) {
-      return {
-        tier: "tier-3-ollama-deepseek",
-        status: "green",
-        action: "started-ollama",
-        httpStatus: after.status,
-        detail: `model_present:${after.modelCount}`,
-      }
-    }
-    return tier3NeedsRepair(after)
-  }
-
-  if (!before.hasModel && process.env.CHATBOT_LOCAL_TIER_GUARD_PULL_MISSING_MODEL === "1") {
-    await spawnAndWait("ollama", ["pull", modelName])
-    const after = await inspectTier3(baseUrl, modelName)
-    if (after.reachable && after.hasModel) {
-      return {
-        tier: "tier-3-ollama-deepseek",
-        status: "green",
-        action: "pulled-model",
-        httpStatus: after.status,
-        detail: `model_present:${after.modelCount}`,
-      }
-    }
-  }
-
-  return tier3NeedsRepair(before)
-}
-
-function tier3NeedsRepair(inspection: Awaited<ReturnType<typeof inspectTier3>>): TierResult {
   return {
-    tier: "tier-3-ollama-deepseek",
+    tier: "tier-3-gemini-flash",
     status: "red",
-    action: inspection.reachable ? "model-pull-required" : "start-ollama-required",
-    httpStatus: inspection.status,
-    detail: inspection.reachable ? `model_missing:${inspection.modelCount}` : "ollama_unreachable",
-    nextAction: inspection.reachable ? "model_pull_required" : "start_ollama",
+    action: "gemini-health-check-required",
+    detail: options.simulateTier3Absent ? "simulated_absent" : "model_unavailable",
+    nextAction: "restore_gemini_configuration_or_service",
   }
-}
-
-async function inspectTier3(baseUrl: string, modelName: string): Promise<{
-  reachable: boolean
-  status: number
-  hasModel: boolean
-  modelCount: number
-}> {
-  try {
-    const response = await fetchJson<{ models?: unknown }>(`${baseUrl}/api/tags`)
-    const models = Array.isArray(response.body.models) ? response.body.models : []
-    return {
-      reachable: true,
-      status: response.status,
-      hasModel: hasOllamaModel(models, modelName),
-      modelCount: models.length,
-    }
-  } catch {
-    return { reachable: false, status: 0, hasModel: false, modelCount: 0 }
-  }
-}
-
-async function startOllama(): Promise<void> {
-  const uid = process.getuid?.() ?? Number(process.env.UID ?? "501")
-  const label = `gui/${uid}/${labelOllama}`
-  const printResult = await spawnCapture("/bin/launchctl", ["print", label])
-  if (printResult.exitCode === 0) {
-    await spawnAndWait("/bin/launchctl", ["kickstart", label])
-    return
-  }
-
-  await spawnAndWait("brew", ["services", "start", "ollama"])
-}
-
-async function waitForTier3Ready(baseUrl: string, modelName: string) {
-  const deadline = Date.now() + 20_000
-  let latest = await inspectTier3(baseUrl, modelName)
-  while (Date.now() < deadline) {
-    if (latest.reachable) return latest
-    await sleep(oneSecondMs)
-    latest = await inspectTier3(baseUrl, modelName)
-  }
-  return latest
 }
 
 async function guardTier4(options: GuardOptions): Promise<TierResult> {
@@ -619,15 +532,6 @@ async function readLocal41238HttpStatus(): Promise<number> {
   } finally {
     clearTimeout(timeout)
   }
-}
-
-export function hasOllamaModel(models: unknown[], modelName: string): boolean {
-  return models.some((model) => {
-    if (typeof model === "string") return model === modelName
-    if (!model || typeof model !== "object") return false
-    const candidate = model as { name?: unknown; model?: unknown }
-    return candidate.name === modelName || candidate.model === modelName
-  })
 }
 
 function isPresent(value: string | undefined): boolean {

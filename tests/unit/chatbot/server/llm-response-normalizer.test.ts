@@ -34,12 +34,12 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(
       normalizeChatbotLlmResponse({
         rawText: customerReply("相談内容を確認しました。"),
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
       }),
     ).toEqual({
       content: "相談内容を確認しました。",
       role: "assistant",
-      model: "tier-3-ollama-deepseek",
+      model: "tier-3-gemini-flash",
       finish_reason: "stop",
     })
   })
@@ -358,7 +358,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: customerReply("ライブ2.5時間規模ですと、**17〜20日程度**が通常のラインです。素材状況を確認します。"),
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
       },
       {
         jobContext: {
@@ -422,7 +422,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: customerReply("ライブ2時間半規模の工程目安は通常7〜9日です。素材状況や追加作業で前後します。"),
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
       },
       {
         jobContext: {
@@ -458,7 +458,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: customerReply(rawText),
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
       },
       {
         jobContext: {
@@ -487,7 +487,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: customerReply("150分ライブの標準目安は7〜8日です。2時間半の場合は素材量を確認します。"),
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
       },
       {
         jobContext: {
@@ -514,7 +514,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: customerReply("費用は17〜20万円では答えません。日程は7/17〜7/20が候補で、2〜3名体制です。工程目安は17〜20日です。"),
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
       },
       {
         jobContext: {

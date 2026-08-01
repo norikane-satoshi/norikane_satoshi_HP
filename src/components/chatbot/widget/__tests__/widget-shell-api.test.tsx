@@ -121,7 +121,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -132,7 +132,7 @@ describe("WidgetShell API wiring", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
-    expect(document.body).not.toHaveTextContent(/Local debug|Notion AI|DeepSeek|Ollama|local deterministic|Tier|\bmodel\b/i)
+    expect(document.body).not.toHaveTextContent(/Local debug|Notion AI|Tier|\bmodel\b/i)
   })
 
   it("keeps panel wheel, touch, and pointer operations inside the chatbot shell", () => {
@@ -428,7 +428,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -458,7 +458,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -486,7 +486,7 @@ describe("WidgetShell API wiring", () => {
           mockJsonResponse({
             conversationId: "conv_1",
             assistantMessage,
-            tier: "tier-3-ollama-deepseek",
+            tier: "tier-3-gemini-flash",
             ui: {
               kind: "booking-card",
               suggestedSlots: [slot],
@@ -602,7 +602,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -671,7 +671,7 @@ describe("WidgetShell API wiring", () => {
           content: "復元後の回答です",
           createdAt: "2026-05-26T00:00:01.000Z",
         },
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
       }),
     )
@@ -768,7 +768,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -814,7 +814,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -883,7 +883,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
         }),
       ),
@@ -903,7 +903,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: additionalWorkChoices },
         }),
       )
@@ -914,7 +914,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "次の質問です",
           },
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "none" },
         }),
       )
@@ -946,7 +946,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: additionalWorkChoices },
         }),
       )
@@ -977,7 +977,7 @@ describe("WidgetShell API wiring", () => {
           ...assistantMessage,
           content: "次の質問です",
         },
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -997,7 +997,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: additionalWorkChoices },
         }),
       )
@@ -1008,7 +1008,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "次の質問です",
           },
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "none" },
         }),
       )
@@ -1036,7 +1036,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
         }),
       )
@@ -1047,7 +1047,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "次の質問です",
           },
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "none" },
         }),
       )
@@ -1084,7 +1084,7 @@ describe("WidgetShell API wiring", () => {
           ...assistantMessage,
           content: "続きの回答です",
         },
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -1103,7 +1103,7 @@ describe("WidgetShell API wiring", () => {
       clientSessionId: "11111111-1111-4111-8111-111111111111",
       conversationId: "conv_reload",
       activeUi: { kind: "choice-panel", choiceSet: finalMediumChoices },
-      lastResponseTier: "tier-3-ollama-deepseek",
+      lastResponseTier: "tier-3-gemini-flash",
     })
 
     const onRecoverableError = vi.fn()
@@ -1131,7 +1131,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_new",
         assistantMessage,
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -1190,7 +1190,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -1225,7 +1225,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "候補日時から予約できます",
           },
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: {
             kind: "booking-card",
             suggestedSlots: [slot],
@@ -1281,7 +1281,7 @@ describe("WidgetShell API wiring", () => {
               ...assistantMessage,
               content: "候補日時から予約できます",
             },
-            tier: "tier-3-ollama-deepseek",
+            tier: "tier-3-gemini-flash",
             ui: {
               kind: "booking-card",
               suggestedSlots: [slot],
@@ -1372,7 +1372,7 @@ describe("WidgetShell API wiring", () => {
                 ...assistantMessage,
                 content: "候補日時から予約できます",
               },
-              tier: "tier-3-ollama-deepseek",
+              tier: "tier-3-gemini-flash",
               ui: {
                 kind: "booking-card",
                 suggestedSlots: [slot],
@@ -1402,7 +1402,7 @@ describe("WidgetShell API wiring", () => {
               content: "予約送信済みです。ありがとうございます。",
               createdAt: "2026-05-26T00:00:02.000Z",
             },
-            tier: "local-deterministic",
+            tier: "tier-3-gemini-flash",
             ui: { kind: "none" },
           }),
         )
@@ -1625,7 +1625,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "相談内容を送れます",
           },
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: {
             kind: "consultation-summary-form",
             summary: {
@@ -1670,7 +1670,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "none" },
         }),
       )
@@ -1728,7 +1728,7 @@ describe("WidgetShell API wiring", () => {
             createdAt: "2026-05-26T00:00:00.000Z",
           },
           assistantMessage,
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
         }),
       )
@@ -1747,7 +1747,7 @@ describe("WidgetShell API wiring", () => {
             content: "編集後の回答です",
             createdAt: "2026-05-26T00:00:03.000Z",
           },
-          tier: "tier-3-ollama-deepseek",
+          tier: "tier-3-gemini-flash",
           ui: { kind: "none" },
         }),
       )

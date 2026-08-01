@@ -2,24 +2,27 @@ import { describe, expect, it } from "vitest"
 
 import {
   classifyLocal41238Runtime,
-  hasOllamaModel,
 } from "../../../../scripts/chatbot/local-tier-guard"
 
 describe("local-tier-guard", () => {
-  it("matches Ollama models by name or model field", () => {
-    expect(
-      hasOllamaModel(
-        [
-          { name: "nomic-embed-text:latest" },
-          { model: "hf.co/mmnga/cyberagent-DeepSeek-R1-Distill-Qwen-14B-Japanese-gguf:Q4_K_M" },
-        ],
-        "hf.co/mmnga/cyberagent-DeepSeek-R1-Distill-Qwen-14B-Japanese-gguf:Q4_K_M",
-      ),
-    ).toBe(true)
+  it("fails closed when the listener worktree cannot be resolved", () => {
+    expect(classifyLocal41238Runtime({ pid: "1423" })).toEqual({
+      status: "unknown",
+      detail: "41238_listener_cwd_missing",
+    })
   })
 
-  it("does not match unrelated model entries", () => {
-    expect(hasOllamaModel([{ name: "other-model" }, null, "plain-model"], "missing-model")).toBe(false)
+  it("fails closed when the generated Prisma client status is unknown", () => {
+    expect(
+      classifyLocal41238Runtime({
+        cwd: "/repo/.codex-worktrees/staging-live-41238",
+        pid: "1423",
+        head: "1a1108c1a79dd20a8915fb756425d6e6404f781f",
+        expectedHead: "1a1108c1a79dd20a8915fb756425d6e6404f781f",
+        httpStatus: 200,
+        prismaClientSchema: "unknown",
+      }),
+    ).toMatchObject({ status: "prisma-client-stale", prismaClientSchema: "unknown" })
   })
 
   it("flags the local 41238 runtime when its worktree is behind staging", () => {

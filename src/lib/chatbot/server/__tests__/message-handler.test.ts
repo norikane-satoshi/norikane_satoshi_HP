@@ -143,7 +143,7 @@ function setup(overrides: {
   const generate = vi.fn().mockResolvedValue({
     rawText: customerReply("返信です"),
     displayEnvelope: createChatbotLlmDisplayEnvelope(customerReply("返信です")),
-    tier: "tier-3-ollama-deepseek",
+    tier: "tier-2-hosted-chrome-notion-ai",
   })
   const slackNotifier = vi.fn().mockResolvedValue({ status: "skipped", reason: "disabled" })
   const userContextLoader = vi.fn().mockResolvedValue(userContext())
@@ -1210,7 +1210,7 @@ describe("handleChatbotMessage user context", () => {
   })
 
   it.each(["あなたの名前は？", "AIアシスタントの名前は？", "このチャットの名前は？"])(
-    "answers assistant name questions as Nochan without invoking the LLM: %s",
+    "routes assistant name questions through the canonical LLM tiers: %s",
     async (prompt) => {
       const harness = setup()
 
@@ -1219,11 +1219,9 @@ describe("handleChatbotMessage user context", () => {
         harness.options,
       )
 
-      expect(result.assistantMessage.content).toBe("のーちゃんです。")
-      expect(result.tier).toBe("local-deterministic")
+      expect(result.tier).toBe("tier-2-hosted-chrome-notion-ai")
       expect(result.ui).toEqual({ kind: "none" })
-      expect(harness.generate).not.toHaveBeenCalled()
-      expect(harness.repository.updateConversationRouting).not.toHaveBeenCalled()
+      expect(harness.generate).toHaveBeenCalledOnce()
     },
   )
 
@@ -1666,7 +1664,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("メールアドレスの末尾が途中で切れているようです。正しいメールアドレスを教えてください。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -1691,7 +1689,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"ライブ2.5h 消し物・肌修正・観客の顔ぼかし30カット以上、リモートでも立ち会いでも相談","contactName":"テスト太郎","contactEmail":"client@example.jp","companyName":"テスト株式会社","dueDate":"2026-07-31"}}'),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -2050,7 +2048,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ご連絡ありがとうございます。則兼からメールでご連絡します。"),
-      tier: "tier-3-gemini-flash",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -2149,7 +2147,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("承知いたしました。これまでのご相談内容をもとに、則兼との相談・確認に進むための予約候補カードを作成します。"),
-      tier: "tier-3-gemini-flash",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -2490,7 +2488,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("承知いたしました。これまでのご相談内容をもとに、予約候補カードを作成します。"),
-      tier: "tier-3-gemini-flash",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -3219,7 +3217,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("のりかね映像設計室の相談窓口として動いています"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -3349,7 +3347,7 @@ describe("handleChatbotMessage user context", () => {
       harness.generate.mockResolvedValueOnce({
         rawText:
           customerReply("受付内容の整理：ライブ案件です。納品形式も教えてください。追加で確認したいことがあります。"),
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-2-hosted-chrome-notion-ai",
       })
 
       const result = await handleChatbotMessage(
@@ -3386,7 +3384,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("受付内容の整理：MV案件です。納品形式も教えてください。追加で確認したいことがあります。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -3476,7 +3474,7 @@ describe("handleChatbotMessage user context", () => {
       const harness = setup()
       harness.generate.mockResolvedValueOnce({
         rawText: customerReply("スタジオ利用も含めて整理できます。"),
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-2-hosted-chrome-notion-ai",
       })
 
       const result = await handleChatbotMessage(
@@ -3518,7 +3516,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("メールアドレスをもう一度教えてください。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
       proposedRoutingDecision: {
         kind: "to-booking-inline",
         suggestedSlots: [
@@ -3556,7 +3554,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("詳細は担当者が確認します。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -3585,7 +3583,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("料金は本人が確認します。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -3762,7 +3760,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("カラーグレーディングの因数分解は公開予定のノートです。作品意図を観客の印象へ翻訳する考え方を扱う予定です。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
     const snapshot = createStaticChatbotKnowledgeSnapshot("2026-06-22T01:10:34.550Z")
     snapshot.noteKnowledge = [
@@ -3788,7 +3786,7 @@ describe("handleChatbotMessage user context", () => {
       },
     )
 
-    expect(result.tier).toBe("tier-3-ollama-deepseek")
+    expect(result.tier).toBe("tier-2-hosted-chrome-notion-ai")
     expect(result.assistantMessage.content).toContain("公開予定のノート")
     expect(harness.generate).toHaveBeenCalled()
     const prompt = harness.generate.mock.calls[0]?.[0].systemPrompt
@@ -3828,7 +3826,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ライブ2時間半なら通常7〜8日が目安です。3日以内も内容と素材状況を整理して相談できますが、この場では確約しません。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -3897,7 +3895,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ライブ2時間半規模の工程目安は17〜20日です。素材の受け渡し方法を教えてください。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -3929,7 +3927,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ライブ2時間半なら通常7〜9日が目安です。素材状況や追加作業が重い場合は前後するので、受け渡し状況も確認させてください。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -3969,7 +3967,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ありがとうございます。内容を整理しました。案件種類・尺: ライブ 2時間半。所要日数の目安は17〜20日です。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -4071,7 +4069,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply(rawText),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -4242,7 +4240,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ライブ2時間半の基本工程に加え、観客ぼかしの作業量によって変動します。基本工程（17〜20日）に対し、ぼかし作業の規模次第で延びる可能性があります。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -4314,7 +4312,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("素材状況を踏まえると、基本工程は17〜20日を見ておくとよさそうです。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -4429,7 +4427,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply(rawText),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -4505,7 +4503,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("素材状況を踏まえると、工程目安は17〜20日です。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -4560,7 +4558,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("MV 5分なら通常2〜2.5日を基準に、素材状況で前後します。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     await handleChatbotMessage(
@@ -4603,7 +4601,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("相談内容を整理して送信できます。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -5045,7 +5043,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -5102,7 +5100,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-31"}}'),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -5147,7 +5145,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('候補を確認します。 {"tool":"show_booking_card","args":{"projectTitle":"DaVinci Resolve 講習","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -5182,7 +5180,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("講習内容を整理します。"),
-      tier: "tier-3-ollama-deepseek",
+      tier: "tier-2-hosted-chrome-notion-ai",
     })
 
     const result = await handleChatbotMessage(
@@ -5443,7 +5441,10 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: customerReply("Gemini fallback response."),
+      rawText: customerReply(JSON.stringify({
+        tool: "show_choice_panel",
+        args: jobKindChoices,
+      })),
       tier: "tier-3-gemini-flash",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })

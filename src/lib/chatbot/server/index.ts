@@ -52,11 +52,16 @@ export {
   ChatbotLlmError,
   assertChatbotLlmResponseContract,
   defaultLlmTierOrder,
+  getChatbotLlmOutputContractRejection,
   isChatbotLlmResponseContractError,
+  logChatbotLlmOutputContractRejection,
+  normalizeChatbotLlmChoiceSet,
 } from "@/lib/chatbot/server/llm-client"
 export type {
   ChatbotLlmDisplayEnvelope,
   ChatbotLlmClient,
+  ChatbotLlmOutputContractRejection,
+  ChatbotLlmOutputContractRejectionReason,
   ChatbotLlmRequest,
   ChatbotLlmResponse,
   ChatbotLlmTier,
@@ -75,10 +80,6 @@ export {
   createTier2HostedChromeNotionAiClient,
   Tier2HostedChromeNotionAiClient,
 } from "@/lib/chatbot/server/llm-clients/tier2-hosted-chrome-notion-ai"
-export {
-  createTier3OllamaDeepSeekClient,
-  Tier3OllamaDeepSeekClient,
-} from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
 export {
   createTier3GeminiFlashClient,
   Tier3GeminiFlashClient,

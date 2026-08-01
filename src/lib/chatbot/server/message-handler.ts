@@ -23,9 +23,9 @@ import {
   createTier1ChromeNotionAiClient,
   createTier2HostedChromeNotionAiClient,
   createTier3GeminiFlashClient,
-  createTier3OllamaDeepSeekClient,
   createTier4FormFallbackClient,
   formatUserChatbotContextForPrompt,
+  getChatbotLlmOutputContractRejection,
   linkConversationToUser,
   loadUserChatbotContext,
   loadConversationBySessionId,
@@ -33,6 +33,8 @@ import {
   updateConversationRouting,
   updateConversationSlackThreadTs,
   isChatbotLlmResponseContractError,
+  logChatbotLlmOutputContractRejection,
+  normalizeChatbotLlmChoiceSet,
   type ChatbotLlmClient,
   type ChatbotLlmRequest,
   type ChatbotLlmResponse,
@@ -197,7 +199,6 @@ const defaultRepository: ChatbotMessageRepository = {
   linkConversationToUser,
 }
 
-const assistantNameAnswer = "のーちゃんです。"
 const llmHistoryMaxMessages = 8
 const llmHistoryMaxCharacters = 4_000
 const llmHistoryMaxCharactersPerMessage = 1_500
@@ -303,33 +304,6 @@ export async function handleChatbotMessage(
       edit: editSlackEvent,
     })
   }
-  if (isAssistantNameQuestion(input.message)) {
-    const assistantNameContent = sanitizeChatbotLlmTextWithReport(assistantNameAnswer, {
-      trustedDisplayText: true,
-    }).text
-    const assistantMessage = await repository.appendMessage({
-      conversationId: conversation.id,
-      role: "assistant",
-      content: assistantNameContent,
-    })
-    return {
-      conversationId: conversation.id,
-      userMessage: {
-        id: userMessage.id,
-        role: userMessage.role,
-        content: userMessage.content,
-        createdAt: userMessage.createdAt,
-      },
-      assistantMessage: {
-        id: assistantMessage.id,
-        role: assistantMessage.role,
-        content: assistantMessage.content,
-        createdAt: assistantMessage.createdAt,
-      },
-      tier: "local-deterministic",
-      ui: { kind: "none" },
-    }
-  }
   const activeChoices = contextualizeStoredActiveChoices(conversation)
   const activeChoiceAnswer = applyActiveChoiceAnswer({
     activeChoices,
@@ -427,17 +401,19 @@ export async function handleChatbotMessage(
   })
   const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
   const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
-  const resolvedRoutingDecision = await resolveRoutingDecision({
-    requestId: input.requestId,
-    llmResponse,
-    conversation,
-    jobContext,
-    conversationState,
-    latestUserMessage: input.message,
-    fallbackRoutingDecision,
-    candidateWindowFinder,
-    knowledgeSnapshot,
-  })
+  const resolvedRoutingDecision = shouldRegenerateStructuredUi(llmResponse)
+    ? fallbackRoutingDecision
+    : await resolveRoutingDecision({
+        requestId: input.requestId,
+        llmResponse,
+        conversation,
+        jobContext,
+        conversationState,
+        latestUserMessage: input.message,
+        fallbackRoutingDecision,
+        candidateWindowFinder,
+        knowledgeSnapshot,
+      })
   const rawRoutingDecision =
     resolvedRoutingDecision ??
     (activeChoiceAnswer ||
@@ -1074,7 +1050,6 @@ async function notifySlackForChatbotEdit(input: {
 function detectChatbotIssueReasons(tier: ChatbotLlmResponse["tier"]): string[] {
   switch (tier) {
     case "tier-3-gemini-flash":
-    case "tier-3-ollama-deepseek":
       return ["below-hosted-tier2-fallback"]
     case "tier-4-form-fallback":
       return ["below-hosted-tier2-fallback", "tier4-form-fallback"]
@@ -1621,7 +1596,6 @@ function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogConte
     createTier1ChromeNotionAiClient(),
     createTier2HostedChromeNotionAiClient(),
     createTier3GeminiFlashClient(),
-    createTier3OllamaDeepSeekClient(),
     createTier4FormFallbackClient(),
   ]
   return createChatbotLlmTierOrchestrator({
@@ -1641,6 +1615,28 @@ async function generateContractedLlmResponse(input: {
     return response
   } catch (error) {
     if (!isChatbotLlmResponseContractError(error)) throw error
+    const rejection = getChatbotLlmOutputContractRejection(error)
+    if (rejection?.decision === "reject-and-regenerate-structured-ui") {
+      logChatbotLlmOutputContractRejection({
+        requestId: input.request.requestId,
+        tier: error.tier,
+        rejection,
+      })
+      const rawText = customerReplyMarkup(
+        input.fallbackRoutingDecision.kind === "continue"
+          ? input.fallbackRoutingDecision.nextQuestion
+          : "内容を確認しました。次に必要な情報を1つずつ確認します。",
+      )
+      return {
+        rawText,
+        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
+        tier: error.tier,
+        diagnostics: {
+          contractFallback: true,
+          outputContractRejection: rejection,
+        },
+      }
+    }
     const rawText = customerReplyMarkup(
       input.fallbackRoutingDecision.kind === "continue"
         ? input.fallbackRoutingDecision.nextQuestion
@@ -1656,6 +1652,16 @@ async function generateContractedLlmResponse(input: {
       },
     }
   }
+}
+
+function shouldRegenerateStructuredUi(response: ChatbotLlmResponse): boolean {
+  const rejection = response.diagnostics?.outputContractRejection
+  return (
+    rejection !== null &&
+    typeof rejection === "object" &&
+    !Array.isArray(rejection) &&
+    (rejection as { decision?: unknown }).decision === "reject-and-regenerate-structured-ui"
+  )
 }
 
 function customerReplyMarkup(text: string): string {
@@ -2417,26 +2423,6 @@ function isBackendIdentityOnlyResponse(text: string): boolean {
   )
 }
 
-function isAssistantNameQuestion(message: string): boolean {
-  const normalized = message.normalize("NFKC").toLowerCase()
-  const compact = normalized.replace(/[\s　。、,.!！?？「」『』()[\]（）]/g, "")
-  if (!/(名前|なまえ|呼び名|なんて呼べ|何て呼べ)/.test(compact)) return false
-
-  const asksQuestion =
-    /[?？]/.test(normalized) || /(何|なに|なん|教えて|ですか|でしょうか|呼べば)/.test(compact)
-  if (!asksQuestion) return false
-
-  return (
-    /(あなた|君|きみ|ai|アシスタント|ボット|bot|相談窓口|このチャット|ここのチャット|チャット)(の)?(名前|なまえ|呼び名)/.test(
-      compact,
-    ) ||
-    /(あなた|君|きみ|ai|アシスタント|ボット|bot|相談窓口|このチャット|ここのチャット|チャット)(を)?(なんて|何て|どう)呼べ/.test(
-      compact,
-    ) ||
-    /^(お)?名前は(何|なに|なん)/.test(compact)
-  )
-}
-
 function toMessageUi(input: {
   tier: ChatbotLlmResponse["tier"]
   routingDecision: RoutingDecision | undefined
@@ -2809,16 +2795,6 @@ type ShowChoicePanelToolCall = {
   args: SurveyChoiceSet
 }
 
-const llmChoicePanelIds = new Set([
-  "job-kind",
-  "project-length",
-  "final-medium",
-  "additional-work",
-  "documentary-attachment",
-  "work-site",
-  "production-options",
-])
-
 function resolveLlmChoicePanelRoutingDecision(input: {
   toolCall: ShowChoicePanelToolCall
   fallbackRoutingDecision: RoutingDecision
@@ -2845,7 +2821,7 @@ function parseShowChoicePanelToolCall(text: string): ShowChoicePanelToolCall | u
     const parsed = parseJson(candidate)
     if (!isRecord(parsed) || parsed.tool !== "show_choice_panel" || !isRecord(parsed.args)) continue
 
-    const choiceSet = normalizeLlmChoiceSet(parsed.args)
+    const choiceSet = normalizeChatbotLlmChoiceSet(parsed.args)
     if (!choiceSet) continue
     return {
       tool: "show_choice_panel",
@@ -2869,7 +2845,7 @@ function parseTextChoicePanelToolCall(
   if (choices.length < 2) return undefined
 
   const question = extractPlainTextChoiceQuestion(text) ?? fallbackRoutingDecision.nextQuestion
-  const choiceSet = normalizeLlmChoiceSet({
+  const choiceSet = normalizeChatbotLlmChoiceSet({
     id: fallbackRoutingDecision.presentChoices.id,
     question,
     choices,
@@ -3027,30 +3003,6 @@ function logChoicePanelTextFallbackDetected(input: {
   )
 }
 
-function normalizeLlmChoiceSet(value: Record<string, unknown>): SurveyChoiceSet | undefined {
-  const id = optionalString(value.id)
-  const question = optionalString(value.question)
-  const choices = Array.isArray(value.choices)
-    ? value.choices
-        .map(normalizeLlmChoice)
-        .filter((choice): choice is NonNullable<ReturnType<typeof normalizeLlmChoice>> => Boolean(choice))
-    : []
-  const selectionMode = optionalString(value.selectionMode)
-  const allowFreeText = value.allowFreeText
-
-  if (!id || !llmChoicePanelIds.has(id)) return undefined
-  if (!question || question.length > 140) return undefined
-  if (choices.length < 2 || choices.length > 10) return undefined
-
-  return {
-    id,
-    question,
-    choices,
-    ...(selectionMode === "multiple" ? { selectionMode: "multiple" } : {}),
-    ...(allowFreeText === true ? { allowFreeText: true } : {}),
-  }
-}
-
 function normalizeLlmChoice(value: unknown): SurveyChoiceSet["choices"][number] | undefined {
   if (!isRecord(value)) return undefined
   const id = optionalString(value.id)
@@ -3086,7 +3038,7 @@ function parseLooseShowChoicePanelChoiceSet(text: string): SurveyChoiceSet | und
     choices.push(choice)
   }
 
-  return normalizeLlmChoiceSet({
+  return normalizeChatbotLlmChoiceSet({
     id,
     question,
     choices,

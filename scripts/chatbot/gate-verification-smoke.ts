@@ -1,7 +1,7 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import { createTier1ChromeNotionAiClient } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
 import { runTier1HealthCheck } from "@/lib/chatbot/server/llm-clients/tier1-health-check"
-import { createTier3OllamaDeepSeekClient } from "@/lib/chatbot/server/llm-clients/tier3-ollama-deepseek"
+import { createTier3GeminiFlashClient } from "@/lib/chatbot/server/llm-clients/tier3-gemini-flash"
 import { createChatbotLlmTierOrchestrator } from "@/lib/chatbot/server/llm-orchestrator"
 import { normalizeChatbotLlmResponse } from "@/lib/chatbot/server/llm-response-normalizer"
 import { recordChatbotGateVerification } from "@/lib/chatbot/server/chatbot-ops-log"
@@ -129,7 +129,7 @@ async function runGate2(logClient: ReturnType<typeof createLocalPrismaClient>) {
 
 async function runGate3(logClient: ReturnType<typeof createLocalPrismaClient>) {
   const tier1 = createTier1ChromeNotionAiClient()
-  const tier3 = createTier3OllamaDeepSeekClient()
+  const tier3 = createTier3GeminiFlashClient()
   const cases = [
     {
       name: "topic-gating",

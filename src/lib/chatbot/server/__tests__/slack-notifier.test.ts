@@ -100,7 +100,7 @@ describe("sendChatbotSlackNotification", () => {
         requestId: "req_2",
         conversationId: "conv_1",
         sessionId: "session_1",
-        tier: "tier-3-ollama-deepseek",
+        tier: "tier-3-gemini-flash",
         uiKind: "booking-card",
         flowStep: "booking-card",
         bookingProgress: false,
@@ -114,7 +114,7 @@ describe("sendChatbotSlackNotification", () => {
     const body = postedBody(fetcher)
     expect(body.thread_ts).toBe("1700000000.000100")
     expect(body.text).toContain("requestId: req_2")
-    expect(body.text).toContain("tier: tier-3-ollama-deepseek")
+    expect(body.text).toContain("tier: tier-3-gemini-flash")
     expect(body.text).toContain("ui: booking-card")
     expect(body.text).toContain("flowStep: booking-card")
     expect(body.text).toContain("bookingProgress: false")

@@ -5,6 +5,7 @@ import type { ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
 import {
   assertChatbotLlmResponseContract,
   isChatbotLlmResponseContractError,
+  normalizeChatbotLlmChoiceSet,
 } from "@/lib/chatbot/server/llm-client"
 import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { chatbotLeakCorpus } from "../../../../../tests/fixtures/chatbot/leak-corpus"
@@ -54,7 +55,7 @@ async function loadPost({
   llmResponse = {
     rawText: "最終媒体を教えてください",
     displayEnvelope: createChatbotLlmDisplayEnvelope("最終媒体を教えてください"),
-    tier: "tier-3-ollama-deepseek" as const,
+    tier: "tier-2-hosted-chrome-notion-ai" as const,
   },
 }: {
   session?: { user?: { id?: string; email?: string } } | null
@@ -109,12 +110,12 @@ async function loadPost({
     linkConversationToUser,
     assertChatbotLlmResponseContract,
     isChatbotLlmResponseContractError,
+    normalizeChatbotLlmChoiceSet,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
     createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),
     createTier2HostedChromeNotionAiClient: vi.fn(() => ({ tier: "tier-2-hosted-chrome-notion-ai" })),
     createTier3GeminiFlashClient: vi.fn(() => ({ tier: "tier-3-gemini-flash" })),
-    createTier3OllamaDeepSeekClient: vi.fn(() => ({ tier: "tier-3-ollama-deepseek" })),
     createTier4FormFallbackClient: vi.fn(() => ({ tier: "tier-4-form-fallback" })),
     createChatbotLlmTierOrchestrator: vi.fn(() => ({
       generate,

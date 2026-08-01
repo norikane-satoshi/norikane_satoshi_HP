@@ -2,6 +2,7 @@ import {
   ChatbotLlmError,
   assertChatbotLlmResponseContract,
   defaultLlmTierOrder,
+  getChatbotLlmOutputContractRejection,
   type ChatbotLlmClient,
   type ChatbotLlmRequest,
   type ChatbotLlmResponse,
@@ -99,13 +100,16 @@ export function createChatbotLlmTierOrchestrator(
           })
           return response
         } catch (error) {
+          const normalized = normalizeError(error, tier)
+          const rejection = getChatbotLlmOutputContractRejection(normalized)
           emitAttempt(options.onTierAttempt, {
             tier,
             phase: "generate",
             outcome: "error",
-            error: normalizeError(error, tier),
+            error: normalized,
             latencyMs: Date.now() - startedAt,
           })
+          if (rejection?.decision === "reject-and-regenerate-structured-ui") throw normalized
         }
       }
 
