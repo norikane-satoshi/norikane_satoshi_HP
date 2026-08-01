@@ -157,9 +157,16 @@ async function openAuthenticatedBooking(
     authResponse = await page.goto("/api/dev/auth-bypass")
   }
   expect(authResponse?.status()).toBe(200)
-  await page.goto(options.path ?? "/booking")
+  const path = options.path ?? "/booking"
+  await page.goto(path)
   await expect(page.getByTestId("booking-month-skeleton")).toHaveCount(0)
   await expect(page.locator(".fc-daygrid-day-number").first()).toBeVisible()
+  if (path === "/line/booking") {
+    await expect(page.getByText("LINE 連携を確認しています")).toHaveCount(0)
+  }
+  await expect(page.locator("body")).not.toContainText(
+    "LINE アプリ外の確認表示です。通常ログイン画面へ自動遷移せず、この画面で表示を確認できます。",
+  )
 }
 
 test.describe("booking calendar mobile layout and selection", () => {
