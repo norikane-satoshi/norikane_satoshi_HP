@@ -55,20 +55,26 @@ afterEach(() => {
 
 describe("POST /api/chatbot/booking-candidates", () => {
   it("loads the requested display month without hard-filtering by the due month", async () => {
-    const route = await loadPost()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-08-01T12:00:00+09:00"))
+    try {
+      const route = await loadPost()
 
-    const response = await route.POST(request(validRequest()))
+      const response = await route.POST(request(validRequest()))
 
-    expect(response.status).toBe(200)
-    const args = route.findCandidateCalendar.mock.calls[0]?.[0]
-    expect(args).toMatchObject({
-      notBefore: "2026-08-01",
-      busyFrom: "2026-08-01",
-      candidateLimit: 31,
-    })
-    expect(args).not.toHaveProperty("desiredDeadline")
-    await expect(response.json()).resolves.toMatchObject({
-      candidates: [{ label: "2026-08-04 単日" }],
-    })
+      expect(response.status).toBe(200)
+      const args = route.findCandidateCalendar.mock.calls[0]?.[0]
+      expect(args).toMatchObject({
+        notBefore: "2026-08-01",
+        busyFrom: "2026-08-01",
+        candidateLimit: 31,
+      })
+      expect(args).not.toHaveProperty("desiredDeadline")
+      await expect(response.json()).resolves.toMatchObject({
+        candidates: [{ label: "2026-08-04 単日" }],
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
