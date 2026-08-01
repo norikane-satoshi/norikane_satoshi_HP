@@ -2,6 +2,9 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { prismaForE2E, testUserEmail, upsertUser } from "./booking-test-utils"
 
+const outsideLinePreviewNotice =
+  "LINE アプリ外の確認表示です。通常ログイン画面へ自動遷移せず、この画面で表示を確認できます。"
+
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10)
 }
@@ -157,16 +160,19 @@ async function openAuthenticatedBooking(
     authResponse = await page.goto("/api/dev/auth-bypass")
   }
   expect(authResponse?.status()).toBe(200)
-  const path = options.path ?? "/booking"
-  await page.goto(path)
+  await page.goto(options.path ?? "/booking")
   await expect(page.getByTestId("booking-month-skeleton")).toHaveCount(0)
   await expect(page.locator(".fc-daygrid-day-number").first()).toBeVisible()
-  if (path === "/line/booking") {
-    await expect(page.getByText("LINE 連携を確認しています")).toHaveCount(0)
-  }
-  await expect(page.locator("body")).not.toContainText(
-    "LINE アプリ外の確認表示です。通常ログイン画面へ自動遷移せず、この画面で表示を確認できます。",
-  )
+}
+
+for (const path of ["/booking", "/line/booking"] as const) {
+  test(`${path} omits the outside-LINE preview notice`, async ({ page }) => {
+    await openAuthenticatedBooking(page, { path })
+    if (path === "/line/booking") {
+      await expect(page.getByText("LINE 連携を確認しています")).toHaveCount(0)
+    }
+    await expect(page.locator("body")).not.toContainText(outsideLinePreviewNotice)
+  })
 }
 
 test.describe("booking calendar mobile layout and selection", () => {
