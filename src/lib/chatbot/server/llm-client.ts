@@ -4,19 +4,22 @@ import type {
   JobContext,
   SurveyChoiceSet,
 } from "@/lib/chatbot/domain"
+import { logChatbotBoundaryEvent } from "@/lib/chatbot/server/boundary-event-log"
+import {
+  createChatbotLlmDisplayEnvelope,
+  normalizeChatbotLlmChoiceSetAtDisplayBoundary,
+} from "@/lib/chatbot/server/llm-response-normalizer"
 
-export type ChatbotLlmTier =
-  | "tier-1-chrome-notion-ai"
-  | "tier-2-hosted-chrome-notion-ai"
-  | "tier-3-gemini-flash"
-  | "tier-4-form-fallback"
+export const chatbotLlmTierIds = {
+  tier1ChromeNotionAi: "tier-1-chrome-notion-ai",
+  tier2HostedChromeNotionAi: "tier-2-hosted-chrome-notion-ai",
+  tier3GeminiFlash: "tier-3-gemini-flash",
+  tier4FormFallback: "tier-4-form-fallback",
+} as const
 
-const chatbotLlmTiers = [
-  "tier-1-chrome-notion-ai",
-  "tier-2-hosted-chrome-notion-ai",
-  "tier-3-gemini-flash",
-  "tier-4-form-fallback",
-] as const
+export type ChatbotLlmTier = (typeof chatbotLlmTierIds)[keyof typeof chatbotLlmTierIds]
+
+const chatbotLlmTiers = Object.values(chatbotLlmTierIds)
 
 export type ChatbotLlmOutputContractRejectionReason =
   | "missing-structured-ui"
@@ -49,6 +52,12 @@ export type ChatbotLlmGenerateOptions = {
 
 export type ChatbotLlmDisplayEnvelope = {
   text: string
+  displayText: string
+  uiPayload:
+    | { kind: "none" }
+    | { kind: "choice-panel"; choiceSet: SurveyChoiceSet }
+    | { kind: "booking-card"; args?: Record<string, unknown> }
+    | { kind: "invalid"; reason: ChatbotLlmOutputContractRejectionReason }
   source: "customer-reply-tag" | "json-customer-reply" | "trusted-server-display"
   defaultDenied: boolean
   fallbackApplied: boolean
@@ -68,6 +77,15 @@ export type ChatbotLlmResponse = {
   latencyMs?: number
   tier: ChatbotLlmTier
   diagnostics?: Record<string, unknown>
+}
+
+export function createChatbotLlmResponse(
+  input: Omit<ChatbotLlmResponse, "displayEnvelope">,
+): ChatbotLlmResponse {
+  return {
+    ...input,
+    displayEnvelope: createChatbotLlmDisplayEnvelope(input.rawText),
+  }
 }
 
 export interface ChatbotLlmClient {
@@ -121,6 +139,9 @@ export function assertChatbotLlmResponseContract(
   const envelope = asRecord(record.displayEnvelope)
   if (!envelope) throw invalidContractError(expectedTier, "displayEnvelope must be an object")
   if (typeof envelope.text !== "string") throw invalidContractError(expectedTier, "displayEnvelope.text must be a string")
+  if (typeof envelope.displayText !== "string") {
+    throw invalidContractError(expectedTier, "displayEnvelope.displayText must be a string")
+  }
   if (!isDisplayEnvelopeSource(envelope.source)) {
     throw invalidContractError(expectedTier, "displayEnvelope.source must be known")
   }
@@ -134,15 +155,15 @@ export function assertChatbotLlmResponseContract(
     throw invalidContractError(expectedTier, "displayEnvelope.reasons must be known reason strings")
   }
 
-  const outputContract = inspectChatbotLlmStructuredUiContract(record.rawText)
-  if (outputContract.kind === "rejected-choice-panel") {
+  const uiPayload = validateDisplayEnvelopeUiPayload(envelope.uiPayload, expectedTier)
+  if (uiPayload.kind === "invalid") {
     throw outputContractError(record.tier, {
       boundary: "llm-output-contract",
       decision: "reject-and-regenerate-structured-ui",
-      reason: outputContract.reason,
+      reason: uiPayload.reason,
     })
   }
-  if (record.tier === "tier-3-gemini-flash" && outputContract.kind === "none") {
+  if (tierOutputPolicies[record.tier].structuredUi === "required" && uiPayload.kind === "none") {
     throw outputContractError(record.tier, {
       boundary: "llm-output-contract",
       decision: "reject-and-fallback-tier",
@@ -160,11 +181,18 @@ export function isChatbotLlmResponseContractError(error: unknown): error is Chat
  * tiers fail.
  */
 export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
-  "tier-1-chrome-notion-ai",
-  "tier-2-hosted-chrome-notion-ai",
-  "tier-3-gemini-flash",
-  "tier-4-form-fallback",
+  chatbotLlmTierIds.tier1ChromeNotionAi,
+  chatbotLlmTierIds.tier2HostedChromeNotionAi,
+  chatbotLlmTierIds.tier3GeminiFlash,
+  chatbotLlmTierIds.tier4FormFallback,
 ] as const
+
+const tierOutputPolicies: Record<ChatbotLlmTier, { structuredUi: "optional" | "required" }> = {
+  [chatbotLlmTierIds.tier1ChromeNotionAi]: { structuredUi: "optional" },
+  [chatbotLlmTierIds.tier2HostedChromeNotionAi]: { structuredUi: "optional" },
+  [chatbotLlmTierIds.tier3GeminiFlash]: { structuredUi: "required" },
+  [chatbotLlmTierIds.tier4FormFallback]: { structuredUi: "optional" },
+}
 
 export function getChatbotLlmOutputContractRejection(
   error: unknown,
@@ -192,29 +220,25 @@ export function logChatbotLlmOutputContractRejection(input: {
   tier: ChatbotLlmTier
   rejection: ChatbotLlmOutputContractRejection
 }): void {
-  if (process.env.NODE_ENV === "test") return
-  console.info(
-    JSON.stringify({
-      event: "chatbot_llm_output_contract_boundary",
-      requestId: input.requestId,
-      tier: input.tier,
-      boundary: input.rejection.boundary,
-      decision: input.rejection.decision,
-      reason: input.rejection.reason,
-    }),
-  )
+  logChatbotBoundaryEvent({
+    event: "chatbot_llm_output_contract_boundary",
+    requestId: input.requestId,
+    tier: input.tier,
+    boundary: input.rejection.boundary,
+    decision: input.rejection.decision,
+    reason: input.rejection.reason,
+  })
 }
 
 export function normalizeChatbotLlmChoiceSet(value: Record<string, unknown>): SurveyChoiceSet | undefined {
-  const result = inspectChatbotLlmChoiceSet(value)
-  return result.ok ? result.choiceSet : undefined
+  return normalizeChatbotLlmChoiceSetAtDisplayBoundary(value)
 }
 
 function invalidContractError(tier: ChatbotLlmTier | undefined, reason: string): ChatbotLlmError {
   return new ChatbotLlmError({
     message: `Chatbot LLM response violated the shared contract: ${reason}.`,
     code: "invalid-output",
-    tier: tier ?? "tier-4-form-fallback",
+    tier: tier ?? chatbotLlmTierIds.tier4FormFallback,
     isRetryable: false,
   })
 }
@@ -232,115 +256,31 @@ function outputContractError(
   })
 }
 
-type StructuredUiContractInspection =
-  | { kind: "none" }
-  | { kind: "choice-panel"; choiceSet: SurveyChoiceSet }
-  | { kind: "booking-card" }
-  | { kind: "rejected-choice-panel"; reason: ChatbotLlmOutputContractRejectionReason }
-
-function inspectChatbotLlmStructuredUiContract(rawText: string): StructuredUiContractInspection {
-  for (const candidate of extractJsonObjectCandidates(rawText)) {
-    const parsed = parseJson(candidate)
-    if (!isRecord(parsed)) continue
-    if (parsed.tool === "show_booking_card") return { kind: "booking-card" }
-    if (parsed.tool !== "show_choice_panel") continue
-    if (!isRecord(parsed.args)) {
-      return { kind: "rejected-choice-panel", reason: "choice-set-id-not-allowlisted" }
+function validateDisplayEnvelopeUiPayload(
+  value: unknown,
+  tier: ChatbotLlmTier | undefined,
+): ChatbotLlmDisplayEnvelope["uiPayload"] {
+  const payload = asRecord(value)
+  if (!payload || typeof payload.kind !== "string") {
+    throw invalidContractError(tier, "displayEnvelope.uiPayload must be a known payload")
+  }
+  if (payload.kind === "none") return { kind: "none" }
+  if (payload.kind === "booking-card") {
+    if (payload.args !== undefined && !asRecord(payload.args)) {
+      throw invalidContractError(tier, "displayEnvelope.uiPayload booking args must be an object")
     }
-
-    const result = inspectChatbotLlmChoiceSet(parsed.args)
-    return result.ok
-      ? { kind: "choice-panel", choiceSet: result.choiceSet }
-      : { kind: "rejected-choice-panel", reason: result.reason }
+    return { kind: "booking-card", ...(payload.args ? { args: payload.args as Record<string, unknown> } : {}) }
   }
-
-  return { kind: "none" }
-}
-
-const llmChoicePanelIds = new Set([
-  "job-kind",
-  "project-length",
-  "final-medium",
-  "additional-work",
-  "documentary-attachment",
-  "work-site",
-  "production-options",
-])
-
-function inspectChatbotLlmChoiceSet(value: Record<string, unknown>):
-  | { ok: true; choiceSet: SurveyChoiceSet }
-  | { ok: false; reason: ChatbotLlmOutputContractRejectionReason } {
-  const id = optionalString(value.id)
-  if (!id || !llmChoicePanelIds.has(id)) {
-    return { ok: false, reason: "choice-set-id-not-allowlisted" }
+  if (payload.kind === "choice-panel") {
+    const choiceSet = asRecord(payload.choiceSet)
+    const normalized = choiceSet ? normalizeChatbotLlmChoiceSet(choiceSet) : undefined
+    if (!normalized) throw invalidContractError(tier, "displayEnvelope.uiPayload choice set must be valid")
+    return { kind: "choice-panel", choiceSet: normalized }
   }
-
-  const question = optionalString(value.question)
-  if (!question) return { ok: false, reason: "choice-set-question-missing" }
-  if (question.length > 140) return { ok: false, reason: "choice-set-question-too-long" }
-
-  const rawChoices = Array.isArray(value.choices) ? value.choices : []
-  if (rawChoices.length < 2 || rawChoices.length > 10) {
-    return { ok: false, reason: "choice-set-choice-count-out-of-range" }
+  if (payload.kind === "invalid" && isOutputContractRejectionReason(payload.reason)) {
+    return { kind: "invalid", reason: payload.reason }
   }
-  const choices = rawChoices.map(normalizeChatbotLlmChoice)
-  if (choices.some((choice) => !choice)) {
-    return { ok: false, reason: "choice-set-choice-invalid" }
-  }
-
-  return {
-    ok: true,
-    choiceSet: {
-      id,
-      question,
-      choices: choices as SurveyChoiceSet["choices"],
-      ...(value.selectionMode === "multiple" ? { selectionMode: "multiple" as const } : {}),
-      ...(value.allowFreeText === true ? { allowFreeText: true } : {}),
-    },
-  }
-}
-
-function normalizeChatbotLlmChoice(value: unknown): SurveyChoiceSet["choices"][number] | undefined {
-  if (!isRecord(value)) return undefined
-  const id = optionalString(value.id)
-  const label = optionalString(value.label)
-  if (!id || !label) return undefined
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(id)) return undefined
-  if (label.length > 80) return undefined
-  return { id, label }
-}
-
-function extractJsonObjectCandidates(text: string): string[] {
-  const candidates: string[] = []
-  const fencedPattern = /```(?:json)?\s*([\s\S]*?)```/giu
-  let match: RegExpExecArray | null
-  while ((match = fencedPattern.exec(text))) {
-    const body = match[1]?.trim()
-    if (body?.startsWith("{") && body.endsWith("}")) candidates.push(body)
-  }
-
-  const trimmed = text.trim()
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) candidates.push(trimmed)
-  const firstBrace = text.indexOf("{")
-  const lastBrace = text.lastIndexOf("}")
-  if (firstBrace >= 0 && lastBrace > firstBrace) candidates.push(text.slice(firstBrace, lastBrace + 1))
-  return [...new Set(candidates)]
-}
-
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return undefined
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined
+  throw invalidContractError(tier, "displayEnvelope.uiPayload must be a known payload")
 }
 
 function isOutputContractRejectionReason(value: unknown): value is ChatbotLlmOutputContractRejectionReason {

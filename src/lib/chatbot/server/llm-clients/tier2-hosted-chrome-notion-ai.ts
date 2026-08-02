@@ -2,8 +2,11 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
-import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
-import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
+import {
+  ChatbotLlmError,
+  chatbotLlmTierIds,
+  createChatbotLlmResponse,
+} from "@/lib/chatbot/server/llm-client"
 
 type Tier2HostedChromeNotionAiClientConfig = {
   workerUrl?: string
@@ -86,7 +89,7 @@ export const tier2HostedChromeNotionAiDefaults = {
   enabled: true,
 } as const
 
-const tier = "tier-2-hosted-chrome-notion-ai" as const
+const tier = chatbotLlmTierIds.tier2HostedChromeNotionAi
 const timeoutTag: TimeoutTag = "timeout"
 const abortTag: AbortTag = "aborted"
 const healthEndpointPath = "/health?mode=quick"
@@ -142,9 +145,8 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
         })
       }
 
-      return {
+      return createChatbotLlmResponse({
         rawText,
-        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tokensUsed: numberOrUndefined(response.tokensUsed),
         latencyMs: Date.now() - startedAt,
         tier: this.tier,
@@ -160,7 +162,7 @@ export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
           perAttemptTimeoutMs: response.retryDiagnostics.perAttemptTimeoutMs,
           attempts: response.retryDiagnostics.attempts,
         },
-      }
+      })
     } catch (error) {
       throw this.mapGenerateError(error)
     }

@@ -4,7 +4,9 @@ import type {
   ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
 
-export const hostedWorkerTier = "tier-2-hosted-chrome-notion-ai" as const
+import { chatbotLlmTierIds } from "@/lib/chatbot/server/llm-client"
+
+export const hostedWorkerTier = chatbotLlmTierIds.tier2HostedChromeNotionAi
 
 export type HostedWorkerQueueState = {
   inFlight: boolean

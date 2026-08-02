@@ -178,6 +178,21 @@ function setup(overrides: {
 }
 
 describe("handleChatbotMessage user context", () => {
+  it("keeps the assistant identity neutral unless the user asks its name", async () => {
+    const harness = setup()
+
+    await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "相談です" },
+      harness.options,
+    )
+
+    const prompt = harness.generate.mock.calls[0]?.[0].systemPrompt
+    expect(prompt).toContain("中立的な相談窓口としてふるまいます")
+    expect(prompt).toContain("AI アシスタント名を通常の応答で常時明記しません")
+    expect(prompt).toContain("名前を聞かれた場合だけ「のーちゃん」と答えます")
+    expect(prompt).not.toContain("事務担当")
+  })
+
   it("loads authenticated user context and injects it into the system prompt", async () => {
     const harness = setup()
 

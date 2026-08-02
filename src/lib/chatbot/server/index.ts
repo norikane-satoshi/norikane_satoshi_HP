@@ -51,6 +51,8 @@ export type { RoutingDecisionInput } from "@/lib/chatbot/server/routing"
 export {
   ChatbotLlmError,
   assertChatbotLlmResponseContract,
+  chatbotLlmTierIds,
+  createChatbotLlmResponse,
   defaultLlmTierOrder,
   getChatbotLlmOutputContractRejection,
   isChatbotLlmResponseContractError,

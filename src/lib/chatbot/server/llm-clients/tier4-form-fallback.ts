@@ -1,5 +1,5 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
-import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
+import { chatbotLlmTierIds, createChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 
 type Tier4FormFallbackClientOptions = {
   responseText?: string
@@ -10,7 +10,7 @@ export const tier4FormFallbackDefaults = {
     "<customer_reply>確認項目をフォームに切り替えます。案件内容とご連絡先を整理して送信してください。</customer_reply>",
 } as const
 
-const tier = "tier-4-form-fallback" as const
+const tier = chatbotLlmTierIds.tier4FormFallback
 
 export class Tier4FormFallbackClient implements ChatbotLlmClient {
   readonly tier = tier
@@ -24,12 +24,11 @@ export class Tier4FormFallbackClient implements ChatbotLlmClient {
     const startedAt = Date.now()
     void request
 
-    return {
+    return createChatbotLlmResponse({
       rawText: this.responseText,
-      displayEnvelope: createChatbotLlmDisplayEnvelope(this.responseText),
       tier: this.tier,
       latencyMs: Date.now() - startedAt,
-    }
+    })
   }
 
   async isHealthy(): Promise<boolean> {

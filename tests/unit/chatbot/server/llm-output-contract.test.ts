@@ -2,18 +2,17 @@ import { describe, expect, it } from "vitest"
 
 import {
   assertChatbotLlmResponseContract,
+  createChatbotLlmResponse,
   getChatbotLlmOutputContractRejection,
   type ChatbotLlmResponse,
   type ChatbotLlmTier,
 } from "@/lib/chatbot/server/llm-client"
-import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 
 function response(tier: ChatbotLlmTier, rawText: string): ChatbotLlmResponse {
-  return {
+  return createChatbotLlmResponse({
     rawText,
-    displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
     tier,
-  }
+  })
 }
 
 function choicePanel(overrides: Record<string, unknown> = {}): string {
@@ -41,6 +40,18 @@ function rejectionFor(rawText: string) {
 }
 
 describe("shared chatbot LLM output contract", () => {
+  it("creates display text and structured UI payload at the same boundary", () => {
+    const result = response("tier-2-hosted-chrome-notion-ai", choicePanel())
+
+    expect(result.displayEnvelope).toMatchObject({
+      displayText: "案件を確認します。",
+      uiPayload: {
+        kind: "choice-panel",
+        choiceSet: { id: "job-kind", question: "案件の種類を教えてください" },
+      },
+    })
+  })
+
   it("accepts a Tier1 body response", () => {
     expect(() =>
       assertChatbotLlmResponseContract(

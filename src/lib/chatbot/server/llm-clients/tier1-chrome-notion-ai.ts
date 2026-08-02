@@ -4,8 +4,11 @@ import type {
   ChatbotLlmRequest,
   ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
-import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
-import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
+import {
+  ChatbotLlmError,
+  chatbotLlmTierIds,
+  createChatbotLlmResponse,
+} from "@/lib/chatbot/server/llm-client"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 
 type Tier1ChromeNotionAiClientConfig = {
@@ -211,7 +214,7 @@ type RuntimeEvaluateResult<T> = {
   exceptionDetails?: unknown
 }
 
-const tier = "tier-1-chrome-notion-ai" as const
+const tier = chatbotLlmTierIds.tier1ChromeNotionAi
 const timeoutTag: TimeoutTag = "timeout"
 const abortTag: AbortTag = "aborted"
 const jsonListPath = "/json/list"
@@ -381,9 +384,8 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         })
       }
 
-      return {
+      return createChatbotLlmResponse({
         rawText,
-        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tier: this.tier,
         latencyMs: Date.now() - startedAt,
         diagnostics: {
@@ -399,7 +401,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           attachTargetUrl: target.url,
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
         },
-      }
+      })
     } catch (error) {
       throw this.mapGenerateError(error)
     } finally {

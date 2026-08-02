@@ -1,6 +1,7 @@
 import {
   ChatbotLlmError,
   assertChatbotLlmResponseContract,
+  chatbotLlmTierIds,
   defaultLlmTierOrder,
   getChatbotLlmOutputContractRejection,
   type ChatbotLlmClient,
@@ -137,7 +138,7 @@ function shouldAttemptGenerateAfterUnhealthyHealth(
   client: ChatbotLlmClient,
   error: ChatbotLlmError | Error | undefined,
 ): boolean {
-  if (client.tier !== "tier-2-hosted-chrome-notion-ai") return false
+  if (client.tier !== chatbotLlmTierIds.tier2HostedChromeNotionAi) return false
   if (!error) return false
 
   if (error instanceof ChatbotLlmError) {
@@ -183,5 +184,5 @@ function normalizeError(error: unknown, tier: ChatbotLlmTier): ChatbotLlmError |
 function getLastTier(tierOrder: ReadonlyArray<ChatbotLlmTier>): ChatbotLlmTier {
   for (const tier of [...tierOrder].reverse()) return tier
 
-  return "tier-4-form-fallback"
+  return chatbotLlmTierIds.tier4FormFallback
 }

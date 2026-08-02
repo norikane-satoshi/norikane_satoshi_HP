@@ -1,9 +1,13 @@
-import type { JobContext, RoutingDecision } from "@/lib/chatbot/domain"
+import type { JobContext, RoutingDecision, SurveyChoiceSet } from "@/lib/chatbot/domain"
 import {
   evaluateWorkflowDurationSafety,
   type ChatbotDurationSafetyReport,
 } from "@/lib/chatbot/server/duration-safety"
-import type { ChatbotLlmDisplayEnvelope, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
+import type {
+  ChatbotLlmDisplayEnvelope,
+  ChatbotLlmOutputContractRejectionReason,
+  ChatbotLlmResponse,
+} from "@/lib/chatbot/server/llm-client"
 
 export type NormalizedChatbotLlmResponse = {
   content: string
@@ -135,17 +139,20 @@ export function sanitizeChatbotLlmTextWithReport(
 }
 
 export function createChatbotLlmDisplayEnvelope(rawText: string): ChatbotLlmDisplayEnvelope {
-  return extractExplicitCustomerDisplayText(rawText)
+  return createDisplayEnvelope(extractExplicitCustomerDisplayText(rawText), rawText)
 }
 
 export function createTrustedChatbotLlmDisplayEnvelope(rawText: string): ChatbotLlmDisplayEnvelope {
-  return {
-    text: rawText.trim(),
-    source: "trusted-server-display",
-    defaultDenied: false,
-    fallbackApplied: false,
-    reasons: ["trusted-server-display"],
-  }
+  return createDisplayEnvelope(
+    {
+      text: rawText.trim(),
+      source: "trusted-server-display",
+      defaultDenied: false,
+      fallbackApplied: false,
+      reasons: ["trusted-server-display"],
+    },
+    rawText,
+  )
 }
 
 const opaqueTokenPattern = /(?:[A-Za-z0-9+/=_-]{80,})/gu
@@ -226,10 +233,109 @@ type StripReason =
   | "internal-markup"
   | "internal-booking-ui-state"
 
-type DisplayBoundaryExtraction = ChatbotLlmDisplayEnvelope
+type DisplayBoundaryExtraction = Omit<ChatbotLlmDisplayEnvelope, "uiPayload" | "displayText">
 
-function toDisplayBoundaryExtraction(envelope: ChatbotLlmDisplayEnvelope): DisplayBoundaryExtraction {
+function toDisplayBoundaryExtraction(envelope: ChatbotLlmDisplayEnvelope): ChatbotLlmDisplayEnvelope {
   return envelope
+}
+
+function createDisplayEnvelope(extraction: DisplayBoundaryExtraction, rawText: string): ChatbotLlmDisplayEnvelope {
+  const inspection = inspectStructuredUiPayload(rawText)
+  return {
+    ...extraction,
+    displayText: inspection.candidate
+      ? removeStructuredUiCandidate(extraction.text, inspection.candidate)
+      : extraction.text,
+    uiPayload: inspection.payload,
+  }
+}
+
+function inspectStructuredUiPayload(text: string): {
+  payload: ChatbotLlmDisplayEnvelope["uiPayload"]
+  candidate?: string
+} {
+  for (const candidate of extractJsonObjectCandidates(text)) {
+    const parsed = parseJson(candidate)
+    if (!isRecord(parsed)) continue
+    if (parsed.tool === "show_booking_card") {
+      return {
+        payload: {
+          kind: "booking-card",
+          ...(isRecord(parsed.args) ? { args: parsed.args } : {}),
+        },
+        candidate,
+      }
+    }
+    if (parsed.tool !== "show_choice_panel") continue
+    if (!isRecord(parsed.args)) {
+      return {
+        payload: { kind: "invalid", reason: "choice-set-id-not-allowlisted" },
+        candidate,
+      }
+    }
+
+    const result = inspectChatbotLlmChoiceSet(parsed.args)
+    return {
+      payload: result.ok
+        ? { kind: "choice-panel", choiceSet: result.choiceSet }
+        : { kind: "invalid", reason: result.reason },
+      candidate,
+    }
+  }
+
+  const looseChoiceSet = parseLooseShowChoicePanelChoiceSet(text)
+  if (looseChoiceSet) return { payload: { kind: "choice-panel", choiceSet: looseChoiceSet } }
+
+  return { payload: { kind: "none" } }
+}
+
+function parseLooseShowChoicePanelChoiceSet(text: string): SurveyChoiceSet | undefined {
+  if (!/"tool"\s*:\s*"show_choice_panel"/u.test(text)) return undefined
+
+  const argsMatch = /"args"\s*:\s*\{([\s\S]*)/u.exec(text)
+  const source = argsMatch?.[1] ?? text
+  const id = parseLooseJsonStringMatch(/"id"\s*:\s*"((?:\\.|[^"\\]){1,80})"/u.exec(source)?.[1])
+  const question = parseLooseJsonStringMatch(/"question"\s*:\s*"((?:\\.|[^"\\]){1,180})"/u.exec(source)?.[1])
+  const choicesStart = source.indexOf('"choices"')
+  const choiceSource = choicesStart >= 0 ? source.slice(choicesStart) : source
+  const choices: Array<SurveyChoiceSet["choices"][number]> = []
+  const seenChoiceIds = new Set<string>()
+  const choicePattern =
+    /\{\s*"id"\s*:\s*"((?:\\.|[^"\\]){1,80})"\s*,\s*"label"\s*:\s*"((?:\\.|[^"\\]){1,120})"/gu
+  let match: RegExpExecArray | null
+
+  while ((match = choicePattern.exec(choiceSource)) && choices.length < 10) {
+    const choice = normalizeChatbotLlmChoice({
+      id: parseLooseJsonStringMatch(match[1]),
+      label: parseLooseJsonStringMatch(match[2]),
+    })
+    if (!choice || seenChoiceIds.has(choice.id)) continue
+    seenChoiceIds.add(choice.id)
+    choices.push(choice)
+  }
+
+  return normalizeChatbotLlmChoiceSetAtDisplayBoundary({
+    id,
+    question,
+    choices,
+    selectionMode: /"selectionMode"\s*:\s*"multiple"/u.test(source) ? "multiple" : undefined,
+    allowFreeText: /"allowFreeText"\s*:\s*true/u.test(source),
+  })
+}
+
+function parseLooseJsonStringMatch(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const parsed = parseJson(`"${value}"`)
+  return typeof parsed === "string" ? parsed : value
+}
+
+function removeStructuredUiCandidate(text: string, candidate: string): string {
+  return normalizeDisplayText(
+    text
+      .replace(candidate, "")
+      .replace(/```json\s*```/giu, "")
+      .replace(/```\s*```/gu, ""),
+  )
 }
 
 function extractExplicitCustomerDisplayText(rawText: string): DisplayBoundaryExtraction {
@@ -297,7 +403,115 @@ function extractJsonObjectCandidates(text: string): string[] {
   if (firstBrace >= 0 && lastBrace > firstBrace) {
     candidates.push(text.slice(firstBrace, lastBrace + 1))
   }
+  candidates.push(...extractBalancedJsonObjectCandidates(text))
   return [...new Set(candidates)]
+}
+
+function extractBalancedJsonObjectCandidates(text: string): string[] {
+  const candidates: string[] = []
+  let start = -1
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (char === "\\") {
+        escaped = true
+      } else if (char === '"') {
+        inString = false
+      }
+      continue
+    }
+    if (char === '"') {
+      inString = true
+      continue
+    }
+    if (char === "{") {
+      if (depth === 0) start = index
+      depth += 1
+      continue
+    }
+    if (char !== "}" || depth === 0) continue
+    depth -= 1
+    if (depth === 0 && start >= 0) {
+      candidates.push(text.slice(start, index + 1))
+      start = -1
+    }
+  }
+
+  return candidates
+}
+
+const llmChoicePanelIds = new Set([
+  "job-kind",
+  "project-length",
+  "final-medium",
+  "additional-work",
+  "documentary-attachment",
+  "work-site",
+  "production-options",
+])
+
+export function normalizeChatbotLlmChoiceSetAtDisplayBoundary(
+  value: Record<string, unknown>,
+): SurveyChoiceSet | undefined {
+  const result = inspectChatbotLlmChoiceSet(value)
+  return result.ok ? result.choiceSet : undefined
+}
+
+function inspectChatbotLlmChoiceSet(value: Record<string, unknown>):
+  | { ok: true; choiceSet: SurveyChoiceSet }
+  | { ok: false; reason: ChatbotLlmOutputContractRejectionReason } {
+  const id = optionalString(value.id)
+  if (!id || !llmChoicePanelIds.has(id)) {
+    return { ok: false, reason: "choice-set-id-not-allowlisted" }
+  }
+
+  const question = optionalString(value.question)
+  if (!question) return { ok: false, reason: "choice-set-question-missing" }
+  if (question.length > 140) return { ok: false, reason: "choice-set-question-too-long" }
+
+  const rawChoices = Array.isArray(value.choices) ? value.choices : []
+  if (rawChoices.length < 2 || rawChoices.length > 10) {
+    return { ok: false, reason: "choice-set-choice-count-out-of-range" }
+  }
+  const choices = rawChoices.map(normalizeChatbotLlmChoice)
+  if (choices.some((choice) => !choice)) {
+    return { ok: false, reason: "choice-set-choice-invalid" }
+  }
+
+  return {
+    ok: true,
+    choiceSet: {
+      id,
+      question,
+      choices: choices as SurveyChoiceSet["choices"],
+      ...(value.selectionMode === "multiple" ? { selectionMode: "multiple" as const } : {}),
+      ...(value.allowFreeText === true ? { allowFreeText: true } : {}),
+    },
+  }
+}
+
+function normalizeChatbotLlmChoice(value: unknown): SurveyChoiceSet["choices"][number] | undefined {
+  if (!isRecord(value)) return undefined
+  const id = optionalString(value.id)
+  const label = optionalString(value.label)
+  if (!id || !label) return undefined
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(id)) return undefined
+  if (label.length > 80) return undefined
+  return { id, label }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined
 }
 
 function parseJson(value: string): unknown {

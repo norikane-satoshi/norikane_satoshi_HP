@@ -3,8 +3,11 @@ import { join } from "node:path"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain"
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
-import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
-import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
+import {
+  ChatbotLlmError,
+  chatbotLlmTierIds,
+  createChatbotLlmResponse,
+} from "@/lib/chatbot/server/llm-client"
 
 type Tier3GeminiFlashClientConfig = {
   apiKey?: string
@@ -54,7 +57,7 @@ export const tier3GeminiFlashDefaults = {
   enabled: true,
 } as const
 
-const tier = "tier-3-gemini-flash" as const
+const tier = chatbotLlmTierIds.tier3GeminiFlash
 const timeoutTag: TimeoutTag = "timeout"
 const apiVersionPath = "/v1beta/models/"
 const generateSuffix = ":generateContent"
@@ -108,9 +111,8 @@ export class Tier3GeminiFlashClient implements ChatbotLlmClient {
         })
       }
 
-      return {
+      return createChatbotLlmResponse({
         rawText,
-        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tokensUsed: numberOrUndefined(response.usageMetadata?.totalTokenCount),
         latencyMs: Date.now() - startedAt,
         tier: this.tier,
@@ -119,7 +121,7 @@ export class Tier3GeminiFlashClient implements ChatbotLlmClient {
           model: typeof response.modelVersion === "string" ? response.modelVersion : this.config.modelName,
           finishReason: firstFinishReason(response),
         },
-      }
+      })
     } catch (error) {
       throw this.mapError(error, "Gemini Flash tier failed.")
     }

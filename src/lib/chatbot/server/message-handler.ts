@@ -48,7 +48,7 @@ import {
   findCandidateCalendar,
   type CandidateCalendarResult,
 } from "@/lib/chatbot/server/availability-finder"
-import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
+import { logChatbotBoundaryEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import {
@@ -57,7 +57,6 @@ import {
 } from "@/lib/chatbot/server/duration-context"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
-  createChatbotLlmDisplayEnvelope,
   sanitizeChatbotLlmTextWithReport,
   type ChatbotLlmSanitizationReport,
 } from "@/lib/chatbot/server/llm-response-normalizer"
@@ -81,6 +80,7 @@ import {
   wasBookingFinalQuestionOffered,
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
+import { chatbotLlmTierIds, createChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 import {
@@ -1049,9 +1049,9 @@ async function notifySlackForChatbotEdit(input: {
 
 function detectChatbotIssueReasons(tier: ChatbotLlmResponse["tier"]): string[] {
   switch (tier) {
-    case "tier-3-gemini-flash":
+    case chatbotLlmTierIds.tier3GeminiFlash:
       return ["below-hosted-tier2-fallback"]
-    case "tier-4-form-fallback":
+    case chatbotLlmTierIds.tier4FormFallback:
       return ["below-hosted-tier2-fallback", "tier4-form-fallback"]
     default:
       return []
@@ -1627,30 +1627,28 @@ async function generateContractedLlmResponse(input: {
           ? input.fallbackRoutingDecision.nextQuestion
           : "内容を確認しました。次に必要な情報を1つずつ確認します。",
       )
-      return {
+      return createChatbotLlmResponse({
         rawText,
-        displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
         tier: error.tier,
         diagnostics: {
           contractFallback: true,
           outputContractRejection: rejection,
         },
-      }
+      })
     }
     const rawText = customerReplyMarkup(
       input.fallbackRoutingDecision.kind === "continue"
         ? input.fallbackRoutingDecision.nextQuestion
         : "内容を確認しました。次に必要な情報を1つずつ確認します。",
     )
-    return {
+    return createChatbotLlmResponse({
       rawText,
-      displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
-      tier: "tier-4-form-fallback",
+      tier: chatbotLlmTierIds.tier4FormFallback,
       diagnostics: {
         contractFallback: true,
         reason: error.message,
       },
-    }
+    })
   }
 }
 
@@ -1685,9 +1683,9 @@ function buildChatbotSystemPrompt(
   submittedBookingPromptContext?: string,
 ): string {
   const lines = [
-    "あなたは新規映像案件の相談受付アシスタントです。",
-    "あなたは単なる受付フォームではなく、お客様、則兼、のーちゃんの3人チームでいい作品を作るために伴走する事務担当です。",
-    "事務担当として確認漏れ、不安、伝え忘れを減らし、ユーザーの考える量を増やさず次にすることを1つずつ案内します。",
+    "あなたは新規映像案件の中立的な相談窓口としてふるまいます。",
+    "AI アシスタント名を通常の応答で常時明記しません。名前を聞かれた場合だけ「のーちゃん」と答えます。",
+    "確認漏れ、不安、伝え忘れを減らし、ユーザーの考える量を増やさず次にすることを1つずつ案内します。",
     "案件整理では複数項目を文章で一気に聞かず、選べる項目は choice-panel の1項目ずつで確認します。その他を選んだ自由入力は補足として保持し、勝手に近い既存分類へ潰しません。",
     'choice-panel を出す時は、本文に {"tool":"show_choice_panel","args":{"id":"project-length","question":"...","selectionMode":"single","allowFreeText":true,"choices":[{"id":"...","label":"..."}]}} を1個だけ含めます。',
     "選択させる候補は本文の箇条書きや「選択肢: A/B/C」だけで出さず、必ず show_choice_panel に入れます。候補を選ばせる意図がある本文だけの回答は禁止です。",
@@ -1829,8 +1827,8 @@ function buildAssistantDisplayContent(input: {
   singleUserPromptGuard: SingleUserPromptGuardReport
 } {
   const text = input.rawText.trim()
-  const toolFreeText = stripStructuredToolCalls(text).trim()
-  const explicitDisplayText = extractExplicitCustomerReplyText(text)
+  const toolFreeText = input.displayEnvelope.displayText.trim()
+  const explicitDisplayText = input.displayEnvelope.defaultDenied ? undefined : toolFreeText
   const submittedBookingFallback = input.submittedBooking
     ? buildSubmittedBookingActionableFallback({
         latestUserMessage: input.latestUserMessage,
@@ -1879,7 +1877,7 @@ function buildAssistantDisplayContent(input: {
   if (input.routingDecision?.kind === "continue" && toolFreeText.length === 0) {
     return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
-  if (input.routingDecision?.kind === "continue" && parseShowBookingCardToolCall(text)) {
+  if (input.routingDecision?.kind === "continue" && input.displayEnvelope.uiPayload.kind === "booking-card") {
     return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
   if (
@@ -1900,19 +1898,14 @@ function buildAssistantDisplayContent(input: {
   if (input.submittedBooking && !explicitDisplayText && toolFreeText.length > 0) {
     return withGuardReport(sanitize(toolFreeText, true, submittedBookingFallback))
   }
-  if (toolFreeText !== text) return withGuardReport(sanitize(toolFreeText))
-  if (!isBackendIdentityOnlyResponse(explicitDisplayText ?? text)) return withGuardReport(sanitize(text))
+  if (input.displayEnvelope.uiPayload.kind !== "none") return withGuardReport(sanitize(toolFreeText, true))
+  if (!isBackendIdentityOnlyResponse(explicitDisplayText ?? toolFreeText)) return withGuardReport(sanitize(text))
 
   const routingDecision =
     input.routingDecision?.kind === "continue" ? input.routingDecision : input.fallbackRoutingDecision
   if (routingDecision.kind === "continue") return withGuardReport(sanitize(routingDecision.nextQuestion, true))
 
   return withGuardReport(sanitize(text))
-}
-
-function extractExplicitCustomerReplyText(rawText: string): string | undefined {
-  const match = /<customer_reply>\s*([\s\S]*?)\s*<\/customer_reply>/iu.exec(rawText)
-  return match ? (match[1] ?? "").trim() : undefined
 }
 
 type SingleUserPromptGuardReport =
@@ -2075,25 +2068,23 @@ function logChatbotDisplayBoundary(input: {
   finalText: string
   report: ChatbotLlmSanitizationReport
 }): void {
-  if (process.env.NODE_ENV === "test") return
-
-  console.info(
-    JSON.stringify({
-      event: "chatbot_display_boundary",
-      requestId: input.requestId,
-      buildSha: getChatbotBuildSha(),
+  logChatbotBoundaryEvent({
+    event: "chatbot_display_boundary",
+    requestId: input.requestId,
+    tier: input.tier,
+    boundary: input.report.displayBoundary,
+    decision: input.report.displayBoundary.outcome,
+    fields: {
       conversationId: input.conversation.id,
       sessionId: input.conversation.context.sessionId,
-      tier: input.tier,
       routingDecisionKind: input.routingDecision?.kind ?? null,
       uiKind: input.uiKind,
-      boundary: input.report.displayBoundary,
       unsafeArtifacts: input.report.unsafeArtifacts,
       rawTextPreview: redactForChatbotLog(input.rawText),
       finalTextPreview: redactForChatbotLog(input.finalText),
       normalized: input.rawText !== input.finalText,
-    }),
-  )
+    },
+  })
 }
 
 function logChatbotBookingReadinessBoundary(input: {
@@ -2105,8 +2096,6 @@ function logChatbotBookingReadinessBoundary(input: {
   fallbackRoutingDecision: RoutingDecision
   routingDecision: RoutingDecision | undefined
 }): void {
-  if (process.env.NODE_ENV === "test") return
-
   const bookingPrefill =
     input.routingDecision?.kind === "to-booking-inline" ? input.routingDecision.bookingPrefill : undefined
   const beforeMissing = getMissingBookingReadinessSlots(input.beforeState, {
@@ -2124,14 +2113,24 @@ function logChatbotBookingReadinessBoundary(input: {
   const beforePrefill = beforeFinal?.bookingPrefill ?? input.beforeState.bookingPrefill ?? {}
   const afterPrefill = bookingPrefill ?? afterFinal?.bookingPrefill ?? input.afterState.bookingPrefill ?? {}
 
-  console.info(
-    JSON.stringify({
-      event: "chatbot_booking_readiness_boundary",
-      requestId: input.requestId,
-      buildSha: getChatbotBuildSha(),
+  const decision = input.routingDecision?.kind ?? null
+  const reason = summarizeBookingReadinessReason({
+    beforeMissing,
+    afterMissing,
+    beforeState: input.beforeState,
+    afterState: input.afterState,
+    fallbackRoutingDecision: input.fallbackRoutingDecision,
+    routingDecision: input.routingDecision,
+  })
+  logChatbotBoundaryEvent({
+    event: "chatbot_booking_readiness_boundary",
+    requestId: input.requestId,
+    boundary: "booking-readiness",
+    decision,
+    reason,
+    fields: {
       conversationId: input.conversation.id,
       sessionId: input.conversation.context.sessionId,
-      boundary: "booking-readiness",
       input: {
         missingSlots: beforeMissing,
         bookingPrefillKeys: getBookingPrefillKeys(beforePrefill),
@@ -2149,17 +2148,8 @@ function logChatbotBookingReadinessBoundary(input: {
         additionalConcernStatus: afterReadiness?.additionalConcernStatus ?? null,
         additionalConcernSource: afterReadiness?.additionalConcernSource ?? null,
       },
-      decision: input.routingDecision?.kind ?? null,
-      reason: summarizeBookingReadinessReason({
-        beforeMissing,
-        afterMissing,
-        beforeState: input.beforeState,
-        afterState: input.afterState,
-        fallbackRoutingDecision: input.fallbackRoutingDecision,
-        routingDecision: input.routingDecision,
-      }),
-    }),
-  )
+    },
+  })
 }
 
 const trackedBookingPrefillFields = ["projectTitle", "contactName", "companyName", "contactEmail"] as const
@@ -2178,17 +2168,17 @@ function logChatbotBookingCompletedContextBoundary(input: {
   latestUserMessage: string
   submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
 }): void {
-  if (process.env.NODE_ENV === "test") return
   if (!input.submittedBooking) return
 
-  console.info(
-    JSON.stringify({
-      event: "chatbot_booking_completed_context_boundary",
-      requestId: input.requestId,
-      buildSha: getChatbotBuildSha(),
+  logChatbotBoundaryEvent({
+    event: "chatbot_booking_completed_context_boundary",
+    requestId: input.requestId,
+    boundary: "booking-completed-context",
+    decision: "continue-llm-route",
+    reason: "submitted-booking-is-context-not-display-template",
+    fields: {
       conversationId: input.conversation.id,
       sessionId: input.conversation.context.sessionId,
-      boundary: "booking-completed-context",
       input: {
         latestUserMessagePreview: redactForChatbotLog(input.latestUserMessage),
         bookingSubmissionStatus: input.submittedBooking.status,
@@ -2199,10 +2189,8 @@ function logChatbotBookingCompletedContextBoundary(input: {
         promptContextIncluded: true,
         uiKind: "none",
       },
-      decision: "continue-llm-route",
-      reason: "submitted-booking-is-context-not-display-template",
-    }),
-  )
+    },
+  })
 }
 
 function summarizeBookingReadinessReason(input: {
@@ -2428,7 +2416,7 @@ function toMessageUi(input: {
   routingDecision: RoutingDecision | undefined
   conversationState: ConversationState
 }): ChatbotMessageUi {
-  if (input.tier === "tier-4-form-fallback") return { kind: "tier4-inquiry-form" }
+  if (input.tier === chatbotLlmTierIds.tier4FormFallback) return { kind: "tier4-inquiry-form" }
 
   const routingDecision = input.routingDecision
   if (!routingDecision) return { kind: "none" }
@@ -2477,10 +2465,15 @@ async function resolveRoutingDecision(input: {
   candidateWindowFinder: CandidateWindowFinder
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
 }): Promise<RoutingDecision | undefined> {
-  if (input.llmResponse.tier === "tier-4-form-fallback") return input.fallbackRoutingDecision
-  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
-  const toolCall = parseShowBookingCardToolCall(rawDisplayText)
-  const choicePanelToolCall = parseShowChoicePanelToolCall(rawDisplayText)
+  if (input.llmResponse.tier === chatbotLlmTierIds.tier4FormFallback) return input.fallbackRoutingDecision
+  const envelope = input.llmResponse.displayEnvelope
+  const rawDisplayText = envelope.defaultDenied ? input.llmResponse.rawText : envelope.displayText
+  const toolCall = envelope.uiPayload.kind === "booking-card" && envelope.uiPayload.args
+    ? toShowBookingCardToolCall(envelope.uiPayload.args)
+    : undefined
+  const choicePanelToolCall = envelope.uiPayload.kind === "choice-panel"
+    ? { tool: "show_choice_panel" as const, args: envelope.uiPayload.choiceSet }
+    : undefined
   const submittedBooking = getSubmittedBooking(input.conversationState)
   if (submittedBooking) {
     return undefined
@@ -2601,11 +2594,13 @@ function shouldRecoverBookingCardFromAcceptanceText(input: {
   jobContext: JobContext
   fallbackRoutingDecision: RoutingDecision
 }): boolean {
-  const rawDisplayText = extractExplicitCustomerReplyText(input.llmResponse.rawText) ?? input.llmResponse.rawText
+  const rawDisplayText = input.llmResponse.displayEnvelope.defaultDenied
+    ? input.llmResponse.rawText
+    : input.llmResponse.displayEnvelope.displayText
   const normalized = rawDisplayText.normalize("NFKC").toLowerCase()
   const hasCardlessAcceptanceText =
     /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized) &&
-    !parseShowBookingCardToolCall(rawDisplayText)
+    input.llmResponse.displayEnvelope.uiPayload.kind !== "booking-card"
   if (!wasBookingFinalQuestionOffered(input.conversationState) && !hasCardlessAcceptanceText) return false
   if (input.conversationState.bookingSubmission?.status === "submitted") return false
   if (!input.jobContext.jobKind || !input.conversationState.hasContactEmail) return false
@@ -2816,23 +2811,6 @@ function resolveLlmChoicePanelRoutingDecision(input: {
   }
 }
 
-function parseShowChoicePanelToolCall(text: string): ShowChoicePanelToolCall | undefined {
-  for (const candidate of extractJsonObjectCandidates(text)) {
-    const parsed = parseJson(candidate)
-    if (!isRecord(parsed) || parsed.tool !== "show_choice_panel" || !isRecord(parsed.args)) continue
-
-    const choiceSet = normalizeChatbotLlmChoiceSet(parsed.args)
-    if (!choiceSet) continue
-    return {
-      tool: "show_choice_panel",
-      args: choiceSet,
-    }
-  }
-
-  const looseChoiceSet = parseLooseShowChoicePanelChoiceSet(text)
-  return looseChoiceSet ? { tool: "show_choice_panel", args: looseChoiceSet } : undefined
-}
-
 function parseTextChoicePanelToolCall(
   text: string,
   fallbackRoutingDecision: RoutingDecision,
@@ -3004,53 +2982,14 @@ function logChoicePanelTextFallbackDetected(input: {
 }
 
 function normalizeLlmChoice(value: unknown): SurveyChoiceSet["choices"][number] | undefined {
-  if (!isRecord(value)) return undefined
-  const id = optionalString(value.id)
-  const label = optionalString(value.label)
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const id = optionalString(record.id)
+  const label = optionalString(record.label)
   if (!id || !label) return undefined
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(id)) return undefined
   if (label.length > 80) return undefined
   return { id, label }
-}
-
-function parseLooseShowChoicePanelChoiceSet(text: string): SurveyChoiceSet | undefined {
-  if (!/"tool"\s*:\s*"show_choice_panel"/u.test(text)) return undefined
-
-  const argsMatch = /"args"\s*:\s*\{([\s\S]*)/u.exec(text)
-  const source = argsMatch?.[1] ?? text
-  const id = parseLooseJsonStringMatch(/"id"\s*:\s*"((?:\\.|[^"\\]){1,80})"/u.exec(source)?.[1])
-  const question = parseLooseJsonStringMatch(/"question"\s*:\s*"((?:\\.|[^"\\]){1,180})"/u.exec(source)?.[1])
-  const choicesStart = source.indexOf('"choices"')
-  const choiceSource = choicesStart >= 0 ? source.slice(choicesStart) : source
-  const choices: Array<SurveyChoiceSet["choices"][number]> = []
-  const seenChoiceIds = new Set<string>()
-  const choicePattern =
-    /\{\s*"id"\s*:\s*"((?:\\.|[^"\\]){1,80})"\s*,\s*"label"\s*:\s*"((?:\\.|[^"\\]){1,120})"/gu
-  let match: RegExpExecArray | null
-
-  while ((match = choicePattern.exec(choiceSource)) && choices.length < 10) {
-    const choice = normalizeLlmChoice({
-      id: parseLooseJsonStringMatch(match[1]),
-      label: parseLooseJsonStringMatch(match[2]),
-    })
-    if (!choice || seenChoiceIds.has(choice.id)) continue
-    seenChoiceIds.add(choice.id)
-    choices.push(choice)
-  }
-
-  return normalizeChatbotLlmChoiceSet({
-    id,
-    question,
-    choices,
-    selectionMode: /"selectionMode"\s*:\s*"multiple"/u.test(source) ? "multiple" : undefined,
-    allowFreeText: /"allowFreeText"\s*:\s*true/u.test(source),
-  })
-}
-
-function parseLooseJsonStringMatch(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  const parsed = parseJson(`"${value}"`)
-  return typeof parsed === "string" ? parsed : value
 }
 
 type ShowBookingCardToolCall = {
@@ -3058,113 +2997,18 @@ type ShowBookingCardToolCall = {
   args: BookingCardPrefill
 }
 
-function parseShowBookingCardToolCall(text: string): ShowBookingCardToolCall | undefined {
-  for (const candidate of extractJsonObjectCandidates(text)) {
-    const parsed = parseJson(candidate)
-    if (!isRecord(parsed) || parsed.tool !== "show_booking_card" || !isRecord(parsed.args)) continue
-
-    return {
-      tool: "show_booking_card",
-      args: {
-        projectTitle: optionalString(parsed.args.projectTitle),
-        contactName: optionalString(parsed.args.contactName),
-        contactEmail: optionalString(parsed.args.contactEmail),
-        companyName: optionalString(parsed.args.companyName),
-        dueDate: optionalString(parsed.args.dueDate),
-        memo: optionalString(parsed.args.memo),
-      },
-    }
+function toShowBookingCardToolCall(args: Record<string, unknown>): ShowBookingCardToolCall {
+  return {
+    tool: "show_booking_card",
+    args: {
+      projectTitle: optionalString(args.projectTitle),
+      contactName: optionalString(args.contactName),
+      contactEmail: optionalString(args.contactEmail),
+      companyName: optionalString(args.companyName),
+      dueDate: optionalString(args.dueDate),
+      memo: optionalString(args.memo),
+    },
   }
-
-  return undefined
-}
-
-function stripStructuredToolCalls(text: string): string {
-  let next = text
-  for (const candidate of extractJsonObjectCandidates(text)) {
-    if (parseShowBookingCardToolCall(candidate) || parseShowChoicePanelToolCall(candidate)) {
-      next = next.replace(candidate, "")
-    }
-  }
-
-  return next
-    .replace(/```json\s*```/gi, "")
-    .replace(/```\s*```/g, "")
-}
-
-function extractJsonObjectCandidates(text: string): string[] {
-  const candidates: string[] = []
-  const fencedPattern = /```(?:json)?\s*([\s\S]*?)```/gi
-  let match: RegExpExecArray | null
-  while ((match = fencedPattern.exec(text))) {
-    const body = match[1]?.trim()
-    if (body?.startsWith("{") && body.endsWith("}")) candidates.push(body)
-  }
-
-  const trimmed = text.trim()
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) candidates.push(trimmed)
-
-  const firstBrace = text.indexOf("{")
-  const lastBrace = text.lastIndexOf("}")
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    candidates.push(text.slice(firstBrace, lastBrace + 1))
-  }
-  candidates.push(...extractBalancedJsonObjectCandidates(text))
-
-  return [...new Set(candidates)]
-}
-
-function extractBalancedJsonObjectCandidates(text: string): string[] {
-  const candidates: string[] = []
-  let start = -1
-  let depth = 0
-  let inString = false
-  let escaped = false
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]
-    if (inString) {
-      if (escaped) {
-        escaped = false
-      } else if (char === "\\") {
-        escaped = true
-      } else if (char === "\"") {
-        inString = false
-      }
-      continue
-    }
-
-    if (char === "\"") {
-      inString = true
-      continue
-    }
-    if (char === "{") {
-      if (depth === 0) start = index
-      depth += 1
-      continue
-    }
-    if (char !== "}" || depth === 0) continue
-
-    depth -= 1
-    if (depth === 0 && start >= 0) {
-      candidates.push(text.slice(start, index + 1))
-      start = -1
-    }
-  }
-
-  return candidates
-}
-
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return undefined
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value))
 }
 
 function optionalString(value: unknown): string | undefined {
