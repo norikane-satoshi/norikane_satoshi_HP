@@ -107,7 +107,7 @@ describe("HP three-hue color fields", () => {
     const hero = render(<HeroSection />)
     const heroSection = hero.container.querySelector("#home")
     const heroArt = hero.container.querySelector('[data-hp-abstract-art="hero"]')
-    expect(heroSection).toHaveClass("-mt-20", "md:-mt-24")
+    expect(heroSection).toHaveClass("-mt-28", "md:-mt-32")
     expect(heroArt).toBeInTheDocument()
     expect(heroArt?.querySelector("img")).toBeNull()
     expect(heroArt).toHaveAttribute("aria-hidden", "true")
