@@ -538,39 +538,6 @@
   .glass-badge--profile-tool:hover {
     background: rgba(255, 255, 255, 0.68);
   }
-  .profile-tool-badge-wrap {
-    position: relative;
-  }
-  .profile-tool-badge-wrap:focus-visible {
-    outline: 2px solid rgba(54, 111, 204, 0.54);
-    outline-offset: 3px;
-  }
-  .profile-tool-tooltip {
-    background: rgba(28, 15, 110, 0.92);
-    border-radius: var(--hp-radius-sm);
-    bottom: calc(100% + var(--hp-space-1));
-    color: white;
-    font-size: 0.75rem;
-    left: 50%;
-    line-height: 1.2;
-    opacity: 1;
-    padding: 0.375rem 0.5rem;
-    pointer-events: none;
-    position: absolute;
-    transform: translate(-50%, 0);
-    transition: opacity var(--motion-duration-fast) var(--ease-out-strong), transform var(--motion-duration-fast) var(--ease-out-strong);
-    white-space: nowrap;
-    z-index: 1;
-  }
-  @starting-style {
-    .profile-tool-tooltip[data-entry="delayed"] {
-      opacity: 0;
-      transform: translate(-50%, 2px);
-    }
-  }
-  .profile-tool-tooltip[data-entry="instant"] {
-    transition: none;
-  }
   .glass-btn {
     --hp-liquid-glass-filter: blur(8px);
     --hp-liquid-glass-hover-filter: blur(10px) saturate(1.04);
