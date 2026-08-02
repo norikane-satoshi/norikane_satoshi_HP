@@ -73,6 +73,19 @@ describe("HomePage profile press dialog trigger", () => {
     expect(screen.queryByRole("heading", { name: "予約カレンダー" })).not.toBeInTheDocument()
   })
 
+  it("uses the 16px body tier for every career detail", async () => {
+    const { container } = render(await HomePage())
+
+    const careerDetails = container.querySelectorAll(".hp-career-body > .hp-body")
+    expect(careerDetails).toHaveLength(hpPublicContent.profile.timeline.length)
+
+    for (const detail of careerDetails) {
+      expect(detail).toHaveClass("text-base")
+      expect(detail).not.toHaveClass("text-xs")
+      expect(detail).not.toHaveClass("md:text-sm")
+    }
+  })
+
   it("renders the DaVinci Resolve certified trainer intro text as a direct official link", async () => {
     const { container } = render(await HomePage())
 

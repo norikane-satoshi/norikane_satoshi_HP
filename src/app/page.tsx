@@ -134,7 +134,7 @@ function ProfileForeground() {
                 <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
                   {item.event}
                 </p>
-                <p className="hp-body mt-2 text-xs text-hp-muted md:text-sm">
+                <p className="hp-body mt-2 text-base text-hp-muted">
                   {item.detail}
                 </p>
               </div>
