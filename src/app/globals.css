@@ -126,6 +126,37 @@
   --hp-color-calendar-on-strong: #fff;
   --hp-color-chatbot-shell-bg: rgba(255, 255, 255, 0.72);
   --hp-color-chatbot-choice-ring: rgba(54, 111, 204, 0.22);
+  --hp-color-hero-deep-pink-glow: rgba(245, 185, 214, 0.045);
+  --hp-color-hero-deep-warm-glow: rgba(232, 160, 166, 0.035);
+  --hp-color-hero-deep-sky-glow: rgba(174, 205, 236, 0.045);
+  --hp-color-hero-deep-shadow: rgba(20, 24, 34, 0.62);
+  --hp-color-hero-deep-base-start: #0E0E10;
+  --hp-color-hero-deep-base-middle: #151519;
+  --hp-color-hero-deep-base-end: #17171B;
+  --hp-profile-card-filter: blur(34px) saturate(1.38);
+  --hp-profile-card-hover-filter: blur(36px) saturate(1.42);
+  --hp-profile-card-hover-border: rgba(255, 255, 255, 0.82);
+  --hp-profile-card-bg: rgba(255, 255, 255, 0.50);
+  --hp-profile-card-border: rgba(255, 255, 255, 0.72);
+  --hp-profile-card-shadow: var(--hp-shadow-modal);
+  --hp-profile-tool-badge-filter: blur(14px) saturate(1.35);
+  --hp-profile-tool-badge-hover-filter: blur(16px) saturate(1.39);
+  --hp-profile-tool-badge-hover-border: rgba(54, 111, 204, 0.42);
+  --hp-profile-tool-badge-bg: rgba(255, 255, 255, 0.58);
+  --hp-profile-tool-badge-border: rgba(255, 255, 255, 0.82);
+  --hp-profile-tool-badge-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88), inset 0 -1px 0 rgba(255, 255, 255, 0.34), 0 8px 18px rgba(30, 34, 42, 0.09);
+  --hp-profile-tool-badge-hover-bg: rgba(255, 255, 255, 0.68);
+  --hp-profile-social-filter: blur(16px) saturate(1.38);
+  --hp-profile-social-hover-filter: blur(18px) saturate(1.42);
+  --hp-profile-social-hover-border: rgba(255, 255, 255, 0.94);
+  --hp-profile-social-bg: rgba(255, 255, 255, 0.52);
+  --hp-profile-social-border: rgba(255, 255, 255, 0.82);
+  --hp-profile-social-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88), inset 0 -1px 0 rgba(255, 255, 255, 0.34), 0 10px 24px rgba(30, 34, 42, 0.10);
+  --hp-profile-social-hover-bg: rgba(255, 255, 255, 0.66);
+  --hp-profile-social-active-bg: rgba(255, 255, 255, 0.58);
+  --hp-profile-social-active-shadow: inset 0 2px 7px rgba(30, 34, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.76), 0 8px 18px rgba(30, 34, 42, 0.08);
+  --hp-profile-photo-modal-backdrop: rgba(8, 4, 24, 0.42);
+  --hp-profile-photo-modal-backdrop-filter: blur(10px);
   --hp-radius-pill: 9999px;
   --hp-radius-calendar-cell: 12px;
   --hp-shadow-soft: 0 8px 28px rgba(30,34,42,.06);
@@ -436,12 +467,12 @@
     background: rgba(255, 255, 255, 0.72);
   }
   .glass-card--hp-profile {
-    --hp-liquid-glass-filter: blur(34px) saturate(1.38);
-    --hp-liquid-glass-hover-filter: blur(36px) saturate(1.42);
-    --hp-liquid-glass-hover-border: rgba(255, 255, 255, 0.82);
-    background: rgba(255, 255, 255, 0.50);
-    border-color: rgba(255, 255, 255, 0.72);
-    box-shadow: var(--hp-shadow-modal);
+    --hp-liquid-glass-filter: var(--hp-profile-card-filter);
+    --hp-liquid-glass-hover-filter: var(--hp-profile-card-hover-filter);
+    --hp-liquid-glass-hover-border: var(--hp-profile-card-hover-border);
+    background: var(--hp-profile-card-bg);
+    border-color: var(--hp-profile-card-border);
+    box-shadow: var(--hp-profile-card-shadow);
   }
   .glass-card--hp-schedule {
     --hp-liquid-glass-filter: blur(30px) saturate(1.34);
@@ -524,19 +555,16 @@
     pointer-events: none;
   }
   .glass-badge--profile-tool {
-    --hp-liquid-glass-filter: blur(14px) saturate(1.35);
-    --hp-liquid-glass-hover-filter: blur(16px) saturate(1.39);
-    --hp-liquid-glass-hover-border: rgba(54, 111, 204, 0.42);
-    background: rgba(255, 255, 255, 0.58);
-    border-color: rgba(255, 255, 255, 0.82);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.88),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.34),
-      0 8px 18px rgba(30, 34, 42, 0.09);
+    --hp-liquid-glass-filter: var(--hp-profile-tool-badge-filter);
+    --hp-liquid-glass-hover-filter: var(--hp-profile-tool-badge-hover-filter);
+    --hp-liquid-glass-hover-border: var(--hp-profile-tool-badge-hover-border);
+    background: var(--hp-profile-tool-badge-bg);
+    border-color: var(--hp-profile-tool-badge-border);
+    box-shadow: var(--hp-profile-tool-badge-shadow);
     color: var(--text-primary);
   }
   .glass-badge--profile-tool:hover {
-    background: rgba(255, 255, 255, 0.68);
+    background: var(--hp-profile-tool-badge-hover-bg);
   }
   .glass-btn {
     --hp-liquid-glass-filter: blur(8px);
@@ -581,19 +609,16 @@
     transform: none;
   }
   .glass-btn--profile-social {
-    --hp-liquid-glass-filter: blur(16px) saturate(1.38);
-    --hp-liquid-glass-hover-filter: blur(18px) saturate(1.42);
-    --hp-liquid-glass-hover-border: rgba(255, 255, 255, 0.94);
-    background: rgba(255, 255, 255, 0.52);
-    border-color: rgba(255, 255, 255, 0.82);
+    --hp-liquid-glass-filter: var(--hp-profile-social-filter);
+    --hp-liquid-glass-hover-filter: var(--hp-profile-social-hover-filter);
+    --hp-liquid-glass-hover-border: var(--hp-profile-social-hover-border);
+    background: var(--hp-profile-social-bg);
+    border-color: var(--hp-profile-social-border);
     cursor: pointer;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.88),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.34),
-      0 10px 24px rgba(30, 34, 42, 0.10);
+    box-shadow: var(--hp-profile-social-shadow);
   }
   .glass-btn--profile-social:hover {
-    background: rgba(255, 255, 255, 0.66);
+    background: var(--hp-profile-social-hover-bg);
   }
   .glass-btn--profile-social > svg {
     transition: transform var(--motion-duration-fast) var(--ease-out-strong);
@@ -602,11 +627,8 @@
     transform: translateY(-1px);
   }
   .glass-btn--profile-social:active {
-    background: rgba(255, 255, 255, 0.58);
-    box-shadow:
-      inset 0 2px 7px rgba(30, 34, 42, 0.08),
-      inset 0 1px 0 rgba(255, 255, 255, 0.76),
-      0 8px 18px rgba(30, 34, 42, 0.08);
+    background: var(--hp-profile-social-active-bg);
+    box-shadow: var(--hp-profile-social-active-shadow);
     transform: translateY(0) scale(0.97);
   }
   .press-dialog-surface {

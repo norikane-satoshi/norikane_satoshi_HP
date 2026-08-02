@@ -2,6 +2,8 @@
 
 import "@testing-library/jest-dom/vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
@@ -22,5 +24,12 @@ describe("ProfilePhoto", () => {
     expect(dialog.parentElement).toHaveStyle({
       zIndex: String(HP_MODAL_OVERLAY_Z_INDEX),
     })
+  })
+
+  it("keeps reduced-motion modal expansion static and uses the shared focus ring token", () => {
+    const source = readFileSync(join(process.cwd(), "src/components/hp/profile-photo.tsx"), "utf8")
+
+    expect(source).toContain('? { duration: 0 }')
+    expect(source).toContain("focus-visible:ring-[var(--hp-color-accent-focus-ring)]")
   })
 })

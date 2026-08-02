@@ -68,10 +68,14 @@ describe("HP three-hue color fields", () => {
 
   it("keeps hero color fields pale, low-opacity, broad, and soft over the dark surface", () => {
     expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("ellipse 72% 56%")
-    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("rgba(245, 185, 214, 0.045)")
-    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("rgba(232, 160, 166, 0.035)")
-    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("rgba(174, 205, 236, 0.045)")
-    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("#0E0E10")
+    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("var(--hp-color-hero-deep-pink-glow)")
+    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("var(--hp-color-hero-deep-warm-glow)")
+    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("var(--hp-color-hero-deep-sky-glow)")
+    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("var(--hp-color-hero-deep-base-start)")
+    expect(globalsCss).toContain("--hp-color-hero-deep-pink-glow: rgba(245, 185, 214, 0.045);")
+    expect(globalsCss).toContain("--hp-color-hero-deep-warm-glow: rgba(232, 160, 166, 0.035);")
+    expect(globalsCss).toContain("--hp-color-hero-deep-sky-glow: rgba(174, 205, 236, 0.045);")
+    expect(globalsCss).toContain("--hp-color-hero-deep-base-start: #0E0E10;")
     expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("ellipse 70% 48%")
     expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("rgba(248, 206, 226, 0.11)")
     expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("rgba(238, 190, 194, 0.08)")

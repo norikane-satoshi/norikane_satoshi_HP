@@ -91,9 +91,9 @@ export function ProfilePhoto() {
               }}
               className="fixed inset-0 flex items-center justify-center p-4 md:p-10"
               style={{
-                background: "rgba(8, 4, 24, 0.42)",
-                backdropFilter: "blur(10px)",
-                WebkitBackdropFilter: "blur(10px)",
+                background: "var(--hp-profile-photo-modal-backdrop)",
+                backdropFilter: "var(--hp-profile-photo-modal-backdrop-filter)",
+                WebkitBackdropFilter: "var(--hp-profile-photo-modal-backdrop-filter)",
                 zIndex: HP_MODAL_OVERLAY_Z_INDEX,
               }}
             >
@@ -107,7 +107,7 @@ export function ProfilePhoto() {
                 exit={{ scale: 0.95, opacity: 0 }}
                 transition={
                   shouldReduceMotion
-                    ? { duration: 0.2, ease: "easeOut" }
+                    ? { duration: 0 }
                     : { type: "spring", stiffness: 400, damping: 30 }
                 }
                 drag="y"
@@ -157,7 +157,7 @@ export function ProfilePhoto() {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
-        className="relative block aspect-square w-full max-w-[220px] shrink-0 overflow-hidden rounded-2xl transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
+        className="relative block aspect-square w-full max-w-[220px] shrink-0 overflow-hidden rounded-2xl transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hp-color-accent-focus-ring)] focus-visible:ring-offset-4"
         aria-label="プロフィール写真を拡大表示"
       >
         <Image
