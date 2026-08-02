@@ -129,10 +129,11 @@
   --hp-color-hero-deep-pink-glow: rgba(245, 185, 214, 0.045);
   --hp-color-hero-deep-warm-glow: rgba(232, 160, 166, 0.035);
   --hp-color-hero-deep-sky-glow: rgba(174, 205, 236, 0.045);
-  --hp-color-hero-deep-shadow: rgba(20, 24, 34, 0.62);
-  --hp-color-hero-deep-base-start: #0E0E10;
-  --hp-color-hero-deep-base-middle: #151519;
-  --hp-color-hero-deep-base-end: #17171B;
+  --hp-color-hero-deep-accent-glow: rgba(54, 111, 204, 0.12);
+  --hp-color-hero-deep-shadow: rgba(20, 31, 48, 0.50);
+  --hp-color-hero-deep-base-start: #11161F;
+  --hp-color-hero-deep-base-middle: #161D29;
+  --hp-color-hero-deep-base-end: #1A2330;
   --hp-profile-card-filter: blur(34px) saturate(1.38);
   --hp-profile-card-hover-filter: blur(36px) saturate(1.42);
   --hp-profile-card-hover-border: rgba(255, 255, 255, 0.82);

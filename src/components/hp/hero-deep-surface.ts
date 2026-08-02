@@ -2,6 +2,7 @@ export const HERO_DEEP_SURFACE_BACKGROUND = [
   "radial-gradient(ellipse 72% 56% at 16% 22%, var(--hp-color-hero-deep-pink-glow) 0%, transparent 72%)",
   "radial-gradient(ellipse 64% 52% at 80% 72%, var(--hp-color-hero-deep-warm-glow) 0%, transparent 74%)",
   "radial-gradient(ellipse 76% 58% at 72% 20%, var(--hp-color-hero-deep-sky-glow) 0%, transparent 76%)",
+  "radial-gradient(ellipse 68% 54% at 66% 34%, var(--hp-color-hero-deep-accent-glow) 0%, transparent 78%)",
   "radial-gradient(ellipse at 22% 78%, var(--hp-color-hero-deep-shadow) 0%, transparent 58%)",
   "linear-gradient(135deg, var(--hp-color-hero-deep-base-start) 0%, var(--hp-color-hero-deep-base-middle) 45%, var(--hp-color-hero-deep-base-end) 100%)",
 ].join(", ")

@@ -66,16 +66,19 @@ describe("HP three-hue color fields", () => {
     expect(rgbDistance(pink, sky)).toBeGreaterThan(70)
   })
 
-  it("keeps hero color fields pale, low-opacity, broad, and soft over the dark surface", () => {
+  it("keeps the hero surface blue-lit, quiet, and soft", () => {
     expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("ellipse 72% 56%")
     expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("var(--hp-color-hero-deep-pink-glow)")
     expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("var(--hp-color-hero-deep-warm-glow)")
     expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("var(--hp-color-hero-deep-sky-glow)")
+    expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("var(--hp-color-hero-deep-accent-glow)")
     expect(HERO_DEEP_SURFACE_BACKGROUND).toContain("var(--hp-color-hero-deep-base-start)")
     expect(globalsCss).toContain("--hp-color-hero-deep-pink-glow: rgba(245, 185, 214, 0.045);")
     expect(globalsCss).toContain("--hp-color-hero-deep-warm-glow: rgba(232, 160, 166, 0.035);")
     expect(globalsCss).toContain("--hp-color-hero-deep-sky-glow: rgba(174, 205, 236, 0.045);")
-    expect(globalsCss).toContain("--hp-color-hero-deep-base-start: #0E0E10;")
+    expect(globalsCss).toContain("--hp-color-hero-deep-accent-glow: rgba(54, 111, 204, 0.12);")
+    expect(globalsCss).toContain("--hp-color-hero-deep-shadow: rgba(20, 31, 48, 0.50);")
+    expect(globalsCss).toContain("--hp-color-hero-deep-base-start: #11161F;")
     expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("ellipse 70% 48%")
     expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("rgba(248, 206, 226, 0.11)")
     expect(HERO_ABSTRACT_ART_BACKGROUND).toContain("rgba(238, 190, 194, 0.08)")
@@ -102,7 +105,9 @@ describe("HP three-hue color fields", () => {
     })
 
     const hero = render(<HeroSection />)
+    const heroSection = hero.container.querySelector("#home")
     const heroArt = hero.container.querySelector('[data-hp-abstract-art="hero"]')
+    expect(heroSection).toHaveClass("-mt-20", "md:-mt-24")
     expect(heroArt).toBeInTheDocument()
     expect(heroArt?.querySelector("img")).toBeNull()
     expect(heroArt).toHaveAttribute("aria-hidden", "true")
