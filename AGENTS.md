@@ -22,22 +22,9 @@ Before changing UI, layout, styling, copy placement, diagrams, or visual assets:
 
 ## Design source of truth
 
-The current site uses a light Glass Design System:
+The site uses the light Glass Design System. `DESIGN.md` is the design contract; the `:root` values and utility implementations in `src/app/globals.css` are its executable source. Do not duplicate design-token values here.
 
-- `--bg-base #F8F6FF`
-- `--accent-primary #8B7FFF`
-- `--accent-secondary #C4B5FD`
-- `--aurora-purple rgba(139, 127, 255, 0.28)`
-- `--aurora-pink rgba(255, 143, 171, 0.20)`
-- `--aurora-sky rgba(125, 211, 252, 0.20)`
-- `--glass-bg rgba(255, 255, 255, 0.55)`
-- `--glass-border rgba(139, 127, 255, 0.22)`
-- `--glass-shadow 0 8px 32px rgba(139, 127, 255, 0.15)`
-- `--text-primary #1C0F6E`
-- `--text-muted #6B5FA8`
-- `.glass-card`, `.glass-card-sm`, `.glass-bar`, `.glass-btn`, `.glass-input`, `.glass-badge`, `.glass-inset`, `.glass-flat`
-
-Retired `neu-*` / `--neu-*` classes and tokens may remain for compatibility only. Do not use them in new implementation.
+The retired `neu-*` / `--neu-*` system has no compatibility path. Do not reintroduce its classes or tokens.
 
 ## Implementation rules
 

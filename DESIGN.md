@@ -45,22 +45,46 @@ Do not invent parallel tokens unless the user explicitly asks for a design-syste
 | `--accent-primary` | `#366FCC` | Primary accent, active dots, glyphs, subtle highlights |
 | `--text-primary` | `#1C0F6E` | Main text color |
 | `--text-muted` | `#5A6473` | Secondary text color |
-| `--glass-bg` | `rgba(255, 255, 255, 0.45)` | Standard glass card fill |
-| `--glass-border` | `rgba(255, 255, 255, 0.62)` | Standard glass card border |
+| `--glass-bg` | `rgba(255, 255, 255, 0.62)` | Standard glass card fill |
+| `--glass-border` | `rgba(255, 255, 255, 0.66)` | Standard glass card border |
 | `--glass-shadow` | `var(--hp-shadow-soft)` | Standard glass card shadow alias |
+| `--hp-color-surface` | `var(--glass-bg)` | Semantic surface alias |
+| `--hp-color-border` | `var(--glass-border)` | Semantic border alias |
+| `--hp-color-accent` | `var(--accent-primary)` | Semantic accent alias |
+| `--hp-color-accent-focus-outline` | `var(--accent-primary)` | Focus outline accent |
+| `--hp-color-accent-focus-ring` | `var(--accent-primary)` | Focus ring accent |
 | `--hp-color-calendar-today` | `#B13F78` | Calendar today marker |
 | `--hp-color-calendar-candidate` | `#0F8A72` | Booking candidate selection |
+| `--hp-color-calendar-backdrop` | `rgba(28, 15, 110, 0.45)` | Calendar overlay backdrop |
+| `--hp-color-calendar-busy-tag-bg` | `rgba(255, 255, 255, 0.2)` | Busy tag fill |
+| `--hp-color-calendar-surface-muted` | `rgba(255, 255, 255, 0.35)` | Muted calendar surface |
+| `--hp-color-calendar-control-bg` | `rgba(255, 255, 255, 0.52)` | Calendar control fill |
+| `--hp-color-calendar-control-hover-bg` | `rgba(255, 255, 255, 0.72)` | Calendar control hover fill |
+| `--hp-color-calendar-on-strong` | `#fff` | Text on strong calendar states |
+| `--hp-color-chatbot-shell-bg` | `rgba(255, 255, 255, 0.72)` | Chatbot shell fill |
+| `--hp-color-chatbot-choice-ring` | `rgba(54, 111, 204, 0.22)` | Chatbot choice ring |
 | `--hp-radius-sm` | `16px` | Small cards, inputs, tags, buttons |
 | `--hp-radius` | `20px` | Standard cards and figure shells |
 | `--hp-radius-lg` | `24px` | Larger cards |
+| `--hp-radius-pill` | `9999px` | Pills and badges |
+| `--hp-radius-calendar-cell` | `12px` | Calendar cells |
 | `--hp-shadow-soft` | `0 8px 28px rgba(30,34,42,.06)` | Standard soft shadow |
 | `--hp-shadow-modal` | `0 14px 32px rgba(30,34,42,.08)` | Modal shadow |
+| `--hp-shadow-calendar-control-hover` | `0 4px 20px color-mix(in srgb, var(--hp-color-accent) 22%, transparent)` | Calendar control hover shadow |
+| `--hp-shadow-calendar-draft-active` | `0 0 0 2px color-mix(in srgb, var(--hp-color-accent) 24%, transparent), var(--glass-shadow)` | Active calendar draft ring and shadow |
+| `--ease-out-strong` | `cubic-bezier(0.23, 1, 0.32, 1)` | Standard entering and hover easing |
+| `--ease-in-out-strong` | `cubic-bezier(0.77, 0, 0.175, 1)` | Strong bidirectional easing |
+| `--ease-drawer` | `cubic-bezier(0.32, 0.72, 0, 1)` | Drawer easing |
+| `--motion-duration-fast` | `120ms` | Fast feedback |
+| `--motion-duration-press` | `160ms` | Press feedback |
+| `--motion-duration-popover` | `200ms` | Popover transition |
+| `--motion-duration-modal` | `300ms` | Modal transition |
 
 ### 2.2 Aurora background tokens
 
 | Token | Value | Role |
 |---|---:|---|
-| `--aurora-purple` | `rgba(93, 84, 171, 0.16)` | Main lavender glow |
+| `--aurora-purple` | `rgba(84, 117, 171, 0.16)` | Main muted blue-purple glow |
 | `--aurora-pink` | `rgba(178, 112, 150, 0.11)` | Warm soft glow |
 | `--aurora-sky` | `rgba(106, 138, 172, 0.10)` | Cool soft glow |
 
@@ -125,8 +149,8 @@ Use for main section cards, note cards, article wrappers, and major panels.
 
 ```css
 background: var(--glass-bg);
-backdrop-filter: blur(12px);
--webkit-backdrop-filter: blur(12px);
+backdrop-filter: blur(24px) saturate(1.2);
+-webkit-backdrop-filter: blur(24px) saturate(1.2);
 border: 1px solid var(--glass-border);
 box-shadow: var(--glass-shadow);
 border-radius: var(--hp-radius);
@@ -137,10 +161,10 @@ border-radius: var(--hp-radius);
 Use for smaller secondary cards inside a main section.
 
 ```css
-background: rgba(255, 255, 255, 0.35);
-backdrop-filter: blur(8px);
-border: 1px solid rgba(255, 255, 255, 0.52);
-box-shadow: 0 4px 16px rgba(139, 127, 255, 0.10);
+background: rgba(255, 255, 255, 0.52);
+backdrop-filter: blur(12px);
+border: 1px solid rgba(255, 255, 255, 0.58);
+box-shadow: 0 4px 14px rgba(30, 34, 42, 0.06);
 border-radius: var(--hp-radius-sm);
 ```
 
@@ -165,19 +189,18 @@ backdrop-filter: blur(8px);
 border: 1px solid rgba(255, 255, 255, 0.65);
 border-radius: var(--hp-radius-sm);
 color: var(--text-primary);
-transition: all 0.2s ease;
+transition: background-color var(--motion-duration-press) var(--ease-out-strong), border-color var(--motion-duration-press) var(--ease-out-strong), box-shadow var(--motion-duration-press) var(--ease-out-strong), color var(--motion-duration-press) var(--ease-out-strong), opacity var(--motion-duration-press) var(--ease-out-strong), transform var(--motion-duration-press) var(--ease-out-strong), backdrop-filter var(--motion-duration-press) var(--ease-out-strong), -webkit-backdrop-filter var(--motion-duration-press) var(--ease-out-strong);
 ```
 
-Hover may increase opacity and use the existing purple-tinted shadow.
-Active may use a slight scale down (`scale(0.98)`).
+Hover increases the surface opacity and uses `0 2px 8px rgba(54, 111, 204, 0.14)`. The accent is the canonical `--hp-color-accent` alias; use `--hp-shadow-soft` for standard surface shadows rather than introducing a legacy purple shadow.
+Focus-visible uses the `--hp-color-accent-focus-outline` / `--hp-color-accent-focus-ring` accent (currently `--accent-primary`) with the implemented `rgba(54, 111, 204, 0.54)` outline and `rgba(54, 111, 204, 0.10)` ring. Active uses `scale(0.97)`.
 Do not create new button colors for primary/secondary states unless a full token migration is requested.
 
 #### `.glass-input`
 
 Use for input and textarea fields.
 
-Focus ring must be subtle and purple-tinted:
-`0 0 0 3px rgba(139, 127, 255, 0.12)`.
+Focus uses `--hp-color-accent-focus-ring` (currently `--accent-primary`): `border-color: rgba(54, 111, 204, 0.48)` and `box-shadow: 0 0 0 3px rgba(54, 111, 204, 0.10)`.
 
 #### `.glass-badge`
 

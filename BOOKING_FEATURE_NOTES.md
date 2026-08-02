@@ -42,9 +42,9 @@ Phase 7：本番反映 + E2E
 
 Phase 8（後追い）：Apple Sign In 追加（屋号開業 + Apple Developer Program 加入後）
 
-## ニューモーフィズム規則の順守
+## Glass Design System の順守
 
-ログイン UI、予約カレンダー UI とも HP リポジトリ AGENTS.md「ニューモーフィズム品質3層」の枠内で組む。FullCalendar の標準テーマや shadcn のデフォルトテーマはそのまま使わず、CSS 変数で `neu-raised` / `neu-raised-sm` / `neu-inset` の影に置き換える層を作る。月／週切替タブは通常 = `neu-flat` / 選択中 = `neu-inset`。
+ログイン UI、予約カレンダー UI とも `DESIGN.md` と `src/app/globals.css` の Glass Design System を使う。FullCalendar の標準テーマや shadcn のデフォルトテーマはそのまま使わず、既存の `glass-*` ユーティリティと HP トークンで統一する。カレンダーのセル、状態色、操作影は `--hp-radius-calendar-cell`、`--hp-color-calendar-*`、`--hp-shadow-calendar-*` を使い、月／週切替タブも既存のグラス面とアクセント状態で表現する。
 
 ## Next.js 16 の破壊的変更
 
