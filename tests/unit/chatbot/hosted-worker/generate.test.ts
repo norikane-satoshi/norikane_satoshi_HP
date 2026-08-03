@@ -54,6 +54,35 @@ describe("hosted worker generate", () => {
     vi.useRealTimers()
   })
 
+  it("allows a generation that completes within Tier2's 75-second attempt budget", async () => {
+    vi.useFakeTimers()
+    const state = createHostedWorkerRuntimeState()
+    const queue = createHostedWorkerQueue(state)
+    const response = generateHostedWorkerResponse(llmRequest("req_tier2_attempt_budget"), state, queue, {
+      clientFactory: () => ({
+        generate: () =>
+          new Promise((resolve) => {
+            setTimeout(
+              () =>
+                resolve({
+                  rawText: "completed before the Tier2 client deadline",
+                  displayEnvelope: createChatbotLlmDisplayEnvelope("completed before the Tier2 client deadline"),
+                  tier: "tier-1-chrome-notion-ai" as const,
+                }),
+              70_500,
+            )
+          }),
+      }),
+    })
+
+    await vi.advanceTimersByTimeAsync(70_500)
+
+    await expect(response).resolves.toMatchObject({
+      rawText: "completed before the Tier2 client deadline",
+      tier: "tier-2-hosted-chrome-notion-ai",
+    })
+  })
+
   it("propagates abort to active generation and records safe diagnostics", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "hosted-worker-generate-"))
     const diagnosticsPath = path.join(dir, "generate.jsonl")
