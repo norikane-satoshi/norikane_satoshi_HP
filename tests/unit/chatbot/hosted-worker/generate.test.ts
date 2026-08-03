@@ -210,12 +210,15 @@ describe("hosted worker generate", () => {
     expect(Object.keys(event).sort()).toEqual(
       [
         "aborted",
+        "boundary",
+        "buildSha",
         "event",
         "generateDurationMs",
         "outcome",
         "pid",
         "queueWaitMs",
         "requestId",
+        "tier",
         "timedOut",
         "timeoutMs",
         "uptimeMs",
@@ -224,6 +227,85 @@ describe("hosted worker generate", () => {
     expect(JSON.stringify(event)).not.toContain("systemPrompt")
     expect(JSON.stringify(event)).not.toContain("latestUserMessage")
     expect(JSON.stringify(event)).not.toContain("Bearer")
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("writes one request-correlated boundary record with all worker and Tier1 stage spans", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "hosted-worker-stage-timings-"))
+    const diagnosticsPath = path.join(dir, "generate.jsonl")
+    const state = createHostedWorkerRuntimeState()
+    const queue = createHostedWorkerQueue(state)
+    const tier1StageTimings = {
+      cdpTargetSession: {
+        startedAtEpochMs: 1_000,
+        completedAtEpochMs: 1_010,
+        durationMs: 10,
+      },
+      runtimeContextPreparation: {
+        startedAtEpochMs: 1_010,
+        completedAtEpochMs: 1_025,
+        durationMs: 15,
+      },
+      inferenceAttempts: [
+        {
+          attempt: 1,
+          promptToFirstChunk: {
+            startedAtEpochMs: 1_025,
+            completedAtEpochMs: 1_125,
+            durationMs: 100,
+          },
+          firstChunkToFinalChunk: {
+            startedAtEpochMs: 1_125,
+            completedAtEpochMs: 1_325,
+            durationMs: 200,
+          },
+          ndjsonOutputContractValidation: {
+            startedAtEpochMs: 1_325,
+            completedAtEpochMs: 1_330,
+            durationMs: 5,
+          },
+        },
+      ],
+    }
+
+    const response = await generateHostedWorkerResponse(llmRequest("req_stage_timings"), state, queue, {
+      diagnosticsPath,
+      clientFactory: () => ({
+        generate: async () => ({
+          rawText: "ok",
+          displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
+          tier: "tier-1-chrome-notion-ai",
+          diagnostics: { stageTimings: tier1StageTimings },
+        }),
+      }),
+    })
+
+    const events = readJsonl(diagnosticsPath)
+    expect(events).toHaveLength(1)
+    expect.soft(response.diagnostics?.stageTimings).toMatchObject({
+      workerQueueWait: {
+        startedAtEpochMs: expect.any(Number),
+        completedAtEpochMs: expect.any(Number),
+        durationMs: expect.any(Number),
+      },
+      ...tier1StageTimings,
+    })
+    expect.soft(events[0]).toMatchObject({
+      event: "hosted_worker_generate",
+      requestId: "req_stage_timings",
+      tier: "tier-2-hosted-chrome-notion-ai",
+      boundary: "tier1-stage-timings",
+      stageTimings: {
+        workerQueueWait: {
+          startedAtEpochMs: expect.any(Number),
+          completedAtEpochMs: expect.any(Number),
+          durationMs: expect.any(Number),
+        },
+        ...tier1StageTimings,
+      },
+    })
+    expect(JSON.stringify(events[0])).not.toContain("system prompt")
+    expect(JSON.stringify(events[0])).not.toContain("latest user message")
     rmSync(dir, { recursive: true, force: true })
   })
 })

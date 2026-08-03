@@ -10,7 +10,11 @@ import path from "node:path"
 import {
   createTier1ChromeNotionAiClient,
   tier1ChromeNotionAiDefaults,
+  type ChatbotStageTimingSpan,
+  type Tier1InferenceAttemptStageTiming,
+  type Tier1StageTimings,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
+import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
 import {
   hostedWorkerTier,
@@ -34,6 +38,11 @@ const abortTag = "request_aborted"
 const diagnosticsEventName = "hosted_worker_generate"
 const stateDir = path.join(homedir(), ".local", "state", "norikane_satoshi_hp")
 const defaultDiagnosticsPath = path.join(stateDir, "hosted-worker-generate.jsonl")
+const stageTimingBoundary = "tier1-stage-timings"
+
+type HostedWorkerStageTimings = Tier1StageTimings & {
+  workerQueueWait: ChatbotStageTimingSpan
+}
 
 export class HostedWorkerSingleFlightQueue {
   private tail: Promise<void> = Promise.resolve()
@@ -41,7 +50,11 @@ export class HostedWorkerSingleFlightQueue {
   constructor(private readonly state: HostedWorkerRuntimeState) {}
 
   run<T>(
-    task: (context: { queueWaitMs: number }) => Promise<T>,
+    task: (context: {
+      queueWaitMs: number
+      queuedAtEpochMs: number
+      startedAtEpochMs: number
+    }) => Promise<T>,
     options: { signal?: AbortSignal; now?: () => number } = {},
   ): Promise<T> {
     const queuedAt = options.now?.() ?? Date.now()
@@ -57,7 +70,12 @@ export class HostedWorkerSingleFlightQueue {
       this.state.queue.queueLength = Math.max(0, this.state.queue.queueLength - 1)
       this.state.queue.inFlight = true
       try {
-        return await task({ queueWaitMs: (options.now?.() ?? Date.now()) - queuedAt })
+        const taskStartedAt = options.now?.() ?? Date.now()
+        return await task({
+          queueWaitMs: taskStartedAt - queuedAt,
+          queuedAtEpochMs: queuedAt,
+          startedAtEpochMs: taskStartedAt,
+        })
       } finally {
         this.state.queue.inFlight = false
       }
@@ -107,12 +125,18 @@ export async function generateHostedWorkerResponse(
   let outcome: "success" | "error" = "error"
   let errorCode: string | undefined
   let aborted = false
+  let workerQueueWait: ChatbotStageTimingSpan | undefined
+  let stageTimings: HostedWorkerStageTimings | undefined
 
   try {
     throwIfAborted(options.signal)
     const response = await queue.run(
       async (queueContext) => {
         queueWaitMs = queueContext.queueWaitMs
+        workerQueueWait = createStageTimingSpan(
+          queueContext.queuedAtEpochMs,
+          queueContext.startedAtEpochMs,
+        )
         const generateStartedAt = options.now?.() ?? Date.now()
         const activeAbort = createLinkedAbortController(options.signal)
         try {
@@ -135,12 +159,16 @@ export async function generateHostedWorkerResponse(
     state.queue.lastSuccessAt = new Date().toISOString()
     state.queue.lastErrorCode = undefined
     state.queue.lastLatencyMs = latencyMs
+    const tier1StageTimings = safeTier1StageTimings(response.diagnostics?.stageTimings)
+    stageTimings = workerQueueWait && tier1StageTimings
+      ? { workerQueueWait, ...tier1StageTimings }
+      : undefined
 
     return {
       ...response,
       tier: hostedWorkerTier,
       latencyMs,
-      diagnostics: safeDiagnostics(response.diagnostics),
+      diagnostics: safeDiagnostics(response.diagnostics, stageTimings),
     }
   } catch (error) {
     const normalized = normalizeGenerateError(error)
@@ -158,6 +186,9 @@ export async function generateHostedWorkerResponse(
         path: diagnosticsPath,
         event: diagnosticsEventName,
         requestId: safeRequestId(request.requestId),
+        buildSha: getChatbotBuildSha(),
+        tier: hostedWorkerTier,
+        boundary: stageTimingBoundary,
         outcome,
         queueWaitMs,
         generateDurationMs,
@@ -167,6 +198,7 @@ export async function generateHostedWorkerResponse(
         errorCode,
         pid: process.pid,
         uptimeMs: Math.round(process.uptime() * 1000),
+        stageTimings,
       })
     }
   }
@@ -243,7 +275,10 @@ function createAbortError(): ChatbotLlmError {
   })
 }
 
-function safeDiagnostics(diagnostics: ChatbotLlmResponse["diagnostics"]): Record<string, unknown> {
+function safeDiagnostics(
+  diagnostics: ChatbotLlmResponse["diagnostics"],
+  stageTimings: HostedWorkerStageTimings | undefined,
+): Record<string, unknown> {
   return {
     endpoint: diagnostics?.endpoint,
     contentType: diagnostics?.contentType,
@@ -251,7 +286,80 @@ function safeDiagnostics(diagnostics: ChatbotLlmResponse["diagnostics"]): Record
     ndjsonPartialParsed: diagnostics?.ndjsonPartialParsed,
     ndjsonFinalParsed: diagnostics?.ndjsonFinalParsed,
     chunkCount: diagnostics?.chunkCount,
+    stageTimings,
   }
+}
+
+function createStageTimingSpan(
+  startedAtEpochMs: number,
+  completedAtEpochMs: number,
+): ChatbotStageTimingSpan {
+  const safeStartedAtEpochMs = Number.isFinite(startedAtEpochMs) ? startedAtEpochMs : completedAtEpochMs
+  const safeCompletedAtEpochMs = Math.max(
+    safeStartedAtEpochMs,
+    Number.isFinite(completedAtEpochMs) ? completedAtEpochMs : safeStartedAtEpochMs,
+  )
+  return {
+    startedAtEpochMs: safeStartedAtEpochMs,
+    completedAtEpochMs: safeCompletedAtEpochMs,
+    durationMs: safeCompletedAtEpochMs - safeStartedAtEpochMs,
+  }
+}
+
+function safeTier1StageTimings(value: unknown): Tier1StageTimings | undefined {
+  if (!isRecord(value)) return undefined
+  const cdpTargetSession = safeStageTimingSpan(value.cdpTargetSession)
+  const runtimeContextPreparation = safeStageTimingSpan(value.runtimeContextPreparation)
+  if (!cdpTargetSession || !runtimeContextPreparation || !Array.isArray(value.inferenceAttempts)) {
+    return undefined
+  }
+
+  const inferenceAttempts = value.inferenceAttempts
+    .map(safeInferenceAttemptStageTiming)
+    .filter((attempt): attempt is Tier1InferenceAttemptStageTiming => Boolean(attempt))
+  if (inferenceAttempts.length !== value.inferenceAttempts.length) return undefined
+
+  return {
+    cdpTargetSession,
+    runtimeContextPreparation,
+    inferenceAttempts,
+  }
+}
+
+function safeInferenceAttemptStageTiming(value: unknown): Tier1InferenceAttemptStageTiming | undefined {
+  if (!isRecord(value) || !Number.isInteger(value.attempt) || Number(value.attempt) < 1) return undefined
+  const promptToFirstChunk = safeStageTimingSpan(value.promptToFirstChunk)
+  const firstChunkToFinalChunk = safeStageTimingSpan(value.firstChunkToFinalChunk)
+  const ndjsonOutputContractValidation = safeStageTimingSpan(value.ndjsonOutputContractValidation)
+  if (!promptToFirstChunk || !firstChunkToFinalChunk || !ndjsonOutputContractValidation) {
+    return undefined
+  }
+
+  return {
+    attempt: Number(value.attempt),
+    promptToFirstChunk,
+    firstChunkToFinalChunk,
+    ndjsonOutputContractValidation,
+  }
+}
+
+function safeStageTimingSpan(value: unknown): ChatbotStageTimingSpan | undefined {
+  if (!isRecord(value)) return undefined
+  const startedAtEpochMs = value.startedAtEpochMs
+  const completedAtEpochMs = value.completedAtEpochMs
+  const durationMs = value.durationMs
+  if (
+    typeof startedAtEpochMs !== "number" ||
+    !Number.isFinite(startedAtEpochMs) ||
+    typeof completedAtEpochMs !== "number" ||
+    !Number.isFinite(completedAtEpochMs) ||
+    typeof durationMs !== "number" ||
+    !Number.isFinite(durationMs)
+  ) {
+    return undefined
+  }
+
+  return { startedAtEpochMs, completedAtEpochMs, durationMs }
 }
 
 function parsePositiveInteger(value: string | undefined, fallback: number): number {
@@ -324,6 +432,9 @@ async function writeGenerateDiagnostics(event: {
   path: string
   event: string
   requestId?: string
+  buildSha: string
+  tier: typeof hostedWorkerTier
+  boundary: typeof stageTimingBoundary
   outcome: "success" | "error"
   queueWaitMs: number
   generateDurationMs: number
@@ -333,6 +444,7 @@ async function writeGenerateDiagnostics(event: {
   errorCode?: string
   pid: number
   uptimeMs: number
+  stageTimings?: HostedWorkerStageTimings
 }): Promise<void> {
   try {
     const { path: logPath, ...payload } = event

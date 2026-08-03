@@ -448,6 +448,116 @@ describe("Tier1ChromeNotionAiClient", () => {
     expect(evaluate.mock.calls[1][0]).not.toContain("modelFromUser")
   })
 
+  it("returns numeric stage spans for CDP, runtime preparation, and every inference attempt", async () => {
+    const session = sessionReturning([
+      {
+        spaceId: "space-id",
+        userId: "user-id",
+        selectedModel: "notion-current-model",
+        availableModels: ["notion-current-model"],
+      },
+      {
+        ok: false,
+        code: "invalid-output",
+        message: "Notion AI response text could not be extracted. bytes=0 preview=",
+        stageTimings: {
+          promptSentAtEpochMs: 1_000,
+          firstChunkReceivedAtEpochMs: 1_040,
+          finalChunkReceivedAtEpochMs: 1_080,
+          ndjsonValidationStartedAtEpochMs: 1_080,
+          ndjsonValidationCompletedAtEpochMs: 1_083,
+        },
+      },
+      {
+        ok: true,
+        rawText: "相談内容を整理します。",
+        chunkCount: 2,
+        postDataBytes: 100,
+        responseBytes: 20,
+        responseContentType: "application/x-ndjson",
+        responseHeaders: {},
+        parsedPartial: true,
+        parsedFinal: true,
+        stageTimings: {
+          promptSentAtEpochMs: 2_000,
+          firstChunkReceivedAtEpochMs: 2_050,
+          finalChunkReceivedAtEpochMs: 2_140,
+          ndjsonValidationStartedAtEpochMs: 2_140,
+          ndjsonValidationCompletedAtEpochMs: 2_147,
+        },
+      },
+    ])
+    const client = new Tier1ChromeNotionAiClient({
+      fetchClient: cdpFetch(),
+      sessionFactory: async () => session,
+    })
+
+    const response = await client.generate(llmRequest())
+
+    expect(response.diagnostics?.stageTimings).toMatchObject({
+      cdpTargetSession: {
+        startedAtEpochMs: expect.any(Number),
+        completedAtEpochMs: expect.any(Number),
+        durationMs: expect.any(Number),
+      },
+      runtimeContextPreparation: {
+        startedAtEpochMs: expect.any(Number),
+        completedAtEpochMs: expect.any(Number),
+        durationMs: expect.any(Number),
+      },
+      inferenceAttempts: [
+        {
+          attempt: 1,
+          promptToFirstChunk: {
+            startedAtEpochMs: 1_000,
+            completedAtEpochMs: 1_040,
+            durationMs: 40,
+          },
+          firstChunkToFinalChunk: {
+            startedAtEpochMs: 1_040,
+            completedAtEpochMs: 1_080,
+            durationMs: 40,
+          },
+          ndjsonOutputContractValidation: {
+            startedAtEpochMs: 1_080,
+            completedAtEpochMs: 1_083,
+            durationMs: 3,
+          },
+        },
+        {
+          attempt: 2,
+          promptToFirstChunk: {
+            startedAtEpochMs: 2_000,
+            completedAtEpochMs: 2_050,
+            durationMs: 50,
+          },
+          firstChunkToFinalChunk: {
+            startedAtEpochMs: 2_050,
+            completedAtEpochMs: 2_140,
+            durationMs: 90,
+          },
+          ndjsonOutputContractValidation: {
+            startedAtEpochMs: 2_140,
+            completedAtEpochMs: 2_147,
+            durationMs: 7,
+          },
+        },
+      ],
+    })
+
+    const inferenceExpressions = vi.mocked(session.evaluate).mock.calls
+      .slice(1)
+      .map(([expression]) => expression)
+    expect(inferenceExpressions).toHaveLength(2)
+    for (const expression of inferenceExpressions) {
+      expect.soft(expression).toContain("response.body.getReader()")
+      expect.soft(expression).toContain("firstChunkReceivedAtEpochMs")
+      expect.soft(expression).toContain("finalChunkReceivedAtEpochMs")
+      expect.soft(expression).toContain("ndjsonValidationCompletedAtEpochMs")
+      expect.soft(expression).toContain("if (response.ok) throw error")
+    }
+  })
+
   it("blocks inference when runtime inspection exposes a denied model", async () => {
     const session = sessionReturning([
       {

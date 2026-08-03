@@ -63,6 +63,25 @@ export type NotionAiRuntimeInspection = {
   availableModels?: string[]
 }
 
+export type ChatbotStageTimingSpan = {
+  startedAtEpochMs: number
+  completedAtEpochMs: number
+  durationMs: number
+}
+
+export type Tier1InferenceAttemptStageTiming = {
+  attempt: number
+  promptToFirstChunk: ChatbotStageTimingSpan
+  firstChunkToFinalChunk: ChatbotStageTimingSpan
+  ndjsonOutputContractValidation: ChatbotStageTimingSpan
+}
+
+export type Tier1StageTimings = {
+  cdpTargetSession: ChatbotStageTimingSpan
+  runtimeContextPreparation: ChatbotStageTimingSpan
+  inferenceAttempts: Tier1InferenceAttemptStageTiming[]
+}
+
 type NotionAiWorkflowValue = {
   type: "workflow"
   model?: string
@@ -172,7 +191,15 @@ type RunInferenceHeaders = {
   "x-notion-space-id": string
 }
 
-type NotionAiInferenceResult =
+type NotionAiInferenceStageTimingMarks = {
+  promptSentAtEpochMs: number
+  firstChunkReceivedAtEpochMs: number
+  finalChunkReceivedAtEpochMs: number
+  ndjsonValidationStartedAtEpochMs: number
+  ndjsonValidationCompletedAtEpochMs: number
+}
+
+type NotionAiInferenceResult = (
   | {
       ok: true
       rawText: string
@@ -185,6 +212,7 @@ type NotionAiInferenceResult =
       parsedFinal: boolean
     }
   | { ok: false; status?: number; code: "auth" | "invalid-output" | "rate-limit" | "unknown"; message: string }
+) & { stageTimings?: NotionAiInferenceStageTimingMarks }
 
 export type ParsedInferenceNdjsonChunk = {
   raw: unknown
@@ -332,9 +360,15 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     signal?: AbortSignal,
   ): Promise<ChatbotLlmResponse> {
     throwIfAborted(signal)
+    const cdpTargetSessionStartedAtEpochMs = Date.now()
     const { session, target } = await this.openTargetSession(this.config.requestTimeoutMs, signal)
+    const cdpTargetSession = createStageTimingSpan(
+      cdpTargetSessionStartedAtEpochMs,
+      Date.now(),
+    )
 
     try {
+      const runtimeContextPreparationStartedAtEpochMs = Date.now()
       const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
         session,
         runtimeContextExpression,
@@ -351,8 +385,13 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
         idFactory: this.idFactory,
       })
       const headers = buildRunInferenceHeaders(effectiveRuntimeContext)
+      const runtimeContextPreparation = createStageTimingSpan(
+        runtimeContextPreparationStartedAtEpochMs,
+        Date.now(),
+      )
       let result: NotionAiInferenceResult | undefined
       let inferenceAttempts = 0
+      const inferenceAttemptStageTimings: Tier1InferenceAttemptStageTiming[] = []
 
       for (let attempt = 1; attempt <= maxTransientGenerateAttempts; attempt += 1) {
         inferenceAttempts = attempt
@@ -362,6 +401,8 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           this.config.requestTimeoutMs,
           signal,
         )
+        const attemptStageTiming = createInferenceAttemptStageTiming(attempt, result.stageTimings)
+        if (attemptStageTiming) inferenceAttemptStageTimings.push(attemptStageTiming)
         if (!this.isTransientEmptyInferenceResult(result) || attempt >= maxTransientGenerateAttempts) break
         await delay(250, signal)
       }
@@ -398,6 +439,11 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           ndjsonFinalParsed: result.parsedFinal,
           chunkCount: result.chunkCount,
           inferenceAttempts,
+          stageTimings: {
+            cdpTargetSession,
+            runtimeContextPreparation,
+            inferenceAttempts: inferenceAttemptStageTimings,
+          } satisfies Tier1StageTimings,
           attachTargetUrl: target.url,
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
         },
@@ -616,6 +662,45 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
   private isTransientEmptyInferenceResult(result: NotionAiInferenceResult): boolean {
     if (!result.ok) return isTransientEmptyNotionResponse(result.message)
     return result.rawText.trim() === emptyText || result.chunkCount === 0
+  }
+}
+
+function createStageTimingSpan(
+  startedAtEpochMs: number,
+  completedAtEpochMs: number,
+): ChatbotStageTimingSpan {
+  const safeStartedAtEpochMs = Number.isFinite(startedAtEpochMs) ? startedAtEpochMs : completedAtEpochMs
+  const safeCompletedAtEpochMs = Math.max(
+    safeStartedAtEpochMs,
+    Number.isFinite(completedAtEpochMs) ? completedAtEpochMs : safeStartedAtEpochMs,
+  )
+  return {
+    startedAtEpochMs: safeStartedAtEpochMs,
+    completedAtEpochMs: safeCompletedAtEpochMs,
+    durationMs: safeCompletedAtEpochMs - safeStartedAtEpochMs,
+  }
+}
+
+function createInferenceAttemptStageTiming(
+  attempt: number,
+  marks: NotionAiInferenceStageTimingMarks | undefined,
+): Tier1InferenceAttemptStageTiming | undefined {
+  if (!marks || !Object.values(marks).every((value) => Number.isFinite(value))) return undefined
+
+  return {
+    attempt,
+    promptToFirstChunk: createStageTimingSpan(
+      marks.promptSentAtEpochMs,
+      marks.firstChunkReceivedAtEpochMs,
+    ),
+    firstChunkToFinalChunk: createStageTimingSpan(
+      marks.firstChunkReceivedAtEpochMs,
+      marks.finalChunkReceivedAtEpochMs,
+    ),
+    ndjsonOutputContractValidation: createStageTimingSpan(
+      marks.ndjsonValidationStartedAtEpochMs,
+      marks.ndjsonValidationCompletedAtEpochMs,
+    ),
   }
 }
 
@@ -1392,6 +1477,7 @@ async function runInferenceInPage(input: {
   }
 
   try {
+    const promptSentAtEpochMs = Date.now()
     const response = await fetch(endpoint, {
       method: "POST",
       credentials: "include",
@@ -1401,28 +1487,61 @@ async function runInferenceInPage(input: {
     const postDataBytes = JSON.stringify(payload).length
     const responseContentType = response.headers.get("content-type") ?? ""
     const responseHeaders = Object.fromEntries(response.headers.entries())
+    let responseText = ""
+    let firstChunkReceivedAtEpochMs: number | undefined
+
+    try {
+      if (response.body) {
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        while (true) {
+          const chunk = await reader.read()
+          if (chunk.done) break
+          if (!chunk.value || chunk.value.byteLength === 0) continue
+          firstChunkReceivedAtEpochMs ??= Date.now()
+          responseText += decoder.decode(chunk.value, { stream: true })
+        }
+        responseText += decoder.decode()
+      } else {
+        responseText = await response.text()
+        firstChunkReceivedAtEpochMs = Date.now()
+      }
+    } catch (error) {
+      if (response.ok) throw error
+      responseText = ""
+    }
+
+    const finalChunkReceivedAtEpochMs = Date.now()
+    firstChunkReceivedAtEpochMs ??= finalChunkReceivedAtEpochMs
+    const ndjsonValidationStartedAtEpochMs = finalChunkReceivedAtEpochMs
+    const stageTimings = (): NotionAiInferenceStageTimingMarks => ({
+      promptSentAtEpochMs,
+      firstChunkReceivedAtEpochMs,
+      finalChunkReceivedAtEpochMs,
+      ndjsonValidationStartedAtEpochMs,
+      ndjsonValidationCompletedAtEpochMs: Date.now(),
+    })
 
     if (response.status === 401 || response.status === 403) {
-      const errorText = await response.text().catch(() => "")
       return {
         ok: false,
         status: response.status,
         code: "auth",
-        message: `Notion AI request was rejected by auth. ${errorText}`.trim(),
+        message: `Notion AI request was rejected by auth. ${responseText}`.trim(),
+        stageTimings: stageTimings(),
       }
     }
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "")
       return {
         ok: false,
         status: response.status,
         code: "unknown",
-        message: `Notion AI request returned ${response.status}. ${errorText}`.trim(),
+        message: `Notion AI request returned ${response.status}. ${responseText}`.trim(),
+        stageTimings: stageTimings(),
       }
     }
 
-    const responseText = await response.text()
     const responseBytes = responseText.length
     let partialText = ""
     let finalText = ""
@@ -1452,6 +1571,7 @@ async function runInferenceInPage(input: {
           ok: false,
           code: "rate-limit",
           message: `Notion AI rate limit response was returned. bytes=${responseText.length} preview=${responseText.slice(0, 300)}`,
+          stageTimings: stageTimings(),
         }
       }
 
@@ -1459,6 +1579,7 @@ async function runInferenceInPage(input: {
         ok: false,
         code: "invalid-output",
         message: `Notion AI response text could not be extracted. bytes=${responseText.length} preview=${responseText.slice(0, 300)}`,
+        stageTimings: stageTimings(),
       }
     }
 
@@ -1472,6 +1593,7 @@ async function runInferenceInPage(input: {
       responseHeaders,
       parsedPartial: partialText.length > 0,
       parsedFinal: finalText.length > 0,
+      stageTimings: stageTimings(),
     }
   } catch (error) {
     return {
