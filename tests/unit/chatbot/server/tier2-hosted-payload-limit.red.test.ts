@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from "vitest"
 
 import { createHostedWorkerRequestHandler } from "@/lib/chatbot/hosted-worker/server"
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
+import { selectCustomerFacingNoteKnowledge } from "@/lib/chatbot/server/customer-facing-note-knowledge"
+import type { ChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
 import type {
   ChatbotLlmClient,
   ChatbotLlmRequest,
@@ -18,10 +20,9 @@ import {
 } from "@/lib/chatbot/server/llm-orchestrator"
 import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 
-const measuredPayloadBytes = 84_927
-const measuredSystemPromptBytes = 83_802
 const measuredStaticPromptBytes = 8_146
 const measuredNoteKnowledgeBytes = 75_656
+const measuredFilteredPayloadBytes = 8_864
 const hostedWorkerBodyLimitBytes = 64 * 1024
 
 function productionSizedRequest(): ChatbotLlmRequest {
@@ -49,9 +50,23 @@ function productionSizedRequest(): ChatbotLlmRequest {
     workSite: "remote-grading",
     documentaryAttachment: { kind: "none" },
   }
+  const noteKnowledge = Array.from({ length: 5 }, (_, index) => ({
+    usage: "color-correction" as const,
+    pageId: String(index).padStart(32, "0"),
+    referenceRange: "公開本文",
+    content: "n".repeat(index === 0 ? 15_132 : 15_131),
+    source: "notion-sync" as const,
+    status: "published" as const,
+    statusReason: "hp-public-true-with-slug",
+    includedInPrompt: true,
+  })) satisfies ChatbotKnowledgeSnapshot["noteKnowledge"]
+  const selectedNoteKnowledge = selectCustomerFacingNoteKnowledge(
+    { noteKnowledge } as ChatbotKnowledgeSnapshot,
+    "相談したいです",
+  )
   const request: ChatbotLlmRequest = {
     requestId: "205febd9-adde-422b-8b46-514dc63d457b",
-    systemPrompt: "s".repeat(measuredSystemPromptBytes),
+    systemPrompt: "s".repeat(measuredStaticPromptBytes) + selectedNoteKnowledge.map((entry) => entry.content).join("\n"),
     messages: [{ role: "user", content: "相談したいです" }],
     conversationState,
     jobContext,
@@ -59,11 +74,8 @@ function productionSizedRequest(): ChatbotLlmRequest {
     temperature: 0.2,
     maxOutputTokens: 900,
   }
-  const jsonEscapeOverhead = measuredPayloadBytes - Buffer.byteLength(JSON.stringify(request), "utf8")
-  request.systemPrompt =
-    "s".repeat(measuredStaticPromptBytes) +
-    "\n".repeat(jsonEscapeOverhead) +
-    "n".repeat(measuredNoteKnowledgeBytes - jsonEscapeOverhead)
+  expect(Buffer.byteLength(noteKnowledge.map((entry) => entry.content).join(""), "utf8")).toBe(measuredNoteKnowledgeBytes)
+  expect(selectedNoteKnowledge).toEqual([])
 
   return request
 }
@@ -174,44 +186,18 @@ describe("hosted Tier2 production payload boundary", () => {
 
     const response = await orchestrator.generate(request)
 
-    expect(Buffer.byteLength(request.systemPrompt, "utf8")).toBe(measuredSystemPromptBytes)
-    expect(Buffer.byteLength(JSON.stringify(request), "utf8")).toBe(measuredPayloadBytes)
-    expect(observedGeneratePayloadBytes).toBe(measuredPayloadBytes)
-    expect(observedGeneratePayloadBytes).toBeGreaterThan(hostedWorkerBodyLimitBytes)
-    expect(workerGenerate).not.toHaveBeenCalled()
-    expect(tier3.generate).toHaveBeenCalledOnce()
-    const tier2GenerateError = attempts.find(
-      (attempt) =>
-        attempt.tier === "tier-2-hosted-chrome-notion-ai" &&
-        attempt.phase === "generate" &&
-        attempt.outcome === "error",
-    )
-    expect(tier2GenerateError?.error).toMatchObject({
-      code: "unknown",
-      cause: {
-        status: 400,
-        summary: {
-          endpoint: "/generate",
-          httpStatus: 400,
-          errorCode: "invalid-output",
-          retryable: false,
-          messagePreview: "Request body is too large.",
-        },
-      },
-    })
-    expect(attempts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          tier: "tier-2-hosted-chrome-notion-ai",
-          phase: "generate",
-          outcome: "error",
-        }),
-        expect.objectContaining({
-          tier: "tier-3-gemini-flash",
-          phase: "generate",
-          outcome: "success",
-        }),
-      ]),
+    expect(Buffer.byteLength(request.systemPrompt, "utf8")).toBe(measuredStaticPromptBytes)
+    expect(Buffer.byteLength(JSON.stringify(request), "utf8")).toBe(measuredFilteredPayloadBytes)
+    expect(observedGeneratePayloadBytes).toBe(measuredFilteredPayloadBytes)
+    expect(observedGeneratePayloadBytes).toBeLessThan(hostedWorkerBodyLimitBytes)
+    expect(workerGenerate).toHaveBeenCalledOnce()
+    expect(tier3.generate).not.toHaveBeenCalled()
+    expect(attempts).toContainEqual(
+      expect.objectContaining({
+        tier: "tier-2-hosted-chrome-notion-ai",
+        phase: "generate",
+        outcome: "success",
+      }),
     )
     expect(response.tier).toBe("tier-2-hosted-chrome-notion-ai")
   })

@@ -66,6 +66,10 @@ import {
   type ChatbotKnowledgeSnapshot,
 } from "@/lib/chatbot/server/notion-knowledge-sync"
 import {
+  noteKnowledgeEntryMatches,
+  selectCustomerFacingNoteKnowledge,
+} from "@/lib/chatbot/server/customer-facing-note-knowledge"
+import {
   applyLectureTrainingConversationState,
   isLectureTrainingInquiry,
 } from "@/lib/chatbot/server/lecture-training"
@@ -364,6 +368,10 @@ export async function handleChatbotMessage(
     durationContext.promptContext,
     noteAccess,
     submittedBooking ? buildSubmittedBookingPromptContext(submittedBooking) : undefined,
+    [...conversation.messages, userMessage]
+      .slice(-llmHistoryMaxMessages)
+      .map((message) => message.content)
+      .join("\n"),
   )
   logChatbotKnowledgeSourceTrace({
     conversation,
@@ -1681,6 +1689,7 @@ function buildChatbotSystemPrompt(
   workflowPromptContext?: string,
   noteAccess: CustomerFacingNoteAccess = { kind: "none" },
   submittedBookingPromptContext?: string,
+  noteKnowledgeContext = "",
 ): string {
   const lines = [
     "あなたは新規映像案件の中立的な相談窓口としてふるまいます。",
@@ -1727,7 +1736,7 @@ function buildChatbotSystemPrompt(
     lines.push(userContextFormatter(userContext))
   }
   if (knowledgeSnapshot) {
-    lines.push(formatWorkflowDurationKnowledgeForPrompt(knowledgeSnapshot))
+    lines.push(formatWorkflowDurationKnowledgeForPrompt(knowledgeSnapshot, noteKnowledgeContext))
   }
   if (workflowPromptContext) {
     lines.push(workflowPromptContext)
@@ -1749,10 +1758,10 @@ type CustomerFacingNoteAccess = { kind: "none" | "published-only" | "planned-onl
 function evaluateCustomerFacingNoteAccess(message: string, snapshot: ChatbotKnowledgeSnapshot): CustomerFacingNoteAccess {
   if (!isCustomerFacingNoteQuestion(message)) return { kind: "none" }
   const publishedMatch = snapshot.noteKnowledge.some(
-    (entry) => entry.status === "published" && noteEntryMatches(message, entry),
+    (entry) => entry.status === "published" && noteKnowledgeEntryMatches(message, entry),
   )
   const plannedMatch = snapshot.noteKnowledge.some(
-    (entry) => entry.status === "planned" && noteEntryMatches(message, entry),
+    (entry) => entry.status === "planned" && noteKnowledgeEntryMatches(message, entry),
   )
   if (publishedMatch && plannedMatch) return { kind: "mixed" }
   if (publishedMatch) return { kind: "published-only" }
@@ -1764,27 +1773,11 @@ function isCustomerFacingNoteQuestion(message: string): boolean {
   return /(note|ノート|記事|公開|本文|書いて|リンク|URL)/i.test(message)
 }
 
-function noteEntryMatches(message: string, entry: ChatbotKnowledgeSnapshot["noteKnowledge"][number]): boolean {
-  return noteEntryKeywords(entry).some((keyword) => keyword && message.includes(keyword))
-}
-
-function noteEntryKeywords(entry: ChatbotKnowledgeSnapshot["noteKnowledge"][number]): string[] {
-  const usageKeywords: Record<string, string[]> = {
-    "color-correction": ["カラーコレクション", "カラコレ", "correction"],
-    "color-grading": ["カラーグレーディング", "グレーディング", "grading"],
-    "film-look": ["フィルムルック", "フィルム", "ルック", "filmlook"],
-  }
-  return [
-    ...(usageKeywords[entry.usage] ?? []),
-    ...(entry.slug ? [entry.slug] : []),
-  ]
-}
-
-function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnapshot): string {
+function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnapshot, noteKnowledgeContext: string): string {
   const durationLines = getWorkflowDurationPresetsFromSnapshot(snapshot).map(
     (preset) => `- ${preset.label}: ${preset.minDays}〜${preset.maxDays}日`,
   )
-  const noteLines = getCustomerFacingNoteKnowledge(snapshot).flatMap((entry) => [
+  const noteLines = selectCustomerFacingNoteKnowledge(snapshot, noteKnowledgeContext).flatMap((entry) => [
     `- ${entry.status}${entry.pageTitle ? ` / ${entry.pageTitle}` : ""}${entry.status === "published" && entry.slug ? ` / 公開URL: https://norikane.studio/notes/${entry.slug}` : ""}:`,
     entry.content,
   ])
@@ -1802,12 +1795,6 @@ function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnap
         ]
       : []),
   ].join("\n")
-}
-
-function getCustomerFacingNoteKnowledge(snapshot: ChatbotKnowledgeSnapshot) {
-  return snapshot.noteKnowledge.filter(
-    (entry) => entry.includedInPrompt === true && entry.content.trim().length > 0,
-  )
 }
 
 function buildAssistantDisplayContent(input: {
