@@ -76,6 +76,11 @@ export type Tier1InferenceAttemptStageTiming = {
   ndjsonOutputContractValidation: ChatbotStageTimingSpan
 }
 
+export type Tier1CdpConnectionState = {
+  session: "newly_established" | "existing_reused"
+  target: "newly_established" | "existing_reused"
+}
+
 export type Tier1StageTimings = {
   cdpTargetSession: ChatbotStageTimingSpan
   runtimeContextPreparation: ChatbotStageTimingSpan
@@ -366,6 +371,10 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       cdpTargetSessionStartedAtEpochMs,
       Date.now(),
     )
+    const cdpConnectionState = {
+      session: "newly_established",
+      target: "existing_reused",
+    } satisfies Tier1CdpConnectionState
 
     try {
       const runtimeContextPreparationStartedAtEpochMs = Date.now()
@@ -439,6 +448,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
           ndjsonFinalParsed: result.parsedFinal,
           chunkCount: result.chunkCount,
           inferenceAttempts,
+          cdpConnectionState,
           stageTimings: {
             cdpTargetSession,
             runtimeContextPreparation,

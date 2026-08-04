@@ -6,12 +6,14 @@ import {
 } from "@/lib/chatbot/hosted-worker/types"
 
 export type HostedWorkerRuntimeState = {
+  workerStartedAtEpochMs: number
   queue: HostedWorkerQueueState
   lastReadyHealth?: HostedWorkerHealthResponse
 }
 
 export function createHostedWorkerRuntimeState(): HostedWorkerRuntimeState {
   return {
+    workerStartedAtEpochMs: Math.round(Date.now() - process.uptime() * 1000),
     queue: {
       inFlight: false,
       queueLength: 0,

@@ -494,6 +494,10 @@ describe("Tier1ChromeNotionAiClient", () => {
 
     const response = await client.generate(llmRequest())
 
+    expect(response.diagnostics?.cdpConnectionState).toEqual({
+      session: "newly_established",
+      target: "existing_reused",
+    })
     expect(response.diagnostics?.stageTimings).toMatchObject({
       cdpTargetSession: {
         startedAtEpochMs: expect.any(Number),

@@ -223,6 +223,7 @@ describe("hosted worker generate", () => {
         "timedOut",
         "timeoutMs",
         "uptimeMs",
+        "workerStartedAtEpochMs",
       ].sort(),
     )
     expect(JSON.stringify(event)).not.toContain("systemPrompt")
@@ -256,6 +257,42 @@ describe("hosted worker generate", () => {
     })
     expect(JSON.stringify(event.queueSnapshots)).not.toContain("system prompt")
     expect(JSON.stringify(event.queueSnapshots)).not.toContain("latest user message")
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("records worker start and CDP session/target reuse state in the boundary event", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "hosted-worker-runtime-state-"))
+    const diagnosticsPath = path.join(dir, "generate.jsonl")
+    const state = createHostedWorkerRuntimeState()
+    const queue = createHostedWorkerQueue(state)
+
+    await generateHostedWorkerResponse(llmRequest("req_runtime_state"), state, queue, {
+      diagnosticsPath,
+      clientFactory: () => ({
+        generate: async () => ({
+          rawText: "ok",
+          displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
+          tier: "tier-1-chrome-notion-ai",
+          diagnostics: {
+            cdpConnectionState: {
+              session: "newly_established",
+              target: "existing_reused",
+            },
+          },
+        }),
+      }),
+    })
+
+    const [event] = readJsonl(diagnosticsPath)
+    expect(event).toMatchObject({
+      event: "hosted_worker_generate",
+      requestId: "req_runtime_state",
+      workerStartedAtEpochMs: state.workerStartedAtEpochMs,
+      cdpConnectionState: {
+        session: "newly_established",
+        target: "existing_reused",
+      },
+    })
     rmSync(dir, { recursive: true, force: true })
   })
 

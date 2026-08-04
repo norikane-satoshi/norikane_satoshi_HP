@@ -11,6 +11,7 @@ import {
   createTier1ChromeNotionAiClient,
   tier1ChromeNotionAiDefaults,
   type ChatbotStageTimingSpan,
+  type Tier1CdpConnectionState,
   type Tier1InferenceAttemptStageTiming,
   type Tier1StageTimings,
 } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
@@ -147,6 +148,7 @@ export async function generateHostedWorkerResponse(
   let aborted = false
   let workerQueueWait: ChatbotStageTimingSpan | undefined
   let stageTimings: HostedWorkerStageTimings | undefined
+  let cdpConnectionState: Tier1CdpConnectionState | undefined
   const queueSnapshots: HostedWorkerQueueSnapshots = {}
 
   try {
@@ -186,6 +188,7 @@ export async function generateHostedWorkerResponse(
     state.queue.lastSuccessAt = new Date().toISOString()
     state.queue.lastErrorCode = undefined
     state.queue.lastLatencyMs = latencyMs
+    cdpConnectionState = safeTier1CdpConnectionState(response.diagnostics?.cdpConnectionState)
     const tier1StageTimings = safeTier1StageTimings(response.diagnostics?.stageTimings)
     stageTimings = workerQueueWait && tier1StageTimings
       ? { workerQueueWait, ...tier1StageTimings }
@@ -195,7 +198,7 @@ export async function generateHostedWorkerResponse(
       ...response,
       tier: hostedWorkerTier,
       latencyMs,
-      diagnostics: safeDiagnostics(response.diagnostics, stageTimings),
+      diagnostics: safeDiagnostics(response.diagnostics, stageTimings, cdpConnectionState),
     }
   } catch (error) {
     const normalized = normalizeGenerateError(error)
@@ -224,7 +227,9 @@ export async function generateHostedWorkerResponse(
         timedOut: errorCode === "timeout",
         errorCode,
         pid: process.pid,
+        workerStartedAtEpochMs: state.workerStartedAtEpochMs,
         uptimeMs: Math.round(process.uptime() * 1000),
+        cdpConnectionState,
         stageTimings,
         queueSnapshots: Object.keys(queueSnapshots).length > 0 ? queueSnapshots : undefined,
       })
@@ -306,6 +311,7 @@ function createAbortError(): ChatbotLlmError {
 function safeDiagnostics(
   diagnostics: ChatbotLlmResponse["diagnostics"],
   stageTimings: HostedWorkerStageTimings | undefined,
+  cdpConnectionState: Tier1CdpConnectionState | undefined,
 ): Record<string, unknown> {
   return {
     endpoint: diagnostics?.endpoint,
@@ -314,6 +320,7 @@ function safeDiagnostics(
     ndjsonPartialParsed: diagnostics?.ndjsonPartialParsed,
     ndjsonFinalParsed: diagnostics?.ndjsonFinalParsed,
     chunkCount: diagnostics?.chunkCount,
+    cdpConnectionState,
     stageTimings,
   }
 }
@@ -359,6 +366,20 @@ function safeTier1StageTimings(value: unknown): Tier1StageTimings | undefined {
     runtimeContextPreparation,
     inferenceAttempts,
   }
+}
+
+function safeTier1CdpConnectionState(value: unknown): Tier1CdpConnectionState | undefined {
+  if (!isRecord(value)) return undefined
+  if (!isCdpResourceState(value.session) || !isCdpResourceState(value.target)) return undefined
+
+  return {
+    session: value.session,
+    target: value.target,
+  }
+}
+
+function isCdpResourceState(value: unknown): value is Tier1CdpConnectionState["session"] {
+  return value === "newly_established" || value === "existing_reused"
 }
 
 function safeInferenceAttemptStageTiming(value: unknown): Tier1InferenceAttemptStageTiming | undefined {
@@ -478,7 +499,9 @@ async function writeGenerateDiagnostics(event: {
   timedOut: boolean
   errorCode?: string
   pid: number
+  workerStartedAtEpochMs: number
   uptimeMs: number
+  cdpConnectionState?: Tier1CdpConnectionState
   stageTimings?: HostedWorkerStageTimings
   queueSnapshots?: HostedWorkerQueueSnapshots
 }): Promise<void> {
