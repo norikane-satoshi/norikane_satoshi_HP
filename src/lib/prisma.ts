@@ -1,15 +1,14 @@
+import { createHash } from "node:crypto"
 import { PrismaClient } from "@prisma/client"
 import { PrismaLibSql } from "@prisma/adapter-libsql"
 
 declare global {
   // Next.js dev では HMR で module が再評価され、毎回 PrismaClient を作ると接続が増えていく。
   var __prisma: PrismaClient | undefined
-  var __prismaUrl: string | undefined
+  var __prismaConnectionFingerprint: string | undefined
 }
 
-function createPrismaClient(): PrismaClient {
-  const url = process.env.TURSO_DATABASE_URL
-  const authToken = process.env.TURSO_AUTH_TOKEN
+function createPrismaClient(url: string | undefined, authToken: string | undefined): PrismaClient {
   if (!url) {
     throw new Error("TURSO_DATABASE_URL is not set")
   }
@@ -18,14 +17,20 @@ function createPrismaClient(): PrismaClient {
 }
 
 const prismaUrl = process.env.TURSO_DATABASE_URL
-const cachedPrisma = globalThis.__prismaUrl === prismaUrl ? globalThis.__prisma : undefined
+const prismaAuthToken = process.env.TURSO_AUTH_TOKEN
+const prismaConnectionFingerprint = createHash("sha256")
+  .update(`${prismaUrl ?? ""}\0${prismaAuthToken ?? ""}`)
+  .digest("hex")
+const cachedPrisma = globalThis.__prismaConnectionFingerprint === prismaConnectionFingerprint
+  ? globalThis.__prisma
+  : undefined
 
-export const prisma: PrismaClient = cachedPrisma ?? createPrismaClient()
+export const prisma: PrismaClient = cachedPrisma ?? createPrismaClient(prismaUrl, prismaAuthToken)
 
 if (process.env.NODE_ENV !== "production") {
   if (globalThis.__prisma && globalThis.__prisma !== prisma) {
     void globalThis.__prisma.$disconnect().catch(() => undefined)
   }
   globalThis.__prisma = prisma
-  globalThis.__prismaUrl = prismaUrl
+  globalThis.__prismaConnectionFingerprint = prismaConnectionFingerprint
 }
