@@ -44,6 +44,10 @@ type HostedWorkerStageTimings = Tier1StageTimings & {
   workerQueueWait: ChatbotStageTimingSpan
 }
 
+type HostedWorkerQueueSnapshot = Pick<HostedWorkerRuntimeState["queue"], "inFlight" | "queueLength">
+type HostedWorkerQueueSnapshotPhase = "enqueued" | "started" | "completed" | "aborted"
+type HostedWorkerQueueSnapshots = Partial<Record<HostedWorkerQueueSnapshotPhase, HostedWorkerQueueSnapshot>>
+
 export class HostedWorkerSingleFlightQueue {
   private tail: Promise<void> = Promise.resolve()
 
@@ -55,12 +59,25 @@ export class HostedWorkerSingleFlightQueue {
       queuedAtEpochMs: number
       startedAtEpochMs: number
     }) => Promise<T>,
-    options: { signal?: AbortSignal; now?: () => number } = {},
+    options: {
+      signal?: AbortSignal
+      now?: () => number
+      onStateChange?: (phase: HostedWorkerQueueSnapshotPhase, snapshot: HostedWorkerQueueSnapshot) => void
+    } = {},
   ): Promise<T> {
     const queuedAt = options.now?.() ?? Date.now()
     if (options.signal?.aborted) return Promise.reject(createAbortError())
 
+    const recordState = (phase: HostedWorkerQueueSnapshotPhase) => {
+      try {
+        options.onStateChange?.(phase, snapshotQueueState(this.state))
+      } catch {
+        // Diagnostics must not make the hosted worker path fail.
+      }
+    }
+
     this.state.queue.queueLength += 1
+    recordState("enqueued")
     let queued = true
 
     const previous = this.tail.catch(() => undefined)
@@ -69,6 +86,7 @@ export class HostedWorkerSingleFlightQueue {
       queued = false
       this.state.queue.queueLength = Math.max(0, this.state.queue.queueLength - 1)
       this.state.queue.inFlight = true
+      recordState("started")
       try {
         const taskStartedAt = options.now?.() ?? Date.now()
         return await task({
@@ -78,6 +96,7 @@ export class HostedWorkerSingleFlightQueue {
         })
       } finally {
         this.state.queue.inFlight = false
+        recordState("completed")
       }
     })
     this.tail = current.then(
@@ -93,6 +112,7 @@ export class HostedWorkerSingleFlightQueue {
         if (queued) {
           queued = false
           this.state.queue.queueLength = Math.max(0, this.state.queue.queueLength - 1)
+          recordState("aborted")
         }
         reject(createAbortError())
       }
@@ -127,6 +147,7 @@ export async function generateHostedWorkerResponse(
   let aborted = false
   let workerQueueWait: ChatbotStageTimingSpan | undefined
   let stageTimings: HostedWorkerStageTimings | undefined
+  const queueSnapshots: HostedWorkerQueueSnapshots = {}
 
   try {
     throwIfAborted(options.signal)
@@ -152,7 +173,13 @@ export async function generateHostedWorkerResponse(
           generateDurationMs = (options.now?.() ?? Date.now()) - generateStartedAt
         }
       },
-      { signal: options.signal, now: options.now },
+      {
+        signal: options.signal,
+        now: options.now,
+        onStateChange: (phase, snapshot) => {
+          queueSnapshots[phase] = snapshot
+        },
+      },
     )
     const latencyMs = (options.now?.() ?? Date.now()) - startedAt
     outcome = "success"
@@ -199,6 +226,7 @@ export async function generateHostedWorkerResponse(
         pid: process.pid,
         uptimeMs: Math.round(process.uptime() * 1000),
         stageTimings,
+        queueSnapshots: Object.keys(queueSnapshots).length > 0 ? queueSnapshots : undefined,
       })
     }
   }
@@ -303,6 +331,13 @@ function createStageTimingSpan(
     startedAtEpochMs: safeStartedAtEpochMs,
     completedAtEpochMs: safeCompletedAtEpochMs,
     durationMs: safeCompletedAtEpochMs - safeStartedAtEpochMs,
+  }
+}
+
+function snapshotQueueState(state: HostedWorkerRuntimeState): HostedWorkerQueueSnapshot {
+  return {
+    inFlight: state.queue.inFlight,
+    queueLength: state.queue.queueLength,
   }
 }
 
@@ -445,6 +480,7 @@ async function writeGenerateDiagnostics(event: {
   pid: number
   uptimeMs: number
   stageTimings?: HostedWorkerStageTimings
+  queueSnapshots?: HostedWorkerQueueSnapshots
 }): Promise<void> {
   try {
     const { path: logPath, ...payload } = event

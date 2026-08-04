@@ -216,6 +216,7 @@ describe("hosted worker generate", () => {
         "generateDurationMs",
         "outcome",
         "pid",
+        "queueSnapshots",
         "queueWaitMs",
         "requestId",
         "tier",
@@ -227,6 +228,34 @@ describe("hosted worker generate", () => {
     expect(JSON.stringify(event)).not.toContain("systemPrompt")
     expect(JSON.stringify(event)).not.toContain("latestUserMessage")
     expect(JSON.stringify(event)).not.toContain("Bearer")
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("records queue and in-flight snapshots for a completed generation", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "hosted-worker-queue-snapshots-"))
+    const diagnosticsPath = path.join(dir, "generate.jsonl")
+    const state = createHostedWorkerRuntimeState()
+    const queue = createHostedWorkerQueue(state)
+
+    await generateHostedWorkerResponse(llmRequest("req_queue_snapshots"), state, queue, {
+      diagnosticsPath,
+      clientFactory: () => ({
+        generate: async () => ({
+          rawText: "ok",
+          displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
+          tier: "tier-1-chrome-notion-ai",
+        }),
+      }),
+    })
+
+    const [event] = readJsonl(diagnosticsPath)
+    expect(event.queueSnapshots).toEqual({
+      enqueued: { inFlight: false, queueLength: 1 },
+      started: { inFlight: true, queueLength: 0 },
+      completed: { inFlight: false, queueLength: 0 },
+    })
+    expect(JSON.stringify(event.queueSnapshots)).not.toContain("system prompt")
+    expect(JSON.stringify(event.queueSnapshots)).not.toContain("latest user message")
     rmSync(dir, { recursive: true, force: true })
   })
 
