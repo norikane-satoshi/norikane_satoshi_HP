@@ -64,7 +64,7 @@ function installLocalStorage() {
 }
 
 const conversationContentClasses = CHATBOT_CONVERSATION_CONTENT_CLASS_NAME.split(" ")
-const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v1"
+const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v2"
 
 function storeWidgetShellUi(activeUi: WidgetUi) {
   window.localStorage.setItem(

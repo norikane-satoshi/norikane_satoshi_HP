@@ -33,7 +33,8 @@ const assistantMessage = {
   content: "最終媒体を選んでください",
   createdAt: "2026-05-26T00:00:00.000Z",
 }
-const chatbotSessionStorageKey = "hp-chatbot-session-v1"
+const chatbotSessionStorageKey = "hp-chatbot-session-v2"
+const legacyChatbotSessionStorageKey = "hp-chatbot-session-v1"
 
 function touchPoint(identifier: number, clientX: number, clientY: number) {
   return { identifier, clientX, clientY, target: window } as unknown as Touch
@@ -1239,6 +1240,23 @@ describe("WidgetShell API wiring", () => {
       message: "壊れた保存後の相談です",
     })
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty("conversationId")
+  })
+
+  it("starts a fresh session instead of restoring the pre-renumbering session format", () => {
+    window.localStorage.setItem(
+      legacyChatbotSessionStorageKey,
+      JSON.stringify({
+        messages: [{ role: "user", content: "旧番号の保存済み相談", createdAt: "2026-05-26T00:00:00.000Z" }],
+        conversationId: "conv_legacy_tiers",
+        activeUi: { kind: "none" },
+        expiresAt: "2999-01-01T00:00:00.000Z",
+      }),
+    )
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    expect(screen.queryByText("旧番号の保存済み相談")).not.toBeInTheDocument()
+    expect(window.localStorage.getItem(chatbotSessionStorageKey)).not.toBeNull()
   })
 
   it("continues with the initial session when localStorage is unavailable", async () => {

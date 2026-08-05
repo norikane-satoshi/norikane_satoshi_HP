@@ -75,7 +75,7 @@ const communicationFallbackMessage =
 const formFallbackMessage =
   "自動再試行でも応答できませんでした。入力内容は残したまま、必要なら下のフォームから連絡できます。"
 const inquirySentMessage = "送信しました。担当者からの返信をお待ちください。"
-const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v1"
+const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v2"
 const CHATBOT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const CHATBOT_PENDING_REQUEST_TTL_MS = 15 * 60 * 1000
 const thinkingDelayNoticeMs = 6000
