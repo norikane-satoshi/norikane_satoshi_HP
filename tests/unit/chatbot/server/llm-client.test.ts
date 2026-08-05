@@ -4,10 +4,9 @@ import { ChatbotLlmError, defaultLlmTierOrder } from "@/lib/chatbot/server/llm-c
 import type { ChatbotLlmTier } from "@/lib/chatbot/server/llm-client"
 
 const expectedDefaultLlmTierOrder = [
-  "tier-1-chrome-notion-ai",
-  "tier-2-hosted-chrome-notion-ai",
-  "tier-3-gemini-flash",
-  "tier-4-form-fallback",
+  "tier-1-hosted-chrome-notion-ai",
+  "tier-2-gemini-flash",
+  "tier-3-form-fallback",
 ] as const satisfies ReadonlyArray<ChatbotLlmTier>
 
 describe("chatbot LLM client interface", () => {
@@ -16,7 +15,7 @@ describe("chatbot LLM client interface", () => {
     const error = new ChatbotLlmError({
       message: "Notion AI browser tier timed out",
       code: "timeout",
-      tier: "tier-1-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       isRetryable: true,
       cause,
     })
@@ -25,7 +24,7 @@ describe("chatbot LLM client interface", () => {
     expect(error.name).toBe("ChatbotLlmError")
     expect(error.message).toBe("Notion AI browser tier timed out")
     expect(error.code).toBe("timeout")
-    expect(error.tier).toBe("tier-1-chrome-notion-ai")
+    expect(error.tier).toBe("tier-1-hosted-chrome-notion-ai")
     expect(error.isRetryable).toBe(true)
     expect(error.cause).toBe(cause)
   })
@@ -34,7 +33,7 @@ describe("chatbot LLM client interface", () => {
     const error = new ChatbotLlmError({
       message: "Upstream assistant returned invalid JSON",
       code: "invalid-output",
-      tier: "tier-3-gemini-flash",
+      tier: "tier-2-gemini-flash",
       isRetryable: false,
     })
 
@@ -52,7 +51,7 @@ describe("chatbot LLM client interface", () => {
   it("keeps the form fallback included as the final tier", () => {
     const [lastTier] = [...defaultLlmTierOrder].reverse()
 
-    expect(defaultLlmTierOrder.includes("tier-4-form-fallback")).toBe(true)
-    expect(lastTier).toBe("tier-4-form-fallback")
+    expect(defaultLlmTierOrder.includes("tier-3-form-fallback")).toBe(true)
+    expect(lastTier).toBe("tier-3-form-fallback")
   })
 })

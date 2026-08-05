@@ -15,7 +15,7 @@ function slackFetcher(ts?: string) {
 }
 
 describe("sendChatbotSlackNotification", () => {
-  it("includes safe hosted Tier2 retry diagnostics in conversation Slack text", async () => {
+  it("includes safe hosted Tier1 retry diagnostics in conversation Slack text", async () => {
     const fetcher = slackFetcher()
 
     await expect(
@@ -25,7 +25,7 @@ describe("sendChatbotSlackNotification", () => {
           requestId: "req_1",
           conversationId: "conv_1",
           sessionId: "session_1",
-          tier: "tier-2-hosted-chrome-notion-ai",
+          tier: "tier-1-hosted-chrome-notion-ai",
           uiKind: "choice-panel",
           choiceSetId: "job-kind",
           flowStep: "intake",
@@ -93,9 +93,9 @@ describe("sendChatbotSlackNotification", () => {
         requestId: "req_2",
         conversationId: "conv_2",
         sessionId: "session_2",
-        tier: "tier-4-form-fallback",
+        tier: "tier-3-form-fallback",
         threadTs: "1710000000.000100",
-        issueReasons: ["below-hosted-tier2-fallback", "tier4-form-fallback"],
+        issueReasons: ["below-hosted-tier1-fallback", "tier3-form-fallback"],
         retryDiagnostics: {
           attemptCount: 3,
           maxAttempts: 3,
@@ -123,7 +123,7 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("retryReasons: server-error,server-error")
     expect(body.text).toContain("fallbackReason: budget-exhausted")
     expect(body.text).toContain("retryExhausted: true")
-    expect(body.text).toContain("内容: Hosted Tier2 以外の下位Tierで応答")
+    expect(body.text).toContain("内容: Hosted Tier1 以外の下位Tierで応答")
     expect(body.text).toContain("内容: AI応答を完了できず、問い合わせフォーム案内へ切り替え")
   })
 })

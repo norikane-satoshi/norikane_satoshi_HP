@@ -14,7 +14,7 @@ test("renders Booking Order prefill fields without cross-field leakage", async (
           content: "候補日時から予約できます",
           createdAt: "2026-07-05T00:00:00.000Z",
         },
-        tier: "tier-2-hosted-chrome-notion-ai",
+        tier: "tier-1-hosted-chrome-notion-ai",
         ui: {
           kind: "booking-card",
           suggestedSlots: [

@@ -17,7 +17,7 @@ describe("hosted worker health", () => {
       ok: true,
       status: "ready",
       healthMode: "quick",
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       queue: {
         inFlight: true,
         queueLength: 2,
@@ -51,7 +51,7 @@ describe("hosted worker health", () => {
         selectedModel: "diagnostic-model",
       },
       targetCount: 3,
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       queue: { inFlight: false, queueLength: 0 },
       healthMode: "deep",
       checkedAt: "2026-06-29T00:00:00.000Z",

@@ -1,23 +1,23 @@
 import type { ChatbotLlmClient, ChatbotLlmRequest, ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { chatbotLlmTierIds, createChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 
-type Tier4FormFallbackClientOptions = {
+type Tier3FormFallbackClientOptions = {
   responseText?: string
 }
 
-export const tier4FormFallbackDefaults = {
+export const tier3FormFallbackDefaults = {
   responseText:
     "<customer_reply>確認項目をフォームに切り替えます。案件内容とご連絡先を整理して送信してください。</customer_reply>",
 } as const
 
-const tier = chatbotLlmTierIds.tier4FormFallback
+const tier = chatbotLlmTierIds.tier3FormFallback
 
-export class Tier4FormFallbackClient implements ChatbotLlmClient {
+export class Tier3FormFallbackClient implements ChatbotLlmClient {
   readonly tier = tier
   private readonly responseText: string
 
-  constructor(options: Tier4FormFallbackClientOptions = {}) {
-    this.responseText = options.responseText ?? tier4FormFallbackDefaults.responseText
+  constructor(options: Tier3FormFallbackClientOptions = {}) {
+    this.responseText = options.responseText ?? tier3FormFallbackDefaults.responseText
   }
 
   async generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse> {
@@ -36,8 +36,8 @@ export class Tier4FormFallbackClient implements ChatbotLlmClient {
   }
 }
 
-export function createTier4FormFallbackClient(
-  overrides: Tier4FormFallbackClientOptions = {},
-): Tier4FormFallbackClient {
-  return new Tier4FormFallbackClient(overrides)
+export function createTier3FormFallbackClient(
+  overrides: Tier3FormFallbackClientOptions = {},
+): Tier3FormFallbackClient {
+  return new Tier3FormFallbackClient(overrides)
 }

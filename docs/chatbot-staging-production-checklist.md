@@ -50,7 +50,7 @@ The same guard also checks that generated `@prisma/client` schema contains the r
 
 Before any production reflection, compare `origin/master..origin/staging` and classify changes by surface:
 
-- chatbot runtime and repository state: API routes, server/domain code, widget state, choice panels, duration context, Notion knowledge sync, hosted Tier 2, local guard
+- chatbot runtime and repository state: API routes, server/domain code, widget state, choice panels, duration context, Notion knowledge sync, hosted Tier 1, local guard
 - HP visual/UI: hero, profile, featured works, press section, notes visuals, typography, side peek
 - schema and ops: Prisma migrations, env examples, cron/revalidate, launchd/systemd templates, staging baseline guard
 - docs/tests: coverage that proves the above

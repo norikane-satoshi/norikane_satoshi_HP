@@ -74,22 +74,17 @@ export type {
   TierAttemptEvent,
 } from "@/lib/chatbot/server/llm-orchestrator"
 export {
-  createTier1ChromeNotionAiClient,
-  Tier1ChromeNotionAiClient,
-} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
-export { runTier1HealthCheck } from "@/lib/chatbot/server/llm-clients/tier1-health-check"
+  createTier1HostedChromeNotionAiClient,
+  Tier1HostedChromeNotionAiClient,
+} from "@/lib/chatbot/server/llm-clients/tier1-hosted-chrome-notion-ai"
 export {
-  createTier2HostedChromeNotionAiClient,
-  Tier2HostedChromeNotionAiClient,
-} from "@/lib/chatbot/server/llm-clients/tier2-hosted-chrome-notion-ai"
+  createTier2GeminiFlashClient,
+  Tier2GeminiFlashClient,
+} from "@/lib/chatbot/server/llm-clients/tier2-gemini-flash"
 export {
-  createTier3GeminiFlashClient,
-  Tier3GeminiFlashClient,
-} from "@/lib/chatbot/server/llm-clients/tier3-gemini-flash"
-export {
-  createTier4FormFallbackClient,
-  Tier4FormFallbackClient,
-} from "@/lib/chatbot/server/llm-clients/tier4-form-fallback"
+  createTier3FormFallbackClient,
+  Tier3FormFallbackClient,
+} from "@/lib/chatbot/server/llm-clients/tier3-form-fallback"
 export { normalizeChatbotLlmResponse } from "@/lib/chatbot/server/llm-response-normalizer"
 export {
   formatUserChatbotContextForPrompt,

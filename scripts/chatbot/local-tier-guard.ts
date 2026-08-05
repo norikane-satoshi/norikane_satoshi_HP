@@ -8,31 +8,14 @@ import { fileURLToPath } from "node:url"
 
 import { config as loadDotenv } from "dotenv"
 
-import {
-  getNotionAiChatbotThreadUrl,
-} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
-import { isNotionAiChatbotTargetUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
-import { createTier3GeminiFlashClient } from "@/lib/chatbot/server/llm-clients/tier3-gemini-flash"
-import { createTier4FormFallbackClient } from "@/lib/chatbot/server/llm-clients/tier4-form-fallback"
+import { createTier2GeminiFlashClient } from "@/lib/chatbot/server/llm-clients/tier2-gemini-flash"
+import { createTier3FormFallbackClient } from "@/lib/chatbot/server/llm-clients/tier3-form-fallback"
 
 type TierName =
-  | "tier-1-chrome-notion-ai"
-  | "tier-3-gemini-flash"
-  | "tier-4-form-fallback"
+  | "tier-2-gemini-flash"
+  | "tier-3-form-fallback"
   | "local-41238-runtime"
 type GuardStatus = "green" | "yellow" | "red"
-
-type CdpTarget = {
-  type?: string
-  title?: string
-  url?: string
-}
-
-type CdpInspection =
-  | { status: "target-ready"; httpStatus: number; browser?: string; targetCount: number }
-  | { status: "login-redirect"; httpStatus: number; browser?: string; targetCount: number }
-  | { status: "target-missing"; httpStatus: number; browser?: string; targetCount: number }
-  | { status: "cdp-down"; httpStatus: number; error: string }
 
 type TierResult = {
   tier: TierName
@@ -45,19 +28,14 @@ type TierResult = {
 
 type GuardOptions = {
   daemon: boolean
-  repair: boolean
   intervalMs: number
   logPath: string
-  simulateTier1Absent: boolean
-  simulateTier3Absent: boolean
-  simulateTier4EnvMissing: boolean
+  simulateTier2Absent: boolean
+  simulateTier3EnvMissing: boolean
 }
 
 const defaultIntervalMs = 120_000
 const fetchTimeoutMs = 3000
-const waitForTier1Ms = 30_000
-const oneSecondMs = 1000
-const tier1DefaultCdpBaseUrl = "http://127.0.0.1:9223"
 const defaultLogPath = path.join(homedir(), "Library", "Logs", "norikane_satoshi_hp", "local-tier-guard.jsonl")
 const liveRepoEnvPath = path.join(homedir(), "projects", "norikane_satoshi_HP", ".env.local")
 
@@ -65,9 +43,8 @@ loadLocalEnv()
 
 export async function runGuard(options: GuardOptions): Promise<TierResult[]> {
   const results = [
-    await guardTier1(options),
+    await guardTier2(options),
     await guardTier3(options),
-    await guardTier4(options),
     await guardLocal41238Runtime(),
   ]
 
@@ -143,161 +120,12 @@ async function guardLocal41238Runtime(): Promise<TierResult> {
   }
 }
 
-async function guardTier1(options: GuardOptions): Promise<TierResult> {
-  const cdpBaseUrl = process.env.CHATBOT_TIER1_CDP_BASE_URL ?? tier1DefaultCdpBaseUrl
-  const threadUrl = getNotionAiChatbotThreadUrl()
-
-  let before = options.simulateTier1Absent
-    ? ({ status: "cdp-down", httpStatus: 0, error: "simulated_absent" } as CdpInspection)
-    : await inspectTier1(cdpBaseUrl, threadUrl)
-
-  if (before.status === "target-ready") {
-    return {
-      tier: "tier-1-chrome-notion-ai",
-      status: "green",
-      action: "none",
-      httpStatus: before.httpStatus,
-      detail: `target_ready:${before.targetCount}`,
-    }
-  }
-
-  if (before.status === "login-redirect") {
-    return {
-      tier: "tier-1-chrome-notion-ai",
-      status: "red",
-      action: "manual-reauth-required",
-      httpStatus: before.httpStatus,
-      detail: "notion_login_redirect",
-      nextAction: "manual_notion_reauth_required",
-    }
-  }
-
-  if (!options.repair) {
-    return tier1NeedsRepair(before)
-  }
-
-  if (before.status === "cdp-down") {
-    await startTier1Chrome(cdpBaseUrl, threadUrl)
-  } else if (before.status === "target-missing") {
-    await openTier1Target(cdpBaseUrl, threadUrl)
-  }
-
-  const after = await waitForTier1Ready(cdpBaseUrl, threadUrl)
-  if (after.status === "target-ready") {
-    return {
-      tier: "tier-1-chrome-notion-ai",
-      status: "green",
-      action: before.status === "cdp-down" ? "started-chrome" : "opened-thread",
-      httpStatus: after.httpStatus,
-      detail: `target_ready:${after.targetCount}`,
-    }
-  }
-
-  if (after.status === "login-redirect") {
-    return {
-      tier: "tier-1-chrome-notion-ai",
-      status: "red",
-      action: "manual-reauth-required",
-      httpStatus: after.httpStatus,
-      detail: "notion_login_redirect",
-      nextAction: "manual_notion_reauth_required",
-    }
-  }
-
-  before = after
-  return tier1NeedsRepair(before)
-}
-
-function tier1NeedsRepair(inspection: CdpInspection): TierResult {
-  return {
-    tier: "tier-1-chrome-notion-ai",
-    status: "red",
-    action: inspection.status === "cdp-down" ? "start-chrome-required" : "open-thread-required",
-    httpStatus: inspection.httpStatus,
-    detail: inspection.status,
-    nextAction: inspection.status === "cdp-down" ? "start_chrome_cdp_9223" : "open_notion_ai_thread",
-  }
-}
-
-async function inspectTier1(cdpBaseUrl: string, threadUrl: string): Promise<CdpInspection> {
-  try {
-    const [versionResponse, targetsResponse] = await Promise.all([
-      fetchJson<{ Browser?: string }>(`${cdpBaseUrl}/json/version`),
-      fetchJson<CdpTarget[]>(`${cdpBaseUrl}/json/list`),
-    ])
-    const pageTargets = targetsResponse.body.filter((target) => target.type === "page")
-    const hasLoginRedirect = pageTargets.some((target) => {
-      const url = target.url ?? ""
-      return (url.includes("notion.so") || url.includes("app.notion.com")) && url.includes("/login")
-    })
-    if (hasLoginRedirect) {
-      return {
-        status: "login-redirect",
-        httpStatus: targetsResponse.status,
-        browser: versionResponse.body.Browser,
-        targetCount: targetsResponse.body.length,
-      }
-    }
-
-    const hasTarget = pageTargets.some((target) => isNotionAiChatbotTargetUrl(target.url, threadUrl))
-    return {
-      status: hasTarget ? "target-ready" : "target-missing",
-      httpStatus: targetsResponse.status,
-      browser: versionResponse.body.Browser,
-      targetCount: targetsResponse.body.length,
-    }
-  } catch (error) {
-    return {
-      status: "cdp-down",
-      httpStatus: 0,
-      error: error instanceof Error ? error.message : String(error),
-    }
-  }
-}
-
-async function startTier1Chrome(cdpBaseUrl: string, threadUrl: string): Promise<void> {
-  const cdpUrl = new URL(cdpBaseUrl)
-  const profileDir =
-    process.env.CHATBOT_TIER1_CHROME_PROFILE_DIR ??
-    path.join(homedir(), ".cc-notion", "chrome-profiles", "notion-ai")
-  const chromeApp = process.env.CHATBOT_TIER1_CHROME_APP ?? "Google Chrome"
-  const port = cdpUrl.port || "9223"
-  const host = cdpUrl.hostname || "127.0.0.1"
-  await spawnAndWait("/usr/bin/open", [
-    "-na",
-    chromeApp,
-    "--args",
-    `--user-data-dir=${profileDir}`,
-    `--remote-debugging-address=${host}`,
-    `--remote-debugging-port=${port}`,
-    `--remote-allow-origins=http://${host}:${port}`,
-    "--no-first-run",
-    "--no-default-browser-check",
-    threadUrl,
-  ])
-}
-
-async function openTier1Target(cdpBaseUrl: string, threadUrl: string): Promise<void> {
-  await fetch(`${cdpBaseUrl}/json/new?${encodeURIComponent(threadUrl)}`, { method: "PUT" }).catch(() => undefined)
-}
-
-async function waitForTier1Ready(cdpBaseUrl: string, threadUrl: string): Promise<CdpInspection> {
-  const deadline = Date.now() + waitForTier1Ms
-  let latest = await inspectTier1(cdpBaseUrl, threadUrl)
-  while (Date.now() < deadline) {
-    if (latest.status === "target-ready" || latest.status === "login-redirect") return latest
-    await sleep(oneSecondMs)
-    latest = await inspectTier1(cdpBaseUrl, threadUrl)
-  }
-  return latest
-}
-
-async function guardTier3(options: GuardOptions): Promise<TierResult> {
-  const client = createTier3GeminiFlashClient()
-  const healthy = !options.simulateTier3Absent && (await client.isHealthy())
+async function guardTier2(options: GuardOptions): Promise<TierResult> {
+  const client = createTier2GeminiFlashClient()
+  const healthy = !options.simulateTier2Absent && (await client.isHealthy())
   if (healthy) {
     return {
-      tier: "tier-3-gemini-flash",
+      tier: "tier-2-gemini-flash",
       status: "green",
       action: "none",
       detail: "model_ready",
@@ -305,23 +133,23 @@ async function guardTier3(options: GuardOptions): Promise<TierResult> {
   }
 
   return {
-    tier: "tier-3-gemini-flash",
+    tier: "tier-2-gemini-flash",
     status: "red",
     action: "gemini-health-check-required",
-    detail: options.simulateTier3Absent ? "simulated_absent" : "model_unavailable",
+    detail: options.simulateTier2Absent ? "simulated_absent" : "model_unavailable",
     nextAction: "restore_gemini_configuration_or_service",
   }
 }
 
-async function guardTier4(options: GuardOptions): Promise<TierResult> {
-  const hasResendApiKey = !options.simulateTier4EnvMissing && isPresent(process.env.RESEND_API_KEY)
-  const hasFromEmail = !options.simulateTier4EnvMissing && isPresent(process.env.RESEND_FROM_EMAIL)
-  const client = createTier4FormFallbackClient()
+async function guardTier3(options: GuardOptions): Promise<TierResult> {
+  const hasResendApiKey = !options.simulateTier3EnvMissing && isPresent(process.env.RESEND_API_KEY)
+  const hasFromEmail = !options.simulateTier3EnvMissing && isPresent(process.env.RESEND_FROM_EMAIL)
+  const client = createTier3FormFallbackClient()
   const clientHealthy = await client.isHealthy()
 
   if (clientHealthy && hasResendApiKey && hasFromEmail) {
     return {
-      tier: "tier-4-form-fallback",
+      tier: "tier-3-form-fallback",
       status: "green",
       action: "none",
       detail: "client_ready:resend_env_present",
@@ -329,7 +157,7 @@ async function guardTier4(options: GuardOptions): Promise<TierResult> {
   }
 
   return {
-    tier: "tier-4-form-fallback",
+    tier: "tier-3-form-fallback",
     status: hasResendApiKey ? "yellow" : "red",
     action: "env-check-required",
     detail: `client:${clientHealthy ? "ready" : "not_ready"};RESEND_API_KEY:${hasResendApiKey ? "present" : "missing"};RESEND_FROM_EMAIL:${hasFromEmail ? "present" : "missing"}`,
@@ -550,25 +378,6 @@ function loadLocalEnv(): void {
   }
 }
 
-async function fetchJson<T>(url: string): Promise<{ status: number; body: T }> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs)
-  try {
-    const response = await fetch(url, { signal: controller.signal })
-    if (!response.ok) throw new Error(`${url} returned ${response.status}`)
-    return { status: response.status, body: (await response.json()) as T }
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
-async function spawnAndWait(command: string, args: string[]): Promise<void> {
-  const result = await spawnCapture(command, args)
-  if (result.exitCode !== 0) {
-    throw new Error(`${command} exited ${result.exitCode}: ${result.stderr.trim() || result.stdout.trim()}`)
-  }
-}
-
 function spawnCapture(command: string, args: string[]): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -606,12 +415,10 @@ async function writeLog(logPath: string, results: TierResult[]): Promise<void> {
 function parseOptions(argv: string[]): GuardOptions {
   return {
     daemon: argv.includes("--daemon"),
-    repair: !argv.includes("--no-repair"),
     intervalMs: readNumberFlag(argv, "--interval-ms", defaultIntervalMs),
     logPath: readStringFlag(argv, "--log-path", defaultLogPath),
-    simulateTier1Absent: argv.includes("--simulate-tier1-absent"),
-    simulateTier3Absent: argv.includes("--simulate-tier3-absent"),
-    simulateTier4EnvMissing: argv.includes("--simulate-tier4-env-missing"),
+    simulateTier2Absent: argv.includes("--simulate-tier2-absent"),
+    simulateTier3EnvMissing: argv.includes("--simulate-tier3-env-missing"),
   }
 }
 
@@ -653,7 +460,7 @@ async function main(): Promise<void> {
       const message = error instanceof Error ? error.message : String(error)
       await writeLog(options.logPath, [
         {
-          tier: "tier-1-chrome-notion-ai",
+          tier: "local-41238-runtime",
           status: "red",
           action: "guard-error",
           detail: message,

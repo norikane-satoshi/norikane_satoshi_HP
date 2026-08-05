@@ -92,7 +92,7 @@ type HeartbeatResult = {
   logPath: string
 }
 
-const tier = "tier-2-hosted-chrome-notion-ai"
+const tier = "tier-1-hosted-chrome-notion-ai"
 const defaultWorkerUrl = "http://127.0.0.1:8787"
 const defaultNotificationTo = "norikane.satoshi@gmail.com"
 const defaultTimeoutMs = 10_000
@@ -103,9 +103,9 @@ const defaultFailureThreshold = 1
 const defaultTransientGenerateFailureThreshold = 3
 const repairCooldownMs = 20 * 60_000
 const stateDir = path.join(homedir(), ".local", "state", "norikane_satoshi_hp")
-const defaultStatePath = path.join(stateDir, "hosted-tier2-heartbeat-state.json")
-const defaultLogPath = path.join(stateDir, "hosted-tier2-heartbeat.jsonl")
-const defaultEnvPath = path.join(homedir(), ".config", "norikane", "hosted-tier2-heartbeat.env")
+const defaultStatePath = path.join(stateDir, "hosted-tier1-heartbeat-state.json")
+const defaultLogPath = path.join(stateDir, "hosted-tier1-heartbeat.jsonl")
+const defaultEnvPath = path.join(homedir(), ".config", "norikane", "hosted-tier1-heartbeat.env")
 const localEnvPath = path.join(process.cwd(), ".env.local")
 const bearerPrefix = "Bearer "
 
@@ -113,7 +113,7 @@ export async function runHeartbeat(
   config: HeartbeatConfig,
   deps: RuntimeDeps = defaultDeps(),
 ): Promise<HeartbeatResult> {
-  if (!config.token) throw new Error("Hosted Tier2 worker token env is missing.")
+  if (!config.token) throw new Error("Hosted Tier1 worker token env is missing.")
 
   const previous = await readState(config.statePath)
   const checks: CheckResult[] = []
@@ -178,7 +178,7 @@ export async function runHeartbeat(
   await writeState(config.statePath, nextState)
   await writeLog(config.logPath, {
     ts: now.toISOString(),
-    event: "hosted_tier2_heartbeat",
+    event: "hosted_tier1_heartbeat",
     tier,
     ok,
     status: nextState.status,
@@ -488,10 +488,10 @@ async function sendResendNotification(
 
   const subject =
     kind === "recovered"
-      ? "[norikane HP] Tier2 hosted worker recovered"
+      ? "[norikane HP] Tier1 hosted worker recovered"
       : kind === "test"
-        ? "[norikane HP] Tier2 hosted worker heartbeat test"
-        : "[norikane HP] Tier2 hosted worker unhealthy"
+        ? "[norikane HP] Tier1 hosted worker heartbeat test"
+        : "[norikane HP] Tier1 hosted worker unhealthy"
 
   try {
     const response = await fetchClient("https://api.resend.com/emails", {
@@ -626,7 +626,7 @@ function buildHeartbeatIncident(
 
   return {
     kind: health?.ok === true && generate?.ok === false ? "health_ok_generate_failed" : "check_failed",
-    operation: "hosted-tier2-heartbeat",
+    operation: "hosted-tier1-heartbeat",
     phase: primaryFailure.name,
     httpStatus: primaryFailure.status,
     failureOrigin: classifyFailureOrigin(primaryFailure),
@@ -692,61 +692,61 @@ function runCommand(command: string, args: string[]): Promise<{ exitCode: number
 
 function resolveConfig(argv: string[]): { config: HeartbeatConfig; sendTestNotification: boolean } {
   const args = parseArgs(argv)
-  loadEnvFiles([args["env-file"], process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_ENV_FILE, defaultEnvPath, localEnvPath])
+  loadEnvFiles([args["env-file"], process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_ENV_FILE, defaultEnvPath, localEnvPath])
 
   return {
     sendTestNotification: args["send-test-notification"] === "true",
     config: {
       workerUrl:
         args["worker-url"] ??
-        process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_WORKER_URL ??
+        process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_WORKER_URL ??
         process.env.CHATBOT_HOSTED_NOTION_AI_WORKER_URL ??
         defaultWorkerUrl,
       token:
-        process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_TOKEN ??
+        process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_TOKEN ??
         process.env.CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN ??
         process.env.CHATBOT_HOSTED_WORKER_TOKEN,
-      timeoutMs: readPositiveInt(args["timeout-ms"] ?? process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_TIMEOUT_MS, defaultTimeoutMs),
+      timeoutMs: readPositiveInt(args["timeout-ms"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_TIMEOUT_MS, defaultTimeoutMs),
       generateTimeoutMs: readPositiveInt(
-        args["generate-timeout-ms"] ?? process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_GENERATE_TIMEOUT_MS,
+        args["generate-timeout-ms"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_GENERATE_TIMEOUT_MS,
         defaultGenerateTimeoutMs,
       ),
       generateIntervalMs: readPositiveInt(
-        args["generate-interval-ms"] ?? process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_GENERATE_INTERVAL_MS,
+        args["generate-interval-ms"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_GENERATE_INTERVAL_MS,
         defaultGenerateIntervalMs,
       ),
       failureThreshold: readPositiveInt(
-        args["failure-threshold"] ?? process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_FAILURE_THRESHOLD,
+        args["failure-threshold"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_FAILURE_THRESHOLD,
         defaultFailureThreshold,
       ),
       transientGenerateFailureThreshold: readPositiveInt(
         args["transient-generate-failure-threshold"] ??
-          process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD,
+          process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD,
         defaultTransientGenerateFailureThreshold,
       ),
       notificationCooldownMs: readPositiveInt(
-        args["notification-cooldown-ms"] ?? process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_NOTIFICATION_COOLDOWN_MS,
+        args["notification-cooldown-ms"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_NOTIFICATION_COOLDOWN_MS,
         defaultNotificationCooldownMs,
       ),
-      statePath: args["state-path"] ?? process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_STATE_PATH ?? defaultStatePath,
-      logPath: args["log-path"] ?? process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_LOG_PATH ?? defaultLogPath,
+      statePath: args["state-path"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_STATE_PATH ?? defaultStatePath,
+      logPath: args["log-path"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_LOG_PATH ?? defaultLogPath,
       notificationTo:
         args["notification-to"] ??
-        process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_NOTIFY_EMAIL ??
+        process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_NOTIFY_EMAIL ??
         defaultNotificationTo,
       notificationFrom:
-        process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_FROM_EMAIL ?? process.env.RESEND_FROM_EMAIL,
+        process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_FROM_EMAIL ?? process.env.RESEND_FROM_EMAIL,
       resendApiKey: process.env.RESEND_API_KEY,
-      slackWebhookUrl: process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_SLACK_WEBHOOK_URL,
-      slackBotToken: process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_SLACK_BOT_TOKEN ?? process.env.SLACK_BOT_TOKEN,
-      slackChannel: process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_SLACK_CHANNEL,
-      dryRunNotify: args["dry-run-notify"] === "true" || process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_DRY_RUN_NOTIFY === "1",
+      slackWebhookUrl: process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_SLACK_WEBHOOK_URL,
+      slackBotToken: process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_SLACK_BOT_TOKEN ?? process.env.SLACK_BOT_TOKEN,
+      slackChannel: process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_SLACK_CHANNEL,
+      dryRunNotify: args["dry-run-notify"] === "true" || process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_DRY_RUN_NOTIFY === "1",
       repair: args["no-repair"] !== "true",
       forceGenerate: args["force-generate"] === "true",
       workerServiceName:
-        process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_WORKER_SERVICE ?? "hosted-notion-ai-worker.service",
+        process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_WORKER_SERVICE ?? "hosted-notion-ai-worker.service",
       chromeServiceName:
-        process.env.CHATBOT_HOSTED_TIER2_HEARTBEAT_CHROME_SERVICE ?? "hosted-worker-chrome.service",
+        process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_CHROME_SERVICE ?? "hosted-worker-chrome.service",
     },
   }
 }

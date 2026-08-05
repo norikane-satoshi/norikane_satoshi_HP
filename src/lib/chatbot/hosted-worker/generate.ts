@@ -8,15 +8,15 @@ import { appendFile, mkdir } from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
 import {
-  createTier1ChromeNotionAiClient,
-  tier1ChromeNotionAiDefaults,
+  createHostedNotionAiBrowserClient,
+  hostedNotionAiBrowserDefaults,
   type ChatbotStageTimingSpan,
-  type Tier1CdpConnectionState,
-  type Tier1InferenceAttemptStageTiming,
-  type Tier1StageTimings,
-} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
+  type HostedNotionAiCdpConnectionState,
+  type HostedNotionAiInferenceAttemptStageTiming,
+  type HostedNotionAiStageTimings,
+} from "@/lib/chatbot/hosted-worker/notion-ai-browser-client"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
-import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
+import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/hosted-worker/notion-ai-config"
 import {
   hostedWorkerTier,
   type HostedWorkerGenerateResponse,
@@ -39,9 +39,9 @@ const abortTag = "request_aborted"
 const diagnosticsEventName = "hosted_worker_generate"
 const stateDir = path.join(homedir(), ".local", "state", "norikane_satoshi_hp")
 const defaultDiagnosticsPath = path.join(stateDir, "hosted-worker-generate.jsonl")
-const stageTimingBoundary = "tier1-stage-timings"
+const stageTimingBoundary = "hosted-notion-ai-stage-timings"
 
-type HostedWorkerStageTimings = Tier1StageTimings & {
+type HostedWorkerStageTimings = HostedNotionAiStageTimings & {
   workerQueueWait: ChatbotStageTimingSpan
 }
 
@@ -148,7 +148,7 @@ export async function generateHostedWorkerResponse(
   let aborted = false
   let workerQueueWait: ChatbotStageTimingSpan | undefined
   let stageTimings: HostedWorkerStageTimings | undefined
-  let cdpConnectionState: Tier1CdpConnectionState | undefined
+  let cdpConnectionState: HostedNotionAiCdpConnectionState | undefined
   const queueSnapshots: HostedWorkerQueueSnapshots = {}
 
   try {
@@ -164,7 +164,7 @@ export async function generateHostedWorkerResponse(
         const activeAbort = createLinkedAbortController(options.signal)
         try {
           return await withTimeout(
-            createTier1Response(request, options.clientFactory, activeAbort.signal),
+            createHostedNotionAiResponse(request, options.clientFactory, activeAbort.signal),
             timeoutMs,
             timeoutTag,
             options.signal,
@@ -188,10 +188,10 @@ export async function generateHostedWorkerResponse(
     state.queue.lastSuccessAt = new Date().toISOString()
     state.queue.lastErrorCode = undefined
     state.queue.lastLatencyMs = latencyMs
-    cdpConnectionState = safeTier1CdpConnectionState(response.diagnostics?.cdpConnectionState)
-    const tier1StageTimings = safeTier1StageTimings(response.diagnostics?.stageTimings)
-    stageTimings = workerQueueWait && tier1StageTimings
-      ? { workerQueueWait, ...tier1StageTimings }
+    cdpConnectionState = safeHostedNotionAiCdpConnectionState(response.diagnostics?.cdpConnectionState)
+    const hostedNotionAiStageTimings = safeHostedNotionAiStageTimings(response.diagnostics?.stageTimings)
+    stageTimings = workerQueueWait && hostedNotionAiStageTimings
+      ? { workerQueueWait, ...hostedNotionAiStageTimings }
       : undefined
 
     return {
@@ -237,22 +237,22 @@ export async function generateHostedWorkerResponse(
   }
 }
 
-function createTier1Response(
+function createHostedNotionAiResponse(
   request: ChatbotLlmRequest,
   clientFactory: GenerateOptions["clientFactory"],
   signal?: AbortSignal,
 ): Promise<ChatbotLlmResponse> {
   const client =
     clientFactory?.() ??
-    createTier1ChromeNotionAiClient({
-      cdpBaseUrl: process.env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL ?? tier1ChromeNotionAiDefaults.cdpBaseUrl,
+    createHostedNotionAiBrowserClient({
+      cdpBaseUrl: process.env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL ?? hostedNotionAiBrowserDefaults.cdpBaseUrl,
       targetUrlIncludes:
         process.env.CHATBOT_HOSTED_WORKER_NOTION_THREAD_URL ??
         process.env.NOTION_AI_CHATBOT_THREAD_URL ??
         getNotionAiChatbotThreadUrl(),
       requestTimeoutMs: parsePositiveInteger(
         process.env.CHATBOT_HOSTED_WORKER_GENERATE_TIMEOUT_MS,
-        tier1ChromeNotionAiDefaults.requestTimeoutMs,
+        hostedNotionAiBrowserDefaults.requestTimeoutMs,
       ),
     })
 
@@ -311,7 +311,7 @@ function createAbortError(): ChatbotLlmError {
 function safeDiagnostics(
   diagnostics: ChatbotLlmResponse["diagnostics"],
   stageTimings: HostedWorkerStageTimings | undefined,
-  cdpConnectionState: Tier1CdpConnectionState | undefined,
+  cdpConnectionState: HostedNotionAiCdpConnectionState | undefined,
 ): Record<string, unknown> {
   return {
     endpoint: diagnostics?.endpoint,
@@ -348,7 +348,7 @@ function snapshotQueueState(state: HostedWorkerRuntimeState): HostedWorkerQueueS
   }
 }
 
-function safeTier1StageTimings(value: unknown): Tier1StageTimings | undefined {
+function safeHostedNotionAiStageTimings(value: unknown): HostedNotionAiStageTimings | undefined {
   if (!isRecord(value)) return undefined
   const cdpTargetSession = safeStageTimingSpan(value.cdpTargetSession)
   const runtimeContextPreparation = safeStageTimingSpan(value.runtimeContextPreparation)
@@ -358,7 +358,7 @@ function safeTier1StageTimings(value: unknown): Tier1StageTimings | undefined {
 
   const inferenceAttempts = value.inferenceAttempts
     .map(safeInferenceAttemptStageTiming)
-    .filter((attempt): attempt is Tier1InferenceAttemptStageTiming => Boolean(attempt))
+    .filter((attempt): attempt is HostedNotionAiInferenceAttemptStageTiming => Boolean(attempt))
   if (inferenceAttempts.length !== value.inferenceAttempts.length) return undefined
 
   return {
@@ -368,7 +368,7 @@ function safeTier1StageTimings(value: unknown): Tier1StageTimings | undefined {
   }
 }
 
-function safeTier1CdpConnectionState(value: unknown): Tier1CdpConnectionState | undefined {
+function safeHostedNotionAiCdpConnectionState(value: unknown): HostedNotionAiCdpConnectionState | undefined {
   if (!isRecord(value)) return undefined
   if (!isCdpResourceState(value.session) || !isCdpResourceState(value.target)) return undefined
 
@@ -378,11 +378,11 @@ function safeTier1CdpConnectionState(value: unknown): Tier1CdpConnectionState | 
   }
 }
 
-function isCdpResourceState(value: unknown): value is Tier1CdpConnectionState["session"] {
+function isCdpResourceState(value: unknown): value is HostedNotionAiCdpConnectionState["session"] {
   return value === "newly_established" || value === "existing_reused"
 }
 
-function safeInferenceAttemptStageTiming(value: unknown): Tier1InferenceAttemptStageTiming | undefined {
+function safeInferenceAttemptStageTiming(value: unknown): HostedNotionAiInferenceAttemptStageTiming | undefined {
   if (!isRecord(value) || !Number.isInteger(value.attempt) || Number(value.attempt) < 1) return undefined
   const promptToFirstChunk = safeStageTimingSpan(value.promptToFirstChunk)
   const firstChunkToFinalChunk = safeStageTimingSpan(value.firstChunkToFinalChunk)
@@ -501,7 +501,7 @@ async function writeGenerateDiagnostics(event: {
   pid: number
   workerStartedAtEpochMs: number
   uptimeMs: number
-  cdpConnectionState?: Tier1CdpConnectionState
+  cdpConnectionState?: HostedNotionAiCdpConnectionState
   stageTimings?: HostedWorkerStageTimings
   queueSnapshots?: HostedWorkerQueueSnapshots
 }): Promise<void> {

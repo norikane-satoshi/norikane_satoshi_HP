@@ -10,7 +10,7 @@ export type ChatbotFlowStep =
   | "direct-contact-card"
   | "choice-panel"
   | "choice-clarification"
-  | "tier4-inquiry-form"
+  | "tier3-inquiry-form"
 
 export function applyBookingFinalConfirmationAnswer(input: {
   conversationState: ConversationState
@@ -259,8 +259,8 @@ export function inferChatbotFlowStep(input: {
       return "direct-contact-card"
     case "choice-panel":
       return "choice-panel"
-    case "tier4-inquiry-form":
-      return "tier4-inquiry-form"
+    case "tier3-inquiry-form":
+      return "tier3-inquiry-form"
     default:
       return input.routingDecision?.kind === "to-booking-inline" ? "booking-card" : "conversation"
   }

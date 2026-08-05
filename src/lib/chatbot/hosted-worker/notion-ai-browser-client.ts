@@ -9,16 +9,16 @@ import {
   chatbotLlmTierIds,
   createChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
-import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
+import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/hosted-worker/notion-ai-config"
 
-type Tier1ChromeNotionAiClientConfig = {
+type HostedNotionAiBrowserClientConfig = {
   cdpBaseUrl: string
   targetUrlIncludes: string
   requestTimeoutMs: number
   healthCheckTimeoutMs: number
 }
 
-type Tier1ChromeNotionAiClientOptions = Partial<Tier1ChromeNotionAiClientConfig> & {
+type HostedNotionAiBrowserClientOptions = Partial<HostedNotionAiBrowserClientConfig> & {
   fetchClient?: CdpFetchClient
   sessionFactory?: NotionAiCdpSessionFactory
   idFactory?: IdFactory
@@ -69,22 +69,22 @@ export type ChatbotStageTimingSpan = {
   durationMs: number
 }
 
-export type Tier1InferenceAttemptStageTiming = {
+export type HostedNotionAiInferenceAttemptStageTiming = {
   attempt: number
   promptToFirstChunk: ChatbotStageTimingSpan
   firstChunkToFinalChunk: ChatbotStageTimingSpan
   ndjsonOutputContractValidation: ChatbotStageTimingSpan
 }
 
-export type Tier1CdpConnectionState = {
+export type HostedNotionAiCdpConnectionState = {
   session: "newly_established" | "existing_reused"
   target: "newly_established" | "existing_reused"
 }
 
-export type Tier1StageTimings = {
+export type HostedNotionAiStageTimings = {
   cdpTargetSession: ChatbotStageTimingSpan
   runtimeContextPreparation: ChatbotStageTimingSpan
-  inferenceAttempts: Tier1InferenceAttemptStageTiming[]
+  inferenceAttempts: HostedNotionAiInferenceAttemptStageTiming[]
 }
 
 type NotionAiWorkflowValue = {
@@ -247,7 +247,7 @@ type RuntimeEvaluateResult<T> = {
   exceptionDetails?: unknown
 }
 
-const tier = chatbotLlmTierIds.tier1ChromeNotionAi
+const tier = chatbotLlmTierIds.tier1HostedChromeNotionAi
 const timeoutTag: TimeoutTag = "timeout"
 const abortTag: AbortTag = "aborted"
 const jsonListPath = "/json/list"
@@ -259,7 +259,7 @@ const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
 const emptyText = ""
 const maxTransientGenerateAttempts = 2
-let tier1GenerateQueue = Promise.resolve()
+let hostedNotionAiGenerateQueue = Promise.resolve()
 
 export const chatbotNotionAiModelPolicy = {
   mode: "auto-with-denylist",
@@ -326,28 +326,28 @@ export const chatbotNotionAiModelPolicy = {
   ],
 } as const
 
-export const tier1ChromeNotionAiDefaults = {
+export const hostedNotionAiBrowserDefaults = {
   cdpBaseUrl: "http://127.0.0.1:9223",
   targetUrlIncludes: getNotionAiChatbotThreadUrl(),
   requestTimeoutMs: 180000,
   healthCheckTimeoutMs: 3000,
 } as const
 
-export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
+export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
   readonly tier = tier
-  private readonly config: Tier1ChromeNotionAiClientConfig
+  private readonly config: HostedNotionAiBrowserClientConfig
   private readonly fetchClient: CdpFetchClient
   private readonly sessionFactory: NotionAiCdpSessionFactory
   private readonly idFactory: IdFactory
   private lastHealthError?: ChatbotLlmError | Error
 
-  constructor(options: Tier1ChromeNotionAiClientOptions = {}) {
+  constructor(options: HostedNotionAiBrowserClientOptions = {}) {
     this.config = {
-      cdpBaseUrl: options.cdpBaseUrl ?? tier1ChromeNotionAiDefaults.cdpBaseUrl,
-      targetUrlIncludes: options.targetUrlIncludes ?? tier1ChromeNotionAiDefaults.targetUrlIncludes,
-      requestTimeoutMs: options.requestTimeoutMs ?? tier1ChromeNotionAiDefaults.requestTimeoutMs,
+      cdpBaseUrl: options.cdpBaseUrl ?? hostedNotionAiBrowserDefaults.cdpBaseUrl,
+      targetUrlIncludes: options.targetUrlIncludes ?? hostedNotionAiBrowserDefaults.targetUrlIncludes,
+      requestTimeoutMs: options.requestTimeoutMs ?? hostedNotionAiBrowserDefaults.requestTimeoutMs,
       healthCheckTimeoutMs:
-        options.healthCheckTimeoutMs ?? tier1ChromeNotionAiDefaults.healthCheckTimeoutMs,
+        options.healthCheckTimeoutMs ?? hostedNotionAiBrowserDefaults.healthCheckTimeoutMs,
     }
     this.fetchClient = options.fetchClient ?? globalFetch
     this.sessionFactory = options.sessionFactory ?? createDefaultCdpSession
@@ -356,7 +356,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
 
   async generate(request: ChatbotLlmRequest, options: ChatbotLlmGenerateOptions = {}): Promise<ChatbotLlmResponse> {
     const startedAt = Date.now()
-    return runTier1GenerateExclusive(() => this.generateUnqueued(request, startedAt, options.signal), options.signal)
+    return runHostedNotionAiGenerateExclusive(() => this.generateUnqueued(request, startedAt, options.signal), options.signal)
   }
 
   private async generateUnqueued(
@@ -374,7 +374,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
     const cdpConnectionState = {
       session: "newly_established",
       target: "existing_reused",
-    } satisfies Tier1CdpConnectionState
+    } satisfies HostedNotionAiCdpConnectionState
 
     try {
       const runtimeContextPreparationStartedAtEpochMs = Date.now()
@@ -400,7 +400,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
       )
       let result: NotionAiInferenceResult | undefined
       let inferenceAttempts = 0
-      const inferenceAttemptStageTimings: Tier1InferenceAttemptStageTiming[] = []
+      const inferenceAttemptStageTimings: HostedNotionAiInferenceAttemptStageTiming[] = []
 
       for (let attempt = 1; attempt <= maxTransientGenerateAttempts; attempt += 1) {
         inferenceAttempts = attempt
@@ -453,7 +453,7 @@ export class Tier1ChromeNotionAiClient implements ChatbotLlmClient {
             cdpTargetSession,
             runtimeContextPreparation,
             inferenceAttempts: inferenceAttemptStageTimings,
-          } satisfies Tier1StageTimings,
+          } satisfies HostedNotionAiStageTimings,
           attachTargetUrl: target.url,
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
         },
@@ -694,7 +694,7 @@ function createStageTimingSpan(
 function createInferenceAttemptStageTiming(
   attempt: number,
   marks: NotionAiInferenceStageTimingMarks | undefined,
-): Tier1InferenceAttemptStageTiming | undefined {
+): HostedNotionAiInferenceAttemptStageTiming | undefined {
   if (!marks || !Object.values(marks).every((value) => Number.isFinite(value))) return undefined
 
   return {
@@ -714,15 +714,15 @@ function createInferenceAttemptStageTiming(
   }
 }
 
-function runTier1GenerateExclusive<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-  const run = tier1GenerateQueue.then(() => {
+function runHostedNotionAiGenerateExclusive<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  const run = hostedNotionAiGenerateQueue.then(() => {
     throwIfAborted(signal)
     return operation()
   }, () => {
     throwIfAborted(signal)
     return operation()
   })
-  tier1GenerateQueue = run.then(() => undefined, () => undefined)
+  hostedNotionAiGenerateQueue = run.then(() => undefined, () => undefined)
   return run
 }
 
@@ -747,10 +747,10 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-export function createTier1ChromeNotionAiClient(
-  overrides: Tier1ChromeNotionAiClientOptions = {},
-): Tier1ChromeNotionAiClient {
-  return new Tier1ChromeNotionAiClient(overrides)
+export function createHostedNotionAiBrowserClient(
+  overrides: HostedNotionAiBrowserClientOptions = {},
+): HostedNotionAiBrowserClient {
+  return new HostedNotionAiBrowserClient(overrides)
 }
 
 export function buildRunInferencePayload(input: {

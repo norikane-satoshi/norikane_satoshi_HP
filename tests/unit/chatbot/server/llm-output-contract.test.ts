@@ -32,7 +32,7 @@ function choicePanel(overrides: Record<string, unknown> = {}): string {
 
 function rejectionFor(rawText: string) {
   try {
-    assertChatbotLlmResponseContract(response("tier-3-gemini-flash", rawText))
+    assertChatbotLlmResponseContract(response("tier-2-gemini-flash", rawText))
   } catch (error) {
     return getChatbotLlmOutputContractRejection(error)
   }
@@ -41,7 +41,7 @@ function rejectionFor(rawText: string) {
 
 describe("shared chatbot LLM output contract", () => {
   it("creates display text and structured UI payload at the same boundary", () => {
-    const result = response("tier-2-hosted-chrome-notion-ai", choicePanel())
+    const result = response("tier-1-hosted-chrome-notion-ai", choicePanel())
 
     expect(result.displayEnvelope).toMatchObject({
       displayText: "案件を確認します。",
@@ -55,7 +55,7 @@ describe("shared chatbot LLM output contract", () => {
   it("accepts a Tier1 body response", () => {
     expect(() =>
       assertChatbotLlmResponseContract(
-        response("tier-1-chrome-notion-ai", "<customer_reply>相談内容を確認しました。</customer_reply>"),
+        response("tier-1-hosted-chrome-notion-ai", "<customer_reply>相談内容を確認しました。</customer_reply>"),
       ),
     ).not.toThrow()
   })
@@ -63,14 +63,14 @@ describe("shared chatbot LLM output contract", () => {
   it("accepts a Tier2 body response", () => {
     expect(() =>
       assertChatbotLlmResponseContract(
-        response("tier-2-hosted-chrome-notion-ai", "<customer_reply>相談内容を確認しました。</customer_reply>"),
+        response("tier-1-hosted-chrome-notion-ai", "<customer_reply>相談内容を確認しました。</customer_reply>"),
       ),
     ).not.toThrow()
   })
 
   it("accepts a Tier3 response with a valid choice panel", () => {
     expect(() =>
-      assertChatbotLlmResponseContract(response("tier-3-gemini-flash", choicePanel())),
+      assertChatbotLlmResponseContract(response("tier-2-gemini-flash", choicePanel())),
     ).not.toThrow()
   })
 
@@ -78,7 +78,7 @@ describe("shared chatbot LLM output contract", () => {
     const rawText =
       '<customer_reply>候補日を確認します。\n{"tool":"show_booking_card","args":{}}</customer_reply>'
     expect(() =>
-      assertChatbotLlmResponseContract(response("tier-3-gemini-flash", rawText)),
+      assertChatbotLlmResponseContract(response("tier-2-gemini-flash", rawText)),
     ).not.toThrow()
   })
 

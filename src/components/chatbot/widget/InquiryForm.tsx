@@ -15,7 +15,7 @@ type InquiryFormInput = {
 
 type InquiryFormProps = {
   onSubmit: (input: InquiryFormInput) => void
-  mode?: "tier4" | "consultation-summary"
+  mode?: "tier3" | "consultation-summary"
   initialEmail?: string
   summaryText?: string
   openQuestions?: string[]
@@ -26,7 +26,7 @@ type InquiryFormProps = {
  */
 export function InquiryForm({
   onSubmit,
-  mode = "tier4",
+  mode = "tier3",
   initialEmail = "",
   summaryText,
   openQuestions = [],

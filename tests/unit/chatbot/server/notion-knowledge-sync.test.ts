@@ -242,7 +242,7 @@ describe("Notion chatbot knowledge sync", () => {
               return {
                 results: [
                   heading("current-heading", "現在値"),
-                  paragraph("current-tier2", "Tier2 成功は通常成功として扱い、Tier3 / Tier4 は incident として検知する。"),
+                  paragraph("current-tier2", "Tier2 成功は通常成功として扱い、Tier3 / Tier3 は incident として検知する。"),
                   paragraph("current-booking", "Booking Order は予約確定ではなく仮キープとして扱う。"),
                   paragraph("current-name", "顧客向けの本人表記は則兼に統一する。"),
                   heading("future-heading", "未来ルール"),

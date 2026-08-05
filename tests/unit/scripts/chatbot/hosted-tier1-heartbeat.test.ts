@@ -11,7 +11,7 @@ import {
   runHeartbeat,
   shouldRunGenerate,
   type HeartbeatConfig,
-} from "../../../../scripts/chatbot/hosted-tier2-heartbeat"
+} from "../../../../scripts/chatbot/hosted-tier1-heartbeat"
 
 function config(dir: string, overrides: Partial<HeartbeatConfig> = {}): HeartbeatConfig {
   return {
@@ -52,7 +52,7 @@ function trustRuleDeniedResponse(): Response {
   return jsonResponse(
     {
       ok: false,
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       error: {
         code: "invalid-output",
         message:
@@ -68,7 +68,7 @@ function invalidOutputResponse(): Response {
   return jsonResponse(
     {
       ok: false,
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       error: {
         code: "invalid-output",
         message: "Notion AI response text could not be extracted.",
@@ -83,7 +83,7 @@ function rateLimitResponse(): Response {
   return jsonResponse(
     {
       ok: false,
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       error: {
         code: "rate-limit",
         message: "Notion AI rate limit response was returned.",
@@ -98,7 +98,7 @@ function readState(dir: string) {
   return JSON.parse(readFileSync(join(dir, "state.json"), "utf8")) as Record<string, unknown>
 }
 
-describe("hosted-tier2-heartbeat", () => {
+describe("hosted-tier1-heartbeat", () => {
   const dirs: string[] = []
 
   afterEach(() => {
@@ -128,10 +128,10 @@ describe("hosted-tier2-heartbeat", () => {
       conversationState: expect.any(Object),
       jobContext: expect.any(Object),
     })
-    expect(evaluateGenerateResponse(200, { tier: "tier-2-hosted-chrome-notion-ai", rawText: "OK" })).toMatchObject({
+    expect(evaluateGenerateResponse(200, { tier: "tier-1-hosted-chrome-notion-ai", rawText: "OK" })).toMatchObject({
       ok: true,
     })
-    expect(evaluateGenerateResponse(200, { tier: "tier-2-hosted-chrome-notion-ai", rawText: "" })).toMatchObject({
+    expect(evaluateGenerateResponse(200, { tier: "tier-1-hosted-chrome-notion-ai", rawText: "" })).toMatchObject({
       ok: false,
     })
   })
@@ -158,7 +158,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("transitions to unhealthy after the failure threshold and emits a dry-run notification", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi.fn(async () => jsonResponse({ ok: false, status: "cdp_connection_refused" }, 200))
 
@@ -175,7 +175,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("sends unhealthy state changes to Slack bot without leaking secrets", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi
       .fn()
@@ -202,7 +202,7 @@ describe("hosted-tier2-heartbeat", () => {
     expect(fetchMock.mock.calls[1][0]).toBe("https://slack.com/api/chat.postMessage")
     const slackBody = JSON.parse(String(slackInput?.body)) as { channel: string; text: string }
     expect(slackBody.channel).toBe("D0AB0UMUFNZ")
-    expect(slackBody.text).toContain("tier: tier-2-hosted-chrome-notion-ai")
+    expect(slackBody.text).toContain("tier: tier-1-hosted-chrome-notion-ai")
     expect(slackBody.text).toContain("state: unhealthy")
     expect(slackBody.text).toContain("failure_reason: ok:false;status:cdp_connection_refused")
     expect(slackBody.text).not.toContain("secret-token")
@@ -211,7 +211,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("includes generate 502 origin and failing phase in Slack notifications", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi
       .fn()
@@ -259,7 +259,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("alerts Notion trust-rule generate 502 immediately without restart looping", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi
       .fn()
@@ -285,7 +285,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("recovers a transient Notion generate incident only after a later generate succeeds", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     writeFileSync(
       join(dir, "state.json"),
@@ -300,7 +300,7 @@ describe("hosted-tier2-heartbeat", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
-      .mockResolvedValueOnce(jsonResponse({ tier: "tier-2-hosted-chrome-notion-ai", rawText: "OK" }))
+      .mockResolvedValueOnce(jsonResponse({ tier: "tier-1-hosted-chrome-notion-ai", rawText: "OK" }))
 
     const result = await runHeartbeat(config(dir), {
       fetch: fetchMock as typeof fetch,
@@ -310,7 +310,7 @@ describe("hosted-tier2-heartbeat", () => {
 
     expect(result.status).toBe("healthy")
     expect(result.checks).toContainEqual(
-      expect.objectContaining({ name: "generate", ok: true, detail: "tier:tier-2-hosted-chrome-notion-ai;rawText:present" }),
+      expect.objectContaining({ name: "generate", ok: true, detail: "tier:tier-1-hosted-chrome-notion-ai;rawText:present" }),
     )
     const state = readState(dir)
     expect(state).toMatchObject({
@@ -322,7 +322,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("escalates sustained Notion trust-rule generate failure without restart looping", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     writeFileSync(
       join(dir, "state.json"),
@@ -353,7 +353,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("falls back to Resend when Slack primary fails", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi
       .fn()
@@ -384,7 +384,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("rate-limits repeated new unhealthy notifications", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     writeFileSync(
       join(dir, "state.json"),
@@ -406,7 +406,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("does not notify on a healthy steady-state check", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     writeFileSync(
       join(dir, "state.json"),
@@ -431,7 +431,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("sends recovered once after a notified unhealthy incident, then stays quiet", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     writeFileSync(
       join(dir, "state.json"),
@@ -464,7 +464,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("does not send recovered after an unhealthy notification was only rate-limited", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     writeFileSync(
       join(dir, "state.json"),
@@ -491,7 +491,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("keeps transient invalid-output generate failures suspect before notifying or repairing", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi
       .fn()
@@ -517,7 +517,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("keeps Notion AI rate-limit generate failures suspect before notifying or repairing", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi
       .fn()
@@ -545,7 +545,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("starts a fresh incident count when an old http incident becomes a classified rate-limit", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     writeFileSync(
       join(dir, "state.json"),
@@ -582,7 +582,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("notifies an actual non-transient generate failure as unhealthy", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi
       .fn()
@@ -600,7 +600,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("runs the bounded repair sequence once on an unhealthy transition", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     const fetchMock = vi
       .fn()
@@ -638,7 +638,7 @@ describe("hosted-tier2-heartbeat", () => {
   })
 
   it("repairs a new unhealthy transition even when a recent repair timestamp exists", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tier2-heartbeat-"))
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
     dirs.push(dir)
     writeFileSync(
       join(dir, "state.json"),
@@ -657,7 +657,7 @@ describe("hosted-tier2-heartbeat", () => {
       .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
       .mockResolvedValueOnce(jsonResponse({ ok: false, error: { code: "connection", retryable: true } }, 502))
       .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
-      .mockResolvedValueOnce(jsonResponse({ tier: "tier-2-hosted-chrome-notion-ai", rawText: "OK" }))
+      .mockResolvedValueOnce(jsonResponse({ tier: "tier-1-hosted-chrome-notion-ai", rawText: "OK" }))
     const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
 
     const result = await runHeartbeat(config(dir, { failureThreshold: 1, repair: true, forceGenerate: true }), {
@@ -674,10 +674,10 @@ describe("hosted-tier2-heartbeat", () => {
       .split("\n")
       .map((line) => JSON.parse(line) as Record<string, unknown>)
     expect(logRecords.at(-1)).toMatchObject({
-      event: "hosted_tier2_heartbeat",
+      event: "hosted_tier1_heartbeat",
       incident: {
         kind: "health_ok_generate_failed",
-        operation: "hosted-tier2-heartbeat",
+        operation: "hosted-tier1-heartbeat",
         phase: "generate",
         httpStatus: 502,
         failureOrigin: "worker_error:connection",

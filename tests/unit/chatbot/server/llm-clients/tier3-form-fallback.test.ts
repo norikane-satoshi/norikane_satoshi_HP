@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from "vitest"
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import {
-  createTier4FormFallbackClient,
-  Tier4FormFallbackClient,
-  tier4FormFallbackDefaults,
-} from "@/lib/chatbot/server/llm-clients/tier4-form-fallback"
+  createTier3FormFallbackClient,
+  Tier3FormFallbackClient,
+  tier3FormFallbackDefaults,
+} from "@/lib/chatbot/server/llm-clients/tier3-form-fallback"
 
 function conversationState(overrides: Partial<ConversationState> = {}): ConversationState {
   return {
@@ -47,30 +47,30 @@ function llmRequest(overrides: Partial<ChatbotLlmRequest> = {}): ChatbotLlmReque
   }
 }
 
-describe("Tier4FormFallbackClient", () => {
-  it("keeps the tier property fixed to tier 4 form fallback", () => {
-    const client = createTier4FormFallbackClient()
+describe("Tier3FormFallbackClient", () => {
+  it("keeps the tier property fixed to tier 3 form fallback", () => {
+    const client = createTier3FormFallbackClient()
 
-    expect(client.tier).toBe("tier-4-form-fallback")
+    expect(client.tier).toBe("tier-3-form-fallback")
   })
 
   it("is always healthy because it has no external dependency", async () => {
-    const client = createTier4FormFallbackClient()
+    const client = createTier3FormFallbackClient()
 
     await expect(client.isHealthy()).resolves.toBe(true)
   })
 
   it("returns the default fallback text without routing side-channel data", async () => {
-    const client = createTier4FormFallbackClient()
+    const client = createTier3FormFallbackClient()
 
     await expect(client.generate(llmRequest())).resolves.toMatchObject({
-      rawText: tier4FormFallbackDefaults.responseText,
-      tier: "tier-4-form-fallback",
+      rawText: tier3FormFallbackDefaults.responseText,
+      tier: "tier-3-form-fallback",
     })
   })
 
   it("allows the fallback response text to be injected", async () => {
-    const client = new Tier4FormFallbackClient({
+    const client = new Tier3FormFallbackClient({
       responseText: "フォームで続けます。",
     })
 
@@ -80,7 +80,7 @@ describe("Tier4FormFallbackClient", () => {
   })
 
   it("does not embed fallback routing decisions in the LLM response", async () => {
-    const client = createTier4FormFallbackClient()
+    const client = createTier3FormFallbackClient()
 
     await expect(
       client.generate(
@@ -93,7 +93,7 @@ describe("Tier4FormFallbackClient", () => {
 
   it("does not call fetch or any network transport", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch")
-    const client = createTier4FormFallbackClient()
+    const client = createTier3FormFallbackClient()
 
     await client.generate(llmRequest())
     await client.isHealthy()

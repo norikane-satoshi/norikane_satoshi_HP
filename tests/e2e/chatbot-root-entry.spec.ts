@@ -67,7 +67,7 @@ test.describe("root chatbot entry", () => {
             content: "最終媒体を教えてください",
             createdAt: new Date("2026-05-28T00:00:00.000Z").toISOString(),
           },
-          tier: "tier-4-form-fallback",
+          tier: "tier-3-form-fallback",
           ui: {
             kind: "choice-panel",
             choiceSet: {
@@ -123,7 +123,7 @@ test.describe("root chatbot entry", () => {
             content: "追加作業を選んでください",
             createdAt: new Date("2026-05-28T00:00:00.000Z").toISOString(),
           },
-          tier: "tier-2-hosted-chrome-notion-ai",
+          tier: "tier-1-hosted-chrome-notion-ai",
           ui: {
             kind: "choice-panel",
             choiceSet: {

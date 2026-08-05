@@ -9,7 +9,7 @@ import {
   createChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
 
-type Tier3GeminiFlashClientConfig = {
+type Tier2GeminiFlashClientConfig = {
   apiKey?: string
   modelName: string
   baseUrl: string
@@ -18,11 +18,11 @@ type Tier3GeminiFlashClientConfig = {
   enabled: boolean
 }
 
-type Tier3GeminiFlashClientOptions = Partial<Tier3GeminiFlashClientConfig> & {
-  httpClient?: Tier3GeminiHttpClient
+type Tier2GeminiFlashClientOptions = Partial<Tier2GeminiFlashClientConfig> & {
+  httpClient?: Tier2GeminiHttpClient
 }
 
-type Tier3GeminiHttpClient = (input: string, init?: RequestInit) => Promise<Response>
+type Tier2GeminiHttpClient = (input: string, init?: RequestInit) => Promise<Response>
 
 type TimeoutTag = "timeout"
 
@@ -49,7 +49,7 @@ class GeminiHttpStatusError extends Error {
   }
 }
 
-export const tier3GeminiFlashDefaults = {
+export const tier2GeminiFlashDefaults = {
   baseUrl: "https://generativelanguage.googleapis.com",
   modelName: "gemini-2.5-flash",
   requestTimeoutMs: 30000,
@@ -57,7 +57,7 @@ export const tier3GeminiFlashDefaults = {
   enabled: true,
 } as const
 
-const tier = chatbotLlmTierIds.tier3GeminiFlash
+const tier = chatbotLlmTierIds.tier2GeminiFlash
 const timeoutTag: TimeoutTag = "timeout"
 const apiVersionPath = "/v1beta/models/"
 const generateSuffix = ":generateContent"
@@ -69,20 +69,20 @@ const contentTypeJson = "application/json"
 const emptyText = ""
 const firstServerErrorStatus = 500
 
-export class Tier3GeminiFlashClient implements ChatbotLlmClient {
+export class Tier2GeminiFlashClient implements ChatbotLlmClient {
   readonly tier = tier
-  private readonly config: Tier3GeminiFlashClientConfig
-  private readonly httpClient: Tier3GeminiHttpClient
+  private readonly config: Tier2GeminiFlashClientConfig
+  private readonly httpClient: Tier2GeminiHttpClient
   private lastHealthError?: ChatbotLlmError | Error
 
-  constructor(options: Tier3GeminiFlashClientOptions = {}) {
+  constructor(options: Tier2GeminiFlashClientOptions = {}) {
     this.config = {
       apiKey: options.apiKey,
-      modelName: options.modelName ?? tier3GeminiFlashDefaults.modelName,
-      baseUrl: trimTrailingSlash(options.baseUrl) ?? tier3GeminiFlashDefaults.baseUrl,
-      requestTimeoutMs: options.requestTimeoutMs ?? tier3GeminiFlashDefaults.requestTimeoutMs,
-      healthCheckTimeoutMs: options.healthCheckTimeoutMs ?? tier3GeminiFlashDefaults.healthCheckTimeoutMs,
-      enabled: options.enabled ?? tier3GeminiFlashDefaults.enabled,
+      modelName: options.modelName ?? tier2GeminiFlashDefaults.modelName,
+      baseUrl: trimTrailingSlash(options.baseUrl) ?? tier2GeminiFlashDefaults.baseUrl,
+      requestTimeoutMs: options.requestTimeoutMs ?? tier2GeminiFlashDefaults.requestTimeoutMs,
+      healthCheckTimeoutMs: options.healthCheckTimeoutMs ?? tier2GeminiFlashDefaults.healthCheckTimeoutMs,
+      enabled: options.enabled ?? tier2GeminiFlashDefaults.enabled,
     }
     this.httpClient = options.httpClient ?? globalFetch
   }
@@ -272,24 +272,24 @@ export class Tier3GeminiFlashClient implements ChatbotLlmClient {
   }
 }
 
-export function createTier3GeminiFlashClient(
-  overrides: Tier3GeminiFlashClientOptions = {},
-): Tier3GeminiFlashClient {
+export function createTier2GeminiFlashClient(
+  overrides: Tier2GeminiFlashClientOptions = {},
+): Tier2GeminiFlashClient {
   const env = readGeminiEnv()
 
-  return new Tier3GeminiFlashClient({
-    apiKey: env.CHATBOT_TIER3_GEMINI_API_KEY ?? env.GEMINI_API_KEY,
-    modelName: env.CHATBOT_TIER3_GEMINI_MODEL ?? tier3GeminiFlashDefaults.modelName,
-    baseUrl: env.CHATBOT_TIER3_GEMINI_BASE_URL ?? tier3GeminiFlashDefaults.baseUrl,
+  return new Tier2GeminiFlashClient({
+    apiKey: env.CHATBOT_TIER2_GEMINI_API_KEY ?? env.GEMINI_API_KEY,
+    modelName: env.CHATBOT_TIER2_GEMINI_MODEL ?? tier2GeminiFlashDefaults.modelName,
+    baseUrl: env.CHATBOT_TIER2_GEMINI_BASE_URL ?? tier2GeminiFlashDefaults.baseUrl,
     requestTimeoutMs: parsePositiveInteger(
-      env.CHATBOT_TIER3_GEMINI_TIMEOUT_MS,
-      tier3GeminiFlashDefaults.requestTimeoutMs,
+      env.CHATBOT_TIER2_GEMINI_TIMEOUT_MS,
+      tier2GeminiFlashDefaults.requestTimeoutMs,
     ),
     healthCheckTimeoutMs: parsePositiveInteger(
-      env.CHATBOT_TIER3_GEMINI_HEALTH_TIMEOUT_MS,
-      tier3GeminiFlashDefaults.healthCheckTimeoutMs,
+      env.CHATBOT_TIER2_GEMINI_HEALTH_TIMEOUT_MS,
+      tier2GeminiFlashDefaults.healthCheckTimeoutMs,
     ),
-    enabled: parseEnabled(env.CHATBOT_TIER3_GEMINI_ENABLED),
+    enabled: parseEnabled(env.CHATBOT_TIER2_GEMINI_ENABLED),
     ...overrides,
   })
 }
@@ -346,13 +346,13 @@ function globalFetch(input: string, init?: RequestInit): Promise<Response> {
 function readGeminiEnv(): Record<string, string | undefined> {
   const localEnv = readLocalEnvFile()
   const names = [
-    "CHATBOT_TIER3_GEMINI_API_KEY",
+    "CHATBOT_TIER2_GEMINI_API_KEY",
     "GEMINI_API_KEY",
-    "CHATBOT_TIER3_GEMINI_MODEL",
-    "CHATBOT_TIER3_GEMINI_BASE_URL",
-    "CHATBOT_TIER3_GEMINI_TIMEOUT_MS",
-    "CHATBOT_TIER3_GEMINI_HEALTH_TIMEOUT_MS",
-    "CHATBOT_TIER3_GEMINI_ENABLED",
+    "CHATBOT_TIER2_GEMINI_MODEL",
+    "CHATBOT_TIER2_GEMINI_BASE_URL",
+    "CHATBOT_TIER2_GEMINI_TIMEOUT_MS",
+    "CHATBOT_TIER2_GEMINI_HEALTH_TIMEOUT_MS",
+    "CHATBOT_TIER2_GEMINI_ENABLED",
   ] as const
   return Object.fromEntries(names.map((name) => [name, process.env[name] ?? localEnv[name]]))
 }
@@ -386,7 +386,7 @@ function parseEnvFile(raw: string): Record<string, string | undefined> {
 }
 
 function parseEnabled(value: string | undefined): boolean {
-  if (!value) return tier3GeminiFlashDefaults.enabled
+  if (!value) return tier2GeminiFlashDefaults.enabled
   return !["false", "0", "off"].includes(value.trim().toLowerCase())
 }
 

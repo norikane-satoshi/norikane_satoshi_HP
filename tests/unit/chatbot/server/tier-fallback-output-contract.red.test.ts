@@ -11,7 +11,7 @@ import {
   type ChatbotLlmResponse,
   type ChatbotLlmTier,
 } from "@/lib/chatbot/server/llm-client"
-import { createTier4FormFallbackClient, tier4FormFallbackDefaults } from "@/lib/chatbot/server/llm-clients/tier4-form-fallback"
+import { createTier3FormFallbackClient, tier3FormFallbackDefaults } from "@/lib/chatbot/server/llm-clients/tier3-form-fallback"
 import {
   createChatbotLlmTierOrchestrator,
   type TierAttemptEvent,
@@ -80,48 +80,48 @@ function fakeClient(input: {
   }
 }
 
-async function runTier3OutputThroughSharedContract(input: {
+async function runTier2OutputThroughSharedContract(input: {
   requestId: string
   rawText: string
 }): Promise<{ result: ChatbotLlmResponse; events: LoggedTierAttempt[] }> {
   const request = llmRequest(input.requestId)
   const events: LoggedTierAttempt[] = []
-  const tier2 = fakeClient({
-    tier: "tier-2-hosted-chrome-notion-ai",
+  const tier1 = fakeClient({
+    tier: "tier-1-hosted-chrome-notion-ai",
     error: new ChatbotLlmError({
-      message: "Hosted Tier2 timed out.",
+      message: "Hosted Tier1 timed out.",
       code: "timeout",
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       isRetryable: true,
     }),
   })
-  const tier3 = fakeClient({
-    tier: "tier-3-gemini-flash",
-    response: llmResponse("tier-3-gemini-flash", input.rawText),
+  const tier2 = fakeClient({
+    tier: "tier-2-gemini-flash",
+    response: llmResponse("tier-2-gemini-flash", input.rawText),
   })
   const orchestrator = createChatbotLlmTierOrchestrator({
-    clients: [tier2, tier3, createTier4FormFallbackClient()],
+    clients: [tier1, tier2, createTier3FormFallbackClient()],
     onTierAttempt: (event) => events.push({ requestId: request.requestId, ...event }),
   })
 
   return { result: await orchestrator.generate(request), events }
 }
 
-function expectTier3ContractRejection(input: {
+function expectTier2ContractRejection(input: {
   events: LoggedTierAttempt[]
   requestId: string
   expectedReason: string
 }): void {
   const rejection = input.events.find(
     (event) =>
-      event.tier === "tier-3-gemini-flash" &&
+      event.tier === "tier-2-gemini-flash" &&
       event.phase === "generate" &&
       event.outcome === "error",
   )
 
   expect.soft(rejection).toMatchObject({
     requestId: input.requestId,
-    tier: "tier-3-gemini-flash",
+    tier: "tier-2-gemini-flash",
     phase: "generate",
     outcome: "error",
     error: expect.objectContaining({
@@ -170,7 +170,7 @@ function handlerHarness(rawText: string) {
     options: {
       repository,
       orchestratorFactory: () => ({
-        generate: vi.fn().mockResolvedValue(llmResponse("tier-3-gemini-flash", rawText)),
+        generate: vi.fn().mockResolvedValue(llmResponse("tier-2-gemini-flash", rawText)),
         isHealthy: vi.fn().mockResolvedValue(true),
       }),
       userContextLoader: vi.fn().mockResolvedValue(null),
@@ -199,18 +199,18 @@ afterEach(() => {
 })
 
 describe("lower-tier response without structured UI", () => {
-  it("rejects a Tier3 body-only response after Tier2 failure and falls through to Tier4 reception", async () => {
+  it("rejects a Tier2 body-only response after Tier1 failure and falls through to Tier3 form", async () => {
     const incident = tierFallbackOutputContractIncident
-    const { result, events } = await runTier3OutputThroughSharedContract({
+    const { result, events } = await runTier2OutputThroughSharedContract({
       requestId: incident.requestId,
-      rawText: incident.tier3RawText,
+      rawText: incident.tier2RawText,
     })
 
     expect.soft(result).toMatchObject({
       tier: incident.expected.tier,
-      rawText: tier4FormFallbackDefaults.responseText,
+      rawText: tier3FormFallbackDefaults.responseText,
     })
-    expectTier3ContractRejection({
+    expectTier2ContractRejection({
       events,
       requestId: incident.requestId,
       expectedReason: incident.expected.boundaryReason,
@@ -263,12 +263,11 @@ describe("invalid choice-set contract", () => {
 })
 
 describe("canonical production tier order", () => {
-  it("keeps the order exactly Tier1 -> Tier2 -> Tier3 Gemini -> Tier4 form", () => {
+  it("keeps the order exactly Tier1 hosted -> Tier2 Gemini -> Tier3 form", () => {
     expect(defaultLlmTierOrder).toEqual([
-      "tier-1-chrome-notion-ai",
-      "tier-2-hosted-chrome-notion-ai",
-      "tier-3-gemini-flash",
-      "tier-4-form-fallback",
+      "tier-1-hosted-chrome-notion-ai",
+      "tier-2-gemini-flash",
+      "tier-3-form-fallback",
     ])
   })
 })

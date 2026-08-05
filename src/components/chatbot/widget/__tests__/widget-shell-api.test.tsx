@@ -144,7 +144,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -177,7 +177,7 @@ describe("WidgetShell API wiring", () => {
           requestId: "request-debug-1",
           conversationId: "conv_debug",
           assistantMessage,
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "none" },
         }),
       )
@@ -195,7 +195,7 @@ describe("WidgetShell API wiring", () => {
     const panel = await screen.findByLabelText("チャットボット診断情報")
     expect(await within(panel).findByText("debug-sha")).toBeInTheDocument()
     expect(within(panel).getByText("request-debug-1")).toBeInTheDocument()
-    expect(within(panel).getByText("tier-3-gemini-flash")).toBeInTheDocument()
+    expect(within(panel).getByText("tier-2-gemini-flash")).toBeInTheDocument()
     expect(within(panel).getByText("conv_debug")).toBeInTheDocument()
     expect(within(panel).getByText("side-peek / desktop")).toBeInTheDocument()
     expect(within(panel).getByText("none")).toBeInTheDocument()
@@ -499,7 +499,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -529,7 +529,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -557,7 +557,7 @@ describe("WidgetShell API wiring", () => {
           mockJsonResponse({
             conversationId: "conv_1",
             assistantMessage,
-            tier: "tier-3-gemini-flash",
+            tier: "tier-2-gemini-flash",
             ui: {
               kind: "booking-card",
               suggestedSlots: [slot],
@@ -596,7 +596,7 @@ describe("WidgetShell API wiring", () => {
           ...assistantMessage,
           content: "私はのーちゃんです。",
         },
-        tier: "tier-2-hosted-chrome-notion-ai",
+        tier: "tier-1-hosted-chrome-notion-ai",
         ui: { kind: "none" },
       }),
     )
@@ -673,7 +673,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -742,7 +742,7 @@ describe("WidgetShell API wiring", () => {
           content: "復元後の回答です",
           createdAt: "2026-05-26T00:00:01.000Z",
         },
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
       }),
     )
@@ -760,7 +760,7 @@ describe("WidgetShell API wiring", () => {
     })
   })
 
-  it("restores an expired pending mobile request as a retry action instead of the Tier4 form", async () => {
+  it("restores an expired pending mobile request as a retry action instead of the Tier3 form", async () => {
     const submittedAt = new Date(Date.now() - 20 * 60 * 1000).toISOString()
     const pendingRequest = {
       kind: "message",
@@ -784,7 +784,7 @@ describe("WidgetShell API wiring", () => {
           content: "復旧しました",
           createdAt: "2026-05-26T00:00:01.000Z",
         },
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -799,7 +799,7 @@ describe("WidgetShell API wiring", () => {
         },
       ],
       conversationId: "conv_1",
-      activeUi: { kind: "tier4-inquiry-form" },
+      activeUi: { kind: "tier3-inquiry-form" },
       pendingRequest,
     })
 
@@ -839,7 +839,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -885,7 +885,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -954,7 +954,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
         }),
       ),
@@ -974,7 +974,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: additionalWorkChoices },
         }),
       )
@@ -985,7 +985,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "次の質問です",
           },
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "none" },
         }),
       )
@@ -1017,7 +1017,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: additionalWorkChoices },
         }),
       )
@@ -1048,7 +1048,7 @@ describe("WidgetShell API wiring", () => {
           ...assistantMessage,
           content: "次の質問です",
         },
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -1068,7 +1068,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: additionalWorkChoices },
         }),
       )
@@ -1079,7 +1079,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "次の質問です",
           },
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "none" },
         }),
       )
@@ -1107,7 +1107,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
         }),
       )
@@ -1118,7 +1118,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "次の質問です",
           },
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "none" },
         }),
       )
@@ -1155,7 +1155,7 @@ describe("WidgetShell API wiring", () => {
           ...assistantMessage,
           content: "続きの回答です",
         },
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -1201,7 +1201,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_new",
         assistantMessage,
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -1260,7 +1260,7 @@ describe("WidgetShell API wiring", () => {
       mockJsonResponse({
         conversationId: "conv_1",
         assistantMessage,
-        tier: "tier-3-gemini-flash",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -1295,7 +1295,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "候補日時から予約できます",
           },
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: {
             kind: "booking-card",
             suggestedSlots: [slot],
@@ -1351,7 +1351,7 @@ describe("WidgetShell API wiring", () => {
               ...assistantMessage,
               content: "候補日時から予約できます",
             },
-            tier: "tier-3-gemini-flash",
+            tier: "tier-2-gemini-flash",
             ui: {
               kind: "booking-card",
               suggestedSlots: [slot],
@@ -1442,7 +1442,7 @@ describe("WidgetShell API wiring", () => {
                 ...assistantMessage,
                 content: "候補日時から予約できます",
               },
-              tier: "tier-3-gemini-flash",
+              tier: "tier-2-gemini-flash",
               ui: {
                 kind: "booking-card",
                 suggestedSlots: [slot],
@@ -1472,7 +1472,7 @@ describe("WidgetShell API wiring", () => {
               content: "予約送信済みです。ありがとうございます。",
               createdAt: "2026-05-26T00:00:02.000Z",
             },
-            tier: "tier-3-gemini-flash",
+            tier: "tier-2-gemini-flash",
             ui: { kind: "none" },
           }),
         )
@@ -1608,7 +1608,7 @@ describe("WidgetShell API wiring", () => {
               content: "候補日を確認しました。\n下の予約カードから選択してください。",
               createdAt: "2026-05-26T00:00:03.000Z",
             },
-            tier: "tier-2-hosted-chrome-notion-ai",
+            tier: "tier-1-hosted-chrome-notion-ai",
             ui: {
               kind: "booking-card",
               suggestedSlots: [slot],
@@ -1650,7 +1650,7 @@ describe("WidgetShell API wiring", () => {
     expect(screen.getByRole("button", { name: "予約内容を送信" })).toBeInTheDocument()
   })
 
-  it("renders InquiryForm for tier4 responses and posts submit-inquiry", async () => {
+  it("renders InquiryForm for tier3 responses and posts submit-inquiry", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -1660,8 +1660,8 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "フォームに切り替えます",
           },
-          tier: "tier-4-form-fallback",
-          ui: { kind: "tier4-inquiry-form" },
+          tier: "tier-3-form-fallback",
+          ui: { kind: "tier3-inquiry-form" },
         }),
       )
       .mockResolvedValueOnce(mockJsonResponse({ ok: true }))
@@ -1695,7 +1695,7 @@ describe("WidgetShell API wiring", () => {
             ...assistantMessage,
             content: "相談内容を送れます",
           },
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: {
             kind: "consultation-summary-form",
             summary: {
@@ -1740,7 +1740,7 @@ describe("WidgetShell API wiring", () => {
         mockJsonResponse({
           conversationId: "conv_1",
           assistantMessage,
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "none" },
         }),
       )
@@ -1764,7 +1764,7 @@ describe("WidgetShell API wiring", () => {
             failure: {
               stage: "server-handler",
               retryable: true,
-              fallback: "tier4-inquiry-form",
+              fallback: "tier3-inquiry-form",
             },
           },
           500,
@@ -1798,7 +1798,7 @@ describe("WidgetShell API wiring", () => {
             createdAt: "2026-05-26T00:00:00.000Z",
           },
           assistantMessage,
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
         }),
       )
@@ -1817,7 +1817,7 @@ describe("WidgetShell API wiring", () => {
             content: "編集後の回答です",
             createdAt: "2026-05-26T00:00:03.000Z",
           },
-          tier: "tier-3-gemini-flash",
+          tier: "tier-2-gemini-flash",
           ui: { kind: "none" },
         }),
       )

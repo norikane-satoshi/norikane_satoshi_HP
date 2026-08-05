@@ -4,13 +4,13 @@ import path from "node:path"
 
 import {
   getNotionAiChatbotThreadUrl,
-} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai-config"
+} from "@/lib/chatbot/hosted-worker/notion-ai-config"
 import {
-  createTier1ChromeNotionAiClient,
+  createHostedNotionAiBrowserClient,
   isNotionAiChatbotTargetUrl,
-  tier1ChromeNotionAiDefaults,
+  hostedNotionAiBrowserDefaults,
   type NotionAiRuntimeInspection,
-} from "@/lib/chatbot/server/llm-clients/tier1-chrome-notion-ai"
+} from "@/lib/chatbot/hosted-worker/notion-ai-browser-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import type {
   HostedWorkerCdpTargetSummary,
@@ -50,7 +50,7 @@ export function resolveHostedWorkerChromeConfig(
   overrides: Partial<HostedWorkerChromeConfig> = {},
 ): HostedWorkerChromeConfig {
   return {
-    cdpBaseUrl: env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL ?? tier1ChromeNotionAiDefaults.cdpBaseUrl,
+    cdpBaseUrl: env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL ?? hostedNotionAiBrowserDefaults.cdpBaseUrl,
     targetUrlIncludes:
       env.CHATBOT_HOSTED_WORKER_NOTION_THREAD_URL ??
       env.NOTION_AI_CHATBOT_THREAD_URL ??
@@ -203,10 +203,10 @@ async function waitForReady(
 
 function createRuntimeInspector(config: HostedWorkerChromeConfig): RuntimeInspector {
   return () => {
-    const client = createTier1ChromeNotionAiClient({
+    const client = createHostedNotionAiBrowserClient({
       cdpBaseUrl: config.cdpBaseUrl,
       targetUrlIncludes: config.targetUrlIncludes,
-      healthCheckTimeoutMs: Math.max(config.waitMs, tier1ChromeNotionAiDefaults.healthCheckTimeoutMs),
+      healthCheckTimeoutMs: Math.max(config.waitMs, hostedNotionAiBrowserDefaults.healthCheckTimeoutMs),
     })
     return client.inspectRuntimeContext()
   }

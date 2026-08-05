@@ -44,7 +44,7 @@ describe("submitChatbotMessage", () => {
         failure: {
           stage: "conversation-save",
           retryable: true,
-          fallback: "tier4-inquiry-form",
+          fallback: "tier3-inquiry-form",
         },
       }),
     })
@@ -59,7 +59,7 @@ describe("submitChatbotMessage", () => {
       expect(error.requestId).toBe("req_1")
       expect(error.stage).toBe("conversation-save")
       expect(error.retryable).toBe(true)
-      expect(error.fallback).toBe("tier4-inquiry-form")
+      expect(error.fallback).toBe("tier3-inquiry-form")
     }
   })
 

@@ -11,10 +11,9 @@ import {
 } from "@/lib/chatbot/server/llm-response-normalizer"
 
 export const chatbotLlmTierIds = {
-  tier1ChromeNotionAi: "tier-1-chrome-notion-ai",
-  tier2HostedChromeNotionAi: "tier-2-hosted-chrome-notion-ai",
-  tier3GeminiFlash: "tier-3-gemini-flash",
-  tier4FormFallback: "tier-4-form-fallback",
+  tier1HostedChromeNotionAi: "tier-1-hosted-chrome-notion-ai",
+  tier2GeminiFlash: "tier-2-gemini-flash",
+  tier3FormFallback: "tier-3-form-fallback",
 } as const
 
 export type ChatbotLlmTier = (typeof chatbotLlmTierIds)[keyof typeof chatbotLlmTierIds]
@@ -177,21 +176,19 @@ export function isChatbotLlmResponseContractError(error: unknown): error is Chat
 }
 
 /**
- * Tier 4 is the final deterministic form fallback chosen after all AI assistant
+ * Tier 3 is the final deterministic form fallback chosen after all AI assistant
  * tiers fail.
  */
 export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
-  chatbotLlmTierIds.tier1ChromeNotionAi,
-  chatbotLlmTierIds.tier2HostedChromeNotionAi,
-  chatbotLlmTierIds.tier3GeminiFlash,
-  chatbotLlmTierIds.tier4FormFallback,
+  chatbotLlmTierIds.tier1HostedChromeNotionAi,
+  chatbotLlmTierIds.tier2GeminiFlash,
+  chatbotLlmTierIds.tier3FormFallback,
 ] as const
 
 const tierOutputPolicies: Record<ChatbotLlmTier, { structuredUi: "optional" | "required" }> = {
-  [chatbotLlmTierIds.tier1ChromeNotionAi]: { structuredUi: "optional" },
-  [chatbotLlmTierIds.tier2HostedChromeNotionAi]: { structuredUi: "optional" },
-  [chatbotLlmTierIds.tier3GeminiFlash]: { structuredUi: "required" },
-  [chatbotLlmTierIds.tier4FormFallback]: { structuredUi: "optional" },
+  [chatbotLlmTierIds.tier1HostedChromeNotionAi]: { structuredUi: "optional" },
+  [chatbotLlmTierIds.tier2GeminiFlash]: { structuredUi: "required" },
+  [chatbotLlmTierIds.tier3FormFallback]: { structuredUi: "optional" },
 }
 
 export function getChatbotLlmOutputContractRejection(
@@ -238,7 +235,7 @@ function invalidContractError(tier: ChatbotLlmTier | undefined, reason: string):
   return new ChatbotLlmError({
     message: `Chatbot LLM response violated the shared contract: ${reason}.`,
     code: "invalid-output",
-    tier: tier ?? chatbotLlmTierIds.tier4FormFallback,
+    tier: tier ?? chatbotLlmTierIds.tier3FormFallback,
     isRetryable: false,
   })
 }

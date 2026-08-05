@@ -8,9 +8,9 @@ import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import {
-  createTier2HostedChromeNotionAiClient,
-  Tier2HostedChromeNotionAiClient,
-} from "@/lib/chatbot/server/llm-clients/tier2-hosted-chrome-notion-ai"
+  createTier1HostedChromeNotionAiClient,
+  Tier1HostedChromeNotionAiClient,
+} from "@/lib/chatbot/server/llm-clients/tier1-hosted-chrome-notion-ai"
 
 const baseConfig = {
   workerUrl: "https://worker.example.test",
@@ -61,7 +61,7 @@ function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {
 }
 
 function hostedClient(httpClient: (input: string, init?: RequestInit) => Promise<Response>) {
-  return new Tier2HostedChromeNotionAiClient({
+  return new Tier1HostedChromeNotionAiClient({
     ...baseConfig,
     httpClient,
   })
@@ -75,7 +75,7 @@ async function expectLlmError(
   await expect(promise).rejects.toMatchObject({
     code: expected.code,
     isRetryable: expected.isRetryable,
-    tier: "tier-2-hosted-chrome-notion-ai",
+    tier: "tier-1-hosted-chrome-notion-ai",
   })
 }
 
@@ -85,17 +85,17 @@ async function flushMicrotasks(times = 6): Promise<void> {
   }
 }
 
-describe("Tier2HostedChromeNotionAiClient", () => {
+describe("Tier1HostedChromeNotionAiClient", () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
-  it("keeps the tier property fixed to tier 2 hosted Notion AI", () => {
-    const client = createTier2HostedChromeNotionAiClient(baseConfig)
+  it("keeps the tier property fixed to tier 1 hosted Notion AI", () => {
+    const client = createTier1HostedChromeNotionAiClient(baseConfig)
 
-    expect(client.tier).toBe("tier-2-hosted-chrome-notion-ai")
+    expect(client.tier).toBe("tier-1-hosted-chrome-notion-ai")
   })
 
   it("uses /health with bearer authorization for health checks", async () => {
@@ -122,7 +122,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
 
     await expect(client.generate(request)).resolves.toMatchObject({
       rawText: "承知しました",
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       tokensUsed: 12,
       diagnostics: {
         endpoint: "/generate",
@@ -165,7 +165,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
 
     await expect(client.generate(llmRequest())).resolves.toMatchObject({
       rawText: "復旧しました",
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       diagnostics: {
         attemptCount: 2,
         repairAttempted: true,
@@ -200,7 +200,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
 
     await expect(client.generate(llmRequest())).resolves.toMatchObject({
       rawText: "2回目で復旧しました",
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
       diagnostics: {
         attemptCount: 3,
         repairAttempted: true,
@@ -222,7 +222,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
       .mockImplementationOnce(() => new Promise<Response>(() => undefined))
-    const client = new Tier2HostedChromeNotionAiClient({
+    const client = new Tier1HostedChromeNotionAiClient({
       ...baseConfig,
       requestTimeoutMs: 20,
       healthCheckTimeoutMs: 5,
@@ -261,7 +261,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
         if (init?.signal) seenSignals.push(init.signal)
         return new Promise<Response>(() => undefined)
       })
-    const client = new Tier2HostedChromeNotionAiClient({
+    const client = new Tier1HostedChromeNotionAiClient({
       ...baseConfig,
       requestTimeoutMs: 20,
       healthCheckTimeoutMs: 5,
@@ -291,7 +291,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
       .mockResolvedValueOnce(jsonResponse({ rawText: "OK" }))
-    const client = createTier2HostedChromeNotionAiClient({
+    const client = createTier1HostedChromeNotionAiClient({
       requestTimeoutMs: 20,
       healthCheckTimeoutMs: 20,
       httpClient,
@@ -308,7 +308,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
   })
 
   it("loads worker config from .env.local when process env is not populated", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tier2-env-"))
+    const tempDir = mkdtempSync(join(tmpdir(), "tier1-env-"))
     writeFileSync(
       join(tempDir, ".env.local"),
       [
@@ -324,7 +324,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
       .mockResolvedValueOnce(jsonResponse({ rawText: "OK" }))
 
     try {
-      const client = createTier2HostedChromeNotionAiClient({
+      const client = createTier1HostedChromeNotionAiClient({
         requestTimeoutMs: 20,
         healthCheckTimeoutMs: 20,
         httpClient,
@@ -343,7 +343,7 @@ describe("Tier2HostedChromeNotionAiClient", () => {
   })
 
   it("treats missing URL or token as non-retryable auth failure", async () => {
-    const client = createTier2HostedChromeNotionAiClient({
+    const client = createTier1HostedChromeNotionAiClient({
       workerUrl: "",
       token: "",
       requestTimeoutMs: 20,

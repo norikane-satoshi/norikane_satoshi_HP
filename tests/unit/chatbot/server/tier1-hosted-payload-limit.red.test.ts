@@ -13,7 +13,7 @@ import type {
   ChatbotLlmRequest,
   ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
-import { Tier2HostedChromeNotionAiClient } from "@/lib/chatbot/server/llm-clients/tier2-hosted-chrome-notion-ai"
+import { Tier1HostedChromeNotionAiClient } from "@/lib/chatbot/server/llm-clients/tier1-hosted-chrome-notion-ai"
 import {
   createChatbotLlmTierOrchestrator,
   type TierAttemptEvent,
@@ -80,13 +80,13 @@ function productionSizedRequest(): ChatbotLlmRequest {
   return request
 }
 
-function tier3Response(): ChatbotLlmResponse {
+function tier2Response(): ChatbotLlmResponse {
   const rawText =
     '<customer_reply>案件を確認します。\n{"tool":"show_choice_panel","args":{"id":"job-kind","question":"案件の種類を教えてください","choices":[{"id":"cm","label":"CM"},{"id":"other","label":"その他"}]}}</customer_reply>'
   return {
     rawText,
     displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
-    tier: "tier-3-gemini-flash",
+    tier: "tier-2-gemini-flash",
   }
 }
 
@@ -136,14 +136,14 @@ function fakeResponse(): FakeResponse {
   return response
 }
 
-describe("hosted Tier2 production payload boundary", () => {
-  it("keeps the measured production request on Tier2 instead of falling through on body-too-large", async () => {
+describe("hosted Tier1 production payload boundary", () => {
+  it("keeps the measured production request on Tier1 instead of falling through on body-too-large", async () => {
     const workerGenerate = vi.fn(async () => {
       const rawText = "<customer_reply>案件の種類を教えてください。</customer_reply>"
       return {
         rawText,
         displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
-        tier: "tier-2-hosted-chrome-notion-ai" as const,
+        tier: "tier-1-hosted-chrome-notion-ai" as const,
       }
     })
     const workerHandler = createHostedWorkerRequestHandler({
@@ -164,7 +164,7 @@ describe("hosted Tier2 production payload boundary", () => {
       await workerHandler(request, response)
       return jsonResponse(JSON.parse(response.body ?? "{}"), response.statusCode)
     })
-    const tier2 = new Tier2HostedChromeNotionAiClient({
+    const tier1 = new Tier1HostedChromeNotionAiClient({
       workerUrl: "https://worker.example.test",
       token: "test-token",
       requestTimeoutMs: 1_000,
@@ -172,14 +172,14 @@ describe("hosted Tier2 production payload boundary", () => {
       totalGenerateBudgetMs: 2_000,
       httpClient: workerHttpClient,
     })
-    const tier3 = {
-      tier: "tier-3-gemini-flash",
+    const tier2 = {
+      tier: "tier-2-gemini-flash",
       isHealthy: vi.fn(async () => true),
-      generate: vi.fn(async () => tier3Response()),
+      generate: vi.fn(async () => tier2Response()),
     } satisfies ChatbotLlmClient
     const attempts: TierAttemptEvent[] = []
     const orchestrator = createChatbotLlmTierOrchestrator({
-      clients: [tier2, tier3],
+      clients: [tier1, tier2],
       onTierAttempt: (event) => attempts.push(event),
     })
     const request = productionSizedRequest()
@@ -191,14 +191,14 @@ describe("hosted Tier2 production payload boundary", () => {
     expect(observedGeneratePayloadBytes).toBe(measuredFilteredPayloadBytes)
     expect(observedGeneratePayloadBytes).toBeLessThan(hostedWorkerBodyLimitBytes)
     expect(workerGenerate).toHaveBeenCalledOnce()
-    expect(tier3.generate).not.toHaveBeenCalled()
+    expect(tier2.generate).not.toHaveBeenCalled()
     expect(attempts).toContainEqual(
       expect.objectContaining({
-        tier: "tier-2-hosted-chrome-notion-ai",
+        tier: "tier-1-hosted-chrome-notion-ai",
         phase: "generate",
         outcome: "success",
       }),
     )
-    expect(response.tier).toBe("tier-2-hosted-chrome-notion-ai")
+    expect(response.tier).toBe("tier-1-hosted-chrome-notion-ai")
   })
 })

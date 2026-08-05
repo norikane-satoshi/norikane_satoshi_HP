@@ -20,10 +20,9 @@ import {
   assertChatbotLlmResponseContract,
   createChatbotLlmTierOrchestrator,
   createConversation,
-  createTier1ChromeNotionAiClient,
-  createTier2HostedChromeNotionAiClient,
-  createTier3GeminiFlashClient,
-  createTier4FormFallbackClient,
+  createTier1HostedChromeNotionAiClient,
+  createTier2GeminiFlashClient,
+  createTier3FormFallbackClient,
   formatUserChatbotContextForPrompt,
   getChatbotLlmOutputContractRejection,
   linkConversationToUser,
@@ -112,7 +111,7 @@ type ChatbotMessageUi =
       kind: "consultation-summary-form"
       summary: Extract<RoutingDecision, { kind: "to-email" }>["summary"]
     }
-  | { kind: "tier4-inquiry-form" }
+  | { kind: "tier3-inquiry-form" }
 
 export type ChatbotMessageApiResult = {
   conversationId: string
@@ -1057,10 +1056,10 @@ async function notifySlackForChatbotEdit(input: {
 
 function detectChatbotIssueReasons(tier: ChatbotLlmResponse["tier"]): string[] {
   switch (tier) {
-    case chatbotLlmTierIds.tier3GeminiFlash:
-      return ["below-hosted-tier2-fallback"]
-    case chatbotLlmTierIds.tier4FormFallback:
-      return ["below-hosted-tier2-fallback", "tier4-form-fallback"]
+    case chatbotLlmTierIds.tier2GeminiFlash:
+      return ["below-hosted-tier1-fallback"]
+    case chatbotLlmTierIds.tier3FormFallback:
+      return ["below-hosted-tier1-fallback", "tier3-form-fallback"]
     default:
       return []
   }
@@ -1601,10 +1600,9 @@ function shouldIsolateExistingConversation(
 
 function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogContext): ChatbotLlmTierOrchestrator {
   const clients: ChatbotLlmClient[] = [
-    createTier1ChromeNotionAiClient(),
-    createTier2HostedChromeNotionAiClient(),
-    createTier3GeminiFlashClient(),
-    createTier4FormFallbackClient(),
+    createTier1HostedChromeNotionAiClient(),
+    createTier2GeminiFlashClient(),
+    createTier3FormFallbackClient(),
   ]
   return createChatbotLlmTierOrchestrator({
     clients,
@@ -1651,7 +1649,7 @@ async function generateContractedLlmResponse(input: {
     )
     return createChatbotLlmResponse({
       rawText,
-      tier: chatbotLlmTierIds.tier4FormFallback,
+      tier: chatbotLlmTierIds.tier3FormFallback,
       diagnostics: {
         contractFallback: true,
         reason: error.message,
@@ -1899,7 +1897,7 @@ type SingleUserPromptGuardReport =
   | { applied: false }
   | {
       applied: true
-      reason: "choice-panel" | "booking-final-confirmation" | "booking-card" | "summary-form" | "tier4-inquiry-form"
+      reason: "choice-panel" | "booking-final-confirmation" | "booking-card" | "summary-form" | "tier3-inquiry-form"
       uiKind: ChatbotMessageUi["kind"]
       choiceSetId?: string
     }
@@ -1942,10 +1940,10 @@ function buildSingleUserPromptGuardContent(input: {
         content: "下のフォームで相談内容を確認して送信してください。",
         reason: "summary-form",
       }
-    case "tier4-inquiry-form":
+    case "tier3-inquiry-form":
       return {
         content: "下のフォームからお問い合わせください。",
-        reason: "tier4-inquiry-form",
+        reason: "tier3-inquiry-form",
       }
     default:
       return undefined
@@ -2403,7 +2401,7 @@ function toMessageUi(input: {
   routingDecision: RoutingDecision | undefined
   conversationState: ConversationState
 }): ChatbotMessageUi {
-  if (input.tier === chatbotLlmTierIds.tier4FormFallback) return { kind: "tier4-inquiry-form" }
+  if (input.tier === chatbotLlmTierIds.tier3FormFallback) return { kind: "tier3-inquiry-form" }
 
   const routingDecision = input.routingDecision
   if (!routingDecision) return { kind: "none" }
@@ -2452,7 +2450,7 @@ async function resolveRoutingDecision(input: {
   candidateWindowFinder: CandidateWindowFinder
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
 }): Promise<RoutingDecision | undefined> {
-  if (input.llmResponse.tier === chatbotLlmTierIds.tier4FormFallback) return input.fallbackRoutingDecision
+  if (input.llmResponse.tier === chatbotLlmTierIds.tier3FormFallback) return input.fallbackRoutingDecision
   const envelope = input.llmResponse.displayEnvelope
   const rawDisplayText = envelope.defaultDenied ? input.llmResponse.rawText : envelope.displayText
   const toolCall = envelope.uiPayload.kind === "booking-card" && envelope.uiPayload.args

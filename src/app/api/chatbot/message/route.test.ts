@@ -55,7 +55,7 @@ async function loadPost({
   llmResponse = {
     rawText: "最終媒体を教えてください",
     displayEnvelope: createChatbotLlmDisplayEnvelope("最終媒体を教えてください"),
-    tier: "tier-2-hosted-chrome-notion-ai" as const,
+    tier: "tier-1-hosted-chrome-notion-ai" as const,
   },
 }: {
   session?: { user?: { id?: string; email?: string } } | null
@@ -113,10 +113,9 @@ async function loadPost({
     normalizeChatbotLlmChoiceSet,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
-    createTier1ChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-chrome-notion-ai" })),
-    createTier2HostedChromeNotionAiClient: vi.fn(() => ({ tier: "tier-2-hosted-chrome-notion-ai" })),
-    createTier3GeminiFlashClient: vi.fn(() => ({ tier: "tier-3-gemini-flash" })),
-    createTier4FormFallbackClient: vi.fn(() => ({ tier: "tier-4-form-fallback" })),
+    createTier1HostedChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-hosted-chrome-notion-ai" })),
+    createTier2GeminiFlashClient: vi.fn(() => ({ tier: "tier-2-gemini-flash" })),
+    createTier3FormFallbackClient: vi.fn(() => ({ tier: "tier-3-form-fallback" })),
     createChatbotLlmTierOrchestrator: vi.fn(() => ({
       generate,
       isHealthy: vi.fn().mockResolvedValue(true),
@@ -155,7 +154,7 @@ describe("POST /api/chatbot/message", () => {
     const route = await loadPost({
       llmResponse: {
         rawText: item.rawText,
-        tier: "tier-2-hosted-chrome-notion-ai",
+        tier: "tier-1-hosted-chrome-notion-ai",
       },
     })
 
@@ -331,11 +330,11 @@ describe("POST /api/chatbot/message", () => {
     })
   })
 
-  it("returns tier4-inquiry-form ui for deterministic tier4 fallback", async () => {
+  it("returns tier3-inquiry-form ui for deterministic tier3 fallback", async () => {
     const route = await loadPost({
       llmResponse: {
         rawText: "最終媒体を教えてください",
-        tier: "tier-4-form-fallback",
+        tier: "tier-3-form-fallback",
       },
     })
 
@@ -348,16 +347,16 @@ describe("POST /api/chatbot/message", () => {
       content: "媒体を選びます",
     })
     await expect(response.json()).resolves.toMatchObject({
-      tier: "tier-4-form-fallback",
-      ui: { kind: "tier4-inquiry-form" },
+      tier: "tier-3-form-fallback",
+      ui: { kind: "tier3-inquiry-form" },
     })
   })
 
-  it("returns tier4-inquiry-form ui for Tier 4 fallback", async () => {
+  it("returns tier3-inquiry-form ui for Tier 3 fallback", async () => {
     const route = await loadPost({
       llmResponse: {
         rawText: "フォームに切り替えます",
-        tier: "tier-4-form-fallback",
+        tier: "tier-3-form-fallback",
       },
     })
 
@@ -365,8 +364,8 @@ describe("POST /api/chatbot/message", () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
-      tier: "tier-4-form-fallback",
-      ui: { kind: "tier4-inquiry-form" },
+      tier: "tier-3-form-fallback",
+      ui: { kind: "tier3-inquiry-form" },
     })
   })
 
@@ -406,7 +405,7 @@ describe("POST /api/chatbot/message", () => {
       failure: {
         stage: "conversation-load",
         retryable: true,
-        fallback: "tier4-inquiry-form",
+        fallback: "tier3-inquiry-form",
       },
       requestId: expect.any(String),
     })
@@ -477,7 +476,7 @@ describe("POST /api/chatbot/message", () => {
       failure: {
         stage: "conversation-save",
         retryable: true,
-        fallback: "tier4-inquiry-form",
+        fallback: "tier3-inquiry-form",
       },
     })
     expect(consoleError).toHaveBeenCalledWith(

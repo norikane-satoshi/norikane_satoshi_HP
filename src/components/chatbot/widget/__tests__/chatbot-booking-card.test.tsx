@@ -923,7 +923,7 @@ describe("ChatbotBookingCard", () => {
         status: 503,
         json: vi.fn().mockResolvedValue({
           error: "chatbot_operation_failed",
-          failure: { retryable: true, fallback: "tier4-inquiry-form" },
+          failure: { retryable: true, fallback: "tier3-inquiry-form" },
         }),
       })
       .mockResolvedValueOnce({

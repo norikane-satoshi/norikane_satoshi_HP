@@ -138,7 +138,7 @@ function shouldAttemptGenerateAfterUnhealthyHealth(
   client: ChatbotLlmClient,
   error: ChatbotLlmError | Error | undefined,
 ): boolean {
-  if (client.tier !== chatbotLlmTierIds.tier2HostedChromeNotionAi) return false
+  if (client.tier !== chatbotLlmTierIds.tier1HostedChromeNotionAi) return false
   if (!error) return false
 
   if (error instanceof ChatbotLlmError) {
@@ -184,5 +184,5 @@ function normalizeError(error: unknown, tier: ChatbotLlmTier): ChatbotLlmError |
 function getLastTier(tierOrder: ReadonlyArray<ChatbotLlmTier>): ChatbotLlmTier {
   for (const tier of [...tierOrder].reverse()) return tier
 
-  return chatbotLlmTierIds.tier4FormFallback
+  return chatbotLlmTierIds.tier3FormFallback
 }

@@ -54,7 +54,7 @@ export function logChatbotOperationFailure(input: ChatbotOperationFailureInput):
       stage: input.stage,
       status,
       retryable: isRetryableStatus(status),
-      fallback: "tier4-inquiry-form",
+      fallback: "tier3-inquiry-form",
       requestSummary: input.requestSummary ?? {},
       error: serializeError(input.error),
     }),
@@ -72,7 +72,7 @@ export function respondChatbotOperationFailure(input: ChatbotOperationFailureInp
       failure: {
         stage: input.stage,
         retryable: isRetryableStatus(status),
-        fallback: "tier4-inquiry-form",
+        fallback: "tier3-inquiry-form",
       },
     },
     { status },

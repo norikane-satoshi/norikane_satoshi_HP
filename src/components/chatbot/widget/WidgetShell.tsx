@@ -1136,7 +1136,7 @@ export function WidgetShell({
       content: formFallbackMessage,
       createdAt: new Date(),
     })
-    setActiveUi({ kind: "tier4-inquiry-form" })
+    setActiveUi({ kind: "tier3-inquiry-form" })
   }
 
   const handleInquirySubmit = async (input: Omit<SubmitInquiryInput, "conversationId">) => {
@@ -1165,7 +1165,7 @@ export function WidgetShell({
         content: communicationFallbackMessage,
         createdAt: new Date(),
       })
-      setActiveUi({ kind: "tier4-inquiry-form" })
+      setActiveUi({ kind: "tier3-inquiry-form" })
       setLastDebugRequest(debugUnknownFailureRequest("inquiry", debugStartedAt))
     }
   }
@@ -1666,7 +1666,7 @@ function ActiveWidgetUi({
     )
   }
 
-  if (ui.kind === "tier4-inquiry-form") {
+  if (ui.kind === "tier3-inquiry-form") {
     return <InquiryForm onSubmit={onInquirySubmit} />
   }
 

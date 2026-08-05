@@ -4,9 +4,9 @@ import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import {
-  createTier3GeminiFlashClient,
-  Tier3GeminiFlashClient,
-} from "@/lib/chatbot/server/llm-clients/tier3-gemini-flash"
+  createTier2GeminiFlashClient,
+  Tier2GeminiFlashClient,
+} from "@/lib/chatbot/server/llm-clients/tier2-gemini-flash"
 
 const apiKey = "test-gemini-key"
 
@@ -54,7 +54,7 @@ function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {
 }
 
 function client(httpClient: (input: string, init?: RequestInit) => Promise<Response>) {
-  return new Tier3GeminiFlashClient({
+  return new Tier2GeminiFlashClient({
     apiKey,
     modelName: "gemini-2.5-flash",
     baseUrl: "https://generativelanguage.googleapis.com",
@@ -72,13 +72,13 @@ async function expectLlmError(
   await expect(promise).rejects.toMatchObject({
     code: expected.code,
     isRetryable: expected.isRetryable,
-    tier: "tier-3-gemini-flash",
+    tier: "tier-2-gemini-flash",
   })
 }
 
-describe("Tier3GeminiFlashClient", () => {
-  it("keeps the tier fixed to tier 3 Gemini Flash", () => {
-    expect(createTier3GeminiFlashClient({ apiKey }).tier).toBe("tier-3-gemini-flash")
+describe("Tier2GeminiFlashClient", () => {
+  it("keeps the tier fixed to tier 2 Gemini Flash", () => {
+    expect(createTier2GeminiFlashClient({ apiKey }).tier).toBe("tier-2-gemini-flash")
   })
 
   it("checks model availability with x-goog-api-key without putting the key in the URL", async () => {
@@ -113,7 +113,7 @@ describe("Tier3GeminiFlashClient", () => {
 
     await expect(gemini.generate(request)).resolves.toMatchObject({
       rawText: "対応可能です。最終媒体を教えてください。",
-      tier: "tier-3-gemini-flash",
+      tier: "tier-2-gemini-flash",
       tokensUsed: 42,
       diagnostics: {
         endpoint: "/v1beta/models/gemini-2.5-flash:generateContent",
@@ -149,7 +149,7 @@ describe("Tier3GeminiFlashClient", () => {
       isRetryable: false,
     })
     await expectLlmError(
-      new Tier3GeminiFlashClient({
+      new Tier2GeminiFlashClient({
         apiKey,
         requestTimeoutMs: 1,
         healthCheckTimeoutMs: 1,

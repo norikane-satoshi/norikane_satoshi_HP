@@ -8,7 +8,7 @@ import {
   createChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
 
-type Tier2HostedChromeNotionAiClientConfig = {
+type Tier1HostedChromeNotionAiClientConfig = {
   workerUrl?: string
   token?: string
   requestTimeoutMs: number
@@ -17,11 +17,11 @@ type Tier2HostedChromeNotionAiClientConfig = {
   enabled: boolean
 }
 
-type Tier2HostedChromeNotionAiClientOptions = Partial<Tier2HostedChromeNotionAiClientConfig> & {
-  httpClient?: Tier2HostedWorkerHttpClient
+type Tier1HostedChromeNotionAiClientOptions = Partial<Tier1HostedChromeNotionAiClientConfig> & {
+  httpClient?: Tier1HostedWorkerHttpClient
 }
 
-type Tier2HostedWorkerHttpClient = (input: string, init?: RequestInit) => Promise<Response>
+type Tier1HostedWorkerHttpClient = (input: string, init?: RequestInit) => Promise<Response>
 
 type TimeoutTag = "timeout"
 type AbortTag = "aborted"
@@ -82,14 +82,14 @@ class HostedWorkerHttpStatusError extends Error {
   }
 }
 
-export const tier2HostedChromeNotionAiDefaults = {
+export const tier1HostedChromeNotionAiDefaults = {
   requestTimeoutMs: 75000,
   healthCheckTimeoutMs: 3000,
   totalGenerateBudgetMs: 90000,
   enabled: true,
 } as const
 
-const tier = chatbotLlmTierIds.tier2HostedChromeNotionAi
+const tier = chatbotLlmTierIds.tier1HostedChromeNotionAi
 const timeoutTag: TimeoutTag = "timeout"
 const abortTag: AbortTag = "aborted"
 const healthEndpointPath = "/health?mode=quick"
@@ -109,22 +109,22 @@ const firstServerErrorStatus = 500
 const maxGenerateAttempts = 3
 const minRetryAttemptBudgetMs = 5000
 
-export class Tier2HostedChromeNotionAiClient implements ChatbotLlmClient {
+export class Tier1HostedChromeNotionAiClient implements ChatbotLlmClient {
   readonly tier = tier
-  private readonly config: Tier2HostedChromeNotionAiClientConfig
-  private readonly httpClient: Tier2HostedWorkerHttpClient
+  private readonly config: Tier1HostedChromeNotionAiClientConfig
+  private readonly httpClient: Tier1HostedWorkerHttpClient
   private lastHealthError?: ChatbotLlmError | Error
 
-  constructor(options: Tier2HostedChromeNotionAiClientOptions = {}) {
+  constructor(options: Tier1HostedChromeNotionAiClientOptions = {}) {
     this.config = {
       workerUrl: trimTrailingSlash(options.workerUrl),
       token: options.token,
-      requestTimeoutMs: options.requestTimeoutMs ?? tier2HostedChromeNotionAiDefaults.requestTimeoutMs,
+      requestTimeoutMs: options.requestTimeoutMs ?? tier1HostedChromeNotionAiDefaults.requestTimeoutMs,
       healthCheckTimeoutMs:
-        options.healthCheckTimeoutMs ?? tier2HostedChromeNotionAiDefaults.healthCheckTimeoutMs,
+        options.healthCheckTimeoutMs ?? tier1HostedChromeNotionAiDefaults.healthCheckTimeoutMs,
       totalGenerateBudgetMs:
-        options.totalGenerateBudgetMs ?? tier2HostedChromeNotionAiDefaults.totalGenerateBudgetMs,
-      enabled: options.enabled ?? tier2HostedChromeNotionAiDefaults.enabled,
+        options.totalGenerateBudgetMs ?? tier1HostedChromeNotionAiDefaults.totalGenerateBudgetMs,
+      enabled: options.enabled ?? tier1HostedChromeNotionAiDefaults.enabled,
     }
     this.httpClient = options.httpClient ?? globalFetch
   }
@@ -465,7 +465,7 @@ function canRetryGenerate(input: {
   attempt: number
   failure: ReturnType<typeof summarizeGenerateFailure>
   startedAt: number
-  config: Tier2HostedChromeNotionAiClientConfig
+  config: Tier1HostedChromeNotionAiClientConfig
 }): boolean {
   if (input.attempt >= maxGenerateAttempts || !input.failure.retryable) return false
 
@@ -539,27 +539,27 @@ function remainingGenerateBudgetMs(startedAt: number, totalBudgetMs: number): nu
   return Math.max(0, totalBudgetMs - (Date.now() - startedAt))
 }
 
-export function createTier2HostedChromeNotionAiClient(
-  overrides: Partial<Tier2HostedChromeNotionAiClientConfig> & {
-    httpClient?: Tier2HostedWorkerHttpClient
+export function createTier1HostedChromeNotionAiClient(
+  overrides: Partial<Tier1HostedChromeNotionAiClientConfig> & {
+    httpClient?: Tier1HostedWorkerHttpClient
   } = {},
-): Tier2HostedChromeNotionAiClient {
+): Tier1HostedChromeNotionAiClient {
   const env = readHostedNotionAiEnv()
 
-  return new Tier2HostedChromeNotionAiClient({
+  return new Tier1HostedChromeNotionAiClient({
     workerUrl: env.CHATBOT_HOSTED_NOTION_AI_WORKER_URL,
     token: env.CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN,
     requestTimeoutMs: parsePositiveInteger(
       env.CHATBOT_HOSTED_NOTION_AI_TIMEOUT_MS,
-      tier2HostedChromeNotionAiDefaults.requestTimeoutMs,
+      tier1HostedChromeNotionAiDefaults.requestTimeoutMs,
     ),
     healthCheckTimeoutMs: parsePositiveInteger(
       env.CHATBOT_HOSTED_NOTION_AI_HEALTH_TIMEOUT_MS,
-      tier2HostedChromeNotionAiDefaults.healthCheckTimeoutMs,
+      tier1HostedChromeNotionAiDefaults.healthCheckTimeoutMs,
     ),
     totalGenerateBudgetMs: parsePositiveInteger(
       env.CHATBOT_HOSTED_NOTION_AI_TOTAL_BUDGET_MS,
-      tier2HostedChromeNotionAiDefaults.totalGenerateBudgetMs,
+      tier1HostedChromeNotionAiDefaults.totalGenerateBudgetMs,
     ),
     enabled: parseEnabled(env.CHATBOT_HOSTED_NOTION_AI_ENABLED),
     ...overrides,
@@ -571,7 +571,7 @@ function globalFetch(input: string, init?: RequestInit): Promise<Response> {
 }
 
 function parseEnabled(value: string | undefined): boolean {
-  if (!value) return tier2HostedChromeNotionAiDefaults.enabled
+  if (!value) return tier1HostedChromeNotionAiDefaults.enabled
 
   return !["false", "0", "off"].includes(value.trim().toLowerCase())
 }
@@ -677,7 +677,7 @@ function sanitizeLogText(value: string): string {
 }
 
 function fetchWithTimeout(
-  httpClient: Tier2HostedWorkerHttpClient,
+  httpClient: Tier1HostedWorkerHttpClient,
   input: string,
   init: RequestInit,
   timeoutMs: number,

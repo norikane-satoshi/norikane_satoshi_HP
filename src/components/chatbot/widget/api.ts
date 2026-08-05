@@ -44,13 +44,12 @@ export type WidgetUi =
       kind: "consultation-summary-form"
       summary: Extract<RoutingDecision, { kind: "to-email" }>["summary"]
     }
-  | { kind: "tier4-inquiry-form" }
+  | { kind: "tier3-inquiry-form" }
 
 export type ChatbotResponseTier =
-  | "tier-1-chrome-notion-ai"
-  | "tier-2-hosted-chrome-notion-ai"
-  | "tier-3-gemini-flash"
-  | "tier-4-form-fallback"
+  | "tier-1-hosted-chrome-notion-ai"
+  | "tier-2-gemini-flash"
+  | "tier-3-form-fallback"
 
 export type ChatbotMessageResponse = {
   requestId?: string
@@ -96,7 +95,7 @@ export class ChatbotOperationError extends Error {
   readonly operation: "message" | "submit-inquiry" | "create-booking-from-chat"
   readonly status?: number
   readonly retryable: boolean
-  readonly fallback: "tier4-inquiry-form"
+  readonly fallback: "tier3-inquiry-form"
   readonly requestId?: string
   readonly stage?: string
 
@@ -104,7 +103,7 @@ export class ChatbotOperationError extends Error {
     operation: ChatbotOperationError["operation"]
     status?: number
     retryable: boolean
-    fallback?: "tier4-inquiry-form"
+    fallback?: "tier3-inquiry-form"
     requestId?: string
     stage?: string
     message?: string
@@ -114,7 +113,7 @@ export class ChatbotOperationError extends Error {
     this.operation = input.operation
     this.status = input.status
     this.retryable = input.retryable
-    this.fallback = input.fallback ?? "tier4-inquiry-form"
+    this.fallback = input.fallback ?? "tier3-inquiry-form"
     this.requestId = input.requestId
     this.stage = input.stage
   }
@@ -199,7 +198,7 @@ function operationErrorFromResponse(
     typeof failure.failure?.retryable === "boolean"
       ? failure.failure.retryable
       : isRetryableStatus(response.status)
-  const fallback = failure.failure?.fallback === "tier4-inquiry-form" ? "tier4-inquiry-form" : undefined
+  const fallback = failure.failure?.fallback === "tier3-inquiry-form" ? "tier3-inquiry-form" : undefined
 
   return new ChatbotOperationError({
     operation,

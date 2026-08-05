@@ -54,7 +54,7 @@ describe("hosted worker generate", () => {
     vi.useRealTimers()
   })
 
-  it("allows a generation that completes within Tier2's 75-second attempt budget", async () => {
+  it("allows a generation that completes within Tier1's 75-second attempt budget", async () => {
     vi.useFakeTimers()
     const state = createHostedWorkerRuntimeState()
     const queue = createHostedWorkerQueue(state)
@@ -65,9 +65,9 @@ describe("hosted worker generate", () => {
             setTimeout(
               () =>
                 resolve({
-                  rawText: "completed before the Tier2 client deadline",
-                  displayEnvelope: createChatbotLlmDisplayEnvelope("completed before the Tier2 client deadline"),
-                  tier: "tier-1-chrome-notion-ai" as const,
+                  rawText: "completed before the Tier1 client deadline",
+                  displayEnvelope: createChatbotLlmDisplayEnvelope("completed before the Tier1 client deadline"),
+                  tier: "tier-1-hosted-chrome-notion-ai" as const,
                 }),
               70_500,
             )
@@ -78,8 +78,8 @@ describe("hosted worker generate", () => {
     await vi.advanceTimersByTimeAsync(70_500)
 
     await expect(response).resolves.toMatchObject({
-      rawText: "completed before the Tier2 client deadline",
-      tier: "tier-2-hosted-chrome-notion-ai",
+      rawText: "completed before the Tier1 client deadline",
+      tier: "tier-1-hosted-chrome-notion-ai",
     })
   })
 
@@ -98,7 +98,7 @@ describe("hosted worker generate", () => {
               new ChatbotLlmError({
                 message: "aborted",
                 code: "timeout",
-                tier: "tier-1-chrome-notion-ai",
+                tier: "tier-1-hosted-chrome-notion-ai",
                 isRetryable: true,
                 cause: { errorCode: "request_aborted", aborted: true },
               }),
@@ -119,7 +119,7 @@ describe("hosted worker generate", () => {
     await expect(promise).rejects.toMatchObject({
       code: "timeout",
       isRetryable: true,
-      tier: "tier-2-hosted-chrome-notion-ai",
+      tier: "tier-1-hosted-chrome-notion-ai",
     })
     expect(state.queue.inFlight).toBe(false)
     expect(state.queue.queueLength).toBe(0)
@@ -152,14 +152,14 @@ describe("hosted worker generate", () => {
               resolve({
                 rawText: "active done",
                 displayEnvelope: createChatbotLlmDisplayEnvelope("active done"),
-                tier: "tier-1-chrome-notion-ai",
+                tier: "tier-1-hosted-chrome-notion-ai",
               })
           }),
       )
       .mockResolvedValue({
         rawText: "queued should not run",
         displayEnvelope: createChatbotLlmDisplayEnvelope("queued should not run"),
-        tier: "tier-1-chrome-notion-ai",
+        tier: "tier-1-hosted-chrome-notion-ai",
       })
     const queuedAbort = new AbortController()
     const active = generateHostedWorkerResponse(llmRequest("req_active"), state, queue, {
@@ -200,7 +200,7 @@ describe("hosted worker generate", () => {
         generate: async () => ({
           rawText: "ok",
           displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
-          tier: "tier-1-chrome-notion-ai",
+          tier: "tier-1-hosted-chrome-notion-ai",
           diagnostics: { endpoint: "/api/v3/runInferenceTranscript" },
         }),
       }),
@@ -244,7 +244,7 @@ describe("hosted worker generate", () => {
         generate: async () => ({
           rawText: "ok",
           displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
-          tier: "tier-1-chrome-notion-ai",
+          tier: "tier-1-hosted-chrome-notion-ai",
         }),
       }),
     })
@@ -272,7 +272,7 @@ describe("hosted worker generate", () => {
         generate: async () => ({
           rawText: "ok",
           displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
-          tier: "tier-1-chrome-notion-ai",
+          tier: "tier-1-hosted-chrome-notion-ai",
           diagnostics: {
             cdpConnectionState: {
               session: "newly_established",
@@ -296,12 +296,12 @@ describe("hosted worker generate", () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it("writes one request-correlated boundary record with all worker and Tier1 stage spans", async () => {
+  it("writes one request-correlated boundary record with all worker and hosted Notion AI stage spans", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "hosted-worker-stage-timings-"))
     const diagnosticsPath = path.join(dir, "generate.jsonl")
     const state = createHostedWorkerRuntimeState()
     const queue = createHostedWorkerQueue(state)
-    const tier1StageTimings = {
+    const hostedNotionAiStageTimings = {
       cdpTargetSession: {
         startedAtEpochMs: 1_000,
         completedAtEpochMs: 1_010,
@@ -340,8 +340,8 @@ describe("hosted worker generate", () => {
         generate: async () => ({
           rawText: "ok",
           displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
-          tier: "tier-1-chrome-notion-ai",
-          diagnostics: { stageTimings: tier1StageTimings },
+          tier: "tier-1-hosted-chrome-notion-ai",
+          diagnostics: { stageTimings: hostedNotionAiStageTimings },
         }),
       }),
     })
@@ -354,20 +354,20 @@ describe("hosted worker generate", () => {
         completedAtEpochMs: expect.any(Number),
         durationMs: expect.any(Number),
       },
-      ...tier1StageTimings,
+      ...hostedNotionAiStageTimings,
     })
     expect.soft(events[0]).toMatchObject({
       event: "hosted_worker_generate",
       requestId: "req_stage_timings",
-      tier: "tier-2-hosted-chrome-notion-ai",
-      boundary: "tier1-stage-timings",
+      tier: "tier-1-hosted-chrome-notion-ai",
+      boundary: "hosted-notion-ai-stage-timings",
       stageTimings: {
         workerQueueWait: {
           startedAtEpochMs: expect.any(Number),
           completedAtEpochMs: expect.any(Number),
           durationMs: expect.any(Number),
         },
-        ...tier1StageTimings,
+        ...hostedNotionAiStageTimings,
       },
     })
     expect(JSON.stringify(events[0])).not.toContain("system prompt")
