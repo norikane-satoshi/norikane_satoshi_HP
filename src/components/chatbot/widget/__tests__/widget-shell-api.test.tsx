@@ -8,7 +8,11 @@ import { renderToString } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { WidgetShell } from "@/components/chatbot/widget/WidgetShell"
-import { isLocalChatbotDebugHost, shouldAutoOpenChatbotDebug } from "@/components/chatbot/widget/ChatbotDebugPanel"
+import {
+  copyChatbotDiagnosticsText,
+  isLocalChatbotDebugHost,
+  shouldAutoOpenChatbotDebug,
+} from "@/components/chatbot/widget/ChatbotDebugPanel"
 import { additionalWorkChoices, finalMediumChoices } from "@/lib/chatbot/domain"
 
 vi.mock("next-auth/react", () => ({
@@ -124,6 +128,15 @@ describe("WidgetShell API wiring", () => {
     expect(isLocalChatbotDebugHost("example.com")).toBe(false)
     expect(shouldAutoOpenChatbotDebug({ hostname: "localhost", search: "?chatbotDebug=1" } as Location)).toBe(true)
     expect(shouldAutoOpenChatbotDebug({ hostname: "example.com", search: "?chatbotDebug=1" } as Location)).toBe(false)
+  })
+
+  it("falls back when the async Clipboard API is denied", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("NotAllowedError"))
+    const fallbackCopy = vi.fn().mockReturnValue(true)
+
+    await expect(copyChatbotDiagnosticsText("diagnostic-json", { writeText, fallbackCopy })).resolves.toBeUndefined()
+    expect(writeText).toHaveBeenCalledWith("diagnostic-json")
+    expect(fallbackCopy).toHaveBeenCalledWith("diagnostic-json")
   })
 
   it("does not render tier or model debug text until the local panel is explicitly opened", async () => {

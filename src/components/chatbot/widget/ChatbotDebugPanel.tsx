@@ -46,6 +46,11 @@ type ChatbotDebugPanelProps = {
   onClose: () => void
 }
 
+type ClipboardAdapters = {
+  writeText?: (text: string) => Promise<void>
+  fallbackCopy?: (text: string) => boolean
+}
+
 export function isLocalChatbotDebugHost(hostname: string): boolean {
   const normalized = hostname.trim().toLowerCase().replace(/^\[(.*)\]$/, "$1")
   return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1"
@@ -54,6 +59,37 @@ export function isLocalChatbotDebugHost(hostname: string): boolean {
 export function shouldAutoOpenChatbotDebug(location: Pick<Location, "hostname" | "search">): boolean {
   if (!isLocalChatbotDebugHost(location.hostname)) return false
   return new URLSearchParams(location.search).get("chatbotDebug") === "1"
+}
+
+export async function copyChatbotDiagnosticsText(text: string, adapters: ClipboardAdapters = {}): Promise<void> {
+  const writeText = adapters.writeText ?? navigator.clipboard?.writeText.bind(navigator.clipboard)
+  if (writeText) {
+    try {
+      await writeText(text)
+      return
+    } catch {
+      // Some local browser surfaces deny the async Clipboard API; use the selection fallback below.
+    }
+  }
+
+  const fallbackCopy = adapters.fallbackCopy ?? copyWithTemporaryTextarea
+  if (!fallbackCopy(text)) throw new Error("clipboard_copy_failed")
+}
+
+function copyWithTemporaryTextarea(text: string): boolean {
+  const textarea = document.createElement("textarea")
+  textarea.value = text
+  textarea.setAttribute("readonly", "")
+  textarea.style.position = "fixed"
+  textarea.style.inset = "-9999px auto auto -9999px"
+  document.body.appendChild(textarea)
+  textarea.select()
+  textarea.setSelectionRange(0, textarea.value.length)
+  try {
+    return document.execCommand("copy")
+  } finally {
+    textarea.remove()
+  }
 }
 
 export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps) {
@@ -84,7 +120,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
 
   const copyDiagnostics = async () => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify({ buildInfo, snapshot }, null, 2))
+      await copyChatbotDiagnosticsText(JSON.stringify({ buildInfo, snapshot }, null, 2))
       setCopyState("copied")
     } catch {
       setCopyState("failed")
