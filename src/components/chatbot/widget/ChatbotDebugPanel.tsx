@@ -178,7 +178,13 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
             type="button"
             onClick={() => void copyDiagnostics()}
             className="glass-btn flex h-8 w-8 items-center justify-center"
-            aria-label="診断JSONをコピー"
+            aria-label={
+              copyState === "copied"
+                ? "診断JSONをコピーしました"
+                : copyState === "failed"
+                  ? "診断JSONをコピーできませんでした"
+                  : "診断JSONをコピー"
+            }
           >
             {copyState === "copied" ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
           </button>
@@ -195,6 +201,14 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
       {buildInfoError ? (
         <p className="mt-2 text-[10px] text-[var(--hp-color-error)]" role="status">
           Build info: {buildInfoError}
+        </p>
+      ) : null}
+      {copyState !== "idle" ? (
+        <p
+          className={`mt-2 text-[10px] ${copyState === "copied" ? "text-hp-muted" : "text-[var(--hp-color-error)]"}`}
+          role="status"
+        >
+          {copyState === "copied" ? "診断JSONをコピーしました。" : "診断JSONをコピーできませんでした。"}
         </p>
       ) : null}
       <dl className="mt-3 grid grid-cols-[max-content,minmax(0,1fr)] gap-x-3 gap-y-1 rounded-[12px] border border-white/55 bg-white/40 p-3 font-[var(--font-geist-mono)] text-[10px] leading-relaxed">

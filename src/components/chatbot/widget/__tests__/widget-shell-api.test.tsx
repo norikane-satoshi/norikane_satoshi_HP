@@ -200,6 +200,10 @@ describe("WidgetShell API wiring", () => {
     expect(within(panel).getByText("side-peek / desktop")).toBeInTheDocument()
     expect(within(panel).getByText("none")).toBeInTheDocument()
     expect(panel).not.toHaveTextContent("相談したいです")
+
+    fireEvent.click(within(panel).getByRole("button", { name: "診断JSONをコピー" }))
+    expect(await within(panel).findByRole("button", { name: "診断JSONをコピーできませんでした" })).toBeInTheDocument()
+    expect(within(panel).getByRole("status", { name: "" })).toHaveTextContent("診断JSONをコピーできませんでした。")
   })
 
   it("keeps panel wheel, touch, and pointer operations inside the chatbot shell", () => {
