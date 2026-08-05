@@ -215,6 +215,7 @@ describe("POST /api/chatbot/message", () => {
       userId: null,
     })
     await expect(response.json()).resolves.toMatchObject({
+      requestId: expect.any(String),
       conversationId: "conv_1",
       assistantMessage: {
         role: "assistant",

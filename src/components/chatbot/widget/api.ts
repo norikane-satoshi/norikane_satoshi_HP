@@ -53,6 +53,7 @@ export type ChatbotResponseTier =
   | "tier-4-form-fallback"
 
 export type ChatbotMessageResponse = {
+  requestId?: string
   conversationId: string
   userMessage?: WidgetAssistantMessage
   assistantMessage: WidgetAssistantMessage

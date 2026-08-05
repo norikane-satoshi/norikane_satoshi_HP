@@ -8,6 +8,7 @@ import { renderToString } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { WidgetShell } from "@/components/chatbot/widget/WidgetShell"
+import { isLocalChatbotDebugHost, shouldAutoOpenChatbotDebug } from "@/components/chatbot/widget/ChatbotDebugPanel"
 import { additionalWorkChoices, finalMediumChoices } from "@/lib/chatbot/domain"
 
 vi.mock("next-auth/react", () => ({
@@ -104,6 +105,7 @@ describe("WidgetShell API wiring", () => {
   beforeEach(() => {
     installLocalStorage()
     removeStoredWidgetSession()
+    window.history.replaceState({}, "", "/")
   })
 
   afterEach(() => {
@@ -112,9 +114,19 @@ describe("WidgetShell API wiring", () => {
     vi.unstubAllGlobals()
     vi.useRealTimers()
     delete process.env.NEXT_PUBLIC_ENABLE_BOOKING
+    window.history.replaceState({}, "", "/")
   })
 
-  it("does not render tier or model debug text on production-like locations", async () => {
+  it("limits the diagnostic display to explicit loopback environments", () => {
+    expect(isLocalChatbotDebugHost("localhost")).toBe(true)
+    expect(isLocalChatbotDebugHost("127.0.0.1")).toBe(true)
+    expect(isLocalChatbotDebugHost("[::1]")).toBe(true)
+    expect(isLocalChatbotDebugHost("example.com")).toBe(false)
+    expect(shouldAutoOpenChatbotDebug({ hostname: "localhost", search: "?chatbotDebug=1" } as Location)).toBe(true)
+    expect(shouldAutoOpenChatbotDebug({ hostname: "example.com", search: "?chatbotDebug=1" } as Location)).toBe(false)
+  })
+
+  it("does not render tier or model debug text until the local panel is explicitly opened", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       mockJsonResponse({
         conversationId: "conv_1",
@@ -131,6 +143,50 @@ describe("WidgetShell API wiring", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent(/Local debug|Notion AI|Tier|\bmodel\b/i)
+  })
+
+  it("shows request, tier, state, and build metadata only after opening the local diagnostic panel", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input) === "/api/chatbot/build-info") {
+        return Promise.resolve(
+          mockJsonResponse({
+            commitSha: "debug-sha",
+            worktreePath: "/tmp/debug-worktree",
+            expectedRef: "staging",
+            buildTime: "2026-08-05T00:00:00.000Z",
+            commitShaSource: "git",
+            expectedRefSource: "git",
+          }),
+        )
+      }
+      return Promise.resolve(
+        mockJsonResponse({
+          requestId: "request-debug-1",
+          conversationId: "conv_debug",
+          assistantMessage,
+          tier: "tier-3-gemini-flash",
+          ui: { kind: "none" },
+        }),
+      )
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<WidgetShell onMinimize={vi.fn()} isDesktopLayout displayMode="side-peek" />)
+    expect(await screen.findByRole("button", { name: "診断情報を表示" })).toBeInTheDocument()
+    expect(screen.queryByLabelText("チャットボット診断情報")).not.toBeInTheDocument()
+
+    submitMessage()
+    expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "診断情報を表示" }))
+
+    const panel = await screen.findByLabelText("チャットボット診断情報")
+    expect(await within(panel).findByText("debug-sha")).toBeInTheDocument()
+    expect(within(panel).getByText("request-debug-1")).toBeInTheDocument()
+    expect(within(panel).getByText("tier-3-gemini-flash")).toBeInTheDocument()
+    expect(within(panel).getByText("conv_debug")).toBeInTheDocument()
+    expect(within(panel).getByText("side-peek / desktop")).toBeInTheDocument()
+    expect(within(panel).getByText("none")).toBeInTheDocument()
+    expect(panel).not.toHaveTextContent("相談したいです")
   })
 
   it("keeps panel wheel, touch, and pointer operations inside the chatbot shell", () => {

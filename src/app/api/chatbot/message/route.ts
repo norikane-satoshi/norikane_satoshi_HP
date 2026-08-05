@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
     })
     const response = NextResponse.json({
       ...result,
+      requestId,
       clientBuildId: process.env.NEXT_PUBLIC_CHATBOT_BUILD_ID ?? "local",
     })
 

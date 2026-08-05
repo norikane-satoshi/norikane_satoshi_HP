@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { ChevronDown, GripHorizontal, Maximize2, Minimize2, Minus, PanelRightOpen, Sparkles } from "lucide-react"
+import { Bug, ChevronDown, GripHorizontal, Maximize2, Minimize2, Minus, PanelRightOpen, Sparkles } from "lucide-react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
@@ -23,12 +23,19 @@ import {
   submitChatbotInquiry,
   submitChatbotMessage,
   type BookingCompletionSummary,
+  type ChatbotOperationError,
   type SubmitInquiryInput,
   type WidgetUi,
 } from "./api"
 import { ChatInput } from "./ChatInput"
 import { ChatMessage } from "./ChatMessage"
 import { ChatbotBookingCard } from "./ChatbotBookingCard"
+import {
+  ChatbotDebugPanel,
+  isLocalChatbotDebugHost,
+  shouldAutoOpenChatbotDebug,
+  type ChatbotDebugRequest,
+} from "./ChatbotDebugPanel"
 import { ChoicePanel } from "./ChoicePanel"
 import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
@@ -453,6 +460,9 @@ export function WidgetShell({
   const [pendingRequest, setPendingRequest] = useState<StoredPendingRequest | undefined>(undefined)
   const [recoverableRequest, setRecoverableRequest] = useState<StoredPendingRequest | undefined>(undefined)
   const [hasRestoredSession, setHasRestoredSession] = useState(false)
+  const [isDebugAvailable, setIsDebugAvailable] = useState(false)
+  const [isDebugOpen, setIsDebugOpen] = useState(false)
+  const [lastDebugRequest, setLastDebugRequest] = useState<ChatbotDebugRequest | undefined>(undefined)
   const activeRequestControllerRef = useRef<AbortController | null>(null)
   const minimizeTimerRef = useRef<number | null>(null)
   const pendingRecoveryStartedRef = useRef(false)
@@ -659,6 +669,25 @@ export function WidgetShell({
   }, [])
 
   useEffect(() => {
+    const available = isLocalChatbotDebugHost(window.location.hostname)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- debug availability is a browser-only hydration boundary.
+    setIsDebugAvailable(available)
+    if (!available) return undefined
+
+    if (shouldAutoOpenChatbotDebug(window.location)) {
+      setIsDebugOpen(true)
+    }
+
+    const handleDebugShortcut = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== "d") return
+      event.preventDefault()
+      setIsDebugOpen((current) => !current)
+    }
+    window.addEventListener("keydown", handleDebugShortcut)
+    return () => window.removeEventListener("keydown", handleDebugShortcut)
+  }, [])
+
+  useEffect(() => {
     if (!hasRestoredSession) return
 
     persistWidgetSession({
@@ -673,6 +702,7 @@ export function WidgetShell({
   }, [activeUi, clientSessionId, conversationId, customerDisplayName, hasRestoredSession, messages, pendingRequest, recoverableRequest])
 
   const recoverPendingRequest = async (pending: StoredPendingRequest, controller: AbortController) => {
+    const debugStartedAt = Date.now()
     const recoveryClientUserMessageId = createClientUserMessageId()
     const restoreAgeMs = Date.now() - new Date(pending.submittedAt).getTime()
     console.warn("[CHATBOT_WIDGET_PENDING_RECOVERY]", {
@@ -739,8 +769,24 @@ export function WidgetShell({
       setActiveUi(payload.ui)
       rememberCustomerDisplayNameFromUi(payload.ui)
       setRecoverableRequest(undefined)
+      setLastDebugRequest({
+        operation: "message-recovery",
+        outcome: "success",
+        completedAt: new Date().toISOString(),
+        durationMs: Date.now() - debugStartedAt,
+        requestId: payload.requestId,
+        tier: payload.tier,
+      })
     } catch (error) {
-      if (isChatbotRequestCancelledError(error)) return
+      if (isChatbotRequestCancelledError(error)) {
+        setLastDebugRequest({
+          operation: "message-recovery",
+          outcome: "cancelled",
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - debugStartedAt,
+        })
+        return
+      }
       if (isChatbotOperationError(error)) {
         console.warn("[CHATBOT_WIDGET_FAILURE]", {
           event: "chatbot_widget_failure",
@@ -754,6 +800,9 @@ export function WidgetShell({
           activeUiKind: activeUi.kind,
           recoveredPendingRequest: true,
         })
+        setLastDebugRequest(debugFailureRequest("message-recovery", error, debugStartedAt))
+      } else {
+        setLastDebugRequest(debugUnknownFailureRequest("message-recovery", debugStartedAt))
       }
       appendMessage({
         role: "system",
@@ -815,6 +864,7 @@ export function WidgetShell({
 
   const handleSubmit = async (text: string) => {
     if (submitting) return
+    const debugStartedAt = Date.now()
     const controller = new AbortController()
     activeRequestControllerRef.current = controller
     const createdAt = new Date()
@@ -890,8 +940,24 @@ export function WidgetShell({
       setActiveUi(nextActiveUi)
       rememberCustomerDisplayNameFromUi(nextActiveUi)
       setRecoverableRequest(undefined)
+      setLastDebugRequest({
+        operation: "message",
+        outcome: "success",
+        completedAt: new Date().toISOString(),
+        durationMs: Date.now() - debugStartedAt,
+        requestId: payload.requestId,
+        tier: payload.tier,
+      })
     } catch (error) {
-      if (isChatbotRequestCancelledError(error)) return
+      if (isChatbotRequestCancelledError(error)) {
+        setLastDebugRequest({
+          operation: "message",
+          outcome: "cancelled",
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - debugStartedAt,
+        })
+        return
+      }
       if (isChatbotOperationError(error)) {
         console.warn("[CHATBOT_WIDGET_FAILURE]", {
           event: "chatbot_widget_failure",
@@ -904,6 +970,9 @@ export function WidgetShell({
           hasConversationId: Boolean(conversationId),
           activeUiKind: activeUi.kind,
         })
+        setLastDebugRequest(debugFailureRequest("message", error, debugStartedAt))
+      } else {
+        setLastDebugRequest(debugUnknownFailureRequest("message", debugStartedAt))
       }
       appendMessage({
         role: "system",
@@ -921,6 +990,7 @@ export function WidgetShell({
     const targetIndex = messages.findIndex((message) => message.id === messageId && message.role === "user")
     const trimmedText = newText.trim()
     if (targetIndex === -1 || !trimmedText || submitting) return
+    const debugStartedAt = Date.now()
     const controller = new AbortController()
     activeRequestControllerRef.current = controller
     const optimisticCreatedAt = new Date()
@@ -1004,8 +1074,24 @@ export function WidgetShell({
       setActiveUi(payload.ui)
       rememberCustomerDisplayNameFromUi(payload.ui)
       setRecoverableRequest(undefined)
+      setLastDebugRequest({
+        operation: "message-edit",
+        outcome: "success",
+        completedAt: new Date().toISOString(),
+        durationMs: Date.now() - debugStartedAt,
+        requestId: payload.requestId,
+        tier: payload.tier,
+      })
     } catch (error) {
-      if (isChatbotRequestCancelledError(error)) return
+      if (isChatbotRequestCancelledError(error)) {
+        setLastDebugRequest({
+          operation: "message-edit",
+          outcome: "cancelled",
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - debugStartedAt,
+        })
+        return
+      }
       if (isChatbotOperationError(error)) {
         console.warn("[CHATBOT_WIDGET_FAILURE]", {
           event: "chatbot_widget_failure",
@@ -1016,6 +1102,9 @@ export function WidgetShell({
           hasConversationId: Boolean(conversationId),
           activeUiKind: activeUi.kind,
         })
+        setLastDebugRequest(debugFailureRequest("message-edit", error, debugStartedAt))
+      } else {
+        setLastDebugRequest(debugUnknownFailureRequest("message-edit", debugStartedAt))
       }
       appendMessage({
         role: "system",
@@ -1051,6 +1140,7 @@ export function WidgetShell({
   }
 
   const handleInquirySubmit = async (input: Omit<SubmitInquiryInput, "conversationId">) => {
+    const debugStartedAt = Date.now()
     const nextCustomerDisplayName = normalizeDisplayName(input.name)
     if (nextCustomerDisplayName) {
       setCustomerDisplayName(nextCustomerDisplayName)
@@ -1063,6 +1153,12 @@ export function WidgetShell({
         createdAt: new Date(),
       })
       setActiveUi(noUi)
+      setLastDebugRequest({
+        operation: "inquiry",
+        outcome: "success",
+        completedAt: new Date().toISOString(),
+        durationMs: Date.now() - debugStartedAt,
+      })
     } catch {
       appendMessage({
         role: "system",
@@ -1070,15 +1166,21 @@ export function WidgetShell({
         createdAt: new Date(),
       })
       setActiveUi({ kind: "tier4-inquiry-form" })
+      setLastDebugRequest(debugUnknownFailureRequest("inquiry", debugStartedAt))
     }
   }
 
   const handleBookingCompleted = (booking: BookingCompletionSummary) => {
+    if (activeUi.kind !== "booking-card") return
+    setLastDebugRequest({
+      operation: "booking-completed",
+      outcome: "success",
+      completedAt: new Date().toISOString(),
+    })
     const nextCustomerDisplayName = normalizeDisplayName(booking.contactName)
     if (nextCustomerDisplayName) {
       setCustomerDisplayName(nextCustomerDisplayName)
     }
-    if (activeUi.kind !== "booking-card") return
     const completedBookingUi = {
       ...activeUi,
       completedBooking: booking,
@@ -1261,6 +1363,18 @@ export function WidgetShell({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {isDebugAvailable ? (
+            <button
+              type="button"
+              onClick={() => setIsDebugOpen((current) => !current)}
+              className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
+              aria-label={isDebugOpen ? "診断情報を閉じる" : "診断情報を表示"}
+              aria-pressed={isDebugOpen}
+              data-chatbot-debug="toggle"
+            >
+              <Bug className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null}
           {isDesktopLayout ? (
             <button
               type="button"
@@ -1294,6 +1408,29 @@ export function WidgetShell({
           </button>
         </div>
       </div>
+      {isDebugAvailable && isDebugOpen ? (
+        <ChatbotDebugPanel
+          onClose={() => setIsDebugOpen(false)}
+          snapshot={{
+            displayMode,
+            isDesktopLayout,
+            requestState: submitting
+              ? showThinkingDelayNotice
+                ? "delayed"
+                : "submitting"
+              : recoverableRequest
+                ? "recoverable"
+                : "idle",
+            activeUiKind: activeUi.kind,
+            messageCount: messages.length,
+            conversationId,
+            clientSessionId,
+            pendingRequestKind: pendingRequest?.kind,
+            recoverableRequestKind: recoverableRequest?.kind,
+            lastRequest: lastDebugRequest,
+          }}
+        />
+      ) : null}
       <div className="relative min-h-0 flex-1">
         <div
           ref={conversationScrollRef}
@@ -1435,6 +1572,36 @@ export function WidgetShell({
 }
 
 const KEYBOARD_RESIZE_STEP = 16
+
+function debugFailureRequest(
+  operation: ChatbotDebugRequest["operation"],
+  error: ChatbotOperationError,
+  startedAt: number,
+): ChatbotDebugRequest {
+  return {
+    operation,
+    outcome: "failure",
+    completedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAt,
+    requestId: error.requestId,
+    status: error.status,
+    stage: error.stage,
+    retryable: error.retryable,
+    fallback: error.fallback,
+  }
+}
+
+function debugUnknownFailureRequest(
+  operation: ChatbotDebugRequest["operation"],
+  startedAt: number,
+): ChatbotDebugRequest {
+  return {
+    operation,
+    outcome: "failure",
+    completedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAt,
+  }
+}
 
 function ActiveWidgetUi({
   ui,
