@@ -16,9 +16,11 @@ describe("LineBookingBadge", () => {
 
     expect(trigger).toHaveAttribute("aria-expanded", "true")
     expect(screen.getByRole("dialog", { name: "公式LINEを友だち追加" })).toHaveAttribute("aria-modal", "true")
-    expect(decodeURIComponent(screen.getByRole("img", { name: "公式LINEを友だち追加するQRコード" }).getAttribute("src") ?? "")).toContain(
+    const qrCode = screen.getByRole("img", { name: "公式LINEを友だち追加するQRコード" })
+    expect(decodeURIComponent(qrCode.getAttribute("src") ?? "")).toContain(
       "/line-friend-qr.png",
     )
+    expect(qrCode).toHaveAttribute("loading", "eager")
     expect(screen.getByRole("link", { name: "LINEを開く" })).toHaveAttribute(
       "href",
       "https://line.me/R/ti/p/%40044ucnym",

@@ -63,7 +63,6 @@ function writeStoredWidgetSession(session: {
   conversationId?: string
   activeUi?: unknown
   customerDisplayName?: string
-  lastResponseTier?: string
   pendingRequest?: unknown
   recoverableRequest?: unknown
 }) {
@@ -75,7 +74,6 @@ function writeStoredWidgetSession(session: {
       conversationId: session.conversationId,
       activeUi: session.activeUi ?? { kind: "none" },
       customerDisplayName: session.customerDisplayName,
-      lastResponseTier: session.lastResponseTier,
       pendingRequest: session.pendingRequest,
       recoverableRequest: session.recoverableRequest,
       expiresAt: "2999-01-01T00:00:00.000Z",
@@ -1103,7 +1101,6 @@ describe("WidgetShell API wiring", () => {
       clientSessionId: "11111111-1111-4111-8111-111111111111",
       conversationId: "conv_reload",
       activeUi: { kind: "choice-panel", choiceSet: finalMediumChoices },
-      lastResponseTier: "tier-3-gemini-flash",
     })
 
     const onRecoverableError = vi.fn()

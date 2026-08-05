@@ -23,7 +23,6 @@ import {
   submitChatbotInquiry,
   submitChatbotMessage,
   type BookingCompletionSummary,
-  type ChatbotResponseTier,
   type SubmitInquiryInput,
   type WidgetUi,
 } from "./api"
@@ -33,7 +32,6 @@ import { ChatbotBookingCard } from "./ChatbotBookingCard"
 import { ChoicePanel } from "./ChoicePanel"
 import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
-import { formatChatbotTierDebugLabel, isLocalChatbotTierDebugLocation } from "./local-tier-debug"
 import { SecurityNote } from "./SecurityNote"
 import { ThinkingIndicator } from "./ThinkingIndicator"
 import { useConversationScroll } from "./useConversationScroll"
@@ -119,7 +117,6 @@ type StoredWidgetSession = {
   conversationId?: string
   activeUi: WidgetUi
   customerDisplayName?: string
-  lastResponseTier?: ChatbotResponseTier
   pendingRequest?: StoredPendingRequest
   recoverableRequest?: StoredPendingRequest
   expiresAt: string
@@ -321,7 +318,6 @@ function loadStoredWidgetSession(): {
   conversationId?: string
   activeUi: WidgetUi
   customerDisplayName?: string
-  lastResponseTier?: ChatbotResponseTier
   pendingRequest?: StoredPendingRequest
   recoverableRequest?: StoredPendingRequest
 } {
@@ -374,7 +370,6 @@ function loadStoredWidgetSession(): {
       customerDisplayName:
         normalizeDisplayName(parsed.customerDisplayName) ??
         getCustomerDisplayNameFromUi(restoredActiveUi),
-      lastResponseTier: parsed.lastResponseTier,
       pendingRequest,
       recoverableRequest: pendingRequest ? undefined : recoverableRequest,
     }
@@ -455,7 +450,6 @@ export function WidgetShell({
   const [customerDisplayName, setCustomerDisplayName] = useState<string | undefined>(undefined)
   const [submitting, setSubmitting] = useState(false)
   const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
-  const [lastResponseTier, setLastResponseTier] = useState<ChatbotResponseTier | undefined>(undefined)
   const [pendingRequest, setPendingRequest] = useState<StoredPendingRequest | undefined>(undefined)
   const [recoverableRequest, setRecoverableRequest] = useState<StoredPendingRequest | undefined>(undefined)
   const [hasRestoredSession, setHasRestoredSession] = useState(false)
@@ -470,8 +464,6 @@ export function WidgetShell({
   const scrollThumbDragSessionRef = useRef<ScrollThumbDragSession | null>(null)
   const [scrollIndicator, setScrollIndicator] = useState<ScrollIndicatorState>(hiddenScrollIndicatorState)
   const [isScrollThumbDragging, setIsScrollThumbDragging] = useState(false)
-  const showLocalTierDebug =
-    typeof window !== "undefined" && isLocalChatbotTierDebugLocation(window.location.hostname, window.location.port)
   const conversationContentKey = [
     messages
       .map((message) => `${message.id ?? ""}:${message.role}:${message.createdAt.toISOString()}:${message.content}`)
@@ -659,7 +651,6 @@ export function WidgetShell({
     setConversationId(storedSession.conversationId)
     setActiveUi(storedSession.activeUi)
     setCustomerDisplayName(storedSession.customerDisplayName)
-    setLastResponseTier(storedSession.lastResponseTier)
     restoredPendingRequestRef.current = storedSession.pendingRequest
     setPendingRequest(storedSession.pendingRequest)
     setRecoverableRequest(storedSession.recoverableRequest)
@@ -676,11 +667,10 @@ export function WidgetShell({
       conversationId,
       activeUi,
       ...(customerDisplayName ? { customerDisplayName } : {}),
-      lastResponseTier,
       ...(pendingRequest ? { pendingRequest } : {}),
       ...(recoverableRequest ? { recoverableRequest } : {}),
     })
-  }, [activeUi, clientSessionId, conversationId, customerDisplayName, hasRestoredSession, lastResponseTier, messages, pendingRequest, recoverableRequest])
+  }, [activeUi, clientSessionId, conversationId, customerDisplayName, hasRestoredSession, messages, pendingRequest, recoverableRequest])
 
   const recoverPendingRequest = async (pending: StoredPendingRequest, controller: AbortController) => {
     const recoveryClientUserMessageId = createClientUserMessageId()
@@ -710,7 +700,6 @@ export function WidgetShell({
       )
       if (controller.signal.aborted) return
       setConversationId(payload.conversationId)
-      setLastResponseTier(payload.tier)
       setMessages((currentMessages) => {
         const submittedUserMessage = payload.userMessage ?? {
           id: recoveryClientUserMessageId,
@@ -744,7 +733,6 @@ export function WidgetShell({
           clientSessionId,
           conversationId: payload.conversationId,
           activeUi: payload.ui,
-          lastResponseTier: payload.tier,
         })
         return nextMessages
       })
@@ -850,7 +838,6 @@ export function WidgetShell({
         clientSessionId,
         conversationId,
         activeUi: noUi,
-        lastResponseTier,
         pendingRequest: nextPendingRequest,
       })
       return nextMessages
@@ -866,7 +853,6 @@ export function WidgetShell({
       )
       if (controller.signal.aborted) return
       setConversationId(payload.conversationId)
-      setLastResponseTier(payload.tier)
       const submittedUserMessage = payload.userMessage
       if (submittedUserMessage) {
         setMessages((currentMessages) =>
@@ -898,7 +884,6 @@ export function WidgetShell({
           clientSessionId,
           conversationId: payload.conversationId,
           activeUi: nextActiveUi,
-          lastResponseTier: payload.tier,
         })
         return nextMessages
       })
@@ -965,7 +950,6 @@ export function WidgetShell({
         clientSessionId,
         conversationId,
         activeUi: noUi,
-        lastResponseTier,
         pendingRequest: nextPendingRequest,
       })
       return nextMessages
@@ -981,7 +965,6 @@ export function WidgetShell({
       )
       if (controller.signal.aborted) return
       setConversationId(payload.conversationId)
-      setLastResponseTier(payload.tier)
       setMessages((currentMessages) => {
         const userMessage = payload.userMessage ?? {
           id: messageId,
@@ -1015,7 +998,6 @@ export function WidgetShell({
           clientSessionId,
           conversationId: payload.conversationId,
           activeUi: payload.ui,
-          lastResponseTier: payload.tier,
         })
         return nextMessages
       })
@@ -1113,7 +1095,6 @@ export function WidgetShell({
           : customerDisplayName
             ? { customerDisplayName }
             : {}),
-        lastResponseTier,
       })
       return nextMessages
     })
@@ -1313,14 +1294,6 @@ export function WidgetShell({
           </button>
         </div>
       </div>
-      {showLocalTierDebug && lastResponseTier ? (
-        <div className="border-b border-[var(--glass-border)] px-5 py-2">
-          <p className="glass-badge inline-flex max-w-full px-3 py-1 text-[11px] font-medium">
-            Local debug: {formatChatbotTierDebugLabel(lastResponseTier)}
-          </p>
-        </div>
-      ) : null}
-
       <div className="relative min-h-0 flex-1">
         <div
           ref={conversationScrollRef}

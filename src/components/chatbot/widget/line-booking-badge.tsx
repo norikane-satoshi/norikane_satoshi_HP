@@ -110,6 +110,7 @@ export function LineBookingBadge() {
               alt="公式LINEを友だち追加するQRコード"
               width={280}
               height={280}
+              loading="eager"
               className="mx-auto mt-6 w-full max-w-[280px] rounded-[var(--hp-radius-sm)] bg-white p-3"
             />
             <p className="hp-body mt-5 text-sm text-hp-muted">
