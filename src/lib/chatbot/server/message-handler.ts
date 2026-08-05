@@ -1057,9 +1057,9 @@ async function notifySlackForChatbotEdit(input: {
 function detectChatbotIssueReasons(tier: ChatbotLlmResponse["tier"]): string[] {
   switch (tier) {
     case chatbotLlmTierIds.tier2GeminiFlash:
-      return ["below-hosted-tier1-fallback"]
+      return ["tier2-gemini-fallback"]
     case chatbotLlmTierIds.tier3FormFallback:
-      return ["below-hosted-tier1-fallback", "tier3-form-fallback"]
+      return ["tier2-gemini-fallback", "tier3-form-fallback"]
     default:
       return []
   }

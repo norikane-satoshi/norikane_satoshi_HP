@@ -5318,7 +5318,7 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
       kind: "issue",
       threadTs: "1700000000.000100",
-      issueReasons: ["below-hosted-tier1-fallback", "tier3-form-fallback"],
+      issueReasons: ["tier2-gemini-fallback", "tier3-form-fallback"],
     }))
   })
 
@@ -5473,7 +5473,7 @@ describe("handleChatbotMessage user context", () => {
       kind: "issue",
       threadTs: "1700000000.000100",
       tier: "tier-2-gemini-flash",
-      issueReasons: ["below-hosted-tier1-fallback"],
+      issueReasons: ["tier2-gemini-fallback"],
     }))
   })
 

@@ -95,7 +95,7 @@ describe("sendChatbotSlackNotification", () => {
         sessionId: "session_2",
         tier: "tier-3-form-fallback",
         threadTs: "1710000000.000100",
-        issueReasons: ["below-hosted-tier1-fallback", "tier3-form-fallback"],
+        issueReasons: ["tier2-gemini-fallback", "tier3-form-fallback"],
         retryDiagnostics: {
           attemptCount: 3,
           maxAttempts: 3,
@@ -123,7 +123,7 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("retryReasons: server-error,server-error")
     expect(body.text).toContain("fallbackReason: budget-exhausted")
     expect(body.text).toContain("retryExhausted: true")
-    expect(body.text).toContain("内容: Hosted Tier1 以外の下位Tierで応答")
-    expect(body.text).toContain("内容: AI応答を完了できず、問い合わせフォーム案内へ切り替え")
+    expect(body.text).toContain("内容: Tier 1からTier 2（Gemini Flash）へフォールバック")
+    expect(body.text).toContain("内容: Tier 2でもAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え")
   })
 })

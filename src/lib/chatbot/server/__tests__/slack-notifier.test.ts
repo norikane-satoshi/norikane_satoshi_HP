@@ -76,7 +76,7 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("会話ID: conv_1")
     expect(body.text).toContain("セッションID: session_1")
     expect(body.text).toContain("requestId: req_1")
-    expect(body.text).toContain("tier: tier-1-hosted-chrome-notion-ai")
+    expect(body.text).toContain("tier: Tier 1（Hosted Chrome / Notion AI） [tier-1-hosted-chrome-notion-ai]")
     expect(body.text).toContain("ui: choice-panel")
     expect(body.text).toContain("choiceSetId: booking-final-confirmation")
     expect(body.text).toContain("flowStep: booking-final-confirmation")
@@ -114,7 +114,7 @@ describe("sendChatbotSlackNotification", () => {
     const body = postedBody(fetcher)
     expect(body.thread_ts).toBe("1700000000.000100")
     expect(body.text).toContain("requestId: req_2")
-    expect(body.text).toContain("tier: tier-2-gemini-flash")
+    expect(body.text).toContain("tier: Tier 2（Gemini Flash） [tier-2-gemini-flash]")
     expect(body.text).toContain("ui: booking-card")
     expect(body.text).toContain("flowStep: booking-card")
     expect(body.text).toContain("bookingProgress: false")
@@ -144,7 +144,7 @@ describe("sendChatbotSlackNotification", () => {
         tier: "tier-3-form-fallback",
         bookingProgress: true,
         threadTs: "1700000000.000100",
-        issueReasons: ["below-hosted-tier1-fallback", "tier3-form-fallback"],
+        issueReasons: ["tier2-gemini-fallback", "tier3-form-fallback"],
       },
       { env: enabledEnv, fetcher },
     )
@@ -152,18 +152,18 @@ describe("sendChatbotSlackNotification", () => {
     const body = postedBody(fetcher)
     expect(body.unfurl_links).toBe(false)
     expect(body.thread_ts).toBe("1700000000.000100")
-    expect(body.text).toContain("応答でエラーが出ました")
+    expect(body.text).toContain("チャット応答がフォールバックしました")
     expect(body.text).toContain("requestId: req_issue")
-    expect(body.text).toContain("tier: tier-3-form-fallback")
+    expect(body.text).toContain("tier: Tier 3（問い合わせフォーム） [tier-3-form-fallback]")
     expect(body.text).toContain("bookingProgress: true")
-    expect(body.text).toContain("内容: Hosted Tier1 以外の下位Tierで応答")
-    expect(body.text).toContain("内容: AI応答を完了できず、問い合わせフォーム案内へ切り替え")
+    expect(body.text).toContain("内容: Tier 1からTier 2（Gemini Flash）へフォールバック")
+    expect(body.text).toContain("内容: Tier 2でもAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え")
     expectRemovedLabelsAbsent(body.text)
     expect(body.text).not.toMatch(/Chatbot issue/i)
     expect(body.text).not.toContain("⚠️")
     expect(body.text).not.toContain("reasons:")
     expect(body.text).not.toContain("tier3-form-fallback")
-    expect(body.text).not.toContain("below-hosted-tier1-fallback")
+    expect(body.text).not.toContain("tier2-gemini-fallback")
     expect(body.text).not.toContain("conversationId:")
     expect(body.text).not.toContain("sessionId:")
   })

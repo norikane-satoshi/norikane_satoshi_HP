@@ -1,5 +1,8 @@
 import type { RoutingDecision } from "@/lib/chatbot/domain"
-import type { ChatbotLlmTier } from "@/lib/chatbot/server/llm-client"
+import {
+  chatbotLlmTierIds,
+  type ChatbotLlmTier,
+} from "@/lib/chatbot/server/llm-client"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
 
 type SlackNotifierEnv = {
@@ -138,7 +141,7 @@ function buildSlackText(input: ChatbotSlackNotificationInput): string {
 
   if (input.kind === "issue") {
     const lines = [
-      "応答でエラーが出ました",
+      formatIssueTitle(input.issueReasons),
       ...formatRequiredOperationLines(input),
       ...formatIssueReasonLines(input.issueReasons),
     ]
@@ -193,7 +196,7 @@ function formatTrackingLines(input: ChatbotSlackNotificationInput): string[] {
 function formatRequiredOperationLines(input: ChatbotSlackNotificationInput): string[] {
   return [
     ...(input.requestId ? [`requestId: ${input.requestId}`] : []),
-    ...(input.tier ? [`tier: ${input.tier}`] : []),
+    ...(input.tier ? [`tier: ${formatTier(input.tier)}`] : []),
     ...(input.uiKind ? [`ui: ${input.uiKind}`] : []),
     ...(input.choiceSetId ? [`choiceSetId: ${input.choiceSetId}`] : []),
     ...(input.flowStep ? [`flowStep: ${input.flowStep}`] : []),
@@ -331,15 +334,32 @@ function formatIssueReasonLines(reasons: string[] | undefined): string[] {
 
 function formatIssueReason(reason: string): string {
   switch (reason) {
-    case "below-hosted-tier1-fallback":
-      return "Hosted Tier1 以外の下位Tierで応答"
+    case "tier2-gemini-fallback":
+      return "Tier 1からTier 2（Gemini Flash）へフォールバック"
     case "tier3-form-fallback":
-      return "AI応答を完了できず、問い合わせフォーム案内へ切り替え"
+      return "Tier 2でもAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え"
     case "booking-owner-email-send-failed":
       return "予約通知メールの送信に失敗"
     default:
       if (reason.startsWith("message-")) return "サーバー側で処理に失敗"
       if (reason.startsWith("booking-")) return "予約処理に失敗"
       return "サーバー側で処理に失敗"
+  }
+}
+
+function formatIssueTitle(reasons: string[] | undefined): string {
+  return reasons?.some((reason) => reason === "tier2-gemini-fallback" || reason === "tier3-form-fallback")
+    ? "チャット応答がフォールバックしました"
+    : "応答でエラーが出ました"
+}
+
+function formatTier(tier: ChatbotLlmTier): string {
+  switch (tier) {
+    case chatbotLlmTierIds.tier1HostedChromeNotionAi:
+      return `Tier 1（Hosted Chrome / Notion AI） [${tier}]`
+    case chatbotLlmTierIds.tier2GeminiFlash:
+      return `Tier 2（Gemini Flash） [${tier}]`
+    case chatbotLlmTierIds.tier3FormFallback:
+      return `Tier 3（問い合わせフォーム） [${tier}]`
   }
 }
