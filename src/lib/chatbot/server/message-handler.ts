@@ -355,7 +355,7 @@ export async function handleChatbotMessage(
     recoverBookingContextFromHistory([...conversation.messages, userMessage]),
   ) as ConversationState
   const submittedBooking = getSubmittedBooking(conversationState)
-  logChatbotBookingCompletedContextBoundary({
+  logChatbotBookingOrderSubmittedContextBoundary({
     requestId: input.requestId,
     conversation,
     latestUserMessage: input.message,
@@ -2149,7 +2149,7 @@ function getMissingBookingPrefillFields(prefill: BookingCardPrefill): Array<(typ
   return trackedBookingPrefillFields.filter((field) => !prefill[field]?.trim())
 }
 
-function logChatbotBookingCompletedContextBoundary(input: {
+function logChatbotBookingOrderSubmittedContextBoundary(input: {
   requestId?: string
   conversation: ChatbotConversation
   latestUserMessage: string
@@ -2158,9 +2158,9 @@ function logChatbotBookingCompletedContextBoundary(input: {
   if (!input.submittedBooking) return
 
   logChatbotBoundaryEvent({
-    event: "chatbot_booking_completed_context_boundary",
+    event: "chatbot_booking_order_submitted_context_boundary",
     requestId: input.requestId,
-    boundary: "booking-completed-context",
+    boundary: "booking-order-submitted-context",
     decision: "continue-llm-route",
     reason: "submitted-booking-is-context-not-display-template",
     fields: {

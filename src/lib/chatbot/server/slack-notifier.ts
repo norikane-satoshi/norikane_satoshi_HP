@@ -40,7 +40,7 @@ type ChatbotRetryAttemptSummary = {
 }
 
 export type ChatbotSlackNotificationInput = {
-  kind: "conversation" | "issue" | "booking-completed" | "message-edit"
+  kind: "conversation" | "issue" | "booking-order-submitted" | "message-edit"
   requestId?: string
   conversationId: string
   sessionId?: string
@@ -145,9 +145,9 @@ function buildSlackText(input: ChatbotSlackNotificationInput): string {
     return lines.join("\n")
   }
 
-  if (input.kind === "booking-completed") {
+  if (input.kind === "booking-order-submitted") {
     const lines = [
-      "予約が確定しました",
+      "Booking Orderを受け付けました",
       ...(input.bookingGroupId ? [`予約ID: ${input.bookingGroupId}`] : []),
       ...(typeof input.selectedSlotCount === "number" ? [`候補数: ${input.selectedSlotCount}件`] : []),
       ...(!isThreadReply ? formatTrackingLines(input) : []),

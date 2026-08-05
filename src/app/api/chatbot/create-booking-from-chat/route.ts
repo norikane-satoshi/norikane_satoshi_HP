@@ -188,7 +188,7 @@ async function notifyOwner(input: z.infer<typeof chatbotBookingRequestSchema>, b
   }
 }
 
-async function notifySlackBookingCompleted(input: {
+async function notifySlackBookingOrderSubmitted(input: {
   request: z.infer<typeof chatbotBookingRequestSchema>
   bookingGroupId: string
   selectedSlotCount: number
@@ -200,7 +200,7 @@ async function notifySlackBookingCompleted(input: {
     const conversation = await loadConversationById(input.request.conversationId)
     const threadTs = conversation?.context.slackThreadTs
     const result = await sendChatbotSlackNotification({
-      kind: "booking-completed",
+      kind: "booking-order-submitted",
       conversationId: input.request.conversationId,
       sessionId: conversation?.context.sessionId,
       threadTs,
@@ -332,7 +332,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (result.status >= 200 && result.status < 300 && bookingGroupId) {
-      await notifySlackBookingCompleted({
+      await notifySlackBookingOrderSubmitted({
         request: parsed.data,
         bookingGroupId,
         selectedSlotCount,

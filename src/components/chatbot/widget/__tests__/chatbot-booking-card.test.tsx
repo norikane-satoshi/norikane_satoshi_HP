@@ -642,7 +642,7 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "2026-06-13 選択可" }))
 
     expect(screen.getAllByText("3／3")).toHaveLength(1)
-    expect(screen.getByText("上限")).toBeInTheDocument()
+    expect(screen.getByText("候補日は最大3日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "true")
     expect(screen.getByRole("button", { name: "2026-06-13 選択可" })).toHaveAttribute("aria-pressed", "false")
   })
@@ -676,7 +676,7 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-12 選択可" }))
 
-    expect(screen.getByText("上限")).toBeInTheDocument()
+    expect(screen.getByText("候補日は最大2日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "false")
   })
 
@@ -940,7 +940,7 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
-    expect(await screen.findByText("予約を受け付けました")).toBeInTheDocument()
+    expect(await screen.findByText("仮キープ相談を受け付けました")).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -955,7 +955,7 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
-    expect(await screen.findByText("予約を受け付けました")).toBeInTheDocument()
+    expect(await screen.findByText("仮キープ相談を受け付けました")).toBeInTheDocument()
     expect(screen.getByText("予約番号: group_1")).toBeInTheDocument()
     expect(screen.getByText("CM grading")).toBeInTheDocument()
     expect(screen.getByText("田中")).toBeInTheDocument()

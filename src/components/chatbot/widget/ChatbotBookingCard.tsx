@@ -189,7 +189,7 @@ function BookingCompletionView({ booking }: { booking: BookingCompletionSummary 
   return (
     <section className="glass-card min-w-0 space-y-5 overflow-hidden p-5" aria-label="予約送信完了">
       <div>
-        <h2 className="break-words text-base font-semibold text-hp">予約を受け付けました</h2>
+        <h2 className="break-words text-base font-semibold text-hp">仮キープ相談を受け付けました</h2>
       </div>
 
       <div className="glass-inset min-w-0 space-y-3 overflow-hidden p-4" role="status">
@@ -600,7 +600,7 @@ export function ChatbotBookingCard({
                           return current.filter((selectedSlot) => jstDateKey(selectedSlot.start) !== dateKey)
                         }
                         if (current.length >= requiredDays) {
-                          setCalendarHint("上限")
+                          setCalendarHint(`候補日は最大${requiredDays}日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。`)
                           return current
                         }
                         setCalendarHint(null)

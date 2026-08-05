@@ -347,7 +347,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
 
     expect(response.status).toBe(200)
     expect(route.sendChatbotSlackNotification).toHaveBeenCalledWith({
-      kind: "booking-completed",
+      kind: "booking-order-submitted",
       conversationId: "conv_1",
       sessionId: "session_1",
       threadTs: "1700000000.000100",

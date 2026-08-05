@@ -193,7 +193,7 @@ describe("sendChatbotSlackNotification", () => {
 
     await sendChatbotSlackNotification(
       {
-        kind: "booking-completed",
+        kind: "booking-order-submitted",
         conversationId: "conv_1",
         sessionId: "session_1",
         threadTs: "1700000000.000100",
@@ -205,7 +205,7 @@ describe("sendChatbotSlackNotification", () => {
 
     const body = postedBody(fetcher)
     expect(body.thread_ts).toBe("1700000000.000100")
-    expect(body.text).toContain("予約が確定しました")
+    expect(body.text).toContain("Booking Orderを受け付けました")
     expect(body.text).toContain("予約ID: booking_1")
     expect(body.text).toContain("候補数: 2件")
     expect(body.text).not.toMatch(/Chatbot booking completed/i)
