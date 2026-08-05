@@ -10,9 +10,11 @@ export type ChatbotBuildInfo = {
 }
 
 const moduleLoadTime = new Date().toISOString()
+const moduleWorktreePath = process.cwd()
+const moduleGitCommitSha = readGitValue(moduleWorktreePath, ["rev-parse", "HEAD"])
+const moduleGitExpectedRef = readGitValue(moduleWorktreePath, ["branch", "--show-current"])
 
 export function getChatbotBuildInfo(): ChatbotBuildInfo {
-  const worktreePath = process.cwd()
   const envCommitSha = firstNonEmptyEnv(
     "CHATBOT_BUILD_SHA",
     "NEXT_PUBLIC_CHATBOT_BUILD_SHA",
@@ -20,7 +22,6 @@ export function getChatbotBuildInfo(): ChatbotBuildInfo {
     "NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA",
     "GIT_COMMIT_SHA",
   )
-  const gitCommitSha = envCommitSha ? undefined : readGitValue(worktreePath, ["rev-parse", "HEAD"])
   const envExpectedRef = firstNonEmptyEnv(
     "CHATBOT_EXPECTED_REF",
     "NEXT_PUBLIC_CHATBOT_EXPECTED_REF",
@@ -28,15 +29,14 @@ export function getChatbotBuildInfo(): ChatbotBuildInfo {
     "NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF",
     "GIT_BRANCH",
   )
-  const gitExpectedRef = envExpectedRef ? undefined : readGitValue(worktreePath, ["branch", "--show-current"])
 
   return {
-    commitSha: envCommitSha ?? gitCommitSha ?? "unknown",
-    worktreePath,
-    expectedRef: envExpectedRef ?? gitExpectedRef ?? "unknown",
+    commitSha: envCommitSha ?? moduleGitCommitSha ?? "unknown",
+    worktreePath: moduleWorktreePath,
+    expectedRef: envExpectedRef ?? moduleGitExpectedRef ?? "unknown",
     buildTime: firstNonEmptyEnv("CHATBOT_BUILD_TIME", "NEXT_PUBLIC_CHATBOT_BUILD_TIME") ?? moduleLoadTime,
-    commitShaSource: envCommitSha ? "env" : gitCommitSha ? "git" : "unknown",
-    expectedRefSource: envExpectedRef ? "env" : gitExpectedRef ? "git" : "unknown",
+    commitShaSource: envCommitSha ? "env" : moduleGitCommitSha ? "git" : "unknown",
+    expectedRefSource: envExpectedRef ? "env" : moduleGitExpectedRef ? "git" : "unknown",
   }
 }
 
@@ -58,7 +58,7 @@ function readGitValue(cwd: string, args: string[]): string | undefined {
       cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-      timeout: 1000,
+      timeout: 5000,
     }).trim()
     return value || undefined
   } catch {
