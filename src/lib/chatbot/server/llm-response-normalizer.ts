@@ -42,6 +42,7 @@ export type ChatbotLlmSanitizationReport = ChatbotDurationSafetyReport & {
       | "opaque-token"
       | "thinking-signature-marker"
       | "internal-reasoning-line"
+      | "english-reasoning-prose"
       | "internal-model-codename"
       | "internal-markup"
       | "internal-booking-ui-state"
@@ -100,7 +101,14 @@ export function sanitizeChatbotLlmTextWithReport(
         : createChatbotLlmDisplayEnvelope(rawText)),
   )
   const unsafe = extraction.text ? detectUnsafeCustomerFacingArtifacts(extraction.text) : noUnsafeArtifacts()
-  const useFallback = !extraction.text || unsafe.detected
+  // Inside an explicit customer-reply boundary the model has already declared which text is for
+  // the customer, so English prose alone must not discard the whole reply. Dropping it there left
+  // every non-Japanese visitor with a canned Japanese sentence and no answer.
+  const explicitBoundary = extraction.source === "customer-reply-tag" || extraction.source === "json-customer-reply"
+  const blockingReasons = explicitBoundary
+    ? unsafe.reasons.filter((reason) => reason !== "english-reasoning-prose")
+    : unsafe.reasons
+  const useFallback = !extraction.text || blockingReasons.length > 0
   const fallbackUnsafe = useFallback ? detectUnsafeCustomerFacingArtifacts(fallbackText) : noUnsafeArtifacts()
   const displayText = useFallback
     ? fallbackUnsafe.detected
@@ -167,8 +175,14 @@ const xmlLikeTagPattern = /<\/?[a-z][a-z0-9_-]*(?:\s+[^<>]*)?>/giu
 // These detectors are an auxiliary validation net for the explicit display
 // candidate. They never rewrite text in place; a candidate that trips them is
 // rejected as a whole and the caller falls back to a server-authored safe reply.
+// Split by what the phrase proves. Talking *about* the customer in the third person, or
+// narrating the next move, only happens when the model is thinking aloud. Ordinary first-person
+// service English ("I can help", "I would need to know") is how a real English answer reads, so
+// it cannot decide the outcome on its own.
 const internalReasoningEnglishPattern =
-  /\b(?:i|we)\s+(?:need|should|will|would|have|must|think|can|am|could|'ll|'m|'ve)\b|\blet(?:'|’)?s\b|\blet\s+(?:me|us)\b|\bi'?ll\b|\b(?:the\s+)?(?:user|customer)\s+(?:said|says|selected|asked|answered|chose|wants?|mentioned|indicated|responded|is|has|gave|provided|replied)\b|\blooking at the (?:conversation|context)\b|\bconfirmed facts?\b|\bwhat'?s\s+(?:still\s+)?missing\b|\bstill\s+missing\b|\bno particular preferences?\b|\bnow i\b/iu
+  /\b(?:the\s+)?(?:user|customer)\s+(?:said|says|selected|asked|answered|chose|wants?|mentioned|indicated|responded|is|has|gave|provided|replied)\b|\blooking at the (?:conversation|context)\b|\bconfirmed facts?\b|\bwhat'?s\s+(?:still\s+)?missing\b|\bstill\s+missing\b|\bno particular preferences?\b|\bnow i\b|\bi\s+should\b|\blet(?:'|’)?s\b|\blet\s+(?:me|us)\b/iu
+const englishFirstPersonServicePattern =
+  /\b(?:i|we)\s+(?:need|will|would|have|must|think|can|am|could|'ll|'m|'ve)\b|\bi'?ll\b/iu
 const internalMachineIdentifierPattern =
   /\b(?:show_booking_card|show_choice_panel|projectTitle|contactName|contactEmail|companyName|dueDate|selectionMode|allowFreeText|choiceSetId|projectLengthMinutes|jobKind|finalMedium)\b/u
 const internalBookingUiStatePattern =
@@ -220,15 +234,24 @@ function isInternalReasoningSegment(segment: string): boolean {
     internalMachineIdentifierPattern.test(trimmed) ||
     japaneseInternalMonologuePattern.test(trimmed) ||
     mechanicalRoutingFallbackPattern.test(trimmed) ||
-    isEnglishReasoningProse(trimmed) ||
     isPlainFormJapaneseMonologue(trimmed)
   )
+}
+
+// English first-person prose is how a genuine English answer reads, so this heuristic cannot
+// prove a leak on its own. It stays a signal, and only decides the outcome for text the model
+// never marked as customer-facing.
+function isEnglishReasoningProseSegment(segment: string): boolean {
+  const trimmed = segment.trim()
+  if (trimmed.length === 0) return false
+  return englishFirstPersonServicePattern.test(trimmed) || isEnglishReasoningProse(trimmed)
 }
 
 type StripReason =
   | "opaque-token"
   | "thinking-signature-marker"
   | "internal-reasoning-line"
+  | "english-reasoning-prose"
   | "internal-model-codename"
   | "internal-markup"
   | "internal-booking-ui-state"
@@ -541,6 +564,7 @@ function detectUnsafeCustomerFacingArtifacts(rawText: string): {
       if (opaqueMatches.length > 0) reasons.add("opaque-token")
       if (hasMarker) reasons.add("thinking-signature-marker")
       if (looksInternal) reasons.add("internal-reasoning-line")
+      if (isEnglishReasoningProseSegment(line)) reasons.add("english-reasoning-prose")
   }
   if (internalModelCodenamePattern.test(textForAudit)) reasons.add("internal-model-codename")
   internalModelCodenamePattern.lastIndex = 0

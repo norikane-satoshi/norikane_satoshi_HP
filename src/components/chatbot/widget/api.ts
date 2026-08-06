@@ -267,6 +267,16 @@ export async function submitChatbotMessage(
   return postChatbotJson<ChatbotMessageResponse>("message", "/api/chatbot/message", input, options)
 }
 
-export async function submitChatbotInquiry(input: SubmitInquiryInput): Promise<void> {
-  await postChatbotJson("submit-inquiry", "/api/chatbot/submit-inquiry", input)
+export type ChatbotInquiryResult = {
+  /** False when the operator notification was never actually sent. */
+  delivered: boolean
+}
+
+export async function submitChatbotInquiry(input: SubmitInquiryInput): Promise<ChatbotInquiryResult> {
+  const body = await postChatbotJson<{ delivered?: unknown }>(
+    "submit-inquiry",
+    "/api/chatbot/submit-inquiry",
+    input,
+  )
+  return { delivered: body?.delivered !== false }
 }

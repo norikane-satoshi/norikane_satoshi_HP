@@ -83,6 +83,7 @@ export {
 } from "@/lib/chatbot/server/llm-clients/tier2-gemini-flash"
 export {
   createTier3FormFallbackClient,
+  tier3FormFallbackCustomerText,
   Tier3FormFallbackClient,
 } from "@/lib/chatbot/server/llm-clients/tier3-form-fallback"
 export { normalizeChatbotLlmResponse } from "@/lib/chatbot/server/llm-response-normalizer"

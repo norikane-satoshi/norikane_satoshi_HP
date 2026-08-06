@@ -15,6 +15,7 @@ type IncidentClass =
   | "worker_error:connection"
   | "worker_error:invalid-output"
   | "worker_error:rate-limit"
+  | "notion_ai_quota_exhausted"
   | "worker_http_502"
   | "http"
   | "timeout"
@@ -575,7 +576,10 @@ function shouldAttemptRepair(
   checks: CheckResult[],
   now: Date,
 ): boolean {
-  if (isTransientGenerateFailure(checks.find((check) => !check.ok))) return false
+  const failingCheck = checks.find((check) => !check.ok)
+  if (failingCheck?.name === "generate" && isRestartIneffectiveGenerateIncident(classifyFailureOrigin(failingCheck))) {
+    return false
+  }
   if (previous.status === "healthy") return true
 
   if (!nextState.lastRepairAt) return true
@@ -843,6 +847,7 @@ function isIncidentClass(value: unknown): value is IncidentClass {
     value === "worker_error:connection" ||
     value === "worker_error:invalid-output" ||
     value === "worker_error:rate-limit" ||
+    value === "notion_ai_quota_exhausted" ||
     value === "worker_http_502" ||
     value === "http" ||
     value === "timeout" ||
@@ -891,6 +896,7 @@ function classifyFailureOrigin(check: CheckResult | undefined): IncidentClass {
   if (check.detail.includes("error:connection")) return "worker_error:connection"
   if (check.detail.includes("error:auth")) return "worker_error:auth"
   if (check.detail.includes("error:invalid-output")) return "worker_error:invalid-output"
+  if (check.detail.includes("notion_ai_usage_limit_reached")) return "notion_ai_quota_exhausted"
   if (check.detail.includes("error:rate-limit") || check.status === 429) return "worker_error:rate-limit"
   if (check.detail.includes("cdp_")) return "chrome_cdp"
   if (check.detail.includes("timeout")) return "timeout"
@@ -906,6 +912,12 @@ function isTransientGenerateIncident(incidentClass: IncidentClass | undefined): 
     incidentClass === "worker_error:invalid-output" ||
     incidentClass === "worker_error:rate-limit"
   )
+}
+
+// A spent Notion AI allowance is not transient and no service restart clears it, so it
+// escalates on the first sample while still skipping the repair sequence.
+function isRestartIneffectiveGenerateIncident(incidentClass: IncidentClass | undefined): boolean {
+  return isTransientGenerateIncident(incidentClass) || incidentClass === "notion_ai_quota_exhausted"
 }
 
 function isTransientGenerateFailure(check: CheckResult | undefined): boolean {

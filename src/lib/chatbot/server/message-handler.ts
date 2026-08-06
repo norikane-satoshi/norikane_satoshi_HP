@@ -23,6 +23,7 @@ import {
   createTier1HostedChromeNotionAiClient,
   createTier2GeminiFlashClient,
   createTier3FormFallbackClient,
+  tier3FormFallbackCustomerText,
   formatUserChatbotContextForPrompt,
   getChatbotLlmOutputContractRejection,
   linkConversationToUser,
@@ -1642,11 +1643,9 @@ async function generateContractedLlmResponse(input: {
         },
       })
     }
-    const rawText = customerReplyMarkup(
-      input.fallbackRoutingDecision.kind === "continue"
-        ? input.fallbackRoutingDecision.nextQuestion
-        : "内容を確認しました。次に必要な情報を1つずつ確認します。",
-    )
+    // Tier 3 renders the inquiry form, so the reply has to describe the form rather than repeat
+    // the routing question, which asked customers to choose from options that never appeared.
+    const rawText = customerReplyMarkup(tier3FormFallbackCustomerText)
     return createChatbotLlmResponse({
       rawText,
       tier: chatbotLlmTierIds.tier3FormFallback,

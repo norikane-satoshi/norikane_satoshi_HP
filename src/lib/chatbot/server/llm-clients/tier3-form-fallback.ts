@@ -5,9 +5,13 @@ type Tier3FormFallbackClientOptions = {
   responseText?: string
 }
 
+// Tier 3 always renders the inquiry form, so its customer-facing text must describe that form.
+// Carrying a routing question here told customers to pick from options that were never shown.
+export const tier3FormFallbackCustomerText =
+  "確認項目をフォームに切り替えます。案件内容とご連絡先を整理して送信してください。"
+
 export const tier3FormFallbackDefaults = {
-  responseText:
-    "<customer_reply>確認項目をフォームに切り替えます。案件内容とご連絡先を整理して送信してください。</customer_reply>",
+  responseText: `<customer_reply>${tier3FormFallbackCustomerText}</customer_reply>`,
 } as const
 
 const tier = chatbotLlmTierIds.tier3FormFallback

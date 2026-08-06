@@ -49,8 +49,9 @@ export async function POST(request: NextRequest) {
   const conversation = await loadInquiryConversation(input.conversationId)
   await appendInquiryMessage(input)
 
+  // Already notified earlier in this conversation, so the inquiry did reach the operator.
   if (conversation && hasSentOperatorNotification(conversation.messages)) {
-    return NextResponse.json({ ok: true, emailSkipped: true })
+    return NextResponse.json({ ok: true, delivered: true, emailSkipped: true })
   }
 
   try {
@@ -74,7 +75,9 @@ export async function POST(request: NextRequest) {
       freeText: buildInquiryText(input),
     })
 
-    if (result.status === "skipped") return NextResponse.json({ ok: true, emailSkipped: true })
+    // Nothing was sent, so reporting success would tell the customer their inquiry is on its
+    // way to somebody who will never see it.
+    if (result.status === "skipped") return NextResponse.json({ ok: true, delivered: false, emailSkipped: true })
     if (result.status === "failed") {
       logChatbotOperationFailure({
         operation: "submit-inquiry",
@@ -87,9 +90,9 @@ export async function POST(request: NextRequest) {
           emailDomain: input.email.split("@")[1] ?? null,
         },
       })
-      return NextResponse.json({ ok: true, emailWarning: "send_failed" })
+      return NextResponse.json({ ok: true, delivered: false, emailWarning: "send_failed" })
     }
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, delivered: true })
   } catch (error) {
     logChatbotOperationFailure({
       operation: "submit-inquiry",
@@ -102,7 +105,7 @@ export async function POST(request: NextRequest) {
         emailDomain: input.email.split("@")[1] ?? null,
       },
     })
-    return NextResponse.json({ ok: true, emailWarning: "send_failed" })
+    return NextResponse.json({ ok: true, delivered: false, emailWarning: "send_failed" })
   }
 }
 

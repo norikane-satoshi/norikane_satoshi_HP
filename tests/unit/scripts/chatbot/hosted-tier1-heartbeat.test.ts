@@ -65,6 +65,21 @@ function trustRuleDeniedResponse(): Response {
   )
 }
 
+function usageLimitResponse(): Response {
+  return jsonResponse(
+    {
+      ok: false,
+      tier: "tier-1-hosted-chrome-notion-ai",
+      error: {
+        code: "rate-limit",
+        message: "Notion AI usage limit reached. notion_ai_usage_limit_reached bytes=311 preview=...",
+        retryable: false,
+      },
+    },
+    500,
+  )
+}
+
 function invalidOutputResponse(): Response {
   return jsonResponse(
     {
@@ -514,6 +529,46 @@ describe("hosted-tier1-heartbeat", () => {
       status: "suspect",
       consecutiveFailures: 1,
       incidentClass: "worker_error:invalid-output",
+    })
+  })
+
+  it("escalates an exhausted Notion AI allowance immediately without restarting services", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
+    dirs.push(dir)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(usageLimitResponse())
+    const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
+
+    // A spent allowance only clears when somebody tops it up, so waiting it out as a
+    // transient hides a full Tier1 outage and restarting services cannot help.
+    const result = await runHeartbeat(config(dir, { failureThreshold: 1, repair: true, forceGenerate: true }), {
+      fetch: fetchMock as typeof fetch,
+      now: () => new Date("2026-08-07T00:00:00.000Z"),
+      runCommand,
+    })
+
+    expect(result.status).toBe("unhealthy")
+    expect(result.notification).toMatchObject({ kind: "unhealthy", status: "dry-run" })
+    expect(result.repairActions).toEqual([])
+    expect(runCommand).not.toHaveBeenCalled()
+    expect(readState(dir)).toMatchObject({ incidentClass: "notion_ai_quota_exhausted" })
+
+    // The persisted class must survive a reload, otherwise the next sample reopens the
+    // incident from scratch and the operator sees a fresh alert every few minutes.
+    const second = await runHeartbeat(config(dir, { failureThreshold: 1, repair: true, forceGenerate: true }), {
+      fetch: vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+        .mockResolvedValueOnce(usageLimitResponse()) as unknown as typeof fetch,
+      now: () => new Date("2026-08-07T00:02:30.000Z"),
+      runCommand: vi.fn(),
+    })
+    expect(second.notification).toBeUndefined()
+    expect(readState(dir)).toMatchObject({
+      incidentClass: "notion_ai_quota_exhausted",
+      incidentStartedAt: "2026-08-07T00:00:00.000Z",
     })
   })
 

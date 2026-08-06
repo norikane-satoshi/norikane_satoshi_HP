@@ -1569,6 +1569,7 @@ async function runInferenceInPage(input: {
       chunkCount += 1
     }
 
+    const isUsageLimitResponse = (text: string) => text.includes("premium-feature-unavailable")
     const isRateLimitResponse = (text: string) =>
       text.includes("UserRateLimitResponse") ||
       text.includes("fairUseAIRateLimit") ||
@@ -1576,6 +1577,15 @@ async function runInferenceInPage(input: {
 
     const rawText = finalText || partialText
     if (!rawText) {
+      if (isUsageLimitResponse(responseText)) {
+        return {
+          ok: false,
+          code: "rate-limit",
+          message: `Notion AI usage limit reached. notion_ai_usage_limit_reached bytes=${responseText.length} preview=${responseText.slice(0, 300)}`,
+          stageTimings: stageTimings(),
+        }
+      }
+
       if (isRateLimitResponse(responseText)) {
         return {
           ok: false,
@@ -1614,8 +1624,18 @@ async function runInferenceInPage(input: {
   }
 }
 
+// A spent workspace AI allowance arrives as an HTTP 200 NDJSON stream carrying only a
+// premium-feature-unavailable record. Without this branch it reads as a malformed response,
+// which sends operations looking for an extraction bug instead of a quota that needs topping up.
+export const notionAiUsageLimitMarker = "notion_ai_usage_limit_reached"
+
+export function isNotionAiUsageLimitResponse(responseText: string): boolean {
+  return responseText.includes("premium-feature-unavailable")
+}
+
 export function isNotionAiRateLimitResponse(responseText: string): boolean {
   return (
+    isNotionAiUsageLimitResponse(responseText) ||
     responseText.includes("UserRateLimitResponse") ||
     responseText.includes("fairUseAIRateLimit") ||
     responseText.includes('"message":"Please try again later."')

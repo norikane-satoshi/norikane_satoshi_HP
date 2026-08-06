@@ -86,7 +86,7 @@ describe("POST /api/chatbot/submit-inquiry", () => {
     const response = await POST(request(validBody()))
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ ok: true })
+    await expect(response.json()).resolves.toEqual({ ok: true, delivered: true })
     expect(mocks.loadConversationById).toHaveBeenCalledWith("conv_1")
     expect(mocks.sendOperatorConsultationNotification).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -123,7 +123,7 @@ describe("POST /api/chatbot/submit-inquiry", () => {
     const response = await POST(request(validBody({ conversationId: undefined })))
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ ok: true, emailSkipped: true })
+    await expect(response.json()).resolves.toEqual({ ok: true, delivered: false, emailSkipped: true })
     expect(mocks.loadConversationById).not.toHaveBeenCalled()
   })
 
@@ -139,7 +139,7 @@ describe("POST /api/chatbot/submit-inquiry", () => {
     const response = await POST(request(validBody({ name: undefined })))
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ ok: true })
+    await expect(response.json()).resolves.toEqual({ ok: true, delivered: true })
     expect(mocks.sendOperatorConsultationNotification).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationState: expect.objectContaining({
@@ -159,17 +159,17 @@ describe("POST /api/chatbot/submit-inquiry", () => {
     const response = await POST(request(validBody()))
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ ok: true, emailSkipped: true })
+    await expect(response.json()).resolves.toEqual({ ok: true, delivered: true, emailSkipped: true })
     expect(mocks.appendMessage).toHaveBeenCalled()
     expect(mocks.sendOperatorConsultationNotification).not.toHaveBeenCalled()
   })
 
-  it("keeps the UX successful when the operator notification sender fails", async () => {
+  it("reports the inquiry as undelivered when the operator notification sender fails", async () => {
     mocks.sendOperatorConsultationNotification.mockResolvedValueOnce({ status: "failed", reason: "send-failed" })
 
     const response = await POST(request(validBody()))
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ ok: true, emailWarning: "send_failed" })
+    await expect(response.json()).resolves.toEqual({ ok: true, delivered: false, emailWarning: "send_failed" })
   })
 })

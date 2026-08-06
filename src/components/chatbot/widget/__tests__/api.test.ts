@@ -5,6 +5,7 @@ import {
   isChatbotOperationError,
   isChatbotRequestCancelledError,
   scheduleChatbotReloadForStaleClient,
+  submitChatbotInquiry,
   submitChatbotMessage,
 } from "@/components/chatbot/widget/api"
 
@@ -81,5 +82,47 @@ describe("submitChatbotMessage", () => {
     expect(scheduleChatbotReloadForStaleClient({ clientBuildId: "same" }, { currentBuildId: "same" })).toBe(false)
     expect(scheduleChatbotReloadForStaleClient({ clientBuildId: "new" }, { currentBuildId: "local" })).toBe(false)
     expect(scheduleChatbotReloadForStaleClient({ clientBuildId: "local" }, { currentBuildId: "old" })).toBe(false)
+  })
+})
+
+describe("submitChatbotInquiry", () => {
+  function stubInquiryResponse(body: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      }),
+    )
+  }
+
+  const input = {
+    name: "テスト",
+    email: "test@example.com",
+    jobType: "",
+    duration: "",
+    desiredDeadline: "",
+    freeText: "相談内容",
+  }
+
+  it("reports a delivered inquiry", async () => {
+    stubInquiryResponse({ ok: true, delivered: true })
+
+    await expect(submitChatbotInquiry(input)).resolves.toEqual({ delivered: true })
+  })
+
+  it("reports an inquiry the server never managed to send", async () => {
+    stubInquiryResponse({ ok: true, delivered: false, emailWarning: "send_failed" })
+
+    await expect(submitChatbotInquiry(input)).resolves.toEqual({ delivered: false })
+  })
+
+  it("treats a response without the flag as delivered so older builds keep working", async () => {
+    stubInquiryResponse({ ok: true })
+
+    await expect(submitChatbotInquiry(input)).resolves.toEqual({ delivered: true })
   })
 })
