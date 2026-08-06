@@ -1,7 +1,7 @@
 "use client"
 
 import { FormEvent, KeyboardEvent, useLayoutEffect, useState } from "react"
-import type { ReactNode } from "react"
+import type { ReactNode, RefObject } from "react"
 import { Command, CornerDownLeft, Send, Square } from "lucide-react"
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import {
@@ -15,6 +15,7 @@ type ChatInputProps = {
   disabled?: boolean
   stoppingEnabled?: boolean
   placeholder?: string
+  inputRef?: RefObject<HTMLTextAreaElement | null>
 }
 
 const DEFAULT_PLACEHOLDER = "案件内容やその他質問"
@@ -46,6 +47,7 @@ export function ChatInput({
   disabled = false,
   stoppingEnabled = false,
   placeholder,
+  inputRef,
 }: ChatInputProps) {
   const [text, setText] = useState("")
   const [usesMobilePlaceholder, setUsesMobilePlaceholder] = useState(() =>
@@ -125,6 +127,7 @@ export function ChatInput({
             </div>
           ) : null}
           <AutoResizeTextarea
+            ref={inputRef}
             className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} relative z-10 w-full min-w-0 bg-transparent py-2 text-sm leading-5 text-hp outline-none ${showsShortcutOverlay ? "min-h-[4.75rem] placeholder:text-transparent" : "chatbot-input-placeholder-muted min-h-9"}`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
             placeholder={textareaPlaceholder}

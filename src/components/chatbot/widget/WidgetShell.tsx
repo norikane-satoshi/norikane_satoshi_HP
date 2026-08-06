@@ -53,6 +53,8 @@ type WidgetShellProps = {
   onSidePeekResizeBy?: (deltaWidth: number) => void
   onSidePeekResizePointerDown?: (event: ReactPointerEvent<HTMLElement>) => void
   onToggleDisplayMode?: () => void
+  /** Set when the customer just opened the panel, so focus lands on the input. */
+  focusInputOnOpen?: boolean
 }
 
 type WidgetMessage = {
@@ -449,8 +451,18 @@ export function WidgetShell({
   onSidePeekResizeBy,
   onSidePeekResizePointerDown,
   onToggleDisplayMode,
+  focusInputOnOpen = false,
 }: WidgetShellProps) {
   const shouldReduceMotion = useReducedMotion()
+  const chatInputRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // The panel sits at the end of the document, so without this a keyboard or screen reader user
+  // who just opened it had to tab past the whole page to reach the input. Only move focus when the
+  // customer opened it themselves; doing it on restore would steal focus on page load.
+  useEffect(() => {
+    if (!focusInputOnOpen) return
+    chatInputRef.current?.focus({ preventScroll: true })
+  }, [focusInputOnOpen])
   const [isPanelVisible, setIsPanelVisible] = useState(true)
   const [messages, setMessages] = useState<WidgetMessage[]>(() => getInitialWidgetSession().messages)
   const [conversationId, setConversationId] = useState<string | undefined>(undefined)
@@ -1572,6 +1584,7 @@ export function WidgetShell({
       </div>
 
       <ChatInput
+        inputRef={chatInputRef}
         onSubmit={handleSubmit}
         onStop={handleStop}
         disabled={submitting}

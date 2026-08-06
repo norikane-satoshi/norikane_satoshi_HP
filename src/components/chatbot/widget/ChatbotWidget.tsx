@@ -52,6 +52,7 @@ export function ChatbotWidget() {
   const widgetState = useWidgetState()
   const { open } = widgetState
   const [isDesktopLayout, setIsDesktopLayout] = useState(false)
+  const [openedFromLauncher, setOpenedFromLauncher] = useState(false)
   const dragStateRef = useRef<DragState | null>(null)
   const dragSessionRef = useRef<DragSession | null>(null)
 
@@ -94,6 +95,11 @@ export function ChatbotWidget() {
     mediaQuery.addEventListener("change", updateDesktopState)
     return () => mediaQuery.removeEventListener("change", updateDesktopState)
   }, [])
+
+  const openFromLauncher = useCallback(() => {
+    setOpenedFromLauncher(true)
+    widgetState.open()
+  }, [widgetState])
 
   const resizeFloatingBy = useCallback((deltaWidth: number, deltaHeight: number) => {
     widgetState.setFloatingSize({
@@ -321,11 +327,12 @@ export function ChatbotWidget() {
     >
       {!isReady ? null : widgetState.isMinimized ? (
         <div className="flex items-center gap-2">
-          <MinimizedBar onOpen={widgetState.open} shouldShowAttention={widgetState.shouldShowMinimizedAttention} />
+          <MinimizedBar onOpen={openFromLauncher} shouldShowAttention={widgetState.shouldShowMinimizedAttention} />
           <LineBookingBadge />
         </div>
       ) : (
         <WidgetShell
+          focusInputOnOpen={openedFromLauncher}
           displayMode={effectiveDisplayMode}
           isDesktopLayout={isDesktopLayout}
           onFloatingResizeBy={resizeFloatingBy}

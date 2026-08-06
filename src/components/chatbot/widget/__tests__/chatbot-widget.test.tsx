@@ -15,7 +15,6 @@ vi.mock("next/navigation", () => ({
 
 import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget"
 import { CHATBOT_CONVERSATION_CONTENT_CLASS_NAME } from "@/components/chatbot/widget/conversationTypography"
-import { FloatingLauncher } from "@/components/chatbot/widget/FloatingLauncher"
 import { MinimizedBar } from "@/components/chatbot/widget/MinimizedBar"
 import { WidgetShell } from "@/components/chatbot/widget/WidgetShell"
 import type { WidgetUi } from "@/components/chatbot/widget/api"
@@ -510,14 +509,13 @@ describe("chatbot widget shell", () => {
     expect(screen.getByLabelText("相談内容")).toBeInTheDocument()
   })
 
-  it("renders launcher and minimized controls with the required open label", () => {
+  it("renders the minimized launcher with the required open label", () => {
     const onOpen = vi.fn()
-    const { rerender } = render(<FloatingLauncher onOpen={onOpen} />)
-    screen.getByRole("button", { name: "AI 相談窓口を開く" }).click()
-    expect(onOpen).toHaveBeenCalledTimes(1)
+    render(<MinimizedBar onOpen={onOpen} />)
 
-    rerender(<MinimizedBar onOpen={onOpen} />)
-    expect(screen.getByRole("button", { name: "AI 相談窓口を開く" })).toBeInTheDocument()
+    const launcher = screen.getByRole("button", { name: "AI 相談窓口を開く" })
+    launcher.click()
+    expect(onOpen).toHaveBeenCalledTimes(1)
   })
 
   it("renders shell a11y labels and completes minimize after the exit motion", async () => {
