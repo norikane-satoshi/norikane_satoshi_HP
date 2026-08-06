@@ -187,6 +187,36 @@ describe("Tier1HostedChromeNotionAiClient", () => {
     )
   })
 
+  it("stops retrying when the hosted worker reports a non-retryable server error", async () => {
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            ok: false,
+            error: {
+              code: "invalid-output",
+              message: "Notion AI response text could not be extracted. bytes=0 preview=",
+              retryable: false,
+            },
+          },
+          { ok: false, status: 500 },
+        ),
+      )
+    const client = hostedClient(httpClient)
+
+    // Notion returning an empty inference stream lasts minutes, so burning the whole retry
+    // budget only delays the Tier 2 answer the customer actually receives.
+    await expect(client.generate(llmRequest())).rejects.toBeInstanceOf(ChatbotLlmError)
+    expect(httpClient).toHaveBeenCalledTimes(2)
+    expect(httpClient).toHaveBeenNthCalledWith(
+      2,
+      "https://worker.example.test/generate",
+      expect.objectContaining({ method: "POST" }),
+    )
+  })
+
   it("retries a second repair pass for short hosted generate server errors", async () => {
     const httpClient = vi
       .fn()

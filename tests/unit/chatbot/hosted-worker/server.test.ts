@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ChatbotLlmRequest } from "@/lib/chatbot/server/llm-client"
+import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import { createHostedWorkerRequestHandler } from "@/lib/chatbot/hosted-worker/server"
 
 function requestBody(): ChatbotLlmRequest {
@@ -97,5 +98,34 @@ describe("hosted worker server", () => {
 
     expect(generateSignal?.aborted).toBe(true)
     expect(response.writableEnded).toBe(false)
+  })
+
+  it("keeps the invalid-output error body readable through the Cloudflare tunnel", async () => {
+    const generate = vi.fn(() =>
+      Promise.reject(
+        new ChatbotLlmError({
+          message: "Notion AI response text could not be extracted. bytes=0 preview=",
+          code: "invalid-output",
+          tier: "tier-1-hosted-chrome-notion-ai",
+          isRetryable: false,
+        }),
+      ),
+    )
+    const handler = createHostedWorkerRequestHandler({ token: "test-token", generate })
+    const request = postGenerateRequest()
+    const response = fakeResponse()
+
+    const handled = handler(request, response)
+    request.end(JSON.stringify(requestBody()))
+    await handled
+
+    // Cloudflare replaces origin 502/504 with its own plain-text error page, which hides the
+    // worker error code and message from Production and from any probe outside the VPS loopback.
+    expect(response.statusCode).not.toBe(502)
+    expect(response.statusCode).toBe(500)
+    expect(JSON.parse(response.body ?? "")).toMatchObject({
+      ok: false,
+      error: { code: "invalid-output", retryable: false },
+    })
   })
 })

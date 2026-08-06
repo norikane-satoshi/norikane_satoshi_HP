@@ -17,6 +17,8 @@ Runtime shape:
 - Logs are JSONL and do not include bearer tokens, raw prompts, raw model output, cookies, or personal request bodies.
 - When `/health` is ready but `/generate` fails, JSONL and Slack mark `incident_kind: health_ok_generate_failed` with phase, HTTP status, duration, sanitized worker error code/message preview, and repair action summary.
 - Chatbot Slack/Vercel structured logs include sanitized retry attempt summaries: attempt number, outcome, reason, duration, timeout, HTTP status, and retryability only.
+- `invalid-output` answers with HTTP 500, not 502. Cloudflare replaces an origin 502 with its own plain-text error page, so a 502 hides the worker error code, message, and retryable flag from Production and from every probe outside the VPS loopback. Diagnosing the 2026-08-06 outage required SSH for exactly that reason.
+- Production honours the worker's `retryable: false` on 5xx instead of retrying every server error. Notion returning an empty inference stream (`bytes=0`, HTTP 200 `application/x-ndjson`) lasts minutes, so exhausting the retry budget only delays the Tier2 answer the customer receives.
 - Timeout budgets are aligned so the worker does not abort Notion AI at 50s while the Production client still has budget: worker generate default 70s, client attempt default 75s, total Tier1 budget 90s, `/api/chatbot/message` maxDuration 120s.
 
 Default VPS files:

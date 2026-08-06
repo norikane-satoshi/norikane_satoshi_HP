@@ -143,7 +143,11 @@ function httpStatusForLlmError(error: ChatbotLlmError): number {
   if (error.code === "rate-limit") return 429
   if (error.code === "timeout") return 504
   if (error.code === "connection") return 502
-  if (error.code === "invalid-output") return 502
+  // Cloudflare replaces an origin 502 with its own plain-text error page, which strips the worker
+  // error code, message, and retryable flag before Production or any external probe can read them.
+  // Invalid output is a worker-side verdict rather than a bad gateway, so keep it on a status the
+  // tunnel forwards untouched.
+  if (error.code === "invalid-output") return 500
   return 500
 }
 

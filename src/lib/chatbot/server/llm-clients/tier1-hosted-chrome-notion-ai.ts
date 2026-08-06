@@ -499,7 +499,15 @@ function summarizeGenerateFailure(error: unknown): {
       }
     }
     if (error.status >= firstServerErrorStatus) {
-      return { reason: "server-error", retryable: true, httpStatus: error.status, errorCode: error.summary.errorCode }
+      // The worker only reports retryable:false when repeating the call cannot help, such as Notion
+      // returning an empty inference stream for minutes. Opaque gateway errors carry no flag and
+      // stay retryable.
+      return {
+        reason: "server-error",
+        retryable: error.summary.retryable !== false,
+        httpStatus: error.status,
+        errorCode: error.summary.errorCode,
+      }
     }
     return { reason: "unknown", retryable: false, httpStatus: error.status, errorCode: error.summary.errorCode }
   }
