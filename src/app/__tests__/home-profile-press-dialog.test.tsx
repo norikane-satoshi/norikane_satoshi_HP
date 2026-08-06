@@ -12,6 +12,7 @@ import {
   DAVINCI_RESOLVE_TRAINING_URL,
 } from "@/lib/hp/davinci-trainer"
 import { hpPublicContent } from "@/lib/hp/public-content"
+import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
 vi.mock("@/components/hp/featured-works", () => ({
   FeaturedWorks: () => <div data-testid="featured-works" />,
@@ -71,6 +72,27 @@ describe("HomePage profile press dialog trigger", () => {
     expect(profile?.querySelector(".hp-career-item")).toBeInTheDocument()
     expect(container.querySelector("#schedule")).not.toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "予約カレンダー" })).not.toBeInTheDocument()
+  })
+
+  it("keeps the home page available when the external notes query fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    vi.mocked(listPublishedNotes).mockRejectedValueOnce(
+      Object.assign(new TypeError("fetch failed"), {
+        cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }),
+      }),
+    )
+
+    render(await HomePage())
+
+    expect(screen.getByTestId("hero-section")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "プロフィール" })).toBeInTheDocument()
+    expect(consoleError).toHaveBeenCalledWith("[HP_HOME_NOTES_FETCH_FAILED]", {
+      event: "hp_home_notes_fetch_failed",
+      errorName: "TypeError",
+      causeName: "Error",
+      causeCode: "ECONNRESET",
+    })
+    consoleError.mockRestore()
   })
 
   it("uses the 16px body tier for every career detail", async () => {

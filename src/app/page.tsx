@@ -57,6 +57,21 @@ const socialIcons = {
   Instagram: InstagramIcon,
 } as const
 
+async function listPublishedNotesForHome() {
+  try {
+    return await listPublishedNotes()
+  } catch (error) {
+    const cause = error instanceof Error && error.cause instanceof Error ? error.cause : undefined
+    console.error("[HP_HOME_NOTES_FETCH_FAILED]", {
+      event: "hp_home_notes_fetch_failed",
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      causeName: cause?.name,
+      causeCode: cause && "code" in cause ? String(cause.code) : undefined,
+    })
+    return []
+  }
+}
+
 function renderIntroTextWithTrainerLink() {
   const [before, after] = hpPublicContent.intro.split(DAVINCI_RESOLVE_TRAINER_TEXT)
 
@@ -147,7 +162,7 @@ function ProfileForeground() {
 }
 
 export default async function HomePage() {
-  const notes = await listPublishedNotes()
+  const notes = await listPublishedNotesForHome()
   // listPublishedNotes returns created_time ascending; feature the latest note first.
   const orderedNotes = [...notes].reverse()
   return (
