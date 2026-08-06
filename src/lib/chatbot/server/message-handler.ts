@@ -86,6 +86,7 @@ import {
 } from "@/lib/chatbot/server/flow-policy"
 import { chatbotLlmTierIds, createChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
+import { buildSingleUserPromptGuardContent } from "@/lib/chatbot/server/prompt-guard-copy"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 import {
   sendChatbotSlackNotification,
@@ -1901,54 +1902,6 @@ type SingleUserPromptGuardReport =
       uiKind: ChatbotMessageUi["kind"]
       choiceSetId?: string
     }
-
-function buildSingleUserPromptGuardContent(input: {
-  routingDecision: RoutingDecision | undefined
-  uiKind: ChatbotMessageUi["kind"]
-}):
-  | {
-      content: string
-      reason: Extract<SingleUserPromptGuardReport, { applied: true }>["reason"]
-      choiceSetId?: string
-    }
-  | undefined {
-  if (input.routingDecision?.kind === "continue" && input.routingDecision.presentChoices) {
-    return {
-      content: `${input.routingDecision.nextQuestion}\n下の選択肢から選んでください。`,
-      reason: "choice-panel",
-      choiceSetId: input.routingDecision.presentChoices.id,
-    }
-  }
-  if (
-    input.routingDecision?.kind === "continue" &&
-    input.routingDecision.nextQuestion.includes("ほかに確認したいこと")
-  ) {
-    return {
-      content: input.routingDecision.nextQuestion,
-      reason: "booking-final-confirmation",
-    }
-  }
-
-  switch (input.uiKind) {
-    case "booking-card":
-      return {
-        content: "候補日を確認しました。\n下の予約カードから選択してください。",
-        reason: "booking-card",
-      }
-    case "consultation-summary-form":
-      return {
-        content: "下のフォームで相談内容を確認して送信してください。",
-        reason: "summary-form",
-      }
-    case "tier3-inquiry-form":
-      return {
-        content: "下のフォームからお問い合わせください。",
-        reason: "tier3-inquiry-form",
-      }
-    default:
-      return undefined
-  }
-}
 
 function logChatbotDurationTrace(input: {
   conversation: ChatbotConversation
