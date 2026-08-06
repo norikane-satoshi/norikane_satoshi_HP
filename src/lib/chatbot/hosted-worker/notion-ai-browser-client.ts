@@ -762,11 +762,7 @@ export function buildRunInferencePayload(input: {
   const spaceId = input.runtimeContext.spaceId
   const contextPageId = input.contextPageId ?? input.runtimeContext.contextPageId
   const currentDatetime = new Date().toISOString()
-  // The worker drives one long-lived Notion AI page, so its runtime context always hands back the
-  // same thread. Reusing it made every customer's turns pile up in one shared thread and let a
-  // reply quote another customer's project. The prompt already carries the full transcript, so a
-  // fresh thread per request costs nothing and keeps conversations apart.
-  const threadId = input.idFactory()
+  const threadId = input.runtimeContext.threadId ?? input.idFactory()
 
   if (!spaceId) {
     throw new ChatbotLlmError({
@@ -809,7 +805,7 @@ export function buildRunInferencePayload(input: {
       },
     ],
     threadId,
-    createThread: true,
+    createThread: !input.runtimeContext.threadId,
     debugOverrides: {
       emitAgentSearchExtractedResults: true,
       cachedInferences: {},
@@ -817,12 +813,12 @@ export function buildRunInferencePayload(input: {
       emitInferences: false,
     },
     generateTitle: false,
-    saveAllThreadOperations: false,
-    setUnreadState: false,
-    createdSource: defaultCreatedSource,
+    saveAllThreadOperations: true,
+    setUnreadState: true,
+    createdSource: input.runtimeContext.threadId ? "workflows" : defaultCreatedSource,
     threadType: defaultThreadType,
-    isPartialTranscript: false,
-    asPatchResponse: false,
+    isPartialTranscript: Boolean(input.runtimeContext.threadId),
+    asPatchResponse: Boolean(input.runtimeContext.threadId),
     hasHeartbeat: false,
     isUserInAnySalesAssistedSpace: false,
     isSpaceSalesAssisted: false,
