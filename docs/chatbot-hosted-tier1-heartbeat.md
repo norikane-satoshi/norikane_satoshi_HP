@@ -9,7 +9,7 @@ Runtime shape:
 - Production chatbot preflight uses quick `GET /health?mode=quick` so an active Notion AI generation or CDP runtime inspection spike does not skip Tier1 before `/generate`.
 - If the hosted Tier1 health probe times out or returns a retryable connection failure, Production still attempts `/generate`; fallback to Tier2 starts only after Tier1 generate exhausts its own repair/retry budget.
 - A lightweight `POST /generate` smoke runs every 10 minutes by default; the 2-minute timer still performs the cheap health check.
-- One failed health/connection run moves state to `unhealthy`; transient hosted Notion AI `invalid-output` and `rate-limit` generate misses stay `suspect` until `CHATBOT_HOSTED_TIER1_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD` consecutive misses.
+- One failed health/connection run moves state to `unhealthy`; transient hosted Notion AI `invalid-output` and `rate-limit` generate misses stay `suspect` until `CHATBOT_HOSTED_TIER1_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD` consecutive misses (default 2, so a sustained Notion-side outage escalates on the second generate sample instead of the third).
 - Tier1 generate failure is not treated as a successful lower-tier fallback.
 - On the first unhealthy transition, the script tries one repair sequence: `POST /ensure-chrome`, `systemctl --user restart hosted-notion-ai-worker.service`, then `systemctl --user restart hosted-worker-chrome.service`.
 - Notion trust-rule, hosted Notion AI `invalid-output`, and hosted Notion AI `rate-limit` failures skip restart loops because service restarts do not fix model/extraction/quota responses.

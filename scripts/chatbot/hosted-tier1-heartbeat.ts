@@ -100,7 +100,10 @@ const defaultGenerateTimeoutMs = 60_000
 const defaultGenerateIntervalMs = 10 * 60_000
 const defaultNotificationCooldownMs = 60 * 60_000
 const defaultFailureThreshold = 1
-const defaultTransientGenerateFailureThreshold = 3
+// Notion-side Tier1 outages have run 13-36 minutes (2026-06-17, 06-18, 06-24, 08-06). At the
+// 10 minute generate interval a threshold of three needs ~25-30 minutes of sustained failure, so
+// the 2026-08-06 outage produced two samples, never escalated, and nobody was notified.
+export const defaultTransientGenerateFailureThreshold = 2
 const repairCooldownMs = 20 * 60_000
 const stateDir = path.join(homedir(), ".local", "state", "norikane_satoshi_hp")
 const defaultStatePath = path.join(stateDir, "hosted-tier1-heartbeat-state.json")

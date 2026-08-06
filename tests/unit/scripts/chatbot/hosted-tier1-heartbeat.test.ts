@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   buildSmokeRequest,
+  defaultTransientGenerateFailureThreshold,
   evaluateGenerateResponse,
   evaluateHealthResponse,
   runHeartbeat,
@@ -579,6 +580,43 @@ describe("hosted-tier1-heartbeat", () => {
       incidentClass: "worker_error:rate-limit",
       incidentStartedAt: "2026-07-07T00:30:31.000Z",
     })
+  })
+
+  it("escalates a transient generate incident on the second consecutive miss by default", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
+    dirs.push(dir)
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        status: "suspect",
+        consecutiveFailures: 1,
+        incidentClass: "worker_error:invalid-output",
+        incidentStartedAt: "2026-08-06T11:39:01.000Z",
+      }),
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(invalidOutputResponse())
+
+    // The 2026-08-06 outage produced exactly two generate samples in 34 minutes, so a threshold
+    // of three never fired and the whole Tier1 outage went unnotified.
+    const result = await runHeartbeat(
+      config(dir, {
+        failureThreshold: 1,
+        transientGenerateFailureThreshold: defaultTransientGenerateFailureThreshold,
+        forceGenerate: true,
+      }),
+      {
+        fetch: fetchMock as typeof fetch,
+        now: () => new Date("2026-08-06T11:51:41.000Z"),
+        runCommand: vi.fn(),
+      },
+    )
+
+    expect(defaultTransientGenerateFailureThreshold).toBe(2)
+    expect(result.status).toBe("unhealthy")
+    expect(result.notification).toMatchObject({ kind: "unhealthy", status: "dry-run" })
   })
 
   it("notifies an actual non-transient generate failure as unhealthy", async () => {

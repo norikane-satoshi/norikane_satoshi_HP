@@ -9,5 +9,5 @@ WorkingDirectory=%h/norikane_satoshi_HP
 EnvironmentFile=%h/.config/norikane/hosted-tier1-heartbeat.env
 Environment=CHATBOT_HOSTED_TIER1_HEARTBEAT_GENERATE_INTERVAL_MS=600000
 Environment=CHATBOT_HOSTED_TIER1_HEARTBEAT_FAILURE_THRESHOLD=1
-Environment=CHATBOT_HOSTED_TIER1_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD=3
+Environment=CHATBOT_HOSTED_TIER1_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD=2
 ExecStart=%h/norikane_satoshi_HP/node_modules/.bin/tsx %h/norikane_satoshi_HP/scripts/chatbot/hosted-tier1-heartbeat.ts
