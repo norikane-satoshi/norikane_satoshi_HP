@@ -1654,6 +1654,7 @@ function ActiveWidgetUi({
         conversationId={conversationId}
         candidates={ui.suggestedSlots}
         busyDateKeys={ui.busyDateKeys}
+        tentativeDateKeys={ui.tentativeDateKeys}
         jobContext={ui.jobContext}
         estimate={ui.jobContext.workflowEstimate}
         defaultProjectTitle={ui.bookingPrefill?.projectTitle}

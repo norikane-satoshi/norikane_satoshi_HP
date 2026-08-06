@@ -197,6 +197,15 @@ export async function getFreeBusy(
   })
 }
 
+// 終日イベントは start.date / end.date しか持たない。日付文字列のまま返すと
+// 下流の new Date() が UTC 0:00 として解釈し、JST では 9 時間ずれた区間になる。
+// カレンダーの運用タイムゾーンである JST の 0:00 に正規化して返す。
+function toJstMidnightIso(date: string | null | undefined): string | undefined {
+  if (!date) return undefined
+  const parsed = new Date(`${date}T00:00:00.000+09:00`)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
+}
+
 export async function listBusyEventsWithBuffer(
   calendarId: string,
   timeMin: string,
@@ -223,8 +232,8 @@ export async function listBusyEventsWithBuffer(
 
     for (const event of response.data.items ?? []) {
       if (event.transparency === "transparent") continue
-      const start = event.start?.dateTime ?? event.start?.date
-      const end = event.end?.dateTime ?? event.end?.date
+      const start = event.start?.dateTime ?? toJstMidnightIso(event.start?.date)
+      const end = event.end?.dateTime ?? toJstMidnightIso(event.end?.date)
       if (!start || !end) continue
 
       const parsedBuffer = Number(event.extendedProperties?.private?.bufferHours)

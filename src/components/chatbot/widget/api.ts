@@ -31,6 +31,7 @@ export type WidgetUi =
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
       busyDateKeys?: Extract<RoutingDecision, { kind: "to-booking-inline" }>["busyDateKeys"]
+      tentativeDateKeys?: Extract<RoutingDecision, { kind: "to-booking-inline" }>["tentativeDateKeys"]
       jobContext: JobContext
       bookingPrefill?: BookingCardPrefill
       completedBooking?: BookingCompletionSummary

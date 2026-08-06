@@ -2,6 +2,29 @@
 
 Dev server rule: when a local Next.js dev server is started for verification, do not kill it at session end unless the user explicitly requests shutdown. Preserve the PID and log path for the next verification turn.
 
+## 予約可否の表示契約（3カレンダー共通・恒久）
+
+アバイラビリティカレンダー（`/booking`）、LINE 予約カレンダー（`/line/booking`）、
+チャットボットパネル（`/api/chatbot/booking-candidates`）の 3 経路は、IB_仕事 の予定を
+次のとおり扱う。この挙動を壊す変更を入れない。
+
+1. **仮キープ（タスク種別=仮押さえ・実施予定日が日付型＝終日）**
+   3 経路すべてに「仮」として表示する。上書き可能なソフトロックなので、日付の選択自体は
+   禁止しない。ソースは `getNotionWorkTentativeDateKeys`。
+2. **本予約（実施予定日が日時型＝実施時間あり）**
+   3 経路すべてで NG（予約不可）として表示する。`/booking` と `/line/booking` はその日全体を
+   日付ロックする。ソースは `getNotionWorkScheduleBusyIntervals`。
+3. タスク種別は busy 判定に使わない。種別空欄の行も NG 日として扱う（家族・個人の
+   NG 日をこの形で登録しているため）。
+4. GCal の終日イベントは `start.date` / `end.date` しか持たないので、busy へ載せる前に
+   JST 0:00 起点の ISO へ正規化する。日付文字列のまま流すと `new Date()` が UTC 解釈して
+   9 時間ずれる。
+
+回帰テスト: `src/lib/chatbot/server/__tests__/availability-finder-tentative.test.ts`,
+`src/components/chatbot/widget/__tests__/chatbot-booking-card-tentative.test.tsx`,
+`src/lib/chatbot/server/notion-work-schedule-busy.test.ts`,
+`tests/unit/booking/google-calendar.test.ts`
+
 ## 本番反映ルール（チャットボット・予約カレンダー）
 
 AI チャットボットと予約カレンダーの実装は、検証済み変更を `localhost:41238` だけで止めず、`master` / Vercel Production まで反映し、Production URL と顧客導線で確認できる状態を既定の完了条件にする。破壊的変更、secret / env 更新、DB migration、外部サービス設定変更、不可逆または高コストな操作は、master / Production 反映前にさとしさんの明示確認を取る。

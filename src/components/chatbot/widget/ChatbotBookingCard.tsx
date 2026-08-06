@@ -22,6 +22,7 @@ type ChatbotBookingCardProps = {
   jobContext?: JobContext
   candidates: CandidateWindow[]
   busyDateKeys?: string[]
+  tentativeDateKeys?: string[]
   defaultProjectTitle?: string
   defaultContactName?: string
   defaultContactEmail?: string
@@ -46,6 +47,7 @@ type ApiResponse = {
 type CandidatesApiResponse = {
   candidates?: CandidateWindow[]
   busyDateKeys?: string[]
+  tentativeDateKeys?: string[]
 }
 
 type CandidateRequestPayload = {
@@ -156,9 +158,16 @@ function buildMonthCells(monthKey: string) {
   return cells
 }
 
-function buildCandidateCalendar(monthKey: string, candidates: CandidateWindow[], busyDateKeys: string[]) {
+function buildCandidateCalendar(
+  monthKey: string,
+  candidates: CandidateWindow[],
+  busyDateKeys: string[],
+  tentativeDateKeys: string[],
+) {
   const candidateByStartDate = new Map<string, { candidate: CandidateWindow; index: number }>()
   const busyDateKeySet = new Set(busyDateKeys.filter((key) => key.startsWith(`${monthKey}-`)))
+  // 仮キープ（上書き可能なソフトロック）。選択は妨げず、仮であることだけ示す。
+  const tentativeDateKeySet = new Set(tentativeDateKeys.filter((key) => key.startsWith(`${monthKey}-`)))
 
   candidates.forEach((candidate, index) => {
     if (candidate.available === false) return
@@ -170,6 +179,7 @@ function buildCandidateCalendar(monthKey: string, candidates: CandidateWindow[],
     dayCells: buildMonthCells(monthKey),
     candidateByStartDate,
     busyDateKeySet,
+    tentativeDateKeySet,
   }
 }
 
@@ -276,6 +286,7 @@ export function ChatbotBookingCard({
   jobContext,
   candidates,
   busyDateKeys = [],
+  tentativeDateKeys = [],
   defaultProjectTitle = "",
   defaultContactName = "",
   defaultContactEmail = "",
@@ -314,6 +325,7 @@ export function ChatbotBookingCard({
   )
   const [monthCandidateOverrides, setMonthCandidateOverrides] = useState<Record<string, CandidateWindow[]>>({})
   const [monthBusyDateKeyOverrides, setMonthBusyDateKeyOverrides] = useState<Record<string, string[]>>({})
+  const [monthTentativeDateKeyOverrides, setMonthTentativeDateKeyOverrides] = useState<Record<string, string[]>>({})
   const displayedCandidates = useMemo(
     () => (displayedMonthRequestKey
       ? monthCandidateOverrides[displayedMonthRequestKey]
@@ -326,9 +338,15 @@ export function ChatbotBookingCard({
       : undefined) ?? busyDateKeys.filter((key) => key.startsWith(`${displayedMonthKey}-`)),
     [busyDateKeys, displayedMonthKey, displayedMonthRequestKey, monthBusyDateKeyOverrides],
   )
+  const displayedTentativeDateKeys = useMemo(
+    () => (displayedMonthRequestKey
+      ? monthTentativeDateKeyOverrides[displayedMonthRequestKey]
+      : undefined) ?? tentativeDateKeys.filter((key) => key.startsWith(`${displayedMonthKey}-`)),
+    [displayedMonthKey, displayedMonthRequestKey, monthTentativeDateKeyOverrides, tentativeDateKeys],
+  )
   const candidateCalendar = useMemo(
-    () => buildCandidateCalendar(displayedMonthKey, displayedCandidates, displayedBusyDateKeys),
-    [displayedBusyDateKeys, displayedCandidates, displayedMonthKey],
+    () => buildCandidateCalendar(displayedMonthKey, displayedCandidates, displayedBusyDateKeys, displayedTentativeDateKeys),
+    [displayedBusyDateKeys, displayedCandidates, displayedMonthKey, displayedTentativeDateKeys],
   )
   const [selectedSlots, setSelectedSlots] = useState<CandidateWindow[]>(() => (
     visibleCandidates.length === 1 && requiredDays === 1 ? [visibleCandidates[0]] : []
@@ -384,6 +402,10 @@ export function ChatbotBookingCard({
         setMonthBusyDateKeyOverrides((current) => ({
           ...current,
           [displayedMonthRequestKey]: Array.isArray(payload.busyDateKeys) ? payload.busyDateKeys : [],
+        }))
+        setMonthTentativeDateKeyOverrides((current) => ({
+          ...current,
+          [displayedMonthRequestKey]: Array.isArray(payload.tentativeDateKeys) ? payload.tentativeDateKeys : [],
         }))
         setMonthLoadError(null)
       })
@@ -530,6 +552,7 @@ export function ChatbotBookingCard({
 
                 const slot = candidateCalendar.candidateByStartDate.get(dateKey)
                 const busy = candidateCalendar.busyDateKeySet.has(dateKey)
+                const tentative = !busy && candidateCalendar.tentativeDateKeySet.has(dateKey)
                 const selected = selectedKeys.has(dateKey)
                 const past = dateKey < currentJstDateKey
 
@@ -589,8 +612,8 @@ export function ChatbotBookingCard({
                         : "border-white/65 bg-white/55 text-hp hover:-translate-y-0.5 hover:scale-[1.02] hover:border-[var(--hp-color-accent)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--hp-color-accent-focus-ring)]/45 hover:ring-inset focus-visible:border-[var(--hp-color-accent)] focus-visible:ring-2 focus-visible:ring-[var(--hp-color-accent-focus-ring)]/45 focus-visible:ring-inset",
                     ].join(" ")}
                     data-selected={selected ? "true" : undefined}
-                    data-calendar-state="startable"
-                    aria-label={`${dateKey} 選択可`}
+                    data-calendar-state={tentative ? "tentative" : "startable"}
+                    aria-label={tentative ? `${dateKey} 選択可・仮キープあり` : `${dateKey} 選択可`}
                     aria-pressed={selected}
                     onClick={() => {
                       setSelectedSlots((current) => {
@@ -609,6 +632,9 @@ export function ChatbotBookingCard({
                     }}
                   >
                     <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
+                    {tentative ? (
+                      <span className="mt-0.5 block text-[10px] font-semibold leading-none text-hp-muted">仮</span>
+                    ) : null}
                   </button>
                 )
               })}

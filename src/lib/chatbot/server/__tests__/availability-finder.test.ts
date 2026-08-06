@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   getNotionWorkScheduleBusyIntervals: vi.fn(),
+  getNotionWorkTentativeDateKeys: vi.fn(async () => [] as string[]),
 }))
 
 vi.mock("@/lib/chatbot/server/notion-work-schedule-busy", () => ({
   getNotionWorkScheduleBusyIntervals: mocks.getNotionWorkScheduleBusyIntervals,
+  getNotionWorkTentativeDateKeys: mocks.getNotionWorkTentativeDateKeys,
 }))
 
 import type { JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"

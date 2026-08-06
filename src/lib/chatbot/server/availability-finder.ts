@@ -8,6 +8,7 @@ const CANDIDATE_LIMIT = 3
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const VALID_WORK_SITES = new Set<WorkSite>(["satoshi-studio", "remote-grading", "on-site"])
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 export type FreeBusyFetcher = (args: {
   from: string
   to: string
@@ -18,11 +19,20 @@ export type AttendanceConflictResolver = (args: {
   to: string
 }) => Promise<Array<{ start: string; end: string; bookingId: string }>>
 
+// 【仮キープ】は実施時間を持たない終日レコードで運用される。busy（時間指定の確定予定）
+// とは別枠で受け取る。仮キープは上書き可能なソフトロックなので候補からは外さず、
+// 予約カレンダー（/booking, /line/booking）と同じく「仮」として提示する。
+export type TentativeDateKeysFetcher = (args: {
+  from: string
+  to: string
+}) => Promise<string[]>
+
 export type ChatbotAvailabilityErrorKind =
   | "studio-not-yet-active"
   | "work-site-unspecified"
   | "free-busy-fetch-failed"
   | "attendance-resolver-failed"
+  | "tentative-date-keys-fetch-failed"
 
 export class ChatbotAvailabilityError extends Error {
   kind: ChatbotAvailabilityErrorKind
@@ -46,11 +56,13 @@ type CandidateSearchArgs = {
   now?: Date
   freeBusyFetcher?: FreeBusyFetcher
   attendanceConflictResolver?: AttendanceConflictResolver
+  tentativeDateKeysFetcher?: TentativeDateKeysFetcher
 }
 
 export type CandidateCalendarResult = {
   candidates: CandidateWindow[]
   busyDateKeys: string[]
+  tentativeDateKeys: string[]
 }
 
 export async function findCandidateWindows(args: CandidateSearchArgs): Promise<CandidateWindow[]> {
@@ -70,16 +82,20 @@ export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<
   const neededDays = Math.max(1, Math.ceil(args.workflowEstimate.totalMaxDays))
   const fetcher = args.freeBusyFetcher ?? defaultFreeBusyFetcher
   const resolver = args.attendanceConflictResolver ?? defaultAttendanceConflictResolver
+  const tentativeFetcher = args.tentativeDateKeysFetcher ?? defaultTentativeDateKeysFetcher
 
-  const [busyIntervals, attendanceIntervals] = await Promise.all([
+  const [busyIntervals, attendanceIntervals, rawTentativeDateKeys] = await Promise.all([
     runFreeBusyFetcher(fetcher, busyFrom, searchTo),
     runAttendanceResolver(resolver, searchFrom, searchTo),
+    runTentativeDateKeysFetcher(tentativeFetcher, busyFrom, searchTo),
   ])
 
   const normalizedBusyIntervals = busyIntervals
     .map(normalizeInterval)
     .filter(isValidInterval)
     .filter(isTimedBusyInterval)
+  const tentativeDateKeys = withinJstDateKeyRange(rawTentativeDateKeys, busyFrom, searchTo)
+  const tentativeDateKeySet = new Set(tentativeDateKeys)
   const candidates = buildCandidateWindows({
     searchFrom,
     searchTo,
@@ -103,17 +119,28 @@ export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<
           `busyRatio=${candidate.busyRatio.toFixed(2)}`,
           deadline ? `deadlineSlackDays=${candidate.deadlineSlackDays.toFixed(1)}` : null,
           "attendanceConflicts=0",
+          tentativeDateKeySet.has(formatJstDate(candidate.start)) ? "tentative=true" : null,
         ].filter(Boolean).join("; "),
       })),
     busyDateKeys: busyDateKeysFromIntervals(normalizedBusyIntervals, busyFrom, searchTo),
+    tentativeDateKeys,
   }
+}
+
+// busy と仮キープは同じモジュールから同時に読む。別々の動的 import を並行に走らせると
+// 解決が競合するので、モジュール取得は 1 本にまとめる。
+let notionWorkSchedulePromise: Promise<typeof import("@/lib/chatbot/server/notion-work-schedule-busy")> | null = null
+
+function loadNotionWorkSchedule() {
+  notionWorkSchedulePromise ??= import("@/lib/chatbot/server/notion-work-schedule-busy")
+  return notionWorkSchedulePromise
 }
 
 async function defaultFreeBusyFetcher(args: {
   from: string
   to: string
 }): Promise<Array<{ start: string; end: string }>> {
-  const { getNotionWorkScheduleBusyIntervals } = await import("@/lib/chatbot/server/notion-work-schedule-busy")
+  const { getNotionWorkScheduleBusyIntervals } = await loadNotionWorkSchedule()
   return getNotionWorkScheduleBusyIntervals(args)
 }
 
@@ -123,6 +150,14 @@ async function defaultAttendanceConflictResolver(args: {
 }): Promise<Array<{ start: string; end: string; bookingId: string }>> {
   void args
   return []
+}
+
+async function defaultTentativeDateKeysFetcher(args: {
+  from: string
+  to: string
+}): Promise<string[]> {
+  const { getNotionWorkTentativeDateKeys } = await loadNotionWorkSchedule()
+  return getNotionWorkTentativeDateKeys(args)
 }
 
 async function runFreeBusyFetcher(
@@ -137,6 +172,23 @@ async function runFreeBusyFetcher(
     throw new ChatbotAvailabilityError(
       "free-busy-fetch-failed",
       "Failed to fetch chatbot busy intervals.",
+      { cause: error },
+    )
+  }
+}
+
+async function runTentativeDateKeysFetcher(
+  fetcher: TentativeDateKeysFetcher,
+  from: Date,
+  to: Date,
+): Promise<string[]> {
+  try {
+    return await fetcher({ from: from.toISOString(), to: to.toISOString() })
+  } catch (error) {
+    if (error instanceof ChatbotAvailabilityError) throw error
+    throw new ChatbotAvailabilityError(
+      "tentative-date-keys-fetch-failed",
+      "Failed to fetch chatbot tentative date keys.",
       { cause: error },
     )
   }
@@ -284,6 +336,16 @@ function scoreWindow(args: {
     : 0
 
   return earliness * 0.55 + emptiness * 0.35 + slack * 0.1
+}
+
+function withinJstDateKeyRange(dateKeys: string[], from: Date, to: Date): string[] {
+  const fromKey = formatJstDate(from)
+  const toKey = formatJstDate(to)
+  return [...new Set(
+    dateKeys.filter((dateKey) => (
+      DATE_KEY_PATTERN.test(dateKey) && dateKey >= fromKey && dateKey < toKey
+    )),
+  )].sort()
 }
 
 function normalizeInterval(input: { start: string; end: string }): Interval {

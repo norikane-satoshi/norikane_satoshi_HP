@@ -140,8 +140,9 @@ describe("google-calendar helpers", () => {
         summary: null,
       },
       {
-        start: "2026-06-11",
-        end: "2026-06-12",
+        // 終日イベントは JST 0:00 起点の ISO へ正規化する（UTC 解釈による 9 時間ずれ防止）
+        start: "2026-06-10T15:00:00.000Z",
+        end: "2026-06-11T15:00:00.000Z",
         source: "google_calendar",
         bufferHours: null,
         bufferBeforeHours: null,

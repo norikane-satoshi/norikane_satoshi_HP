@@ -100,6 +100,7 @@ type ChatbotMessageUi =
       kind: "booking-card"
       suggestedSlots: Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]
       busyDateKeys?: Extract<RoutingDecision, { kind: "to-booking-inline" }>["busyDateKeys"]
+      tentativeDateKeys?: Extract<RoutingDecision, { kind: "to-booking-inline" }>["tentativeDateKeys"]
       jobContext: JobContext
       bookingPrefill?: BookingCardPrefill
     }
@@ -2414,6 +2415,7 @@ function toMessageUi(input: {
       kind: "booking-card",
       suggestedSlots: routingDecision.suggestedSlots,
       busyDateKeys: routingDecision.busyDateKeys,
+      tentativeDateKeys: routingDecision.tentativeDateKeys,
       jobContext: routingDecision.jobContext,
       bookingPrefill: routingDecision.bookingPrefill,
     }
@@ -2724,6 +2726,7 @@ async function buildBookingInlineRoutingDecision(input: {
       kind: "to-booking-inline",
       suggestedSlots: calendar.candidates,
       busyDateKeys: calendar.busyDateKeys,
+      tentativeDateKeys: calendar.tentativeDateKeys,
       jobContext,
       bookingPrefill: normalizeBookingCardPrefill(input.bookingPrefill, jobContext, input.conversationState),
     }
@@ -2766,7 +2769,7 @@ function truncateLlmHistoryContent(content: string): string {
 function normalizeCandidateCalendarResult(
   result: CandidateCalendarResult | Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"],
 ): CandidateCalendarResult {
-  return Array.isArray(result) ? { candidates: result, busyDateKeys: [] } : result
+  return Array.isArray(result) ? { candidates: result, busyDateKeys: [], tentativeDateKeys: [] } : result
 }
 
 type ShowChoicePanelToolCall = {
