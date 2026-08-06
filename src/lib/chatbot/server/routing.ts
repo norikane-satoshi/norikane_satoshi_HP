@@ -61,7 +61,9 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
 
   if (conversationState.vfxCgHeavy) return directContact("vfx-cg-heavy")
   if (conversationState.editingIncomplete) return directContact("raw-edit-included")
-  if (conversationState.asksPricing) return directContact("pricing")
+  if (conversationState.asksPricing || asksAboutPricing(input.latestUserMessage)) {
+    return directContact("pricing")
+  }
   if (conversationState.contractDecision) return directContact("contract-decision")
   if (conversationState.personalQuestion) return directContact("personal-life")
   if (conversationState.otherClientInformation) return directContact("other-client")
@@ -75,6 +77,23 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
   if (conversationState.turnCount >= complexConversationTurnThreshold) return directContact("complex")
 
   return continueDecision({ conversationState, jobContext, now: input.now })
+}
+
+// The pricing branch has to be reachable from the conversation itself. Leaving it to the model to
+// decline is a prompt-level guarantee, and the whole point of the branch is that a code boundary
+// decides. Asking about money is matched only when the customer requests an amount, so quoting
+// their own budget while describing the job stays in the normal flow.
+const pricingRequestPatterns: ReadonlyArray<RegExp> = [
+  /(?:料金|費用|価格|単価|金額|相場|ギャラ)(?:表|感|体系)?[^。！？\n]{0,12}(?:は|が|って|を|の)?[^。！？\n]{0,12}(?:いくら|おいくら|どのくらい|どれくらい|教え|知り|伺|聞き|確認|提示|見せ|ください|下さい|でしょうか|ますか|ですか)/u,
+  /(?:いくら|おいくら)[^。！？\n]{0,10}(?:かかり|でしょう|ですか|になります|ますか)/u,
+  /(?:お?見積(?:り|もり|書)?)[^。！？\n]{0,12}(?:を|が|は)?[^。！？\n]{0,12}(?:お願い|ほしい|欲しい|ください|下さい|頂け|いただけ|可能|できます)/u,
+  /\b(?:how much|what(?:'s| is) the (?:price|cost|rate)|price list|rate card|your rates?)\b/iu,
+  /\b(?:cost|charge|quote)\b[^.!?\n]{0,24}\?/iu,
+]
+
+function asksAboutPricing(latestUserMessage: string | undefined): boolean {
+  if (!latestUserMessage) return false
+  return pricingRequestPatterns.some((pattern) => pattern.test(latestUserMessage))
 }
 
 function directContact(
