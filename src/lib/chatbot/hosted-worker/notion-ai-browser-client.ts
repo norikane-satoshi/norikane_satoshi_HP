@@ -1581,6 +1581,23 @@ async function runInferenceInPage(input: {
       text.includes('"message":"Please try again later."')
 
     const rawText = finalText || partialText
+
+    // Notion sometimes delivers its own service error as the assistant's text. It reaches the
+    // display boundary looking like an ordinary reply, so a customer asking about turnaround got
+    // "Column size exceeded" as the answer. Treat it as a failed generation so the next tier
+    // answers instead.
+    const serviceError = ["Column size exceeded", "Internal server error", "Something went wrong"].find(
+      (candidate) => rawText.trim() === candidate,
+    )
+    if (serviceError) {
+      return {
+        ok: false,
+        code: "invalid-output",
+        message: `Notion AI returned a service error instead of a reply: ${serviceError}`,
+        stageTimings: stageTimings(),
+      }
+    }
+
     if (!rawText) {
       if (isUsageLimitResponse(responseText)) {
         return {
