@@ -1,7 +1,7 @@
 const defaultNotionAiChatbotThreadUrl =
-  "https://www.notion.so/chat?t=36b13ee3141a8073885d00a99ebb676c"
+  "https://www.notion.so/chat?t=3b513ee3141a80d5bd0200a92366e2b7"
 
-export const notionAiChatbotThreadId = "36b13ee3-141a-8073-885d-00a99ebb676c"
+export const notionAiChatbotThreadId = "3b513ee3-141a-80d5-bd02-00a92366e2b7"
 
 export const notionAiChatbotThreadUrl = defaultNotionAiChatbotThreadUrl
 
