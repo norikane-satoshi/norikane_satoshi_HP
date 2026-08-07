@@ -181,6 +181,12 @@ const xmlLikeTagPattern = /<\/?[a-z][a-z0-9_-]*(?:\s+[^<>]*)?>/giu
 // it cannot decide the outcome on its own.
 const internalReasoningEnglishPattern =
   /\b(?:the\s+)?(?:user|customer)\s+(?:said|says|selected|asked|answered|chose|wants?|mentioned|indicated|responded|is|has|gave|provided|replied)\b|\blooking at the (?:conversation|context)\b|\bconfirmed facts?\b|\bwhat'?s\s+(?:still\s+)?missing\b|\bstill\s+missing\b|\bno particular preferences?\b|\bnow i\b|\bi\s+should\b|\blet(?:'|’)?s\b|\blet\s+(?:me|us)\b/iu
+// A customer-facing reply talks about the customer's project. These phrases talk about the
+// conversation itself — which question comes next, what is still missing, what is confirmed — and
+// a reply about colour grading has no reason to use them. Language alone cannot separate the two,
+// which is why the earlier "any English prose" rule had to go.
+const metaConversationEnglishPattern =
+  /\bnext (?:question|step)\b|\bmissing\s*:|\b(?:is|are)\s+confirmed\b|\bconfirmed (?:facts?|so far)\b|\bbased on the (?:conversation|context|answers)\b|\bask (?:about|for|them|the customer)\b|\bshould (?:ask|confirm|cover|clarify|proceed|move on)\b|\basking about\b/iu
 const englishFirstPersonServicePattern =
   /\b(?:i|we)\s+(?:need|will|would|have|must|think|can|am|could|'ll|'m|'ve)\b|\bi'?ll\b/iu
 const internalMachineIdentifierPattern =
@@ -231,6 +237,7 @@ function isInternalReasoningSegment(segment: string): boolean {
   if (trimmed.length === 0) return false
   return (
     internalReasoningEnglishPattern.test(trimmed) ||
+    metaConversationEnglishPattern.test(trimmed) ||
     internalMachineIdentifierPattern.test(trimmed) ||
     japaneseInternalMonologuePattern.test(trimmed) ||
     mechanicalRoutingFallbackPattern.test(trimmed) ||

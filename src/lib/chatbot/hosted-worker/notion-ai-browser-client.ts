@@ -1586,9 +1586,16 @@ async function runInferenceInPage(input: {
     // display boundary looking like an ordinary reply, so a customer asking about turnaround got
     // "Column size exceeded" as the answer. Treat it as a failed generation so the next tier
     // answers instead.
-    const serviceError = ["Column size exceeded", "Internal server error", "Something went wrong"].find(
-      (candidate) => rawText.trim() === candidate,
-    )
+    // Exact equality missed punctuation and prefix variants ("Error: Column size exceeded."), which
+    // would have gone straight to the customer. A genuine reply about grading is never a short
+    // string carrying one of these phrases, so bound it by length instead.
+    const trimmedRawText = rawText.trim()
+    const serviceError =
+      trimmedRawText.length <= 80
+        ? ["Column size exceeded", "Internal server error", "Something went wrong"].find((candidate) =>
+            trimmedRawText.includes(candidate),
+          )
+        : undefined
     if (serviceError) {
       return {
         ok: false,
