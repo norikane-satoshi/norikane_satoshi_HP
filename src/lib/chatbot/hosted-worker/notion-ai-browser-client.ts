@@ -813,7 +813,12 @@ export function buildRunInferencePayload(input: {
       emitInferences: false,
     },
     generateTitle: false,
-    saveAllThreadOperations: true,
+    // The worker drives one long-lived Notion AI page, so every consultation shares its thread.
+    // Writing each turn back kept growing that shared history until a reply to one customer quoted
+    // another customer's project. The reply itself does not need the turn persisted, so stop
+    // writing. Everything else about the request stays as Notion accepts it: the page's own thread
+    // id, createThread false, a partial transcript and a patch response.
+    saveAllThreadOperations: false,
     setUnreadState: true,
     createdSource: input.runtimeContext.threadId ? "workflows" : defaultCreatedSource,
     threadType: defaultThreadType,
