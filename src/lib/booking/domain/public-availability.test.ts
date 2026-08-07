@@ -7,7 +7,7 @@ import {
 } from "./public-availability"
 
 describe("buildPublicAvailabilityMonth", () => {
-  it("marks only timed busy slots and timed bookings as busy", () => {
+  it("marks timed and full-day busy slots, plus bookings, as busy", () => {
     const month = buildPublicAvailabilityMonth({
       month: "2026-07",
       now: new Date("2026-07-10T00:00:00.000+09:00"),
@@ -21,11 +21,13 @@ describe("buildPublicAvailabilityMonth", () => {
       ],
     })
 
-    expect(month.busyDateKeys).toEqual(["2026-07-15", "2026-07-20"])
+    // 実施時間を持たない押さえ（7/16 の date-only、7/17 の JST 終日）も NG 日にする。
+    // 仮押さえだけは busy ではなく tentative として別経路で届く。
+    expect(month.busyDateKeys).toEqual(["2026-07-15", "2026-07-16", "2026-07-17", "2026-07-20"])
     expect(month.tentativeDateKeys).toEqual([])
     expect(month.days.find((day) => day.dateKey === "2026-07-15")?.isBusy).toBe(true)
-    expect(month.days.find((day) => day.dateKey === "2026-07-16")?.isBusy).toBe(false)
-    expect(month.days.find((day) => day.dateKey === "2026-07-17")?.isBusy).toBe(false)
+    expect(month.days.find((day) => day.dateKey === "2026-07-16")?.isBusy).toBe(true)
+    expect(month.days.find((day) => day.dateKey === "2026-07-17")?.isBusy).toBe(true)
     expect(month.days.find((day) => day.dateKey === "2026-07-20")?.isBusy).toBe(true)
   })
 

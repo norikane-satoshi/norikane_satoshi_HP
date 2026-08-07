@@ -53,7 +53,7 @@ describe("notion work schedule busy reader", () => {
     })
   })
 
-  it("keeps timed rows as busy intervals while exposing date-only tentative keys separately", async () => {
+  it("busies timed rows and date-only non-仮押さえ rows, exposing 仮押さえ as tentative keys", async () => {
     await expect(
       getNotionWorkScheduleBusyIntervals({
         from: "2026-07-01T00:00:00.000+09:00",
@@ -63,6 +63,12 @@ describe("notion work schedule busy reader", () => {
       {
         start: "2026-07-15T01:00:00.000Z",
         end: "2026-07-15T02:00:00.000Z",
+        source: "notion_work",
+      },
+      {
+        // 実施時間を持たない本予約は終日 NG
+        start: "2026-07-17T15:00:00.000Z",
+        end: "2026-07-18T15:00:00.000Z",
         source: "notion_work",
       },
     ])

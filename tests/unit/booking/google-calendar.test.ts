@@ -118,6 +118,19 @@ describe("google-calendar helpers", () => {
               start: { date: "2026-06-11" },
               end: { date: "2026-06-12" },
             },
+            {
+              // IB_仕事 のミラー。終日イベントは仮押さえか本予約かを GCal 側から判別できない
+              // ので、Notion 経路に任せて busy からは落とす。
+              start: { date: "2026-06-20" },
+              end: { date: "2026-06-25" },
+              extendedProperties: { private: { notion_page_id: "f891a8fa-9c60-4e02-b997-0711c1248401" } },
+            },
+            {
+              // 時間指定のミラーは意味が一意なのでそのまま busy に載せる。
+              start: { dateTime: "2026-06-21T01:00:00.000Z" },
+              end: { dateTime: "2026-06-21T02:00:00.000Z" },
+              extendedProperties: { private: { notion_page_id: "b56f93d2-80bc-4fe6-8365-a63b1f2ab732" } },
+            },
           ],
         },
       })
@@ -143,6 +156,15 @@ describe("google-calendar helpers", () => {
         // 終日イベントは JST 0:00 起点の ISO へ正規化する（UTC 解釈による 9 時間ずれ防止）
         start: "2026-06-10T15:00:00.000Z",
         end: "2026-06-11T15:00:00.000Z",
+        source: "google_calendar",
+        bufferHours: null,
+        bufferBeforeHours: null,
+        bufferAfterHours: null,
+        summary: null,
+      },
+      {
+        start: "2026-06-21T01:00:00.000Z",
+        end: "2026-06-21T02:00:00.000Z",
         source: "google_calendar",
         bufferHours: null,
         bufferBeforeHours: null,

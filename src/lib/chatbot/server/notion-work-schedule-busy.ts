@@ -10,6 +10,7 @@ import type {
 
 const SCHEDULED_AT_PROPERTY = "実施予定日"
 const TASK_TYPE_PROPERTY = "タスク種別"
+const TENTATIVE_TASK_TYPE = "仮押さえ"
 const CACHE_TTL_MS = 120_000
 const DAY_MS = 24 * 60 * 60 * 1000
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
@@ -85,7 +86,7 @@ export async function getNotionWorkTentativeDateKeys(args: {
   const results = await queryWorkSchedulePages(args.to)
   const dateKeys = new Set<string>()
   for (const row of results) {
-    if (getTaskType(row) !== "仮押さえ") continue
+    if (getTaskType(row) !== TENTATIVE_TASK_TYPE) continue
     const property = row.properties[SCHEDULED_AT_PROPERTY]
     if (!property || property.type !== "date" || !property.date?.start) continue
     if (hasTime(property.date.start)) continue
@@ -136,7 +137,10 @@ async function queryWorkSchedulePages(to: string): Promise<PageObjectResponse[]>
 function toBusyInterval(page: PageObjectResponse): BusyInterval | null {
   const property = page.properties[SCHEDULED_AT_PROPERTY]
   if (!property || property.type !== "date" || !property.date?.start) return null
-  if (!hasTime(property.date.start)) return null
+  // 日付型（実施時間なし）の行は「その日を丸ごと押さえた」枠。仮押さえだけは上書き可能な
+  // ソフトロックなので busy にせず getNotionWorkTentativeDateKeys 側で「仮」として扱う。
+  // それ以外（本予約 / スケジュール / 種別空欄）は終日 NG として busy に載せる。
+  if (!hasTime(property.date.start) && getTaskType(page) === TENTATIVE_TASK_TYPE) return null
 
   const start = parseNotionDate(property.date.start, false)
   const end = property.date.end

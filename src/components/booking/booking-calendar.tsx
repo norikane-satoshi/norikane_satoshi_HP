@@ -326,10 +326,6 @@ function toBusyEvent(slot: BusySlot, isCalendarAdmin: boolean): EventInput {
   }
 }
 
-function isDateLockBusySlot(slot: BusySlot): boolean {
-  return !isFullDayBusySlot(slot)
-}
-
 function dateKeysForBusySlot(slot: BusySlot): string[] {
   const start = new Date(slot.start)
   const end = new Date(slot.end)
@@ -354,10 +350,12 @@ function addDaysToDateKey(dateKey: string, days: number): string {
   ].join("-")
 }
 
-function getLockedDateKeys(data: FreeBusyResponse, includeBookings = false): string[] {
+// 既存予定が入っている日は予約不可。時間指定の本予約も、実施時間を持たない終日の押さえも
+// 「その日は埋まっている」を意味するので、busy はすべて日付ロックへ変換する。仮押さえは
+// busy ではなく tentativeDateKeys で届くため、ここでロックされることはない。
+export function getLockedDateKeys(data: FreeBusyResponse, includeBookings = false): string[] {
   const keys = new Set<string>()
   for (const slot of data.busy ?? []) {
-    if (!isDateLockBusySlot(slot)) continue
     for (const dateKey of dateKeysForBusySlot(slot)) {
       keys.add(dateKey)
     }
@@ -1278,7 +1276,7 @@ export function BookingCalendar({
     const isMonthView = selectedViewRef.current === "dayGridMonth"
     const isAvailabilityMonthView = isMonthView && showAvailabilityStatusBlocks
     const busyEvents = (data.busy ?? [])
-      .filter((slot) => !(isMonthView && (isDateLockBusySlot(slot) || isFullDayBusySlot(slot))))
+      .filter(() => !isMonthView)
       .map((slot) => toBusyEvent(slot, isCalendarAdmin))
     const lockedDateEvents = isMonthView
       ? showAvailabilityStatusBlocks

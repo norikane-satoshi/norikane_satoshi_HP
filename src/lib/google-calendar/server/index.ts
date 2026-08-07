@@ -206,6 +206,14 @@ function toJstMidnightIso(date: string | null | undefined): string | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
 }
 
+function isNotionMirroredAllDayEvent(event: {
+  start?: { date?: string | null; dateTime?: string | null } | null
+  extendedProperties?: { private?: Record<string, string> | null } | null
+}): boolean {
+  const isAllDay = !event.start?.dateTime && Boolean(event.start?.date)
+  return isAllDay && Boolean(event.extendedProperties?.private?.notion_page_id)
+}
+
 export async function listBusyEventsWithBuffer(
   calendarId: string,
   timeMin: string,
@@ -232,6 +240,9 @@ export async function listBusyEventsWithBuffer(
 
     for (const event of response.data.items ?? []) {
       if (event.transparency === "transparent") continue
+      // IB_仕事 のミラーである終日イベントは、GCal 側からは仮押さえ（選択可）と
+      // 本予約（NG）を区別できない。タスク種別を持つ Notion 経路を唯一の権威にする。
+      if (isNotionMirroredAllDayEvent(event)) continue
       const start = event.start?.dateTime ?? toJstMidnightIso(event.start?.date)
       const end = event.end?.dateTime ?? toJstMidnightIso(event.end?.date)
       if (!start || !end) continue

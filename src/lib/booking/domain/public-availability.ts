@@ -162,7 +162,8 @@ function dateKeysForDateOnlySlot(slot: PublicAvailabilityBusySlot): string[] {
   return keys
 }
 
-function dateKeysForTentativeSlot(slot: PublicAvailabilityBusySlot): string[] {
+// 時間指定の予定も、実施時間を持たない終日の押さえも、どちらもその日は埋まっている。
+function dateKeysForSlot(slot: PublicAvailabilityBusySlot): string[] {
   return [...dateKeysForTimedSlot(slot), ...dateKeysForDateOnlySlot(slot)]
 }
 
@@ -175,7 +176,7 @@ export function buildTentativeAvailabilityDateKeys(input: {
   )
 
   for (const slot of input.tentative ?? []) {
-    for (const dateKey of dateKeysForTentativeSlot(slot)) {
+    for (const dateKey of dateKeysForSlot(slot)) {
       dateKeys.add(dateKey)
     }
   }
@@ -219,7 +220,7 @@ export function buildPublicAvailabilityMonth(input: {
   const tentativeDateKeys = new Set(buildTentativeAvailabilityDateKeys(input))
 
   for (const slot of [...(input.busy ?? []), ...(input.bookings ?? [])]) {
-    for (const dateKey of dateKeysForTimedSlot(slot)) {
+    for (const dateKey of dateKeysForSlot(slot)) {
       busyDateKeys.add(dateKey)
     }
   }
