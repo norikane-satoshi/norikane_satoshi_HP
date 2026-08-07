@@ -67,6 +67,41 @@ Verification dev servers (`pnpm next dev`, etc.) launched during a cc-notion ses
 - When you do start or restart one, report URL, PID, and log path so the next session can find it without rediscovery.
 - If Satoshi explicitly says "kill the dev server" / "stop the dev server" / "restart the dev server", that authorizes the named operation. The HP 41238 refresh flow below is already authorized after each completed HP change and does not require another confirmation.
 
+## 予約可否の表示契約（3カレンダー共通・恒久）
+
+アバイラビリティカレンダー（`/availability-calendar`）、LINE 予約カレンダー（`/line/booking`）、
+チャットボットパネル（`/api/chatbot/booking-candidates`）の 3 経路は、IB_仕事 の予定を
+次のとおり扱う。この挙動を壊す変更を入れない。
+
+判定は **実施予定日の型** と **タスク種別** の 2 軸だけで決める。
+
+| 実施予定日 | タスク種別 | 3 経路での扱い |
+|---|---|---|
+| 日時型（実施時間あり） | 何でも | **NG（予約不可）**。その日全体を日付ロックする |
+| 日付型（終日） | 仮押さえ | **仮（tentative）**。上書き可能なソフトロックなので選択は妨げない |
+| 日付型（終日） | 本予約 / スケジュール / 空欄 | **NG（予約不可）**。その期間の全日を日付ロックする |
+
+- 種別空欄の行も NG 日として扱う。家族・個人の NG 日をこの形で登録しているため、
+  空欄を「未設定だから無視」にしてはいけない。
+- busy の正本は `getNotionWorkScheduleBusyIntervals`、仮の正本は
+  `getNotionWorkTentativeDateKeys`。どちらも IB_仕事 を直接読む。
+- GCal の終日イベントのうち `extendedProperties.private.notion_page_id` を持つものは
+  IB_仕事 のミラーなので busy から除外する。GCal 側からは仮押さえと本予約を区別できず、
+  タスク種別を知っている Notion 経路だけを権威にするため。時間指定のミラーは意味が
+  一意なので除外しない。
+- GCal の終日イベントは `start.date` / `end.date` しか持たないので、busy へ載せる前に
+  JST 0:00 起点の ISO へ正規化する。日付文字列のまま流すと `new Date()` が UTC 解釈して
+  9 時間ずれる。
+
+回帰テスト:
+`src/lib/chatbot/server/__tests__/notion-work-schedule-allday-busy.test.ts`,
+`src/lib/chatbot/server/__tests__/availability-finder-tentative.test.ts`,
+`src/components/chatbot/widget/__tests__/chatbot-booking-card-tentative.test.tsx`,
+`src/lib/chatbot/server/notion-work-schedule-busy.test.ts`,
+`tests/unit/booking/public-availability-allday-busy.test.ts`,
+`tests/unit/booking/booking-calendar-locked-dates.test.ts`,
+`tests/unit/booking/google-calendar.test.ts`
+
 ## 本番反映ルール（チャットボット・予約カレンダー）
 
 AI チャットボットと予約カレンダーの実装は、検証済み変更を `localhost:41238` だけで止めず、`master` / Vercel Production まで反映し、Production URL と顧客導線で確認できる状態を既定の完了条件にする。破壊的変更、secret / env 更新、DB migration、外部サービス設定変更、不可逆または高コストな操作は、master / Production 反映前にさとしさんの明示確認を取る。
