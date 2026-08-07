@@ -1,3 +1,6 @@
+// Notion persists every turn into this thread regardless of saveAllThreadOperations, so it grows
+// until it hits Notion's storage limit and answers "Column size exceeded". Rotating it is a
+// recurring operation, not a one-off: see docs/chatbot-notion-ai-thread-rotation.md.
 const defaultNotionAiChatbotThreadUrl =
   "https://www.notion.so/chat?t=3b513ee3141a80d5bd0200a92366e2b7"
 
