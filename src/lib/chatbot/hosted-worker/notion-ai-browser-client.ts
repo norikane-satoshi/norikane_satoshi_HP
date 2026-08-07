@@ -813,17 +813,11 @@ export function buildRunInferencePayload(input: {
       emitInferences: false,
     },
     generateTitle: false,
-    // The worker drives one long-lived Notion AI page, so every consultation shares its thread.
-    // Sending a partial transcript made the reply depend on that shared history, and saving each
-    // turn back kept growing it, which let one customer's answer quote another customer's project.
-    // The prompt already carries the whole conversation, so send it in full and stop writing into
-    // the shared thread. Thread creation stays on the page's existing thread: Notion rejects a
-    // client-minted thread id outright, which took Tier1 down when it was tried (commit 48bae9c).
-    saveAllThreadOperations: false,
-    setUnreadState: false,
+    saveAllThreadOperations: true,
+    setUnreadState: true,
     createdSource: input.runtimeContext.threadId ? "workflows" : defaultCreatedSource,
     threadType: defaultThreadType,
-    isPartialTranscript: false,
+    isPartialTranscript: Boolean(input.runtimeContext.threadId),
     asPatchResponse: Boolean(input.runtimeContext.threadId),
     hasHeartbeat: false,
     isUserInAnySalesAssistedSpace: false,
