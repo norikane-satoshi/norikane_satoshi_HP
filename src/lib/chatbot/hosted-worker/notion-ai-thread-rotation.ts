@@ -52,6 +52,17 @@ export function focusNotionAiComposerInPage(doc: Document): { ok: boolean; focus
   const composer = doc.querySelector("[contenteditable='true'][role='textbox']") as HTMLElement | null
   if (!composer) return { ok: false, focused: false }
   composer.focus()
+  // Notion keeps the composer draft across navigations, so a failed rotation leaves its seed behind
+  // and the next insert appends to it. Selecting the content makes the insert replace it instead.
+  try {
+    const range = doc.createRange()
+    range.selectNodeContents(composer)
+    const selection = doc.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+  } catch {
+    // Selection is a cleanup, not a precondition; an unusable one only risks a duplicated seed.
+  }
   return { ok: true, focused: doc.activeElement === composer }
 }
 
@@ -126,24 +137,27 @@ export type NotionAiThreadRotationTimeouts = {
   insertMs: number
   /** The blank chat is a full page load, so the composer takes seconds to mount. */
   awaitComposerMs: number
+  /** Notion registers the typed text with its editor asynchronously, and only then renders send. */
+  awaitSeedMs: number
+  awaitSendMs: number
   awaitThreadUrlMs: number
   /** Notion answers the seed on the new thread; an inference posted during that stream comes back empty. */
   awaitIdleMs: number
   pollIntervalMs: number
-  /** Notion re-renders around the composer, so the steps after it get a few tries. */
-  stepRetries: number
-  stepRetryDelayMs: number
+  /** Ceiling on the whole routine, so a stuck page cannot hold a customer request open. */
+  totalMs: number
 }
 
 const defaultTimeouts: NotionAiThreadRotationTimeouts = {
   stepMs: 5000,
   insertMs: 10000,
   awaitComposerMs: 45000,
+  awaitSeedMs: 15000,
+  awaitSendMs: 20000,
   awaitThreadUrlMs: 30000,
   awaitIdleMs: 30000,
   pollIntervalMs: 500,
-  stepRetries: 8,
-  stepRetryDelayMs: 500,
+  totalMs: 90000,
 }
 
 export type NotionAiThreadRotationDeps = {
@@ -155,19 +169,26 @@ export type NotionAiThreadRotationDeps = {
   timeouts?: Partial<NotionAiThreadRotationTimeouts>
 }
 
-async function retryStep<T>(
-  run: () => Promise<T>,
+/**
+ * Polls until the page catches up. A deadline rather than a retry count, because the steps here
+ * wait on Notion re-rendering, and the count that looked generous locally (8 tries) ran out on the
+ * live page while the send control was still mounting.
+ */
+async function pollUntil<T>(
+  run: () => Promise<T | undefined>,
   accept: (value: T | undefined) => boolean,
-  timeouts: NotionAiThreadRotationTimeouts,
+  deadline: number,
+  now: () => number,
   sleep: (ms: number) => Promise<void>,
+  pollIntervalMs: number,
 ): Promise<T | undefined> {
-  let value: T | undefined
-  for (let attempt = 0; attempt <= timeouts.stepRetries; attempt += 1) {
-    value = await run()
+  for (;;) {
+    // A navigating or re-rendering page can tear down the execution context mid-evaluate.
+    const value = await run().catch(() => undefined)
     if (accept(value)) return value
-    if (attempt < timeouts.stepRetries) await sleep(timeouts.stepRetryDelayMs)
+    if (now() >= deadline) return value
+    await sleep(pollIntervalMs)
   }
-  return value
 }
 
 /**
@@ -177,18 +198,18 @@ async function retryStep<T>(
 async function waitForNotionAiThreadIdle(
   deps: Pick<NotionAiThreadRotationDeps, "evaluate">,
   timeouts: NotionAiThreadRotationTimeouts,
+  deadline: number,
   now: () => number,
   sleep: (ms: number) => Promise<void>,
 ): Promise<void> {
-  const deadline = now() + timeouts.awaitIdleMs
-  for (;;) {
-    const presence = await deps
-      .evaluate<{ present: boolean }>(notionAiReadSendPresenceExpression, timeouts.stepMs)
-      .catch(() => undefined)
-    if (presence?.present) return
-    if (now() >= deadline) return
-    await sleep(timeouts.pollIntervalMs)
-  }
+  await pollUntil(
+    () => deps.evaluate<{ present: boolean }>(notionAiReadSendPresenceExpression, timeouts.stepMs),
+    (value) => Boolean(value?.present),
+    deadline,
+    now,
+    sleep,
+    timeouts.pollIntervalMs,
+  )
 }
 
 export async function rotateNotionAiThread(
@@ -199,6 +220,17 @@ export async function rotateNotionAiThread(
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
   const seedMessage = deps.seedMessage ?? notionAiThreadRotationSeedMessage
   const startedAt = now()
+
+  const overallDeadline = startedAt + timeouts.totalMs
+  const poll = <T>(run: () => Promise<T>, accept: (value: T | undefined) => boolean, budgetMs: number) =>
+    pollUntil(
+      run,
+      accept,
+      Math.min(now() + budgetMs, overallDeadline),
+      now,
+      sleep,
+      timeouts.pollIntervalMs,
+    )
 
   let previousThreadUrl: string | undefined
   const fail = (stage: NotionAiThreadRotationStage, detail?: string): NotionAiThreadRotationResult => ({
@@ -225,50 +257,45 @@ export async function rotateNotionAiThread(
 
     // The composer only mounts once the blank chat has rendered, which is why this polls instead of
     // reading straight after the navigation.
-    const composerDeadline = now() + timeouts.awaitComposerMs
-    let focused: { ok: boolean; focused: boolean } | undefined
-    for (;;) {
-      focused = await deps
-        .evaluate<{ ok: boolean; focused: boolean }>(notionAiFocusComposerExpression, timeouts.stepMs)
-        // A navigating page tears down the execution context, so an evaluate can fail mid-load.
-        .catch(() => undefined)
-      if (focused?.ok) break
-      if (now() >= composerDeadline) return fail("focus-composer")
-      await sleep(timeouts.pollIntervalMs)
-    }
+    const focused = await poll(
+      () => deps.evaluate<{ ok: boolean; focused: boolean }>(notionAiFocusComposerExpression, timeouts.stepMs),
+      (value) => Boolean(value?.ok),
+      timeouts.awaitComposerMs,
+    )
+    if (!focused?.ok) return fail("focus-composer")
 
     await deps.insertText(seedMessage, timeouts.insertMs)
 
     // Guards the regression this whole routine exists to avoid: setting textContent from an
     // evaluate looks like it worked but never reaches Notion's editor state.
-    const composer = await retryStep(
+    const composer = await poll(
       () => deps.evaluate<{ text: string }>(notionAiReadComposerExpression, timeouts.stepMs),
       (value) => Boolean(value?.text.includes(seedMessage)),
-      timeouts,
-      sleep,
+      timeouts.awaitSeedMs,
     )
     if (!composer?.text.includes(seedMessage)) return fail("verify-seed", `text=${composer?.text ?? ""}`)
 
-    // The send button stays disabled until Notion registers the text.
-    const sent = await retryStep(
+    // Notion only renders send once it has registered the text, so "missing" here is a wait.
+    const sent = await poll(
       () => deps.evaluate<{ ok: boolean; reason?: string }>(notionAiSendExpression, timeouts.stepMs),
       (value) => Boolean(value?.ok),
-      timeouts,
-      sleep,
+      timeouts.awaitSendMs,
     )
-    if (!sent?.ok) return fail("send-seed", sent?.reason)
+    if (!sent?.ok) return fail("send-seed", sent?.reason ?? "timeout")
 
-    const deadline = now() + timeouts.awaitThreadUrlMs
-    for (;;) {
-      const current = await deps.evaluate<{ href: string }>(notionAiReadLocationExpression, timeouts.stepMs)
-      const threadId = current?.href ? readNotionAiThreadIdFromUrl(current.href) : undefined
-      if (threadId && threadId !== previousThreadId) {
-        await waitForNotionAiThreadIdle(deps, timeouts, now, sleep)
-        return { ok: true, threadUrl: current.href, previousThreadUrl, durationMs: now() - startedAt }
-      }
-      if (now() >= deadline) return fail("await-thread-url")
-      await sleep(timeouts.pollIntervalMs)
-    }
+    const current = await poll(
+      () => deps.evaluate<{ href: string }>(notionAiReadLocationExpression, timeouts.stepMs),
+      (value) => {
+        const threadId = value?.href ? readNotionAiThreadIdFromUrl(value.href) : undefined
+        return Boolean(threadId && threadId !== previousThreadId)
+      },
+      timeouts.awaitThreadUrlMs,
+    )
+    const mintedId = current?.href ? readNotionAiThreadIdFromUrl(current.href) : undefined
+    if (!current?.href || !mintedId || mintedId === previousThreadId) return fail("await-thread-url")
+
+    await waitForNotionAiThreadIdle(deps, timeouts, Math.min(now() + timeouts.awaitIdleMs, overallDeadline), now, sleep)
+    return { ok: true, threadUrl: current.href, previousThreadUrl, durationMs: now() - startedAt }
   } catch (error) {
     return fail("read-current-url", error instanceof Error ? error.message : String(error))
   }

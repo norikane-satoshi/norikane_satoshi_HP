@@ -117,22 +117,41 @@ describe("rotateNotionAiThread", () => {
   })
 
   it("refuses to send when the seed never reached the composer", async () => {
+    let clock = 0
     const page = fakePage({ hrefs: [oldThreadUrl], composerText: "" })
 
-    const result = await rotateNotionAiThread(page)
+    const result = await rotateNotionAiThread({
+      ...page,
+      now: () => (clock += 5000),
+      timeouts: { awaitSeedMs: 10000 },
+    })
 
     expect(result).toMatchObject({ ok: false, stage: "verify-seed" })
     expect(page.calls).not.toContain("send")
   })
 
-  it("reports the send stage when the button is disabled", async () => {
+  it("reports the send stage when the button stays disabled", async () => {
+    let clock = 0
     const page = fakePage({ hrefs: [oldThreadUrl], send: { ok: false, reason: "disabled" } })
 
-    await expect(rotateNotionAiThread(page)).resolves.toMatchObject({
-      ok: false,
-      stage: "send-seed",
-      detail: "disabled",
+    await expect(
+      rotateNotionAiThread({ ...page, now: () => (clock += 5000), timeouts: { awaitSendMs: 10000 } }),
+    ).resolves.toMatchObject({ ok: false, stage: "send-seed", detail: "disabled" })
+  })
+
+  it("stops the whole routine at the total budget rather than holding the request open", async () => {
+    let clock = 0
+    const page = fakePage({ hrefs: [oldThreadUrl], focus: { ok: false, focused: false } })
+
+    const result = await rotateNotionAiThread({
+      ...page,
+      now: () => (clock += 5000),
+      // Each stage budget is generous on its own; the total is what has to stop this.
+      timeouts: { totalMs: 20000, awaitComposerMs: 600000 },
     })
+
+    expect(result).toMatchObject({ ok: false, stage: "focus-composer" })
+    expect(clock).toBeLessThan(120000)
   })
 
   it("waits for the seed's own reply before reporting the thread usable", async () => {

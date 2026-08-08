@@ -18,11 +18,15 @@ function render(html: string): void {
 // These run against the real page in production and against jsdom here, so they must not depend on
 // innerText — jsdom does not implement it.
 describe("notion ai rotation page steps", () => {
-  it("focuses the composer and reads what landed in it", () => {
-    render(`<div contenteditable="true" role="textbox"></div>`)
+  it("focuses the composer, selects any leftover draft, and reads what landed in it", () => {
+    // Notion keeps the draft across navigations, so a retried rotation would otherwise stack seeds.
+    render(`<div contenteditable="true" role="textbox">古い下書き</div>`)
     const composer = document.querySelector("[contenteditable='true'][role='textbox']") as HTMLElement
 
     expect(focusNotionAiComposerInPage(document)).toEqual({ ok: true, focused: true })
+    expect(document.getSelection()?.toString()).toBe("古い下書き")
+
+    composer.textContent = ""
 
     composer.textContent = "セッション開始"
     expect(readNotionAiComposerTextInPage(document)).toEqual({ text: "セッション開始" })
