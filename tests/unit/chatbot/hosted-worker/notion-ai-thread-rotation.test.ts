@@ -11,7 +11,6 @@ const newThreadUrl = "https://app.notion.com/chat?t=aaaabbbbccccddddeeeeffff0000
 
 type PageScript = {
   hrefs: string[]
-  newChat?: { ok: boolean; matchCount: number }
   focus?: { ok: boolean; focused: boolean }
   composerText?: string
   send?: { ok: boolean; reason?: string }
@@ -32,9 +31,9 @@ function fakePage(script: PageScript) {
         hrefIndex += 1
         return { href } as T
       }
-      if (expression.includes("新規チャット")) {
-        calls.push("new-chat")
-        return (script.newChat ?? { ok: true, matchCount: 3 }) as T
+      if (expression.includes("location.assign")) {
+        calls.push(expression.includes("/ai") ? "open-blank-chat" : "restore")
+        return { href: oldThreadUrl } as T
       }
       if (expression.includes("activeElement")) {
         calls.push("focus")
@@ -44,13 +43,9 @@ function fakePage(script: PageScript) {
         calls.push("read-composer")
         return { text: script.composerText ?? notionAiThreadRotationSeedMessage } as T
       }
-      if (expression.includes("AIメッセージを送信")) {
+      if (expression.includes("aria-label")) {
         calls.push("send")
         return (script.send ?? { ok: true }) as T
-      }
-      if (expression.includes("location.assign")) {
-        calls.push("restore")
-        return { href: oldThreadUrl } as T
       }
       throw new Error(`unexpected expression: ${expression.slice(0, 60)}`)
     },
@@ -63,9 +58,10 @@ function fakePage(script: PageScript) {
 }
 
 // The worker cannot mint a Notion thread id itself — the inference API rejects client-minted ids —
-// so rotation has to drive the page the way a person does. This pins that sequence.
+// so rotation has to drive the page the way a person does. This pins that sequence, verified
+// against the live page on 2026-08-08.
 describe("rotateNotionAiThread", () => {
-  it("walks new chat, seed, send, then reads the thread Notion minted", async () => {
+  it("walks blank chat, seed, send, then reads the thread Notion minted", async () => {
     const page = fakePage({ hrefs: [oldThreadUrl, oldThreadUrl, newThreadUrl] })
 
     const result = await rotateNotionAiThread(page)
@@ -76,7 +72,7 @@ describe("rotateNotionAiThread", () => {
     expect(result.previousThreadUrl).toBe(oldThreadUrl)
     expect(page.calls.slice(0, 6)).toEqual([
       "read-href",
-      "new-chat",
+      "open-blank-chat",
       "focus",
       "insert-text",
       "read-composer",
@@ -99,12 +95,17 @@ describe("rotateNotionAiThread", () => {
     expect(page.inserted).toHaveLength(1)
   })
 
-  it("stops at the new chat control when Notion relabels it", async () => {
-    const page = fakePage({ hrefs: [oldThreadUrl], newChat: { ok: false, matchCount: 0 } })
+  it("gives up on the composer rather than typing into a page that never loaded", async () => {
+    let clock = 0
+    const page = fakePage({ hrefs: [oldThreadUrl], focus: { ok: false, focused: false } })
 
-    const result = await rotateNotionAiThread(page)
+    const result = await rotateNotionAiThread({
+      ...page,
+      now: () => (clock += 5000),
+      timeouts: { awaitComposerMs: 10000 },
+    })
 
-    expect(result).toMatchObject({ ok: false, stage: "new-chat", detail: "matchCount=0" })
+    expect(result).toMatchObject({ ok: false, stage: "focus-composer" })
     expect(page.inserted).toEqual([])
   })
 

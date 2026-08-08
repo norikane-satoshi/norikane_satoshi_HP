@@ -2,27 +2,31 @@
  * Moves the worker onto a fresh Notion AI thread.
  *
  * Notion mints thread ids server-side, and a client-minted id is rejected by the inference API, so
- * the only way to get a usable thread is to drive the page the way a person would: start a new
+ * the only way to get a usable thread is to drive the page the way a person would: open a blank
  * chat, type one seed message, send it, then read the `?t=` Notion puts in the URL.
+ *
+ * The blank chat is reached by navigating to `/ai` rather than by clicking Notion's new-chat
+ * control. The control carries no text node and its accessible name is not stable across locales —
+ * the live page labels it "New chat" while labelling the send button "AIメッセージを送信" in the
+ * same session — whereas `/ai` is the address the worker already boots against. Navigating also
+ * recovers from a tab left on a half-rotated blank page, which a new-chat click cannot do because
+ * no such control exists there.
  *
  * Each in-page step takes `document` explicitly so the same function can be stringified into the
  * page and called directly from a jsdom test.
  */
 
-export const notionAiNewChatLabels = ["新規チャット", "New chat"] as const
 export const notionAiComposerSelector = "[contenteditable='true'][role='textbox']"
-export const notionAiSendButtonSelectors = [
-  '[aria-label="AIメッセージを送信"]',
-  '[aria-label="Send AI message"]',
-] as const
-export const notionAiClickableSelector = "[role=button],button,a,[tabindex]"
+/** Matches the send control in either locale; exact labels have already drifted once. */
+export const notionAiSendLabelPattern = /送信|send/i
+export const notionAiBlankChatUrl = "https://app.notion.com/ai"
 
 /** Permanent first turn of every rotated thread, so it says nothing about any customer. */
 export const notionAiThreadRotationSeedMessage = "セッション開始"
 
 export type NotionAiThreadRotationStage =
   | "read-current-url"
-  | "new-chat"
+  | "open-blank-chat"
   | "focus-composer"
   | "insert-seed"
   | "verify-seed"
@@ -44,36 +48,6 @@ export type NotionAiThreadRotationResult =
       durationMs: number
     }
 
-export function clickNotionAiNewChatInPage(doc: Document): { ok: boolean; matchCount: number } {
-  const labels = ["新規チャット", "New chat"]
-  const matches: Element[] = []
-  // Scoped to the body so the document, head and body themselves cannot match on a sparse page.
-  for (const element of Array.from(doc.body ? doc.body.querySelectorAll("*") : [])) {
-    // jsdom does not implement innerText, and a real page hides text in collapsed nodes, so read
-    // whichever is available.
-    const text = ((element as HTMLElement).innerText ?? element.textContent ?? "").trim()
-    if (labels.includes(text)) matches.push(element)
-  }
-  if (matches.length === 0) return { ok: false, matchCount: 0 }
-
-  // Notion nests the label inside several wrappers that all report the same text. The deepest one
-  // is the control; the wrappers above it do nothing when clicked.
-  let deepest = matches[0]
-  let deepestDepth = -1
-  for (const element of matches) {
-    let depth = 0
-    for (let node = element.parentElement; node; node = node.parentElement) depth += 1
-    if (depth >= deepestDepth) {
-      deepest = element
-      deepestDepth = depth
-    }
-  }
-
-  const clickable = (deepest.closest("[role=button],button,a,[tabindex]") ?? deepest) as HTMLElement
-  clickable.click()
-  return { ok: true, matchCount: matches.length }
-}
-
 export function focusNotionAiComposerInPage(doc: Document): { ok: boolean; focused: boolean } {
   const composer = doc.querySelector("[contenteditable='true'][role='textbox']") as HTMLElement | null
   if (!composer) return { ok: false, focused: false }
@@ -87,17 +61,28 @@ export function readNotionAiComposerTextInPage(doc: Document): { text: string } 
 }
 
 export function clickNotionAiSendInPage(doc: Document): { ok: boolean; reason?: string } {
-  const selectors = ['[aria-label="AIメッセージを送信"]', '[aria-label="Send AI message"]']
-  for (const selector of selectors) {
-    const button = doc.querySelector(selector) as HTMLElement | null
-    if (!button) continue
-    if (button.hasAttribute("disabled") || button.getAttribute("aria-disabled") === "true") {
+  // The send control is only rendered once the composer holds text, so "missing" is a normal
+  // intermediate state here rather than a broken selector.
+  for (const element of Array.from(doc.querySelectorAll("[aria-label]"))) {
+    const label = element.getAttribute("aria-label") ?? ""
+    if (!/送信|send/i.test(label)) continue
+    if (element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true") {
       return { ok: false, reason: "disabled" }
     }
-    button.click()
+    ;(element as HTMLElement).click()
     return { ok: true }
   }
   return { ok: false, reason: "missing" }
+}
+
+/** Keeps rotation on whichever Notion host the tab is already authenticated against. */
+export function buildNotionAiBlankChatUrl(currentHref: string | undefined): string {
+  if (!currentHref) return notionAiBlankChatUrl
+  try {
+    return `${new URL(currentHref).origin}/ai`
+  } catch {
+    return notionAiBlankChatUrl
+  }
 }
 
 function inPageExpression(fn: (doc: Document) => unknown): string {
@@ -105,7 +90,6 @@ function inPageExpression(fn: (doc: Document) => unknown): string {
   return `(() => { const __name = (target) => target; return (${fn.toString()})(document); })()`
 }
 
-export const notionAiNewChatExpression = inPageExpression(clickNotionAiNewChatInPage)
 export const notionAiFocusComposerExpression = inPageExpression(focusNotionAiComposerInPage)
 export const notionAiReadComposerExpression = inPageExpression(readNotionAiComposerTextInPage)
 export const notionAiSendExpression = inPageExpression(clickNotionAiSendInPage)
@@ -127,10 +111,12 @@ export function readNotionAiThreadIdFromUrl(href: string): string | undefined {
 export type NotionAiThreadRotationTimeouts = {
   stepMs: number
   insertMs: number
+  /** The blank chat is a full page load, so the composer takes seconds to mount. */
+  awaitComposerMs: number
   awaitThreadUrlMs: number
   pollIntervalMs: number
   settleMs: number
-  /** Notion re-renders the composer after the new chat opens, so each step gets a few tries. */
+  /** Notion re-renders around the composer, so the steps after it get a few tries. */
   stepRetries: number
   stepRetryDelayMs: number
 }
@@ -138,6 +124,7 @@ export type NotionAiThreadRotationTimeouts = {
 const defaultTimeouts: NotionAiThreadRotationTimeouts = {
   stepMs: 5000,
   insertMs: 10000,
+  awaitComposerMs: 45000,
   awaitThreadUrlMs: 30000,
   pollIntervalMs: 500,
   settleMs: 3000,
@@ -192,21 +179,28 @@ export async function rotateNotionAiThread(
     previousThreadUrl = before?.href
     const previousThreadId = previousThreadUrl ? readNotionAiThreadIdFromUrl(previousThreadUrl) : undefined
 
-    const newChat = await deps.evaluate<{ ok: boolean; matchCount: number }>(
-      notionAiNewChatExpression,
-      timeouts.stepMs,
-    )
-    if (!newChat?.ok) return fail("new-chat", `matchCount=${newChat?.matchCount ?? 0}`)
+    try {
+      await deps.evaluate(
+        buildNotionAiNavigateExpression(buildNotionAiBlankChatUrl(previousThreadUrl)),
+        timeouts.stepMs,
+      )
+    } catch (error) {
+      return fail("open-blank-chat", error instanceof Error ? error.message : String(error))
+    }
 
-    // The composer only mounts once the blank chat has rendered, which is why this waits instead of
-    // reading straight after the click.
-    const focused = await retryStep(
-      () => deps.evaluate<{ ok: boolean; focused: boolean }>(notionAiFocusComposerExpression, timeouts.stepMs),
-      (value) => Boolean(value?.ok),
-      timeouts,
-      sleep,
-    )
-    if (!focused?.ok) return fail("focus-composer")
+    // The composer only mounts once the blank chat has rendered, which is why this polls instead of
+    // reading straight after the navigation.
+    const composerDeadline = now() + timeouts.awaitComposerMs
+    let focused: { ok: boolean; focused: boolean } | undefined
+    for (;;) {
+      focused = await deps
+        .evaluate<{ ok: boolean; focused: boolean }>(notionAiFocusComposerExpression, timeouts.stepMs)
+        // A navigating page tears down the execution context, so an evaluate can fail mid-load.
+        .catch(() => undefined)
+      if (focused?.ok) break
+      if (now() >= composerDeadline) return fail("focus-composer")
+      await sleep(timeouts.pollIntervalMs)
+    }
 
     await deps.insertText(seedMessage, timeouts.insertMs)
 

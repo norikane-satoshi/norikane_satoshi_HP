@@ -34,11 +34,18 @@ generate 固有の障害の検知が遅れる。間隔を変えるときはこ�
 
 前提: Tier1 が `Column size exceeded` を返す、または混入が観測された。
 
-1. **新しいスレッドを作る。** worker の Chrome（CDP `127.0.0.1:9223`、
-   ページは `app.notion.com/chat`）で次を順に行う。Enter だけでは送信されない。
-   - `innerText` が `新規チャット` の要素（最も深い一致。ショートカットは `Ctrl+O`）をクリック
-   - `[contenteditable='true'][role='textbox']` へ CDP `Input.insertText` で 1 文字以上入力
-   - `aria-label="AIメッセージを送信"` のボタンをクリック
+1. **新しいスレッドを作る。** worker の Chrome（CDP `127.0.0.1:9223`）で次を順に行う。
+   Enter だけでは送信されない。
+   - `location.assign("https://app.notion.com/ai")` で空のチャットへ移動する。
+     新規チャットのコントロールはクリックしない。テキストノードを持たず、
+     アクセシブル名はロケール間で安定しない（2026-08-08 の実ページでは、
+     送信ボタンが `AIメッセージを送信` なのに対しこちらは `New chat` だった）。
+     半端に巻き直されて `?t=` を失ったタブにはそもそもこのコントロールが無い。
+   - `[contenteditable='true'][role='textbox']` が現れるまで待つ（実測 2.5 秒）
+   - そこへ CDP `Input.insertText` で 1 文字以上入力する。
+     `Runtime.evaluate` で `textContent` を書いても Notion のエディタには届かない。
+   - `aria-label` が `/送信|send/i` に一致するボタンをクリックする。
+     このボタンは composer に文字が入るまで描画されない。
    - URL が `app.notion.com/chat?t=<新ID>` になるので `t` を控える
 
    クライアントで採番した UUID は推論 API に拒否されるので、必ずこの手順で
