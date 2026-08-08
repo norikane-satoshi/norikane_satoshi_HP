@@ -73,13 +73,24 @@ Verification dev servers (`pnpm next dev`, etc.) launched during a cc-notion ses
 チャットボットパネル（`/api/chatbot/booking-candidates`）の 3 経路は、IB_仕事 の予定を
 次のとおり扱う。この挙動を壊す変更を入れない。
 
-判定は **実施予定日の型** と **タスク種別** の 2 軸だけで決める。
+判定は **実施予定日が実施時間を持つか** と **タスク種別** の 2 軸だけで決める。
 
 | 実施予定日 | タスク種別 | 3 経路での扱い |
 |---|---|---|
-| 日時型（実施時間あり） | 何でも | **NG（予約不可）**。その日全体を日付ロックする |
-| 日付型（終日） | 仮押さえ | **仮（tentative）**。上書き可能なソフトロックなので選択は妨げない |
-| 日付型（終日） | 本予約 / スケジュール / 空欄 | **NG（予約不可）**。その期間の全日を日付ロックする |
+| 実施時間あり | 何でも | **NG（予約不可）**。その日全体を日付ロックする |
+| 終日 | 仮押さえ | **仮（tentative）**。上書き可能なソフトロックなので選択は妨げない |
+| 終日 | 本予約 / スケジュール / 空欄 | **NG（予約不可）**。その期間の全日を日付ロックする |
+
+**「終日」の定義は日付型に限らない。** 次のどちらも終日として扱う。
+
+- 日付型（時刻なし）。end は当日を含む
+- 日時型で JST 0:00 から JST 0:00 までのもの。時刻の幅を持たないため実施時間ではない。
+  end は翌 0:00（排他）なので、日付へ展開するときは 1 日引く
+
+予約フォーム由来の【仮キープ】は `00:00〜翌00:00` の日時型で入ることがある。ここを
+文字列の `T` 有無だけで判定すると仮キープが NG 日になる（2026-08-28 の事例）。判定は
+`isEffectivelyAllDay` に集約し、`isFullDayBusySlot` / `isJstAllDayInterval` と足並みを
+揃える。
 
 - 種別空欄の行も NG 日として扱う。家族・個人の NG 日をこの形で登録しているため、
   空欄を「未設定だから無視」にしてはいけない。
@@ -94,6 +105,7 @@ Verification dev servers (`pnpm next dev`, etc.) launched during a cc-notion ses
   9 時間ずれる。
 
 回帰テスト:
+`src/lib/chatbot/server/__tests__/notion-work-schedule-effective-allday.test.ts`,
 `src/lib/chatbot/server/__tests__/notion-work-schedule-allday-busy.test.ts`,
 `src/lib/chatbot/server/__tests__/availability-finder-tentative.test.ts`,
 `src/components/chatbot/widget/__tests__/chatbot-booking-card-tentative.test.tsx`,

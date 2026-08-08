@@ -89,11 +89,9 @@ export async function getNotionWorkTentativeDateKeys(args: {
     if (getTaskType(row) !== TENTATIVE_TASK_TYPE) continue
     const property = row.properties[SCHEDULED_AT_PROPERTY]
     if (!property || property.type !== "date" || !property.date?.start) continue
-    if (hasTime(property.date.start)) continue
+    if (!isEffectivelyAllDay(property.date.start, property.date.end)) continue
 
-    const startKey = property.date.start.slice(0, 10)
-    const endKey = property.date.end && !hasTime(property.date.end) ? property.date.end.slice(0, 10) : startKey
-    for (let cursor = startKey; cursor <= endKey; cursor = addDays(cursor, 1)) {
+    for (const cursor of allDayDateKeys(property.date.start, property.date.end)) {
       if (cursor >= fromKey && cursor < toKey) dateKeys.add(cursor)
     }
   }
@@ -137,10 +135,15 @@ async function queryWorkSchedulePages(to: string): Promise<PageObjectResponse[]>
 function toBusyInterval(page: PageObjectResponse): BusyInterval | null {
   const property = page.properties[SCHEDULED_AT_PROPERTY]
   if (!property || property.type !== "date" || !property.date?.start) return null
-  // 日付型（実施時間なし）の行は「その日を丸ごと押さえた」枠。仮押さえだけは上書き可能な
-  // ソフトロックなので busy にせず getNotionWorkTentativeDateKeys 側で「仮」として扱う。
-  // それ以外（本予約 / スケジュール / 種別空欄）は終日 NG として busy に載せる。
-  if (!hasTime(property.date.start) && getTaskType(page) === TENTATIVE_TASK_TYPE) return null
+  // 終日の行は「その日を丸ごと押さえた」枠。仮押さえだけは上書き可能なソフトロックなので
+  // busy にせず getNotionWorkTentativeDateKeys 側で「仮」として扱う。それ以外
+  // （本予約 / スケジュール / 種別空欄）は終日 NG として busy に載せる。
+  if (
+    isEffectivelyAllDay(property.date.start, property.date.end) &&
+    getTaskType(page) === TENTATIVE_TASK_TYPE
+  ) {
+    return null
+  }
 
   const start = parseNotionDate(property.date.start, false)
   const end = property.date.end
@@ -169,6 +172,30 @@ function getTaskType(page: PageObjectResponse): string | null {
 
 function hasTime(value: string): boolean {
   return value.includes("T")
+}
+
+const JST_MIDNIGHT = /T00:00(:00(\.000)?)?\+09:00$/
+
+// 「実施時間あり」は時刻の幅があることを指す。JST 0:00 から JST 0:00 までの日時型は
+// 時刻情報を持たないので、日付型と同じ終日として扱う。予約フォーム由来の【仮キープ】が
+// 00:00〜翌00:00 で入ってくるため、T の有無だけで判定すると仮キープが NG 日になる。
+function isEffectivelyAllDay(start: string, end: string | null | undefined): boolean {
+  if (!hasTime(start)) return true
+  if (!end || !hasTime(end)) return false
+  if (!JST_MIDNIGHT.test(start) || !JST_MIDNIGHT.test(end)) return false
+  return new Date(end).getTime() > new Date(start).getTime()
+}
+
+// 終日レコードが覆う JST 日付を返す。日付型の end は当日を含み、日時型の end は
+// 翌 0:00（排他）を指すので、後者は 1 日引いてから展開する。
+function allDayDateKeys(start: string, end: string | null | undefined): string[] {
+  const startKey = start.slice(0, 10)
+  let lastKey = startKey
+  if (end) lastKey = hasTime(end) ? addDays(end.slice(0, 10), -1) : end.slice(0, 10)
+  if (lastKey < startKey) lastKey = startKey
+  const keys: string[] = []
+  for (let cursor = startKey; cursor <= lastKey; cursor = addDays(cursor, 1)) keys.push(cursor)
+  return keys
 }
 
 function addDays(dateKey: string, days: number): string {
