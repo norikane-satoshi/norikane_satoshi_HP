@@ -735,8 +735,16 @@ function shouldUseFallbackRouting(input: {
   noteAccess: CustomerFacingNoteAccess
   hasNewDurationFacts: boolean
 }): boolean {
-  if (input.fallbackRoutingDecision.kind !== "continue" || !input.fallbackRoutingDecision.presentChoices) {
+  if (input.fallbackRoutingDecision.kind !== "continue") {
     return input.hasNewDurationFacts
+  }
+  if (!input.fallbackRoutingDecision.presentChoices) {
+    if (input.hasNewDurationFacts) return true
+    if (input.noteAccess.kind !== "none") return false
+    if (isDurationAnswerRequest(input.latestUserMessage) || isDurationAnswerRequest(input.rawAssistantText)) {
+      return false
+    }
+    return isRequiredIntakeQuestion(input.fallbackRoutingDecision.nextQuestion)
   }
   if (input.noteAccess.kind !== "none") return false
   if (isBookingFinalConfirmationPrompt(input.rawAssistantText)) return false
@@ -1050,7 +1058,7 @@ function looksLikeChoiceListQuestion(message: string): boolean {
 }
 
 function isDurationAnswerRequest(message: string): boolean {
-  return /(所要|日数|何日|どれくらい|どのくらい|目安|期間|納期)/u.test(message.normalize("NFKC"))
+  return /(所要|日数|何日|どれくらい|どのくらい|目安|期間|工程|納期)/u.test(message.normalize("NFKC"))
 }
 
 async function notifySlackForChatbotResponse(input: {
@@ -1983,8 +1991,10 @@ function buildAssistantDisplayContent(input: {
   if (
     input.routingDecision?.kind === "continue" &&
     !input.routingDecision.presentChoices &&
-    isMaterialHandoffQuestion(input.routingDecision.nextQuestion) &&
-    isMaterialHandoffQuestion(explicitDisplayText ?? toolFreeText)
+    isRequiredIntakeQuestion(input.routingDecision.nextQuestion) &&
+    (!isMaterialHandoffQuestion(input.routingDecision.nextQuestion) ||
+      (!isDurationAnswerRequest(input.latestUserMessage) &&
+        !isDurationAnswerRequest(explicitDisplayText ?? toolFreeText)))
   ) {
     return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
@@ -2467,6 +2477,11 @@ const dayRangePattern = /\d+(?:\.\d+)?\s*(?:日\s*から\s*|[〜～\-ー]\s*)\d+
 
 function isFinalMediumRejudgmentQuestion(message: string): boolean {
   return /公開先・(?:納品先|使用先)|納品先・使用先/u.test(message)
+}
+
+function isRequiredIntakeQuestion(message: string | undefined): boolean {
+  if (!message) return false
+  return isMaterialHandoffQuestion(message) || /参考URL|連絡先メール/u.test(message)
 }
 
 function isBackendIdentityOnlyResponse(text: string): boolean {

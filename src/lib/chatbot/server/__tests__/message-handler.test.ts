@@ -2436,6 +2436,45 @@ describe("handleChatbotMessage user context", () => {
     })
   })
 
+  it("does not let a generic LLM acknowledgement skip the required reference URL question", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: baseProductionConversationState({
+            hasReferenceUrls: false,
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+          }),
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "tv-broadcast",
+            projectLengthMinutes: 60,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("ありがとうございます。この内容で進めます。"),
+      tier: "tier-1-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "特にありません" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringMatching(/参考URL/u),
+    })
+    expect(result.assistantMessage.content).toMatch(/参考URL/u)
+    expect(result.ui).toEqual({ kind: "none" })
+  })
+
   it("returns a customer display name from a natural self-introduction", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
