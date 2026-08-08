@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   createHostedNotionAiBrowserClient,
+  isNotionAiChatbotTargetUrl,
   isNotionAiRateLimitResponse,
   notionAiUsageLimitMarker,
 } from "@/lib/chatbot/hosted-worker/notion-ai-browser-client"
@@ -30,8 +31,8 @@ describe("notion ai usage limit classification", () => {
   })
 })
 
-const oldThreadUrl = "https://app.notion.com/ai?t=11112222333344445555666677778888"
-const firstConversationThreadUrl = "https://app.notion.com/ai?t=aaaabbbbccccddddeeeeffff00001111"
+const oldThreadUrl = "https://app.notion.com/chat?t=11112222333344445555666677778888"
+const firstConversationThreadUrl = "https://app.notion.com/chat?t=aaaabbbbccccddddeeeeffff00001111"
 
 function isolatedRequest(): ChatbotLlmRequest {
   return {
@@ -68,6 +69,18 @@ function successfulInference() {
 }
 
 describe("Notion AI conversation thread isolation", () => {
+  it("trusts a different Notion-minted chat target but rejects arbitrary pages and ids", () => {
+    expect(isNotionAiChatbotTargetUrl(firstConversationThreadUrl, oldThreadUrl)).toBe(true)
+    expect(isNotionAiChatbotTargetUrl("https://app.notion.com/chat?t=client-minted", oldThreadUrl)).toBe(false)
+    expect(
+      isNotionAiChatbotTargetUrl(
+        "https://example.com/chat?t=aaaabbbbccccddddeeeeffff00001111",
+        oldThreadUrl,
+      ),
+    ).toBe(false)
+    expect(isNotionAiChatbotTargetUrl("https://app.notion.com/workspace/page", oldThreadUrl)).toBe(false)
+  })
+
   it("navigates to the stored thread before a later turn runs inference", async () => {
     let currentUrl = oldThreadUrl
     const calls: string[] = []

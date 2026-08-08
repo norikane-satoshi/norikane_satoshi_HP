@@ -1396,9 +1396,11 @@ function isNotionAiRuntimeTargetUrl(url: string | undefined): boolean {
 
   try {
     const parsed = new URL(url)
-    return parsed.hostname === "app.notion.com" && parsed.pathname === "/ai"
+    if (parsed.hostname !== "app.notion.com") return false
+    if (parsed.pathname === "/ai") return true
+    return parsed.pathname === "/chat" && Boolean(readNotionAiThreadIdFromUrl(url))
   } catch {
-    return url.includes("app.notion.com/ai")
+    return false
   }
 }
 

@@ -9,6 +9,9 @@ Tier1 の hosted worker は、常時開いた 1 枚の Notion AI ページを使
 hash と Notion が発行した thread URL だけを
 `~/.local/state/norikane_satoshi_hp/hosted-worker-conversation-threads.json` に保存する。
 顧客文面と生の conversation id はこのファイルへ保存しない。
+Chrome の target 判定は bootstrap の固定 ID ではなく、`app.notion.com/chat` かつ
+Notion 発行形式の 32 桁 `t` を持つページを許可する。別 origin、任意ページ、任意文字列の
+`t` は拒否する。これにより heartbeat は正常な会話切替を target mismatch と誤認しない。
 
 ## なぜ巻き直しが要るか
 
