@@ -154,6 +154,50 @@ describe("Tier1HostedChromeNotionAiClient", () => {
     )
   })
 
+  it("forwards only the worker's allowlisted hidden-thread diagnostics", async () => {
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          rawText: "承知しました",
+          diagnostics: {
+            conversationThread: {
+              mode: "reused",
+              threadIdHash: "abc123def456",
+              threadVersion: 3,
+              visibilityStatus: "hidden",
+              alive: false,
+              deletedAt: "2026-08-08T01:00:00.000Z",
+              estimatedRetentionDeadline: "2026-09-07T01:00:00.000Z",
+              hiddenFromChatList: true,
+              hideAttemptCount: 1,
+              hideVerificationResult: "verified",
+              postHideInferenceVerified: true,
+              threadRecordMissing: false,
+              retentionPurgeDetected: false,
+              threadReprovisioned: false,
+              contextRebuiltFromHpDb: false,
+              threadUrl: "https://app.notion.com/chat?t=must-not-leak",
+              cookie: "must-not-leak",
+            },
+          },
+        }),
+      )
+    const client = hostedClient(httpClient)
+
+    const response = await client.generate(llmRequest())
+
+    expect(response.diagnostics?.conversationThread).toMatchObject({
+      threadIdHash: "abc123def456",
+      threadVersion: 3,
+      visibilityStatus: "hidden",
+      hiddenFromChatList: true,
+      postHideInferenceVerified: true,
+    })
+    expect(JSON.stringify(response.diagnostics)).not.toContain("must-not-leak")
+  })
+
   it("repairs Chrome and retries once when hosted generate returns a fast server error", async () => {
     const httpClient = vi
       .fn()
@@ -215,6 +259,48 @@ describe("Tier1HostedChromeNotionAiClient", () => {
       "https://worker.example.test/generate",
       expect.objectContaining({ method: "POST" }),
     )
+  })
+
+  it("preserves only safe lifecycle failure codes for the tier fallback boundary", async () => {
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: "connection",
+              message: "Thread hide verification failed.",
+              retryable: false,
+              lifecycleFailureCode: "notion-thread-hide-verification-failed",
+              lifecycleStage: "verify-chat-list",
+              visibilityStatus: "hide-verification-failed",
+              hideVerificationResult: "chat-list-present",
+              threadUrl: "https://app.notion.com/chat?t=must-not-leak",
+              cookie: "must-not-leak",
+            },
+          },
+          { ok: false, status: 502 },
+        ),
+      )
+    const client = hostedClient(httpClient)
+
+    let caught: unknown
+    try {
+      await client.generate(llmRequest())
+    } catch (error) {
+      caught = error
+    }
+    expect(caught).toMatchObject({
+      code: "connection",
+      cause: {
+        lifecycleFailureCode: "notion-thread-hide-verification-failed",
+        lifecycleStage: "verify-chat-list",
+        visibilityStatus: "hide-verification-failed",
+        hideVerificationResult: "chat-list-present",
+      },
+    })
+    expect(JSON.stringify(caught)).not.toContain("must-not-leak")
   })
 
   it("retries a second repair pass for short hosted generate server errors", async () => {

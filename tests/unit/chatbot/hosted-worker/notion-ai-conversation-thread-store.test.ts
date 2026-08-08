@@ -96,4 +96,42 @@ describe("Notion AI conversation thread store", () => {
       ),
     ).rejects.toThrow("valid thread id")
   })
+
+  it("persists only lifecycle metadata needed to reuse and audit a hidden thread", async () => {
+    const target = statePath()
+    await writeNotionAiConversationThread(
+      {
+        conversationId: "conversation-a",
+        threadUrl: firstThreadUrl,
+        lifecycle: {
+          visibilityStatus: "hidden",
+          alive: false,
+          deletedAt: "2026-08-08T01:00:00.000Z",
+          estimatedRetentionDeadline: "2026-09-07T01:00:00.000Z",
+          hiddenFromChatList: true,
+          hideAttemptCount: 1,
+          hideVerificationResult: "verified",
+          postHideInferenceVerified: true,
+        },
+      } as Parameters<typeof writeNotionAiConversationThread>[0] & {
+        lifecycle: Record<string, unknown>
+      },
+      target,
+    )
+
+    await expect(readNotionAiConversationThread("conversation-a", target)).resolves.toMatchObject({
+      visibilityStatus: "hidden",
+      alive: false,
+      deletedAt: "2026-08-08T01:00:00.000Z",
+      estimatedRetentionDeadline: "2026-09-07T01:00:00.000Z",
+      hiddenFromChatList: true,
+      hideAttemptCount: 1,
+      hideVerificationResult: "verified",
+      postHideInferenceVerified: true,
+    })
+
+    const rawState = readFileSync(target, "utf8")
+    expect(rawState).not.toContain("conversation-a")
+    expect(rawState).not.toContain("customer message")
+  })
 })

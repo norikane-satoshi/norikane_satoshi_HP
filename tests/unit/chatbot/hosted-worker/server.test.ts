@@ -129,4 +129,44 @@ describe("hosted worker server", () => {
       error: { code: "invalid-output", retryable: false },
     })
   })
+
+  it("returns only allowlisted lifecycle failure metadata", async () => {
+    const generate = vi.fn(() =>
+      Promise.reject(
+        new ChatbotLlmError({
+          message: "Notion AI conversation thread could not be hidden safely.",
+          code: "connection",
+          tier: "tier-1-hosted-chrome-notion-ai",
+          isRetryable: true,
+          cause: {
+            lifecycleFailureCode: "notion-thread-hide-verification-failed",
+            lifecycleStage: "verify-chat-list",
+            visibilityStatus: "hide-verification-failed",
+            hideVerificationResult: "chat-list-present",
+            threadUrl: "https://app.notion.com/chat?t=must-not-leak",
+            cookie: "must-not-leak",
+          },
+        }),
+      ),
+    )
+    const handler = createHostedWorkerRequestHandler({ token: "test-token", generate })
+    const request = postGenerateRequest()
+    const response = fakeResponse()
+
+    const handled = handler(request, response)
+    request.end(JSON.stringify(requestBody()))
+    await handled
+
+    const body = JSON.parse(response.body ?? "")
+    expect(body).toMatchObject({
+      error: {
+        lifecycleFailureCode: "notion-thread-hide-verification-failed",
+        lifecycleStage: "verify-chat-list",
+        visibilityStatus: "hide-verification-failed",
+        hideVerificationResult: "chat-list-present",
+      },
+    })
+    expect(JSON.stringify(body)).not.toContain("must-not-leak")
+    expect(JSON.stringify(body)).not.toContain("app.notion.com")
+  })
 })

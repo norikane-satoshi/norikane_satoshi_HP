@@ -790,6 +790,7 @@ export function WidgetShell({
         durationMs: Date.now() - debugStartedAt,
         requestId: payload.requestId,
         tier: payload.tier,
+        lifecycle: payload.debug,
       })
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) {
@@ -961,6 +962,7 @@ export function WidgetShell({
         durationMs: Date.now() - debugStartedAt,
         requestId: payload.requestId,
         tier: payload.tier,
+        lifecycle: payload.debug,
       })
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) {
@@ -1095,6 +1097,7 @@ export function WidgetShell({
         durationMs: Date.now() - debugStartedAt,
         requestId: payload.requestId,
         tier: payload.tier,
+        lifecycle: payload.debug,
       })
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) {
@@ -1456,7 +1459,6 @@ export function WidgetShell({
                 : "idle",
             activeUiKind: activeUi.kind,
             messageCount: messages.length,
-            conversationId,
             clientSessionId,
             pendingRequestKind: pendingRequest?.kind,
             recoverableRequestKind: recoverableRequest?.kind,

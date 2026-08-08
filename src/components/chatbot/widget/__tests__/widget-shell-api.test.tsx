@@ -180,6 +180,24 @@ describe("WidgetShell API wiring", () => {
           assistantMessage,
           tier: "tier-2-gemini-flash",
           ui: { kind: "none" },
+          debug: {
+            conversationScopeHash: "scope123abcd",
+            threadIdHash: "thread123abc",
+            threadVersion: 3,
+            visibilityStatus: "hidden",
+            alive: false,
+            deletedAt: "2026-08-08T01:00:00.000Z",
+            estimatedRetentionDeadline: "2026-09-07T01:00:00.000Z",
+            hiddenFromChatList: true,
+            hideAttemptCount: 1,
+            hideVerificationResult: "verified",
+            postHideInferenceVerified: true,
+            threadRecordMissing: false,
+            retentionPurgeDetected: false,
+            threadReprovisioned: false,
+            contextRebuiltFromHpDb: false,
+            tierFallbackReason: "notion-thread-hide-verification-failed",
+          },
         }),
       )
     })
@@ -197,7 +215,11 @@ describe("WidgetShell API wiring", () => {
     expect(await within(panel).findByText("debug-sha")).toBeInTheDocument()
     expect(within(panel).getByText("request-debug-1")).toBeInTheDocument()
     expect(within(panel).getByText("tier-2-gemini-flash")).toBeInTheDocument()
-    expect(within(panel).getByText("conv_debug")).toBeInTheDocument()
+    expect(within(panel).getByText("scope123abcd")).toBeInTheDocument()
+    expect(within(panel).getByText("thread123abc")).toBeInTheDocument()
+    expect(within(panel).getByText("verified")).toBeInTheDocument()
+    expect(within(panel).getByText("notion-thread-hide-verification-failed")).toBeInTheDocument()
+    expect(panel).not.toHaveTextContent("conv_debug")
     expect(within(panel).getByText("side-peek / desktop")).toBeInTheDocument()
     expect(within(panel).getByText("none")).toBeInTheDocument()
     expect(panel).not.toHaveTextContent("相談したいです")

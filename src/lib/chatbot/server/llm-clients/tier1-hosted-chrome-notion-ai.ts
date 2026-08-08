@@ -32,6 +32,10 @@ type HostedWorkerErrorSummary = {
   errorCode?: string
   retryable?: boolean
   messagePreview?: string
+  lifecycleFailureCode?: string
+  lifecycleStage?: string
+  visibilityStatus?: string
+  hideVerificationResult?: string
 }
 
 type HostedWorkerHealthResponse = {
@@ -42,6 +46,7 @@ type HostedWorkerGenerateResponse = {
   rawText?: unknown
   tokensUsed?: unknown
   latencyMs?: unknown
+  diagnostics?: unknown
 }
 
 type GenerateAttemptDiagnostic = {
@@ -161,6 +166,9 @@ export class Tier1HostedChromeNotionAiClient implements ChatbotLlmClient {
           totalGenerateBudgetMs: response.retryDiagnostics.totalBudgetMs,
           perAttemptTimeoutMs: response.retryDiagnostics.perAttemptTimeoutMs,
           attempts: response.retryDiagnostics.attempts,
+          ...(safeConversationThreadDiagnostics(response.diagnostics)
+            ? { conversationThread: safeConversationThreadDiagnostics(response.diagnostics) }
+            : {}),
         },
       })
     } catch (error) {
@@ -461,6 +469,53 @@ export class Tier1HostedChromeNotionAiClient implements ChatbotLlmClient {
   }
 }
 
+function safeConversationThreadDiagnostics(diagnostics: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(diagnostics) || !isRecord(diagnostics.conversationThread)) return undefined
+  const value = diagnostics.conversationThread
+  if (value.mode !== "provisioned" && value.mode !== "reused" && value.mode !== "reprovisioned") {
+    return undefined
+  }
+  if (typeof value.threadIdHash !== "string" || !/^[0-9a-f]{12}$/i.test(value.threadIdHash)) return undefined
+  if (!Number.isInteger(value.threadVersion) || Number(value.threadVersion) < 1) return undefined
+  if (value.visibilityStatus !== "hidden" || value.alive !== false) return undefined
+  if (typeof value.deletedAt !== "string" || !Number.isFinite(Date.parse(value.deletedAt))) return undefined
+  if (value.hiddenFromChatList !== true || value.hideVerificationResult !== "verified") return undefined
+  if (!Number.isInteger(value.hideAttemptCount) || Number(value.hideAttemptCount) < 0) return undefined
+  for (const key of [
+    "postHideInferenceVerified",
+    "threadRecordMissing",
+    "retentionPurgeDetected",
+    "threadReprovisioned",
+    "contextRebuiltFromHpDb",
+  ] as const) {
+    if (typeof value[key] !== "boolean") return undefined
+  }
+  const deadline = value.estimatedRetentionDeadline
+  if (deadline !== undefined && (typeof deadline !== "string" || !Number.isFinite(Date.parse(deadline)))) {
+    return undefined
+  }
+  return {
+    mode: value.mode,
+    threadIdHash: value.threadIdHash.toLowerCase(),
+    threadVersion: Number(value.threadVersion),
+    visibilityStatus: "hidden",
+    alive: false,
+    deletedAt: value.deletedAt,
+    ...(typeof deadline === "string" ? { estimatedRetentionDeadline: deadline } : {}),
+    hiddenFromChatList: true,
+    hideAttemptCount: Number(value.hideAttemptCount),
+    hideVerificationResult: "verified",
+    postHideInferenceVerified: value.postHideInferenceVerified === true,
+    threadRecordMissing: value.threadRecordMissing === true,
+    retentionPurgeDetected: value.retentionPurgeDetected === true,
+    threadReprovisioned: value.threadReprovisioned === true,
+    contextRebuiltFromHpDb: value.contextRebuiltFromHpDb === true,
+    ...(typeof value.scopeHash === "string" && /^[0-9a-f]{12}$/i.test(value.scopeHash)
+      ? { scopeHash: value.scopeHash.toLowerCase() }
+      : {}),
+  }
+}
+
 function canRetryGenerate(input: {
   attempt: number
   failure: ReturnType<typeof summarizeGenerateFailure>
@@ -663,7 +718,15 @@ async function readWorkerErrorSummary(response: Response, endpoint: string): Pro
     errorCode: typeof error?.code === "string" ? sanitizeLogText(error.code) : undefined,
     retryable: typeof error?.retryable === "boolean" ? error.retryable : undefined,
     messagePreview: typeof error?.message === "string" ? sanitizeLogText(error.message) : undefined,
+    lifecycleFailureCode: safeErrorDiagnosticCode(error?.lifecycleFailureCode),
+    lifecycleStage: safeErrorDiagnosticCode(error?.lifecycleStage),
+    visibilityStatus: safeErrorDiagnosticCode(error?.visibilityStatus),
+    hideVerificationResult: safeErrorDiagnosticCode(error?.hideVerificationResult),
   }
+}
+
+function safeErrorDiagnosticCode(value: unknown): string | undefined {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(value) ? value : undefined
 }
 
 function numberOrUndefined(value: unknown): number | undefined {

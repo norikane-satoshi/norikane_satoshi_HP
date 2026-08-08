@@ -132,7 +132,7 @@ function normalizeServerError(error: unknown): { status: number; body: HostedWor
   if (error instanceof ChatbotLlmError) {
     return {
       status: httpStatusForLlmError(error),
-      body: errorResponse(error.code, error.message, error.isRetryable),
+      body: errorResponse(error.code, error.message, error.isRetryable, safeLifecycleError(error.cause)),
     }
   }
 
@@ -159,6 +159,10 @@ function errorResponse(
   code: HostedWorkerErrorResponse["error"]["code"],
   message: string,
   retryable: boolean,
+  lifecycle?: Pick<
+    HostedWorkerErrorResponse["error"],
+    "lifecycleFailureCode" | "lifecycleStage" | "visibilityStatus" | "hideVerificationResult"
+  >,
 ): HostedWorkerErrorResponse {
   return {
     ok: false,
@@ -167,7 +171,28 @@ function errorResponse(
       code,
       message,
       retryable,
+      ...lifecycle,
     },
+  }
+}
+
+function safeLifecycleError(errorCause: unknown): Pick<
+  HostedWorkerErrorResponse["error"],
+  "lifecycleFailureCode" | "lifecycleStage" | "visibilityStatus" | "hideVerificationResult"
+> | undefined {
+  if (!errorCause || typeof errorCause !== "object" || Array.isArray(errorCause)) return undefined
+  const cause = errorCause as Record<string, unknown>
+  const safeCode = (value: unknown): string | undefined =>
+    typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(value) ? value : undefined
+  const lifecycleFailureCode = safeCode(cause.lifecycleFailureCode)
+  if (!lifecycleFailureCode) return undefined
+  return {
+    lifecycleFailureCode,
+    ...(safeCode(cause.lifecycleStage) ? { lifecycleStage: safeCode(cause.lifecycleStage) } : {}),
+    ...(safeCode(cause.visibilityStatus) ? { visibilityStatus: safeCode(cause.visibilityStatus) } : {}),
+    ...(safeCode(cause.hideVerificationResult)
+      ? { hideVerificationResult: safeCode(cause.hideVerificationResult) }
+      : {}),
   }
 }
 

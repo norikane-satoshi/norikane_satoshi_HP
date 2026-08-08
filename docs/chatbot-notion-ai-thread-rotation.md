@@ -1,4 +1,4 @@
-# Notion AI の会話分離とスレッド巻き直し
+# Notion AI の非表示会話分離とスレッド巻き直し
 
 Tier1 の hosted worker は、常時開いた 1 枚の Notion AI ページを使うが、推論先の
 スレッドは **HP の会話ごとに分離する**。`CHATBOT_HOSTED_WORKER_NOTION_THREAD_URL`
@@ -13,6 +13,53 @@ Chrome の target 判定は bootstrap の固定 ID ではなく、`app.notion.co
 Notion 発行形式の 32 桁 `t` を持つページを許可する。別 origin、任意ページ、任意文字列の
 `t` は拒否する。これにより heartbeat は正常な会話切替を target mismatch と誤認しない。
 
+## 正準ライフサイクル
+
+新しい HP `conversationId` の Tier 1 は次の順序を崩さない。
+
+1. Notion UI の空チャットを開き、Notion が発行した thread ID を得る。
+2. conversation scope hash と thread URL/version の mapping を保存する。
+3. UI の「削除」と等価な `alive=false` transaction を送る。
+4. read-after-write で thread record が存在し、`alive=false`、Notion が生成した
+   `deleted_time` があり、workspace Chat 一覧から消えていることを確認する。
+5. URLへ再移動せず、保存済み thread ID を `runInferenceTranscript` へ直接渡す。
+6. 推論後も同じ3条件を再確認してから Tier 1 成功を返す。
+
+非表示確認は最大2回だけ行う。確認できなければ共有threadやbootstrap threadへ戻さず、
+Tier 1を fail closedにしてTier 2へフォールバックする。`deleted_time`はアプリ側で書かず、
+Notion recordの数値epochまたはISO値を読み、ログ用のISO値へ正規化する。
+
+thread URLの `t=` は32桁だが、Notion APIのthread pointerと推論payloadにはハイフン付き
+UUIDを渡す。両形式は比較時だけハイフンを除いて同一視する。
+
+同じHP会話は同じhidden threadを再利用する。別会話は必ず別threadを使う。
+stored threadが取得成功のうえで存在しない場合だけ、新しいhidden threadを発行し、HP DBに
+残るその会話のmessagesだけを再投入する。一時的なNotion API失敗は「完全削除」とみなさない。
+
+## 保持期間
+
+- Notion側: `deleted_time`を起点に既定約30日。Businessではこの期間を変更しない。
+- HP側: `lastMessageAt`を起点に30日。既存cleanup契約を維持する。
+- 起算点が違うため、Notion threadが先に消れることは正常系として許容する。
+- `deleted_time + 30日`以降にrecord missingを確認した再作成だけを
+  `retentionPurgeDetected=true` とする。期限前のmissingとは分けて追跡する。
+
+実際のBusiness環境で30日後に完全削除された事実は、観測日が来るまで未実証として扱う。
+即時の非表示、record保持、hidden threadでの推論継続とは別の証拠である。
+
+## 安全な観測情報
+
+worker、Vercel境界ログ、Slack fallback通知、localhost限定debug panelには必要に応じて次だけを出す。
+
+- conversation scope hash、thread ID hash、thread version
+- visibility、alive、deleted at、推定保持期限
+- Chat一覧からの非表示、hide試行数、hide検証、推論後再検証
+- record missing、retention purge、再作成、HP DB文脈再構築
+- 使用Tierとfallback reason、build SHA
+
+thread URL、生conversation ID、Cookie、token、認証header、system prompt、会話本文、
+Notion AIの内部推論は表示・保存しない。
+
 ## なぜ巻き直しが要るか
 
 Notion は `runInferenceTranscript` のやり取りをスレッドへ永続化する。
@@ -25,7 +72,8 @@ Notion は `runInferenceTranscript` のやり取りをスレッドへ永続化�
 
 以前は同じ理由で 1 スレッドへ全顧客の会話が混在し、ある相談への応答に別の相談の
 内容が混ざった（CB-ERR-016）。現在は新しい conversation id を受け取るたびに UI で
-新規スレッドを発行し、同じ conversation id の次ターンだけがそのスレッドを再利用する。
+新規スレッドを発行して直ちに非表示にし、同じ conversation id の次ターンだけが
+保存済みIDを直接再利用する。
 conversation id が欠落・不正なら共有スレッドへ戻さず、Tier1 を fail closed する。
 
 ## 育つ速さ
@@ -68,18 +116,10 @@ generate 固有の障害の検知が遅れる。間隔を変えるときはこ�
    Notion 側に発行させる（`48bae9c` で試して Tier1 が落ちた）。
 
 2. **該当 conversation の mapping を差し替える。** 通常は worker が自動で行う。
-   bootstrap thread の設定差し替えは、Chrome の起動先自体が使えない場合だけ行う。
-   - VPS: `~/.config/norikane-hosted-worker/worker.env` の
-     `CHATBOT_HOSTED_WORKER_NOTION_THREAD_URL=https://www.notion.so/chat?t=<新ID>`
-     （変更前に必ずバックアップを取る）
-   - repo: `notion-ai-config.ts` の `defaultNotionAiChatbotThreadUrl` と
-     `notionAiChatbotThreadId`
+   bootstrap threadはChrome起動とhealth専用なので、会話の容量巻き直しでは変更しない。
 
-3. **worker を再起動して確かめる。**
-   `systemctl --user restart hosted-notion-ai-worker.service` のあと、
-   `/health` が `targetUrlMatches: true`、conversation id 付きの `/generate` が `rawText`
-   を返すこと。
-   巻き直し直後は履歴が無いぶん応答が速い（実測 28〜60 秒 → 8〜26 秒）。
+3. **hidden状態を確かめる。** `alive=false`、`deleted_time`、Chat一覧不在を確認し、
+   同じIDへの直接推論後にも同じ状態であることを再確認する。
 
 4. **混入していないことを確かめる。**
    無関係な初回相談を連続で 2 件送り、後の応答に前の会話の案件情報
@@ -107,3 +147,18 @@ conversation の mapping だけ**を新しいスレッドへ更新してリク�
 `CHATBOT_HOSTED_WORKER_THREAD_ROTATION=off` は容量超過時の自動巻き直しだけを止める。
 会話ごとの新規発行・mapping 再利用・conversation id 必須の fail-closed はセキュリティ
 境界なので止まらない。
+
+## 実環境検証（2026-08-08）
+
+VPS Hosted Chromeの使い捨て会話だけで次を確認した。既存の実ユーザーthreadと、
+読み取り証拠に指定された参考threadは変更していない。
+
+- 新規threadを発行後、`alive=false`、Notion生成`deleted_time`、Chat一覧不在を確認
+- hidden threadへの1回目と2回目のTier 1推論が成功
+- 新しいclient instanceから同じthread hashを再利用
+- 別conversationは異なるthread hash
+- 各会話のCanaryへ回答し、相手会話のCanaryは非混入
+- 推論後にもhidden状態を再確認
+
+検証コマンドは `pnpm chatbot:verify-hidden-thread-live`。出力はTier、mode、hash、booleanだけで、
+生ID、URL、Canary値、回答本文、secretを含めない。

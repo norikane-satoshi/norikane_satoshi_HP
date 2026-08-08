@@ -97,5 +97,9 @@ export type HostedWorkerErrorResponse = {
     code: ChatbotLlmError["code"] | HostedWorkerEnsureStatus | "missing_token" | "not_found" | "method_not_allowed"
     message: string
     retryable: boolean
+    lifecycleFailureCode?: string
+    lifecycleStage?: string
+    visibilityStatus?: string
+    hideVerificationResult?: string
   }
 }

@@ -278,6 +278,60 @@ describe("hosted worker generate", () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
+  it("records hidden-thread lifecycle diagnostics without a raw thread id or URL", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "hosted-worker-thread-lifecycle-"))
+    const diagnosticsPath = path.join(dir, "generate.jsonl")
+    const state = createHostedWorkerRuntimeState()
+    const queue = createHostedWorkerQueue(state)
+    const rawThreadId = "aaaabbbbccccddddeeeeffff00001111"
+
+    const response = await generateHostedWorkerResponse(llmRequest("req_hidden_thread"), state, queue, {
+      diagnosticsPath,
+      clientFactory: () => ({
+        generate: async () => ({
+          rawText: "ok",
+          displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
+          tier: "tier-1-hosted-chrome-notion-ai",
+          diagnostics: {
+            conversationThread: {
+              mode: "reprovisioned",
+              threadId: rawThreadId,
+              threadVersion: 2,
+              visibilityStatus: "hidden",
+              alive: false,
+              deletedAt: "2026-08-08T01:00:00.000Z",
+              estimatedRetentionDeadline: "2026-09-07T01:00:00.000Z",
+              hiddenFromChatList: true,
+              hideAttemptCount: 1,
+              hideVerificationResult: "verified",
+              postHideInferenceVerified: true,
+              threadRecordMissing: true,
+              retentionPurgeDetected: true,
+              threadReprovisioned: true,
+              contextRebuiltFromHpDb: true,
+            },
+          },
+        }),
+      }),
+    })
+
+    expect(response.diagnostics?.conversationThread).toMatchObject({
+      mode: "reprovisioned",
+      threadIdHash: expect.stringMatching(/^[0-9a-f]{12}$/),
+      threadVersion: 2,
+      visibilityStatus: "hidden",
+      alive: false,
+      hiddenFromChatList: true,
+      postHideInferenceVerified: true,
+      retentionPurgeDetected: true,
+      contextRebuiltFromHpDb: true,
+    })
+    const [event] = readJsonl(diagnosticsPath)
+    expect(JSON.stringify(event)).not.toContain(rawThreadId)
+    expect(JSON.stringify(event)).not.toContain("https://app.notion.com")
+    rmSync(dir, { recursive: true, force: true })
+  })
+
   it("records worker start and CDP session/target reuse state in the boundary event", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "hosted-worker-runtime-state-"))
     const diagnosticsPath = path.join(dir, "generate.jsonl")

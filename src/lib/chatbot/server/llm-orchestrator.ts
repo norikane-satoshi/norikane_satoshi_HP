@@ -40,6 +40,16 @@ type HealthCheckResult = {
   error?: ChatbotLlmError | Error
 }
 
+type TierFallbackDiagnostic = {
+  tier: ChatbotLlmTier
+  phase: "health-check" | "generate"
+  errorCode: string
+  lifecycleFailureCode?: string
+  lifecycleStage?: string
+  visibilityStatus?: string
+  hideVerificationResult?: string
+}
+
 export function createChatbotLlmTierOrchestrator(
   options: ChatbotLlmTierOrchestratorOptions,
 ): ChatbotLlmTierOrchestrator {
@@ -78,6 +88,7 @@ export function createChatbotLlmTierOrchestrator(
   return {
     async generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse> {
       let lastAttemptedTier: ChatbotLlmTier | undefined
+      const tierFallbacks: TierFallbackDiagnostic[] = []
 
       for (const tier of tierOrder) {
         const client = clientsByTier.get(tier)
@@ -85,7 +96,11 @@ export function createChatbotLlmTierOrchestrator(
 
         lastAttemptedTier = tier
         const health = await checkClientHealth(client)
-        if (!health.healthy && !shouldAttemptGenerateAfterUnhealthyHealth(client, health.error)) continue
+        if (!health.healthy && !shouldAttemptGenerateAfterUnhealthyHealth(client, health.error)) {
+          const fallback = summarizeTierFallback(client.tier, "health-check", health.error)
+          if (fallback) tierFallbacks.push(fallback)
+          continue
+        }
 
         const startedAt = Date.now()
 
@@ -99,7 +114,15 @@ export function createChatbotLlmTierOrchestrator(
             latencyMs: Date.now() - startedAt,
             diagnostics: response.diagnostics,
           })
-          return response
+          return tierFallbacks.length > 0
+            ? {
+                ...response,
+                diagnostics: {
+                  ...(response.diagnostics ?? {}),
+                  tierFallbacks,
+                },
+              }
+            : response
         } catch (error) {
           const normalized = normalizeError(error, tier)
           const rejection = getChatbotLlmOutputContractRejection(normalized)
@@ -111,6 +134,8 @@ export function createChatbotLlmTierOrchestrator(
             latencyMs: Date.now() - startedAt,
           })
           if (rejection?.decision === "reject-and-regenerate-structured-ui") throw normalized
+          const fallback = summarizeTierFallback(tier, "generate", normalized)
+          if (fallback) tierFallbacks.push(fallback)
         }
       }
 
@@ -132,6 +157,38 @@ export function createChatbotLlmTierOrchestrator(
       return false
     },
   }
+}
+
+function summarizeTierFallback(
+  tier: ChatbotLlmTier,
+  phase: TierFallbackDiagnostic["phase"],
+  error: ChatbotLlmError | Error | undefined,
+): TierFallbackDiagnostic | undefined {
+  const cause = error instanceof ChatbotLlmError && isRecord(error.cause) ? error.cause : undefined
+  const lifecycleFailureCode = safeDiagnosticCode(cause?.lifecycleFailureCode)
+  const lifecycleStage = safeDiagnosticCode(cause?.lifecycleStage)
+  const visibilityStatus = safeDiagnosticCode(cause?.visibilityStatus)
+  const hideVerificationResult = safeDiagnosticCode(cause?.hideVerificationResult)
+  if (!lifecycleFailureCode) return undefined
+  return {
+    tier,
+    phase,
+    errorCode: error instanceof ChatbotLlmError ? error.code : "unknown",
+    ...(lifecycleFailureCode ? { lifecycleFailureCode } : {}),
+    ...(lifecycleStage ? { lifecycleStage } : {}),
+    ...(visibilityStatus ? { visibilityStatus } : {}),
+    ...(hideVerificationResult ? { hideVerificationResult } : {}),
+  }
+}
+
+function safeDiagnosticCode(value: unknown): string | undefined {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(value)
+    ? value
+    : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function shouldAttemptGenerateAfterUnhealthyHealth(

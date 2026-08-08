@@ -52,6 +52,25 @@ export type ChatbotResponseTier =
   | "tier-2-gemini-flash"
   | "tier-3-form-fallback"
 
+export type ChatbotLifecycleDebug = {
+  conversationScopeHash?: string
+  threadIdHash?: string
+  threadVersion?: number
+  visibilityStatus?: string
+  alive?: boolean
+  deletedAt?: string
+  estimatedRetentionDeadline?: string
+  hiddenFromChatList?: boolean
+  hideAttemptCount?: number
+  hideVerificationResult?: string
+  postHideInferenceVerified?: boolean
+  threadRecordMissing?: boolean
+  retentionPurgeDetected?: boolean
+  threadReprovisioned?: boolean
+  contextRebuiltFromHpDb?: boolean
+  tierFallbackReason?: string
+}
+
 export type ChatbotMessageResponse = {
   requestId?: string
   conversationId: string
@@ -61,6 +80,7 @@ export type ChatbotMessageResponse = {
   tier: ChatbotResponseTier
   ui: WidgetUi
   clientBuildId?: string
+  debug?: ChatbotLifecycleDebug
 }
 
 export type SubmitChatbotMessageInput = {

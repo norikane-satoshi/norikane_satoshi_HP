@@ -29,6 +29,11 @@ export type ChatbotRetryDiagnosticsSummary = {
   fallbackReason?: string
   exhausted?: boolean
   attempts?: ChatbotRetryAttemptSummary[]
+  threadLifecycle?: {
+    visibilityStatus?: string
+    hideVerificationResult?: string
+    fallbackReason?: string
+  }
 }
 
 type ChatbotRetryAttemptSummary = {
@@ -225,6 +230,15 @@ function formatRetryDiagnosticLines(
       : []),
     ...(typeof summary.totalGenerateBudgetMs === "number" ? [`totalGenerateBudgetMs: ${summary.totalGenerateBudgetMs}`] : []),
     ...(typeof summary.perAttemptTimeoutMs === "number" ? [`perAttemptTimeoutMs: ${summary.perAttemptTimeoutMs}`] : []),
+    ...(summary.threadLifecycle?.visibilityStatus
+      ? [`threadVisibility: ${redactForChatbotLog(summary.threadLifecycle.visibilityStatus)}`]
+      : []),
+    ...(summary.threadLifecycle?.hideVerificationResult
+      ? [`threadHideVerification: ${redactForChatbotLog(summary.threadLifecycle.hideVerificationResult)}`]
+      : []),
+    ...(summary.threadLifecycle?.fallbackReason
+      ? [`fallbackReason: ${redactForChatbotLog(summary.threadLifecycle.fallbackReason)}`]
+      : []),
     ...(summary.fallbackReason ? [`fallbackReason: ${redactForChatbotLog(summary.fallbackReason)}`] : []),
     ...(typeof summary.exhausted === "boolean" ? [`retryExhausted: ${summary.exhausted}`] : []),
     ...(summary.attempts?.length ? [`attempts: ${formatRetryAttempts(summary.attempts)}`] : []),
@@ -267,6 +281,21 @@ function coerceRetryDiagnosticsSummary(
   }
   const attempts = coerceRetryAttempts(diagnostics.attempts)
   if (attempts.length > 0) summary.attempts = attempts
+  if (diagnostics.threadLifecycle && typeof diagnostics.threadLifecycle === "object" && !Array.isArray(diagnostics.threadLifecycle)) {
+    const lifecycle = diagnostics.threadLifecycle as Record<string, unknown>
+    const safeLifecycle: NonNullable<ChatbotRetryDiagnosticsSummary["threadLifecycle"]> = {}
+    for (const [sourceKey, targetKey] of [
+      ["visibilityStatus", "visibilityStatus"],
+      ["hideVerificationResult", "hideVerificationResult"],
+      ["fallbackReason", "fallbackReason"],
+    ] as const) {
+      const value = lifecycle[sourceKey]
+      if (typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(value)) {
+        safeLifecycle[targetKey] = value
+      }
+    }
+    if (Object.keys(safeLifecycle).length > 0) summary.threadLifecycle = safeLifecycle
+  }
 
   return Object.keys(summary).length > 0 ? summary : undefined
 }

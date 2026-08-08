@@ -3,7 +3,7 @@
 import { Check, Copy, RefreshCw, X } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
-import type { ChatbotResponseTier, WidgetUi } from "./api"
+import type { ChatbotLifecycleDebug, ChatbotResponseTier, WidgetUi } from "./api"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
 export type ChatbotDebugRequest = {
@@ -17,6 +17,7 @@ export type ChatbotDebugRequest = {
   stage?: string
   retryable?: boolean
   fallback?: string
+  lifecycle?: ChatbotLifecycleDebug
 }
 
 export type ChatbotDebugSnapshot = {
@@ -25,7 +26,6 @@ export type ChatbotDebugSnapshot = {
   requestState: "idle" | "submitting" | "delayed" | "recoverable"
   activeUiKind: WidgetUi["kind"]
   messageCount: number
-  conversationId?: string
   clientSessionId: string
   pendingRequestKind?: string
   recoverableRequestKind?: string
@@ -143,8 +143,23 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
     ["Failure stage", snapshot.lastRequest?.stage],
     ["Retryable", snapshot.lastRequest?.retryable],
     ["Fallback", snapshot.lastRequest?.fallback],
+    ["Conversation scope hash", snapshot.lastRequest?.lifecycle?.conversationScopeHash],
+    ["Thread ID hash", snapshot.lastRequest?.lifecycle?.threadIdHash],
+    ["Thread version", snapshot.lastRequest?.lifecycle?.threadVersion],
+    ["Thread visibility", snapshot.lastRequest?.lifecycle?.visibilityStatus],
+    ["Thread alive", snapshot.lastRequest?.lifecycle?.alive],
+    ["Deleted at", snapshot.lastRequest?.lifecycle?.deletedAt],
+    ["Retention deadline", snapshot.lastRequest?.lifecycle?.estimatedRetentionDeadline],
+    ["Hidden from chat list", snapshot.lastRequest?.lifecycle?.hiddenFromChatList],
+    ["Hide attempts", snapshot.lastRequest?.lifecycle?.hideAttemptCount],
+    ["Hide verification", snapshot.lastRequest?.lifecycle?.hideVerificationResult],
+    ["Post-hide inference verified", snapshot.lastRequest?.lifecycle?.postHideInferenceVerified],
+    ["Thread record missing", snapshot.lastRequest?.lifecycle?.threadRecordMissing],
+    ["Retention purge detected", snapshot.lastRequest?.lifecycle?.retentionPurgeDetected],
+    ["Thread reprovisioned", snapshot.lastRequest?.lifecycle?.threadReprovisioned],
+    ["Context rebuilt from HP DB", snapshot.lastRequest?.lifecycle?.contextRebuiltFromHpDb],
+    ["Tier fallback reason", snapshot.lastRequest?.lifecycle?.tierFallbackReason],
     ["Completed at", snapshot.lastRequest?.completedAt],
-    ["Conversation ID", snapshot.conversationId],
     ["Client session", snapshot.clientSessionId],
     ["Active UI", snapshot.activeUiKind],
     ["Display mode", `${snapshot.displayMode} / ${snapshot.isDesktopLayout ? "desktop" : "mobile"}`],

@@ -68,6 +68,19 @@ function successfulInference() {
   }
 }
 
+function hiddenLifecycleResult(overrides: Record<string, unknown> = {}) {
+  return {
+    ok: true as const,
+    stage: "verified",
+    recordExists: true,
+    alive: false,
+    deletedAt: "2026-08-08T01:00:00.000Z",
+    estimatedRetentionDeadline: "2026-09-07T01:00:00.000Z",
+    hiddenFromChatList: true,
+    ...overrides,
+  }
+}
+
 describe("Notion AI conversation thread isolation", () => {
   it("trusts a different Notion-minted chat target but rejects arbitrary pages and ids", () => {
     expect(isNotionAiChatbotTargetUrl(firstConversationThreadUrl, oldThreadUrl)).toBe(true)
@@ -81,13 +94,18 @@ describe("Notion AI conversation thread isolation", () => {
     expect(isNotionAiChatbotTargetUrl("https://app.notion.com/workspace/page", oldThreadUrl)).toBe(false)
   })
 
-  it("navigates to the stored thread before a later turn runs inference", async () => {
+  it("uses the stored hidden thread id directly without navigating the visible chat UI", async () => {
     let currentUrl = oldThreadUrl
     const calls: string[] = []
     const session = {
       async evaluate<T>(expression: string): Promise<T> {
+        if (expression.includes("thread-lifecycle-v1")) {
+          calls.push("lifecycle")
+          return hiddenLifecycleResult() as T
+        }
         if (expression.includes("runInferenceTranscript") && expression.includes("response.body")) {
           calls.push("inference")
+          expect(expression).toContain('"threadId":"aaaabbbb-cccc-dddd-eeee-ffff00001111"')
           return successfulInference() as T
         }
         if (expression.includes("__notionAiChatbotRuntimeContext")) {
@@ -127,11 +145,17 @@ describe("Notion AI conversation thread isolation", () => {
 
     const response = await client.generate(isolatedRequest())
 
-    expect(calls.indexOf("navigate")).toBeLessThan(calls.indexOf("inference"))
-    expect(response.diagnostics?.conversationThread).toEqual({
+    expect(calls).not.toContain("navigate")
+    expect(calls.filter((call) => call === "lifecycle")).toHaveLength(2)
+    expect(calls.indexOf("lifecycle")).toBeLessThan(calls.indexOf("inference"))
+    expect(response.diagnostics?.conversationThread).toMatchObject({
       mode: "reused",
-      threadId: "aaaabbbbccccddddeeeeffff00001111",
+      threadIdHash: expect.stringMatching(/^[0-9a-f]{12}$/),
+      visibilityStatus: "hidden",
+      postHideInferenceVerified: true,
     })
+    expect(response.diagnostics?.conversationThread).not.toHaveProperty("threadId")
+    expect(response.diagnostics?.conversationThread).not.toHaveProperty("threadUrl")
   })
 
   it("mints the first thread through the Notion UI before inference", async () => {
@@ -142,7 +166,12 @@ describe("Notion AI conversation thread isolation", () => {
       async evaluate<T>(expression: string): Promise<T> {
         if (expression.includes("runInferenceTranscript") && expression.includes("response.body")) {
           calls.push("inference")
+          expect(expression).toContain('"threadId":"aaaabbbb-cccc-dddd-eeee-ffff00001111"')
           return successfulInference() as T
+        }
+        if (expression.includes("thread-lifecycle-v1")) {
+          calls.push("hide-and-verify")
+          return hiddenLifecycleResult() as T
         }
         if (expression.includes("__notionAiChatbotRuntimeContext")) {
           calls.push("runtime-context")
@@ -193,14 +222,201 @@ describe("Notion AI conversation thread isolation", () => {
 
     const response = await client.generate(isolatedRequest())
 
-    expect(calls).toEqual(expect.arrayContaining(["open-blank-chat", "insert-seed", "send-seed", "inference"]))
+    expect(calls).toEqual(expect.arrayContaining(["open-blank-chat", "insert-seed", "send-seed", "hide-and-verify", "inference"]))
     expect(calls.indexOf("send-seed")).toBeLessThan(calls.indexOf("inference"))
+    expect(calls.indexOf("hide-and-verify")).toBeLessThan(calls.indexOf("inference"))
     expect(rotations).toEqual([
       { threadUrl: firstConversationThreadUrl, reason: "conversation-provisioned" },
     ])
-    expect(response.diagnostics?.conversationThread).toEqual({
+    expect(response.diagnostics?.conversationThread).toMatchObject({
       mode: "provisioned",
-      threadId: "aaaabbbbccccddddeeeeffff00001111",
+      threadIdHash: expect.stringMatching(/^[0-9a-f]{12}$/),
+      visibilityStatus: "hidden",
+      postHideInferenceVerified: true,
     })
+  })
+
+  it("fails closed before inference when the new thread cannot be hidden and verified", async () => {
+    let currentUrl = oldThreadUrl
+    let inferenceCalled = false
+    const session = {
+      async evaluate<T>(expression: string): Promise<T> {
+        if (expression.includes("thread-lifecycle-v1")) {
+          return {
+            ok: false,
+            stage: "hide-write",
+            recordExists: true,
+            hiddenFromChatList: false,
+            retryable: true,
+          } as T
+        }
+        if (expression.includes("runInferenceTranscript") && expression.includes("response.body")) {
+          inferenceCalled = true
+          return successfulInference() as T
+        }
+        if (expression.includes("__notionAiChatbotRuntimeContext")) {
+          return {
+            spaceId: "space-1",
+            userId: "user-1",
+            threadId: new URL(currentUrl).searchParams.get("t"),
+          } as T
+        }
+        if (expression.includes("location.assign")) {
+          currentUrl = "https://app.notion.com/ai"
+          return { href: currentUrl } as T
+        }
+        if (expression.includes("activeElement")) return { ok: true, focused: true } as T
+        if (expression.includes("composer?.innerText")) return { text: "セッション開始" } as T
+        if (expression.includes("present")) return { present: true } as T
+        if (expression.includes("aria-label")) {
+          currentUrl = firstConversationThreadUrl
+          return { ok: true } as T
+        }
+        if (expression.includes("location.href")) return { href: currentUrl } as T
+        throw new Error(`Unexpected expression: ${expression.slice(0, 80)}`)
+      },
+      async insertText(): Promise<void> {},
+      async close(): Promise<void> {},
+    }
+    const client = createHostedNotionAiBrowserClient({
+      targetUrlIncludes: oldThreadUrl,
+      conversationThreadRequired: true,
+      fetchClient: async (url) =>
+        new Response(
+          JSON.stringify(
+            url.endsWith("/json/list")
+              ? [{ type: "page", url: oldThreadUrl, webSocketDebuggerUrl: "ws://test" }]
+              : { Browser: "Chrome/test" },
+          ),
+          { status: 200 },
+        ),
+      sessionFactory: async () => session,
+    })
+
+    await expect(client.generate(isolatedRequest())).rejects.toMatchObject({
+      code: "connection",
+      isRetryable: true,
+    })
+    expect(inferenceCalled).toBe(false)
+  })
+
+  it("reprovisions instead of reusing another thread when the stored record is gone", async () => {
+    const missingThreadUrl = "https://app.notion.com/chat?t=99998888777766665555444433332222"
+    let currentUrl = oldThreadUrl
+    const calls: string[] = []
+    let lifecycleCalls = 0
+    const session = {
+      async evaluate<T>(expression: string): Promise<T> {
+        if (expression.includes("thread-lifecycle-v1")) {
+          lifecycleCalls += 1
+          calls.push("lifecycle")
+          return (lifecycleCalls === 1
+            ? hiddenLifecycleResult({ recordExists: false, alive: undefined, deletedAt: undefined, hiddenFromChatList: true })
+            : hiddenLifecycleResult()) as T
+        }
+        if (expression.includes("runInferenceTranscript") && expression.includes("response.body")) {
+          calls.push("inference")
+          expect(expression).toContain('"threadId":"aaaabbbb-cccc-dddd-eeee-ffff00001111"')
+          expect(expression).not.toContain('"threadId":"99998888-7777-6666-5555-444433332222"')
+          return successfulInference() as T
+        }
+        if (expression.includes("__notionAiChatbotRuntimeContext")) {
+          return {
+            spaceId: "space-1",
+            userId: "user-1",
+            threadId: new URL(currentUrl).searchParams.get("t"),
+          } as T
+        }
+        if (expression.includes("location.assign")) {
+          calls.push(expression.includes("99998888777766665555444433332222") ? "navigate-missing" : "open-blank-chat")
+          currentUrl = expression.includes("99998888777766665555444433332222") ? missingThreadUrl : "https://app.notion.com/ai"
+          return { href: currentUrl } as T
+        }
+        if (expression.includes("activeElement")) return { ok: true, focused: true } as T
+        if (expression.includes("composer?.innerText")) return { text: "セッション開始" } as T
+        if (expression.includes("present")) return { present: true } as T
+        if (expression.includes("aria-label")) {
+          calls.push("send-seed")
+          currentUrl = firstConversationThreadUrl
+          return { ok: true } as T
+        }
+        if (expression.includes("location.href")) return { href: currentUrl } as T
+        throw new Error(`Unexpected expression: ${expression.slice(0, 80)}`)
+      },
+      async insertText(): Promise<void> {
+        calls.push("insert-seed")
+      },
+      async close(): Promise<void> {},
+    }
+    const client = createHostedNotionAiBrowserClient({
+      targetUrlIncludes: oldThreadUrl,
+      conversationThreadRequired: true,
+      conversationThreadUrl: missingThreadUrl,
+      fetchClient: async (url) =>
+        new Response(
+          JSON.stringify(
+            url.endsWith("/json/list")
+              ? [{ type: "page", url: oldThreadUrl, webSocketDebuggerUrl: "ws://test" }]
+              : { Browser: "Chrome/test" },
+          ),
+          { status: 200 },
+        ),
+      sessionFactory: async () => session,
+    })
+
+    const response = await client.generate(isolatedRequest())
+
+    expect(calls).not.toContain("navigate-missing")
+    expect(calls).toEqual(expect.arrayContaining(["open-blank-chat", "insert-seed", "send-seed", "inference"]))
+    expect(response.diagnostics?.conversationThread).toMatchObject({
+      mode: "reprovisioned",
+      threadReprovisioned: true,
+      contextRebuiltFromHpDb: true,
+    })
+  })
+
+  it("does not report Tier 1 success when inference makes the hidden thread visible again", async () => {
+    let lifecycleCalls = 0
+    const session = {
+      async evaluate<T>(expression: string): Promise<T> {
+        if (expression.includes("thread-lifecycle-v1")) {
+          lifecycleCalls += 1
+          return (lifecycleCalls === 1
+            ? hiddenLifecycleResult()
+            : hiddenLifecycleResult({ alive: true, deletedAt: undefined, hiddenFromChatList: false })) as T
+        }
+        if (expression.includes("runInferenceTranscript") && expression.includes("response.body")) {
+          return successfulInference() as T
+        }
+        if (expression.includes("__notionAiChatbotRuntimeContext")) {
+          return {
+            spaceId: "space-1",
+            userId: "user-1",
+            threadId: "aaaabbbb-cccc-dddd-eeee-ffff00001111",
+          } as T
+        }
+        if (expression.includes("location.href")) return { href: firstConversationThreadUrl } as T
+        throw new Error(`Unexpected expression: ${expression.slice(0, 80)}`)
+      },
+      async insertText(): Promise<void> {},
+      async close(): Promise<void> {},
+    }
+    const client = createHostedNotionAiBrowserClient({
+      targetUrlIncludes: oldThreadUrl,
+      conversationThreadRequired: true,
+      conversationThreadUrl: firstConversationThreadUrl,
+      fetchClient: async (url) =>
+        new Response(
+          JSON.stringify(
+            url.endsWith("/json/list")
+              ? [{ type: "page", url: oldThreadUrl, webSocketDebuggerUrl: "ws://test" }]
+              : { Browser: "Chrome/test" },
+          ),
+          { status: 200 },
+        ),
+      sessionFactory: async () => session,
+    })
+
+    await expect(client.generate(isolatedRequest())).rejects.toMatchObject({ code: "connection" })
   })
 })

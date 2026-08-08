@@ -4,6 +4,7 @@ import type {
   ChatbotLlmRequest,
   ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
+import { createHash } from "node:crypto"
 import {
   ChatbotLlmError,
   chatbotLlmTierIds,
@@ -11,13 +12,19 @@ import {
 } from "@/lib/chatbot/server/llm-client"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/hosted-worker/notion-ai-config"
 import {
-  buildNotionAiNavigateExpression,
-  notionAiReadLocationExpression,
   readNotionAiThreadIdFromUrl,
   restoreNotionAiThreadPage,
   rotateNotionAiThread,
   type NotionAiThreadRotationResult,
 } from "@/lib/chatbot/hosted-worker/notion-ai-thread-rotation"
+import {
+  buildNotionAiThreadLifecycleExpression,
+  isNotionAiRetentionPurgeEligible,
+  notionAiThreadRetentionDays,
+  type NotionAiThreadLifecycleAction,
+  type NotionAiThreadLifecycleResult,
+} from "@/lib/chatbot/hosted-worker/notion-ai-thread-lifecycle"
+import type { NotionAiConversationThreadLifecycle } from "@/lib/chatbot/hosted-worker/notion-ai-conversation-thread-store"
 
 type HostedNotionAiBrowserClientConfig = {
   cdpBaseUrl: string
@@ -42,14 +49,43 @@ export type HostedNotionAiThreadRotationOutcome =
 
 type HostedNotionAiBrowserClientOptions = Partial<HostedNotionAiBrowserClientConfig> & {
   /** Called once a rotation succeeded, before the retry, so the new thread is durable either way. */
-  onThreadRotated?: (rotation: HostedNotionAiThreadRotation) => Promise<void> | void
+  onThreadRotated?: (
+    rotation: HostedNotionAiThreadRotation,
+  ) => Promise<{ threadVersion?: number } | void> | { threadVersion?: number } | void
+  onThreadLifecycleUpdated?: (input: {
+    threadUrl: string
+    lifecycle: NotionAiConversationThreadLifecycle
+  }) => Promise<void> | void
   onThreadRotationOutcome?: (outcome: HostedNotionAiThreadRotationOutcome) => void
   threadRotationEnabled?: boolean
   conversationThreadRequired?: boolean
   conversationThreadUrl?: string
+  conversationThreadVersion?: number
+  conversationThreadDeletedAt?: string
   fetchClient?: CdpFetchClient
   sessionFactory?: NotionAiCdpSessionFactory
   idFactory?: IdFactory
+}
+
+type HostedNotionAiConversationThreadMode = "provisioned" | "reused" | "reprovisioned"
+
+type HostedNotionAiPreparedConversationThread = {
+  mode: HostedNotionAiConversationThreadMode
+  threadUrl: string
+  threadId: string
+  threadVersion: number
+  visibilityStatus: "hidden"
+  alive: false
+  deletedAt: string
+  estimatedRetentionDeadline?: string
+  hiddenFromChatList: true
+  hideAttemptCount: number
+  hideVerificationResult: "verified"
+  postHideInferenceVerified: boolean
+  threadRecordMissing: boolean
+  retentionPurgeDetected: boolean
+  threadReprovisioned: boolean
+  contextRebuiltFromHpDb: boolean
 }
 
 type CdpFetchClient = (input: string, init?: RequestInit) => Promise<Response>
@@ -293,6 +329,7 @@ const defaultThreadType = "workflow"
 const defaultNotionClientVersion = "unknown"
 const emptyText = ""
 const maxTransientGenerateAttempts = 2
+const maxThreadHideAttempts = 2
 let hostedNotionAiGenerateQueue = Promise.resolve()
 
 // A workspace-wide Notion failure must not mint one chat per request, so rotation is rate limited
@@ -387,10 +424,13 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
   private readonly sessionFactory: NotionAiCdpSessionFactory
   private readonly idFactory: IdFactory
   private readonly onThreadRotated?: HostedNotionAiBrowserClientOptions["onThreadRotated"]
+  private readonly onThreadLifecycleUpdated?: HostedNotionAiBrowserClientOptions["onThreadLifecycleUpdated"]
   private readonly onThreadRotationOutcome?: HostedNotionAiBrowserClientOptions["onThreadRotationOutcome"]
   private readonly threadRotationEnabled: boolean
   private readonly conversationThreadRequired: boolean
   private readonly conversationThreadUrl?: string
+  private readonly conversationThreadVersion: number
+  private readonly conversationThreadDeletedAt?: string
   private lastHealthError?: ChatbotLlmError | Error
 
   constructor(options: HostedNotionAiBrowserClientOptions = {}) {
@@ -405,10 +445,13 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
     this.sessionFactory = options.sessionFactory ?? createDefaultCdpSession
     this.idFactory = options.idFactory ?? randomId
     this.onThreadRotated = options.onThreadRotated
+    this.onThreadLifecycleUpdated = options.onThreadLifecycleUpdated
     this.onThreadRotationOutcome = options.onThreadRotationOutcome
     this.threadRotationEnabled = options.threadRotationEnabled ?? true
     this.conversationThreadRequired = options.conversationThreadRequired ?? false
     this.conversationThreadUrl = options.conversationThreadUrl
+    this.conversationThreadVersion = options.conversationThreadVersion ?? 0
+    this.conversationThreadDeletedAt = options.conversationThreadDeletedAt
   }
 
   async generate(request: ChatbotLlmRequest, options: ChatbotLlmGenerateOptions = {}): Promise<ChatbotLlmResponse> {
@@ -437,15 +480,14 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
       const runtimeContextPreparationStartedAtEpochMs = Date.now()
       let inferenceAttempts = 0
       const inferenceAttemptStageTimings: HostedNotionAiInferenceAttemptStageTiming[] = []
-      const preparedConversationThread = await this.prepareConversationThread({
+      let preparedConversationThread = await this.prepareConversationThread({
         session,
         startedAt,
         signal,
       })
-      const effectiveTargetUrl = preparedConversationThread?.threadUrl ?? this.config.targetUrlIncludes
-
-      // Re-reads the runtime context every time it runs. After a rotation the page carries a new
-      // ?t=, and the payload only picks that up if the context is read again.
+      // Runtime workspace/auth context comes from the authenticated page, while the thread id is
+      // always the conversation-scoped id. This deliberately avoids making the stored thread
+      // visible by navigating the operator's Notion UI to it.
       const runInference = async (): Promise<NotionAiInferenceResult | undefined> => {
         const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
           session,
@@ -453,10 +495,12 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
           this.config.requestTimeoutMs,
           signal,
         )
-        const effectiveRuntimeContext = withConfiguredThreadContext(
-          runtimeContext,
-          effectiveTargetUrl,
-        )
+        const effectiveRuntimeContext = preparedConversationThread
+          ? {
+              ...runtimeContext,
+              threadId: getThreadIdFromUrl(preparedConversationThread.threadUrl) ?? preparedConversationThread.threadId,
+            }
+          : withConfiguredThreadContext(runtimeContext, this.config.targetUrlIncludes)
         const payload = buildRunInferencePayload({
           request,
           runtimeContext: effectiveRuntimeContext,
@@ -496,7 +540,8 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
           signal,
         })
         if (rotated) {
-          threadRotation = rotated
+          threadRotation = rotated.rotation
+          preparedConversationThread = rotated.preparedThread
           result = await runInference()
         }
       }
@@ -516,6 +561,14 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
           message: "Notion AI tier returned an empty NDJSON stream.",
           code: "invalid-output",
           isRetryable: false,
+        })
+      }
+
+      if (preparedConversationThread) {
+        preparedConversationThread = await this.verifyPostInferenceThreadHidden({
+          session,
+          preparedThread: preparedConversationThread,
+          signal,
         })
       }
 
@@ -542,12 +595,7 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
           attachTargetUrl: target.url,
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
           ...(preparedConversationThread
-            ? {
-                conversationThread: {
-                  mode: preparedConversationThread.mode,
-                  threadId: toComparableThreadId(preparedConversationThread.threadId),
-                },
-              }
+            ? { conversationThread: safePreparedThreadDiagnostic(preparedConversationThread) }
             : {}),
           ...(threadRotation ? { threadRotation } : {}),
         },
@@ -752,7 +800,10 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
     error: ChatbotLlmError
     startedAt: number
     signal?: AbortSignal
-  }): Promise<HostedNotionAiThreadRotation | undefined> {
+  }): Promise<{
+    rotation: HostedNotionAiThreadRotation
+    preparedThread: HostedNotionAiPreparedConversationThread
+  } | undefined> {
     if (!this.threadRotationEnabled) return undefined
     if (!isNotionAiThreadCapacityError(input.error)) return undefined
     if (input.signal?.aborted) return undefined
@@ -813,66 +864,39 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
     this.onThreadRotationOutcome?.({ ok: true, ...record })
     // Awaited so the new thread is durable before the retry, and before any health read that
     // starts after this point.
-    await this.onThreadRotated?.(record)
+    const saved = await this.onThreadRotated?.(record)
+    const threadId = readNotionAiThreadIdFromUrl(rotation.threadUrl)
+    if (!threadId) return undefined
+    const preparedThread = await this.hideAndVerifyThread({
+      session: input.session,
+      threadUrl: rotation.threadUrl,
+      threadId,
+      mode: "reprovisioned",
+      threadVersion: saved?.threadVersion ?? this.conversationThreadVersion + 1,
+      threadRecordMissing: false,
+      retentionPurgeDetected: false,
+      threadReprovisioned: true,
+      contextRebuiltFromHpDb: true,
+      signal: input.signal,
+    })
 
-    return retried ? record : undefined
+    return retried ? { rotation: record, preparedThread } : undefined
   }
 
   private async prepareConversationThread(input: {
     session: NotionAiCdpSession
     startedAt: number
     signal?: AbortSignal
-  }): Promise<{
-    mode: "provisioned" | "reused"
-    threadUrl: string
-    threadId: string
-  } | undefined> {
+  }): Promise<HostedNotionAiPreparedConversationThread | undefined> {
     if (!this.conversationThreadRequired) return undefined
 
-    const rotationDeps = {
-      evaluate: <T,>(expression: string, timeoutMs: number) =>
-        this.evaluate<T>(input.session, expression, timeoutMs, input.signal),
-      insertText: (text: string, timeoutMs: number) =>
-        this.insertTextInPage(input.session, text, timeoutMs, input.signal),
-    }
-
     if (!this.conversationThreadUrl) {
-      const provisionStartedAt = Date.now()
-      const provisioned = await rotateNotionAiThread(rotationDeps)
-      if (!provisioned.ok) {
-        this.onThreadRotationOutcome?.({
-          ok: false,
-          stage: `conversation-${provisioned.stage}`,
-          detail: provisioned.detail,
-          durationMs: provisioned.durationMs,
-        })
-        throw this.toLlmError({
-          message: `Unable to provision an isolated Notion AI conversation thread at ${provisioned.stage}.`,
-          code: "connection",
-          isRetryable: true,
-          cause: provisioned,
-        })
-      }
-
-      const threadId = readNotionAiThreadIdFromUrl(provisioned.threadUrl)
-      if (!threadId) {
-        throw this.toLlmError({
-          message: "Provisioned Notion AI conversation thread URL is invalid.",
-          code: "connection",
-          isRetryable: true,
-        })
-      }
-      const record: HostedNotionAiThreadRotation = {
-        threadUrl: provisioned.threadUrl,
-        previousThreadUrl: provisioned.previousThreadUrl,
-        rotatedAtEpochMs: Date.now(),
-        durationMs: Date.now() - provisionStartedAt,
-        retried: true,
-        reason: "conversation-provisioned",
-      }
-      this.onThreadRotationOutcome?.({ ok: true, ...record })
-      await this.onThreadRotated?.(record)
-      return { mode: "provisioned", threadUrl: provisioned.threadUrl, threadId }
+      return this.provisionAndHideConversationThread({
+        ...input,
+        mode: "provisioned",
+        threadRecordMissing: false,
+        retentionPurgeDetected: false,
+      })
     }
 
     const expectedThreadId = readNotionAiThreadIdFromUrl(this.conversationThreadUrl)
@@ -884,54 +908,319 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
       })
     }
 
-    const current = await this.evaluate<{ href: string }>(
+    const verified = await this.runThreadLifecycle({
+      session: input.session,
+      threadId: expectedThreadId,
+      action: "verify",
+      signal: input.signal,
+    })
+    if (verified.ok && verified.recordExists) {
+      const prepared = this.preparedThreadFromLifecycle({
+        mode: "reused",
+        threadUrl: this.conversationThreadUrl,
+        threadId: expectedThreadId,
+        threadVersion: Math.max(1, this.conversationThreadVersion),
+        lifecycle: verified,
+        hideAttemptCount: 0,
+        postHideInferenceVerified: false,
+        threadRecordMissing: false,
+        retentionPurgeDetected: false,
+        threadReprovisioned: false,
+        contextRebuiltFromHpDb: false,
+      })
+      await this.persistLifecycle(prepared.threadUrl, prepared)
+      return prepared
+    }
+
+    if (verified.ok && (!verified.recordExists || verified.threadRecordMissing)) {
+      return this.provisionAndHideConversationThread({
+        ...input,
+        mode: "reprovisioned",
+        threadRecordMissing: true,
+        retentionPurgeDetected: isNotionAiRetentionPurgeEligible({
+          deletedAt: this.conversationThreadDeletedAt,
+          observedAt: new Date(),
+          retentionDays: notionAiThreadRetentionDays,
+        }),
+      })
+    }
+
+    if (!verified.ok && (verified.stage === "verify-record" || verified.stage === "verify-chat-list")) {
+      return this.hideAndVerifyThread({
+        session: input.session,
+        mode: "reused",
+        threadUrl: this.conversationThreadUrl,
+        threadId: expectedThreadId,
+        threadVersion: Math.max(1, this.conversationThreadVersion),
+        threadRecordMissing: false,
+        retentionPurgeDetected: false,
+        threadReprovisioned: false,
+        contextRebuiltFromHpDb: false,
+        signal: input.signal,
+      })
+    }
+
+    throw this.threadLifecycleError(verified)
+  }
+
+  private async provisionAndHideConversationThread(input: {
+    session: NotionAiCdpSession
+    startedAt: number
+    signal?: AbortSignal
+    mode: "provisioned" | "reprovisioned"
+    threadRecordMissing: boolean
+    retentionPurgeDetected: boolean
+  }): Promise<HostedNotionAiPreparedConversationThread> {
+    const rotationDeps = {
+      evaluate: <T,>(expression: string, timeoutMs: number) =>
+        this.evaluate<T>(input.session, expression, timeoutMs, input.signal),
+      insertText: (text: string, timeoutMs: number) =>
+        this.insertTextInPage(input.session, text, timeoutMs, input.signal),
+    }
+    const provisionStartedAt = Date.now()
+    const provisioned = await rotateNotionAiThread(rotationDeps)
+    if (!provisioned.ok) {
+      this.onThreadRotationOutcome?.({
+        ok: false,
+        stage: `conversation-${provisioned.stage}`,
+        detail: provisioned.detail,
+        durationMs: provisioned.durationMs,
+      })
+      throw this.toLlmError({
+        message: `Unable to provision an isolated Notion AI conversation thread at ${provisioned.stage}.`,
+        code: "connection",
+        isRetryable: true,
+        cause: { lifecycleFailureCode: "notion-thread-provision-failed", lifecycleStage: provisioned.stage },
+      })
+    }
+    const threadId = readNotionAiThreadIdFromUrl(provisioned.threadUrl)
+    if (!threadId) {
+      throw this.toLlmError({
+        message: "Provisioned Notion AI conversation thread URL is invalid.",
+        code: "connection",
+        isRetryable: true,
+      })
+    }
+    const record: HostedNotionAiThreadRotation = {
+      threadUrl: provisioned.threadUrl,
+      previousThreadUrl: provisioned.previousThreadUrl,
+      rotatedAtEpochMs: Date.now(),
+      durationMs: Date.now() - provisionStartedAt,
+      retried: true,
+      reason: "conversation-provisioned",
+    }
+    this.onThreadRotationOutcome?.({ ok: true, ...record })
+    const saved = await this.onThreadRotated?.(record)
+    return this.hideAndVerifyThread({
+      session: input.session,
+      mode: input.mode,
+      threadUrl: provisioned.threadUrl,
+      threadId,
+      threadVersion: saved?.threadVersion ?? Math.max(1, this.conversationThreadVersion + 1),
+      threadRecordMissing: input.threadRecordMissing,
+      retentionPurgeDetected: input.retentionPurgeDetected,
+      threadReprovisioned: input.mode === "reprovisioned",
+      contextRebuiltFromHpDb: input.mode === "reprovisioned",
+      signal: input.signal,
+    })
+  }
+
+  private async hideAndVerifyThread(input: {
+    session: NotionAiCdpSession
+    mode: HostedNotionAiConversationThreadMode
+    threadUrl: string
+    threadId: string
+    threadVersion: number
+    threadRecordMissing: boolean
+    retentionPurgeDetected: boolean
+    threadReprovisioned: boolean
+    contextRebuiltFromHpDb: boolean
+    signal?: AbortSignal
+  }): Promise<HostedNotionAiPreparedConversationThread> {
+    let latest: NotionAiThreadLifecycleResult | undefined
+    for (let attempt = 1; attempt <= maxThreadHideAttempts; attempt += 1) {
+      latest = await this.runThreadLifecycle({
+        session: input.session,
+        threadId: input.threadId,
+        action: "hide-and-verify",
+        signal: input.signal,
+      })
+      if (latest.ok && latest.recordExists) {
+        const prepared = this.preparedThreadFromLifecycle({
+          ...input,
+          lifecycle: latest,
+          hideAttemptCount: attempt,
+          postHideInferenceVerified: false,
+        })
+        await this.persistLifecycle(prepared.threadUrl, prepared)
+        return prepared
+      }
+      if (!latest.retryable || attempt === maxThreadHideAttempts) break
+    }
+    await this.persistLifecycle(input.threadUrl, {
+      visibilityStatus: latest?.threadRecordMissing ? "record-missing" : "hide-verification-failed",
+      alive: latest?.alive,
+      deletedAt: latest?.deletedAt,
+      estimatedRetentionDeadline: latest?.estimatedRetentionDeadline,
+      hiddenFromChatList: latest?.hiddenFromChatList,
+      hideAttemptCount: maxThreadHideAttempts,
+      hideVerificationResult: lifecycleVerificationResult(latest),
+      postHideInferenceVerified: false,
+      threadRecordMissing: latest?.threadRecordMissing ?? false,
+      retentionPurgeDetected: input.retentionPurgeDetected,
+      threadReprovisioned: input.threadReprovisioned,
+      contextRebuiltFromHpDb: input.contextRebuiltFromHpDb,
+    })
+    throw this.threadLifecycleError(latest)
+  }
+
+  private async verifyPostInferenceThreadHidden(input: {
+    session: NotionAiCdpSession
+    preparedThread: HostedNotionAiPreparedConversationThread
+    signal?: AbortSignal
+  }): Promise<HostedNotionAiPreparedConversationThread> {
+    const verified = await this.runThreadLifecycle({
+      session: input.session,
+      threadId: input.preparedThread.threadId,
+      action: "verify",
+      signal: input.signal,
+    })
+    if (!verified.ok || !verified.recordExists) {
+      await this.persistLifecycle(input.preparedThread.threadUrl, {
+        visibilityStatus: verified.threadRecordMissing ? "record-missing" : "hide-verification-failed",
+        alive: verified.alive,
+        deletedAt: verified.deletedAt,
+        estimatedRetentionDeadline: verified.estimatedRetentionDeadline,
+        hiddenFromChatList: verified.hiddenFromChatList,
+        hideAttemptCount: input.preparedThread.hideAttemptCount,
+        hideVerificationResult: lifecycleVerificationResult(verified),
+        postHideInferenceVerified: false,
+        threadRecordMissing: verified.threadRecordMissing,
+        retentionPurgeDetected: input.preparedThread.retentionPurgeDetected,
+        threadReprovisioned: input.preparedThread.threadReprovisioned,
+        contextRebuiltFromHpDb: input.preparedThread.contextRebuiltFromHpDb,
+      })
+      throw this.threadLifecycleError(verified)
+    }
+    const prepared = this.preparedThreadFromLifecycle({
+      ...input.preparedThread,
+      lifecycle: verified,
+      hideAttemptCount: input.preparedThread.hideAttemptCount,
+      postHideInferenceVerified: true,
+    })
+    await this.persistLifecycle(prepared.threadUrl, prepared)
+    return prepared
+  }
+
+  private async runThreadLifecycle(input: {
+    session: NotionAiCdpSession
+    threadId: string
+    action: NotionAiThreadLifecycleAction
+    signal?: AbortSignal
+  }): Promise<NotionAiThreadLifecycleResult> {
+    const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
       input.session,
-      notionAiReadLocationExpression,
+      runtimeContextExpression,
       this.config.requestTimeoutMs,
       input.signal,
     )
-    if (!sameThreadId(readNotionAiThreadIdFromUrl(current.href), expectedThreadId)) {
-      try {
-        await this.evaluate(
-          input.session,
-          buildNotionAiNavigateExpression(this.conversationThreadUrl),
-          this.config.requestTimeoutMs,
-          input.signal,
-        )
-      } catch {
-        // A successful location.assign commonly destroys the old execution context. Readiness is
-        // decided by the runtime-context poll below, not by that transient CDP response.
-      }
+    if (!runtimeContext.spaceId || !runtimeContext.userId) {
+      throw this.toLlmError({
+        message: "Notion AI runtime context does not expose lifecycle identity.",
+        code: "auth",
+        isRetryable: false,
+        cause: { lifecycleFailureCode: "notion-thread-lifecycle-identity-missing", lifecycleStage: "identity" },
+      })
     }
-
-    const deadline = input.startedAt + this.config.requestTimeoutMs
-    for (;;) {
-      throwIfAborted(input.signal)
-      const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
+    try {
+      return await this.evaluate<NotionAiThreadLifecycleResult>(
         input.session,
-        runtimeContextExpression,
-        Math.max(1, deadline - Date.now()),
+        buildNotionAiThreadLifecycleExpression({
+          action: input.action,
+          spaceId: runtimeContext.spaceId,
+          userId: runtimeContext.userId,
+          threadId: input.threadId,
+          notionClientVersion: runtimeContext.notionClientVersion,
+          retentionDays: notionAiThreadRetentionDays,
+        }),
+        this.config.requestTimeoutMs,
         input.signal,
-      ).catch(() => undefined)
-      if (
-        runtimeContext?.spaceId &&
-        sameThreadId(runtimeContext.threadId, expectedThreadId)
-      ) {
-        return {
-          mode: "reused",
-          threadUrl: this.conversationThreadUrl,
-          threadId: expectedThreadId,
-        }
-      }
-      if (Date.now() >= deadline) {
-        throw this.toLlmError({
-          message: "Timed out while opening the isolated Notion AI conversation thread.",
-          code: "timeout",
-          isRetryable: true,
-        })
-      }
-      await delay(250, input.signal)
+      )
+    } catch {
+      throw this.toLlmError({
+        message: "Notion AI thread lifecycle evaluation failed.",
+        code: "connection",
+        isRetryable: true,
+        cause: {
+          lifecycleFailureCode: "notion-thread-lifecycle-evaluation-failed",
+          lifecycleStage: input.action,
+        },
+      })
     }
+  }
+
+  private preparedThreadFromLifecycle(input: {
+    mode: HostedNotionAiConversationThreadMode
+    threadUrl: string
+    threadId: string
+    threadVersion: number
+    lifecycle: NotionAiThreadLifecycleResult
+    hideAttemptCount: number
+    postHideInferenceVerified: boolean
+    threadRecordMissing: boolean
+    retentionPurgeDetected: boolean
+    threadReprovisioned: boolean
+    contextRebuiltFromHpDb: boolean
+  }): HostedNotionAiPreparedConversationThread {
+    if (
+      !input.lifecycle.ok ||
+      input.lifecycle.alive !== false ||
+      !input.lifecycle.deletedAt ||
+      input.lifecycle.hiddenFromChatList !== true
+    ) {
+      throw this.threadLifecycleError(input.lifecycle)
+    }
+    const prepared: HostedNotionAiPreparedConversationThread = {
+      mode: input.mode,
+      threadUrl: input.threadUrl,
+      threadId: input.threadId,
+      threadVersion: input.threadVersion,
+      visibilityStatus: "hidden",
+      alive: false,
+      deletedAt: input.lifecycle.deletedAt,
+      estimatedRetentionDeadline: input.lifecycle.estimatedRetentionDeadline,
+      hiddenFromChatList: true,
+      hideAttemptCount: input.hideAttemptCount,
+      hideVerificationResult: "verified",
+      postHideInferenceVerified: input.postHideInferenceVerified,
+      threadRecordMissing: input.threadRecordMissing,
+      retentionPurgeDetected: input.retentionPurgeDetected,
+      threadReprovisioned: input.threadReprovisioned,
+      contextRebuiltFromHpDb: input.contextRebuiltFromHpDb,
+    }
+    return prepared
+  }
+
+  private async persistLifecycle(
+    threadUrl: string,
+    lifecycle: NotionAiConversationThreadLifecycle,
+  ): Promise<void> {
+    await this.onThreadLifecycleUpdated?.({ threadUrl, lifecycle })
+  }
+
+  private threadLifecycleError(result: NotionAiThreadLifecycleResult | undefined): ChatbotLlmError {
+    return this.toLlmError({
+      message: "Notion AI conversation thread could not be hidden and verified safely.",
+      code: "connection",
+      isRetryable: result?.retryable ?? true,
+      cause: {
+        lifecycleFailureCode: result?.errorCode ?? "notion-thread-hide-verification-failed",
+        lifecycleStage: result?.stage ?? "unknown",
+        ...(typeof result?.httpStatus === "number" ? { lifecycleHttpStatus: result.httpStatus } : {}),
+        visibilityStatus: result?.threadRecordMissing ? "record-missing" : "hide-verification-failed",
+        hideVerificationResult: lifecycleVerificationResult(result),
+      },
+    })
   }
 
   private async insertTextInPage(
@@ -1432,10 +1721,27 @@ function toComparableThreadId(value: string | undefined): string | undefined {
   return normalized || undefined
 }
 
-function sameThreadId(left: string | undefined, right: string | undefined): boolean {
-  const normalizedLeft = toComparableThreadId(left)
-  const normalizedRight = toComparableThreadId(right)
-  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight)
+function hashThreadId(value: string): string {
+  return createHash("sha256").update(toComparableThreadId(value) ?? value).digest("hex").slice(0, 12)
+}
+
+function safePreparedThreadDiagnostic(
+  prepared: HostedNotionAiPreparedConversationThread,
+): Omit<HostedNotionAiPreparedConversationThread, "threadId" | "threadUrl"> & { threadIdHash: string } {
+  const { threadId, threadUrl: _threadUrl, ...safe } = prepared
+  void _threadUrl
+  return { ...safe, threadIdHash: hashThreadId(threadId) }
+}
+
+function lifecycleVerificationResult(
+  result: NotionAiThreadLifecycleResult | undefined,
+): NonNullable<NotionAiConversationThreadLifecycle["hideVerificationResult"]> {
+  if (result?.ok && result.stage === "verified") return "verified"
+  if (result?.stage === "verify-record") return "record-not-hidden"
+  if (result?.stage === "verify-chat-list" && result.hiddenFromChatList === false) {
+    return "chat-list-present"
+  }
+  return "api-failed"
 }
 
 export function assertNotionAiChatbotTargetUrl(

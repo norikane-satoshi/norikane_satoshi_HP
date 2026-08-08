@@ -13,7 +13,35 @@ export type NotionAiConversationThreadRecord = {
   createdAt: string
   updatedAt: string
   threadVersion: number
+  visibilityStatus?: "pending-hide" | "hidden" | "hide-verification-failed" | "record-missing"
+  alive?: boolean
+  deletedAt?: string
+  estimatedRetentionDeadline?: string
+  hiddenFromChatList?: boolean
+  hideAttemptCount?: number
+  hideVerificationResult?: "verified" | "record-not-hidden" | "chat-list-present" | "api-failed"
+  postHideInferenceVerified?: boolean
+  threadRecordMissing?: boolean
+  retentionPurgeDetected?: boolean
+  threadReprovisioned?: boolean
+  contextRebuiltFromHpDb?: boolean
 }
+
+export type NotionAiConversationThreadLifecycle = Pick<
+  NotionAiConversationThreadRecord,
+  | "visibilityStatus"
+  | "alive"
+  | "deletedAt"
+  | "estimatedRetentionDeadline"
+  | "hiddenFromChatList"
+  | "hideAttemptCount"
+  | "hideVerificationResult"
+  | "postHideInferenceVerified"
+  | "threadRecordMissing"
+  | "retentionPurgeDetected"
+  | "threadReprovisioned"
+  | "contextRebuiltFromHpDb"
+>
 
 type NotionAiConversationThreadState = {
   version: 1
@@ -49,7 +77,7 @@ function parseRecord(value: unknown): NotionAiConversationThreadRecord | undefin
   if (!scopeHash || !threadUrl || !threadId || !createdAt || !updatedAt) return undefined
   if (!readNotionAiThreadIdFromUrl(threadUrl)) return undefined
 
-  return {
+  const record: NotionAiConversationThreadRecord = {
     scopeHash,
     threadUrl,
     threadId,
@@ -60,6 +88,46 @@ function parseRecord(value: unknown): NotionAiConversationThreadRecord | undefin
         ? Number(parsed.threadVersion)
         : 1,
   }
+  const visibilityStatus = parsed.visibilityStatus
+  if (
+    visibilityStatus === "pending-hide" ||
+    visibilityStatus === "hidden" ||
+    visibilityStatus === "hide-verification-failed" ||
+    visibilityStatus === "record-missing"
+  ) {
+    record.visibilityStatus = visibilityStatus
+  }
+  if (typeof parsed.alive === "boolean") record.alive = parsed.alive
+  if (isIsoTimestamp(parsed.deletedAt)) record.deletedAt = parsed.deletedAt
+  if (isIsoTimestamp(parsed.estimatedRetentionDeadline)) {
+    record.estimatedRetentionDeadline = parsed.estimatedRetentionDeadline
+  }
+  if (typeof parsed.hiddenFromChatList === "boolean") record.hiddenFromChatList = parsed.hiddenFromChatList
+  if (Number.isInteger(parsed.hideAttemptCount) && Number(parsed.hideAttemptCount) >= 0) {
+    record.hideAttemptCount = Number(parsed.hideAttemptCount)
+  }
+  if (
+    parsed.hideVerificationResult === "verified" ||
+    parsed.hideVerificationResult === "record-not-hidden" ||
+    parsed.hideVerificationResult === "chat-list-present" ||
+    parsed.hideVerificationResult === "api-failed"
+  ) {
+    record.hideVerificationResult = parsed.hideVerificationResult
+  }
+  for (const key of [
+    "postHideInferenceVerified",
+    "threadRecordMissing",
+    "retentionPurgeDetected",
+    "threadReprovisioned",
+    "contextRebuiltFromHpDb",
+  ] as const) {
+    if (typeof parsed[key] === "boolean") record[key] = parsed[key]
+  }
+  return record
+}
+
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value))
 }
 
 function parseState(value: unknown): NotionAiConversationThreadState {
@@ -107,6 +175,7 @@ export async function writeNotionAiConversationThread(
     conversationId: string
     threadUrl: string
     now?: () => Date
+    lifecycle?: NotionAiConversationThreadLifecycle
   },
   statePath: string = notionAiConversationThreadStatePath,
 ): Promise<NotionAiConversationThreadRecord> {
@@ -117,14 +186,17 @@ export async function writeNotionAiConversationThread(
   const state = await loadState(statePath)
   const scopeHash = toNotionAiConversationScopeHash(input.conversationId)
   const previous = state.records[scopeHash]
+  const sameThread = previous?.threadId === threadId
   const timestamp = (input.now?.() ?? new Date()).toISOString()
   const record: NotionAiConversationThreadRecord = {
     scopeHash,
     threadUrl: input.threadUrl,
     threadId,
-    createdAt: previous?.createdAt ?? timestamp,
+    createdAt: sameThread ? previous.createdAt : timestamp,
     updatedAt: timestamp,
-    threadVersion: previous && previous.threadId !== threadId ? previous.threadVersion + 1 : (previous?.threadVersion ?? 1),
+    threadVersion: previous && !sameThread ? previous.threadVersion + 1 : (previous?.threadVersion ?? 1),
+    ...(sameThread ? pickLifecycle(previous) : {}),
+    ...pickLifecycle(input.lifecycle),
   }
 
   const records = Object.fromEntries(
@@ -141,6 +213,40 @@ export async function writeNotionAiConversationThread(
   await rename(temporaryPath, statePath)
   stateCache.set(statePath, nextState)
   return record
+}
+
+function pickLifecycle(
+  value: NotionAiConversationThreadLifecycle | NotionAiConversationThreadRecord | undefined,
+): NotionAiConversationThreadLifecycle {
+  if (!value) return {}
+  return {
+    ...(value.visibilityStatus ? { visibilityStatus: value.visibilityStatus } : {}),
+    ...(typeof value.alive === "boolean" ? { alive: value.alive } : {}),
+    ...(value.deletedAt ? { deletedAt: value.deletedAt } : {}),
+    ...(value.estimatedRetentionDeadline
+      ? { estimatedRetentionDeadline: value.estimatedRetentionDeadline }
+      : {}),
+    ...(typeof value.hiddenFromChatList === "boolean"
+      ? { hiddenFromChatList: value.hiddenFromChatList }
+      : {}),
+    ...(typeof value.hideAttemptCount === "number" ? { hideAttemptCount: value.hideAttemptCount } : {}),
+    ...(value.hideVerificationResult ? { hideVerificationResult: value.hideVerificationResult } : {}),
+    ...(typeof value.postHideInferenceVerified === "boolean"
+      ? { postHideInferenceVerified: value.postHideInferenceVerified }
+      : {}),
+    ...(typeof value.threadRecordMissing === "boolean"
+      ? { threadRecordMissing: value.threadRecordMissing }
+      : {}),
+    ...(typeof value.retentionPurgeDetected === "boolean"
+      ? { retentionPurgeDetected: value.retentionPurgeDetected }
+      : {}),
+    ...(typeof value.threadReprovisioned === "boolean"
+      ? { threadReprovisioned: value.threadReprovisioned }
+      : {}),
+    ...(typeof value.contextRebuiltFromHpDb === "boolean"
+      ? { contextRebuiltFromHpDb: value.contextRebuiltFromHpDb }
+      : {}),
+  }
 }
 
 export function resetNotionAiConversationThreadCache(statePath?: string): void {

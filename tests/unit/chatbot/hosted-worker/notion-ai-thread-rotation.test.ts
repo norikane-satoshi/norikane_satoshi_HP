@@ -12,7 +12,7 @@ const newThreadUrl = "https://app.notion.com/chat?t=aaaabbbbccccddddeeeeffff0000
 type PageScript = {
   hrefs: string[]
   focus?: { ok: boolean; focused: boolean }
-  composerText?: string
+  composerText?: string | string[]
   send?: { ok: boolean; reason?: string }
   /** Consumed one per poll, so a test can hold the thread busy for a few samples. */
   sendPresence?: boolean[]
@@ -21,6 +21,7 @@ type PageScript = {
 function fakePage(script: PageScript) {
   const calls: string[] = []
   let hrefIndex = 0
+  const composerTexts = Array.isArray(script.composerText) ? [...script.composerText] : undefined
   const deps: NotionAiThreadRotationDeps & { calls: string[]; inserted: string[] } = {
     calls,
     inserted: [],
@@ -43,7 +44,10 @@ function fakePage(script: PageScript) {
       }
       if (expression.includes("composer?.innerText") || expression.includes("readNotionAiComposerTextInPage")) {
         calls.push("read-composer")
-        return { text: script.composerText ?? notionAiThreadRotationSeedMessage } as T
+        const text = composerTexts && composerTexts.length > 1
+          ? composerTexts.shift()
+          : composerTexts?.[0] ?? script.composerText ?? notionAiThreadRotationSeedMessage
+        return { text } as T
       }
       if (expression.includes("present")) {
         calls.push("send-presence")
@@ -127,7 +131,29 @@ describe("rotateNotionAiThread", () => {
     })
 
     expect(result).toMatchObject({ ok: false, stage: "verify-seed" })
+    expect(page.inserted).toHaveLength(2)
     expect(page.calls).not.toContain("send")
+  })
+
+  it("refocuses and retries the CDP insert once when Notion drops the first seed", async () => {
+    let clock = 0
+    const page = fakePage({
+      hrefs: [oldThreadUrl, newThreadUrl],
+      composerText: ["", notionAiThreadRotationSeedMessage],
+    })
+
+    const result = await rotateNotionAiThread({
+      ...page,
+      now: () => (clock += 10000),
+      timeouts: { awaitSeedMs: 5000 },
+    })
+
+    expect(result).toMatchObject({ ok: true, threadUrl: newThreadUrl })
+    expect(page.inserted).toEqual([
+      notionAiThreadRotationSeedMessage,
+      notionAiThreadRotationSeedMessage,
+    ])
+    expect(page.calls.filter((call) => call === "focus")).toHaveLength(2)
   })
 
   it("reports the send stage when the button stays disabled", async () => {

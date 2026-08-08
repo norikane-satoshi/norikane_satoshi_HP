@@ -126,4 +126,43 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("内容: Tier 1からTier 2（Gemini Flash）へフォールバック")
     expect(body.text).toContain("内容: Tier 2でもAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え")
   })
+
+  it("includes a safe hidden-thread failure reason while keeping current Tier names", async () => {
+    const fetcher = slackFetcher()
+
+    await sendChatbotSlackNotification(
+      {
+        kind: "issue",
+        requestId: "req_hidden_failure",
+        conversationId: "conv_hidden_failure",
+        tier: "tier-2-gemini-flash",
+        issueReasons: ["tier2-gemini-fallback"],
+        retryDiagnostics: {
+          threadLifecycle: {
+            visibilityStatus: "hide-verification-failed",
+            hideVerificationResult: "chat-list-present",
+            fallbackReason: "notion-thread-hide-verification-failed",
+          },
+          cookie: "must-not-leak",
+          threadUrl: "https://app.notion.com/chat?t=must-not-leak",
+        } as Record<string, unknown>,
+      },
+      {
+        env: {
+          CHATBOT_SLACK_NOTIFY_ENABLED: "true",
+          SLACK_BOT_TOKEN: "xoxb-secret-token",
+          SLACK_CHATBOT_CHANNEL_ID: "C123",
+        },
+        fetcher,
+      },
+    )
+
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as { text: string }
+    expect(body.text).toContain("tier: Tier 2（Gemini Flash） [tier-2-gemini-flash]")
+    expect(body.text).toContain("threadVisibility: hide-verification-failed")
+    expect(body.text).toContain("threadHideVerification: chat-list-present")
+    expect(body.text).toContain("fallbackReason: notion-thread-hide-verification-failed")
+    expect(body.text).not.toContain("must-not-leak")
+    expect(body.text).not.toContain("xoxb-secret-token")
+  })
 })

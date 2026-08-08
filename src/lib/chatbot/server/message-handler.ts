@@ -123,6 +123,24 @@ export type ChatbotMessageApiResult = {
   routingDecision?: RoutingDecision
   tier: ChatbotLlmResponse["tier"]
   ui: ChatbotMessageUi
+  debug?: {
+    conversationScopeHash?: string
+    threadIdHash?: string
+    threadVersion?: number
+    visibilityStatus?: string
+    alive?: boolean
+    deletedAt?: string
+    estimatedRetentionDeadline?: string
+    hiddenFromChatList?: boolean
+    hideAttemptCount?: number
+    hideVerificationResult?: string
+    postHideInferenceVerified?: boolean
+    threadRecordMissing?: boolean
+    retentionPurgeDetected?: boolean
+    threadReprovisioned?: boolean
+    contextRebuiltFromHpDb?: boolean
+    tierFallbackReason?: string
+  }
 }
 
 export type HandleChatbotMessageInput = {
@@ -599,7 +617,74 @@ export async function handleChatbotMessage(
     routingDecision,
     tier: llmResponse.tier,
     ui,
+    ...(() => {
+      const debug = summarizeChatbotLifecycleDebug(llmResponse.diagnostics)
+      return debug ? { debug } : {}
+    })(),
   }
+}
+
+function summarizeChatbotLifecycleDebug(
+  diagnostics: unknown,
+): NonNullable<ChatbotMessageApiResult["debug"]> | undefined {
+  const source = asDebugRecord(diagnostics)
+  if (!source) return undefined
+  const thread = asDebugRecord(source.conversationThread)
+  const debug: NonNullable<ChatbotMessageApiResult["debug"]> = {}
+  const safeCode = (value: unknown, length: number = 120): string | undefined =>
+    typeof value === "string" && new RegExp(`^[a-z0-9][a-z0-9_.:-]{0,${length - 1}}$`, "i").test(value)
+      ? value
+      : undefined
+  const assignBoolean = (key: keyof typeof debug, value: unknown) => {
+    if (typeof value === "boolean") Object.assign(debug, { [key]: value })
+  }
+  const assignInteger = (key: keyof typeof debug, value: unknown) => {
+    if (Number.isInteger(value) && Number(value) >= 0) Object.assign(debug, { [key]: Number(value) })
+  }
+  if (thread) {
+    const scopeHash = safeCode(thread.scopeHash, 12)
+    const threadIdHash = safeCode(thread.threadIdHash, 12)
+    if (scopeHash?.length === 12) debug.conversationScopeHash = scopeHash
+    if (threadIdHash?.length === 12) debug.threadIdHash = threadIdHash
+    assignInteger("threadVersion", thread.threadVersion)
+    const visibilityStatus = safeCode(thread.visibilityStatus)
+    if (visibilityStatus) debug.visibilityStatus = visibilityStatus
+    assignBoolean("alive", thread.alive)
+    if (typeof thread.deletedAt === "string" && Number.isFinite(Date.parse(thread.deletedAt))) {
+      debug.deletedAt = thread.deletedAt
+    }
+    if (
+      typeof thread.estimatedRetentionDeadline === "string" &&
+      Number.isFinite(Date.parse(thread.estimatedRetentionDeadline))
+    ) {
+      debug.estimatedRetentionDeadline = thread.estimatedRetentionDeadline
+    }
+    assignBoolean("hiddenFromChatList", thread.hiddenFromChatList)
+    assignInteger("hideAttemptCount", thread.hideAttemptCount)
+    const hideVerificationResult = safeCode(thread.hideVerificationResult)
+    if (hideVerificationResult) debug.hideVerificationResult = hideVerificationResult
+    assignBoolean("postHideInferenceVerified", thread.postHideInferenceVerified)
+    assignBoolean("threadRecordMissing", thread.threadRecordMissing)
+    assignBoolean("retentionPurgeDetected", thread.retentionPurgeDetected)
+    assignBoolean("threadReprovisioned", thread.threadReprovisioned)
+    assignBoolean("contextRebuiltFromHpDb", thread.contextRebuiltFromHpDb)
+  }
+  const lifecycleFallback = Array.isArray(source.tierFallbacks)
+    ? source.tierFallbacks.map(asDebugRecord).find((entry) => safeCode(entry?.lifecycleFailureCode))
+    : undefined
+  const fallbackReason = safeCode(lifecycleFallback?.lifecycleFailureCode)
+  if (fallbackReason) {
+    debug.tierFallbackReason = fallbackReason
+    debug.visibilityStatus = safeCode(lifecycleFallback?.visibilityStatus) ?? "hide-verification-failed"
+    debug.hideVerificationResult = safeCode(lifecycleFallback?.hideVerificationResult) ?? "api-failed"
+  }
+  return Object.keys(debug).length > 0 ? debug : undefined
+}
+
+function asDebugRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
 }
 
 function shouldUseFallbackRouting(input: {
@@ -2243,6 +2328,27 @@ function summarizeChatbotRetryDiagnostics(diagnostics: unknown): ChatbotRetryDia
   }
   const attempts = summarizeRetryAttempts(source.attempts)
   if (attempts.length > 0) summary.attempts = attempts
+
+  const lifecycleFallback = Array.isArray(source.tierFallbacks)
+    ? source.tierFallbacks.find((entry) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false
+        return typeof (entry as Record<string, unknown>).lifecycleFailureCode === "string"
+      }) as Record<string, unknown> | undefined
+    : undefined
+  if (lifecycleFallback) {
+    const safeCode = (value: unknown): string | undefined =>
+      typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(value) ? value : undefined
+    const fallbackReason = safeCode(lifecycleFallback.lifecycleFailureCode)
+    if (fallbackReason) {
+      summary.threadLifecycle = {
+        visibilityStatus: safeCode(lifecycleFallback.visibilityStatus) ?? "hide-verification-failed",
+        hideVerificationResult:
+          safeCode(lifecycleFallback.hideVerificationResult) ??
+          (lifecycleFallback.lifecycleStage === "verify-chat-list" ? "chat-list-present" : "api-failed"),
+        fallbackReason,
+      }
+    }
+  }
 
   return Object.keys(summary).length > 0 ? summary : undefined
 }

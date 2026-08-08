@@ -268,11 +268,25 @@ export async function rotateNotionAiThread(
 
     // Guards the regression this whole routine exists to avoid: setting textContent from an
     // evaluate looks like it worked but never reaches Notion's editor state.
-    const composer = await poll(
+    let composer = await poll(
       () => deps.evaluate<{ text: string }>(notionAiReadComposerExpression, timeouts.stepMs),
       (value) => Boolean(value?.text.includes(seedMessage)),
       timeouts.awaitSeedMs,
     )
+    if (!composer?.text.includes(seedMessage)) {
+      const refocused = await deps.evaluate<{ ok: boolean; focused: boolean }>(
+        notionAiFocusComposerExpression,
+        timeouts.stepMs,
+      ).catch(() => undefined)
+      if (refocused?.ok) {
+        await deps.insertText(seedMessage, timeouts.insertMs)
+        composer = await poll(
+          () => deps.evaluate<{ text: string }>(notionAiReadComposerExpression, timeouts.stepMs),
+          (value) => Boolean(value?.text.includes(seedMessage)),
+          timeouts.awaitSeedMs,
+        )
+      }
+    }
     if (!composer?.text.includes(seedMessage)) return fail("verify-seed", `text=${composer?.text ?? ""}`)
 
     // Notion only renders send once it has registered the text, so "missing" here is a wait.

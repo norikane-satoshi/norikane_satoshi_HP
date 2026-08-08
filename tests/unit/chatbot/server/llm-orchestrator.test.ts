@@ -139,6 +139,40 @@ describe("createChatbotLlmTierOrchestrator", () => {
     expect(tier2.generate).toHaveBeenCalledOnce()
   })
 
+  it("carries a sanitized Tier 1 hidden-thread failure into the successful fallback response", async () => {
+    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", {
+      generateError: llmError("tier-1-hosted-chrome-notion-ai", {
+        code: "connection",
+        cause: {
+          lifecycleFailureCode: "notion-thread-hide-verification-failed",
+          lifecycleStage: "verify-chat-list",
+          threadUrl: "https://app.notion.com/chat?t=must-not-leak",
+          cookie: "must-not-leak",
+        },
+      }),
+    })
+    const tier2 = fakeClient("tier-2-gemini-flash")
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
+
+    const response = await orchestrator.generate(llmRequest())
+
+    expect(response).toMatchObject({
+      tier: "tier-2-gemini-flash",
+      diagnostics: {
+        tierFallbacks: [
+          {
+            tier: "tier-1-hosted-chrome-notion-ai",
+            phase: "generate",
+            errorCode: "connection",
+            lifecycleFailureCode: "notion-thread-hide-verification-failed",
+            lifecycleStage: "verify-chat-list",
+          },
+        ],
+      },
+    })
+    expect(JSON.stringify(response.diagnostics)).not.toContain("must-not-leak")
+  })
+
   it("uses tier 3 form fallback when tiers 1 and 2 are unhealthy", async () => {
     const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { healthy: false })
     const tier2 = fakeClient("tier-2-gemini-flash", { healthy: false })

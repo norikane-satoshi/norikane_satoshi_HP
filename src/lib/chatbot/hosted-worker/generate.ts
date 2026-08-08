@@ -4,6 +4,7 @@ import {
   type ChatbotLlmRequest,
   type ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
+import { createHash } from "node:crypto"
 import { appendFile, mkdir } from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
@@ -20,6 +21,7 @@ import {
   readNotionAiConversationThread,
   toNotionAiConversationScopeHash,
   writeNotionAiConversationThread,
+  type NotionAiConversationThreadLifecycle,
 } from "@/lib/chatbot/hosted-worker/notion-ai-conversation-thread-store"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import {
@@ -62,8 +64,22 @@ type HostedWorkerQueueSnapshot = Pick<HostedWorkerRuntimeState["queue"], "inFlig
 type HostedWorkerQueueSnapshotPhase = "enqueued" | "started" | "completed" | "aborted"
 type HostedWorkerQueueSnapshots = Partial<Record<HostedWorkerQueueSnapshotPhase, HostedWorkerQueueSnapshot>>
 type HostedWorkerConversationThreadDiagnostic = {
-  mode: "provisioned" | "reused"
-  threadId: string
+  mode: "provisioned" | "reused" | "reprovisioned"
+  threadIdHash: string
+  threadVersion: number
+  visibilityStatus: "hidden"
+  alive: false
+  deletedAt: string
+  estimatedRetentionDeadline?: string
+  hiddenFromChatList: true
+  hideAttemptCount: number
+  hideVerificationResult: "verified"
+  postHideInferenceVerified: boolean
+  threadRecordMissing: boolean
+  retentionPurgeDetected: boolean
+  threadReprovisioned: boolean
+  contextRebuiltFromHpDb: boolean
+  scopeHash?: string
 }
 
 export class HostedWorkerSingleFlightQueue {
@@ -167,6 +183,12 @@ export async function generateHostedWorkerResponse(
   let stageTimings: HostedWorkerStageTimings | undefined
   let threadRotation: HostedWorkerThreadRotationState | undefined
   let threadRotationOutcome: { ok: boolean; stage?: string; detail?: string; durationMs: number } | undefined
+  let threadLifecycleFailure: {
+    lifecycleFailureCode: string
+    lifecycleStage?: string
+    visibilityStatus?: string
+    hideVerificationResult?: string
+  } | undefined
   const conversationId = requireConversationId(request.conversationId)
   const conversationScopeHash = toNotionAiConversationScopeHash(conversationId).slice(0, 12)
   let conversationThread: HostedWorkerConversationThreadDiagnostic | undefined
@@ -176,7 +198,7 @@ export async function generateHostedWorkerResponse(
     previousThreadUrl?: string
     retried: boolean
     reason: "conversation-provisioned" | "capacity-rotation"
-  }): Promise<void> => {
+  }): Promise<{ threadVersion?: number } | void> => {
     const threadId = toNotionAiThreadId(rotation.threadUrl)
     if (!threadId) return
     const saved = await writeNotionAiConversationThread({
@@ -192,6 +214,17 @@ export async function generateHostedWorkerResponse(
       reason: rotation.reason,
     }
     if (rotation.reason === "capacity-rotation") state.threadRotation = threadRotation
+    return { threadVersion: saved.threadVersion }
+  }
+  const onThreadLifecycleUpdated = async (input: {
+    threadUrl: string
+    lifecycle: NotionAiConversationThreadLifecycle
+  }): Promise<void> => {
+    await writeNotionAiConversationThread({
+      conversationId,
+      threadUrl: input.threadUrl,
+      lifecycle: input.lifecycle,
+    })
   }
   let cdpConnectionState: HostedNotionAiCdpConnectionState | undefined
   const queueSnapshots: HostedWorkerQueueSnapshots = {}
@@ -214,6 +247,7 @@ export async function generateHostedWorkerResponse(
               options.clientFactory,
               activeAbort.signal,
               onThreadRotated,
+              onThreadLifecycleUpdated,
               (outcome) => {
                 threadRotationOutcome = outcome.ok
                   ? { ok: true, durationMs: outcome.durationMs }
@@ -268,6 +302,7 @@ export async function generateHostedWorkerResponse(
       normalized.cause && typeof normalized.cause === "object" && "errorCode" in normalized.cause
         ? String(normalized.cause.errorCode)
         : normalized.code
+    threadLifecycleFailure = safeThreadLifecycleFailure(normalized.cause)
     aborted = isAbortError(error) || errorCode === abortTag
     state.queue.lastErrorCode = normalized.code
     state.queue.lastLatencyMs = (options.now?.() ?? Date.now()) - startedAt
@@ -297,6 +332,7 @@ export async function generateHostedWorkerResponse(
         threadRotationOutcome,
         conversationScopeHash,
         conversationThread,
+        threadLifecycleFailure,
         queueSnapshots: Object.keys(queueSnapshots).length > 0 ? queueSnapshots : undefined,
       })
     }
@@ -312,6 +348,10 @@ async function createHostedNotionAiResponse(
     previousThreadUrl?: string
     retried: boolean
     reason: "conversation-provisioned" | "capacity-rotation"
+  }) => Promise<{ threadVersion?: number } | void>,
+  onThreadLifecycleUpdated?: (input: {
+    threadUrl: string
+    lifecycle: NotionAiConversationThreadLifecycle
   }) => Promise<void>,
   onThreadRotationOutcome?: (outcome: HostedNotionAiThreadRotationOutcome) => void,
 ): Promise<ChatbotLlmResponse> {
@@ -328,8 +368,15 @@ async function createHostedNotionAiResponse(
       ),
       threadRotationEnabled: isNotionAiThreadRotationEnabled(),
       conversationThreadRequired: true,
-      ...(conversationThread ? { conversationThreadUrl: conversationThread.threadUrl } : {}),
+      ...(conversationThread
+        ? {
+            conversationThreadUrl: conversationThread.threadUrl,
+            conversationThreadVersion: conversationThread.threadVersion,
+            conversationThreadDeletedAt: conversationThread.deletedAt,
+          }
+        : {}),
       ...(onThreadRotated ? { onThreadRotated } : {}),
+      ...(onThreadLifecycleUpdated ? { onThreadLifecycleUpdated } : {}),
       ...(onThreadRotationOutcome ? { onThreadRotationOutcome } : {}),
     })
 
@@ -589,6 +636,12 @@ async function writeGenerateDiagnostics(event: {
   threadRotationOutcome?: { ok: boolean; stage?: string; detail?: string; durationMs: number }
   conversationScopeHash?: string
   conversationThread?: HostedWorkerConversationThreadDiagnostic
+  threadLifecycleFailure?: {
+    lifecycleFailureCode: string
+    lifecycleStage?: string
+    visibilityStatus?: string
+    hideVerificationResult?: string
+  }
   queueSnapshots?: HostedWorkerQueueSnapshots
 }): Promise<void> {
   try {
@@ -619,11 +672,91 @@ function safeHostedWorkerConversationThreadDiagnostic(
   value: unknown,
 ): HostedWorkerConversationThreadDiagnostic | undefined {
   if (!isRecord(value)) return undefined
-  if (value.mode !== "provisioned" && value.mode !== "reused") return undefined
-  if (typeof value.threadId !== "string" || !/^[0-9a-f]{32}$/i.test(value.threadId)) return undefined
-  return { mode: value.mode, threadId: value.threadId }
+  if (value.mode !== "provisioned" && value.mode !== "reused" && value.mode !== "reprovisioned") {
+    return undefined
+  }
+  const threadIdHash = safeThreadIdHash(value.threadIdHash, value.threadId)
+  if (!threadIdHash) return undefined
+  if (!Number.isInteger(value.threadVersion) || Number(value.threadVersion) < 1) return undefined
+  if (value.visibilityStatus !== "hidden" || value.alive !== false) return undefined
+  if (!isIsoTimestamp(value.deletedAt)) return undefined
+  if (value.estimatedRetentionDeadline !== undefined && !isIsoTimestamp(value.estimatedRetentionDeadline)) {
+    return undefined
+  }
+  if (value.hiddenFromChatList !== true) return undefined
+  if (!Number.isInteger(value.hideAttemptCount) || Number(value.hideAttemptCount) < 0) return undefined
+  if (value.hideVerificationResult !== "verified") return undefined
+  for (const key of [
+    "postHideInferenceVerified",
+    "threadRecordMissing",
+    "retentionPurgeDetected",
+    "threadReprovisioned",
+    "contextRebuiltFromHpDb",
+  ] as const) {
+    if (typeof value[key] !== "boolean") return undefined
+  }
+  return {
+    mode: value.mode,
+    threadIdHash,
+    threadVersion: Number(value.threadVersion),
+    visibilityStatus: "hidden",
+    alive: false,
+    deletedAt: value.deletedAt,
+    ...(value.estimatedRetentionDeadline
+      ? { estimatedRetentionDeadline: value.estimatedRetentionDeadline }
+      : {}),
+    hiddenFromChatList: true,
+    hideAttemptCount: Number(value.hideAttemptCount),
+    hideVerificationResult: "verified",
+    postHideInferenceVerified: value.postHideInferenceVerified === true,
+    threadRecordMissing: value.threadRecordMissing === true,
+    retentionPurgeDetected: value.retentionPurgeDetected === true,
+    threadReprovisioned: value.threadReprovisioned === true,
+    contextRebuiltFromHpDb: value.contextRebuiltFromHpDb === true,
+    ...(typeof value.scopeHash === "string" && /^[0-9a-f]{12}$/i.test(value.scopeHash)
+      ? { scopeHash: value.scopeHash.toLowerCase() }
+      : {}),
+  }
+}
+
+function safeThreadIdHash(hashValue: unknown, rawValue: unknown): string | undefined {
+  if (typeof hashValue === "string" && /^[0-9a-f]{12}$/i.test(hashValue)) {
+    return hashValue.toLowerCase()
+  }
+  if (typeof rawValue !== "string") return undefined
+  const normalized = rawValue.replaceAll("-", "").toLowerCase()
+  if (!/^[0-9a-f]{32}$/.test(normalized)) return undefined
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 12)
+}
+
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function safeThreadLifecycleFailure(value: unknown): {
+  lifecycleFailureCode: string
+  lifecycleStage?: string
+  visibilityStatus?: string
+  hideVerificationResult?: string
+} | undefined {
+  if (!isRecord(value)) return undefined
+  const safeCode = (candidate: unknown): string | undefined =>
+    typeof candidate === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(candidate)
+      ? candidate
+      : undefined
+  const lifecycleFailureCode = safeCode(value.lifecycleFailureCode)
+  if (!lifecycleFailureCode) return undefined
+  const lifecycleStage = safeCode(value.lifecycleStage)
+  const visibilityStatus = safeCode(value.visibilityStatus)
+  const hideVerificationResult = safeCode(value.hideVerificationResult)
+  return {
+    lifecycleFailureCode,
+    ...(lifecycleStage ? { lifecycleStage } : {}),
+    ...(visibilityStatus ? { visibilityStatus } : {}),
+    ...(hideVerificationResult ? { hideVerificationResult } : {}),
+  }
 }
