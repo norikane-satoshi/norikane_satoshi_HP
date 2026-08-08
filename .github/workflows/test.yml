@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 24
       - run: node scripts/repo-hygiene.mjs --ci --strict
-      - run: node --test tests/scripts/repo-hygiene.test.mjs
+      - run: node --test tests/scripts/repo-hygiene.test.mjs tests/scripts/repo-finish.test.mjs
 
   unit:
     runs-on: ubuntu-latest

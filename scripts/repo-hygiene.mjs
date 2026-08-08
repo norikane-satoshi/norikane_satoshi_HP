@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { parseEnvDocument, parseWorktreePorcelain } from "./repo-hygiene-lib.mjs";
+import { findIntegratedLocalBranches, parseEnvDocument, parseWorktreePorcelain } from "./repo-hygiene-lib.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
@@ -118,6 +118,7 @@ function checkLocalState() {
   if (pruneCandidates) errors.push("stale worktree metadata exists; run git worktree prune after inspection");
 
   const protectedNames = new Set(["staging-live-41238", "grading-verify"]);
+  const attachedBranches = new Set(worktrees.map((worktree) => worktree.branch).filter(Boolean));
   for (const worktree of worktrees) {
     if (worktree.path === mainRoot || protectedNames.has(path.basename(worktree.path))) continue;
     if (!fs.existsSync(worktree.path)) {
@@ -134,6 +135,19 @@ function checkLocalState() {
     );
     if (integrated) errors.push(`clean integrated task worktree should be removed: ${worktree.path}`);
     else info.push(`clean unmerged task worktree retained: ${worktree.path}`);
+  }
+
+  const protectedBranches = new Set(["master", "staging"]);
+  const localBranches = git(["for-each-ref", "--format=%(refname:short)", "refs/heads"])
+    .stdout.trim().split(/\r?\n/).filter(Boolean);
+  const integratedBranches = findIntegratedLocalBranches(localBranches, {
+    attachedBranches,
+    protectedBranches,
+    targets: ["origin/master", "origin/staging"],
+    isAncestor,
+  });
+  for (const { branch, target } of integratedBranches) {
+    errors.push(`integrated local branch should be finished: pnpm repo:finish -- ${branch} --target=${target} --apply`);
   }
 
   const envPath = path.join(mainRoot, ".env.local");

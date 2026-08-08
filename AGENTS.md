@@ -60,7 +60,7 @@ After code changes:
 ## Repository hygiene lifecycle
 
 - Keep the main checkout on `master`. Fast-forward it to `origin/master` at task start and completion, and implement changes on a dedicated branch / worktree.
-- After integration, verify that the task worktree has no open handles, then remove the clean integrated worktree and its local branch in the same task. Create a WIP preservation branch only for interrupted recovery.
+- After integration, run `pnpm repo:finish -- <branch> --target=origin/master` from the main checkout, inspect the dry-run, then rerun with `--apply`. For staging-only integration, use `--target=origin/staging`. This fail-closed command verifies ancestry, matching local/origin tips, a clean managed worktree with no open handles, then removes the worktree and exact local/origin branch in the same task. Create a WIP preservation branch only for interrupted recovery.
 - Classify local agent runtime state, review candidates, and source material in `.gitignore`. Do not leave unclassified untracked files behind.
 - Run `pnpm repo:hygiene -- --strict` before completion. Claude Code's Stop hook and CI run the same policy checks.
 - Never run raw `vercel env pull` against `.env.local`. Encrypted Vercel values can be returned as empty; use `pnpm env:pull:safe -- --environment=<environment>` so existing non-empty local values survive.

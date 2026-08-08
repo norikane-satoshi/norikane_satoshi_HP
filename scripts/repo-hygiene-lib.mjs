@@ -82,3 +82,16 @@ export function parseWorktreePorcelain(text) {
     path: path.resolve(worktree.path),
   }));
 }
+
+export function findIntegratedLocalBranches(
+  branches,
+  { attachedBranches = new Set(), protectedBranches = new Set(), targets = [], isAncestor },
+) {
+  const integrated = [];
+  for (const branch of branches) {
+    if (protectedBranches.has(branch) || attachedBranches.has(`refs/heads/${branch}`)) continue;
+    const target = targets.find((reference) => isAncestor(branch, reference));
+    if (target) integrated.push({ branch, target });
+  }
+  return integrated;
+}

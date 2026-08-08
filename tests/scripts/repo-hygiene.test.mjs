@@ -5,7 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mergeEnvText, parseWorktreePorcelain } from "../../scripts/repo-hygiene-lib.mjs";
+import {
+  findIntegratedLocalBranches,
+  mergeEnvText,
+  parseWorktreePorcelain,
+} from "../../scripts/repo-hygiene-lib.mjs";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testDir, "../..");
@@ -47,6 +51,28 @@ test("parses linked, main, and detached worktrees", () => {
   assert.equal(worktrees.length, 2);
   assert.equal(worktrees[0].branch, "refs/heads/master");
   assert.equal(worktrees[1].detached, true);
+});
+
+test("finds only integrated local branches that no worktree protects", () => {
+  const ancestry = new Map([
+    ["codex/done:origin/master", true],
+    ["codex/staging-only:origin/staging", true],
+    ["codex/attached:origin/master", true],
+  ]);
+  const result = findIntegratedLocalBranches(
+    ["master", "codex/done", "codex/staging-only", "codex/attached", "codex/wip"],
+    {
+      attachedBranches: new Set(["refs/heads/codex/attached"]),
+      protectedBranches: new Set(["master", "staging"]),
+      targets: ["origin/master", "origin/staging"],
+      isAncestor: (branch, target) => ancestry.get(`${branch}:${target}`) === true,
+    },
+  );
+
+  assert.deepEqual(result, [
+    { branch: "codex/done", target: "origin/master" },
+    { branch: "codex/staging-only", target: "origin/staging" },
+  ]);
 });
 
 test("safe pull keeps encrypted local values while accepting non-empty updates", (t) => {
