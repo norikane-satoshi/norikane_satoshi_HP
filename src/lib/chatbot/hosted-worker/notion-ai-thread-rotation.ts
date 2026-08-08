@@ -75,6 +75,18 @@ export function clickNotionAiSendInPage(doc: Document): { ok: boolean; reason?: 
   return { ok: false, reason: "missing" }
 }
 
+/**
+ * Notion replaces the send control with a stop control while a reply streams, so its presence is
+ * the page's own "this thread is idle" signal.
+ */
+export function readNotionAiSendPresenceInPage(doc: Document): { present: boolean } {
+  for (const element of Array.from(doc.querySelectorAll("[aria-label]"))) {
+    const label = element.getAttribute("aria-label") ?? ""
+    if (/送信|send/i.test(label)) return { present: true }
+  }
+  return { present: false }
+}
+
 /** Keeps rotation on whichever Notion host the tab is already authenticated against. */
 export function buildNotionAiBlankChatUrl(currentHref: string | undefined): string {
   if (!currentHref) return notionAiBlankChatUrl
@@ -93,6 +105,7 @@ function inPageExpression(fn: (doc: Document) => unknown): string {
 export const notionAiFocusComposerExpression = inPageExpression(focusNotionAiComposerInPage)
 export const notionAiReadComposerExpression = inPageExpression(readNotionAiComposerTextInPage)
 export const notionAiSendExpression = inPageExpression(clickNotionAiSendInPage)
+export const notionAiReadSendPresenceExpression = inPageExpression(readNotionAiSendPresenceInPage)
 export const notionAiReadLocationExpression = `(() => ({ href: location.href }))()`
 
 export function buildNotionAiNavigateExpression(url: string): string {
@@ -114,8 +127,9 @@ export type NotionAiThreadRotationTimeouts = {
   /** The blank chat is a full page load, so the composer takes seconds to mount. */
   awaitComposerMs: number
   awaitThreadUrlMs: number
+  /** Notion answers the seed on the new thread; an inference posted during that stream comes back empty. */
+  awaitIdleMs: number
   pollIntervalMs: number
-  settleMs: number
   /** Notion re-renders around the composer, so the steps after it get a few tries. */
   stepRetries: number
   stepRetryDelayMs: number
@@ -126,8 +140,8 @@ const defaultTimeouts: NotionAiThreadRotationTimeouts = {
   insertMs: 10000,
   awaitComposerMs: 45000,
   awaitThreadUrlMs: 30000,
+  awaitIdleMs: 30000,
   pollIntervalMs: 500,
-  settleMs: 3000,
   stepRetries: 8,
   stepRetryDelayMs: 500,
 }
@@ -154,6 +168,27 @@ async function retryStep<T>(
     if (attempt < timeouts.stepRetries) await sleep(timeouts.stepRetryDelayMs)
   }
   return value
+}
+
+/**
+ * Waits out the seed message's own reply. Measured at 8.9s on the live page; returning early only
+ * costs the triggering request, since the thread itself is already usable by the next one.
+ */
+async function waitForNotionAiThreadIdle(
+  deps: Pick<NotionAiThreadRotationDeps, "evaluate">,
+  timeouts: NotionAiThreadRotationTimeouts,
+  now: () => number,
+  sleep: (ms: number) => Promise<void>,
+): Promise<void> {
+  const deadline = now() + timeouts.awaitIdleMs
+  for (;;) {
+    const presence = await deps
+      .evaluate<{ present: boolean }>(notionAiReadSendPresenceExpression, timeouts.stepMs)
+      .catch(() => undefined)
+    if (presence?.present) return
+    if (now() >= deadline) return
+    await sleep(timeouts.pollIntervalMs)
+  }
 }
 
 export async function rotateNotionAiThread(
@@ -228,7 +263,7 @@ export async function rotateNotionAiThread(
       const current = await deps.evaluate<{ href: string }>(notionAiReadLocationExpression, timeouts.stepMs)
       const threadId = current?.href ? readNotionAiThreadIdFromUrl(current.href) : undefined
       if (threadId && threadId !== previousThreadId) {
-        await sleep(timeouts.settleMs)
+        await waitForNotionAiThreadIdle(deps, timeouts, now, sleep)
         return { ok: true, threadUrl: current.href, previousThreadUrl, durationMs: now() - startedAt }
       }
       if (now() >= deadline) return fail("await-thread-url")

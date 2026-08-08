@@ -7,6 +7,7 @@ import {
   clickNotionAiSendInPage,
   focusNotionAiComposerInPage,
   readNotionAiComposerTextInPage,
+  readNotionAiSendPresenceInPage,
   readNotionAiThreadIdFromUrl,
 } from "@/lib/chatbot/hosted-worker/notion-ai-thread-rotation"
 
@@ -54,6 +55,15 @@ describe("notion ai rotation page steps", () => {
     // Notion only renders send once the composer holds text; that is a wait, not a failure.
     render(`<div></div>`)
     expect(clickNotionAiSendInPage(document)).toEqual({ ok: false, reason: "missing" })
+  })
+
+  it("reads the send control's presence as the thread's idle signal", () => {
+    render(`<button aria-label="AIメッセージを送信"></button>`)
+    expect(readNotionAiSendPresenceInPage(document)).toEqual({ present: true })
+
+    // While a reply streams Notion swaps send for a stop control.
+    render(`<button aria-label="停止"></button>`)
+    expect(readNotionAiSendPresenceInPage(document)).toEqual({ present: false })
   })
 
   it("keeps the blank chat on the host the tab is already signed in to", () => {

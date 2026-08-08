@@ -14,6 +14,8 @@ type PageScript = {
   focus?: { ok: boolean; focused: boolean }
   composerText?: string
   send?: { ok: boolean; reason?: string }
+  /** Consumed one per poll, so a test can hold the thread busy for a few samples. */
+  sendPresence?: boolean[]
 }
 
 function fakePage(script: PageScript) {
@@ -42,6 +44,11 @@ function fakePage(script: PageScript) {
       if (expression.includes("composer?.innerText") || expression.includes("readNotionAiComposerTextInPage")) {
         calls.push("read-composer")
         return { text: script.composerText ?? notionAiThreadRotationSeedMessage } as T
+      }
+      if (expression.includes("present")) {
+        calls.push("send-presence")
+        const scripted = script.sendPresence?.shift()
+        return { present: scripted ?? true } as T
       }
       if (expression.includes("aria-label")) {
         calls.push("send")
@@ -126,6 +133,34 @@ describe("rotateNotionAiThread", () => {
       stage: "send-seed",
       detail: "disabled",
     })
+  })
+
+  it("waits for the seed's own reply before reporting the thread usable", async () => {
+    // Notion hides the send control while it streams, and an inference posted during that stream
+    // comes back with zero bytes — which is how the first live rotation lost its retry.
+    const page = fakePage({
+      hrefs: [oldThreadUrl, newThreadUrl],
+      sendPresence: [false, false, true],
+    })
+
+    const result = await rotateNotionAiThread(page)
+
+    expect(result.ok).toBe(true)
+    expect(page.calls.filter((call) => call === "send-presence")).toHaveLength(3)
+  })
+
+  it("reports the thread anyway when the reply never settles", async () => {
+    let clock = 0
+    const page = fakePage({ hrefs: [oldThreadUrl, newThreadUrl], sendPresence: Array(50).fill(false) })
+
+    const result = await rotateNotionAiThread({
+      ...page,
+      now: () => (clock += 5000),
+      timeouts: { awaitIdleMs: 10000 },
+    })
+
+    // The thread exists and is usable next request; only this request's retry is at risk.
+    expect(result).toMatchObject({ ok: true, threadUrl: newThreadUrl })
   })
 
   it("gives up when Notion never mints a new thread", async () => {
