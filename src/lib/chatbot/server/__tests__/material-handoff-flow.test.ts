@@ -66,6 +66,29 @@ describe("material handoff before Booking Order", () => {
     })
   })
 
+  it("recovers answers after legacy Notion AI wording for contents and method", () => {
+    const withContents = applyMaterialHandoffAnswer({
+      conversationState: readyState(),
+      previousAssistantMessage:
+        "次に、どの素材を共有いただく予定かを確認します。撮影素材一式、使用クリップのみ、ProRes書き出しなど、現時点の予定で大丈夫です。",
+      latestUserMessage: "ProRes書き出しと撮影素材の使用クリップです",
+    })
+    const complete = applyMaterialHandoffAnswer({
+      conversationState: withContents,
+      previousAssistantMessage: "素材はどの方法でお渡しいただく予定ですか？",
+      latestUserMessage: "選択: アップローダー・クラウド共有",
+    })
+
+    expect(complete).toMatchObject({
+      hasMaterialDetails: true,
+      hasMaterialHandoff: true,
+      materialHandoff: {
+        contents: "ProRes書き出しと撮影素材の使用クリップです",
+        method: "アップローダー・クラウド共有",
+      },
+    })
+  })
+
   it("asks what material will be sent first", () => {
     expect(decideRoutingFallback({ jobContext, conversationState: readyState() })).toMatchObject({
       kind: "continue",
