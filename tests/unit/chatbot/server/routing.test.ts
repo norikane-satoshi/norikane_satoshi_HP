@@ -13,7 +13,6 @@ import {
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
-  complexConversationTurnThreshold,
   settledConversationTurnThreshold,
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
@@ -340,26 +339,26 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("routes incomplete complex conversations to direct contact at the threshold", () => {
+  it("keeps a long incomplete intake on the next required question", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
-        turnCount: complexConversationTurnThreshold,
+        turnCount: 24,
         hasMaterialDetails: false,
         materialHandoff: undefined,
       }),
     })
 
     expect(result).toMatchObject({
-      kind: "to-direct-contact",
-      reason: "complex",
+      kind: "continue",
+      nextQuestion: expect.stringMatching(/何の素材/u),
     })
   })
 
   it("keeps a complete complex intake on the Booking Order confirmation path", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
-      conversationState: conversationState({ turnCount: complexConversationTurnThreshold }),
+      conversationState: conversationState({ turnCount: 24 }),
     })
 
     expect(result).toMatchObject({

@@ -9,7 +9,6 @@ import {
   projectLengthChoicesForJobKind,
 } from "@/lib/chatbot/domain"
 import {
-  complexConversationTurnThreshold,
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
@@ -79,16 +78,7 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
   const protectiveTopic = detectProtectiveTopic(input.latestUserMessage)
   if (protectiveTopic) return directContact(protectiveTopic, jobContext)
 
-  const continuation = continueDecision({ conversationState, jobContext, now: input.now })
-  const isReadyForBookingConfirmation =
-    continuation.kind === "continue" &&
-    continuation.presentChoices?.id === bookingFinalConfirmationChoices.id
-
-  if (conversationState.turnCount >= complexConversationTurnThreshold && !isReadyForBookingConfirmation) {
-    return directContact("complex")
-  }
-
-  return continuation
+  return continueDecision({ conversationState, jobContext, now: input.now })
 }
 
 function directContact(
