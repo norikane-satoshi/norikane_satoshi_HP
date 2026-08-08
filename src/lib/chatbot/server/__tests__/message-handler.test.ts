@@ -2388,6 +2388,34 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.generate.mock.calls[0]?.[0].conversationState.bookingFinalConfirmation).toBeUndefined()
   })
 
+  it("returns a customer display name from a natural self-introduction", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("田中テストさま、ありがとうございます。"),
+      tier: "tier-1-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "私の名前は田中テストです。",
+      },
+      harness.options,
+    )
+
+    expect(result.customerDisplayName).toBe("田中テスト")
+    expect(result.inquiryPrefill.name).toBe("田中テスト")
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationState: expect.objectContaining({
+          customerName: "田中テスト",
+          hasCustomerIdentity: true,
+        }),
+      }),
+    )
+  })
+
   it("does not let stale hosted tool args override confirmed session identity", async () => {
     const harness = setup({
       existingConversation: conversation({

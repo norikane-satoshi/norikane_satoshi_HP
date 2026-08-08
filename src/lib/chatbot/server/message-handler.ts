@@ -575,13 +575,30 @@ export async function handleChatbotMessage(
     pendingRecovery: isPendingRequestRecovery,
     pendingRequestKind: input.pendingRequestKind,
   })
-  if (routingDecision || submittedBooking) {
+  const storedConversationState = conversation.context.conversationState ?? {}
+  const customerIdentityChanged =
+    persistedConversationState.customerName !== storedConversationState.customerName ||
+    persistedConversationState.companyName !== storedConversationState.companyName ||
+    persistedConversationState.contactEmail !== storedConversationState.contactEmail ||
+    persistedConversationState.hasCustomerIdentity !== storedConversationState.hasCustomerIdentity ||
+    persistedConversationState.hasContactEmail !== storedConversationState.hasContactEmail
+  if (routingDecision || submittedBooking || customerIdentityChanged) {
     try {
       await repository.updateConversationRouting({
         conversationId: conversation.id,
-        routingDecision: routingDecision?.kind ?? "continue",
-        currentQuestion: routingDecision?.kind === "continue" ? routingDecision.nextQuestion : null,
-        activeChoices: routingDecision?.kind === "continue" ? routingDecision.presentChoices ?? null : null,
+        routingDecision: routingDecision?.kind ?? conversation.context.routingDecision?.kind ?? "continue",
+        currentQuestion:
+          routingDecision?.kind === "continue"
+            ? routingDecision.nextQuestion
+            : routingDecision
+              ? null
+              : conversation.context.currentQuestion ?? null,
+        activeChoices:
+          routingDecision?.kind === "continue"
+            ? routingDecision.presentChoices ?? null
+            : routingDecision
+              ? null
+              : conversation.context.activeChoices ?? null,
         conversationState: persistedConversationState,
         jobContext,
       })
@@ -1418,15 +1435,16 @@ function extractLabeledBookingValue(content: string, labels: string[], maxLength
   ]
   const labelPattern = labels.map(escapeRegExp).join("|")
   const nextLabelPattern = allLabels.map(escapeRegExp).join("|")
+  const ownerPrefixPattern = "(?:私の|わたしの|僕の|自分の)?"
   const quotedPattern = new RegExp(
-    `(?:^|[\\s\\n,、。;；])(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']([^」』"']{1,${maxLength}})[」』"']\\s*(?:です|でございます|になります|でお願いします|でお願いいたします)?(?=[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=))`,
+    `(?:^|[\\s\\n,、。;；])${ownerPrefixPattern}(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']([^」』"']{1,${maxLength}})[」』"']\\s*(?:です|でございます|になります|でお願いします|でお願いいたします)?(?=[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=))`,
     "iu",
   )
   const quotedValue = normalizeFreeTextBookingValue(quotedPattern.exec(normalized)?.[1], maxLength)
   if (quotedValue && !isEmptyBookingFieldAnswer(quotedValue)) return quotedValue
 
   const pattern = new RegExp(
-    `(?:^|[\\s\\n,、。;；])(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']?([\\s\\S]{1,${Math.max(maxLength, 160)}}?)(?=[」』"']?(?:[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=)))`,
+    `(?:^|[\\s\\n,、。;；])${ownerPrefixPattern}(?:${labelPattern})\\s*(?:は|です|は、|は:|は：|:|：|=)?\\s*[「『"']?([\\s\\S]{1,${Math.max(maxLength, 160)}}?)(?=[」』"']?(?:[\\n,、。;；]|$|(?:${nextLabelPattern})\\s*(?:は|:|：|=)))`,
     "iu",
   )
   const value = normalizeFreeTextBookingValue(pattern.exec(normalized)?.[1], maxLength)
