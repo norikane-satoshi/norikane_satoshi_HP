@@ -131,6 +131,12 @@ describe("google-calendar helpers", () => {
               end: { dateTime: "2026-06-21T02:00:00.000Z" },
               extendedProperties: { private: { notion_page_id: "b56f93d2-80bc-4fe6-8365-a63b1f2ab732" } },
             },
+            {
+              // JST 0:00 → 0:00 の dateTime ミラーも実質終日なので Notion 経路に任せる。
+              start: { dateTime: "2026-06-22T00:00:00+09:00" },
+              end: { dateTime: "2026-06-23T00:00:00+09:00" },
+              extendedProperties: { private: { notion_page_id: "3b413ee3-141a-8114-a4ec-c6223d41d186" } },
+            },
           ],
         },
       })

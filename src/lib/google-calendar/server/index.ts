@@ -206,12 +206,28 @@ function toJstMidnightIso(date: string | null | undefined): string | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
 }
 
+const JST_MIDNIGHT_DATETIME = /T00:00(:00(\.\d+)?)?\+09:00$/
+
+// 終日は日付フィールドだけとは限らない。IB_仕事 の【仮キープ】は JST 0:00 → 0:00 の
+// dateTime としてミラーされることがあり、これも時刻の幅を持たない終日枠である。
+function isAllDayEvent(event: {
+  start?: { date?: string | null; dateTime?: string | null } | null
+  end?: { date?: string | null; dateTime?: string | null } | null
+}): boolean {
+  const start = event.start?.dateTime
+  const end = event.end?.dateTime
+  if (!start) return Boolean(event.start?.date)
+  if (!end) return false
+  if (!JST_MIDNIGHT_DATETIME.test(start) || !JST_MIDNIGHT_DATETIME.test(end)) return false
+  return new Date(end).getTime() > new Date(start).getTime()
+}
+
 function isNotionMirroredAllDayEvent(event: {
   start?: { date?: string | null; dateTime?: string | null } | null
+  end?: { date?: string | null; dateTime?: string | null } | null
   extendedProperties?: { private?: Record<string, string> | null } | null
 }): boolean {
-  const isAllDay = !event.start?.dateTime && Boolean(event.start?.date)
-  return isAllDay && Boolean(event.extendedProperties?.private?.notion_page_id)
+  return isAllDayEvent(event) && Boolean(event.extendedProperties?.private?.notion_page_id)
 }
 
 export async function listBusyEventsWithBuffer(

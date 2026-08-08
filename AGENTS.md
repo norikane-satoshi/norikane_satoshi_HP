@@ -98,8 +98,9 @@ Verification dev servers (`pnpm next dev`, etc.) launched during a cc-notion ses
   `getNotionWorkTentativeDateKeys`。どちらも IB_仕事 を直接読む。
 - GCal の終日イベントのうち `extendedProperties.private.notion_page_id` を持つものは
   IB_仕事 のミラーなので busy から除外する。GCal 側からは仮押さえと本予約を区別できず、
-  タスク種別を知っている Notion 経路だけを権威にするため。時間指定のミラーは意味が
-  一意なので除外しない。
+  タスク種別を知っている Notion 経路だけを権威にするため。ここでの「終日」も上と同じ
+  定義で、`start.date` のミラーだけでなく JST 0:00 → 0:00 の `dateTime` ミラーも含む
+  （`isAllDayEvent`）。時間指定のミラーは意味が一意なので除外しない。
 - GCal の終日イベントは `start.date` / `end.date` しか持たないので、busy へ載せる前に
   JST 0:00 起点の ISO へ正規化する。日付文字列のまま流すと `new Date()` が UTC 解釈して
   9 時間ずれる。
