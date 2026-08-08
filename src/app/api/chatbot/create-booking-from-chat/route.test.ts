@@ -47,12 +47,19 @@ async function loadPost() {
     },
   })
   const linkChatToBookingGroup = vi.fn().mockResolvedValue(undefined)
+  const loadConversationById = vi.fn().mockResolvedValue({
+    id: "conv_1",
+    context: { sessionId: "session_1" },
+    messages: [],
+  })
   const sendChatbotBookingOwnerNotification = vi.fn().mockResolvedValue({ skipped: false, id: "email_1" })
+  const notifyChatbotSlack = vi.fn().mockResolvedValue({ status: "skipped", reason: "missing-env" })
 
   vi.doMock("@/lib/prisma", () => ({ prisma }))
   vi.doMock("@/lib/booking/server/create-booking", () => ({ createBookingFromApiInput }))
   vi.doMock("@/lib/booking/server/email", () => ({ sendChatbotBookingOwnerNotification }))
-  vi.doMock("@/lib/chatbot/server/repository", () => ({ linkChatToBookingGroup }))
+  vi.doMock("@/lib/chatbot/server/repository", () => ({ linkChatToBookingGroup, loadConversationById }))
+  vi.doMock("@/lib/chatbot/server/slack-notification", () => ({ notifyChatbotSlack }))
 
   const route = await import("./route")
   return {
@@ -60,7 +67,9 @@ async function loadPost() {
     prisma,
     createBookingFromApiInput,
     linkChatToBookingGroup,
+    loadConversationById,
     sendChatbotBookingOwnerNotification,
+    notifyChatbotSlack,
   }
 }
 
@@ -287,6 +296,29 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(route.linkChatToBookingGroup).toHaveBeenCalledWith({
       conversationId: "conv_1",
       bookingGroupId: "group_1",
+    })
+  })
+
+  it("summarizes a completed Booking Order into the chatbot Slack thread", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request(validChatBooking()))
+
+    expect(response.status).toBe(200)
+    expect(route.notifyChatbotSlack).toHaveBeenCalledWith({
+      kind: "booking-order",
+      conversationId: "conv_1",
+      sessionId: "session_1",
+      bookingGroupId: "group_1",
+      bookingStatus: "CONFIRMED",
+      projectTitle: "Color grading",
+      contactEmail: "client@example.com",
+      problems: [
+        {
+          code: "booking-order-completed",
+          reason: "Booking Order was submitted from chatbot.",
+        },
+      ],
     })
   })
 

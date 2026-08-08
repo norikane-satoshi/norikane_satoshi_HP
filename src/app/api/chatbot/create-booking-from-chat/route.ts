@@ -11,7 +11,8 @@ import {
   logChatbotOperationFailure,
   respondChatbotOperationFailure,
 } from "@/lib/chatbot/server/operation-failure"
-import { linkChatToBookingGroup } from "@/lib/chatbot/server/repository"
+import { linkChatToBookingGroup, loadConversationById } from "@/lib/chatbot/server/repository"
+import { notifyChatbotSlack, type ChatbotSlackProblem } from "@/lib/chatbot/server/slack-notification"
 import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
@@ -224,6 +225,15 @@ export async function POST(request: NextRequest) {
           bookingGroupId,
           error: error instanceof Error ? error.message : String(error),
         })
+        await notifyBookingSlackSafely({
+          conversationId: parsed.data.conversationId,
+          bookingGroupId,
+          bookingStatus: readStringField(responseBody, "bookingStatus") ?? readStringField(responseBody, "status"),
+          projectTitle: parsed.data.projectTitle,
+          contactEmail: parsed.data.contactEmail,
+          problems: [{ code: "booking-order-failed", reason: "Booking was created but chat conversation link failed." }],
+          includeCompletedProblem: true,
+        })
         return NextResponse.json(bodyWithLinkWarning(responseBody), {
           status: result.status,
           headers: result.headers,
@@ -231,11 +241,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (result.status >= 200 && result.status < 300 && bookingGroupId && parsed.data.conversationId) {
+      await notifyBookingSlackSafely({
+        conversationId: parsed.data.conversationId,
+        bookingGroupId,
+        bookingStatus: readStringField(responseBody, "bookingStatus") ?? readStringField(responseBody, "status"),
+        projectTitle: parsed.data.projectTitle,
+        contactEmail: parsed.data.contactEmail,
+        includeCompletedProblem: true,
+        problems: responseHasOwnerNotificationWarning(responseBody)
+          ? [{ code: "email-send-failed", reason: "Booking owner email notification failed or was skipped." }]
+          : [],
+      })
+    }
+
     return NextResponse.json(responseBody, { status: result.status, headers: result.headers })
   } catch (error) {
     if (error instanceof BookingConflictError) {
+      await notifyBookingProblemSlackSafely(parsed.data.conversationId, {
+        code: "booking-order-failed",
+        reason: "Booking slot conflict.",
+      })
       return NextResponse.json({ error: error.message }, { status: 409 })
     }
+    await notifyBookingProblemSlackSafely(parsed.data.conversationId, {
+      code: "booking-order-failed",
+      reason: error instanceof Error ? error.message : "booking-save failed.",
+    })
     return respondChatbotOperationFailure({
       operation: "create-booking-from-chat",
       stage: "booking-save",
@@ -247,4 +279,69 @@ export async function POST(request: NextRequest) {
       },
     })
   }
+}
+
+async function notifyBookingSlackSafely(input: {
+  conversationId: string
+  bookingGroupId: string
+  bookingStatus?: string | null
+  projectTitle: string
+  contactEmail: string
+  problems: ChatbotSlackProblem[]
+  includeCompletedProblem?: boolean
+}): Promise<void> {
+  try {
+    const conversation = await loadConversationById(input.conversationId)
+    const result = await notifyChatbotSlack({
+      kind: "booking-order",
+      conversationId: input.conversationId,
+      sessionId: conversation?.context.sessionId,
+      bookingGroupId: input.bookingGroupId,
+      bookingStatus: input.bookingStatus ?? undefined,
+      projectTitle: input.projectTitle,
+      contactEmail: input.contactEmail,
+      problems: [
+        ...(input.includeCompletedProblem
+          ? [{ code: "booking-order-completed" as const, reason: "Booking Order was submitted from chatbot." }]
+          : []),
+        ...input.problems,
+      ],
+    })
+    if (result.status === "failed") {
+      console.warn("[chatbot slack notification warning]", {
+        conversationId: input.conversationId,
+        reason: result.reason,
+      })
+    }
+  } catch (error) {
+    console.warn("[chatbot slack notification warning]", {
+      conversationId: input.conversationId,
+      reason: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+async function notifyBookingProblemSlackSafely(
+  conversationId: string | undefined,
+  problem: ChatbotSlackProblem,
+): Promise<void> {
+  if (!conversationId) return
+  await notifyBookingSlackSafely({
+    conversationId,
+    bookingGroupId: "-",
+    projectTitle: "-",
+    contactEmail: "-",
+    problems: [problem],
+  })
+}
+
+function responseHasOwnerNotificationWarning(body: unknown): boolean {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false
+  return "ownerNotificationWarning" in body
+}
+
+function readStringField(body: unknown, key: string): string | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null
+  const value = (body as Record<string, unknown>)[key]
+  return typeof value === "string" ? value : null
 }

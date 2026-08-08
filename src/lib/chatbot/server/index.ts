@@ -8,12 +8,15 @@ export {
   createConversation,
   linkChatToBookingGroup,
   linkConversationToUser,
+  loadConversationSlackThread,
   loadConversationBySessionId,
   recordInquiry,
   recordSurveyResponse,
+  saveConversationSlackThread,
   truncateConversationFromMessage,
   updateConversationRouting,
 } from "@/lib/chatbot/server/repository"
+export type { ChatbotSlackThreadMetadata } from "@/lib/chatbot/server/repository"
 export {
   applyAdditionalWorkAdjustment,
   applyWorkSiteAdjustment,
@@ -82,3 +85,14 @@ export {
   loadUserChatbotContext,
 } from "@/lib/chatbot/server/user-context-loader"
 export type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"
+export {
+  buildTierProblems,
+  detectUnpublishedNoteUrlProblems,
+  getSlackNotificationConfig,
+  notifyChatbotSlack,
+} from "@/lib/chatbot/server/slack-notification"
+export type {
+  ChatbotSlackNotificationEvent,
+  ChatbotSlackNotificationResult,
+  ChatbotSlackProblem,
+} from "@/lib/chatbot/server/slack-notification"

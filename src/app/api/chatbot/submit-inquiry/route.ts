@@ -8,6 +8,7 @@ import {
 } from "@/lib/chatbot/server/operator-notification"
 import { logChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
 import { appendMessage, loadConversationById } from "@/lib/chatbot/server/repository"
+import { notifyChatbotSlack } from "@/lib/chatbot/server/slack-notification"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
           emailDomain: input.email.split("@")[1] ?? null,
         },
       })
+      await notifyInquiryEmailFailureSlackSafely(conversation, input.conversationId, "operator_notification_send_failed")
       return NextResponse.json({ ok: true, emailWarning: "send_failed" })
     }
     return NextResponse.json({ ok: true })
@@ -102,6 +104,11 @@ export async function POST(request: NextRequest) {
         emailDomain: input.email.split("@")[1] ?? null,
       },
     })
+    await notifyInquiryEmailFailureSlackSafely(
+      conversation,
+      input.conversationId,
+      error instanceof Error ? error.message : "operator_notification_send_failed",
+    )
     return NextResponse.json({ ok: true, emailWarning: "send_failed" })
   }
 }
@@ -154,6 +161,35 @@ async function appendInquiryMessage(input: z.infer<typeof inquiryRequestSchema>)
         conversationId: input.conversationId,
         emailDomain: input.email.split("@")[1] ?? null,
       },
+    })
+  }
+}
+
+async function notifyInquiryEmailFailureSlackSafely(
+  conversation: Awaited<ReturnType<typeof loadInquiryConversation>>,
+  conversationId: string | undefined,
+  reason: string,
+): Promise<void> {
+  if (!conversationId) return
+  try {
+    const result = await notifyChatbotSlack({
+      kind: "problem",
+      conversationId,
+      sessionId: conversation?.context.sessionId,
+      operation: "submit-inquiry",
+      stage: "notification-send",
+      problems: [{ code: "email-send-failed", reason }],
+    })
+    if (result.status === "failed") {
+      console.warn("[chatbot slack notification warning]", {
+        conversationId,
+        reason: result.reason,
+      })
+    }
+  } catch (error) {
+    console.warn("[chatbot slack notification warning]", {
+      conversationId,
+      reason: error instanceof Error ? error.message : String(error),
     })
   }
 }

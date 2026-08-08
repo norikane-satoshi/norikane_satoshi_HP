@@ -275,6 +275,50 @@ export async function linkChatToBookingGroup(input: {
   })
 }
 
+export type ChatbotSlackThreadMetadata = {
+  conversationId: string
+  sessionId: string
+  channelId: string | null
+  threadTs: string | null
+}
+
+export async function loadConversationSlackThread(
+  conversationId: string,
+): Promise<ChatbotSlackThreadMetadata | null> {
+  const row = await prisma.chatbotConversation.findUnique({
+    where: { id: conversationId },
+    select: {
+      id: true,
+      sessionId: true,
+      slackChannelId: true,
+      slackThreadTs: true,
+    },
+  })
+
+  if (!row) return null
+  return {
+    conversationId: row.id,
+    sessionId: row.sessionId,
+    channelId: row.slackChannelId,
+    threadTs: row.slackThreadTs,
+  }
+}
+
+export async function saveConversationSlackThread(input: {
+  conversationId: string
+  channelId: string
+  threadTs: string
+}): Promise<void> {
+  await prisma.chatbotConversation.update({
+    where: { id: input.conversationId },
+    data: {
+      slackChannelId: input.channelId,
+      slackThreadTs: input.threadTs,
+      slackNotifiedAt: new Date(),
+    },
+  })
+}
+
 function toDomainConversation(row: ChatbotConversationRow): ChatbotConversation {
   const routingDecisionKind = toRoutingDecisionKind(row.routingDecision)
   const jobContext = toJobContext(row)

@@ -55,6 +55,12 @@ import {
   isLectureTrainingInquiry,
 } from "@/lib/chatbot/server/lecture-training"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
+import {
+  buildTierProblems,
+  detectUnpublishedNoteUrlProblems,
+  notifyChatbotSlack,
+  type ChatbotSlackNotificationResult,
+} from "@/lib/chatbot/server/slack-notification"
 
 type ChatbotMessageUi =
   | { kind: "none" }
@@ -118,6 +124,7 @@ type HandleChatbotMessageOptions = {
   userContextFormatter?: typeof formatUserChatbotContextForPrompt
   candidateWindowFinder?: CandidateWindowFinder
   knowledgeSnapshotLoader?: typeof loadLatestChatbotKnowledgeSnapshot
+  slackNotifier?: typeof notifyChatbotSlack
 }
 
 export class ChatbotMessagePersistenceError extends Error {
@@ -167,6 +174,8 @@ export async function handleChatbotMessage(
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
   const candidateWindowFinder = options.candidateWindowFinder ?? findCandidateCalendar
   const knowledgeSnapshotLoader = options.knowledgeSnapshotLoader ?? loadLatestChatbotKnowledgeSnapshot
+  const slackNotifier = options.slackNotifier ?? notifyChatbotSlack
+  const tierAttempts: TierAttemptEvent[] = []
   let conversation =
     (await repository.loadConversationBySessionId(input.sessionId)) ??
     (await repository.createConversation({ sessionId: input.sessionId, userId: input.userId ?? null }))
@@ -181,6 +190,7 @@ export async function handleChatbotMessage(
   }
 
   const isEditRequest = Boolean(input.editTargetMessageId)
+  let editStateReset = false
   if (input.editTargetMessageId) {
     const targetIndex = conversation.messages.findIndex((message) => message.id === input.editTargetMessageId)
     if (targetIndex === -1) {
@@ -197,6 +207,7 @@ export async function handleChatbotMessage(
       } else {
         conversation = resetEditedConversationContext(conversation, [])
       }
+      editStateReset = true
     } else {
       await repository.truncateConversationFromMessage({
         conversationId: conversation.id,
@@ -218,6 +229,20 @@ export async function handleChatbotMessage(
       role: "assistant",
       content: assistantNameAnswer,
     })
+    await notifySlackSafely(
+      slackNotifier({
+        kind: "conversation",
+        requestId: input.requestId,
+        conversationId: conversation.id,
+        sessionId: conversation.context.sessionId,
+        userMessage: input.message,
+        assistantMessage: assistantNameAnswer,
+        tier: "local-deterministic",
+        routingDecisionKind: "continue",
+        uiKind: "none",
+      }),
+      conversation.id,
+    )
     return {
       conversationId: conversation.id,
       userMessage: {
@@ -287,6 +312,7 @@ export async function handleChatbotMessage(
       sessionId: conversation.context.sessionId,
       conversationId: conversation.id,
       latestUserMessage: input.message,
+      tierAttempts,
     })
   const llmResponse = await orchestrator.generate({
     systemPrompt,
@@ -371,6 +397,39 @@ export async function handleChatbotMessage(
       })
     }
   }
+  const problems = [
+    ...buildTierProblems({ tier: llmResponse.tier, tierAttempts }),
+    ...detectUnpublishedNoteUrlProblems({
+      assistantMessage: assistantContent,
+      publishedSlugs: knowledgeSnapshot.noteKnowledge
+        .filter((entry) => entry.status === "published" && entry.slug)
+        .map((entry) => entry.slug as string),
+    }),
+    ...(editStateReset
+      ? [
+          {
+            code: "session-state-reset" as const,
+            reason: "Edit target was not found in stored messages; server reset conversation state from the last safe user turn.",
+          },
+        ]
+      : []),
+  ]
+  await notifySlackSafely(
+    slackNotifier({
+      kind: "conversation",
+      requestId: input.requestId,
+      conversationId: conversation.id,
+      sessionId: conversation.context.sessionId,
+      userMessage: input.message,
+      assistantMessage: assistantContent,
+      tier: llmResponse.tier,
+      routingDecisionKind: routingDecision?.kind,
+      uiKind: ui.kind,
+      tierAttempts,
+      problems,
+    }),
+    conversation.id,
+  )
 
   return {
     conversationId: conversation.id,
@@ -432,7 +491,10 @@ function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogConte
   ]
   return createChatbotLlmTierOrchestrator({
     clients,
-    onTierAttempt: (event) => logChatbotLlmTierAttempt(context, event),
+    onTierAttempt: (event) => {
+      context.tierAttempts?.push(event)
+      logChatbotLlmTierAttempt(context, event)
+    },
   })
 }
 
@@ -441,6 +503,27 @@ type ChatbotTierAttemptLogContext = {
   conversationId: string
   sessionId: string
   latestUserMessage: string
+  tierAttempts?: TierAttemptEvent[]
+}
+
+async function notifySlackSafely(
+  promise: Promise<ChatbotSlackNotificationResult>,
+  conversationId: string,
+): Promise<void> {
+  try {
+    const result = await promise
+    if (result.status === "failed") {
+      console.warn("[chatbot slack notification warning]", {
+        conversationId,
+        reason: result.reason,
+      })
+    }
+  } catch (error) {
+    console.warn("[chatbot slack notification warning]", {
+      conversationId,
+      reason: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 function buildChatbotSystemPrompt(

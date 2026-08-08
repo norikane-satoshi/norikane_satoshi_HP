@@ -213,6 +213,9 @@ model ChatbotConversation {
   attachments     String?
   additionalWork  String?
   referenceUrls   String?
+  slackThreadTs   String?
+  slackChannelId  String?
+  slackNotifiedAt DateTime?
   ndaFlag         Boolean                 @default(false)
   messages        ChatbotMessage[]
   inquiry         ChatbotInquiry?

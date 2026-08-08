@@ -104,6 +104,7 @@ function setup(overrides: {
       label: "2026-07-01",
     },
   ] satisfies CandidateWindow[])
+  const slackNotifier = vi.fn().mockResolvedValue({ status: "skipped", reason: "missing-env" })
 
   return {
     repository,
@@ -111,12 +112,14 @@ function setup(overrides: {
     userContextLoader,
     userContextFormatter,
     candidateWindowFinder,
+    slackNotifier,
     options: {
       repository,
       orchestratorFactory: () => ({ generate, isHealthy: vi.fn() }),
       userContextLoader,
       userContextFormatter,
       candidateWindowFinder,
+      slackNotifier,
     },
   }
 }
@@ -164,6 +167,34 @@ describe("handleChatbotMessage user context", () => {
         conversationId: "conv_1",
         userMessage: expect.objectContaining({ role: "user", content: "相談です" }),
         assistantMessage: expect.objectContaining({ content: "返信です" }),
+      }),
+    )
+  })
+
+  it("notifies Slack with conversation ids, tier, and fallback problem signals after a successful reply", async () => {
+    const harness = setup()
+    harness.generate.mockResolvedValueOnce({
+      rawText: "フォームで受け付けます",
+      tier: "tier-4-form-fallback",
+    })
+
+    await handleChatbotMessage(
+      { requestId: "req_1", sessionId: "session_1", userId: "user_a", message: "相談です" },
+      harness.options,
+    )
+
+    expect(harness.slackNotifier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "conversation",
+        requestId: "req_1",
+        conversationId: "conv_1",
+        sessionId: "session_1",
+        userMessage: "相談です",
+        assistantMessage: "フォームで受け付けます",
+        tier: "tier-4-form-fallback",
+        problems: expect.arrayContaining([
+          expect.objectContaining({ code: "tier4-fallback" }),
+        ]),
       }),
     )
   })

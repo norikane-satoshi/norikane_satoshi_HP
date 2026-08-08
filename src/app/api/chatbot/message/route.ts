@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { enforceBodyLimit } from "@/lib/api/server/body-limit"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { respondChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
+import { notifyChatbotSlack } from "@/lib/chatbot/server/slack-notification"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -81,10 +82,18 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error) {
     const taggedError = error instanceof Error ? (error as ChatbotFailureTaggedError) : undefined
+    const stage = classifyMessageFailureStage(error)
+    await notifyMessageFailureSlackSafely({
+      requestId,
+      conversationId: parsed.data.conversationId,
+      sessionId,
+      stage,
+      error,
+    })
     return respondChatbotOperationFailure({
       operation: "message",
       requestId,
-      stage: classifyMessageFailureStage(error),
+      stage,
       error,
       requestSummary: {
         requestId,
@@ -111,4 +120,43 @@ function classifyMessageFailureStage(error: unknown) {
     if (error.stack?.includes("appendMessage")) return "conversation-save"
   }
   return "server-handler"
+}
+
+async function notifyMessageFailureSlackSafely(input: {
+  requestId: string
+  conversationId?: string
+  sessionId: string
+  stage: ReturnType<typeof classifyMessageFailureStage>
+  error: unknown
+}): Promise<void> {
+  if (!input.conversationId) return
+  const errorMessage = input.error instanceof Error ? input.error.message : String(input.error)
+  const code = errorMessage.toLowerCase().includes("timeout")
+    ? "timeout"
+    : input.stage === "tier-orchestrator"
+      ? "ai-response-failed"
+      : "communication-failed"
+  try {
+    const result = await notifyChatbotSlack({
+      kind: "problem",
+      requestId: input.requestId,
+      conversationId: input.conversationId,
+      sessionId: input.sessionId,
+      operation: "message",
+      stage: input.stage,
+      status: 500,
+      problems: [{ code, reason: errorMessage }],
+    })
+    if (result.status === "failed") {
+      console.warn("[chatbot slack notification warning]", {
+        conversationId: input.conversationId,
+        reason: result.reason,
+      })
+    }
+  } catch (error) {
+    console.warn("[chatbot slack notification warning]", {
+      conversationId: input.conversationId,
+      reason: error instanceof Error ? error.message : String(error),
+    })
+  }
 }

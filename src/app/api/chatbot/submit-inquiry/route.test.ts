@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   hasSentOperatorNotification: vi.fn(),
   appendMessage: vi.fn(),
   loadConversationById: vi.fn(),
+  notifyChatbotSlack: vi.fn(),
 }))
 
 vi.mock("@/lib/chatbot/server/operator-notification", () => ({
@@ -16,6 +17,10 @@ vi.mock("@/lib/chatbot/server/operator-notification", () => ({
 vi.mock("@/lib/chatbot/server/repository", () => ({
   appendMessage: mocks.appendMessage,
   loadConversationById: mocks.loadConversationById,
+}))
+
+vi.mock("@/lib/chatbot/server/slack-notification", () => ({
+  notifyChatbotSlack: mocks.notifyChatbotSlack,
 }))
 
 import { POST } from "./route"
@@ -46,6 +51,7 @@ describe("POST /api/chatbot/submit-inquiry", () => {
     mocks.sendOperatorConsultationNotification.mockResolvedValue({ status: "sent", id: "email_1" })
     mocks.hasSentOperatorNotification.mockReturnValue(false)
     mocks.appendMessage.mockResolvedValue(undefined)
+    mocks.notifyChatbotSlack.mockResolvedValue({ status: "skipped", reason: "missing-env" })
     mocks.loadConversationById.mockResolvedValue({
       id: "conv_1",
       startedAt: "2026-06-05T00:00:00.000Z",
@@ -171,5 +177,18 @@ describe("POST /api/chatbot/submit-inquiry", () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true, emailWarning: "send_failed" })
+    expect(mocks.notifyChatbotSlack).toHaveBeenCalledWith({
+      kind: "problem",
+      conversationId: "conv_1",
+      sessionId: "session_1",
+      operation: "submit-inquiry",
+      stage: "notification-send",
+      problems: [
+        {
+          code: "email-send-failed",
+          reason: "operator_notification_send_failed",
+        },
+      ],
+    })
   })
 })
