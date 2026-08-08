@@ -27,11 +27,11 @@ function jobContext(overrides: Partial<JobContext> = {}): JobContext {
   }
 }
 
-function workflowEstimate(totalMinDays: number): WorkflowEstimate {
+function workflowEstimate(totalMinDays: number, totalMaxDays = totalMinDays): WorkflowEstimate {
   return {
-    stages: [{ stage: "attended", minDays: totalMinDays, maxDays: totalMinDays }],
+    stages: [{ stage: "attended", minDays: totalMinDays, maxDays: totalMaxDays }],
     totalMinDays,
-    totalMaxDays: totalMinDays,
+    totalMaxDays,
     riskFlags: [],
   }
 }
@@ -257,6 +257,36 @@ describe("findCandidateWindows", () => {
     expect(windows[0]?.label).toBe("2026-10-02 単日")
   })
 
+  it("keeps visible-month busy date keys even when candidate search starts later in the month", async () => {
+    const fetcher = freeBusy([
+      {
+        start: "2026-06-12T01:00:00.000Z",
+        end: "2026-06-12T03:00:00.000Z",
+      },
+      {
+        start: "2026-06-16T01:00:00.000Z",
+        end: "2026-06-16T03:00:00.000Z",
+      },
+    ])
+
+    const calendar = await findCandidateCalendar({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(1),
+      notBefore: "2026-06-15",
+      now: new Date("2026-06-01T10:00:00+09:00"),
+      busyMode: "block",
+      freeBusyFetcher: fetcher,
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(fetcher).toHaveBeenCalledWith({
+      from: "2026-05-31T15:00:00.000Z",
+      to: "2026-07-27T01:00:00.000Z",
+    })
+    expect(calendar.busyDateKeys).toEqual(["2026-06-12", "2026-06-16"])
+    expect(calendar.candidates[0]?.label).toBe("2026-06-15 単日")
+  })
+
   it("returns only public busy date keys for timed work rows", async () => {
     mocks.getNotionWorkScheduleBusyIntervals.mockResolvedValueOnce([
       {
@@ -279,6 +309,18 @@ describe("findCandidateWindows", () => {
     expect(calendar.busyDateKeys).toEqual(["2026-10-05", "2026-10-06"])
     expect(JSON.stringify(calendar)).not.toContain("bookingId")
     expect(JSON.stringify(calendar)).not.toContain("Secret")
+  })
+
+  it("uses the workflow estimate maximum day count for booking-selection notes", async () => {
+    const windows = await findCandidateWindows({
+      jobContext: jobContext(),
+      workflowEstimate: workflowEstimate(7, 8),
+      now: NOW_AFTER_STUDIO,
+      freeBusyFetcher: freeBusy(),
+      attendanceConflictResolver: attendance(),
+    })
+
+    expect(windows[0]?.note).toContain("requiredDays=8")
   })
 
   it("keeps scoring reasoning in CandidateWindow.note", async () => {

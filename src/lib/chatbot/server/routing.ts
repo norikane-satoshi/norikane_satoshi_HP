@@ -329,7 +329,7 @@ function buildDateCandidateWindows(jobContext: JobContext) {
   const base = new Date(`${startDate}T10:00:00+09:00`)
   const offsets = [0, 1, 2]
   const estimate = jobContext.workflowEstimate ?? buildWorkflowEstimate(jobContext)
-  const neededDays = Math.max(1, Math.ceil(estimate.totalMinDays))
+  const neededDays = Math.max(1, Math.ceil(estimate.totalMaxDays))
 
   return offsets.map((offset) => {
     const start = new Date(base.getTime() + offset * 24 * 60 * 60 * 1000)

@@ -29,7 +29,7 @@ const candidates: CandidateWindow[] = [
 const estimate: WorkflowEstimate = {
   stages: [],
   totalMinDays: 2,
-  totalMaxDays: 3,
+  totalMaxDays: 2,
   riskFlags: [],
 }
 
@@ -106,6 +106,8 @@ describe("ChatbotBookingCard", () => {
     const busyCell = screen.getByRole("button", { name: "2026-06-12 埋まり" })
     expect(busyCell).toBeDisabled()
     expect(busyCell).toHaveAttribute("data-calendar-state", "busy")
+    expect(busyCell).toHaveTextContent("12")
+    expect(busyCell).not.toHaveTextContent("12日")
     expect(screen.queryByLabelText("仮キープ候補カレンダーの凡例")).not.toBeInTheDocument()
     expect(document.body).not.toHaveTextContent("選択可")
     expect(document.body).not.toHaveTextContent("開始不可")
@@ -113,6 +115,21 @@ describe("ChatbotBookingCard", () => {
     expect(document.body).not.toHaveTextContent("不可")
     expect(document.body).not.toHaveTextContent("Secret")
     expect(document.body).not.toHaveTextContent("Customer")
+  })
+
+  it("shows numeric-only date cells without availability dots or selected check marks", () => {
+    renderCard()
+
+    const startable = screen.getByRole("button", { name: "2026-06-10 選択可" })
+    expect(startable).toHaveTextContent("10")
+    expect(startable).not.toHaveTextContent("10日")
+    expect(startable.querySelector("svg")).toBeNull()
+
+    fireEvent.click(startable)
+    expect(startable).toHaveAttribute("data-selected", "true")
+    expect(startable).toHaveClass("bg-[var(--accent-primary)]")
+    expect(startable).toHaveClass("font-bold")
+    expect(startable.querySelector("svg")).toBeNull()
   })
 
   it("renders the calendar with a Sunday-start weekday header", () => {
@@ -370,6 +387,33 @@ describe("ChatbotBookingCard", () => {
 
     expect(screen.getByText("上限")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "false")
+  })
+
+  it("allows selecting up to the workflow estimate maximum day count", () => {
+    renderCard({
+      estimate: {
+        stages: [],
+        totalMinDays: 2,
+        totalMaxDays: 3,
+        riskFlags: [],
+      },
+      candidates: [
+        ...candidates,
+        {
+          start: "2026-06-12T01:00:00.000Z",
+          end: "2026-06-13T01:00:00.000Z",
+          label: "6月12日 単日",
+        },
+      ],
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-12 選択可" }))
+
+    expect(screen.getAllByText("3／3")).toHaveLength(1)
+    expect(screen.queryByText("上限")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "true")
   })
 
   it("does not render internal candidate notes or booking names in the calendar UI", () => {

@@ -62,14 +62,15 @@ export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<
 
   const lookaheadWeeks = args.lookaheadWeeks ?? DEFAULT_LOOKAHEAD_WEEKS
   const searchFrom = maxDate(startOfJstDay(now), args.notBefore ? parseStartDate(args.notBefore) : null)
+  const busyDisplayFrom = startOfJstMonth(searchFrom)
   const searchTo = new Date(now.getTime() + lookaheadWeeks * 7 * DAY_MS)
   const deadline = args.desiredDeadline ? parseDeadline(args.desiredDeadline) : null
-  const neededDays = Math.max(1, Math.ceil(args.workflowEstimate.totalMinDays))
+  const neededDays = Math.max(1, Math.ceil(args.workflowEstimate.totalMaxDays))
   const fetcher = args.freeBusyFetcher ?? defaultFreeBusyFetcher
   const resolver = args.attendanceConflictResolver ?? defaultAttendanceConflictResolver
 
   const [busyIntervals, attendanceIntervals] = await Promise.all([
-    runFreeBusyFetcher(fetcher, searchFrom, searchTo),
+    runFreeBusyFetcher(fetcher, busyDisplayFrom, searchTo),
     runAttendanceResolver(resolver, searchFrom, searchTo),
   ])
 
@@ -99,7 +100,7 @@ export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<
           "attendanceConflicts=0",
         ].filter(Boolean).join("; "),
       })),
-    busyDateKeys: busyDateKeysFromIntervals(normalizedBusyIntervals, searchFrom, searchTo),
+    busyDateKeys: busyDateKeysFromIntervals(normalizedBusyIntervals, busyDisplayFrom, searchTo),
   }
 }
 
@@ -327,6 +328,11 @@ function overlapMs(a: Interval, b: Interval): number {
 function startOfJstDay(date: Date): Date {
   const parts = getJstDateParts(date)
   return jstDate(parts.year, parts.month, parts.day)
+}
+
+function startOfJstMonth(date: Date): Date {
+  const parts = getJstDateParts(date)
+  return jstDate(parts.year, parts.month, 1)
 }
 
 function maxDate(a: Date, b: Date | null): Date {
