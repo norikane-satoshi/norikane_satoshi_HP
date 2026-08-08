@@ -68,6 +68,41 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(normalized.content).toBe("Web CMのご相談、承りました。\nまず尺を教えてください。")
   })
 
+  it("cuts readable internal reasoning before the customer-facing reply", () => {
+    const normalized = normalizeChatbotLlmResponse({
+      rawText:
+        'user said "特にないですー" (no particular preferences) regarding delivery format/distribution. I need to check what\'s still missing before show_booking_card. 案件名と担当者名が最も重要なので、まずこれらを聞こう。承りました。納品形式はお任せとして進めます。作品名を教えていただけますか？',
+      tier: "tier-1-chrome-notion-ai",
+    })
+
+    expect(normalized.content).toBe(
+      "承りました。納品形式はお任せとして進めます。作品名を教えていただけますか？",
+    )
+    expect(normalized.content).not.toContain("user said")
+    expect(normalized.content).not.toContain("show_booking_card")
+    expect(normalized.content).not.toContain("聞こう")
+  })
+
+  it("falls back to the routing question when readable internal reasoning has no display boundary", () => {
+    const normalized = normalizeChatbotLlmResponse(
+      {
+        rawText:
+          'The user said "特にないです" and I need to check what is still missing before show_booking_card. Looking at the conversation context, I have the required production facts.',
+        tier: "tier-1-chrome-notion-ai",
+      },
+      {
+        routingDecision: {
+          kind: "continue",
+          nextQuestion: "作品名を教えていただけますか？",
+        },
+      },
+    )
+
+    expect(normalized.content).toBe("作品名を教えていただけますか？")
+    expect(normalized.content).not.toContain("The user said")
+    expect(normalized.content).not.toContain("show_booking_card")
+  })
+
   it("replaces overlarge live day ranges with the 150m anchor wording", () => {
     const normalized = normalizeChatbotLlmResponse(
       {

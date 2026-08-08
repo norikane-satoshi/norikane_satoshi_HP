@@ -76,11 +76,15 @@ const opaqueTokenPattern = /(?:[A-Za-z0-9+/=_-]{80,})/gu
 const thinkingSignatureMarkerPattern =
   /\b(?:thinking|signature|encrypted[_ -]?thinking|reasoning[_ -]?(?:content|signature)?|claude[-_\w]*sonnet)\b/iu
 const internalReasoningLinePattern =
-  /^\s*(?:i\s+(?:need|should|will|have to|must|think|can)|we\s+(?:need|should|will|have to|must|can)|let(?:'|’)s|the\s+(?:user|customer)\b|案件名を設けないといけない)/iu
+  /^\s*(?:(?:the\s+)?(?:user|customer)\s+(?:said|says|answered|provided|asked|wants|needs)\b|i\s+(?:need|should|will|have to|must|think|can|have)\b|we\s+(?:need|should|will|have to|must|can)\b|let(?:'|’)s\b|(?:looking at|based on|from)\s+(?:the\s+)?(?:conversation|context)\b|案件名を設けないといけない|(?:案件名|作品名|担当者名).{0,40}(?:最も重要|聞こう|確認しよう))/iu
+const internalReasoningFragmentPattern =
+  /\b(?:show_booking_card|visible conversation|conversation context|what'?s still missing|next (?:i|we) (?:need|should|will|have to|must)|i need to|i should|we need to)\b/iu
 const internalModelCodenamePattern =
   /\b[a-z][a-z0-9]*-[a-z][a-z0-9]*-(?:low|medium|high|fast|thinking|reasoning)\b/giu
 const langPrimaryWrapperPattern = /<lang\s+primary=["']?/iu
 const xmlLikeTagPattern = /<\/?[a-z][a-z0-9_-]*(?:\s+[^<>]*)?>/giu
+const customerFacingStartPattern =
+  /(?:承知(?:しました)?|承りました|ありがとうございます|ご相談ありがとうございます|内容を確認しました|確認しました|候補日を確認しました|まず[、\s]*(?:(?:案件名|作品名|担当者名|会社名|メールアドレス|納品形式|尺|公開先|作業場所|参考URL|追加作業).{0,32}(?:教えて|伺|確認|ください))|(?:案件名|作品名|担当者名|会社名|メールアドレス).{0,32}(?:教えて|伺|ください))/u
 
 function stripUnsafeCustomerFacingArtifacts(rawText: string): {
   text: string
@@ -105,12 +109,13 @@ function stripUnsafeCustomerFacingArtifacts(rawText: string): {
       const opaqueMatches = [...line.matchAll(opaqueTokenPattern)]
       opaqueTokenPattern.lastIndex = 0
       const hasMarker = thinkingSignatureMarkerPattern.test(line)
-      const looksInternal = internalReasoningLinePattern.test(line)
+      const looksInternal = looksLikeInternalReasoning(line)
 
       if (opaqueMatches.length > 0) reasons.add("opaque-token")
       if (hasMarker) reasons.add("thinking-signature-marker")
       if (looksInternal) reasons.add("internal-reasoning-line")
 
+      if (looksInternal) return stripInternalPrefix(line)
       if (opaqueMatches.length > 0 && (hasMarker || looksInternal)) {
         const lastMatch = opaqueMatches.at(-1)
         const tailStart = (lastMatch?.index ?? 0) + (lastMatch?.[0].length ?? 0)
@@ -143,9 +148,26 @@ function stripUnsafeCustomerFacingArtifacts(rawText: string): {
       .join("")
   }
 
+  if (looksLikeInternalReasoning(text)) {
+    reasons.add("internal-reasoning-line")
+    text = stripInternalPrefix(text)
+  }
+
   return {
     text: text.replace(/\s{2,}/gu, " ").trim(),
     detected: reasons.size > 0,
     reasons: [...reasons],
   }
+}
+
+function looksLikeInternalReasoning(text: string): boolean {
+  const normalized = text.replace(/\s+/gu, " ").trim()
+  if (!normalized) return false
+  return internalReasoningLinePattern.test(normalized) || internalReasoningFragmentPattern.test(normalized)
+}
+
+function stripInternalPrefix(text: string): string {
+  const anchor = text.search(customerFacingStartPattern)
+  if (anchor >= 0) return text.slice(anchor)
+  return ""
 }
