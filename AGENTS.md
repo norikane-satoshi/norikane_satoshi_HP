@@ -57,6 +57,17 @@ After code changes:
 - For UI changes, verify desktop and mobile behavior.
 - For diagrams, verify `/notes/<slug>` and confirm the figure remains readable in 5 seconds.
 
+## Repository hygiene lifecycle
+
+- Keep the main checkout on `master`. Fast-forward it to `origin/master` at task start and completion, and implement changes on a dedicated branch / worktree.
+- After integration, verify that the task worktree has no open handles, then remove the clean integrated worktree and its local branch in the same task. Create a WIP preservation branch only for interrupted recovery.
+- Classify local agent runtime state, review candidates, and source material in `.gitignore`. Do not leave unclassified untracked files behind.
+- Run `pnpm repo:hygiene -- --strict` before completion. Claude Code's Stop hook and CI run the same policy checks.
+- Never run raw `vercel env pull` against `.env.local`. Encrypted Vercel values can be returned as empty; use `pnpm env:pull:safe -- --environment=<environment>` so existing non-empty local values survive.
+- If required environment values remain empty, do not add placeholders or application fallbacks. Stop until the authoritative values can be restored from Bitwarden or another secret source.
+
+See `docs/repository-hygiene.md` for the operating procedure.
+
 ## Long-running process lifecycle
 
 Verification dev servers (`pnpm next dev`, etc.) launched during a cc-notion session are owned by Satoshi, not by the session that started them. They are reused across phases for repeated visual verification.

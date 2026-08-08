@@ -11,6 +11,18 @@ permissions:
   pull-requests: write
 
 jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/repo-hygiene.mjs --ci --strict
+      - run: node --test tests/scripts/repo-hygiene.test.mjs
+
   unit:
     runs-on: ubuntu-latest
     steps:

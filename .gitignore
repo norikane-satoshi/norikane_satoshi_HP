@@ -40,6 +40,17 @@ yarn-error.log*
 # local 41238 launchd entrypoint; recreated from docs/chatbot-staging-production-checklist.md
 /scripts/hp-41238-dev.sh
 
+# Agent/runtime workspaces. Keep their configuration and generated state local.
+/.agents/
+/.claire/
+/.claude/worktrees/
+/.codex-worktrees/
+/skills-lock.json
+
+# Local creative source material and generated candidates.
+/design-mockups/_candidates/
+/sozai/
+
 # env files (can opt-in for committing if needed)
 .env*
 
