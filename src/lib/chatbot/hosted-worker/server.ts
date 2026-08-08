@@ -18,6 +18,7 @@ import {
   type HostedWorkerErrorResponse,
   type HostedWorkerGenerateRequest,
 } from "@/lib/chatbot/hosted-worker/types"
+import { primeNotionAiThreadRotationCache } from "@/lib/chatbot/hosted-worker/notion-ai-thread-store"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 
 type HostedWorkerHandlerOptions = {
@@ -57,8 +58,11 @@ export function createHostedWorkerServer(options: HostedWorkerServerOptions = {}
   })
 }
 
-export function startHostedWorkerServer(options: HostedWorkerServerOptions = {}): Promise<Server> {
+export async function startHostedWorkerServer(options: HostedWorkerServerOptions = {}): Promise<Server> {
   assertLoopbackCdpBaseUrl(process.env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL)
+  // Load the rotated thread once at boot so a restart does not send the worker back to the
+  // exhausted thread configuration still names.
+  await primeNotionAiThreadRotationCache()
   const server = createHostedWorkerServer(options)
   const host = options.host ?? process.env.CHATBOT_HOSTED_WORKER_HOST ?? defaultHost
   const port = options.port ?? parsePositiveInteger(process.env.CHATBOT_HOSTED_WORKER_PORT, defaultPort)

@@ -63,7 +63,20 @@ export type HostedWorkerEnsureResult = {
   errorCode?: HostedWorkerEnsureStatus
 }
 
+export type HostedWorkerNotionThreadHealth = {
+  threadId?: string
+  source: string
+  rotation?: {
+    threadId: string
+    rotatedAt: string
+    previousThreadId?: string
+    rotationCount: number
+    retried: boolean
+  }
+}
+
 export type HostedWorkerHealthResponse = HostedWorkerEnsureResult & {
+  notionThread?: HostedWorkerNotionThreadHealth
   tier: typeof hostedWorkerTier
   queue: HostedWorkerQueueState
   healthMode?: "deep" | "quick"

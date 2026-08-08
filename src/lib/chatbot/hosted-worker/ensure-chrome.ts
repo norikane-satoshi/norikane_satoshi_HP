@@ -2,9 +2,7 @@ import { spawn } from "node:child_process"
 import { homedir, platform } from "node:os"
 import path from "node:path"
 
-import {
-  getNotionAiChatbotThreadUrl,
-} from "@/lib/chatbot/hosted-worker/notion-ai-config"
+import { resolveEffectiveNotionAiThreadUrl } from "@/lib/chatbot/hosted-worker/notion-ai-thread-store"
 import {
   createHostedNotionAiBrowserClient,
   isNotionAiChatbotTargetUrl,
@@ -51,10 +49,9 @@ export function resolveHostedWorkerChromeConfig(
 ): HostedWorkerChromeConfig {
   return {
     cdpBaseUrl: env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL ?? hostedNotionAiBrowserDefaults.cdpBaseUrl,
-    targetUrlIncludes:
-      env.CHATBOT_HOSTED_WORKER_NOTION_THREAD_URL ??
-      env.NOTION_AI_CHATBOT_THREAD_URL ??
-      getNotionAiChatbotThreadUrl({ NOTION_AI_CHATBOT_THREAD_URL: env.NOTION_AI_CHATBOT_THREAD_URL }),
+    // Reads the cached rotation so a Chrome relaunch or a fresh tab lands on the thread the worker
+    // actually moved to, not the exhausted one configuration still names.
+    targetUrlIncludes: resolveEffectiveNotionAiThreadUrl({ env }).threadUrl,
     chromeProfileDir:
       env.CHATBOT_HOSTED_WORKER_CHROME_PROFILE_DIR ??
       path.join(homedir(), ".cc-notion", "chrome-profiles", "hosted-worker-notion-ai"),

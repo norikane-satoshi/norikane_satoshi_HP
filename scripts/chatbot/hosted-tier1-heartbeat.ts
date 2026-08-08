@@ -6,7 +6,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 type HeartbeatStatus = "healthy" | "suspect" | "unhealthy"
-type NotificationKind = "unhealthy" | "recovered" | "test"
+type NotificationKind = "unhealthy" | "recovered" | "test" | "thread-rotated"
 type IncidentClass =
   | "none"
   | "chrome_cdp"
@@ -16,6 +16,7 @@ type IncidentClass =
   | "worker_error:invalid-output"
   | "worker_error:rate-limit"
   | "notion_ai_quota_exhausted"
+  | "notion_ai_thread_capacity"
   | "worker_http_502"
   | "http"
   | "timeout"
@@ -31,6 +32,8 @@ export type HeartbeatState = {
   incidentClass?: IncidentClass
   incidentStartedAt?: string
   lastTransientGenerateFailureAt?: string
+  /** Last Notion AI thread the worker reported, so an autonomous rotation is announced once. */
+  lastNotionThreadId?: string
 }
 
 type CheckResult = {
@@ -98,7 +101,11 @@ const defaultWorkerUrl = "http://127.0.0.1:8787"
 const defaultNotificationTo = "norikane.satoshi@gmail.com"
 const defaultTimeoutMs = 10_000
 const defaultGenerateTimeoutMs = 60_000
-const defaultGenerateIntervalMs = 10 * 60_000
+// The generate smoke is what actually grows the Notion AI thread the worker posts from: ~144 turns
+// a day at ten minutes, against a handful of real consultations. Thirty minutes triples the
+// thread's life. Generic outages now escalate in ~30-60 min instead of ~20-25, which is accepted
+// because the incident this trades against — thread capacity — escalates on the first sample.
+export const defaultGenerateIntervalMs = 30 * 60_000
 const defaultNotificationCooldownMs = 60 * 60_000
 const defaultFailureThreshold = 1
 // Notion-side Tier1 outages have run 13-36 minutes (2026-06-17, 06-18, 06-24, 08-06). At the
@@ -124,7 +131,7 @@ export async function runHeartbeat(
   const repairActions: RepairAction[] = []
   const now = deps.now()
 
-  const health = await checkHealth(config, deps.fetch)
+  const { check: health, notionThreadId } = await checkHealth(config, deps.fetch)
   checks.push(health)
 
   let generate: CheckResult | undefined
@@ -173,7 +180,17 @@ export async function runHeartbeat(
     if (repairActions.length > 0) nextState.lastRepairAt = now.toISOString()
   }
 
-  const notification = await maybeNotify(config, previous, nextState, checks, repairActions, deps.fetch, now)
+  // The worker can move itself to a fresh Notion AI thread when the current one runs out of
+  // storage. That is an autonomous change to Satoshi's workspace, so it gets announced once — not
+  // on the first observation, which would page on every new state file.
+  const threadRotated = Boolean(
+    notionThreadId && previous.lastNotionThreadId && notionThreadId !== previous.lastNotionThreadId,
+  )
+  if (notionThreadId) nextState.lastNotionThreadId = notionThreadId
+
+  const notification = threadRotated
+    ? await sendNotification(config, "thread-rotated", checks, repairActions, deps.fetch, now)
+    : await maybeNotify(config, previous, nextState, checks, repairActions, deps.fetch, now)
   if (notification?.status === "sent" || notification?.status === "dry-run") {
     nextState.lastNotificationAt = now.toISOString()
     nextState.lastNotificationKind = notification.kind
@@ -283,14 +300,29 @@ export function buildSmokeRequest() {
   }
 }
 
-async function checkHealth(config: HeartbeatConfig, fetchClient: typeof fetch): Promise<CheckResult> {
+async function checkHealth(
+  config: HeartbeatConfig,
+  fetchClient: typeof fetch,
+): Promise<{ check: CheckResult; notionThreadId?: string }> {
   const response = await requestJson(`${trimTrailingSlash(config.workerUrl)}/health`, config.token, {
     method: "GET",
     timeoutMs: config.timeoutMs,
     fetchClient,
   })
-  if (!response.ok) return { name: "health", ok: false, status: response.status, detail: response.detail, durationMs: response.durationMs }
-  return { ...evaluateHealthResponse(response.status, response.body), durationMs: response.durationMs }
+  if (!response.ok) {
+    return {
+      check: { name: "health", ok: false, status: response.status, detail: response.detail, durationMs: response.durationMs },
+    }
+  }
+  return {
+    check: { ...evaluateHealthResponse(response.status, response.body), durationMs: response.durationMs },
+    notionThreadId: readNotionThreadId(response.body),
+  }
+}
+
+export function readNotionThreadId(body: unknown): string | undefined {
+  const notionThread = (body as { notionThread?: { threadId?: unknown } } | undefined)?.notionThread
+  return typeof notionThread?.threadId === "string" && notionThread.threadId ? notionThread.threadId : undefined
 }
 
 async function checkGenerate(config: HeartbeatConfig, fetchClient: typeof fetch): Promise<CheckResult> {
@@ -321,7 +353,7 @@ async function attemptRepair(
 }
 
 async function repaired(config: HeartbeatConfig, fetchClient: typeof fetch, checks: CheckResult[]): Promise<boolean> {
-  const health = await checkHealth(config, fetchClient)
+  const { check: health } = await checkHealth(config, fetchClient)
   checks.push({ ...health, name: "health", detail: `post_repair:${health.detail}` })
   if (!health.ok) return false
   const generate = await checkGenerate(config, fetchClient)
@@ -657,6 +689,7 @@ async function readState(statePath: string): Promise<HeartbeatState> {
       incidentClass: isIncidentClass(parsed.incidentClass) ? parsed.incidentClass : undefined,
       incidentStartedAt: stringOrUndefined(parsed.incidentStartedAt),
       lastTransientGenerateFailureAt: stringOrUndefined(parsed.lastTransientGenerateFailureAt),
+      lastNotionThreadId: stringOrUndefined(parsed.lastNotionThreadId),
     }
   } catch {
     return { status: "healthy", consecutiveFailures: 0 }
@@ -848,6 +881,7 @@ function isIncidentClass(value: unknown): value is IncidentClass {
     value === "worker_error:invalid-output" ||
     value === "worker_error:rate-limit" ||
     value === "notion_ai_quota_exhausted" ||
+    value === "notion_ai_thread_capacity" ||
     value === "worker_http_502" ||
     value === "http" ||
     value === "timeout" ||
@@ -896,6 +930,7 @@ function classifyFailureOrigin(check: CheckResult | undefined): IncidentClass {
   if (check.detail.includes("error:connection")) return "worker_error:connection"
   if (check.detail.includes("error:auth")) return "worker_error:auth"
   if (check.detail.includes("error:invalid-output")) return "worker_error:invalid-output"
+  if (check.detail.includes("notion_ai_thread_capacity_exceeded")) return "notion_ai_thread_capacity"
   if (check.detail.includes("notion_ai_usage_limit_reached")) return "notion_ai_quota_exhausted"
   if (check.detail.includes("error:rate-limit") || check.status === 429) return "worker_error:rate-limit"
   if (check.detail.includes("cdp_")) return "chrome_cdp"
@@ -917,7 +952,11 @@ function isTransientGenerateIncident(incidentClass: IncidentClass | undefined): 
 // A spent Notion AI allowance is not transient and no service restart clears it, so it
 // escalates on the first sample while still skipping the repair sequence.
 function isRestartIneffectiveGenerateIncident(incidentClass: IncidentClass | undefined): boolean {
-  return isTransientGenerateIncident(incidentClass) || incidentClass === "notion_ai_quota_exhausted"
+  return (
+    isTransientGenerateIncident(incidentClass) ||
+    incidentClass === "notion_ai_quota_exhausted" ||
+    incidentClass === "notion_ai_thread_capacity"
+  )
 }
 
 function isTransientGenerateFailure(check: CheckResult | undefined): boolean {

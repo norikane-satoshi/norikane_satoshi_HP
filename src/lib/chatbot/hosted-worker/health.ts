@@ -1,14 +1,28 @@
 import { inspectHostedWorkerChrome } from "@/lib/chatbot/hosted-worker/ensure-chrome"
 import {
+  resolveEffectiveNotionAiThreadUrl,
+  toNotionAiThreadId,
+} from "@/lib/chatbot/hosted-worker/notion-ai-thread-store"
+import {
   hostedWorkerTier,
   type HostedWorkerHealthResponse,
   type HostedWorkerQueueState,
 } from "@/lib/chatbot/hosted-worker/types"
 
+/** What the worker rotated to, so an operator can see an autonomous thread change from /health. */
+export type HostedWorkerThreadRotationState = {
+  threadId: string
+  rotatedAt: string
+  previousThreadId?: string
+  rotationCount: number
+  retried: boolean
+}
+
 export type HostedWorkerRuntimeState = {
   workerStartedAtEpochMs: number
   queue: HostedWorkerQueueState
   lastReadyHealth?: HostedWorkerHealthResponse
+  threadRotation?: HostedWorkerThreadRotationState
 }
 
 export function createHostedWorkerRuntimeState(): HostedWorkerRuntimeState {
@@ -29,6 +43,7 @@ export async function getHostedWorkerHealth(
     ...chrome,
     tier: hostedWorkerTier,
     queue: { ...state.queue },
+    notionThread: buildNotionThreadHealth(state),
     healthMode: "deep" as const,
     checkedAt: new Date().toISOString(),
   }
@@ -60,7 +75,17 @@ export function getHostedWorkerQuickHealth(
     targetCount: cached?.targetCount,
     tier: hostedWorkerTier,
     queue: { ...state.queue },
+    notionThread: buildNotionThreadHealth(state),
     healthMode: "quick",
     checkedAt: new Date().toISOString(),
+  }
+}
+
+function buildNotionThreadHealth(state: HostedWorkerRuntimeState): HostedWorkerHealthResponse["notionThread"] {
+  const resolved = resolveEffectiveNotionAiThreadUrl()
+  return {
+    threadId: toNotionAiThreadId(resolved.threadUrl),
+    source: resolved.source,
+    ...(state.threadRotation ? { rotation: state.threadRotation } : {}),
   }
 }

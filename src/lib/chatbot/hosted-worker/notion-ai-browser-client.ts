@@ -10,6 +10,11 @@ import {
   createChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/hosted-worker/notion-ai-config"
+import {
+  restoreNotionAiThreadPage,
+  rotateNotionAiThread,
+  type NotionAiThreadRotationResult,
+} from "@/lib/chatbot/hosted-worker/notion-ai-thread-rotation"
 
 type HostedNotionAiBrowserClientConfig = {
   cdpBaseUrl: string
@@ -18,7 +23,18 @@ type HostedNotionAiBrowserClientConfig = {
   healthCheckTimeoutMs: number
 }
 
+export type HostedNotionAiThreadRotation = {
+  threadUrl: string
+  previousThreadUrl?: string
+  rotatedAtEpochMs: number
+  durationMs: number
+  retried: boolean
+}
+
 type HostedNotionAiBrowserClientOptions = Partial<HostedNotionAiBrowserClientConfig> & {
+  /** Called once a rotation succeeded, before the retry, so the new thread is durable either way. */
+  onThreadRotated?: (rotation: HostedNotionAiThreadRotation) => Promise<void> | void
+  threadRotationEnabled?: boolean
   fetchClient?: CdpFetchClient
   sessionFactory?: NotionAiCdpSessionFactory
   idFactory?: IdFactory
@@ -36,6 +52,12 @@ export type NotionAiCdpTarget = {
 
 export type NotionAiCdpSession = {
   evaluate<T>(expression: string, timeoutMs: number): Promise<T>
+  /**
+   * Notion's composer is a controlled editor: assigning textContent from Runtime.evaluate does not
+   * register with it, so real keystrokes are the only way to fill it. Named rather than a generic
+   * send() so this type stays the allowlist of what the worker may do to the page.
+   */
+  insertText(text: string): Promise<void>
   close(): Promise<void>
 }
 
@@ -261,6 +283,19 @@ const emptyText = ""
 const maxTransientGenerateAttempts = 2
 let hostedNotionAiGenerateQueue = Promise.resolve()
 
+// A workspace-wide Notion failure must not mint one chat per request, so rotation is rate limited
+// per process as well as per incident.
+const notionAiThreadRotationCooldownMs = 10 * 60_000
+const maxNotionAiThreadRotationsPerProcess = 3
+const notionAiThreadRotationRetryMinRemainingMs = 30_000
+let lastNotionAiThreadRotationAtEpochMs = 0
+let notionAiThreadRotationCount = 0
+
+export function resetNotionAiThreadRotationGuards(): void {
+  lastNotionAiThreadRotationAtEpochMs = 0
+  notionAiThreadRotationCount = 0
+}
+
 export const chatbotNotionAiModelPolicy = {
   mode: "auto-with-denylist",
   deniedModels: [
@@ -339,6 +374,8 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
   private readonly fetchClient: CdpFetchClient
   private readonly sessionFactory: NotionAiCdpSessionFactory
   private readonly idFactory: IdFactory
+  private readonly onThreadRotated?: HostedNotionAiBrowserClientOptions["onThreadRotated"]
+  private readonly threadRotationEnabled: boolean
   private lastHealthError?: ChatbotLlmError | Error
 
   constructor(options: HostedNotionAiBrowserClientOptions = {}) {
@@ -352,6 +389,8 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
     this.fetchClient = options.fetchClient ?? globalFetch
     this.sessionFactory = options.sessionFactory ?? createDefaultCdpSession
     this.idFactory = options.idFactory ?? randomId
+    this.onThreadRotated = options.onThreadRotated
+    this.threadRotationEnabled = options.threadRotationEnabled ?? true
   }
 
   async generate(request: ChatbotLlmRequest, options: ChatbotLlmGenerateOptions = {}): Promise<ChatbotLlmResponse> {
@@ -378,42 +417,64 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
 
     try {
       const runtimeContextPreparationStartedAtEpochMs = Date.now()
-      const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
-        session,
-        runtimeContextExpression,
-        this.config.requestTimeoutMs,
-        signal,
-      )
-      const effectiveRuntimeContext = withConfiguredThreadContext(
-        runtimeContext,
-        this.config.targetUrlIncludes,
-      )
-      const payload = buildRunInferencePayload({
-        request,
-        runtimeContext: effectiveRuntimeContext,
-        idFactory: this.idFactory,
-      })
-      const headers = buildRunInferenceHeaders(effectiveRuntimeContext)
+      let inferenceAttempts = 0
+      const inferenceAttemptStageTimings: HostedNotionAiInferenceAttemptStageTiming[] = []
+
+      // Re-reads the runtime context every time it runs. After a rotation the page carries a new
+      // ?t=, and the payload only picks that up if the context is read again.
+      const runInference = async (): Promise<NotionAiInferenceResult | undefined> => {
+        const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
+          session,
+          runtimeContextExpression,
+          this.config.requestTimeoutMs,
+          signal,
+        )
+        const effectiveRuntimeContext = withConfiguredThreadContext(
+          runtimeContext,
+          this.config.targetUrlIncludes,
+        )
+        const payload = buildRunInferencePayload({
+          request,
+          runtimeContext: effectiveRuntimeContext,
+          idFactory: this.idFactory,
+        })
+        const headers = buildRunInferenceHeaders(effectiveRuntimeContext)
+
+        let attemptResult: NotionAiInferenceResult | undefined
+        for (let attempt = 1; attempt <= maxTransientGenerateAttempts; attempt += 1) {
+          inferenceAttempts += 1
+          attemptResult = await this.evaluate<NotionAiInferenceResult>(
+            session,
+            buildRunInferenceExpression(payload, headers),
+            this.config.requestTimeoutMs,
+            signal,
+          )
+          const attemptStageTiming = createInferenceAttemptStageTiming(inferenceAttempts, attemptResult.stageTimings)
+          if (attemptStageTiming) inferenceAttemptStageTimings.push(attemptStageTiming)
+          if (!this.isTransientEmptyInferenceResult(attemptResult) || attempt >= maxTransientGenerateAttempts) break
+          await delay(250, signal)
+        }
+        return attemptResult
+      }
+
+      let result = await runInference()
       const runtimeContextPreparation = createStageTimingSpan(
         runtimeContextPreparationStartedAtEpochMs,
         Date.now(),
       )
-      let result: NotionAiInferenceResult | undefined
-      let inferenceAttempts = 0
-      const inferenceAttemptStageTimings: HostedNotionAiInferenceAttemptStageTiming[] = []
+      let threadRotation: HostedNotionAiThreadRotation | undefined
 
-      for (let attempt = 1; attempt <= maxTransientGenerateAttempts; attempt += 1) {
-        inferenceAttempts = attempt
-        result = await this.evaluate<NotionAiInferenceResult>(
+      if (result && !result.ok) {
+        const rotated = await this.rotateThreadIfCapacityExhausted({
           session,
-          buildRunInferenceExpression(payload, headers),
-          this.config.requestTimeoutMs,
+          error: this.mapInferenceResult(result),
+          startedAt,
           signal,
-        )
-        const attemptStageTiming = createInferenceAttemptStageTiming(attempt, result.stageTimings)
-        if (attemptStageTiming) inferenceAttemptStageTimings.push(attemptStageTiming)
-        if (!this.isTransientEmptyInferenceResult(result) || attempt >= maxTransientGenerateAttempts) break
-        await delay(250, signal)
+        })
+        if (rotated) {
+          threadRotation = rotated
+          result = await runInference()
+        }
       }
 
       if (!result) {
@@ -456,6 +517,7 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
           } satisfies HostedNotionAiStageTimings,
           attachTargetUrl: target.url,
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
+          ...(threadRotation ? { threadRotation } : {}),
         },
       })
     } catch (error) {
@@ -644,6 +706,79 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
       isRetryable: false,
       cause: error,
     })
+  }
+
+  /**
+   * Moves to a fresh Notion AI thread when the current one is out of storage.
+   *
+   * Runs on the already-open session, inside the module-wide inference lock, so it can never
+   * interleave with another request's inference. Returns undefined whenever rotation does not
+   * apply, and the caller then reports the original failure unchanged.
+   */
+  private async rotateThreadIfCapacityExhausted(input: {
+    session: NotionAiCdpSession
+    error: ChatbotLlmError
+    startedAt: number
+    signal?: AbortSignal
+  }): Promise<HostedNotionAiThreadRotation | undefined> {
+    if (!this.threadRotationEnabled) return undefined
+    if (!isNotionAiThreadCapacityError(input.error)) return undefined
+    if (input.signal?.aborted) return undefined
+
+    const nowMs = Date.now()
+    if (nowMs - lastNotionAiThreadRotationAtEpochMs < notionAiThreadRotationCooldownMs) return undefined
+    if (notionAiThreadRotationCount >= maxNotionAiThreadRotationsPerProcess) return undefined
+    lastNotionAiThreadRotationAtEpochMs = nowMs
+
+    const rotationDeps = {
+      evaluate: <T,>(expression: string, timeoutMs: number) =>
+        this.evaluate<T>(input.session, expression, timeoutMs, input.signal),
+      insertText: (text: string, timeoutMs: number) =>
+        this.insertTextInPage(input.session, text, timeoutMs, input.signal),
+    }
+
+    let rotation: NotionAiThreadRotationResult
+    try {
+      rotation = await rotateNotionAiThread(rotationDeps)
+    } catch {
+      return undefined
+    }
+
+    if (!rotation.ok) {
+      // Leaving the tab on a half-started chat would show up as a permanent target mismatch.
+      await restoreNotionAiThreadPage(rotationDeps, rotation.previousThreadUrl)
+      return undefined
+    }
+
+    notionAiThreadRotationCount += 1
+
+    // Rotating is worth it even when this request can no longer be answered: the next one lands on
+    // the fresh thread. Only retry when there is enough of the request budget left to finish.
+    const remainingMs = this.config.requestTimeoutMs - (Date.now() - input.startedAt)
+    const retried = remainingMs >= notionAiThreadRotationRetryMinRemainingMs
+
+    const record: HostedNotionAiThreadRotation = {
+      threadUrl: rotation.threadUrl,
+      previousThreadUrl: rotation.previousThreadUrl,
+      rotatedAtEpochMs: Date.now(),
+      durationMs: rotation.durationMs,
+      retried,
+    }
+
+    // Awaited so the new thread is durable before the retry, and before any health read that
+    // starts after this point.
+    await this.onThreadRotated?.(record)
+
+    return retried ? record : undefined
+  }
+
+  private async insertTextInPage(
+    session: NotionAiCdpSession,
+    text: string,
+    timeoutMs: number,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await withTimeout(session.insertText(text), timeoutMs, timeoutTag, signal)
   }
 
   private mapInferenceResult(result: Extract<NotionAiInferenceResult, { ok: false }>): ChatbotLlmError {
@@ -1153,7 +1288,7 @@ function findNotionLoginTarget(
   })
 }
 
-function buildRunInferenceExpression(payload: RunInferencePayload, headers: RunInferenceHeaders): string {
+export function buildRunInferenceExpression(payload: RunInferencePayload, headers: RunInferenceHeaders): string {
   return `(() => { const __name = (target) => target; return (${runInferenceInPage.toString()})(${JSON.stringify({ payload, headers })}); })()`
 }
 
@@ -1548,11 +1683,14 @@ async function runInferenceInPage(input: {
     }
 
     if (!response.ok) {
+      // A thread that outgrew Notion's storage can surface as an HTTP error rather than as text in
+      // the stream, so tag it here too or the worker never learns it can fix itself.
+      const capacityTag = responseText.includes("Column size exceeded") ? " notion_ai_thread_capacity_exceeded" : ""
       return {
         ok: false,
         status: response.status,
         code: "unknown",
-        message: `Notion AI request returned ${response.status}. ${responseText}`.trim(),
+        message: `Notion AI request returned ${response.status}. ${responseText}${capacityTag}`.trim(),
         stageTimings: stageTimings(),
       }
     }
@@ -1590,11 +1728,20 @@ async function runInferenceInPage(input: {
     // would have gone straight to the customer. A genuine reply about grading is never a short
     // string carrying one of these phrases, so bound it by length instead.
     const trimmedRawText = rawText.trim()
+    // Capacity is the one service error the worker can fix itself, so it carries a marker the
+    // caller can trust. The others are Notion outages: rotating on them would mint a chat per
+    // request and fix nothing.
+    if (trimmedRawText.length <= 200 && trimmedRawText.includes("Column size exceeded")) {
+      return {
+        ok: false,
+        code: "invalid-output",
+        message: "Notion AI thread storage is exhausted: Column size exceeded notion_ai_thread_capacity_exceeded",
+        stageTimings: stageTimings(),
+      }
+    }
     const serviceError =
       trimmedRawText.length <= 80
-        ? ["Column size exceeded", "Internal server error", "Something went wrong"].find((candidate) =>
-            trimmedRawText.includes(candidate),
-          )
+        ? ["Internal server error", "Something went wrong"].find((candidate) => trimmedRawText.includes(candidate))
         : undefined
     if (serviceError) {
       return {
@@ -1657,6 +1804,16 @@ async function runInferenceInPage(input: {
 // premium-feature-unavailable record. Without this branch it reads as a malformed response,
 // which sends operations looking for an extraction bug instead of a quota that needs topping up.
 export const notionAiUsageLimitMarker = "notion_ai_usage_limit_reached"
+
+// Notion answers "Column size exceeded" once the thread the worker posts from outgrows its
+// storage. Unlike a Notion outage, the worker can fix this by moving to a fresh thread, so it gets
+// a marker the rotation path can key on. ChatbotLlmErrorCode is a closed union shared with
+// Production's retry policy, so the signal rides in the message like the usage limit above.
+export const notionAiThreadCapacityMarker = "notion_ai_thread_capacity_exceeded"
+
+export function isNotionAiThreadCapacityError(error: unknown): boolean {
+  return error instanceof ChatbotLlmError && error.message.includes(notionAiThreadCapacityMarker)
+}
 
 export function isNotionAiUsageLimitResponse(responseText: string): boolean {
   return responseText.includes("premium-feature-unavailable")
@@ -1744,6 +1901,10 @@ class DefaultCdpSession implements NotionAiCdpSession {
     }
 
     return result.result?.value as T
+  }
+
+  async insertText(text: string): Promise<void> {
+    await this.send<Record<string, never>>("Input.insertText", { text })
   }
 
   async close(): Promise<void> {

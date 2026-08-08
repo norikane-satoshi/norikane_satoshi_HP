@@ -16,12 +16,20 @@ import {
   type HostedNotionAiStageTimings,
 } from "@/lib/chatbot/hosted-worker/notion-ai-browser-client"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
-import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/hosted-worker/notion-ai-config"
+import {
+  isNotionAiThreadRotationEnabled,
+  resolveEffectiveNotionAiThreadUrl,
+  toNotionAiThreadId,
+  writeNotionAiThreadRotation,
+} from "@/lib/chatbot/hosted-worker/notion-ai-thread-store"
 import {
   hostedWorkerTier,
   type HostedWorkerGenerateResponse,
 } from "@/lib/chatbot/hosted-worker/types"
-import type { HostedWorkerRuntimeState } from "@/lib/chatbot/hosted-worker/health"
+import type {
+  HostedWorkerRuntimeState,
+  HostedWorkerThreadRotationState,
+} from "@/lib/chatbot/hosted-worker/health"
 
 type GenerateOptions = {
   timeoutMs?: number
@@ -148,6 +156,33 @@ export async function generateHostedWorkerResponse(
   let aborted = false
   let workerQueueWait: ChatbotStageTimingSpan | undefined
   let stageTimings: HostedWorkerStageTimings | undefined
+  let threadRotation: HostedWorkerThreadRotationState | undefined
+
+  const onThreadRotated = async (rotation: {
+    threadUrl: string
+    previousThreadUrl?: string
+    retried: boolean
+  }): Promise<void> => {
+    const threadId = toNotionAiThreadId(rotation.threadUrl)
+    if (!threadId) return
+    const record = {
+      threadUrl: rotation.threadUrl,
+      threadId,
+      rotatedAt: new Date().toISOString(),
+      previousThreadUrl: rotation.previousThreadUrl,
+      previousThreadId: rotation.previousThreadUrl ? toNotionAiThreadId(rotation.previousThreadUrl) : undefined,
+      rotationCount: (state.threadRotation?.rotationCount ?? 0) + 1,
+    }
+    await writeNotionAiThreadRotation(record)
+    threadRotation = {
+      threadId: record.threadId,
+      rotatedAt: record.rotatedAt,
+      previousThreadId: record.previousThreadId,
+      rotationCount: record.rotationCount,
+      retried: rotation.retried,
+    }
+    state.threadRotation = threadRotation
+  }
   let cdpConnectionState: HostedNotionAiCdpConnectionState | undefined
   const queueSnapshots: HostedWorkerQueueSnapshots = {}
 
@@ -164,7 +199,7 @@ export async function generateHostedWorkerResponse(
         const activeAbort = createLinkedAbortController(options.signal)
         try {
           return await withTimeout(
-            createHostedNotionAiResponse(request, options.clientFactory, activeAbort.signal),
+            createHostedNotionAiResponse(request, options.clientFactory, activeAbort.signal, onThreadRotated),
             timeoutMs,
             timeoutTag,
             options.signal,
@@ -231,6 +266,7 @@ export async function generateHostedWorkerResponse(
         uptimeMs: Math.round(process.uptime() * 1000),
         cdpConnectionState,
         stageTimings,
+        threadRotation,
         queueSnapshots: Object.keys(queueSnapshots).length > 0 ? queueSnapshots : undefined,
       })
     }
@@ -241,19 +277,19 @@ function createHostedNotionAiResponse(
   request: ChatbotLlmRequest,
   clientFactory: GenerateOptions["clientFactory"],
   signal?: AbortSignal,
+  onThreadRotated?: (rotation: { threadUrl: string; previousThreadUrl?: string; retried: boolean }) => Promise<void>,
 ): Promise<ChatbotLlmResponse> {
   const client =
     clientFactory?.() ??
     createHostedNotionAiBrowserClient({
       cdpBaseUrl: process.env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL ?? hostedNotionAiBrowserDefaults.cdpBaseUrl,
-      targetUrlIncludes:
-        process.env.CHATBOT_HOSTED_WORKER_NOTION_THREAD_URL ??
-        process.env.NOTION_AI_CHATBOT_THREAD_URL ??
-        getNotionAiChatbotThreadUrl(),
+      targetUrlIncludes: resolveEffectiveNotionAiThreadUrl().threadUrl,
       requestTimeoutMs: parsePositiveInteger(
         process.env.CHATBOT_HOSTED_WORKER_GENERATE_TIMEOUT_MS,
         hostedNotionAiBrowserDefaults.requestTimeoutMs,
       ),
+      threadRotationEnabled: isNotionAiThreadRotationEnabled(),
+      ...(onThreadRotated ? { onThreadRotated } : {}),
     })
 
   return client.generate(request, { signal })
@@ -503,6 +539,7 @@ async function writeGenerateDiagnostics(event: {
   uptimeMs: number
   cdpConnectionState?: HostedNotionAiCdpConnectionState
   stageTimings?: HostedWorkerStageTimings
+  threadRotation?: HostedWorkerThreadRotationState
   queueSnapshots?: HostedWorkerQueueSnapshots
 }): Promise<void> {
   try {
