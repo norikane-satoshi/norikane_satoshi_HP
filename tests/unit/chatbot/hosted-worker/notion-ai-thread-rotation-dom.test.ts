@@ -41,8 +41,9 @@ describe("notion ai rotation page steps", () => {
 
   it("finds the send button in either locale", () => {
     // The live page labels the new-chat control "New chat" and the send control
-    // "AIメッセージを送信" in the same session, so neither language can be assumed.
-    for (const label of ["AIメッセージを送信", "Send AI message"]) {
+    // "AIメッセージを送信" in one session and "Submit AI message" in another, so neither
+    // language nor the English verb can be assumed.
+    for (const label of ["AIメッセージを送信", "Send AI message", "Submit AI message"]) {
       render(`<button aria-label="${label}"></button>`)
       let clicks = 0
       document.querySelector("[aria-label]")?.addEventListener("click", () => (clicks += 1))
@@ -62,8 +63,10 @@ describe("notion ai rotation page steps", () => {
   })
 
   it("reads the send control's presence as the thread's idle signal", () => {
-    render(`<button aria-label="AIメッセージを送信"></button>`)
-    expect(readNotionAiSendPresenceInPage(document)).toEqual({ present: true })
+    for (const label of ["AIメッセージを送信", "Submit AI message"]) {
+      render(`<button aria-label="${label}"></button>`)
+      expect(readNotionAiSendPresenceInPage(document)).toEqual({ present: true })
+    }
 
     // While a reply streams Notion swaps send for a stop control.
     render(`<button aria-label="停止"></button>`)

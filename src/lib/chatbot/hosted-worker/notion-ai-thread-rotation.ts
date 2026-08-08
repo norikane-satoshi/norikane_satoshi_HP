@@ -17,8 +17,8 @@
  */
 
 export const notionAiComposerSelector = "[contenteditable='true'][role='textbox']"
-/** Matches the send control in either locale; exact labels have already drifted once. */
-export const notionAiSendLabelPattern = /送信|send/i
+/** Matches the submit control in either locale; exact labels have already drifted twice. */
+export const notionAiSendLabelPattern = /送信|send|submit/i
 export const notionAiBlankChatUrl = "https://app.notion.com/ai"
 
 /** Permanent first turn of every rotated thread, so it says nothing about any customer. */
@@ -76,7 +76,7 @@ export function clickNotionAiSendInPage(doc: Document): { ok: boolean; reason?: 
   // intermediate state here rather than a broken selector.
   for (const element of Array.from(doc.querySelectorAll("[aria-label]"))) {
     const label = element.getAttribute("aria-label") ?? ""
-    if (!/送信|send/i.test(label)) continue
+    if (!/送信|send|submit/i.test(label)) continue
     if (element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true") {
       return { ok: false, reason: "disabled" }
     }
@@ -93,7 +93,7 @@ export function clickNotionAiSendInPage(doc: Document): { ok: boolean; reason?: 
 export function readNotionAiSendPresenceInPage(doc: Document): { present: boolean } {
   for (const element of Array.from(doc.querySelectorAll("[aria-label]"))) {
     const label = element.getAttribute("aria-label") ?? ""
-    if (/送信|send/i.test(label)) return { present: true }
+    if (/送信|send|submit/i.test(label)) return { present: true }
   }
   return { present: false }
 }

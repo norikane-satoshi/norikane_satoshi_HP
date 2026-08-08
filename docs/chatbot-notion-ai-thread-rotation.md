@@ -53,8 +53,10 @@ generate 固有の障害の検知が遅れる。間隔を変えるときはこ�
    - `[contenteditable='true'][role='textbox']` が現れるまで待つ（実測 2.5 秒）
    - そこへ CDP `Input.insertText` で 1 文字以上入力する。
      `Runtime.evaluate` で `textContent` を書いても Notion のエディタには届かない。
-   - `aria-label` が `/送信|send/i` に一致するボタンをクリックする。
+   - `aria-label` が `/送信|send|submit/i` に一致するボタンをクリックする。
      このボタンは composer に文字が入るまで描画されない。
+     2026-08-08 の同じ Chrome でも `AIメッセージを送信` から
+     `Submit AI message` へ変化したため、英語動詞も 1 種類に固定しない。
    - URL が `app.notion.com/chat?t=<新ID>` になるので `t` を控える
    - 種メッセージへの返信が流れている間、送信ボタンは消える。再出現するまで
      （実測 8.9 秒）推論を投げない。流れている最中の推論は 0 バイトで返る。
