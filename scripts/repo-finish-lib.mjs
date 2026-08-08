@@ -12,6 +12,7 @@ export function parseFinishArgs(argv) {
   };
 
   for (const arg of argv) {
+    if (arg === "--") continue;
     if (arg === "--apply") options.apply = true;
     else if (arg === "--json") options.json = true;
     else if (arg.startsWith("--target=")) options.target = arg.slice("--target=".length);

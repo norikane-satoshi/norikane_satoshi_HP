@@ -78,7 +78,7 @@ function refExists(repository, reference) {
 }
 
 test("parses an explicit branch and keeps execution dry-run by default", () => {
-  assert.deepEqual(parseFinishArgs(["codex/example", "--target=origin/staging"]), {
+  assert.deepEqual(parseFinishArgs(["--", "codex/example", "--target=origin/staging"]), {
     apply: false,
     branch: "codex/example",
     json: false,
