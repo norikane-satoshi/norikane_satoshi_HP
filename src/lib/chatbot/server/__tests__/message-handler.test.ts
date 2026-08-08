@@ -2388,6 +2388,54 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.generate.mock.calls[0]?.[0].conversationState.bookingFinalConfirmation).toBeUndefined()
   })
 
+  it("displays the canonical material contents question after work site selection", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [message("assistant", workSiteChoices.question)],
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: workSiteChoices,
+          currentQuestion: workSiteChoices.question,
+          conversationState: baseProductionConversationState({
+            hasMaterialDetails: false,
+            hasMaterialTiming: false,
+            hasMaterialHandoff: false,
+            materialHandoff: undefined,
+            hasWorkSite: false,
+          }),
+          jobContext: {
+            jobKind: "drama-first",
+            finalMedium: "tv-broadcast",
+            projectLengthMinutes: 60,
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("次に、素材をいつ頃お渡しいただけそうかを教えてください。"),
+      tier: "tier-1-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "選択: リモートグレーディング",
+      },
+      harness.options,
+    )
+
+    expect(result.assistantMessage.content).toMatch(/何の素材/u)
+    expect(result.assistantMessage.content).not.toMatch(/いつ頃/u)
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringMatching(/何の素材/u),
+    })
+  })
+
   it("returns a customer display name from a natural self-introduction", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({

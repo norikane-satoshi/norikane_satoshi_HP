@@ -4,6 +4,15 @@ const materialContentsQuestionPattern = /何の素材|どのような素材|素�
 const materialTimingQuestionPattern = /素材.{0,24}(?:いつ|時期)|いつ.{0,24}素材/u
 const materialMethodQuestionPattern = /素材.{0,24}(?:受け渡し方法|どういう方法|どのような方法|どう送)|(?:受け渡し方法|どういう方法).{0,24}素材/u
 
+export function isMaterialHandoffQuestion(message: string | undefined): boolean {
+  if (!message) return false
+  return (
+    materialContentsQuestionPattern.test(message) ||
+    materialTimingQuestionPattern.test(message) ||
+    materialMethodQuestionPattern.test(message)
+  )
+}
+
 export function applyMaterialHandoffAnswer(input: {
   conversationState: ConversationState
   previousAssistantMessage?: string

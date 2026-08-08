@@ -89,6 +89,7 @@ import {
 import { chatbotLlmTierIds, createChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
 import {
   applyMaterialHandoffAnswer,
+  isMaterialHandoffQuestion,
   recoverMaterialHandoffFromHistory,
 } from "@/lib/chatbot/server/material-handoff"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
@@ -1976,6 +1977,14 @@ function buildAssistantDisplayContent(input: {
     input.routingDecision?.kind === "continue" &&
     !input.routingDecision.presentChoices &&
     isFinalMediumRejudgmentQuestion(input.routingDecision.nextQuestion)
+  ) {
+    return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
+  }
+  if (
+    input.routingDecision?.kind === "continue" &&
+    !input.routingDecision.presentChoices &&
+    isMaterialHandoffQuestion(input.routingDecision.nextQuestion) &&
+    isMaterialHandoffQuestion(explicitDisplayText ?? toolFreeText)
   ) {
     return withGuardReport(sanitize(input.routingDecision.nextQuestion, true))
   }
