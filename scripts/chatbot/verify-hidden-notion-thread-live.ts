@@ -1,22 +1,16 @@
 import { randomUUID } from "node:crypto"
 
-import {
-  createHostedNotionAiBrowserClient,
-  type HostedNotionAiThreadRotation,
-} from "@/lib/chatbot/hosted-worker/notion-ai-browser-client"
-import type { NotionAiConversationThreadLifecycle } from "@/lib/chatbot/hosted-worker/notion-ai-conversation-thread-store"
+import { config as loadDotenv } from "dotenv"
+
 import {
   ChatbotLlmError,
   type ChatbotLlmRequest,
   type ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
+import { createTier1HostedChromeNotionAiClient } from "@/lib/chatbot/server/llm-clients/tier1-hosted-chrome-notion-ai"
 
-type ThreadState = {
-  threadUrl?: string
-  threadVersion: number
-  deletedAt?: string
-  lifecycle?: NotionAiConversationThreadLifecycle
-}
+loadDotenv({ path: ".env.local", override: false, quiet: true })
+loadDotenv({ path: ".env", override: false, quiet: true })
 
 function request(conversationId: string, messages: ChatbotLlmRequest["messages"]): ChatbotLlmRequest {
   return {
@@ -44,26 +38,8 @@ function request(conversationId: string, messages: ChatbotLlmRequest["messages"]
   }
 }
 
-function client(state: ThreadState) {
-  return createHostedNotionAiBrowserClient({
-    conversationThreadRequired: true,
-    ...(state.threadUrl
-      ? {
-          conversationThreadUrl: state.threadUrl,
-          conversationThreadVersion: state.threadVersion,
-          conversationThreadDeletedAt: state.deletedAt,
-        }
-      : {}),
-    onThreadRotated: async (rotation: HostedNotionAiThreadRotation) => {
-      state.threadUrl = rotation.threadUrl
-      state.threadVersion += 1
-      return { threadVersion: state.threadVersion }
-    },
-    onThreadLifecycleUpdated: async ({ lifecycle }) => {
-      state.lifecycle = lifecycle
-      state.deletedAt = lifecycle.deletedAt
-    },
-  })
+function client() {
+  return createTier1HostedChromeNotionAiClient()
 }
 
 function conversationThread(response: ChatbotLlmResponse): Record<string, unknown> {
@@ -100,13 +76,10 @@ async function main(): Promise<void> {
   const conversationB = `live-b-${runId}`
   const canaryA = `ALPHA-${randomUUID().slice(0, 8)}`
   const canaryB = `BRAVO-${randomUUID().slice(0, 8)}`
-  const stateA: ThreadState = { threadVersion: 0 }
-  const stateB: ThreadState = { threadVersion: 0 }
-
   const firstMessages: ChatbotLlmRequest["messages"] = [
     { role: "user", content: `この会話専用の検証識別子 ${canaryA} をそのまま返してください。` },
   ]
-  const first = await client(stateA).generate(request(conversationA, firstMessages))
+  const first = await client().generate(request(conversationA, firstMessages))
   const firstDiagnostic = conversationThread(first)
   assertHiddenThread(firstDiagnostic)
 
@@ -115,11 +88,11 @@ async function main(): Promise<void> {
     { role: "assistant", content: first.displayEnvelope.displayText },
     { role: "user", content: `同じ会話の識別子 ${canaryA} をもう一度そのまま返してください。` },
   ]
-  const second = await client(stateA).generate(request(conversationA, secondMessages))
+  const second = await client().generate(request(conversationA, secondMessages))
   const secondDiagnostic = conversationThread(second)
   assertHiddenThread(secondDiagnostic)
 
-  const separate = await client(stateB).generate(
+  const separate = await client().generate(
     request(conversationB, [
       {
         role: "user",
