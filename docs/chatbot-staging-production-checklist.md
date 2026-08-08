@@ -63,3 +63,24 @@ Production release remains blocked until Satoshi gives explicit GO. When GO exis
 4. Merge forward without reset or force push.
 5. Smoke after production deploy: `/`, `/notes/correction`, chatbot open/send, choice panel selection, booking card path, inquiry form fallback, auth-sensitive booking calendar, and no console errors.
 6. Rollback by reverting the release commit or redeploying the last known-good production SHA; do not rewrite `master`.
+
+## Full-Test Fallback Customer-Experience Gate
+
+Every full chatbot verification must include the fallback customer experience. Health checks and configured environment variables are prerequisites, not proof that a customer can complete the flow.
+
+Run the permanent live verifier once against the release target:
+
+```bash
+pnpm chatbot:verify-fallback-customer-experience-live -- --base-url https://norikane.studio
+```
+
+The command uses controlled failure injection and does not stop the hosted Tier 1 worker or the protected `41238` server. It must prove all of the following in one pass:
+
+1. A Tier 1 health failure selects the real `tier-2-gemini-flash` client.
+2. The real Gemini response contains the canary and satisfies the customer display contract with structured UI.
+3. Tier 1 and Tier 2 health failures select `tier-3-form-fallback` with the canonical inquiry-form guidance.
+4. The real `/api/chatbot/submit-inquiry` route returns both `ok: true` and `delivered: true`; HTTP 200 alone is a failure.
+5. The unit and E2E suites prove the resulting `tier3-inquiry-form` is visible, submit targets `/api/chatbot/submit-inquiry`, success feedback is visible, and fallback Slack notifications use the current tier labels.
+6. The verifier report contains only tier labels and boolean contract evidence. It must not print API keys, email addresses, prompts, response bodies, or customer data.
+
+The live command sends one clearly labelled canary notification to the operator. Record only the target SHA, execution time, tier results, delivery boolean, and the provider/message identifier when separately available. Never record the canary email body or credentials.
