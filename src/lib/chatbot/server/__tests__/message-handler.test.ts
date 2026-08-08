@@ -76,6 +76,17 @@ function customerReply(text: string): string {
   return `<customer_reply>${text}</customer_reply>`
 }
 
+const readyMaterialHandoff = {
+  hasMaterialDetails: true,
+  hasMaterialTiming: true,
+  hasMaterialHandoff: true,
+  materialHandoff: {
+    contents: "ProResと使用クリップ",
+    timing: "素材準備後",
+    method: "アップローダー",
+  },
+} as const satisfies Partial<ConversationState>
+
 function withDisplayEnvelope<T extends { rawText?: unknown }>(response: T): T {
   return typeof response.rawText === "string" && !("displayEnvelope" in response)
     ? { ...response, displayEnvelope: createChatbotLlmDisplayEnvelope(response.rawText) }
@@ -87,6 +98,7 @@ function baseProductionConversationState(overrides: Partial<ConversationState> =
     hasFinalMedium: true,
     hasJobKind: true,
     hasProjectLength: true,
+    ...readyMaterialHandoff,
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
@@ -593,8 +605,9 @@ describe("handleChatbotMessage user context", () => {
     }
   })
 
-  it("preserves a production-log-like LLM-authored drama final-medium panel", async () => {
+  it("normalizes a production-log-like LLM-authored drama final-medium panel", async () => {
     const question = "このドラマの最終放映先・配信先はどちらですか？"
+    const correctedQuestion = "ドラマ / シリーズとして整理しています。想定している公開先・納品先をすべて選んでください。"
     const choices = [
       { id: "tv-broadcast", label: "地上波・BS／CS放送" },
       { id: "ott", label: "配信プラットフォーム" },
@@ -655,23 +668,25 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toBe(`${question}\n下の選択肢から選んでください。`)
+    expect(result.assistantMessage.content).toBe(`${correctedQuestion}\n下の選択肢から選んでください。`)
     expect(result.ui).toMatchObject({
       kind: "choice-panel",
       choiceSet: {
         id: "final-medium",
-        question,
+        question: correctedQuestion,
+        selectionMode: "multiple",
         allowFreeText: true,
       },
     })
-    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(choices)
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(finalMediumChoices.choices)
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        currentQuestion: question,
+        currentQuestion: correctedQuestion,
         activeChoices: expect.objectContaining({
           id: "final-medium",
-          question,
-          choices,
+          question: correctedQuestion,
+          choices: finalMediumChoices.choices,
+          selectionMode: "multiple",
           allowFreeText: true,
         }),
         conversationState: expect.objectContaining({
@@ -719,6 +734,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     const question = "ドラマ / シリーズとして整理しています。想定している公開先・納品先を1つ教えてください"
+    const correctedQuestion = "ドラマ / シリーズとして整理しています。想定している公開先・納品先をすべて選んでください。"
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply([
         `${question}。`,
@@ -743,33 +759,24 @@ describe("handleChatbotMessage user context", () => {
         harness.options,
       )
 
-      expect(result.assistantMessage.content).toBe(`${question}\n下の選択肢から選んでください。`)
+      expect(result.assistantMessage.content).toBe(`${correctedQuestion}\n下の選択肢から選んでください。`)
       expect(result.ui).toMatchObject({
         kind: "choice-panel",
         choiceSet: {
           id: "final-medium",
-          question,
+          question: correctedQuestion,
+          selectionMode: "multiple",
           allowFreeText: true,
         },
       })
-      expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual([
-        "地上波・BS／CS放送",
-        "配信プラットフォーム",
-        "Web公開",
-        "劇場・イベント上映",
-        "未定・相談したい",
-      ])
+      expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(finalMediumChoices.choices)
       expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
         expect.objectContaining({
-          currentQuestion: question,
+          currentQuestion: correctedQuestion,
           activeChoices: expect.objectContaining({
             id: "final-medium",
-            choices: expect.arrayContaining([
-              { id: "tv-broadcast", label: "地上波・BS／CS放送" },
-              { id: "ott", label: "配信プラットフォーム" },
-              { id: "web", label: "Web公開" },
-              { id: "cinema", label: "劇場・イベント上映" },
-            ]),
+            choices: finalMediumChoices.choices,
+            selectionMode: "multiple",
           }),
           conversationState: expect.objectContaining({
             hasJobKind: true,
@@ -828,9 +835,10 @@ describe("handleChatbotMessage user context", () => {
           id: "final-medium",
           choices: expect.arrayContaining([
             { id: "tv-broadcast", label: "地上波・BS／CS放送" },
-            { id: "ott", label: "配信プラットフォーム" },
+            { id: "ott", label: "VOD・オンデマンド配信" },
             { id: "web", label: "Web公開" },
-            { id: "cinema", label: "劇場・イベント上映" },
+            { id: "blu-ray", label: "Blu-ray / ディスク" },
+            { id: "youtube", label: "YouTube" },
           ]),
         },
       })
@@ -974,7 +982,7 @@ describe("handleChatbotMessage user context", () => {
     ["live-60m", "ライブの公開・納品先を選んでください", ["配信", "会場上映", "パッケージ納品", "未定"]],
     ["cm-30s", "CMの使用先を選んでください", ["Web広告", "SNS", "テレビ放送", "店頭・イベント"]],
     ["mv-5m", "MVの公開先を選んでください", ["YouTube", "SNS", "配信プラットフォーム", "ライブ会場上映"]],
-  ] as const)("respects LLM-authored final-medium panel for %s", async (jobKind, question, labels) => {
+  ] as const)("normalizes LLM-authored final-medium panel for %s", async (jobKind, question, labels) => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply(JSON.stringify({
@@ -1009,8 +1017,16 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "final-medium", question } })
-    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: {
+        id: "final-medium",
+        selectionMode: "multiple",
+      },
+    })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(finalMediumChoices.choices)
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).not.toContain("ライブ")
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).not.toContain("OTT 配信")
   })
 
   it.each([
@@ -1044,8 +1060,14 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "final-medium", question } })
-    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: {
+        id: "final-medium",
+        selectionMode: "multiple",
+      },
+    })
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(finalMediumChoices.choices)
   })
 
   it("does not turn explanatory bullet text into a choice panel when no choice slot is pending", async () => {
@@ -1082,7 +1104,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).toContain("ライブ60分の進め方")
   })
 
-  it("preserves a production-style final-medium tool call embedded in assistant text", async () => {
+  it("normalizes a production-style final-medium tool call embedded in assistant text", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
@@ -1114,16 +1136,12 @@ describe("handleChatbotMessage user context", () => {
       kind: "choice-panel",
       choiceSet: {
         id: "final-medium",
-        question: "想定している公開先を教えてください",
+        question: "ドラマ / シリーズとして整理しています。想定している公開先・納品先をすべて選んでください。",
+        selectionMode: "multiple",
         allowFreeText: true,
       },
     })
-    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual([
-      "地上波・BS／CS放送",
-      "配信プラットフォーム",
-      "Web公開",
-      "劇場・イベント上映",
-    ])
+    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(finalMediumChoices.choices)
   })
 
   it("uses client user message ids for optimistic cancelled messages", async () => {
@@ -1522,6 +1540,7 @@ describe("handleChatbotMessage user context", () => {
           projectLengthMinutes: 150,
         },
         conversationState: {
+          ...readyMaterialHandoff,
           hasFinalMedium: true,
           hasJobKind: true,
           hasAdditionalWork: false,
@@ -1721,6 +1740,7 @@ describe("handleChatbotMessage user context", () => {
           projectLengthMinutes: 150,
         },
         conversationState: {
+          ...readyMaterialHandoff,
           bookingFinalConfirmation: { status: "confirmed", requestedAtTurn: 2, confirmedAtTurn: 3 },
         },
       },
@@ -1761,6 +1781,7 @@ describe("handleChatbotMessage user context", () => {
           documentaryAttachment: { kind: "none" },
         },
         conversationState: {
+          ...readyMaterialHandoff,
           hasFinalMedium: true,
           hasJobKind: true,
           hasProjectLength: true,
@@ -2254,7 +2275,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.ui).toMatchObject({
       kind: "booking-card",
       bookingPrefill: {
-        memo: expect.stringContaining("納品・使用先: ライブ / イベント"),
+        memo: expect.stringContaining("受け渡し素材: ProResと使用クリップ"),
       },
     })
     expect(JSON.stringify(result.ui)).toContain("付随素材として、特典映像が含まれる可能性があります。")
@@ -2997,6 +3018,7 @@ describe("handleChatbotMessage user context", () => {
           documentaryAttachment: { kind: "none" },
         },
         conversationState: {
+          ...readyMaterialHandoff,
           hasFinalMedium: true,
           hasJobKind: true,
           hasProjectLength: true,
@@ -3242,6 +3264,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "相談です",
         conversationState: {
+          ...readyMaterialHandoff,
           hasFinalMedium: true,
           hasJobKind: true,
           hasProjectLength: true,
@@ -4633,6 +4656,7 @@ describe("handleChatbotMessage user context", () => {
           additionalWork: ["other"],
         },
         conversationState: {
+          ...readyMaterialHandoff,
           hasFinalMedium: true,
           hasJobKind: true,
           hasProjectLength: true,
@@ -4681,7 +4705,7 @@ describe("handleChatbotMessage user context", () => {
       {
         sessionId: "session_1",
         userId: "user_a",
-        message: "選択: live",
+        message: "選択: YouTube",
       },
       harness.options,
     )
@@ -4690,13 +4714,13 @@ describe("handleChatbotMessage user context", () => {
       hasFinalMedium: true,
     })
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
-      finalMedium: "live",
+      finalMedium: "youtube",
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         activeChoices: expect.objectContaining({ id: additionalWorkChoices.id }),
         conversationState: expect.objectContaining({ hasFinalMedium: true }),
-        jobContext: expect.objectContaining({ finalMedium: "live", jobKind: "live-60m" }),
+        jobContext: expect.objectContaining({ finalMedium: "youtube", jobKind: "live-60m" }),
       }),
     )
   })
@@ -5074,8 +5098,10 @@ describe("handleChatbotMessage user context", () => {
           documentaryAttachment: { kind: "none" },
         },
         conversationState: {
+          ...readyMaterialHandoff,
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasAdditionalWork: true,
           hasDocumentaryAttachments: true,
           hasWorkSite: true,
@@ -5132,8 +5158,10 @@ describe("handleChatbotMessage user context", () => {
           publicReleaseDate: "2026-07-31",
         },
         conversationState: {
+          ...readyMaterialHandoff,
           hasFinalMedium: true,
           hasJobKind: true,
+          hasProjectLength: true,
           hasAdditionalWork: true,
           hasDocumentaryAttachments: true,
           hasWorkSite: true,

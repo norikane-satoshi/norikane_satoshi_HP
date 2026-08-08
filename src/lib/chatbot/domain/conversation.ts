@@ -5,6 +5,15 @@ import type { JobContext, WorkflowEstimate } from "@/lib/chatbot/domain/workflow
 
 export type ChatbotMessageRole = "user" | "assistant" | "system"
 
+export type InquiryFormPrefill = {
+  name?: string
+  email?: string
+  jobType?: string
+  duration?: string
+  desiredDeadline?: string
+  freeText?: string
+}
+
 export type ChatbotMessage = {
   id: string
   role: ChatbotMessageRole
@@ -41,6 +50,7 @@ export type ConversationState = {
   hasProjectLength?: boolean
   hasMaterialHandoff?: boolean
   hasMaterialDetails?: boolean
+  hasMaterialTiming?: boolean
   hasAdditionalWork: boolean
   hasDocumentaryAttachments: boolean
   hasWorkSite: boolean
@@ -89,6 +99,12 @@ export type ConversationState = {
   contactEmail?: string
   customerName?: string
   companyName?: string
+  finalMedia?: JobContext["finalMedium"][]
+  materialHandoff?: {
+    contents?: string
+    timing?: string
+    method?: string
+  }
   bookingPrefill?: BookingCardPrefill
   productionOptions?: Array<"captions" | "telops" | "narration" | "music" | "other">
   otherChoiceComments?: Record<string, string>

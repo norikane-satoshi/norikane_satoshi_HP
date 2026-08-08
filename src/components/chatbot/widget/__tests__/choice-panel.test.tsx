@@ -13,7 +13,7 @@ describe("ChoicePanel", () => {
   it("renders the choice question and labels", () => {
     render(<ChoicePanel choiceSet={finalMediumChoices} onSelect={vi.fn()} />)
 
-    expect(screen.getByText("最終媒体を教えてください")).toBeInTheDocument()
+    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "劇場公開" })).toBeInTheDocument()
   })
 

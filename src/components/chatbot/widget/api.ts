@@ -2,6 +2,7 @@ import type {
   BookingCardPrefill,
   ChatbotMessageRole,
   ConversationState,
+  InquiryFormPrefill,
   JobContext,
   RoutingDecision,
 } from "@/lib/chatbot/domain"
@@ -45,7 +46,7 @@ export type WidgetUi =
       kind: "consultation-summary-form"
       summary: Extract<RoutingDecision, { kind: "to-email" }>["summary"]
     }
-  | { kind: "tier3-inquiry-form" }
+  | { kind: "tier3-inquiry-form"; prefill?: InquiryFormPrefill }
 
 export type ChatbotResponseTier =
   | "tier-1-hosted-chrome-notion-ai"
@@ -79,6 +80,8 @@ export type ChatbotMessageResponse = {
   routingDecision?: RoutingDecision
   tier: ChatbotResponseTier
   ui: WidgetUi
+  customerDisplayName?: string
+  inquiryPrefill?: InquiryFormPrefill
   clientBuildId?: string
   debug?: ChatbotLifecycleDebug
 }

@@ -9,7 +9,16 @@ export type JobKind =
   | "vertical-60s"
   | "live-60m"
 
-export type FinalMedium = "ott" | "cinema" | "tv-broadcast" | "live" | "web" | "vertical-sns" | "other"
+export type FinalMedium =
+  | "ott"
+  | "cinema"
+  | "tv-broadcast"
+  | "blu-ray"
+  | "youtube"
+  | "live"
+  | "web"
+  | "vertical-sns"
+  | "other"
 
 export type DeliveryMedium = "dvd"
 

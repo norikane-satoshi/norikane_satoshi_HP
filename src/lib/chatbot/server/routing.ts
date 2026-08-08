@@ -180,6 +180,29 @@ function continueDecision(input: {
     }
   }
 
+  if (!conversationState.hasMaterialDetails || !conversationState.materialHandoff?.contents) {
+    return {
+      kind: "continue",
+      nextQuestion:
+        "何の素材をお送りいただく予定ですか？（例: ProRes書き出し、撮影素材一式、使用するクリップのみ）",
+    }
+  }
+
+  if (!conversationState.hasMaterialTiming || !conversationState.materialHandoff?.timing) {
+    return {
+      kind: "continue",
+      nextQuestion: "その素材は、いつお送りいただけそうですか？未定の場合は「未定」とお答えください。",
+    }
+  }
+
+  if (!conversationState.hasMaterialHandoff || !conversationState.materialHandoff?.method) {
+    return {
+      kind: "continue",
+      nextQuestion:
+        "素材の受け渡し方法を教えてください。（例: SSD / HDDをバイク便・郵送・手渡し、アップローダーで共有）",
+    }
+  }
+
   if (!conversationState.hasReferenceUrls) {
     return {
       kind: "continue",
@@ -196,7 +219,7 @@ function continueDecision(input: {
 
   return {
     kind: "continue",
-    nextQuestion: buildBookingFinalConfirmationQuestion(jobContext),
+    nextQuestion: buildBookingFinalConfirmationQuestion(jobContext, conversationState),
     presentChoices: bookingFinalConfirmationChoices,
   }
 }

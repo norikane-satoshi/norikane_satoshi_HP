@@ -14,6 +14,7 @@ import { Bug, ChevronDown, GripHorizontal, Maximize2, Minimize2, Minus, PanelRig
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
+import type { InquiryFormPrefill } from "@/lib/chatbot/domain"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
@@ -128,6 +129,7 @@ type StoredWidgetSession = {
   conversationId?: string
   activeUi: WidgetUi
   customerDisplayName?: string
+  inquiryPrefill?: InquiryFormPrefill
   pendingRequest?: StoredPendingRequest
   recoverableRequest?: StoredPendingRequest
   expiresAt: string
@@ -307,8 +309,8 @@ const assistantNameQuestionPattern = /(名前|なんて呼|どう呼|呼べば|�
 function isAssistantNameIntroduced(messages: WidgetMessage[]): boolean {
   return messages.some((message, index) => {
     if (message.role !== "assistant" || !message.content.includes("のーちゃん")) return false
-    return messages.slice(Math.max(0, index - 2), index).some((nearbyMessage) => {
-      return nearbyMessage.role === "user" && assistantNameQuestionPattern.test(nearbyMessage.content)
+    return messages.slice(0, index).some((earlierMessage) => {
+      return earlierMessage.role === "user" && assistantNameQuestionPattern.test(earlierMessage.content)
     })
   })
 }
@@ -329,6 +331,7 @@ function loadStoredWidgetSession(): {
   conversationId?: string
   activeUi: WidgetUi
   customerDisplayName?: string
+  inquiryPrefill?: InquiryFormPrefill
   pendingRequest?: StoredPendingRequest
   recoverableRequest?: StoredPendingRequest
 } {
@@ -381,6 +384,7 @@ function loadStoredWidgetSession(): {
       customerDisplayName:
         normalizeDisplayName(parsed.customerDisplayName) ??
         getCustomerDisplayNameFromUi(restoredActiveUi),
+      inquiryPrefill: parsed.inquiryPrefill,
       pendingRequest,
       recoverableRequest: pendingRequest ? undefined : recoverableRequest,
     }
@@ -469,6 +473,7 @@ export function WidgetShell({
   const [clientSessionId, setClientSessionId] = useState<string>(() => createClientSessionId())
   const [activeUi, setActiveUi] = useState<WidgetUi>(noUi)
   const [customerDisplayName, setCustomerDisplayName] = useState<string | undefined>(undefined)
+  const [inquiryPrefill, setInquiryPrefill] = useState<InquiryFormPrefill | undefined>(undefined)
   const [submitting, setSubmitting] = useState(false)
   const [showThinkingDelayNotice, setShowThinkingDelayNotice] = useState(false)
   const [pendingRequest, setPendingRequest] = useState<StoredPendingRequest | undefined>(undefined)
@@ -648,10 +653,18 @@ export function WidgetShell({
     setMessages((currentMessages) => [...currentMessages, message])
   }
 
-  const rememberCustomerDisplayNameFromUi = (ui: WidgetUi) => {
-    const nextCustomerDisplayName = getCustomerDisplayNameFromUi(ui)
+  const rememberResponseContext = (payload: {
+    ui: WidgetUi
+    customerDisplayName?: string
+    inquiryPrefill?: InquiryFormPrefill
+  }) => {
+    const nextCustomerDisplayName =
+      normalizeDisplayName(payload.customerDisplayName) ?? getCustomerDisplayNameFromUi(payload.ui)
     if (nextCustomerDisplayName) {
       setCustomerDisplayName(nextCustomerDisplayName)
+    }
+    if (payload.inquiryPrefill) {
+      setInquiryPrefill(payload.inquiryPrefill)
     }
   }
 
@@ -675,6 +688,7 @@ export function WidgetShell({
     setConversationId(storedSession.conversationId)
     setActiveUi(storedSession.activeUi)
     setCustomerDisplayName(storedSession.customerDisplayName)
+    setInquiryPrefill(storedSession.inquiryPrefill)
     restoredPendingRequestRef.current = storedSession.pendingRequest
     setPendingRequest(storedSession.pendingRequest)
     setRecoverableRequest(storedSession.recoverableRequest)
@@ -710,10 +724,11 @@ export function WidgetShell({
       conversationId,
       activeUi,
       ...(customerDisplayName ? { customerDisplayName } : {}),
+      ...(inquiryPrefill ? { inquiryPrefill } : {}),
       ...(pendingRequest ? { pendingRequest } : {}),
       ...(recoverableRequest ? { recoverableRequest } : {}),
     })
-  }, [activeUi, clientSessionId, conversationId, customerDisplayName, hasRestoredSession, messages, pendingRequest, recoverableRequest])
+  }, [activeUi, clientSessionId, conversationId, customerDisplayName, hasRestoredSession, inquiryPrefill, messages, pendingRequest, recoverableRequest])
 
   const recoverPendingRequest = async (pending: StoredPendingRequest, controller: AbortController) => {
     const debugStartedAt = Date.now()
@@ -781,7 +796,7 @@ export function WidgetShell({
         return nextMessages
       })
       setActiveUi(payload.ui)
-      rememberCustomerDisplayNameFromUi(payload.ui)
+      rememberResponseContext(payload)
       setRecoverableRequest(undefined)
       setLastDebugRequest({
         operation: "message-recovery",
@@ -953,7 +968,7 @@ export function WidgetShell({
         return nextMessages
       })
       setActiveUi(nextActiveUi)
-      rememberCustomerDisplayNameFromUi(nextActiveUi)
+      rememberResponseContext(payload)
       setRecoverableRequest(undefined)
       setLastDebugRequest({
         operation: "message",
@@ -1088,7 +1103,7 @@ export function WidgetShell({
         return nextMessages
       })
       setActiveUi(payload.ui)
-      rememberCustomerDisplayNameFromUi(payload.ui)
+      rememberResponseContext(payload)
       setRecoverableRequest(undefined)
       setLastDebugRequest({
         operation: "message-edit",
@@ -1153,7 +1168,7 @@ export function WidgetShell({
       content: formFallbackMessage,
       createdAt: new Date(),
     })
-    setActiveUi({ kind: "tier3-inquiry-form" })
+    setActiveUi({ kind: "tier3-inquiry-form", prefill: inquiryPrefill })
   }
 
   const handleInquirySubmit = async (input: Omit<SubmitInquiryInput, "conversationId">) => {
@@ -1172,7 +1187,7 @@ export function WidgetShell({
           content: inquiryUndeliveredMessage,
           createdAt: new Date(),
         })
-        setActiveUi({ kind: "tier3-inquiry-form" })
+        setActiveUi({ kind: "tier3-inquiry-form", prefill: inquiryPrefill })
         setLastDebugRequest({
           operation: "inquiry",
           outcome: "failure",
@@ -1201,7 +1216,7 @@ export function WidgetShell({
         content: communicationFallbackMessage,
         createdAt: new Date(),
       })
-      setActiveUi({ kind: "tier3-inquiry-form" })
+      setActiveUi({ kind: "tier3-inquiry-form", prefill: inquiryPrefill })
       setLastDebugRequest(debugUnknownFailureRequest("inquiry", debugStartedAt))
     }
   }
@@ -1704,22 +1719,27 @@ function ActiveWidgetUi({
   }
 
   if (ui.kind === "tier3-inquiry-form") {
-    return <InquiryForm onSubmit={onInquirySubmit} />
+    return <InquiryForm initialValues={ui.prefill} onSubmit={onInquirySubmit} />
   }
 
   if (ui.kind === "consultation-summary-form") {
     return (
       <InquiryForm
         mode="consultation-summary"
-        initialEmail={ui.summary.customerEmail}
+        initialValues={{
+          name: ui.summary.customerName,
+          email: ui.summary.customerEmail,
+          jobType: ui.summary.subject,
+          duration:
+            typeof ui.summary.jobContext.projectLengthMinutes === "number"
+              ? formatProjectLengthMemo(ui.summary.jobContext.projectLengthMinutes)?.replace(/^尺:\s*/u, "")
+              : undefined,
+          desiredDeadline: ui.summary.jobContext.publicReleaseDate,
+          freeText: ui.summary.summaryText,
+        }}
         summaryText={ui.summary.summaryText}
         openQuestions={ui.summary.openQuestions}
-        onSubmit={(input) =>
-          onInquirySubmit({
-            ...input,
-            freeText: [ui.summary.summaryText, input.freeText].filter(Boolean).join("\n"),
-          })
-        }
+        onSubmit={onInquirySubmit}
       />
     )
   }

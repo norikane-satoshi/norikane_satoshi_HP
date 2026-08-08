@@ -486,12 +486,12 @@ export function ChatbotBookingCard({
   const body = (
     <section className="glass-card space-y-5 p-5" aria-label="チャット内予約">
       <div>
-        <h2 className="text-base font-semibold text-hp">候補日時から予約する</h2>
+        <h2 className="text-base font-semibold text-hp">Booking Order</h2>
         <p
           className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-2 text-sm text-hp-muted`}
           style={CHATBOT_CONVERSATION_CONTENT_STYLE}
         >
-          素材搬入時期と納品希望日が決まっている場合は、候補を仮キープして予約内容を送信できます。
+          日付が決まっている場合は候補を選んでください。まだ決まっていなければ、未定のままでも予約内容を送信できます。
         </p>
         {estimateText(effectiveEstimate) ? (
           <p

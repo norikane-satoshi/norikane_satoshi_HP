@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react"
 
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
+import type { InquiryFormPrefill } from "@/lib/chatbot/domain"
 
 type InquiryFormInput = {
   name: string
@@ -17,6 +18,7 @@ type InquiryFormProps = {
   onSubmit: (input: InquiryFormInput) => void
   mode?: "tier3" | "consultation-summary"
   initialEmail?: string
+  initialValues?: InquiryFormPrefill
   summaryText?: string
   openQuestions?: string[]
 }
@@ -28,16 +30,17 @@ export function InquiryForm({
   onSubmit,
   mode = "tier3",
   initialEmail = "",
+  initialValues = {},
   summaryText,
   openQuestions = [],
 }: InquiryFormProps) {
   const [input, setInput] = useState<InquiryFormInput>({
-    name: "",
-    email: initialEmail,
-    jobType: "",
-    duration: "",
-    desiredDeadline: "",
-    freeText: "",
+    name: initialValues.name ?? "",
+    email: initialValues.email ?? initialEmail,
+    jobType: initialValues.jobType ?? "",
+    duration: initialValues.duration ?? "",
+    desiredDeadline: initialValues.desiredDeadline ?? "",
+    freeText: initialValues.freeText ?? "",
   })
 
   const updateInput = (key: keyof InquiryFormInput, value: string) => {

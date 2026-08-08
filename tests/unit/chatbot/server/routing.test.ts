@@ -39,12 +39,20 @@ function conversationState(overrides: Partial<ConversationState> = {}): Conversa
     hasAdditionalWork: true,
     hasDocumentaryAttachments: true,
     hasWorkSite: true,
+    hasMaterialDetails: true,
+    hasMaterialTiming: true,
+    hasMaterialHandoff: true,
     hasReferenceUrls: true,
     hasContactEmail: true,
     hasDesiredSchedule: true,
     turnCount: settledConversationTurnThreshold,
     contactEmail: "client@example.com",
     customerName: "Client",
+    materialHandoff: {
+      contents: "撮影素材一式",
+      timing: "未定",
+      method: "アップローダー",
+    },
     ...overrides,
   }
 }

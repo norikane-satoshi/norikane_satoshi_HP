@@ -87,4 +87,29 @@ describe("InquiryForm", () => {
     expect(screen.getByLabelText("相談サマリ")).toHaveTextContent("live-60m")
     expect(screen.getByLabelText("メールアドレス")).toHaveValue("client@example.com")
   })
+
+  it("prefills every field from facts already collected in chat", () => {
+    render(
+      <InquiryForm
+        initialValues={{
+          name: "田中",
+          email: "tanaka@example.jp",
+          jobType: "ライブ / コンサート / 舞台収録",
+          duration: "90分",
+          desiredDeadline: "2026-09-30",
+          freeText: "最終媒体: テレビ放送 / Blu-ray / YouTube\n素材: ProResと撮影素材",
+        }}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText("氏名")).toHaveValue("田中")
+    expect(screen.getByLabelText("メールアドレス")).toHaveValue("tanaka@example.jp")
+    expect(screen.getByLabelText("案件種別")).toHaveValue("ライブ / コンサート / 舞台収録")
+    expect(screen.getByLabelText("尺")).toHaveValue("90分")
+    expect(screen.getByLabelText("希望納期")).toHaveValue("2026-09-30")
+    expect(screen.getByLabelText("自由記述")).toHaveValue(
+      "最終媒体: テレビ放送 / Blu-ray / YouTube\n素材: ProResと撮影素材",
+    )
+  })
 })

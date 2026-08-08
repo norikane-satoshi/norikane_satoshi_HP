@@ -102,6 +102,7 @@ const booleanConversationStateKeys = [
   "hasProjectLength",
   "hasMaterialHandoff",
   "hasMaterialDetails",
+  "hasMaterialTiming",
   "hasAdditionalWork",
   "hasDocumentaryAttachments",
   "hasWorkSite",

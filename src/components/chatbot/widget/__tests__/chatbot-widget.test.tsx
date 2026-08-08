@@ -635,7 +635,7 @@ describe("chatbot widget shell", () => {
     expect(screen.getByText("既存の相談応答です。")).toBeInTheDocument()
     expect(screen.getByLabelText("相談内容")).toBeEnabled()
     expect(screen.getByLabelText("チャット内予約")).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "候補日時から予約する" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Booking Order" })).toBeInTheDocument()
   })
 
   it("renders the booking card from the same stored UI when booking is enabled", async () => {
@@ -653,7 +653,7 @@ describe("chatbot widget shell", () => {
 
     expect(screen.getByText("既存の相談応答です。")).toBeInTheDocument()
     expect(screen.getByLabelText("チャット内予約")).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "候補日時から予約する" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Booking Order" })).toBeInTheDocument()
   })
 })
 

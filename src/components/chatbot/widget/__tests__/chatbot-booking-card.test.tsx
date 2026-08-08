@@ -76,6 +76,22 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
 }
 
 describe("ChatbotBookingCard", () => {
+  it("states that the Booking Order can be submitted even when dates are not decided", () => {
+    render(
+      <ChatbotBookingCard
+        candidates={[]}
+        jobContext={{
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        }}
+      />,
+    )
+
+    expect(screen.getByText(/日付が決まっている場合/u)).toBeInTheDocument()
+    expect(screen.getByText(/未定のままでも/u)).toBeInTheDocument()
+  })
+
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date("2025-12-01T00:00:00+09:00"))
@@ -91,7 +107,7 @@ describe("ChatbotBookingCard", () => {
   it("renders the top candidate windows", () => {
     renderCard()
 
-    expect(screen.getByText("候補日時から予約する")).toBeInTheDocument()
+    expect(screen.getByText("Booking Order")).toBeInTheDocument()
     expect(screen.getByLabelText("仮キープ候補のカレンダー選択")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-06-10 選択可" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-06-11 選択可" })).toBeInTheDocument()
@@ -218,11 +234,11 @@ describe("ChatbotBookingCard", () => {
   it("keeps chat copy in the conversation typography without changing booking controls", () => {
     renderCard()
 
-    expect(screen.getByText("素材搬入時期と納品希望日が決まっている場合は、候補を仮キープして予約内容を送信できます。")).toHaveClass(
+    expect(screen.getByText("日付が決まっている場合は候補を選んでください。まだ決まっていなければ、未定のままでも予約内容を送信できます。")).toHaveClass(
       ...conversationContentClasses,
     )
     expect(screen.getByText("工程目安 2〜2 日")).toHaveClass(...conversationContentClasses)
-    expect(screen.getByText("候補日時から予約する")).not.toHaveClass(...conversationContentClasses)
+    expect(screen.getByText("Booking Order")).not.toHaveClass(...conversationContentClasses)
     expect(screen.getByLabelText("案件名")).not.toHaveClass(...conversationContentClasses)
   })
 

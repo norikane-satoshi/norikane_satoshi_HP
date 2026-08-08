@@ -162,7 +162,7 @@ export function applyBookingFinalConfirmationPolicy(input: {
           input.routingDecision.presentChoices?.id === bookingFinalConfirmationChoices.id)) &&
       input.conversationState.bookingFinalConfirmation?.status !== "confirmed"
     ) {
-      const nextQuestion = buildBookingFinalConfirmationQuestion(input.jobContext)
+      const nextQuestion = buildBookingFinalConfirmationQuestion(input.jobContext, input.conversationState)
       return {
         routingDecision: {
           kind: "continue",
@@ -202,7 +202,7 @@ export function applyBookingFinalConfirmationPolicy(input: {
   return {
     routingDecision: {
       kind: "continue",
-      nextQuestion: buildBookingFinalConfirmationQuestion(input.jobContext),
+      nextQuestion: buildBookingFinalConfirmationQuestion(input.jobContext, input.conversationState),
       presentChoices: bookingFinalConfirmationChoices,
     },
     conversationState: {
@@ -285,6 +285,15 @@ export function getMissingBookingReadinessSlots(
       ? undefined
       : "final-medium",
     conversationState.hasWorkSite || jobContext?.workSite ? undefined : "work-site",
+    conversationState.hasMaterialDetails && conversationState.materialHandoff?.contents
+      ? undefined
+      : "material-contents",
+    conversationState.hasMaterialTiming && conversationState.materialHandoff?.timing
+      ? undefined
+      : "material-timing",
+    conversationState.hasMaterialHandoff && conversationState.materialHandoff?.method
+      ? undefined
+      : "material-method",
     conversationState.hasContactEmail && conversationState.contactEmail ? undefined
       : options.bookingPrefill?.contactEmail ? undefined
         : "contact-email",
@@ -296,6 +305,9 @@ type BookingReadinessSlot =
   | "project-length"
   | "final-medium"
   | "work-site"
+  | "material-contents"
+  | "material-timing"
+  | "material-method"
   | "contact-email"
 
 export function wasBookingFinalQuestionOffered(conversationState: ConversationState): boolean {
@@ -459,6 +471,12 @@ function buildMissingBookingReadinessQuestion(slot: ReturnType<typeof getMissing
       return "最終媒体は何になりますか？"
     case "work-site":
       return "作業場所のご希望はありますか？"
+    case "material-contents":
+      return "何の素材をお送りいただく予定ですか？（例: ProRes書き出し、撮影素材一式、使用するクリップのみ）"
+    case "material-timing":
+      return "その素材は、いつお送りいただけそうですか？未定の場合は「未定」とお答えください。"
+    case "material-method":
+      return "素材の受け渡し方法を教えてください。（例: SSD / HDDをバイク便・郵送・手渡し、アップローダーで共有）"
     case "contact-email":
       return "ご連絡先メールを教えてください"
   }
@@ -480,10 +498,13 @@ function isBookingCardlessAcceptanceText(message: string | undefined): boolean {
   return /受付完了|このまま受付|受付として進め|ご連絡いたします|メールアドレス.{0,40}連絡/u.test(normalized)
 }
 
-export function buildBookingFinalConfirmationQuestion(jobContext: JobContext): string {
+export function buildBookingFinalConfirmationQuestion(
+  jobContext: JobContext,
+  conversationState?: ConversationState,
+): string {
   const summary = [
     labelRequestCategory(jobContext),
-    labelDeliveryUse(jobContext),
+    labelDeliveryUse(jobContext, conversationState),
     typeof jobContext.projectLengthMinutes === "number" ? `尺は${formatMinutes(jobContext.projectLengthMinutes)}` : undefined,
   ].filter((item): item is string => Boolean(item))
   const prefix = summary.length > 0 ? `${summary.join("、")}として整理しています。` : "ここまでの内容で整理しています。"
@@ -511,23 +532,33 @@ function labelRequestCategory(jobContext: JobContext): string | undefined {
   }
 }
 
-function labelDeliveryUse(jobContext: JobContext): string | undefined {
-  switch (jobContext.finalMedium) {
+function labelDeliveryUse(jobContext: JobContext, conversationState?: ConversationState): string | undefined {
+  const media = conversationState?.finalMedia?.length
+    ? conversationState.finalMedia
+    : [jobContext.finalMedium]
+  const labels = media.map((medium) => {
+    switch (medium) {
     case "ott":
-      return "納品・使用先は配信"
+      return "VOD・オンデマンド配信"
     case "cinema":
-      return "納品・使用先は映画 / 劇場"
+      return "映画 / 劇場"
     case "tv-broadcast":
-      return "納品・使用先は放送"
+      return "テレビ放送"
+    case "blu-ray":
+      return "Blu-ray / ディスク"
+    case "youtube":
+      return "YouTube"
     case "live":
-      return "納品・使用先はライブ / イベント"
+      return undefined
     case "web":
-      return "納品・使用先はWeb / CM"
+      return "Web公開"
     case "vertical-sns":
-      return "納品・使用先は縦型SNS"
+      return "縦型SNS"
     default:
       return undefined
-  }
+    }
+  }).filter((label) => label !== undefined)
+  return labels.length > 0 ? `納品・使用先は${labels.join(" / ")}` : undefined
 }
 
 function formatMinutes(minutes: number): string {

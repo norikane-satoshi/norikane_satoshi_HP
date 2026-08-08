@@ -58,11 +58,11 @@ export function applyActiveChoiceAnswer(input: {
         jobContext: toProjectLengthJobContext(choice.id),
       }
     case "final-medium":
-      const finalMediumPatch = toFinalMediumJobContextPatch(activeChoices, choice)
+      const finalMediumPatch = toFinalMediumJobContextPatch(activeChoices, choices)
       return {
         choiceSetId: activeChoices.id,
         choiceId: choice.id,
-        choiceIds: [choice.id],
+        choiceIds: choices.map((item) => item.id),
         conversationState: {
           hasFinalMedium: true,
           ...finalMediumPatch.conversationState,
@@ -492,7 +492,8 @@ const canonicalFinalMediumIds = new Set<FinalMedium>([
   "ott",
   "cinema",
   "tv-broadcast",
-  "live",
+  "blu-ray",
+  "youtube",
   "web",
   "vertical-sns",
   "other",
@@ -500,26 +501,27 @@ const canonicalFinalMediumIds = new Set<FinalMedium>([
 
 function toFinalMediumJobContextPatch(
   activeChoices: SurveyChoiceSet,
-  choice: SurveyChoice,
+  choices: SurveyChoice[],
 ): {
   conversationState: Partial<ConversationState>
   jobContext: Pick<JobContext, "finalMedium">
 } {
-  const finalMedium = normalizeFinalMediumChoice(choice)
-  if (finalMedium !== "other") {
-    return {
-      conversationState: {},
-      jobContext: { finalMedium },
-    }
-  }
+  const finalMedia = choices.map(normalizeFinalMediumChoice)
+  const primaryFinalMedium = finalMedia.find((medium) => medium !== "other") ?? "other"
+  const otherChoice = choices.find((choice) => normalizeFinalMediumChoice(choice) === "other")
 
   return {
     conversationState: {
-      otherChoiceComments: {
-        [activeChoices.id]: choice.label,
-      },
+      finalMedia,
+      ...(otherChoice
+        ? {
+            otherChoiceComments: {
+              [activeChoices.id]: otherChoice.label,
+            },
+          }
+        : {}),
     },
-    jobContext: { finalMedium: "other" },
+    jobContext: { finalMedium: primaryFinalMedium },
   }
 }
 
@@ -530,7 +532,8 @@ function normalizeFinalMediumChoice(choice: SurveyChoice): FinalMedium {
   if (/(?:ott|配信|streaming|vod|svod|tvod|hulu|netflix|prime|disney)/u.test(normalized)) return "ott"
   if (/(?:劇場|映画館|cinema|theater|上映|映画祭)/u.test(normalized)) return "cinema"
   if (/(?:テレビ|tv|放送|地上波|bs|cs|broadcast)/u.test(normalized)) return "tv-broadcast"
-  if (/(?:ライブ|live|イベント|舞台収録)/u.test(normalized)) return "live"
+  if (/(?:blu-?ray|ブルーレイ|ディスク|package|パッケージ)/u.test(normalized)) return "blu-ray"
+  if (/(?:youtube|ユーチューブ)/u.test(normalized)) return "youtube"
   if (/(?:縦型|縦動画|縦長|shorts|reels|tiktok|vertical)/u.test(normalized)) return "vertical-sns"
   if (/(?:web|ウェブ|youtube|vimeo|サイト|sns|公開)/u.test(normalized)) return "web"
 

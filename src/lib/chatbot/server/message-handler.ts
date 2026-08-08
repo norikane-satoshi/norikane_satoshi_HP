@@ -1,5 +1,6 @@
 import {
   finalMediumChoices,
+  formatConsultationSummary,
   hasRequiredEmailConsultationSlots,
   projectLengthChoices,
   projectLengthChoicesForJobKind,
@@ -14,6 +15,7 @@ import type {
   JobContext,
   RoutingDecision,
   SurveyChoiceSet,
+  InquiryFormPrefill,
 } from "@/lib/chatbot/domain"
 import {
   appendMessage,
@@ -85,6 +87,10 @@ import {
   type ChatbotFlowStep,
 } from "@/lib/chatbot/server/flow-policy"
 import { chatbotLlmTierIds, createChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
+import {
+  applyMaterialHandoffAnswer,
+  recoverMaterialHandoffFromHistory,
+} from "@/lib/chatbot/server/material-handoff"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
 import { buildSingleUserPromptGuardContent } from "@/lib/chatbot/server/prompt-guard-copy"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
@@ -114,7 +120,7 @@ type ChatbotMessageUi =
       kind: "consultation-summary-form"
       summary: Extract<RoutingDecision, { kind: "to-email" }>["summary"]
     }
-  | { kind: "tier3-inquiry-form" }
+  | { kind: "tier3-inquiry-form"; prefill: InquiryFormPrefill }
 
 export type ChatbotMessageApiResult = {
   conversationId: string
@@ -123,6 +129,8 @@ export type ChatbotMessageApiResult = {
   routingDecision?: RoutingDecision
   tier: ChatbotLlmResponse["tier"]
   ui: ChatbotMessageUi
+  customerDisplayName?: string
+  inquiryPrefill: InquiryFormPrefill
   debug?: {
     conversationScopeHash?: string
     threadIdHash?: string
@@ -350,12 +358,16 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   const jobContext = durationContext.jobContext
-  const baseConversationState = applyEmptyReferenceUrlAnswer({
+  const previousAssistantMessage = findLastAssistantMessageContent(conversation.messages)
+  const baseConversationState = applyMaterialHandoffAnswer({
     latestUserMessage: input.message,
-    previousAssistantMessage: findLastAssistantMessageContent(conversation.messages),
-    conversationState: applyBookingFinalConfirmationAnswer({
+    previousAssistantMessage,
+    conversationState: applyEmptyReferenceUrlAnswer({
       latestUserMessage: input.message,
-      previousAssistantMessage: findLastAssistantMessageContent(conversation.messages),
+      previousAssistantMessage,
+      conversationState: applyBookingFinalConfirmationAnswer({
+      latestUserMessage: input.message,
+      previousAssistantMessage,
       conversationState: applyLectureTrainingConversationState({
         conversation,
         latestUserMessage: input.message,
@@ -367,6 +379,7 @@ export async function handleChatbotMessage(
           jobContext,
           durationStatePatch: durationContext.conversationStatePatch,
         }),
+      }),
       }),
     }),
   })
@@ -491,7 +504,13 @@ export async function handleChatbotMessage(
     fallbackRoutingDecision,
     routingDecision,
   })
-  const ui = toMessageUi({ tier: llmResponse.tier, routingDecision, conversationState: persistedConversationState })
+  const inquiryPrefill = buildInquiryFormPrefill(jobContext, persistedConversationState)
+  const ui = toMessageUi({
+    tier: llmResponse.tier,
+    routingDecision,
+    conversationState: persistedConversationState,
+    inquiryPrefill,
+  })
   const assistantDisplay = buildAssistantDisplayContent({
     requestId: input.requestId,
     rawText: llmResponse.rawText,
@@ -617,6 +636,10 @@ export async function handleChatbotMessage(
     routingDecision,
     tier: llmResponse.tier,
     ui,
+    ...(persistedConversationState.customerName
+      ? { customerDisplayName: persistedConversationState.customerName }
+      : {}),
+    inquiryPrefill,
     ...(() => {
       const debug = summarizeChatbotLifecycleDebug(llmResponse.diagnostics)
       return debug ? { debug } : {}
@@ -895,6 +918,7 @@ function getFinalMediumChoiceMismatchReason(input: {
   rawAssistantText: string
 }): "fixed-final-medium-fallback" | "choice-set-context-mismatch" | undefined {
   if (isStaticFinalMediumChoiceSet(input.choiceSet)) return "fixed-final-medium-fallback"
+  if (!isCanonicalFinalMediumChoiceSet(input.choiceSet)) return "choice-set-context-mismatch"
 
   const text = [
     input.rawAssistantText,
@@ -928,6 +952,13 @@ function getFinalMediumChoiceMismatchReason(input: {
   }
 }
 
+function isCanonicalFinalMediumChoiceSet(choiceSet: SurveyChoiceSet): boolean {
+  if (choiceSet.id !== finalMediumChoices.id || choiceSet.selectionMode !== "multiple") return false
+  const actual = choiceSet.choices.map((choice) => `${choice.id}:${choice.label}`).join("|")
+  const canonical = finalMediumChoices.choices.map((choice) => `${choice.id}:${choice.label}`).join("|")
+  return actual === canonical
+}
+
 function isStaticFinalMediumChoiceSet(choiceSet: SurveyChoiceSet): boolean {
   if (choiceSet.id !== finalMediumChoices.id) return false
   const actual = choiceSet.choices.map((choice) => `${choice.id}:${choice.label}`).join("|")
@@ -939,65 +970,26 @@ function buildFinalMediumRejudgmentQuestion(jobKind: NonNullable<JobContext["job
   switch (jobKind) {
     case "drama-first":
     case "drama-follow-up":
-      return "ドラマ / シリーズとして整理しています。放送、配信、Web公開、劇場上映など、想定している公開先・納品先を1つ教えてください。"
+      return "ドラマ / シリーズとして整理しています。想定している公開先・納品先をすべて選んでください。"
     case "live-60m":
-      return "ライブ / 舞台収録として整理しています。配信、会場上映、パッケージ納品、Web公開など、想定している公開先・納品先を1つ教えてください。"
+      return "ライブ / 舞台収録として整理しています。想定している公開先・納品先をすべて選んでください。"
     case "cm-30s":
-      return "Web CM / CM として整理しています。Web広告、SNS、テレビ放送、店頭・イベントなど、想定している公開先・使用先を1つ教えてください。"
+      return "Web CM / CM として整理しています。想定している公開先・使用先をすべて選んでください。"
     case "mv-5m":
-      return "MV / 音楽映像として整理しています。YouTube、SNS、配信プラットフォーム、ライブ会場上映など、想定している公開先・使用先を1つ教えてください。"
+      return "MV / 音楽映像として整理しています。想定している公開先・使用先をすべて選んでください。"
     default:
-      return "今回の案件で想定している公開先・納品先・使用先を1つ教えてください。"
+      return "今回の案件で想定している公開先・納品先・使用先をすべて選んでください。"
   }
 }
 
 function buildFinalMediumRejudgmentChoiceSet(
-  jobKind: NonNullable<JobContext["jobKind"]>,
+  _jobKind: NonNullable<JobContext["jobKind"]>,
   question: string,
 ): SurveyChoiceSet {
-  const choices =
-    jobKind === "drama-first" || jobKind === "drama-follow-up"
-      ? [
-          { id: "tv-broadcast", label: "地上波・BS／CS放送" },
-          { id: "ott", label: "配信プラットフォーム" },
-          { id: "web", label: "Web公開" },
-          { id: "cinema", label: "劇場・イベント上映" },
-          { id: "undecided", label: "未定・相談したい" },
-          { id: "other", label: "その他" },
-        ]
-      : jobKind === "live-60m"
-        ? [
-            { id: "ott", label: "配信" },
-            { id: "cinema", label: "会場上映・イベント上映" },
-            { id: "web", label: "Web公開" },
-            { id: "undecided", label: "未定・相談したい" },
-            { id: "other", label: "その他" },
-          ]
-        : jobKind === "cm-30s"
-          ? [
-              { id: "web", label: "Web広告・Web公開" },
-              { id: "vertical-sns", label: "SNS広告・縦型SNS" },
-              { id: "tv-broadcast", label: "テレビ放送" },
-              { id: "cinema", label: "店頭・イベント上映" },
-              { id: "undecided", label: "未定・相談したい" },
-              { id: "other", label: "その他" },
-            ]
-          : jobKind === "mv-5m"
-            ? [
-                { id: "web", label: "YouTube / Web公開" },
-                { id: "vertical-sns", label: "SNS / 縦型展開" },
-                { id: "ott", label: "配信プラットフォーム" },
-                { id: "cinema", label: "ライブ会場・イベント上映" },
-                { id: "undecided", label: "未定・相談したい" },
-                { id: "other", label: "その他" },
-              ]
-            : finalMediumChoices.choices
-
   return {
-    id: "final-medium",
+    ...finalMediumChoices,
     question,
     allowFreeText: true,
-    choices,
   }
 }
 
@@ -1217,10 +1209,10 @@ function reconcileConversationContextFromHistory(conversation: ChatbotConversati
 
   const recovered = recoverChoicePanelContextFromHistory(conversation.messages)
   const recoveredBooking = recoverBookingContextFromHistory(conversation.messages)
-  const conversationState = mergeRecoveredBookingContext(
+  const conversationState = recoverMaterialHandoffFromHistory(conversation.messages, mergeRecoveredBookingContext(
     mergeRecoveredConversationState(conversation.context.conversationState ?? {}, recovered.conversationState),
     recoveredBooking,
-  )
+  ))
   const jobContext = {
     ...(conversation.context.jobContext ?? {}),
     ...recovered.jobContext,
@@ -1561,6 +1553,7 @@ const booleanConversationSlots = [
   "hasProjectLength",
   "hasMaterialHandoff",
   "hasMaterialDetails",
+  "hasMaterialTiming",
   "hasAdditionalWork",
   "hasDocumentaryAttachments",
   "hasWorkSite",
@@ -1786,7 +1779,8 @@ function buildChatbotSystemPrompt(
     "choice-panel の id は job-kind / project-length / final-medium / additional-work / documentary-attachment / work-site / production-options のいずれかを使います。",
     "案件種別ごとの候補表は例と安全網です。最終的な質問文、選択肢粒度、複数選択可否、自由入力有無は、会話全体、確定済み facts、未確定 facts、ユーザーの言い方から自然に判断します。",
     "ドラマ / シリーズ、ライブ、Web CM、MV の尺確認では、固定順や固定候補表に縛られず、会話に合う粒度を選びます。ただし別文脈の選択肢を混ぜません。",
-    "最終媒体 / 公開先 / 納品先の確認でも固定候補表をそのまま出さず、案件種別、作品形態、尺・話数、放送、配信、Web公開、劇場上映、イベント上映などの文脈から自然な質問文と選択肢を作ります。ドラマ / シリーズにライブ・縦型SNS・Web CM など別文脈の候補を混ぜず、ライブ、Web CM、MV でもそれぞれの公開・納品文脈に合わせます。",
+    "最終媒体 / 公開先 / 納品先は複数選択として扱い、地上波放送とBlu-rayとYouTubeのような併用をすべて保持します。ライブは案件種別であり最終媒体には含めません。OTTという表記は使わず、VOD・オンデマンド配信と表現します。",
+    "Booking Orderへ進む前に、何の素材を、いつ、どういう方法で受け渡すかを1項目ずつ確認します。SSD / HDDの郵送・バイク便・手渡し、アップローダー、ProRes、撮影素材の使用クリップなど、ユーザーの回答を要約で潰さず保持します。",
     "現在確認している1項目について、会話文脈、選択済み項目、自由入力、未確認項目から次へ進めるほど明確かを判断します。疑問が残る場合は同じ項目について確認を1問だけ返し、十分明確なら過剰確認せず次へ進みます。",
     "明確でないが未定として扱える回答は未定として保持し、後段の相談、最終確認、予約可否判断で扱います。",
     "勝手に予約確定、料金判断、実施可否判断、本人判断が必要な確約はしません。",
@@ -2460,8 +2454,11 @@ function toMessageUi(input: {
   tier: ChatbotLlmResponse["tier"]
   routingDecision: RoutingDecision | undefined
   conversationState: ConversationState
+  inquiryPrefill: InquiryFormPrefill
 }): ChatbotMessageUi {
-  if (input.tier === chatbotLlmTierIds.tier3FormFallback) return { kind: "tier3-inquiry-form" }
+  if (input.tier === chatbotLlmTierIds.tier3FormFallback) {
+    return { kind: "tier3-inquiry-form", prefill: input.inquiryPrefill }
+  }
 
   const routingDecision = input.routingDecision
   if (!routingDecision) return { kind: "none" }
@@ -2996,9 +2993,13 @@ function toLlmChoiceId(label: string, index: number): string {
       ? "tv-broadcast"
       : /配信|stream|ott|vod|netflix|prime|hulu/u.test(normalized)
         ? "ott"
+        : /blu-?ray|ブルーレイ|ディスク|パッケージ/u.test(normalized)
+          ? "blu-ray"
+          : /youtube|ユーチューブ/u.test(normalized)
+            ? "youtube"
         : /劇場|映画館|上映|cinema|theater/u.test(normalized)
           ? "cinema"
-          : /web|ウェブ|youtube|vimeo/u.test(normalized)
+          : /web|ウェブ|vimeo/u.test(normalized)
             ? "web"
             : /未定|相談|決まって/u.test(normalized)
               ? "undecided"
@@ -3135,6 +3136,34 @@ function normalizeBookingCardPrefill(
   }
 }
 
+function buildInquiryFormPrefill(
+  jobContext: JobContext,
+  conversationState: ConversationState,
+): InquiryFormPrefill {
+  const jobType = labelRequestCategory(jobContext, conversationState)
+  const duration = typeof jobContext.projectLengthMinutes === "number"
+    ? formatInquiryDuration(jobContext.projectLengthMinutes)
+    : conversationState.otherChoiceComments?.["project-length"]
+  const freeText = formatConsultationSummary({ jobContext, conversationState })
+
+  return {
+    ...(conversationState.customerName ? { name: conversationState.customerName } : {}),
+    ...(conversationState.contactEmail ? { email: conversationState.contactEmail } : {}),
+    ...(jobType ? { jobType } : {}),
+    ...(duration ? { duration } : {}),
+    ...(jobContext.publicReleaseDate ? { desiredDeadline: jobContext.publicReleaseDate } : {}),
+    ...(freeText ? { freeText } : {}),
+  }
+}
+
+function formatInquiryDuration(minutes: number): string {
+  if (minutes >= 60) {
+    const hours = minutes / 60
+    return Number.isInteger(hours) ? `${hours}時間` : `${hours.toFixed(1).replace(/\.0$/u, "")}時間`
+  }
+  return `${minutes}分`
+}
+
 function normalizeBookingProjectTitle(value: string | undefined, jobContext: JobContext): string | undefined {
   if (!value) return undefined
   const title = value.trim()
@@ -3202,6 +3231,15 @@ function buildChoiceDetailSegments(jobContext: JobContext, conversationState: Co
         .join(" / ")}`,
     )
   }
+  if (conversationState.materialHandoff?.contents) {
+    segments.push(`受け渡し素材: ${conversationState.materialHandoff.contents}`)
+  }
+  if (conversationState.materialHandoff?.timing) {
+    segments.push(`素材受け渡し時期: ${conversationState.materialHandoff.timing}`)
+  }
+  if (conversationState.materialHandoff?.method) {
+    segments.push(`素材受け渡し方法: ${conversationState.materialHandoff.method}`)
+  }
 
   return segments
 }
@@ -3217,13 +3255,20 @@ function labelRequestCategory(jobContext: JobContext, conversationState: Convers
 }
 
 function labelDeliveryUse(jobContext: JobContext, conversationState: ConversationState): string | undefined {
-  if (jobContext.finalMedium === "ott") return "配信"
-  if (jobContext.finalMedium === "cinema") return "映画 / 劇場"
-  if (jobContext.finalMedium === "tv-broadcast") return "放送"
-  if (jobContext.finalMedium === "live") return "ライブ / イベント"
-  if (jobContext.finalMedium === "web") return "Web / CM"
-  if (jobContext.finalMedium === "vertical-sns") return "縦型SNS"
-  return normalizeSupplementalMemo(conversationState.otherChoiceComments?.["final-medium"])
+  const labels = (conversationState.finalMedia?.length ? conversationState.finalMedia : [jobContext.finalMedium])
+    .map((medium) => {
+      if (medium === "ott") return "VOD・オンデマンド配信"
+      if (medium === "cinema") return "映画 / 劇場"
+      if (medium === "tv-broadcast") return "テレビ放送"
+      if (medium === "blu-ray") return "Blu-ray / ディスク"
+      if (medium === "youtube") return "YouTube"
+      if (medium === "web") return "Web公開"
+      if (medium === "vertical-sns") return "縦型SNS"
+      if (medium === "other") return normalizeSupplementalMemo(conversationState.otherChoiceComments?.["final-medium"])
+      return undefined
+    })
+    .filter((label): label is string => Boolean(label))
+  return labels.length > 0 ? labels.join(" / ") : undefined
 }
 
 function labelDeliveryMedium(value: NonNullable<JobContext["deliveryMedium"]>): string {

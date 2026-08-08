@@ -4,6 +4,7 @@ export type {
   ChatbotMessage,
   ChatbotMessageRole,
   ConversationState,
+  InquiryFormPrefill,
 } from "@/lib/chatbot/domain/conversation"
 export {
   formatConsultationSummary,

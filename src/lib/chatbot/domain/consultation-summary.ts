@@ -16,9 +16,11 @@ export type ConsultationSummaryInput = {
 const missing = "未取得"
 
 const finalMediumLabels: Record<NonNullable<JobContext["finalMedium"]>, string> = {
-  ott: "OTT / 配信",
+  ott: "VOD・オンデマンド配信",
   cinema: "劇場",
   "tv-broadcast": "TV放送",
+  "blu-ray": "Blu-ray / ディスク",
+  youtube: "YouTube",
   live: "ライブ",
   web: "Web",
   "vertical-sns": "縦型SNS",
@@ -56,10 +58,15 @@ export function formatConsultationSummary(input: ConsultationSummaryInput): stri
     "相談サマリ",
     `最終媒体: ${
       conversationState.hasFinalMedium
-        ? labelFinalMedium(jobContext.finalMedium, conversationState.otherChoiceComments?.["final-medium"])
+        ? labelFinalMedia(
+            conversationState.finalMedia,
+            jobContext.finalMedium,
+            conversationState.otherChoiceComments?.["final-medium"],
+          )
         : missing
     }`,
     "作業内容:",
+    `- 案件名: ${formatContactValue(conversationState.bookingPrefill?.projectTitle)}`,
     `- 案件種別: ${
       conversationState.hasJobKind
         ? labelJobKind(jobContext.jobKind, fallback.jobKind, conversationState.otherChoiceComments?.["job-kind"])
@@ -94,10 +101,20 @@ export function formatConsultationSummary(input: ConsultationSummaryInput): stri
     "作業場所・立ち会い:",
     `- 作業場所/立ち会い: ${conversationState.hasWorkSite ? labelWorkSite(jobContext.workSite) : missing}`,
     "素材搬入〜納品:",
-    `- 素材搬入/受け取り時期: ${conversationState.hasDesiredSchedule ? formatValue(jobContext.preferredStartDate) : missing}`,
+    `- 受け渡し素材: ${conversationState.hasMaterialDetails ? formatValue(conversationState.materialHandoff?.contents) : missing}`,
+    `- 素材搬入/受け取り時期: ${conversationState.hasMaterialTiming ? formatValue(conversationState.materialHandoff?.timing) : missing}`,
+    `- 素材受け渡し方法: ${conversationState.hasMaterialHandoff ? formatValue(conversationState.materialHandoff?.method) : missing}`,
     `- 納品希望日: ${
       conversationState.hasDesiredSchedule ? formatValue(jobContext.publicReleaseDate ?? fallback.publicReleaseDate) : missing
     }`,
+    `- 参考URL: ${
+      conversationState.hasReferenceUrls
+        ? jobContext.referenceUrls?.length
+          ? jobContext.referenceUrls.join(" / ")
+          : "なし"
+        : missing
+    }`,
+    `- その他の補足: ${formatValue(conversationState.bookingPrefill?.memo)}`,
     "連絡先:",
     `- 氏名: ${formatContactValue(conversationState.customerName ?? fallback.customerName)}`,
     `- 会社: ${formatContactValue(conversationState.companyName ?? fallback.companyName)}`,
@@ -113,6 +130,8 @@ export function hasRequiredConsultationNotificationSlots(input: {
     state.hasFinalMedium &&
       state.hasJobKind &&
       state.hasProjectLength &&
+      state.hasMaterialDetails &&
+      state.hasMaterialTiming &&
       state.hasMaterialHandoff &&
       state.hasWorkSite &&
       state.hasDesiredSchedule &&
@@ -144,6 +163,8 @@ export function hasRequiredEmailConsultationSlots(input: {
     state.hasFinalMedium &&
       state.hasJobKind &&
       state.hasProjectLength &&
+      state.hasMaterialDetails &&
+      state.hasMaterialTiming &&
       state.hasMaterialHandoff &&
       state.hasWorkSite &&
       state.hasContactEmail &&
@@ -154,6 +175,17 @@ export function hasRequiredEmailConsultationSlots(input: {
 function labelFinalMedium(value: JobContext["finalMedium"] | undefined, otherComment?: string): string {
   if (!value) return missing
   return labelOther(value, finalMediumLabels[value], otherComment)
+}
+
+function labelFinalMedia(
+  values: ConversationState["finalMedia"],
+  fallback: JobContext["finalMedium"] | undefined,
+  otherComment?: string,
+): string {
+  const media = values?.length ? values : fallback ? [fallback] : []
+  return media.length > 0
+    ? media.map((value) => labelFinalMedium(value, otherComment)).join(" / ")
+    : missing
 }
 
 

@@ -47,33 +47,38 @@ function baseJobContext(overrides: Partial<JobContext> = {}): JobContext {
 }
 
 describe("choice panel state", () => {
-  it("treats documentary attachments as a multiple-choice set", () => {
-    expect((documentaryAttachmentChoices as SurveyChoiceSet).selectionMode).toBe("multiple")
+  it("offers customer-facing final media as a multiple-choice set without treating live as a medium", () => {
+    expect((finalMediumChoices as SurveyChoiceSet).selectionMode).toBe("multiple")
+    expect(finalMediumChoices.choices.map((choice) => choice.id)).toEqual(
+      expect.arrayContaining(["ott", "tv-broadcast", "blu-ray", "youtube"]),
+    )
+    expect(finalMediumChoices.choices).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "live" })]),
+    )
+    expect(finalMediumChoices.choices.find((choice) => choice.id === "ott")?.label).toMatch(
+      /VOD|オンデマンド/u,
+    )
+    expect(finalMediumChoices.choices.find((choice) => choice.id === "ott")?.label).not.toMatch(/OTT/u)
   })
 
-  it("confirms live final medium and does not ask final medium again", () => {
+  it("keeps every selected final medium while preserving a legacy primary medium", () => {
     const patch = applyActiveChoiceAnswer({
       activeChoices: finalMediumChoices,
-      message: "選択: live",
+      message: "選択: 地上波・BS／CS放送、Blu-ray / ディスク、YouTube",
     })
 
     expect(patch).toMatchObject({
-      conversationState: { hasFinalMedium: true },
-      jobContext: { finalMedium: "live" },
+      choiceIds: ["tv-broadcast", "blu-ray", "youtube"],
+      conversationState: {
+        hasFinalMedium: true,
+        finalMedia: ["tv-broadcast", "blu-ray", "youtube"],
+      },
+      jobContext: { finalMedium: "tv-broadcast" },
     })
+  })
 
-    const routingDecision = decideRoutingFallback({
-      jobContext: baseJobContext({ ...patch?.jobContext }),
-      conversationState: baseState({ ...patch?.conversationState }),
-      latestUserMessage: "選択: live",
-    })
-
-    expect(routingDecision).toMatchObject({
-      kind: "continue",
-      nextQuestion: "まず案件種別を選んでください",
-      presentChoices: jobKindChoices,
-    })
-    expect(routingDecision).not.toMatchObject({ presentChoices: finalMediumChoices })
+  it("treats documentary attachments as a multiple-choice set", () => {
+    expect((documentaryAttachmentChoices as SurveyChoiceSet).selectionMode).toBe("multiple")
   })
 
   it("keeps forward progress when the same choice is sent three times", () => {
@@ -119,8 +124,6 @@ describe("choice panel state", () => {
     [liveProjectLengthChoices, "選択: 90分", { hasProjectLength: true }, { projectLengthMinutes: 90 }],
     [cmProjectLengthChoices, "選択: 15秒", { hasProjectLength: true }, { projectLengthMinutes: 0.25 }],
     [mvProjectLengthChoices, "選択: 5〜10分", { hasProjectLength: true }, { projectLengthMinutes: 10 }],
-    [finalMediumChoices, "live", { hasFinalMedium: true }, { finalMedium: "live" }],
-    [finalMediumChoices, "選択: ライブ", { hasFinalMedium: true }, { finalMedium: "live" }],
     [additionalWorkChoices, "retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch"] }],
     [additionalWorkChoices, "選択: retouch, skin-retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch", "skin-retouch"] }],
     [additionalWorkChoices, "選択: 消し物、肌修正", { hasAdditionalWork: true }, { additionalWork: ["retouch", "skin-retouch"] }],

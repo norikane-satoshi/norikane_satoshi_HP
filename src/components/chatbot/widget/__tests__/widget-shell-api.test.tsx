@@ -611,6 +611,44 @@ describe("WidgetShell API wiring", () => {
     })
   })
 
+  it("retroactively applies a customer name learned in chat to every prior user message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          mockJsonResponse({
+            conversationId: "conv_name",
+            assistantMessage: { ...assistantMessage, id: "assistant_name_1", content: "お名前を教えてください。" },
+            tier: "tier-2-gemini-flash",
+            ui: { kind: "none" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          mockJsonResponse({
+            conversationId: "conv_name",
+            assistantMessage: { ...assistantMessage, id: "assistant_name_2", content: "田中さま、ありがとうございます。" },
+            customerDisplayName: "田中",
+            inquiryPrefill: { name: "田中" },
+            tier: "tier-2-gemini-flash",
+            ui: { kind: "none" },
+          }),
+        ),
+    )
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    submitMessage("予約について相談したいです")
+    expect(await screen.findByText("お名前を教えてください。")).toBeInTheDocument()
+    submitMessage("田中です")
+    expect(await screen.findByText("田中さま、ありがとうございます。")).toBeInTheDocument()
+
+    expect(screen.getAllByText("田中")).toHaveLength(2)
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
+      expect(stored.customerDisplayName).toBe("田中")
+    })
+  })
+
   it("switches the assistant display name only after a nearby user name question", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       mockJsonResponse({
@@ -770,7 +808,7 @@ describe("WidgetShell API wiring", () => {
       }),
     )
     expect(await screen.findByText("復元後の回答です")).toBeInTheDocument()
-    expect(screen.getByText("最終媒体を教えてください")).toBeInTheDocument()
+    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
     await waitFor(() => {
       const storedAfterRecovery = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
       expect(storedAfterRecovery.pendingRequest).toBeUndefined()
@@ -986,8 +1024,8 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage()
 
-    expect(await screen.findByText("最終媒体を教えてください")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "OTT 配信" })).toBeInTheDocument()
+    expect(await screen.findByText("最終媒体をすべて選んでください")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "VOD・オンデマンド配信" })).toBeInTheDocument()
   })
 
   it("does not submit multiple choice panels until the selection is confirmed", async () => {
@@ -1152,14 +1190,14 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("初回相談です")).toBeInTheDocument()
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
-    expect(await screen.findByText("最終媒体を教えてください")).toBeInTheDocument()
+    expect(await screen.findByText("最終媒体をすべて選んでください")).toBeInTheDocument()
 
     firstRender.unmount()
     render(<WidgetShell onMinimize={vi.fn()} />)
 
     expect(screen.getByText("初回相談です")).toBeInTheDocument()
     expect(screen.getByText("最終媒体を選んでください")).toBeInTheDocument()
-    expect(screen.getByText("最終媒体を教えてください")).toBeInTheDocument()
+    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
 
     submitMessage("続きです")
 
@@ -1204,7 +1242,7 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("リロード前の相談です")).toBeInTheDocument()
     expect(screen.getByText("保存済みの回答です")).toBeInTheDocument()
-    expect(screen.getByText("最終媒体を教えてください")).toBeInTheDocument()
+    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
     expect(onRecoverableError).not.toHaveBeenCalled()
 
     submitMessage("リロード後の続きです")
@@ -1359,7 +1397,7 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage()
 
-    expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
+    expect(await screen.findByText("Booking Order")).toBeInTheDocument()
     expect(screen.getByLabelText("仮キープ候補のカレンダー選択")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: `${slot.start.slice(0, 10)} 選択可` })).toBeInTheDocument()
     expect(screen.getByLabelText("案件名")).toHaveValue("ライブ案件")
@@ -1425,7 +1463,7 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage()
 
-    expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
+    expect(await screen.findByText("Booking Order")).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -1536,7 +1574,7 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage("予約したいです")
 
-    expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
+    expect(await screen.findByText("Booking Order")).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -1683,7 +1721,7 @@ describe("WidgetShell API wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存" }))
     fireEvent.click(screen.getByRole("button", { name: "OK" }))
 
-    expect(await screen.findByText("候補日時から予約する")).toBeInTheDocument()
+    expect(await screen.findByText("Booking Order")).toBeInTheDocument()
     expect(screen.getByLabelText("案件名")).toHaveValue("新ライブ案件")
     expect(screen.queryByLabelText("予約送信完了")).not.toBeInTheDocument()
     expect(screen.queryByText("予約番号: group_old")).not.toBeInTheDocument()
@@ -1701,7 +1739,26 @@ describe("WidgetShell API wiring", () => {
             content: "フォームに切り替えます",
           },
           tier: "tier-3-form-fallback",
-          ui: { kind: "tier3-inquiry-form" },
+          customerDisplayName: "田中",
+          inquiryPrefill: {
+            name: "田中",
+            email: "client@example.com",
+            jobType: "ライブ",
+            duration: "90分",
+            desiredDeadline: "2026-09-30",
+            freeText: "最終媒体: YouTube / Blu-ray\n受け渡し素材: ProRes",
+          },
+          ui: {
+            kind: "tier3-inquiry-form",
+            prefill: {
+              name: "田中",
+              email: "client@example.com",
+              jobType: "ライブ",
+              duration: "90分",
+              desiredDeadline: "2026-09-30",
+              freeText: "最終媒体: YouTube / Blu-ray\n受け渡し素材: ProRes",
+            },
+          },
         }),
       )
       .mockResolvedValueOnce(mockJsonResponse({ ok: true }))
@@ -1711,8 +1768,12 @@ describe("WidgetShell API wiring", () => {
     submitMessage("フォームで送ります")
 
     expect(await screen.findByLabelText("問い合わせフォーム")).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText("氏名"), { target: { value: "田中" } })
-    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "client@example.com" } })
+    expect(screen.getByLabelText("氏名")).toHaveValue("田中")
+    expect(screen.getByLabelText("メールアドレス")).toHaveValue("client@example.com")
+    expect(screen.getByLabelText("案件種別")).toHaveValue("ライブ")
+    expect(screen.getByLabelText("尺")).toHaveValue("90分")
+    expect(screen.getByLabelText("希望納期")).toHaveValue("2026-09-30")
+    expect(screen.getByLabelText("自由記述")).toHaveValue("最終媒体: YouTube / Blu-ray\n受け渡し素材: ProRes")
     fireEvent.click(within(screen.getByLabelText("問い合わせフォーム")).getByRole("button", { name: "送信" }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
@@ -1867,7 +1928,7 @@ describe("WidgetShell API wiring", () => {
     submitMessage("初回相談です")
 
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
-    expect(screen.getByText("最終媒体を教えてください")).toBeInTheDocument()
+    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
     fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "編集後の相談です" } })
@@ -1879,7 +1940,7 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("編集後の回答です")).toBeInTheDocument()
     expect(screen.getByText("編集後の相談です")).toBeInTheDocument()
     expect(screen.queryByText("最終媒体を選んでください")).not.toBeInTheDocument()
-    expect(screen.queryByText("最終媒体を教えてください")).not.toBeInTheDocument()
+    expect(screen.queryByText("最終媒体をすべて選んでください")).not.toBeInTheDocument()
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
       message: "編集後の相談です",
       conversationId: "conv_1",

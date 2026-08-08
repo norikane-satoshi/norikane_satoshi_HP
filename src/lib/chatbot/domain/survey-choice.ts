@@ -155,13 +155,15 @@ export function projectLengthChoicesForJobKind(jobKind: JobKind | undefined): Su
 
 export const finalMediumChoices = {
   id: "final-medium",
-  question: "最終媒体を教えてください",
+  question: "最終媒体をすべて選んでください",
+  selectionMode: "multiple",
   choices: [
-    { id: "ott", label: "OTT 配信" },
+    { id: "ott", label: "VOD・オンデマンド配信" },
     { id: "cinema", label: "劇場公開" },
-    { id: "tv-broadcast", label: "地上波放送" },
-    { id: "live", label: "ライブ" },
-    { id: "web", label: "Web" },
+    { id: "tv-broadcast", label: "地上波・BS／CS放送" },
+    { id: "blu-ray", label: "Blu-ray / ディスク" },
+    { id: "youtube", label: "YouTube" },
+    { id: "web", label: "Web公開" },
     { id: "vertical-sns", label: "縦型 SNS" },
     { id: "other", label: "その他" },
   ],
