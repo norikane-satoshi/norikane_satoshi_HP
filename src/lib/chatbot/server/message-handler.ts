@@ -3380,8 +3380,8 @@ function normalizeSupplementalMemo(value: string | undefined): string | undefine
     ?.normalize("NFKC")
     .replace(/^\s*選択\s*[:：]\s*/u, "")
     .replace(/^\s*その他(?:コメント|の内容)?\s*[:：]\s*/u, "")
-    .replace(/付随素材として[、,]?\s*/u, "")
-    .replace(/付随素材(?:その他)?/u, "")
+    .replace(/^付随素材として[、,]?\s*/u, "")
+    .replace(/^付随素材(?:その他)?/u, "")
     .replace(/含まれる可能性があります[。.]?$/u, "")
     .replace(/[。.!！?？ー〜~]+$/u, "")
     .replace(/(?:です|でございます|になります)$/u, "")
@@ -3429,16 +3429,41 @@ function mergeMemoParts(parts: Array<string | undefined>): Pick<BookingCardPrefi
   const lines = parts
     .filter((part): part is string => Boolean(part?.trim()))
     .flatMap((part) => part.split(/\n+/u))
+    .flatMap(splitStructuredMemoLine)
     .map((line) => line.trim())
     .filter((line) => {
       if (!line) return false
-      const key = line.normalize("NFKC")
+      const key = structuredMemoSemanticKey(line) ?? line.normalize("NFKC")
       if (seen.has(key)) return false
       seen.add(key)
       return true
     })
   const memo = lines.join("\n")
   return memo ? { memo } : {}
+}
+
+const structuredMemoBoundaryPattern =
+  /[。\s]+(?=(?:案件種別|依頼内容|尺|公開先・納品先|納品・使用先|最終媒体|追加作業|作業場所|素材受け渡し方法|素材共有予定日|素材受け渡し時期|共有予定素材|受け渡し素材|参考URL|基本工程目安|納品形式)\s*[:：]|付随素材として)/gu
+
+function splitStructuredMemoLine(line: string): string[] {
+  return line.split(structuredMemoBoundaryPattern).map((part) => part.trim()).filter(Boolean)
+}
+
+function structuredMemoSemanticKey(line: string): string | undefined {
+  const normalized = line.normalize("NFKC").replace(/^[-・]\s*/u, "")
+  if (/^(?:案件種別|依頼内容)\s*:/u.test(normalized)) return "job-kind"
+  if (/^尺\s*:/u.test(normalized)) return "project-length"
+  if (/^(?:公開先・納品先|納品・使用先|最終媒体)\s*:/u.test(normalized)) return "final-medium"
+  if (/^追加作業\s*:/u.test(normalized)) return "additional-work"
+  if (/^作業場所\s*:/u.test(normalized)) return "work-site"
+  if (/^(?:共有予定素材|受け渡し素材)\s*:/u.test(normalized)) return "material-contents"
+  if (/^(?:素材共有予定日|素材受け渡し時期)\s*:/u.test(normalized)) return "material-timing"
+  if (/^素材受け渡し方法\s*:/u.test(normalized)) return "material-method"
+  if (/^参考URL\s*:/u.test(normalized)) return "reference-urls"
+  if (/^基本工程目安\s*:/u.test(normalized)) return "workflow-estimate"
+  if (/^納品形式\s*:/u.test(normalized)) return "delivery-medium"
+  if (/^付随素材として/u.test(normalized)) return "documentary-attachment"
+  return undefined
 }
 
 function isValidContactEmail(value: string | undefined): value is string {

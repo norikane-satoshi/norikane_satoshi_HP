@@ -2569,6 +2569,10 @@ describe("handleChatbotMessage user context", () => {
             bookingFinalConfirmation: {
               status: "pending",
               requestedAtTurn: 4,
+              bookingPrefill: {
+                memo:
+                  "案件種別: ライブ。共有予定素材: 撮影素材一式。素材受け渡し方法: アップローダー。共有事項: 当日立ち会い希望",
+              },
             },
           },
           jobContext: {
@@ -2606,6 +2610,8 @@ describe("handleChatbotMessage user context", () => {
     expect(result.ui.bookingPrefill?.memo).not.toContain("client@example.jp")
     expect(result.ui.bookingPrefill?.memo).not.toContain("別名")
     expect(result.ui.bookingPrefill?.memo).not.toContain("別会社")
+    expect(result.ui.bookingPrefill?.memo?.match(/(?:共有予定素材|受け渡し素材)\s*:/gu)).toHaveLength(1)
+    expect(result.ui.bookingPrefill?.memo?.match(/素材受け渡し方法\s*:/gu)).toHaveLength(1)
   })
 
   it("keeps confirmed final confirmation on booking-card even when the thread is otherwise complex", async () => {
