@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { HeroSection } from "@/components/hp/hero-section"
+import { FeaturedWorksCarousel, type FeaturedWork } from "@/components/hp/featured-works-carousel"
 import { HomeScheduleSection } from "@/components/hp/home-schedule-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { isBookingEnabled } from "@/lib/feature-flags"
@@ -48,15 +49,42 @@ const timeline = [
   },
 ]
 
-const featuredWorks = [
-  { title: "火星の女王", client: "NHK100周年記念ドラマ" },
-  { title: "十角館の殺人 / 時計館の殺人", client: "hulu" },
+const featuredWorks: FeaturedWork[] = [
   {
+    kind: "regular",
+    title: "火星の女王",
+    client: "NHK100周年記念ドラマ",
+    officialUrl:
+      "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pYElk2QVvW/",
+    videoId: "IQb3beIbE1I",
+  },
+  {
+    kind: "regular",
+    title: "十角館の殺人 / 時計館の殺人",
+    client: "hulu",
+    officialUrl: "https://www.hulu.jp/static/tokeikannosatsujin/",
+    videoId: "-2kSMEiw0wA",
+  },
+  {
+    kind: "regular",
     title: "福山雅治ライブフィルム「言霊の幸わう夏」「月光」",
     client: "松竹配給",
+    officialUrl: "https://www.fukuyamamasaharu-livefilm.com/gekko/",
+    videoId: "aiPpSEcNLTk",
   },
-  { title: "ゲキ×シネシリーズ", client: "ヴィレッヂ" },
-  { title: "ライブ映像作品多数", client: "配信" },
+  {
+    kind: "regular",
+    title: "ゲキ×シネシリーズ",
+    client: "ヴィレッヂ",
+    officialUrl: "https://www.geki-cine.jp/",
+    videoId: "GiqkQel2CeU",
+  },
+  {
+    kind: "live",
+    title: "ライブ映像作品多数",
+    client: "配信",
+    videoIds: ["fEYJazIPxUg", "G_3xr5desOo", "ZorB-2mqe-U", "d7qo_ke4kqI", "Nhv9GDVem5U"],
+  },
 ]
 
 const tools = [
@@ -244,24 +272,7 @@ export default async function HomePage() {
               代表作品
             </h3>
 
-            <div className="mt-6 -mx-8 md:-mx-10 xl:-mx-12 overflow-x-auto">
-              <div className="flex snap-x snap-mandatory gap-4 px-8 pb-4 md:gap-5 md:px-10 xl:px-12">
-                {featuredWorks.map((work) => (
-                  <div
-                    key={work.title}
-                    className="flex shrink-0 snap-start flex-col glass-card-sm p-4 md:p-5"
-                    style={{ width: "min(72vw, 220px)" }}
-                  >
-                    <p className="text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
-                      {work.title}
-                    </p>
-                    <p className="mt-auto pt-3 text-xs text-hp-muted md:text-sm">
-                      {work.client}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <FeaturedWorksCarousel works={featuredWorks} />
           </div>
         </div>
       </section>
