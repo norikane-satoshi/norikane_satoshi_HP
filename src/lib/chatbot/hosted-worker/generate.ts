@@ -16,12 +16,16 @@ import {
   type HostedNotionAiStageTimings,
   type HostedNotionAiThreadRotationOutcome,
 } from "@/lib/chatbot/hosted-worker/notion-ai-browser-client"
+import {
+  readNotionAiConversationThread,
+  toNotionAiConversationScopeHash,
+  writeNotionAiConversationThread,
+} from "@/lib/chatbot/hosted-worker/notion-ai-conversation-thread-store"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import {
   isNotionAiThreadRotationEnabled,
   resolveEffectiveNotionAiThreadUrl,
   toNotionAiThreadId,
-  writeNotionAiThreadRotation,
 } from "@/lib/chatbot/hosted-worker/notion-ai-thread-store"
 import {
   hostedWorkerTier,
@@ -57,6 +61,10 @@ type HostedWorkerStageTimings = HostedNotionAiStageTimings & {
 type HostedWorkerQueueSnapshot = Pick<HostedWorkerRuntimeState["queue"], "inFlight" | "queueLength">
 type HostedWorkerQueueSnapshotPhase = "enqueued" | "started" | "completed" | "aborted"
 type HostedWorkerQueueSnapshots = Partial<Record<HostedWorkerQueueSnapshotPhase, HostedWorkerQueueSnapshot>>
+type HostedWorkerConversationThreadDiagnostic = {
+  mode: "provisioned" | "reused"
+  threadId: string
+}
 
 export class HostedWorkerSingleFlightQueue {
   private tail: Promise<void> = Promise.resolve()
@@ -159,31 +167,31 @@ export async function generateHostedWorkerResponse(
   let stageTimings: HostedWorkerStageTimings | undefined
   let threadRotation: HostedWorkerThreadRotationState | undefined
   let threadRotationOutcome: { ok: boolean; stage?: string; detail?: string; durationMs: number } | undefined
+  const conversationId = requireConversationId(request.conversationId)
+  const conversationScopeHash = toNotionAiConversationScopeHash(conversationId).slice(0, 12)
+  let conversationThread: HostedWorkerConversationThreadDiagnostic | undefined
 
   const onThreadRotated = async (rotation: {
     threadUrl: string
     previousThreadUrl?: string
     retried: boolean
+    reason: "conversation-provisioned" | "capacity-rotation"
   }): Promise<void> => {
     const threadId = toNotionAiThreadId(rotation.threadUrl)
     if (!threadId) return
-    const record = {
+    const saved = await writeNotionAiConversationThread({
+      conversationId,
       threadUrl: rotation.threadUrl,
-      threadId,
-      rotatedAt: new Date().toISOString(),
-      previousThreadUrl: rotation.previousThreadUrl,
-      previousThreadId: rotation.previousThreadUrl ? toNotionAiThreadId(rotation.previousThreadUrl) : undefined,
-      rotationCount: (state.threadRotation?.rotationCount ?? 0) + 1,
-    }
-    await writeNotionAiThreadRotation(record)
+    })
     threadRotation = {
-      threadId: record.threadId,
-      rotatedAt: record.rotatedAt,
-      previousThreadId: record.previousThreadId,
-      rotationCount: record.rotationCount,
+      threadId: saved.threadId,
+      rotatedAt: saved.updatedAt,
+      previousThreadId: rotation.previousThreadUrl ? toNotionAiThreadId(rotation.previousThreadUrl) : undefined,
+      rotationCount: saved.threadVersion,
       retried: rotation.retried,
+      reason: rotation.reason,
     }
-    state.threadRotation = threadRotation
+    if (rotation.reason === "capacity-rotation") state.threadRotation = threadRotation
   }
   let cdpConnectionState: HostedNotionAiCdpConnectionState | undefined
   const queueSnapshots: HostedWorkerQueueSnapshots = {}
@@ -236,6 +244,7 @@ export async function generateHostedWorkerResponse(
     state.queue.lastErrorCode = undefined
     state.queue.lastLatencyMs = latencyMs
     cdpConnectionState = safeHostedNotionAiCdpConnectionState(response.diagnostics?.cdpConnectionState)
+    conversationThread = safeHostedWorkerConversationThreadDiagnostic(response.diagnostics?.conversationThread)
     const hostedNotionAiStageTimings = safeHostedNotionAiStageTimings(response.diagnostics?.stageTimings)
     stageTimings = workerQueueWait && hostedNotionAiStageTimings
       ? { workerQueueWait, ...hostedNotionAiStageTimings }
@@ -245,7 +254,13 @@ export async function generateHostedWorkerResponse(
       ...response,
       tier: hostedWorkerTier,
       latencyMs,
-      diagnostics: safeDiagnostics(response.diagnostics, stageTimings, cdpConnectionState),
+      diagnostics: safeDiagnostics(
+        response.diagnostics,
+        stageTimings,
+        cdpConnectionState,
+        conversationThread,
+        conversationScopeHash,
+      ),
     }
   } catch (error) {
     const normalized = normalizeGenerateError(error)
@@ -280,29 +295,40 @@ export async function generateHostedWorkerResponse(
         stageTimings,
         threadRotation,
         threadRotationOutcome,
+        conversationScopeHash,
+        conversationThread,
         queueSnapshots: Object.keys(queueSnapshots).length > 0 ? queueSnapshots : undefined,
       })
     }
   }
 }
 
-function createHostedNotionAiResponse(
+async function createHostedNotionAiResponse(
   request: ChatbotLlmRequest,
   clientFactory: GenerateOptions["clientFactory"],
   signal?: AbortSignal,
-  onThreadRotated?: (rotation: { threadUrl: string; previousThreadUrl?: string; retried: boolean }) => Promise<void>,
+  onThreadRotated?: (rotation: {
+    threadUrl: string
+    previousThreadUrl?: string
+    retried: boolean
+    reason: "conversation-provisioned" | "capacity-rotation"
+  }) => Promise<void>,
   onThreadRotationOutcome?: (outcome: HostedNotionAiThreadRotationOutcome) => void,
 ): Promise<ChatbotLlmResponse> {
-  const client =
-    clientFactory?.() ??
-    createHostedNotionAiBrowserClient({
+  const conversationId = requireConversationId(request.conversationId)
+  if (clientFactory) return clientFactory().generate(request, { signal })
+
+  const conversationThread = await readNotionAiConversationThread(conversationId)
+  const client = createHostedNotionAiBrowserClient({
       cdpBaseUrl: process.env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL ?? hostedNotionAiBrowserDefaults.cdpBaseUrl,
-      targetUrlIncludes: resolveEffectiveNotionAiThreadUrl().threadUrl,
+      targetUrlIncludes: conversationThread?.threadUrl ?? resolveEffectiveNotionAiThreadUrl().threadUrl,
       requestTimeoutMs: parsePositiveInteger(
         process.env.CHATBOT_HOSTED_WORKER_GENERATE_TIMEOUT_MS,
         hostedNotionAiBrowserDefaults.requestTimeoutMs,
       ),
       threadRotationEnabled: isNotionAiThreadRotationEnabled(),
+      conversationThreadRequired: true,
+      ...(conversationThread ? { conversationThreadUrl: conversationThread.threadUrl } : {}),
       ...(onThreadRotated ? { onThreadRotated } : {}),
       ...(onThreadRotationOutcome ? { onThreadRotationOutcome } : {}),
     })
@@ -363,6 +389,8 @@ function safeDiagnostics(
   diagnostics: ChatbotLlmResponse["diagnostics"],
   stageTimings: HostedWorkerStageTimings | undefined,
   cdpConnectionState: HostedNotionAiCdpConnectionState | undefined,
+  conversationThread: HostedWorkerConversationThreadDiagnostic | undefined,
+  conversationScopeHash: string | undefined,
 ): Record<string, unknown> {
   return {
     endpoint: diagnostics?.endpoint,
@@ -373,6 +401,9 @@ function safeDiagnostics(
     chunkCount: diagnostics?.chunkCount,
     cdpConnectionState,
     stageTimings,
+    conversationThread: conversationThread
+      ? { ...conversationThread, scopeHash: conversationScopeHash }
+      : undefined,
   }
 }
 
@@ -556,6 +587,8 @@ async function writeGenerateDiagnostics(event: {
   stageTimings?: HostedWorkerStageTimings
   threadRotation?: HostedWorkerThreadRotationState
   threadRotationOutcome?: { ok: boolean; stage?: string; detail?: string; durationMs: number }
+  conversationScopeHash?: string
+  conversationThread?: HostedWorkerConversationThreadDiagnostic
   queueSnapshots?: HostedWorkerQueueSnapshots
 }): Promise<void> {
   try {
@@ -570,6 +603,25 @@ async function writeGenerateDiagnostics(event: {
 function safeRequestId(value: string | undefined): string | undefined {
   if (!value) return undefined
   return /^[A-Za-z0-9_.:-]{1,120}$/.test(value) ? value : "invalid_request_id"
+}
+
+function requireConversationId(value: string | undefined): string {
+  if (value && /^[A-Za-z0-9_.:-]{1,200}$/.test(value)) return value
+  throw new ChatbotLlmError({
+    message: "Hosted Notion AI generation requires a valid conversation id.",
+    code: "invalid-output",
+    tier: hostedWorkerTier,
+    isRetryable: false,
+  })
+}
+
+function safeHostedWorkerConversationThreadDiagnostic(
+  value: unknown,
+): HostedWorkerConversationThreadDiagnostic | undefined {
+  if (!isRecord(value)) return undefined
+  if (value.mode !== "provisioned" && value.mode !== "reused") return undefined
+  if (typeof value.threadId !== "string" || !/^[0-9a-f]{32}$/i.test(value.threadId)) return undefined
+  return { mode: value.mode, threadId: value.threadId }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

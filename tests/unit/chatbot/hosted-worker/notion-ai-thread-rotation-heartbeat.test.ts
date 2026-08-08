@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   defaultGenerateIntervalMs,
   readNotionThreadId,
+  readNotionThreadRotationId,
 } from "../../../../scripts/chatbot/hosted-tier1-heartbeat"
 
 // The generate smoke is what grows the Notion AI thread the worker posts from, so its interval is
@@ -17,5 +18,18 @@ describe("heartbeat support for thread rotation", () => {
     expect(readNotionThreadId({ notionThread: { source: "repo-default" } })).toBeUndefined()
     expect(readNotionThreadId({})).toBeUndefined()
     expect(readNotionThreadId(undefined)).toBeUndefined()
+  })
+
+  it("announces capacity rotation but ignores normal per-conversation provisioning", () => {
+    expect(
+      readNotionThreadRotationId({
+        notionThread: { rotation: { threadId: "rotated", reason: "capacity-rotation" } },
+      }),
+    ).toBe("rotated")
+    expect(
+      readNotionThreadRotationId({
+        notionThread: { rotation: { threadId: "new-conversation", reason: "conversation-provisioned" } },
+      }),
+    ).toBeUndefined()
   })
 })

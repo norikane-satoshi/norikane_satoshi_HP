@@ -36,6 +36,8 @@ export type ChatbotLlmOutputContractRejection = {
 
 export type ChatbotLlmRequest = {
   requestId?: string
+  /** Opaque server-side id used only to keep hosted Notion AI threads isolated per consultation. */
+  conversationId?: string
   systemPrompt: string
   messages: ReadonlyArray<{ role: ChatbotMessageRole; content: string }>
   conversationState: ConversationState

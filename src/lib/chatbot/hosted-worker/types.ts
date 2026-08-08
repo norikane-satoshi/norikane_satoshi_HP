@@ -72,6 +72,7 @@ export type HostedWorkerNotionThreadHealth = {
     previousThreadId?: string
     rotationCount: number
     retried: boolean
+    reason: "capacity-rotation" | "conversation-provisioned"
   }
 }
 

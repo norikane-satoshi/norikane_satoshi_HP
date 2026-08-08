@@ -11,6 +11,9 @@ import {
 } from "@/lib/chatbot/server/llm-client"
 import { getNotionAiChatbotThreadUrl } from "@/lib/chatbot/hosted-worker/notion-ai-config"
 import {
+  buildNotionAiNavigateExpression,
+  notionAiReadLocationExpression,
+  readNotionAiThreadIdFromUrl,
   restoreNotionAiThreadPage,
   rotateNotionAiThread,
   type NotionAiThreadRotationResult,
@@ -29,6 +32,7 @@ export type HostedNotionAiThreadRotation = {
   rotatedAtEpochMs: number
   durationMs: number
   retried: boolean
+  reason: "conversation-provisioned" | "capacity-rotation"
 }
 
 /** Reported for failures too, so a broken selector is diagnosable without guessing the stage. */
@@ -41,6 +45,8 @@ type HostedNotionAiBrowserClientOptions = Partial<HostedNotionAiBrowserClientCon
   onThreadRotated?: (rotation: HostedNotionAiThreadRotation) => Promise<void> | void
   onThreadRotationOutcome?: (outcome: HostedNotionAiThreadRotationOutcome) => void
   threadRotationEnabled?: boolean
+  conversationThreadRequired?: boolean
+  conversationThreadUrl?: string
   fetchClient?: CdpFetchClient
   sessionFactory?: NotionAiCdpSessionFactory
   idFactory?: IdFactory
@@ -383,6 +389,8 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
   private readonly onThreadRotated?: HostedNotionAiBrowserClientOptions["onThreadRotated"]
   private readonly onThreadRotationOutcome?: HostedNotionAiBrowserClientOptions["onThreadRotationOutcome"]
   private readonly threadRotationEnabled: boolean
+  private readonly conversationThreadRequired: boolean
+  private readonly conversationThreadUrl?: string
   private lastHealthError?: ChatbotLlmError | Error
 
   constructor(options: HostedNotionAiBrowserClientOptions = {}) {
@@ -399,6 +407,8 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
     this.onThreadRotated = options.onThreadRotated
     this.onThreadRotationOutcome = options.onThreadRotationOutcome
     this.threadRotationEnabled = options.threadRotationEnabled ?? true
+    this.conversationThreadRequired = options.conversationThreadRequired ?? false
+    this.conversationThreadUrl = options.conversationThreadUrl
   }
 
   async generate(request: ChatbotLlmRequest, options: ChatbotLlmGenerateOptions = {}): Promise<ChatbotLlmResponse> {
@@ -427,6 +437,12 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
       const runtimeContextPreparationStartedAtEpochMs = Date.now()
       let inferenceAttempts = 0
       const inferenceAttemptStageTimings: HostedNotionAiInferenceAttemptStageTiming[] = []
+      const preparedConversationThread = await this.prepareConversationThread({
+        session,
+        startedAt,
+        signal,
+      })
+      const effectiveTargetUrl = preparedConversationThread?.threadUrl ?? this.config.targetUrlIncludes
 
       // Re-reads the runtime context every time it runs. After a rotation the page carries a new
       // ?t=, and the payload only picks that up if the context is read again.
@@ -439,7 +455,7 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
         )
         const effectiveRuntimeContext = withConfiguredThreadContext(
           runtimeContext,
-          this.config.targetUrlIncludes,
+          effectiveTargetUrl,
         )
         const payload = buildRunInferencePayload({
           request,
@@ -525,6 +541,14 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
           } satisfies HostedNotionAiStageTimings,
           attachTargetUrl: target.url,
           attachTargetUrlMatches: isNotionAiChatbotTargetUrl(target.url, this.config.targetUrlIncludes),
+          ...(preparedConversationThread
+            ? {
+                conversationThread: {
+                  mode: preparedConversationThread.mode,
+                  threadId: toComparableThreadId(preparedConversationThread.threadId),
+                },
+              }
+            : {}),
           ...(threadRotation ? { threadRotation } : {}),
         },
       })
@@ -783,6 +807,7 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
       rotatedAtEpochMs: Date.now(),
       durationMs: rotation.durationMs,
       retried,
+      reason: "capacity-rotation",
     }
 
     this.onThreadRotationOutcome?.({ ok: true, ...record })
@@ -791,6 +816,122 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
     await this.onThreadRotated?.(record)
 
     return retried ? record : undefined
+  }
+
+  private async prepareConversationThread(input: {
+    session: NotionAiCdpSession
+    startedAt: number
+    signal?: AbortSignal
+  }): Promise<{
+    mode: "provisioned" | "reused"
+    threadUrl: string
+    threadId: string
+  } | undefined> {
+    if (!this.conversationThreadRequired) return undefined
+
+    const rotationDeps = {
+      evaluate: <T,>(expression: string, timeoutMs: number) =>
+        this.evaluate<T>(input.session, expression, timeoutMs, input.signal),
+      insertText: (text: string, timeoutMs: number) =>
+        this.insertTextInPage(input.session, text, timeoutMs, input.signal),
+    }
+
+    if (!this.conversationThreadUrl) {
+      const provisionStartedAt = Date.now()
+      const provisioned = await rotateNotionAiThread(rotationDeps)
+      if (!provisioned.ok) {
+        this.onThreadRotationOutcome?.({
+          ok: false,
+          stage: `conversation-${provisioned.stage}`,
+          detail: provisioned.detail,
+          durationMs: provisioned.durationMs,
+        })
+        throw this.toLlmError({
+          message: `Unable to provision an isolated Notion AI conversation thread at ${provisioned.stage}.`,
+          code: "connection",
+          isRetryable: true,
+          cause: provisioned,
+        })
+      }
+
+      const threadId = readNotionAiThreadIdFromUrl(provisioned.threadUrl)
+      if (!threadId) {
+        throw this.toLlmError({
+          message: "Provisioned Notion AI conversation thread URL is invalid.",
+          code: "connection",
+          isRetryable: true,
+        })
+      }
+      const record: HostedNotionAiThreadRotation = {
+        threadUrl: provisioned.threadUrl,
+        previousThreadUrl: provisioned.previousThreadUrl,
+        rotatedAtEpochMs: Date.now(),
+        durationMs: Date.now() - provisionStartedAt,
+        retried: true,
+        reason: "conversation-provisioned",
+      }
+      this.onThreadRotationOutcome?.({ ok: true, ...record })
+      await this.onThreadRotated?.(record)
+      return { mode: "provisioned", threadUrl: provisioned.threadUrl, threadId }
+    }
+
+    const expectedThreadId = readNotionAiThreadIdFromUrl(this.conversationThreadUrl)
+    if (!expectedThreadId) {
+      throw this.toLlmError({
+        message: "Stored Notion AI conversation thread URL is invalid.",
+        code: "connection",
+        isRetryable: true,
+      })
+    }
+
+    const current = await this.evaluate<{ href: string }>(
+      input.session,
+      notionAiReadLocationExpression,
+      this.config.requestTimeoutMs,
+      input.signal,
+    )
+    if (!sameThreadId(readNotionAiThreadIdFromUrl(current.href), expectedThreadId)) {
+      try {
+        await this.evaluate(
+          input.session,
+          buildNotionAiNavigateExpression(this.conversationThreadUrl),
+          this.config.requestTimeoutMs,
+          input.signal,
+        )
+      } catch {
+        // A successful location.assign commonly destroys the old execution context. Readiness is
+        // decided by the runtime-context poll below, not by that transient CDP response.
+      }
+    }
+
+    const deadline = input.startedAt + this.config.requestTimeoutMs
+    for (;;) {
+      throwIfAborted(input.signal)
+      const runtimeContext = await this.evaluate<NotionAiRuntimeContext>(
+        input.session,
+        runtimeContextExpression,
+        Math.max(1, deadline - Date.now()),
+        input.signal,
+      ).catch(() => undefined)
+      if (
+        runtimeContext?.spaceId &&
+        sameThreadId(runtimeContext.threadId, expectedThreadId)
+      ) {
+        return {
+          mode: "reused",
+          threadUrl: this.conversationThreadUrl,
+          threadId: expectedThreadId,
+        }
+      }
+      if (Date.now() >= deadline) {
+        throw this.toLlmError({
+          message: "Timed out while opening the isolated Notion AI conversation thread.",
+          code: "timeout",
+          isRetryable: true,
+        })
+      }
+      await delay(250, input.signal)
+    }
   }
 
   private async insertTextInPage(
@@ -1282,6 +1423,17 @@ function getThreadIdFromUrl(url: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function toComparableThreadId(value: string | undefined): string | undefined {
+  const normalized = value?.replaceAll("-", "").toLowerCase()
+  return normalized || undefined
+}
+
+function sameThreadId(left: string | undefined, right: string | undefined): boolean {
+  const normalizedLeft = toComparableThreadId(left)
+  const normalizedRight = toComparableThreadId(right)
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight)
 }
 
 export function assertNotionAiChatbotTargetUrl(

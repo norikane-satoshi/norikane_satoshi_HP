@@ -16,6 +16,7 @@ import {
 function llmRequest(requestId = "req_1"): ChatbotLlmRequest {
   return {
     requestId,
+    conversationId: "conversation_test",
     systemPrompt: "system prompt must not be logged",
     messages: [{ role: "user", content: "user prompt must not be logged" }],
     latestUserMessage: "latest user message must not be logged",
@@ -52,6 +53,21 @@ describe("hosted worker generate", () => {
     vi.restoreAllMocks()
     vi.unstubAllEnvs()
     vi.useRealTimers()
+  })
+
+  it("fails closed instead of using a shared thread when conversation identity is missing", async () => {
+    const state = createHostedWorkerRuntimeState()
+    const queue = createHostedWorkerQueue(state)
+    const request = llmRequest("req_missing_conversation")
+    delete request.conversationId
+
+    await expect(
+      generateHostedWorkerResponse(request, state, queue, {
+        clientFactory: () => ({
+          generate: vi.fn(),
+        }),
+      }),
+    ).rejects.toMatchObject({ code: "invalid-output", isRetryable: false })
   })
 
   it("allows a generation that completes within Tier1's 75-second attempt budget", async () => {
@@ -212,6 +228,7 @@ describe("hosted worker generate", () => {
         "aborted",
         "boundary",
         "buildSha",
+        "conversationScopeHash",
         "event",
         "generateDurationMs",
         "outcome",
@@ -228,6 +245,7 @@ describe("hosted worker generate", () => {
     )
     expect(JSON.stringify(event)).not.toContain("systemPrompt")
     expect(JSON.stringify(event)).not.toContain("latestUserMessage")
+    expect(JSON.stringify(event)).not.toContain("conversation_test")
     expect(JSON.stringify(event)).not.toContain("Bearer")
     rmSync(dir, { recursive: true, force: true })
   })

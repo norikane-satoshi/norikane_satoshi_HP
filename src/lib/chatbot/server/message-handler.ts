@@ -399,6 +399,7 @@ export async function handleChatbotMessage(
     orchestrator,
     request: {
       requestId: input.requestId,
+      conversationId: conversation.id,
       systemPrompt,
       messages: buildLlmMessages(conversation.messages, userMessage),
       conversationState,

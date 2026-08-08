@@ -11,6 +11,7 @@ import { createHostedWorkerRequestHandler } from "@/lib/chatbot/hosted-worker/se
 function requestBody(): ChatbotLlmRequest {
   return {
     requestId: "req_server_abort",
+    conversationId: "conversation_server_test",
     systemPrompt: "system",
     messages: [{ role: "user", content: "hello" }],
     latestUserMessage: "hello",

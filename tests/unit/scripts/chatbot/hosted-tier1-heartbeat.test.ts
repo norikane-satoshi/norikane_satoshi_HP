@@ -139,6 +139,7 @@ describe("hosted-tier1-heartbeat", () => {
 
   it("uses the hosted worker generate body shape and checks tier/rawText only", () => {
     expect(buildSmokeRequest()).toMatchObject({
+      conversationId: "hosted-tier1-heartbeat",
       systemPrompt: expect.any(String),
       messages: [],
       conversationState: expect.any(Object),

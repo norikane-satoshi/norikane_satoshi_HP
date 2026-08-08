@@ -16,6 +16,7 @@ export type HostedWorkerThreadRotationState = {
   previousThreadId?: string
   rotationCount: number
   retried: boolean
+  reason: "capacity-rotation" | "conversation-provisioned"
 }
 
 export type HostedWorkerRuntimeState = {

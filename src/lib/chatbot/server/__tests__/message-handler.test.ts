@@ -207,6 +207,7 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(harness.generate).toHaveBeenCalledWith(
       expect.objectContaining({
+        conversationId: "conv_1",
         systemPrompt: expect.stringContaining("本人だけの過去要約"),
       }),
     )

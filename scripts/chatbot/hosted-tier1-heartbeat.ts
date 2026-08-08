@@ -131,7 +131,7 @@ export async function runHeartbeat(
   const repairActions: RepairAction[] = []
   const now = deps.now()
 
-  const { check: health, notionThreadId } = await checkHealth(config, deps.fetch)
+  const { check: health, notionThreadId, notionThreadRotationId } = await checkHealth(config, deps.fetch)
   checks.push(health)
 
   let generate: CheckResult | undefined
@@ -180,13 +180,20 @@ export async function runHeartbeat(
     if (repairActions.length > 0) nextState.lastRepairAt = now.toISOString()
   }
 
-  // The worker can move itself to a fresh Notion AI thread when the current one runs out of
-  // storage. That is an autonomous change to Satoshi's workspace, so it gets announced once — not
-  // on the first observation, which would page on every new state file.
+  // Normal consultation provisioning creates a thread and is not an incident. Only a capacity
+  // rotation is exposed under notionThread.rotation and announced. After a worker restart that
+  // in-memory marker is absent, so keep the last rotation id rather than notifying a false change
+  // back to the bootstrap thread.
   const threadRotated = Boolean(
-    notionThreadId && previous.lastNotionThreadId && notionThreadId !== previous.lastNotionThreadId,
+    notionThreadRotationId &&
+    previous.lastNotionThreadId &&
+    notionThreadRotationId !== previous.lastNotionThreadId,
   )
-  if (notionThreadId) nextState.lastNotionThreadId = notionThreadId
+  if (notionThreadRotationId) {
+    nextState.lastNotionThreadId = notionThreadRotationId
+  } else if (!previous.lastNotionThreadId && notionThreadId) {
+    nextState.lastNotionThreadId = notionThreadId
+  }
 
   const notification = threadRotated
     ? await sendNotification(config, "thread-rotated", checks, repairActions, deps.fetch, now)
@@ -273,6 +280,7 @@ export function shouldRunGenerate(
 
 export function buildSmokeRequest() {
   return {
+    conversationId: "hosted-tier1-heartbeat",
     systemPrompt: "新規映像案件の相談受付として、所要日数だけを短く返してください。",
     messages: [],
     latestUserMessage: "Web CM 30秒、追加作業なしの相談です。",
@@ -303,7 +311,7 @@ export function buildSmokeRequest() {
 async function checkHealth(
   config: HeartbeatConfig,
   fetchClient: typeof fetch,
-): Promise<{ check: CheckResult; notionThreadId?: string }> {
+): Promise<{ check: CheckResult; notionThreadId?: string; notionThreadRotationId?: string }> {
   const response = await requestJson(`${trimTrailingSlash(config.workerUrl)}/health`, config.token, {
     method: "GET",
     timeoutMs: config.timeoutMs,
@@ -317,12 +325,21 @@ async function checkHealth(
   return {
     check: { ...evaluateHealthResponse(response.status, response.body), durationMs: response.durationMs },
     notionThreadId: readNotionThreadId(response.body),
+    notionThreadRotationId: readNotionThreadRotationId(response.body),
   }
 }
 
 export function readNotionThreadId(body: unknown): string | undefined {
   const notionThread = (body as { notionThread?: { threadId?: unknown } } | undefined)?.notionThread
   return typeof notionThread?.threadId === "string" && notionThread.threadId ? notionThread.threadId : undefined
+}
+
+export function readNotionThreadRotationId(body: unknown): string | undefined {
+  const rotation = (
+    body as { notionThread?: { rotation?: { threadId?: unknown; reason?: unknown } } } | undefined
+  )?.notionThread?.rotation
+  if (rotation?.reason !== "capacity-rotation") return undefined
+  return typeof rotation.threadId === "string" && rotation.threadId ? rotation.threadId : undefined
 }
 
 async function checkGenerate(config: HeartbeatConfig, fetchClient: typeof fetch): Promise<CheckResult> {
@@ -525,6 +542,8 @@ async function sendResendNotification(
   const subject =
     kind === "recovered"
       ? "[norikane HP] Tier1 hosted worker recovered"
+      : kind === "thread-rotated"
+        ? "[norikane HP] Tier1 conversation thread rotated"
       : kind === "test"
         ? "[norikane HP] Tier1 hosted worker heartbeat test"
         : "[norikane HP] Tier1 hosted worker unhealthy"
