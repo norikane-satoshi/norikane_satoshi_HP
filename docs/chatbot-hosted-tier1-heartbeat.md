@@ -30,6 +30,7 @@ Default VPS files:
 - env: `~/.config/norikane/hosted-tier1-heartbeat.env`
 - state: `~/.local/state/norikane_satoshi_hp/hosted-tier1-heartbeat-state.json`
 - log: `~/.local/state/norikane_satoshi_hp/hosted-tier1-heartbeat.jsonl`
+- worker service template: `scripts/chatbot/hosted-notion-ai-worker.service.template`
 - service template: `scripts/chatbot/studio.norikane.hosted-tier1-heartbeat.service.template`
 - timer template: `scripts/chatbot/studio.norikane.hosted-tier1-heartbeat.timer.template`
 
@@ -55,11 +56,17 @@ Install on the VPS after copying the repo branch:
 
 ```bash
 mkdir -p ~/.config/systemd/user ~/.config/norikane
+cp scripts/chatbot/hosted-notion-ai-worker.service.template ~/.config/systemd/user/hosted-notion-ai-worker.service
 cp scripts/chatbot/studio.norikane.hosted-tier1-heartbeat.service.template ~/.config/systemd/user/studio.norikane.hosted-tier1-heartbeat.service
 cp scripts/chatbot/studio.norikane.hosted-tier1-heartbeat.timer.template ~/.config/systemd/user/studio.norikane.hosted-tier1-heartbeat.timer
 systemctl --user daemon-reload
+systemctl --user enable --now hosted-notion-ai-worker.service
 systemctl --user enable --now studio.norikane.hosted-tier1-heartbeat.timer
 ```
+
+The worker exits with status `143` when systemd intentionally sends `SIGTERM` during a restart.
+`SuccessExitStatus=143` keeps that expected shutdown out of the failed-unit state and warning logs;
+it does not suppress real non-zero worker exits.
 
 The live VPS worker repo is `/home/chatbot-worker/norikane_satoshi_HP`; do not switch its branch just to install the heartbeat because the worker service also runs from that directory. Reconcile from the approved master commit, then copy only the heartbeat service/timer templates or script when the web app code does not require a Vercel deploy.
 

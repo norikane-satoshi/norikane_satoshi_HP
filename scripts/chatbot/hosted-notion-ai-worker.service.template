@@ -1,0 +1,17 @@
+[Unit]
+Description=Hosted Notion AI worker API
+After=network-online.target hosted-worker-chrome.service
+Wants=network-online.target
+Requires=hosted-worker-chrome.service
+
+[Service]
+Type=simple
+EnvironmentFile=/home/chatbot-worker/.config/norikane-hosted-worker/worker.env
+WorkingDirectory=/home/chatbot-worker/norikane_satoshi_HP
+ExecStart=/home/chatbot-worker/norikane_satoshi_HP/node_modules/.bin/tsx scripts/chatbot/start-hosted-notion-ai-worker.ts
+Restart=always
+RestartSec=5
+SuccessExitStatus=143
+
+[Install]
+WantedBy=default.target
