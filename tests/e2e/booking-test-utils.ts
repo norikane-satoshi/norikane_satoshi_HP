@@ -7,6 +7,7 @@ export const testUserEmail = "norikane.satoshi@gmail.com"
 export const cookieName = "authjs.session-token"
 
 const dayMs = 24 * 60 * 60 * 1000
+const tokyoOffsetMs = 9 * 60 * 60 * 1000
 
 function startOfUtcDay(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
@@ -14,6 +15,10 @@ function startOfUtcDay(date: Date) {
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10)
+}
+
+export function e2eTokyoDateKey(date = new Date()) {
+  return isoDate(new Date(date.getTime() + tokyoOffsetMs))
 }
 
 function addUtcDays(date: Date, days: number) {

@@ -1,19 +1,12 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { prismaForE2E, testUserEmail, upsertUser } from "./booking-test-utils"
+import { e2eTokyoDateKey, prismaForE2E, testUserEmail, upsertUser } from "./booking-test-utils"
 
 const outsideLinePreviewNotice =
   "LINE アプリ外の確認表示です。通常ログイン画面へ自動遷移せず、この画面で表示を確認できます。"
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10)
-}
-
-function localDateKey(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
 }
 
 function addDays(date: Date, days: number) {
@@ -26,7 +19,7 @@ function addDaysToDateKey(dateKey: string, days: number) {
 }
 
 function currentDateKey() {
-  return localDateKey(new Date())
+  return e2eTokyoDateKey()
 }
 
 function displayDateKey(dateKey: string) {
@@ -95,8 +88,8 @@ async function stubBookingCalendarApis(
       bufferAfterHours: 0,
     }))
     const dateOnlyBusy = (options.dateOnlyBusyDateKeys ?? []).map((date) => ({
-      start: date,
-      end: addDaysToDateKey(date, 1),
+      start: `${date}T00:00:00+09:00`,
+      end: `${addDaysToDateKey(date, 1)}T00:00:00+09:00`,
       summary: "Date-only schedule",
       source: "notion_work",
       bufferBeforeHours: 0,
@@ -249,12 +242,13 @@ test("booking calendar desktop hides view tabs and reaches the booking form from
   await expect(page.getByLabel("案件名")).toBeVisible()
 })
 
-test("booking calendar locks timed IB work dates without blocking date-only schedule days", async ({ page }) => {
+test("booking calendar locks timed and date-only IB work dates", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   const todayDate = currentDateKey()
   const pastDate = addDaysToDateKey(todayDate, -1)
   const lockedDate = addDaysToDateKey(todayDate, 2)
   const dateOnlyScheduleDate = addDaysToDateKey(todayDate, 3)
+  const selectableDate = addDaysToDateKey(todayDate, 4)
   const submittedBodies: unknown[] = []
   await page.route("**/api/booking", async (route) => {
     if (route.request().method() !== "POST") {
@@ -310,10 +304,14 @@ test("booking calendar locks timed IB work dates without blocking date-only sche
   await expect(page.locator(`.fc-daygrid-day[data-date="${pastDate}"].booking-calendar__selected-date`)).toHaveCount(0)
 
   await page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"] .fc-daygrid-day-number`).click()
-  await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"].booking-calendar__selected-date`)).toHaveCount(1)
-  await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"].booking-calendar__locked-date`)).toHaveCount(0)
-  await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"] .booking-calendar__busy-pill`)).toHaveCount(0)
-  await expect(page.getByTestId("booking-date-request-summary")).toContainText(displayDateKey(dateOnlyScheduleDate))
+  await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"].booking-calendar__selected-date`)).toHaveCount(0)
+  await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"].booking-calendar__locked-date`)).toHaveCount(1)
+  await expect(page.locator(`.fc-daygrid-day[data-date="${dateOnlyScheduleDate}"] .booking-calendar__date-lock`)).toHaveCount(1)
+  await expect(page.getByTestId("booking-date-request-summary")).toContainText("未選択")
+
+  await page.locator(`.fc-daygrid-day[data-date="${selectableDate}"] .fc-daygrid-day-number`).click()
+  await expect(page.locator(`.fc-daygrid-day[data-date="${selectableDate}"].booking-calendar__selected-date`)).toHaveCount(1)
+  await expect(page.getByTestId("booking-date-request-summary")).toContainText(displayDateKey(selectableDate))
   await expect(page.getByTestId("booking-date-request-chips")).toHaveCount(0)
   await page.getByRole("button", { name: "この日程で相談する" }).click()
   await expect(page.getByLabel("案件名")).toBeVisible()
@@ -331,7 +329,7 @@ test("booking calendar locks timed IB work dates without blocking date-only sche
 
   expect(submittedBodies).toHaveLength(1)
   expect(submittedBodies[0]).toMatchObject({
-    requestedDates: [dateOnlyScheduleDate],
+    requestedDates: [selectableDate],
     selectedSlots: [],
     dueDate: "",
     memo: "",
@@ -339,6 +337,7 @@ test("booking calendar locks timed IB work dates without blocking date-only sche
   expect(JSON.stringify(submittedBodies[0])).not.toContain(lockedDate)
   expect(JSON.stringify(submittedBodies[0])).not.toContain(todayDate)
   expect(JSON.stringify(submittedBodies[0])).not.toContain(pastDate)
+  expect(JSON.stringify(submittedBodies[0])).not.toContain(dateOnlyScheduleDate)
 })
 
 test("LINE LIFF booking entry uses the same month-only candidate flow", async ({ page }) => {

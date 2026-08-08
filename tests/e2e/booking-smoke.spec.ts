@@ -7,6 +7,7 @@ import {
   e2eCurrentWeekRange,
   e2eCurrentWeekdayOffset,
   e2eSlot,
+  e2eTokyoDateKey,
   prismaForE2E,
   testUserEmail,
   upsertUser,
@@ -16,7 +17,6 @@ const prefix = `booking-smoke-${Date.now()}`
 const bookingWeek = e2eCurrentWeekRange()
 const bookingWeekdayOffset = e2eCurrentWeekdayOffset()
 const existingSlot = e2eSlot(bookingWeekdayOffset, 1)
-const bookingWeekSelectionDate = existingSlot.date
 
 function addDaysToDateKey(dateKey: string, days: number) {
   const [year, month, day] = dateKey.split("-").map(Number)
@@ -86,7 +86,7 @@ test.describe("booking personal smoke", () => {
     await page.waitForTimeout(750)
     await expect(page.locator(".booking-calendar__booking-event")).toHaveCount(1)
     await expect(page.getByRole("button", { name: "週" })).toHaveCount(0)
-    const firstRequestedDate = addDaysToDateKey(bookingWeekSelectionDate, 1)
+    const firstRequestedDate = addDaysToDateKey(e2eTokyoDateKey(), 1)
     await page.locator(`.fc-daygrid-day[data-date="${firstRequestedDate}"] .fc-daygrid-day-number`).click()
     await expect(page.locator(".fc-dayGridMonth-view")).toBeVisible()
     await expect(page.getByTestId("booking-date-request-panel")).toBeVisible()
