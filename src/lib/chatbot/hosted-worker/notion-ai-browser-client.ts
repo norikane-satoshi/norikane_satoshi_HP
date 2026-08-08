@@ -31,9 +31,15 @@ export type HostedNotionAiThreadRotation = {
   retried: boolean
 }
 
+/** Reported for failures too, so a broken selector is diagnosable without guessing the stage. */
+export type HostedNotionAiThreadRotationOutcome =
+  | ({ ok: true } & HostedNotionAiThreadRotation)
+  | { ok: false; stage: string; detail?: string; durationMs: number }
+
 type HostedNotionAiBrowserClientOptions = Partial<HostedNotionAiBrowserClientConfig> & {
   /** Called once a rotation succeeded, before the retry, so the new thread is durable either way. */
   onThreadRotated?: (rotation: HostedNotionAiThreadRotation) => Promise<void> | void
+  onThreadRotationOutcome?: (outcome: HostedNotionAiThreadRotationOutcome) => void
   threadRotationEnabled?: boolean
   fetchClient?: CdpFetchClient
   sessionFactory?: NotionAiCdpSessionFactory
@@ -375,6 +381,7 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
   private readonly sessionFactory: NotionAiCdpSessionFactory
   private readonly idFactory: IdFactory
   private readonly onThreadRotated?: HostedNotionAiBrowserClientOptions["onThreadRotated"]
+  private readonly onThreadRotationOutcome?: HostedNotionAiBrowserClientOptions["onThreadRotationOutcome"]
   private readonly threadRotationEnabled: boolean
   private lastHealthError?: ChatbotLlmError | Error
 
@@ -390,6 +397,7 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
     this.sessionFactory = options.sessionFactory ?? createDefaultCdpSession
     this.idFactory = options.idFactory ?? randomId
     this.onThreadRotated = options.onThreadRotated
+    this.onThreadRotationOutcome = options.onThreadRotationOutcome
     this.threadRotationEnabled = options.threadRotationEnabled ?? true
   }
 
@@ -740,11 +748,23 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
     let rotation: NotionAiThreadRotationResult
     try {
       rotation = await rotateNotionAiThread(rotationDeps)
-    } catch {
+    } catch (rotationError) {
+      this.onThreadRotationOutcome?.({
+        ok: false,
+        stage: "threw",
+        detail: rotationError instanceof Error ? rotationError.message : String(rotationError),
+        durationMs: Date.now() - nowMs,
+      })
       return undefined
     }
 
     if (!rotation.ok) {
+      this.onThreadRotationOutcome?.({
+        ok: false,
+        stage: rotation.stage,
+        detail: rotation.detail,
+        durationMs: rotation.durationMs,
+      })
       // Leaving the tab on a half-started chat would show up as a permanent target mismatch.
       await restoreNotionAiThreadPage(rotationDeps, rotation.previousThreadUrl)
       return undefined
@@ -765,6 +785,7 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
       retried,
     }
 
+    this.onThreadRotationOutcome?.({ ok: true, ...record })
     // Awaited so the new thread is durable before the retry, and before any health read that
     // starts after this point.
     await this.onThreadRotated?.(record)

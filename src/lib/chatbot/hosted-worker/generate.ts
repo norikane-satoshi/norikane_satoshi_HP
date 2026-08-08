@@ -14,6 +14,7 @@ import {
   type HostedNotionAiCdpConnectionState,
   type HostedNotionAiInferenceAttemptStageTiming,
   type HostedNotionAiStageTimings,
+  type HostedNotionAiThreadRotationOutcome,
 } from "@/lib/chatbot/hosted-worker/notion-ai-browser-client"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import {
@@ -157,6 +158,7 @@ export async function generateHostedWorkerResponse(
   let workerQueueWait: ChatbotStageTimingSpan | undefined
   let stageTimings: HostedWorkerStageTimings | undefined
   let threadRotation: HostedWorkerThreadRotationState | undefined
+  let threadRotationOutcome: { ok: boolean; stage?: string; detail?: string; durationMs: number } | undefined
 
   const onThreadRotated = async (rotation: {
     threadUrl: string
@@ -199,7 +201,17 @@ export async function generateHostedWorkerResponse(
         const activeAbort = createLinkedAbortController(options.signal)
         try {
           return await withTimeout(
-            createHostedNotionAiResponse(request, options.clientFactory, activeAbort.signal, onThreadRotated),
+            createHostedNotionAiResponse(
+              request,
+              options.clientFactory,
+              activeAbort.signal,
+              onThreadRotated,
+              (outcome) => {
+                threadRotationOutcome = outcome.ok
+                  ? { ok: true, durationMs: outcome.durationMs }
+                  : { ok: false, stage: outcome.stage, detail: outcome.detail, durationMs: outcome.durationMs }
+              },
+            ),
             timeoutMs,
             timeoutTag,
             options.signal,
@@ -267,6 +279,7 @@ export async function generateHostedWorkerResponse(
         cdpConnectionState,
         stageTimings,
         threadRotation,
+        threadRotationOutcome,
         queueSnapshots: Object.keys(queueSnapshots).length > 0 ? queueSnapshots : undefined,
       })
     }
@@ -278,6 +291,7 @@ function createHostedNotionAiResponse(
   clientFactory: GenerateOptions["clientFactory"],
   signal?: AbortSignal,
   onThreadRotated?: (rotation: { threadUrl: string; previousThreadUrl?: string; retried: boolean }) => Promise<void>,
+  onThreadRotationOutcome?: (outcome: HostedNotionAiThreadRotationOutcome) => void,
 ): Promise<ChatbotLlmResponse> {
   const client =
     clientFactory?.() ??
@@ -290,6 +304,7 @@ function createHostedNotionAiResponse(
       ),
       threadRotationEnabled: isNotionAiThreadRotationEnabled(),
       ...(onThreadRotated ? { onThreadRotated } : {}),
+      ...(onThreadRotationOutcome ? { onThreadRotationOutcome } : {}),
     })
 
   return client.generate(request, { signal })
@@ -540,6 +555,7 @@ async function writeGenerateDiagnostics(event: {
   cdpConnectionState?: HostedNotionAiCdpConnectionState
   stageTimings?: HostedWorkerStageTimings
   threadRotation?: HostedWorkerThreadRotationState
+  threadRotationOutcome?: { ok: boolean; stage?: string; detail?: string; durationMs: number }
   queueSnapshots?: HostedWorkerQueueSnapshots
 }): Promise<void> {
   try {

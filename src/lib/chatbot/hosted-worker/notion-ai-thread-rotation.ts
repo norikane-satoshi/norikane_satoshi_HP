@@ -130,6 +130,9 @@ export type NotionAiThreadRotationTimeouts = {
   awaitThreadUrlMs: number
   pollIntervalMs: number
   settleMs: number
+  /** Notion re-renders the composer after the new chat opens, so each step gets a few tries. */
+  stepRetries: number
+  stepRetryDelayMs: number
 }
 
 const defaultTimeouts: NotionAiThreadRotationTimeouts = {
@@ -138,6 +141,8 @@ const defaultTimeouts: NotionAiThreadRotationTimeouts = {
   awaitThreadUrlMs: 30000,
   pollIntervalMs: 500,
   settleMs: 3000,
+  stepRetries: 8,
+  stepRetryDelayMs: 500,
 }
 
 export type NotionAiThreadRotationDeps = {
@@ -147,6 +152,21 @@ export type NotionAiThreadRotationDeps = {
   now?: () => number
   sleep?: (ms: number) => Promise<void>
   timeouts?: Partial<NotionAiThreadRotationTimeouts>
+}
+
+async function retryStep<T>(
+  run: () => Promise<T>,
+  accept: (value: T | undefined) => boolean,
+  timeouts: NotionAiThreadRotationTimeouts,
+  sleep: (ms: number) => Promise<void>,
+): Promise<T | undefined> {
+  let value: T | undefined
+  for (let attempt = 0; attempt <= timeouts.stepRetries; attempt += 1) {
+    value = await run()
+    if (accept(value)) return value
+    if (attempt < timeouts.stepRetries) await sleep(timeouts.stepRetryDelayMs)
+  }
+  return value
 }
 
 export async function rotateNotionAiThread(
@@ -178,20 +198,35 @@ export async function rotateNotionAiThread(
     )
     if (!newChat?.ok) return fail("new-chat", `matchCount=${newChat?.matchCount ?? 0}`)
 
-    const focused = await deps.evaluate<{ ok: boolean; focused: boolean }>(
-      notionAiFocusComposerExpression,
-      timeouts.stepMs,
+    // The composer only mounts once the blank chat has rendered, which is why this waits instead of
+    // reading straight after the click.
+    const focused = await retryStep(
+      () => deps.evaluate<{ ok: boolean; focused: boolean }>(notionAiFocusComposerExpression, timeouts.stepMs),
+      (value) => Boolean(value?.ok),
+      timeouts,
+      sleep,
     )
     if (!focused?.ok) return fail("focus-composer")
 
     await deps.insertText(seedMessage, timeouts.insertMs)
 
-    const composer = await deps.evaluate<{ text: string }>(notionAiReadComposerExpression, timeouts.stepMs)
     // Guards the regression this whole routine exists to avoid: setting textContent from an
     // evaluate looks like it worked but never reaches Notion's editor state.
+    const composer = await retryStep(
+      () => deps.evaluate<{ text: string }>(notionAiReadComposerExpression, timeouts.stepMs),
+      (value) => Boolean(value?.text.includes(seedMessage)),
+      timeouts,
+      sleep,
+    )
     if (!composer?.text.includes(seedMessage)) return fail("verify-seed", `text=${composer?.text ?? ""}`)
 
-    const sent = await deps.evaluate<{ ok: boolean; reason?: string }>(notionAiSendExpression, timeouts.stepMs)
+    // The send button stays disabled until Notion registers the text.
+    const sent = await retryStep(
+      () => deps.evaluate<{ ok: boolean; reason?: string }>(notionAiSendExpression, timeouts.stepMs),
+      (value) => Boolean(value?.ok),
+      timeouts,
+      sleep,
+    )
     if (!sent?.ok) return fail("send-seed", sent?.reason)
 
     const deadline = now() + timeouts.awaitThreadUrlMs
