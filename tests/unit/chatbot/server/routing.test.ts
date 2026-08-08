@@ -340,15 +340,31 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("routes complex conversations to direct contact at the threshold", () => {
+  it("routes incomplete complex conversations to direct contact at the threshold", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext(),
+      conversationState: conversationState({
+        turnCount: complexConversationTurnThreshold,
+        hasMaterialDetails: false,
+        materialHandoff: undefined,
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: "to-direct-contact",
+      reason: "complex",
+    })
+  })
+
+  it("keeps a complete complex intake on the Booking Order confirmation path", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({ turnCount: complexConversationTurnThreshold }),
     })
 
     expect(result).toMatchObject({
-      kind: "to-direct-contact",
-      reason: "complex",
+      kind: "continue",
+      presentChoices: bookingFinalConfirmationChoices,
     })
   })
 })

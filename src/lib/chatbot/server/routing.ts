@@ -79,9 +79,16 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
   const protectiveTopic = detectProtectiveTopic(input.latestUserMessage)
   if (protectiveTopic) return directContact(protectiveTopic, jobContext)
 
-  if (conversationState.turnCount >= complexConversationTurnThreshold) return directContact("complex")
+  const continuation = continueDecision({ conversationState, jobContext, now: input.now })
+  const isReadyForBookingConfirmation =
+    continuation.kind === "continue" &&
+    continuation.presentChoices?.id === bookingFinalConfirmationChoices.id
 
-  return continueDecision({ conversationState, jobContext, now: input.now })
+  if (conversationState.turnCount >= complexConversationTurnThreshold && !isReadyForBookingConfirmation) {
+    return directContact("complex")
+  }
+
+  return continuation
 }
 
 function directContact(

@@ -2620,6 +2620,50 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("keeps a complete long intake on Booking Order confirmation instead of direct contact", async () => {
+    const longHistory = Array.from({ length: 18 }, (_, index): ChatbotMessage => {
+      return message(index % 2 === 0 ? "user" : "assistant", `過去の相談 ${index + 1}`)
+    })
+    const harness = setup({
+      existingConversation: conversation({
+        messages: longHistory,
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...baseProductionConversationState(),
+            hasContactEmail: true,
+            contactEmail: "client@example.com",
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "web",
+            workSite: "remote-grading",
+            documentaryAttachment: { kind: "none" },
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("ありがとうございます。内容を整理できました。"),
+      tier: "tier-1-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "特にありません" },
+      harness.options,
+    )
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      presentChoices: { id: bookingFinalConfirmationChoices.id },
+    })
+    expect(result.ui).toMatchObject({
+      kind: "choice-panel",
+      choiceSet: { id: bookingFinalConfirmationChoices.id },
+    })
+  })
+
   it("does not reissue a booking card after the booking submission terminal state is persisted", async () => {
     const harness = setup({
       existingConversation: conversation({
