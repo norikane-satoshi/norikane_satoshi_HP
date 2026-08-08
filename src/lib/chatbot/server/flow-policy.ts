@@ -91,6 +91,19 @@ export function applyBookingFinalConfirmationPolicy(input: {
     bookingPrefill:
       input.routingDecision?.kind === "to-booking-inline" ? input.routingDecision.bookingPrefill : undefined,
   })
+  const firstMissingMaterialSlot = missingReadinessSlots.find(isMaterialReadinessSlot)
+  if (
+    firstMissingMaterialSlot &&
+    isMaterialHandoffDecision(input.routingDecision)
+  ) {
+    return {
+      routingDecision: {
+        kind: "continue",
+        nextQuestion: buildMissingBookingReadinessQuestion(firstMissingMaterialSlot),
+      },
+      conversationState: input.conversationState,
+    }
+  }
   if (input.routingDecision?.kind === "to-booking-inline" && missingReadinessSlots.length > 0) {
     return {
       routingDecision:
@@ -309,6 +322,26 @@ type BookingReadinessSlot =
   | "material-timing"
   | "material-method"
   | "contact-email"
+
+function isMaterialReadinessSlot(slot: BookingReadinessSlot): slot is Extract<
+  BookingReadinessSlot,
+  "material-contents" | "material-timing" | "material-method"
+> {
+  return slot === "material-contents" || slot === "material-timing" || slot === "material-method"
+}
+
+function isMaterialHandoffDecision(decision: RoutingDecision | undefined): boolean {
+  if (decision?.kind !== "continue") return false
+  const text = [
+    decision.nextQuestion,
+    decision.presentChoices?.question,
+    ...(decision.presentChoices?.choices.map((choice) => choice.label) ?? []),
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .normalize("NFKC")
+  return /何の素材|素材.{0,40}(?:いつ|時期|送|渡|受け取り|郵送|手渡し|バイク便|アップローダー|クラウド|SSD|HDD)/iu.test(text)
+}
 
 export function wasBookingFinalQuestionOffered(conversationState: ConversationState): boolean {
   return Boolean(

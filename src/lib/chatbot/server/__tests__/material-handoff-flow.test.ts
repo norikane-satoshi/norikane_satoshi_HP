@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
-import { getMissingBookingReadinessSlots } from "@/lib/chatbot/server/flow-policy"
+import {
+  applyBookingFinalConfirmationPolicy,
+  getMissingBookingReadinessSlots,
+} from "@/lib/chatbot/server/flow-policy"
 import { applyMaterialHandoffAnswer } from "@/lib/chatbot/server/material-handoff"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 
@@ -121,5 +124,52 @@ describe("material handoff before Booking Order", () => {
         { jobContext },
       ),
     ).not.toEqual(expect.arrayContaining(["material-contents", "material-timing", "material-method"]))
+  })
+
+  it.each([
+    [readyState(), /何の素材/u],
+    [
+      readyState({
+        hasMaterialDetails: true,
+        materialHandoff: { contents: "ProResと使用クリップ" },
+      }),
+      /いつ/u,
+    ],
+    [
+      readyState({
+        hasMaterialDetails: true,
+        hasMaterialTiming: true,
+        materialHandoff: { contents: "ProResと使用クリップ", timing: "9月1日" },
+      }),
+      /受け渡し方法/u,
+    ],
+  ] as const)("normalizes an early LLM material-method prompt into the required order", (conversationState, expected) => {
+    const methodFirstDecision = {
+      kind: "continue" as const,
+      nextQuestion: "素材はどの方法でお渡しいただく予定ですか？",
+      presentChoices: {
+        id: "material-method",
+        question: "素材はどの方法でお渡しいただく予定ですか？",
+        choices: [
+          { id: "courier", label: "バイク便" },
+          { id: "uploader", label: "アップローダー・クラウド共有" },
+        ],
+      },
+    }
+
+    const result = applyBookingFinalConfirmationPolicy({
+      routingDecision: methodFirstDecision,
+      fallbackRoutingDecision: decideRoutingFallback({ jobContext, conversationState }),
+      conversationState,
+      jobContext,
+      latestUserMessage: "追加作業はありません",
+      assistantText: methodFirstDecision.nextQuestion,
+    })
+
+    expect(result.routingDecision).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringMatching(expected),
+    })
+    expect(result.routingDecision?.kind === "continue" ? result.routingDecision.presentChoices : undefined).toBeUndefined()
   })
 })
