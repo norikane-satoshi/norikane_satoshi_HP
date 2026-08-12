@@ -3,13 +3,12 @@ import { describe, expect, it } from "vitest"
 import { shouldStartLineProviderSignIn } from "@/components/line/liff-booking-entry"
 
 describe("shouldStartLineProviderSignIn", () => {
-  it("starts the Auth.js LINE provider after LIFF is ready in the LINE client without an HP session", () => {
+  it("starts the Auth.js LINE provider after the LINE check settles without an HP session", () => {
     expect(
       shouldStartLineProviderSignIn({
         authStarted: false,
         hpSessionLoaded: true,
-        inClient: true,
-        liffReady: true,
+        lineCheckSettled: true,
       }),
     ).toBe(true)
   })
@@ -19,8 +18,7 @@ describe("shouldStartLineProviderSignIn", () => {
       shouldStartLineProviderSignIn({
         authStarted: false,
         hpSessionLoaded: true,
-        inClient: true,
-        liffReady: true,
+        lineCheckSettled: true,
         userId: "user_1",
       }),
     ).toBe(false)
@@ -28,8 +26,7 @@ describe("shouldStartLineProviderSignIn", () => {
       shouldStartLineProviderSignIn({
         authStarted: true,
         hpSessionLoaded: true,
-        inClient: true,
-        liffReady: true,
+        lineCheckSettled: true,
       }),
     ).toBe(false)
   })
@@ -39,16 +36,14 @@ describe("shouldStartLineProviderSignIn", () => {
       shouldStartLineProviderSignIn({
         authStarted: false,
         hpSessionLoaded: false,
-        inClient: true,
-        liffReady: true,
+        lineCheckSettled: true,
       }),
     ).toBe(false)
     expect(
       shouldStartLineProviderSignIn({
         authStarted: false,
         hpSessionLoaded: true,
-        inClient: false,
-        liffReady: true,
+        lineCheckSettled: false,
       }),
     ).toBe(false)
   })
