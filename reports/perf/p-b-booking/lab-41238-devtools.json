@@ -1,0 +1,3521 @@
+{
+  "generatedAt": "2026-08-12T05:37:19.082Z",
+  "method": {
+    "production": "Lighthouse navigation + interaction, throttlingMethod=provided, current network/CPU, fresh page per run",
+    "lab": "Lighthouse navigation + interaction, throttlingMethod=devtools, matching P-A-1 lab method",
+    "displayComplete": "Lighthouse observedLastVisualChange"
+  },
+  "groups": {
+    "lab-41238-devtools": {
+      "mobile": {
+        "booking": {
+          "samples": 3,
+          "failures": 0,
+          "requestedUrl": "http://127.0.0.1:41238/booking",
+          "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+          "median": {
+            "lcpMs": 11958.1,
+            "observedLcpMs": 178,
+            "inpMs": 48,
+            "cls": 0,
+            "ttfbMs": 41,
+            "observedTtfbMs": null,
+            "displayCompleteMs": 1581,
+            "transferBytes": 10925278,
+            "totalBlockingTimeMs": 4748
+          },
+          "runs": [
+            {
+              "run": 1,
+              "requestedUrl": "http://127.0.0.1:41238/booking",
+              "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+              "metrics": {
+                "lcpMs": 12045.8,
+                "observedLcpMs": 213,
+                "inpMs": 48,
+                "cls": 0,
+                "ttfbMs": 51,
+                "observedTtfbMs": null,
+                "displayCompleteMs": 1626,
+                "totalBlockingTimeMs": 4660,
+                "transferBytes": 10925277
+              },
+              "lcp": {
+                "phases": [
+                  {
+                    "subpart": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "durationMs": 74.5
+                  },
+                  {
+                    "subpart": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "durationMs": 138.3
+                  }
+                ],
+                "element": {
+                  "selector": "main.flex-1 > section.mx-auto > div.glass-card > p.mt-3",
+                  "snippet": "<p class=\"mt-3 text-sm text-hp-muted\">",
+                  "nodeLabel": "ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。",
+                  "boundingRect": {
+                    "top": 225,
+                    "bottom": 265,
+                    "left": 49,
+                    "right": 363,
+                    "width": 314,
+                    "height": 40
+                  }
+                }
+              },
+              "renderBlocking": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513040512",
+                  "transferSize": 281142,
+                  "wastedMs": 1502
+                }
+              ],
+              "longTasks": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "startMs": 57158.8,
+                  "durationMs": 2553
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513040512",
+                  "startMs": 39758.8,
+                  "durationMs": 2070
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "startMs": 21308.8,
+                  "durationMs": 262
+                }
+              ],
+              "mainThread": [
+                {
+                  "group": "scriptEvaluation",
+                  "label": "Script Evaluation",
+                  "durationMs": 2835.8
+                },
+                {
+                  "group": "scriptParseCompile",
+                  "label": "Script Parsing & Compilation",
+                  "durationMs": 2233
+                },
+                {
+                  "group": "other",
+                  "label": "Other",
+                  "durationMs": 211.3
+                },
+                {
+                  "group": "styleLayout",
+                  "label": "Style & Layout",
+                  "durationMs": 154.2
+                },
+                {
+                  "group": "parseHTML",
+                  "label": "Parse HTML & CSS",
+                  "durationMs": 29.7
+                },
+                {
+                  "group": "paintCompositeRender",
+                  "label": "Rendering",
+                  "durationMs": 14
+                }
+              ],
+              "bootup": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "totalMs": 2552.5,
+                  "scriptingMs": 1287.3,
+                  "parseCompileMs": 1218
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513040512",
+                  "totalMs": 2071,
+                  "scriptingMs": 1354.2,
+                  "parseCompileMs": 695.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "totalMs": 262.4,
+                  "scriptingMs": 2,
+                  "parseCompileMs": 260.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "totalMs": 193.5,
+                  "scriptingMs": 3.6,
+                  "parseCompileMs": 1.9
+                },
+                {
+                  "url": "Unattributable",
+                  "totalMs": 116,
+                  "scriptingMs": 2.3,
+                  "parseCompileMs": 0
+                },
+                {
+                  "url": "null/(app-pages-browser)/node_modules/next/dist/compiled/scheduler/cjs/scheduler.development.js",
+                  "totalMs": 110.8,
+                  "scriptingMs": 105.9,
+                  "parseCompileMs": 0
+                }
+              ],
+              "scripts": [
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceBytes": 243928,
+                  "encodedBytes": 61183,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceBytes": 375216,
+                  "encodedBytes": 108611,
+                  "unusedBytes": 188523
+                },
+                {
+                  "name": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceBytes": 10937,
+                  "encodedBytes": 3930,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513040512",
+                  "resourceBytes": 142763,
+                  "encodedBytes": 28445,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceBytes": 3963690,
+                  "encodedBytes": 900171,
+                  "unusedBytes": 86627
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513040512",
+                  "resourceBytes": 11947673,
+                  "encodedBytes": 2719145,
+                  "unusedBytes": 10304
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceBytes": 21757429,
+                  "encodedBytes": 6235799,
+                  "unusedBytes": 3402519
+                }
+              ],
+              "network": [
+                {
+                  "url": "http://127.0.0.1:41238/booking",
+                  "resourceType": null,
+                  "mimeType": "",
+                  "statusCode": 307,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "startMs": 0.5,
+                  "endMs": 22.4,
+                  "durationMs": 21.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceType": "Document",
+                  "mimeType": "text/html",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 8427,
+                  "resourceSize": 18883,
+                  "startMs": 22.6,
+                  "endMs": 75.5,
+                  "durationMs": 52.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1786513040512",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 26016,
+                  "resourceSize": 24996,
+                  "startMs": 77.4,
+                  "endMs": 83.3,
+                  "durationMs": 5.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1786513040512",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 77.5,
+                  "endMs": 83.5,
+                  "durationMs": 6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1786513040512",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 24128,
+                  "resourceSize": 23108,
+                  "startMs": 77.6,
+                  "endMs": 84.8,
+                  "durationMs": 7.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1786513040512",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 49452,
+                  "resourceSize": 48432,
+                  "startMs": 77.8,
+                  "endMs": 84.2,
+                  "durationMs": 6.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/nori_header_black.svg",
+                  "resourceType": "Image",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "startMs": 80,
+                  "endMs": 89.4,
+                  "durationMs": 9.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513040512",
+                  "resourceType": "Stylesheet",
+                  "mimeType": "text/css",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 281142,
+                  "resourceSize": 1038243,
+                  "startMs": 79.3,
+                  "endMs": 124.1,
+                  "durationMs": 44.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513040512",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 29535,
+                  "resourceSize": 142763,
+                  "startMs": 83.3,
+                  "endMs": 92.2,
+                  "durationMs": 8.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513040512",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 2720236,
+                  "resourceSize": 11947823,
+                  "startMs": 83.5,
+                  "endMs": 407.5,
+                  "durationMs": 324
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 62273,
+                  "resourceSize": 243946,
+                  "startMs": 84.3,
+                  "endMs": 94.9,
+                  "durationMs": 10.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 6236891,
+                  "resourceSize": 21783757,
+                  "startMs": 84.9,
+                  "endMs": 855,
+                  "durationMs": 770
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 901262,
+                  "resourceSize": 3966011,
+                  "startMs": 89.5,
+                  "endMs": 162.2,
+                  "durationMs": 72.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 109701,
+                  "resourceSize": 376002,
+                  "startMs": 92.2,
+                  "endMs": 104.7,
+                  "durationMs": 12.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/567a398e86416ddb-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 109090,
+                  "resourceSize": 108068,
+                  "startMs": 156.6,
+                  "endMs": 162.1,
+                  "durationMs": 5.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 157,
+                  "endMs": 160.9,
+                  "durationMs": 3.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/2b73c85e22059d73-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22112,
+                  "resourceSize": 21092,
+                  "startMs": 157.3,
+                  "endMs": 161.3,
+                  "durationMs": 4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/695f2f57bf3e1528-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 16460,
+                  "resourceSize": 15440,
+                  "startMs": 157.7,
+                  "endMs": 167.9,
+                  "durationMs": 10.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/6cb25664ee39a8d1-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 21568,
+                  "resourceSize": 20548,
+                  "startMs": 157.8,
+                  "endMs": 168.7,
+                  "durationMs": 10.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/fdf7a15abc241bad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 158.3,
+                  "endMs": 168,
+                  "durationMs": 9.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/1896bb7d54ce0e89-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 23420,
+                  "resourceSize": 22400,
+                  "startMs": 158.4,
+                  "endMs": 168.8,
+                  "durationMs": 10.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/a27a10fb9ec719b7-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 19996,
+                  "resourceSize": 18976,
+                  "startMs": 158.6,
+                  "endMs": 171.9,
+                  "durationMs": 13.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/0505a94262dfcd54-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 159.1,
+                  "endMs": 171.6,
+                  "durationMs": 12.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7774adb8ba58ad99-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22128,
+                  "resourceSize": 21108,
+                  "startMs": 159.6,
+                  "endMs": 174.9,
+                  "durationMs": 15.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cebea4a751de71ad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22616,
+                  "resourceSize": 21596,
+                  "startMs": 159.8,
+                  "endMs": 175.2,
+                  "durationMs": 15.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/f3f29441bd95e5ee-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 27368,
+                  "resourceSize": 26348,
+                  "startMs": 159.9,
+                  "endMs": 176.4,
+                  "durationMs": 16.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cd6a1bcbefbffc9c-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 24584,
+                  "resourceSize": 23564,
+                  "startMs": 159.9,
+                  "endMs": 176.5,
+                  "durationMs": 16.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/59b86cab0a7ba6b6-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 25488,
+                  "resourceSize": 24468,
+                  "startMs": 160,
+                  "endMs": 179.1,
+                  "durationMs": 19.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/icon.svg?6fcb668b2bb0818e",
+                  "resourceType": "Other",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "startMs": 1630.1,
+                  "endMs": 1633.4,
+                  "durationMs": 3.3
+                }
+              ],
+              "apiRequests": [],
+              "consoleErrors": []
+            },
+            {
+              "run": 2,
+              "requestedUrl": "http://127.0.0.1:41238/booking",
+              "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+              "metrics": {
+                "lcpMs": 11958.1,
+                "observedLcpMs": 178,
+                "inpMs": 40,
+                "cls": 0,
+                "ttfbMs": 41,
+                "observedTtfbMs": null,
+                "displayCompleteMs": 1581,
+                "totalBlockingTimeMs": 4854,
+                "transferBytes": 10925278
+              },
+              "lcp": {
+                "phases": [
+                  {
+                    "subpart": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "durationMs": 53.2
+                  },
+                  {
+                    "subpart": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "durationMs": 124.4
+                  }
+                ],
+                "element": {
+                  "selector": "main.flex-1 > section.mx-auto > div.glass-card > p.mt-3",
+                  "snippet": "<p class=\"mt-3 text-sm text-hp-muted\">",
+                  "nodeLabel": "ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。",
+                  "boundingRect": {
+                    "top": 225,
+                    "bottom": 265,
+                    "left": 49,
+                    "right": 363,
+                    "width": 314,
+                    "height": 40
+                  }
+                }
+              },
+              "renderBlocking": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513053869",
+                  "transferSize": 281142,
+                  "wastedMs": 1502
+                }
+              ],
+              "longTasks": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "startMs": 57160.1,
+                  "durationMs": 2700
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513053869",
+                  "startMs": 39760.1,
+                  "durationMs": 2131
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "startMs": 21310.1,
+                  "durationMs": 248
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "startMs": 906.8,
+                  "durationMs": 66
+                }
+              ],
+              "mainThread": [
+                {
+                  "group": "scriptEvaluation",
+                  "label": "Script Evaluation",
+                  "durationMs": 2956.8
+                },
+                {
+                  "group": "scriptParseCompile",
+                  "label": "Script Parsing & Compilation",
+                  "durationMs": 2309.6
+                },
+                {
+                  "group": "other",
+                  "label": "Other",
+                  "durationMs": 225.6
+                },
+                {
+                  "group": "styleLayout",
+                  "label": "Style & Layout",
+                  "durationMs": 168.7
+                },
+                {
+                  "group": "parseHTML",
+                  "label": "Parse HTML & CSS",
+                  "durationMs": 34.4
+                },
+                {
+                  "group": "paintCompositeRender",
+                  "label": "Rendering",
+                  "durationMs": 12.7
+                }
+              ],
+              "bootup": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "totalMs": 2700,
+                  "scriptingMs": 1361.1,
+                  "parseCompileMs": 1294.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513053869",
+                  "totalMs": 2131.3,
+                  "scriptingMs": 1407.3,
+                  "parseCompileMs": 702
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "totalMs": 248.4,
+                  "scriptingMs": 1.8,
+                  "parseCompileMs": 246.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "totalMs": 206.4,
+                  "scriptingMs": 1.8,
+                  "parseCompileMs": 1.8
+                },
+                {
+                  "url": "Unattributable",
+                  "totalMs": 129.8,
+                  "scriptingMs": 2.5,
+                  "parseCompileMs": 0
+                },
+                {
+                  "url": "null/(app-pages-browser)/node_modules/next/dist/compiled/scheduler/cjs/scheduler.development.js",
+                  "totalMs": 116.8,
+                  "scriptingMs": 111.4,
+                  "parseCompileMs": 0
+                }
+              ],
+              "scripts": [
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceBytes": 243928,
+                  "encodedBytes": 61183,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceBytes": 375216,
+                  "encodedBytes": 108611,
+                  "unusedBytes": 188523
+                },
+                {
+                  "name": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceBytes": 10937,
+                  "encodedBytes": 3931,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513053869",
+                  "resourceBytes": 142763,
+                  "encodedBytes": 28445,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceBytes": 3963690,
+                  "encodedBytes": 900171,
+                  "unusedBytes": 86627
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513053869",
+                  "resourceBytes": 11947673,
+                  "encodedBytes": 2719145,
+                  "unusedBytes": 10304
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceBytes": 21757429,
+                  "encodedBytes": 6235799,
+                  "unusedBytes": 3402519
+                }
+              ],
+              "network": [
+                {
+                  "url": "http://127.0.0.1:41238/booking",
+                  "resourceType": null,
+                  "mimeType": "",
+                  "statusCode": 307,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "startMs": 0.4,
+                  "endMs": 11.5,
+                  "durationMs": 11.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceType": "Document",
+                  "mimeType": "text/html",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 8428,
+                  "resourceSize": 18883,
+                  "startMs": 11.7,
+                  "endMs": 54.8,
+                  "durationMs": 43.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1786513053869",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 26016,
+                  "resourceSize": 24996,
+                  "startMs": 56.6,
+                  "endMs": 61,
+                  "durationMs": 4.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1786513053869",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 56.7,
+                  "endMs": 61.2,
+                  "durationMs": 4.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1786513053869",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 24128,
+                  "resourceSize": 23108,
+                  "startMs": 56.8,
+                  "endMs": 61.3,
+                  "durationMs": 4.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1786513053869",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 49452,
+                  "resourceSize": 48432,
+                  "startMs": 57,
+                  "endMs": 61.5,
+                  "durationMs": 4.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/nori_header_black.svg",
+                  "resourceType": "Image",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "startMs": 60.3,
+                  "endMs": 72.3,
+                  "durationMs": 12
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513053869",
+                  "resourceType": "Stylesheet",
+                  "mimeType": "text/css",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 281142,
+                  "resourceSize": 1038243,
+                  "startMs": 59.9,
+                  "endMs": 107.7,
+                  "durationMs": 47.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513053869",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 29535,
+                  "resourceSize": 142763,
+                  "startMs": 61.6,
+                  "endMs": 73.1,
+                  "durationMs": 11.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513053869",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 2720236,
+                  "resourceSize": 11947823,
+                  "startMs": 61.7,
+                  "endMs": 316.5,
+                  "durationMs": 254.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 62273,
+                  "resourceSize": 243946,
+                  "startMs": 62.1,
+                  "endMs": 76.6,
+                  "durationMs": 14.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 6236891,
+                  "resourceSize": 21783757,
+                  "startMs": 62.2,
+                  "endMs": 787.6,
+                  "durationMs": 725.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 901262,
+                  "resourceSize": 3966011,
+                  "startMs": 72.8,
+                  "endMs": 146.1,
+                  "durationMs": 73.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 109701,
+                  "resourceSize": 376002,
+                  "startMs": 73.3,
+                  "endMs": 87.7,
+                  "durationMs": 14.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/567a398e86416ddb-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 109090,
+                  "resourceSize": 108068,
+                  "startMs": 151.4,
+                  "endMs": 157.4,
+                  "durationMs": 6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 151.5,
+                  "endMs": 156.2,
+                  "durationMs": 4.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/2b73c85e22059d73-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22112,
+                  "resourceSize": 21092,
+                  "startMs": 151.6,
+                  "endMs": 157.4,
+                  "durationMs": 5.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/695f2f57bf3e1528-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 16460,
+                  "resourceSize": 15440,
+                  "startMs": 151.7,
+                  "endMs": 157.5,
+                  "durationMs": 5.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/6cb25664ee39a8d1-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 21568,
+                  "resourceSize": 20548,
+                  "startMs": 151.8,
+                  "endMs": 163,
+                  "durationMs": 11.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/fdf7a15abc241bad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 152,
+                  "endMs": 163,
+                  "durationMs": 11
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/1896bb7d54ce0e89-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 23420,
+                  "resourceSize": 22400,
+                  "startMs": 152.2,
+                  "endMs": 163.6,
+                  "durationMs": 11.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/a27a10fb9ec719b7-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 19996,
+                  "resourceSize": 18976,
+                  "startMs": 152.4,
+                  "endMs": 163.1,
+                  "durationMs": 10.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/0505a94262dfcd54-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 152.5,
+                  "endMs": 167.4,
+                  "durationMs": 14.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7774adb8ba58ad99-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22128,
+                  "resourceSize": 21108,
+                  "startMs": 153,
+                  "endMs": 167.8,
+                  "durationMs": 14.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cebea4a751de71ad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22616,
+                  "resourceSize": 21596,
+                  "startMs": 153.5,
+                  "endMs": 167.6,
+                  "durationMs": 14.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/f3f29441bd95e5ee-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 27368,
+                  "resourceSize": 26348,
+                  "startMs": 153.7,
+                  "endMs": 168,
+                  "durationMs": 14.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cd6a1bcbefbffc9c-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 24584,
+                  "resourceSize": 23564,
+                  "startMs": 153.8,
+                  "endMs": 171.1,
+                  "durationMs": 17.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/59b86cab0a7ba6b6-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 25488,
+                  "resourceSize": 24468,
+                  "startMs": 153.9,
+                  "endMs": 170.9,
+                  "durationMs": 17
+                },
+                {
+                  "url": "http://127.0.0.1:41238/icon.svg?6fcb668b2bb0818e",
+                  "resourceType": "Other",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "startMs": 1584.8,
+                  "endMs": 1588.3,
+                  "durationMs": 3.5
+                }
+              ],
+              "apiRequests": [],
+              "consoleErrors": []
+            },
+            {
+              "run": 3,
+              "requestedUrl": "http://127.0.0.1:41238/booking",
+              "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+              "metrics": {
+                "lcpMs": 7137.8,
+                "observedLcpMs": 170,
+                "inpMs": 56,
+                "cls": 0,
+                "ttfbMs": 37,
+                "observedTtfbMs": null,
+                "displayCompleteMs": 1545,
+                "totalBlockingTimeMs": 4748,
+                "transferBytes": 10925279
+              },
+              "lcp": {
+                "phases": [
+                  {
+                    "subpart": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "durationMs": 45.4
+                  },
+                  {
+                    "subpart": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "durationMs": 124.5
+                  }
+                ],
+                "element": {
+                  "selector": "main.flex-1 > section.mx-auto > div.glass-card > p.mt-3",
+                  "snippet": "<p class=\"mt-3 text-sm text-hp-muted\">",
+                  "nodeLabel": "ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。",
+                  "boundingRect": {
+                    "top": 225,
+                    "bottom": 265,
+                    "left": 49,
+                    "right": 363,
+                    "width": 314,
+                    "height": 40
+                  }
+                }
+              },
+              "renderBlocking": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513066913",
+                  "transferSize": 281142,
+                  "wastedMs": 1502
+                }
+              ],
+              "longTasks": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "startMs": 57159.6,
+                  "durationMs": 2639
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513066913",
+                  "startMs": 39759.6,
+                  "durationMs": 2095
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "startMs": 21309.6,
+                  "durationMs": 239
+                },
+                {
+                  "url": "Unattributable",
+                  "startMs": 603.2,
+                  "durationMs": 67
+                }
+              ],
+              "mainThread": [
+                {
+                  "group": "scriptEvaluation",
+                  "label": "Script Evaluation",
+                  "durationMs": 2912.4
+                },
+                {
+                  "group": "scriptParseCompile",
+                  "label": "Script Parsing & Compilation",
+                  "durationMs": 2220.7
+                },
+                {
+                  "group": "other",
+                  "label": "Other",
+                  "durationMs": 307.2
+                },
+                {
+                  "group": "styleLayout",
+                  "label": "Style & Layout",
+                  "durationMs": 136.6
+                },
+                {
+                  "group": "parseHTML",
+                  "label": "Parse HTML & CSS",
+                  "durationMs": 31.8
+                },
+                {
+                  "group": "garbageCollection",
+                  "label": "Garbage Collection",
+                  "durationMs": 19
+                },
+                {
+                  "group": "paintCompositeRender",
+                  "label": "Rendering",
+                  "durationMs": 13.1
+                }
+              ],
+              "bootup": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "totalMs": 2638.2,
+                  "scriptingMs": 1356.7,
+                  "parseCompileMs": 1234.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513066913",
+                  "totalMs": 2095.8,
+                  "scriptingMs": 1377.1,
+                  "parseCompileMs": 696.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "totalMs": 238.9,
+                  "scriptingMs": 1.6,
+                  "parseCompileMs": 237
+                },
+                {
+                  "url": "Unattributable",
+                  "totalMs": 228.8,
+                  "scriptingMs": 2.3,
+                  "parseCompileMs": 0
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "totalMs": 177.1,
+                  "scriptingMs": 2.6,
+                  "parseCompileMs": 3.1
+                },
+                {
+                  "url": "null/(app-pages-browser)/node_modules/next/dist/compiled/scheduler/cjs/scheduler.development.js",
+                  "totalMs": 105,
+                  "scriptingMs": 101,
+                  "parseCompileMs": 0
+                }
+              ],
+              "scripts": [
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceBytes": 243928,
+                  "encodedBytes": 61183,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceBytes": 375216,
+                  "encodedBytes": 108611,
+                  "unusedBytes": 188523
+                },
+                {
+                  "name": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceBytes": 10937,
+                  "encodedBytes": 3931,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513066913",
+                  "resourceBytes": 142763,
+                  "encodedBytes": 28445,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceBytes": 3963690,
+                  "encodedBytes": 900171,
+                  "unusedBytes": 86627
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513066913",
+                  "resourceBytes": 11947673,
+                  "encodedBytes": 2719145,
+                  "unusedBytes": 10304
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceBytes": 21757429,
+                  "encodedBytes": 6235799,
+                  "unusedBytes": 3402519
+                }
+              ],
+              "network": [
+                {
+                  "url": "http://127.0.0.1:41238/booking",
+                  "resourceType": null,
+                  "mimeType": "",
+                  "statusCode": 307,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "startMs": 0.4,
+                  "endMs": 7.9,
+                  "durationMs": 7.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceType": "Document",
+                  "mimeType": "text/html",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 8429,
+                  "resourceSize": 18883,
+                  "startMs": 8,
+                  "endMs": 46.9,
+                  "durationMs": 38.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1786513066913",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 26016,
+                  "resourceSize": 24996,
+                  "startMs": 68.7,
+                  "endMs": 71.8,
+                  "durationMs": 3.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1786513066913",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 68.8,
+                  "endMs": 71.2,
+                  "durationMs": 2.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1786513066913",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 24128,
+                  "resourceSize": 23108,
+                  "startMs": 68.9,
+                  "endMs": 72.5,
+                  "durationMs": 3.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1786513066913",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 49452,
+                  "resourceSize": 48432,
+                  "startMs": 69.1,
+                  "endMs": 72.6,
+                  "durationMs": 3.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/nori_header_black.svg",
+                  "resourceType": "Image",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "startMs": 71,
+                  "endMs": 77.4,
+                  "durationMs": 6.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513066913",
+                  "resourceType": "Stylesheet",
+                  "mimeType": "text/css",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 281142,
+                  "resourceSize": 1038243,
+                  "startMs": 70.8,
+                  "endMs": 113.7,
+                  "durationMs": 42.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513066913",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 29535,
+                  "resourceSize": 142763,
+                  "startMs": 72.1,
+                  "endMs": 80.2,
+                  "durationMs": 8.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513066913",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 2720236,
+                  "resourceSize": 11947823,
+                  "startMs": 72.4,
+                  "endMs": 306,
+                  "durationMs": 233.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 62273,
+                  "resourceSize": 243946,
+                  "startMs": 72.7,
+                  "endMs": 82.9,
+                  "durationMs": 10.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 6236891,
+                  "resourceSize": 21783757,
+                  "startMs": 72.7,
+                  "endMs": 776.8,
+                  "durationMs": 704
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 901262,
+                  "resourceSize": 3966011,
+                  "startMs": 77.4,
+                  "endMs": 152.8,
+                  "durationMs": 75.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 109701,
+                  "resourceSize": 376002,
+                  "startMs": 80.3,
+                  "endMs": 92.5,
+                  "durationMs": 12.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/567a398e86416ddb-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 109090,
+                  "resourceSize": 108068,
+                  "startMs": 142,
+                  "endMs": 147.8,
+                  "durationMs": 5.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 142.9,
+                  "endMs": 147.9,
+                  "durationMs": 5.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/2b73c85e22059d73-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22112,
+                  "resourceSize": 21092,
+                  "startMs": 143.3,
+                  "endMs": 149.3,
+                  "durationMs": 5.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/695f2f57bf3e1528-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 16460,
+                  "resourceSize": 15440,
+                  "startMs": 143.4,
+                  "endMs": 152,
+                  "durationMs": 8.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/6cb25664ee39a8d1-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 21568,
+                  "resourceSize": 20548,
+                  "startMs": 143.5,
+                  "endMs": 152.2,
+                  "durationMs": 8.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/fdf7a15abc241bad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 143.9,
+                  "endMs": 152.2,
+                  "durationMs": 8.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/1896bb7d54ce0e89-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 23420,
+                  "resourceSize": 22400,
+                  "startMs": 143.9,
+                  "endMs": 155.7,
+                  "durationMs": 11.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/a27a10fb9ec719b7-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 19996,
+                  "resourceSize": 18976,
+                  "startMs": 144,
+                  "endMs": 157,
+                  "durationMs": 13
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/0505a94262dfcd54-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 144,
+                  "endMs": 157.1,
+                  "durationMs": 13
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7774adb8ba58ad99-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22128,
+                  "resourceSize": 21108,
+                  "startMs": 144.1,
+                  "endMs": 157.1,
+                  "durationMs": 13
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cebea4a751de71ad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22616,
+                  "resourceSize": 21596,
+                  "startMs": 144.1,
+                  "endMs": 158.7,
+                  "durationMs": 14.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/f3f29441bd95e5ee-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 27368,
+                  "resourceSize": 26348,
+                  "startMs": 144.3,
+                  "endMs": 160.5,
+                  "durationMs": 16.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cd6a1bcbefbffc9c-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 24584,
+                  "resourceSize": 23564,
+                  "startMs": 144.4,
+                  "endMs": 160.3,
+                  "durationMs": 15.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/59b86cab0a7ba6b6-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 25488,
+                  "resourceSize": 24468,
+                  "startMs": 144.6,
+                  "endMs": 160.6,
+                  "durationMs": 16
+                },
+                {
+                  "url": "http://127.0.0.1:41238/icon.svg?6fcb668b2bb0818e",
+                  "resourceType": "Other",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "startMs": 1548,
+                  "endMs": 1551.4,
+                  "durationMs": 3.4
+                }
+              ],
+              "apiRequests": [],
+              "consoleErrors": []
+            }
+          ]
+        }
+      },
+      "desktop": {
+        "booking": {
+          "samples": 3,
+          "failures": 0,
+          "requestedUrl": "http://127.0.0.1:41238/booking",
+          "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+          "median": {
+            "lcpMs": 11946.5,
+            "observedLcpMs": 178,
+            "inpMs": 48,
+            "cls": 0,
+            "ttfbMs": 36,
+            "observedTtfbMs": null,
+            "displayCompleteMs": 1566,
+            "transferBytes": 10925279,
+            "totalBlockingTimeMs": 4822
+          },
+          "runs": [
+            {
+              "run": 1,
+              "requestedUrl": "http://127.0.0.1:41238/booking",
+              "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+              "metrics": {
+                "lcpMs": 12030.8,
+                "observedLcpMs": 181,
+                "inpMs": 88,
+                "cls": 0,
+                "ttfbMs": 42,
+                "observedTtfbMs": null,
+                "displayCompleteMs": 1627,
+                "totalBlockingTimeMs": 5013,
+                "transferBytes": 10925279
+              },
+              "lcp": {
+                "phases": [
+                  {
+                    "subpart": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "durationMs": 54.3
+                  },
+                  {
+                    "subpart": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "durationMs": 126.2
+                  }
+                ],
+                "element": {
+                  "selector": "main.flex-1 > section.mx-auto > div.glass-card > p.mt-3",
+                  "snippet": "<p class=\"mt-3 text-sm text-hp-muted\">",
+                  "nodeLabel": "ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。",
+                  "boundingRect": {
+                    "top": 225,
+                    "bottom": 265,
+                    "left": 49,
+                    "right": 363,
+                    "width": 314,
+                    "height": 40
+                  }
+                }
+              },
+              "renderBlocking": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513080165",
+                  "transferSize": 281142,
+                  "wastedMs": 1502
+                }
+              ],
+              "longTasks": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "startMs": 57158.8,
+                  "durationMs": 2655
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513080165",
+                  "startMs": 39758.8,
+                  "durationMs": 2336
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "startMs": 21308.8,
+                  "durationMs": 247
+                },
+                {
+                  "url": "Unattributable",
+                  "startMs": 602.9,
+                  "durationMs": 64
+                }
+              ],
+              "mainThread": [
+                {
+                  "group": "scriptEvaluation",
+                  "label": "Script Evaluation",
+                  "durationMs": 3116.1
+                },
+                {
+                  "group": "scriptParseCompile",
+                  "label": "Script Parsing & Compilation",
+                  "durationMs": 2287.6
+                },
+                {
+                  "group": "other",
+                  "label": "Other",
+                  "durationMs": 306.7
+                },
+                {
+                  "group": "styleLayout",
+                  "label": "Style & Layout",
+                  "durationMs": 132.8
+                },
+                {
+                  "group": "parseHTML",
+                  "label": "Parse HTML & CSS",
+                  "durationMs": 35.1
+                },
+                {
+                  "group": "garbageCollection",
+                  "label": "Garbage Collection",
+                  "durationMs": 23.9
+                },
+                {
+                  "group": "paintCompositeRender",
+                  "label": "Rendering",
+                  "durationMs": 12.5
+                }
+              ],
+              "bootup": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "totalMs": 2654.4,
+                  "scriptingMs": 1355.1,
+                  "parseCompileMs": 1248.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513080165",
+                  "totalMs": 2336.9,
+                  "scriptingMs": 1575.5,
+                  "parseCompileMs": 740.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "totalMs": 247.2,
+                  "scriptingMs": 1.8,
+                  "parseCompileMs": 245
+                },
+                {
+                  "url": "Unattributable",
+                  "totalMs": 233.2,
+                  "scriptingMs": 2.6,
+                  "parseCompileMs": 0
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "totalMs": 169,
+                  "scriptingMs": 2,
+                  "parseCompileMs": 2.3
+                },
+                {
+                  "url": "null/(app-pages-browser)/node_modules/next/dist/compiled/scheduler/cjs/scheduler.development.js",
+                  "totalMs": 114,
+                  "scriptingMs": 109,
+                  "parseCompileMs": 0
+                }
+              ],
+              "scripts": [
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceBytes": 243928,
+                  "encodedBytes": 61183,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceBytes": 375216,
+                  "encodedBytes": 108611,
+                  "unusedBytes": 188523
+                },
+                {
+                  "name": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceBytes": 10937,
+                  "encodedBytes": 3931,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513080165",
+                  "resourceBytes": 142763,
+                  "encodedBytes": 28445,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceBytes": 3963690,
+                  "encodedBytes": 900171,
+                  "unusedBytes": 86627
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513080165",
+                  "resourceBytes": 11947673,
+                  "encodedBytes": 2719145,
+                  "unusedBytes": 10304
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceBytes": 21757429,
+                  "encodedBytes": 6235799,
+                  "unusedBytes": 3402519
+                }
+              ],
+              "network": [
+                {
+                  "url": "http://127.0.0.1:41238/booking",
+                  "resourceType": null,
+                  "mimeType": "",
+                  "statusCode": 307,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "startMs": 0.4,
+                  "endMs": 11.7,
+                  "durationMs": 11.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceType": "Document",
+                  "mimeType": "text/html",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 8429,
+                  "resourceSize": 18883,
+                  "startMs": 11.9,
+                  "endMs": 56.2,
+                  "durationMs": 44.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1786513080165",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 26016,
+                  "resourceSize": 24996,
+                  "startMs": 76.8,
+                  "endMs": 80,
+                  "durationMs": 3.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1786513080165",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 76.9,
+                  "endMs": 79.8,
+                  "durationMs": 2.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1786513080165",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 24128,
+                  "resourceSize": 23108,
+                  "startMs": 77.2,
+                  "endMs": 80.2,
+                  "durationMs": 3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1786513080165",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 49452,
+                  "resourceSize": 48432,
+                  "startMs": 77.4,
+                  "endMs": 80.6,
+                  "durationMs": 3.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/nori_header_black.svg",
+                  "resourceType": "Image",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "startMs": 80.4,
+                  "endMs": 88.9,
+                  "durationMs": 8.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513080165",
+                  "resourceType": "Stylesheet",
+                  "mimeType": "text/css",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 281142,
+                  "resourceSize": 1038243,
+                  "startMs": 79.6,
+                  "endMs": 123.5,
+                  "durationMs": 43.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513080165",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 29535,
+                  "resourceSize": 142763,
+                  "startMs": 81.3,
+                  "endMs": 88.3,
+                  "durationMs": 7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513080165",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 2720236,
+                  "resourceSize": 11947823,
+                  "startMs": 81.4,
+                  "endMs": 322.6,
+                  "durationMs": 241.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 62273,
+                  "resourceSize": 243946,
+                  "startMs": 81.8,
+                  "endMs": 92.2,
+                  "durationMs": 10.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 6236891,
+                  "resourceSize": 21783757,
+                  "startMs": 81.8,
+                  "endMs": 827.3,
+                  "durationMs": 745.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 901262,
+                  "resourceSize": 3966011,
+                  "startMs": 88.4,
+                  "endMs": 160.6,
+                  "durationMs": 72.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 109701,
+                  "resourceSize": 376002,
+                  "startMs": 88.9,
+                  "endMs": 100.7,
+                  "durationMs": 11.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/567a398e86416ddb-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 109090,
+                  "resourceSize": 108068,
+                  "startMs": 155.3,
+                  "endMs": 159.6,
+                  "durationMs": 4.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 155.5,
+                  "endMs": 160,
+                  "durationMs": 4.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/2b73c85e22059d73-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22112,
+                  "resourceSize": 21092,
+                  "startMs": 155.8,
+                  "endMs": 160.2,
+                  "durationMs": 4.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/695f2f57bf3e1528-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 16460,
+                  "resourceSize": 15440,
+                  "startMs": 155.9,
+                  "endMs": 164.2,
+                  "durationMs": 8.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/6cb25664ee39a8d1-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 21568,
+                  "resourceSize": 20548,
+                  "startMs": 156,
+                  "endMs": 164,
+                  "durationMs": 7.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/fdf7a15abc241bad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 156.2,
+                  "endMs": 164,
+                  "durationMs": 7.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/1896bb7d54ce0e89-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 23420,
+                  "resourceSize": 22400,
+                  "startMs": 156.3,
+                  "endMs": 164.1,
+                  "durationMs": 7.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/a27a10fb9ec719b7-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 19996,
+                  "resourceSize": 18976,
+                  "startMs": 156.3,
+                  "endMs": 167.8,
+                  "durationMs": 11.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/0505a94262dfcd54-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 156.4,
+                  "endMs": 168.2,
+                  "durationMs": 11.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7774adb8ba58ad99-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22128,
+                  "resourceSize": 21108,
+                  "startMs": 156.4,
+                  "endMs": 167.9,
+                  "durationMs": 11.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cebea4a751de71ad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22616,
+                  "resourceSize": 21596,
+                  "startMs": 156.5,
+                  "endMs": 168.3,
+                  "durationMs": 11.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/f3f29441bd95e5ee-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 27368,
+                  "resourceSize": 26348,
+                  "startMs": 156.5,
+                  "endMs": 172.8,
+                  "durationMs": 16.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cd6a1bcbefbffc9c-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 24584,
+                  "resourceSize": 23564,
+                  "startMs": 156.6,
+                  "endMs": 172.6,
+                  "durationMs": 16
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/59b86cab0a7ba6b6-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 25488,
+                  "resourceSize": 24468,
+                  "startMs": 156.6,
+                  "endMs": 172.7,
+                  "durationMs": 16.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/icon.svg?6fcb668b2bb0818e",
+                  "resourceType": "Other",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "startMs": 1632.6,
+                  "endMs": 1637,
+                  "durationMs": 4.4
+                }
+              ],
+              "apiRequests": [],
+              "consoleErrors": []
+            },
+            {
+              "run": 2,
+              "requestedUrl": "http://127.0.0.1:41238/booking",
+              "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+              "metrics": {
+                "lcpMs": 11944,
+                "observedLcpMs": 178,
+                "inpMs": 48,
+                "cls": 0,
+                "ttfbMs": 36,
+                "observedTtfbMs": null,
+                "displayCompleteMs": 1566,
+                "totalBlockingTimeMs": 4822,
+                "transferBytes": 10925277
+              },
+              "lcp": {
+                "phases": [
+                  {
+                    "subpart": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "durationMs": 47.2
+                  },
+                  {
+                    "subpart": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "durationMs": 130.6
+                  }
+                ],
+                "element": {
+                  "selector": "main.flex-1 > section.mx-auto > div.glass-card > p.mt-3",
+                  "snippet": "<p class=\"mt-3 text-sm text-hp-muted\">",
+                  "nodeLabel": "ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。",
+                  "boundingRect": {
+                    "top": 225,
+                    "bottom": 265,
+                    "left": 49,
+                    "right": 363,
+                    "width": 314,
+                    "height": 40
+                  }
+                }
+              },
+              "renderBlocking": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513093327",
+                  "transferSize": 281142,
+                  "wastedMs": 1502
+                }
+              ],
+              "longTasks": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "startMs": 57158,
+                  "durationMs": 2613
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513093327",
+                  "startMs": 39758,
+                  "durationMs": 2198
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "startMs": 21308,
+                  "durationMs": 236
+                },
+                {
+                  "url": "Unattributable",
+                  "startMs": 602.7,
+                  "durationMs": 64
+                }
+              ],
+              "mainThread": [
+                {
+                  "group": "scriptEvaluation",
+                  "label": "Script Evaluation",
+                  "durationMs": 3008.6
+                },
+                {
+                  "group": "scriptParseCompile",
+                  "label": "Script Parsing & Compilation",
+                  "durationMs": 2205.8
+                },
+                {
+                  "group": "other",
+                  "label": "Other",
+                  "durationMs": 303.3
+                },
+                {
+                  "group": "styleLayout",
+                  "label": "Style & Layout",
+                  "durationMs": 139.5
+                },
+                {
+                  "group": "parseHTML",
+                  "label": "Parse HTML & CSS",
+                  "durationMs": 27.5
+                },
+                {
+                  "group": "garbageCollection",
+                  "label": "Garbage Collection",
+                  "durationMs": 17.9
+                },
+                {
+                  "group": "paintCompositeRender",
+                  "label": "Rendering",
+                  "durationMs": 14.6
+                }
+              ],
+              "bootup": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "totalMs": 2612.9,
+                  "scriptingMs": 1333.4,
+                  "parseCompileMs": 1228
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513093327",
+                  "totalMs": 2199.2,
+                  "scriptingMs": 1486,
+                  "parseCompileMs": 689.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "totalMs": 236.5,
+                  "scriptingMs": 1.4,
+                  "parseCompileMs": 234.7
+                },
+                {
+                  "url": "Unattributable",
+                  "totalMs": 216.8,
+                  "scriptingMs": 2.7,
+                  "parseCompileMs": 0
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "totalMs": 177.5,
+                  "scriptingMs": 1.8,
+                  "parseCompileMs": 2
+                },
+                {
+                  "url": "null/(app-pages-browser)/node_modules/next/dist/compiled/scheduler/cjs/scheduler.development.js",
+                  "totalMs": 113.1,
+                  "scriptingMs": 107.8,
+                  "parseCompileMs": 0
+                }
+              ],
+              "scripts": [
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceBytes": 243928,
+                  "encodedBytes": 61183,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceBytes": 375216,
+                  "encodedBytes": 108611,
+                  "unusedBytes": 188523
+                },
+                {
+                  "name": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceBytes": 10937,
+                  "encodedBytes": 3930,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513093327",
+                  "resourceBytes": 142763,
+                  "encodedBytes": 28445,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceBytes": 3963690,
+                  "encodedBytes": 900171,
+                  "unusedBytes": 86627
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513093327",
+                  "resourceBytes": 11947673,
+                  "encodedBytes": 2719145,
+                  "unusedBytes": 10304
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceBytes": 21757429,
+                  "encodedBytes": 6235799,
+                  "unusedBytes": 3402519
+                }
+              ],
+              "network": [
+                {
+                  "url": "http://127.0.0.1:41238/booking",
+                  "resourceType": null,
+                  "mimeType": "",
+                  "statusCode": 307,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "startMs": 0.4,
+                  "endMs": 10.7,
+                  "durationMs": 10.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceType": "Document",
+                  "mimeType": "text/html",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 8427,
+                  "resourceSize": 18883,
+                  "startMs": 10.9,
+                  "endMs": 48.4,
+                  "durationMs": 37.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1786513093327",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 26016,
+                  "resourceSize": 24996,
+                  "startMs": 69.5,
+                  "endMs": 74.3,
+                  "durationMs": 4.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1786513093327",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 69.6,
+                  "endMs": 73.6,
+                  "durationMs": 4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1786513093327",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 24128,
+                  "resourceSize": 23108,
+                  "startMs": 69.7,
+                  "endMs": 73.7,
+                  "durationMs": 3.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1786513093327",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 49452,
+                  "resourceSize": 48432,
+                  "startMs": 69.9,
+                  "endMs": 74.7,
+                  "durationMs": 4.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/nori_header_black.svg",
+                  "resourceType": "Image",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "startMs": 71.7,
+                  "endMs": 80.8,
+                  "durationMs": 9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513093327",
+                  "resourceType": "Stylesheet",
+                  "mimeType": "text/css",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 281142,
+                  "resourceSize": 1038243,
+                  "startMs": 71.5,
+                  "endMs": 115,
+                  "durationMs": 43.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513093327",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 29535,
+                  "resourceSize": 142763,
+                  "startMs": 73.8,
+                  "endMs": 80.4,
+                  "durationMs": 6.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513093327",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 2720236,
+                  "resourceSize": 11947823,
+                  "startMs": 73.9,
+                  "endMs": 305.1,
+                  "durationMs": 231.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 62273,
+                  "resourceSize": 243946,
+                  "startMs": 74.4,
+                  "endMs": 85.1,
+                  "durationMs": 10.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 6236891,
+                  "resourceSize": 21783757,
+                  "startMs": 74.8,
+                  "endMs": 831.8,
+                  "durationMs": 757
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 901262,
+                  "resourceSize": 3966011,
+                  "startMs": 81,
+                  "endMs": 152.7,
+                  "durationMs": 71.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 109701,
+                  "resourceSize": 376002,
+                  "startMs": 81.1,
+                  "endMs": 93.4,
+                  "durationMs": 12.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/567a398e86416ddb-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 109090,
+                  "resourceSize": 108068,
+                  "startMs": 143.1,
+                  "endMs": 146.7,
+                  "durationMs": 3.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 143.1,
+                  "endMs": 147,
+                  "durationMs": 3.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/2b73c85e22059d73-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22112,
+                  "resourceSize": 21092,
+                  "startMs": 143.3,
+                  "endMs": 146.4,
+                  "durationMs": 3.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/695f2f57bf3e1528-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 16460,
+                  "resourceSize": 15440,
+                  "startMs": 143.4,
+                  "endMs": 151.2,
+                  "durationMs": 7.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/6cb25664ee39a8d1-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 21568,
+                  "resourceSize": 20548,
+                  "startMs": 143.5,
+                  "endMs": 151.5,
+                  "durationMs": 8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/fdf7a15abc241bad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 143.5,
+                  "endMs": 151.7,
+                  "durationMs": 8.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/1896bb7d54ce0e89-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 23420,
+                  "resourceSize": 22400,
+                  "startMs": 143.6,
+                  "endMs": 155.4,
+                  "durationMs": 11.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/a27a10fb9ec719b7-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 19996,
+                  "resourceSize": 18976,
+                  "startMs": 143.6,
+                  "endMs": 155.5,
+                  "durationMs": 11.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/0505a94262dfcd54-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 143.7,
+                  "endMs": 155.8,
+                  "durationMs": 12.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7774adb8ba58ad99-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22128,
+                  "resourceSize": 21108,
+                  "startMs": 143.7,
+                  "endMs": 155.8,
+                  "durationMs": 12.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cebea4a751de71ad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22616,
+                  "resourceSize": 21596,
+                  "startMs": 143.8,
+                  "endMs": 159.2,
+                  "durationMs": 15.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/f3f29441bd95e5ee-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 27368,
+                  "resourceSize": 26348,
+                  "startMs": 143.8,
+                  "endMs": 159.3,
+                  "durationMs": 15.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cd6a1bcbefbffc9c-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 24584,
+                  "resourceSize": 23564,
+                  "startMs": 143.8,
+                  "endMs": 159.5,
+                  "durationMs": 15.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/59b86cab0a7ba6b6-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 25488,
+                  "resourceSize": 24468,
+                  "startMs": 143.9,
+                  "endMs": 159.4,
+                  "durationMs": 15.5
+                },
+                {
+                  "url": "http://127.0.0.1:41238/icon.svg?6fcb668b2bb0818e",
+                  "resourceType": "Other",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "startMs": 1570.2,
+                  "endMs": 1573.7,
+                  "durationMs": 3.5
+                }
+              ],
+              "apiRequests": [],
+              "consoleErrors": []
+            },
+            {
+              "run": 3,
+              "requestedUrl": "http://127.0.0.1:41238/booking",
+              "finalUrl": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+              "metrics": {
+                "lcpMs": 11946.5,
+                "observedLcpMs": 162,
+                "inpMs": 48,
+                "cls": 0,
+                "ttfbMs": 35,
+                "observedTtfbMs": null,
+                "displayCompleteMs": 1515,
+                "totalBlockingTimeMs": 4681,
+                "transferBytes": 10925279
+              },
+              "lcp": {
+                "phases": [
+                  {
+                    "subpart": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "durationMs": 47.5
+                  },
+                  {
+                    "subpart": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "durationMs": 114.9
+                  }
+                ],
+                "element": {
+                  "selector": "main.flex-1 > section.mx-auto > div.glass-card > p.mt-3",
+                  "snippet": "<p class=\"mt-3 text-sm text-hp-muted\">",
+                  "nodeLabel": "ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。",
+                  "boundingRect": {
+                    "top": 225,
+                    "bottom": 265,
+                    "left": 49,
+                    "right": 363,
+                    "width": 314,
+                    "height": 40
+                  }
+                }
+              },
+              "renderBlocking": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513106291",
+                  "transferSize": 281142,
+                  "wastedMs": 1502
+                }
+              ],
+              "longTasks": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "startMs": 57157.5,
+                  "durationMs": 2575
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513106291",
+                  "startMs": 39757.5,
+                  "durationMs": 2092
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "startMs": 21307.5,
+                  "durationMs": 239
+                }
+              ],
+              "mainThread": [
+                {
+                  "group": "scriptEvaluation",
+                  "label": "Script Evaluation",
+                  "durationMs": 2853.5
+                },
+                {
+                  "group": "scriptParseCompile",
+                  "label": "Script Parsing & Compilation",
+                  "durationMs": 2215.2
+                },
+                {
+                  "group": "other",
+                  "label": "Other",
+                  "durationMs": 260.8
+                },
+                {
+                  "group": "styleLayout",
+                  "label": "Style & Layout",
+                  "durationMs": 143.4
+                },
+                {
+                  "group": "parseHTML",
+                  "label": "Parse HTML & CSS",
+                  "durationMs": 28.3
+                },
+                {
+                  "group": "paintCompositeRender",
+                  "label": "Rendering",
+                  "durationMs": 14.3
+                }
+              ],
+              "bootup": [
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "totalMs": 2575.1,
+                  "scriptingMs": 1290.3,
+                  "parseCompileMs": 1234
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513106291",
+                  "totalMs": 2092.3,
+                  "scriptingMs": 1379,
+                  "parseCompileMs": 692.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "totalMs": 238.7,
+                  "scriptingMs": 1.7,
+                  "parseCompileMs": 236.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "totalMs": 182.5,
+                  "scriptingMs": 1.9,
+                  "parseCompileMs": 2
+                },
+                {
+                  "url": "Unattributable",
+                  "totalMs": 157.4,
+                  "scriptingMs": 2.6,
+                  "parseCompileMs": 0
+                },
+                {
+                  "url": "null/(app-pages-browser)/node_modules/next/dist/compiled/scheduler/cjs/scheduler.development.js",
+                  "totalMs": 117.9,
+                  "scriptingMs": 108.8,
+                  "parseCompileMs": 0
+                }
+              ],
+              "scripts": [
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceBytes": 243928,
+                  "encodedBytes": 61183,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceBytes": 375216,
+                  "encodedBytes": 108611,
+                  "unusedBytes": 188523
+                },
+                {
+                  "name": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceBytes": 10937,
+                  "encodedBytes": 3931,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513106291",
+                  "resourceBytes": 142763,
+                  "encodedBytes": 28445,
+                  "unusedBytes": 0
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceBytes": 3963690,
+                  "encodedBytes": 900171,
+                  "unusedBytes": 86627
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513106291",
+                  "resourceBytes": 11947673,
+                  "encodedBytes": 2719145,
+                  "unusedBytes": 10304
+                },
+                {
+                  "name": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceBytes": 21757429,
+                  "encodedBytes": 6235799,
+                  "unusedBytes": 3402519
+                }
+              ],
+              "network": [
+                {
+                  "url": "http://127.0.0.1:41238/booking",
+                  "resourceType": null,
+                  "mimeType": "",
+                  "statusCode": 307,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 908,
+                  "resourceSize": 0,
+                  "startMs": 0.4,
+                  "endMs": 12.1,
+                  "durationMs": 11.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/login?callbackUrl=%2Fbooking",
+                  "resourceType": "Document",
+                  "mimeType": "text/html",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 8429,
+                  "resourceSize": 18883,
+                  "startMs": 12.2,
+                  "endMs": 49.4,
+                  "durationMs": 37.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/24f6ebe2756575bd-s.p.woff2?v=1786513106291",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 26016,
+                  "resourceSize": 24996,
+                  "startMs": 59.7,
+                  "endMs": 62.5,
+                  "durationMs": 2.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2?v=1786513106291",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 59.8,
+                  "endMs": 62.4,
+                  "durationMs": 2.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7d4881bb7e1bf84d-s.p.woff2?v=1786513106291",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 24128,
+                  "resourceSize": 23108,
+                  "startMs": 59.9,
+                  "endMs": 62.7,
+                  "durationMs": 2.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/e4af272ccee01ff0-s.p.woff2?v=1786513106291",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 49452,
+                  "resourceSize": 48432,
+                  "startMs": 60.1,
+                  "endMs": 63,
+                  "durationMs": 2.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/nori_header_black.svg",
+                  "resourceType": "Image",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 27178,
+                  "resourceSize": 68555,
+                  "startMs": 62.1,
+                  "endMs": 69.1,
+                  "durationMs": 7.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/css/app/layout.css?v=1786513106291",
+                  "resourceType": "Stylesheet",
+                  "mimeType": "text/css",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 281142,
+                  "resourceSize": 1038243,
+                  "startMs": 61.9,
+                  "endMs": 104.6,
+                  "durationMs": 42.7
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/webpack.js?v=1786513106291",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 29535,
+                  "resourceSize": 142763,
+                  "startMs": 62.8,
+                  "endMs": 69.6,
+                  "durationMs": 6.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/main-app.js?v=1786513106291",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 2720236,
+                  "resourceSize": 11947823,
+                  "startMs": 62.9,
+                  "endMs": 293.5,
+                  "durationMs": 230.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app-pages-internals.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 62273,
+                  "resourceSize": 243946,
+                  "startMs": 63,
+                  "endMs": 73.2,
+                  "durationMs": 10.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/layout.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 6236891,
+                  "resourceSize": 21783757,
+                  "startMs": 63.1,
+                  "endMs": 759.4,
+                  "durationMs": 696.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 901262,
+                  "resourceSize": 3966011,
+                  "startMs": 69.4,
+                  "endMs": 138.6,
+                  "durationMs": 69.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/chunks/app/login/page.js",
+                  "resourceType": "Script",
+                  "mimeType": "application/javascript",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "Low",
+                  "transferSize": 109701,
+                  "resourceSize": 376002,
+                  "startMs": 69.7,
+                  "endMs": 81.8,
+                  "durationMs": 12.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/567a398e86416ddb-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 109090,
+                  "resourceSize": 108068,
+                  "startMs": 133.8,
+                  "endMs": 137.7,
+                  "durationMs": 3.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/5963f2babe8689ab-s.p.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 34408,
+                  "resourceSize": 33388,
+                  "startMs": 134.2,
+                  "endMs": 137.3,
+                  "durationMs": 3.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/2b73c85e22059d73-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22112,
+                  "resourceSize": 21092,
+                  "startMs": 134.4,
+                  "endMs": 137.7,
+                  "durationMs": 3.3
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/695f2f57bf3e1528-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 16460,
+                  "resourceSize": 15440,
+                  "startMs": 134.5,
+                  "endMs": 143.7,
+                  "durationMs": 9.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/6cb25664ee39a8d1-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 21568,
+                  "resourceSize": 20548,
+                  "startMs": 134.6,
+                  "endMs": 142,
+                  "durationMs": 7.4
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/fdf7a15abc241bad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 134.6,
+                  "endMs": 143.8,
+                  "durationMs": 9.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/1896bb7d54ce0e89-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 23420,
+                  "resourceSize": 22400,
+                  "startMs": 134.7,
+                  "endMs": 145.9,
+                  "durationMs": 11.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/a27a10fb9ec719b7-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 19996,
+                  "resourceSize": 18976,
+                  "startMs": 134.7,
+                  "endMs": 146.6,
+                  "durationMs": 11.9
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/0505a94262dfcd54-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 20768,
+                  "resourceSize": 19748,
+                  "startMs": 134.8,
+                  "endMs": 146.9,
+                  "durationMs": 12.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/7774adb8ba58ad99-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22128,
+                  "resourceSize": 21108,
+                  "startMs": 134.8,
+                  "endMs": 147.4,
+                  "durationMs": 12.6
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cebea4a751de71ad-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 22616,
+                  "resourceSize": 21596,
+                  "startMs": 134.8,
+                  "endMs": 147.9,
+                  "durationMs": 13.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/f3f29441bd95e5ee-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 27368,
+                  "resourceSize": 26348,
+                  "startMs": 134.9,
+                  "endMs": 148.7,
+                  "durationMs": 13.8
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/cd6a1bcbefbffc9c-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 24584,
+                  "resourceSize": 23564,
+                  "startMs": 134.9,
+                  "endMs": 149,
+                  "durationMs": 14.1
+                },
+                {
+                  "url": "http://127.0.0.1:41238/_next/static/media/59b86cab0a7ba6b6-s.woff2",
+                  "resourceType": "Font",
+                  "mimeType": "font/woff2",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "VeryHigh",
+                  "transferSize": 25488,
+                  "resourceSize": 24468,
+                  "startMs": 135,
+                  "endMs": 149.2,
+                  "durationMs": 14.2
+                },
+                {
+                  "url": "http://127.0.0.1:41238/icon.svg?6fcb668b2bb0818e",
+                  "resourceType": "Other",
+                  "mimeType": "image/svg+xml",
+                  "statusCode": 200,
+                  "cache": "none",
+                  "priority": "High",
+                  "transferSize": 2946,
+                  "resourceSize": 5651,
+                  "startMs": 1521.3,
+                  "endMs": 1524.4,
+                  "durationMs": 3.1
+                }
+              ],
+              "apiRequests": [],
+              "consoleErrors": []
+            }
+          ]
+        }
+      }
+    }
+  },
+  "api": {
+    "booking-candidates": {
+      "medianDurationMs": 743.3,
+      "runs": [
+        {
+          "run": 1,
+          "status": 200,
+          "durationMs": 743.3,
+          "cacheControl": null,
+          "serverTiming": null,
+          "responseBytes": 5966
+        },
+        {
+          "run": 2,
+          "status": 200,
+          "durationMs": 2053.6,
+          "cacheControl": null,
+          "serverTiming": null,
+          "responseBytes": 5966
+        },
+        {
+          "run": 3,
+          "status": 200,
+          "durationMs": 649.7,
+          "cacheControl": null,
+          "serverTiming": null,
+          "responseBytes": 5966
+        }
+      ]
+    },
+    "free-busy-anonymous": {
+      "medianDurationMs": 4.8,
+      "runs": [
+        {
+          "run": 1,
+          "status": 401,
+          "durationMs": 7.3,
+          "cacheControl": null,
+          "serverTiming": null,
+          "responseBytes": 24
+        },
+        {
+          "run": 2,
+          "status": 401,
+          "durationMs": 4.6,
+          "cacheControl": null,
+          "serverTiming": null,
+          "responseBytes": 24
+        },
+        {
+          "run": 3,
+          "status": 401,
+          "durationMs": 4.8,
+          "cacheControl": null,
+          "serverTiming": null,
+          "responseBytes": 24
+        }
+      ]
+    }
+  }
+}
