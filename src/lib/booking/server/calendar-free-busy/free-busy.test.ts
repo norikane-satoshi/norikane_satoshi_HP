@@ -44,9 +44,10 @@ describe("getCalendarFreeBusyForUser dedupe (B)", () => {
       ]),
     }))
 
+    const getCachedCalendarAccessTokenMock = vi.fn().mockResolvedValue({ token: "access_token", refreshMs: 0 })
     vi.doMock("./google-token-cache", () => ({
       clearCalendarAccessTokenCacheForTest: vi.fn(),
-      getCachedCalendarAccessToken: vi.fn().mockResolvedValue({ token: "access_token", refreshMs: 0 }),
+      getCachedCalendarAccessToken: getCachedCalendarAccessTokenMock,
     }))
 
     vi.doMock("@/lib/booking/server/team-access", () => ({
@@ -74,6 +75,7 @@ describe("getCalendarFreeBusyForUser dedupe (B)", () => {
       start: "2026-05-18T01:00:00.000Z",
       end: "2026-05-18T02:00:00.000Z",
     })
+    expect(getCachedCalendarAccessTokenMock).toHaveBeenCalledWith("satoshi-calendar-owner")
   })
 
   it("keeps a busy slot that does not match any booking (other user's HP event stays visible)", async () => {

@@ -150,7 +150,7 @@ describe("GET /api/calendar/free-busy", () => {
       tentativeDateKeys: ["2026-06-18", "2026-06-19"],
     })
     expect(mocks.loadTentativeAvailabilityDateKeys).toHaveBeenCalledWith({
-      cacheUserId: "user_1",
+      cacheUserId: "satoshi-calendar-owner",
       timeMin: "2026-06-01T00:00:00.000Z",
       timeMax: "2026-06-30T00:00:00.000Z",
       calendarId: "calendar_1",

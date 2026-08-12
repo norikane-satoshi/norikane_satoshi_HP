@@ -37,21 +37,20 @@ type SessionPayload = {
 }
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LINE_LIFF_ID ?? ""
+const LIFF_INIT_TIMEOUT_MS = 8_000
 
 export function shouldStartLineProviderSignIn({
   authStarted,
   hpSessionLoaded,
-  inClient,
-  liffReady,
+  lineCheckSettled,
   userId,
 }: {
   authStarted: boolean
   hpSessionLoaded: boolean
-  inClient: boolean
-  liffReady: boolean
+  lineCheckSettled: boolean
   userId?: string
 }) {
-  return liffReady && inClient && hpSessionLoaded && !userId && !authStarted
+  return lineCheckSettled && hpSessionLoaded && !userId && !authStarted
 }
 
 export function LiffBookingEntry({
@@ -66,7 +65,7 @@ export function LiffBookingEntry({
   const [state, setState] = useState<LiffState>(
     LIFF_ID ? { status: "loading" } : { status: "skipped", reason: "missing_liff_id" },
   )
-  const [hpSession, setHpSession] = useState<SessionPayload | null>(null)
+  const [hpSession, setHpSession] = useState<SessionPayload | null>(initialSession ?? null)
   const [hpSessionLoaded, setHpSessionLoaded] = useState(false)
   const authStartedRef = useRef(false)
 
@@ -74,6 +73,9 @@ export function LiffBookingEntry({
     if (!LIFF_ID) return
 
     let cancelled = false
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled) setState({ status: "error" })
+    }, LIFF_INIT_TIMEOUT_MS)
 
     async function initializeLiff() {
       try {
@@ -101,6 +103,8 @@ export function LiffBookingEntry({
         }
       } catch {
         if (!cancelled) setState({ status: "error" })
+      } finally {
+        window.clearTimeout(timeoutId)
       }
     }
 
@@ -108,6 +112,7 @@ export function LiffBookingEntry({
 
     return () => {
       cancelled = true
+      window.clearTimeout(timeoutId)
     }
   }, [])
 
@@ -137,8 +142,7 @@ export function LiffBookingEntry({
       shouldStartLineProviderSignIn({
         authStarted: authStartedRef.current,
         hpSessionLoaded,
-        inClient: state.status === "ready" && state.inClient,
-        liffReady: state.status === "ready",
+        lineCheckSettled: state.status === "ready" || state.status === "error",
         userId: hpSession?.user?.id,
       })
     ) {
@@ -192,7 +196,7 @@ export function LiffBookingEntry({
           callbackUrl="/line/booking"
           entryPoint="line_liff"
           isCalendarAdmin={isCalendarAdmin}
-          initialSession={initialSession}
+          initialSession={hpSession}
           initialBusy={initialBusy}
           initialBookings={initialBookings}
           initialTentativeDateKeys={initialTentativeDateKeys}

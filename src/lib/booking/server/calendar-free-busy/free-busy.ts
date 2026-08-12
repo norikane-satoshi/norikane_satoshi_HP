@@ -1,4 +1,5 @@
 import {
+  CALENDAR_TOKEN_USER_ID,
   CalendarOAuthEnvMissingError,
   CalendarTokenRevokedError,
   listBusyEventsWithBuffer,
@@ -172,7 +173,7 @@ async function loadCalendarFreeBusyForUser(input: {
 
   let accessToken: string
   try {
-    const tokenResult = await getCachedCalendarAccessToken(userId)
+    const tokenResult = await getCachedCalendarAccessToken(CALENDAR_TOKEN_USER_ID)
     accessToken = tokenResult.token
     timings.oauthRefresh = tokenResult.refreshMs
   } catch (error) {

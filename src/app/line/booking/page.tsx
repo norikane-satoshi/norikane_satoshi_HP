@@ -4,6 +4,7 @@ import { LiffBookingEntry } from "@/components/line/liff-booking-entry"
 import { isAdmin } from "@/lib/auth/server/is-admin"
 import { getCalendarFreeBusyForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
 import { loadTentativeAvailabilityDateKeys } from "@/lib/booking/server/tentative-availability"
+import { CALENDAR_TOKEN_USER_ID } from "@/lib/google-calendar/server"
 import type { Metadata } from "next"
 
 export const dynamic = "force-dynamic"
@@ -44,7 +45,7 @@ async function loadInitialFreeBusy(input: {
   if (result.status === 200 && !result.code) {
     try {
       tentativeDateKeys = await loadTentativeAvailabilityDateKeys({
-        cacheUserId: input.userId,
+        cacheUserId: CALENDAR_TOKEN_USER_ID,
         timeMin: input.initialRange.start,
         timeMax: input.initialRange.end,
       })
