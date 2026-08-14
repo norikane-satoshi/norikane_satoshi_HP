@@ -25,6 +25,15 @@
 - 計測、build、test は終了条件のある foreground command のみで実行し、常駐 process を新設しなかった。原因解消と測定中は既存 41238 process を停止・置換していない。
 - safety guard の緩和や迂回は行っていない。この実行経路で 18 navigation、API 6 request、build、test を完走し、同障害は再発しなかった。
 
+## Internal repair: 認証済み経路の再監査（2026-08-15）
+
+前回の terminal claim が認証済み予約 runtime 未検証のまま保留されたため、保存済み認証と現行 staging の安全な到達経路を追加監査した。
+
+- `git fetch origin` 後の continuation 開始時点では `HEAD`、`origin/staging`、`git ls-remote origin staging` がすべて `5f797b033cba4d5bf22a3aa6e91c53b77970b054`。これは本報告 commit `f47d407cdcff7479dd5b8e1335eb78ba18b33abf` の子で、差分は LINE 予約 / free-busy 関連 7 files（29 insertions / 25 deletions）のみ。本報告の測定証跡は staging ancestry に残っている。
+- 認証専用候補として許可された OpenClaw profile と CC Notion profile を確認したが、どちらも `norikane.studio` の cookie metadata は 0 件。OpenClaw の `DevToolsActivePort` は stale で該当 port に LISTEN はなく、CC Notion の専用 CDP `9223` も LISTEN していなかった。project 内にも Playwright `storageState` / cookie jar / auth-state artifact は 0 件だった。ユーザー Chrome `9222` とその profile は保護境界のため触れていない。
+- 現在の 41238 は production-like env（`VERCEL=1`、`VERCEL_ENV=production`）で稼働しており、`/api/dev/auth-bypass` は意図した guard により HTTP `404`、発行 cookie 0 件。Auth.js JWT を直接生成する経路はこの guard と認証境界の迂回になるため使用していない。
+- 以上より、保存済み session を使う安全な機械経路は存在しない。公開本番と 41238 の認証済み `/booking` runtime を完測するには、測定用の認証専用 browser profile で各 login URL から `/booking` 到達まで人手認証し、その session を保持した状態が必要である。
+
 ## 基準 SHA
 
 `git fetch origin` 後の開始時点で三重突合した。
@@ -239,6 +248,6 @@ P-A-1 の約 `403 KB` は browser が anonymous `/booking` で実際に transfer
 
 ## 未検証
 
-- 認証済み `/booking` の live LCP/INP、`/api/teams`、range refresh は保存済み session 不在のため未検証。認証を迂回せず、対話 login も起動していない。
+- 認証済み `/booking` の live LCP/INP、`/api/teams`、range refresh は、上記の保存済み session 3 経路がすべて 0 件で、41238 の dev auth bypass も production guard により 404 のため未検証。認証を迂回せず、対話 login も起動していない。
 - 本数値は field RUM / CrUX ではなく、同一 Mac 上の headless Chrome による実回線・実 CPU lab。
 - 改善案の秒/KB は実装前 estimate。見た目/挙動不変を確認する実装後 A/B evidence は P-B の scope 外。
