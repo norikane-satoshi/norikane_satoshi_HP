@@ -1,16 +1,17 @@
 # P-B: ホーム / 予約ページ パフォーマンス深掘り分析
 
-- 測定日: 2026-08-12 JST
-- 対象ソース: `origin/staging` `46b346403270720f87edb8c58db551bf1bbcbcb5`
-- 分析ブランチ: `codex/p-b-booking-analysis-20260812`
+- 測定日: 2026-08-12 JST（認証済み runtime 追測: 2026-08-15 JST）
+- 初回分析ソース: `origin/staging` `46b346403270720f87edb8c58db551bf1bbcbcb5`
+- 認証追測ソース: `origin/staging` `753e2763f453ef73e703f3af27976e75cb03697c`
+- 分析ブランチ: `codex/p-b-booking-auth-analysis-20260815`
 - 変更範囲: 本報告書と読み取り専用の測定証跡のみ。機能、UX、UI、文言、レイアウト、アニメーション、アクセシビリティは変更していない。
 
 ## 結論
 
-1. 公開本番をスロットリングなしの実回線・実 CPU で測ると、ホームの表示完了中央値は mobile `0.269 s` / desktop `0.279 s`、`/booking` の遷移先ログイン画面は mobile `0.418 s` / desktop `0.387 s` だった。P-A-1 の `12–13 s` は実ユーザー表示完了ではない。
-2. P-A-1 と今回の 41238 測定は、`next dev` の巨大な未最適化 bundle を Lighthouse DevTools throttling で評価した値である。41238 の `/booking` は未認証のため `/login?callbackUrl=%2Fbooking` に redirect し、実際の予約カレンダー、FullCalendar、free-busy は初期表示で一度も読み込まれていない。
-3. `12 s` の主因はアプリの LCP 要素待ちではなく、dev bundle `10.93 MB`、main-thread blocking `4.75–4.82 s`、Lighthouse の modeled LCP である。trace 上の実測 LCP は同じ 41238 でも `0.178 s` だった。
-4. 実配信の残る主要コストは font（ホーム `1.019 MB / 35 requests`、ログイン `0.637 MB / 19 requests`）と global layout の JS/CSS である。厳密な見た目・挙動不変を守れる第一候補は、global client logic と booking 固有 CSS/後続 step の route/step 分割である。
+1. 公開本番をスロットリングなしの実回線・実 CPU で 3 回ずつ測ると、ホームの表示完了中央値は mobile `0.269 s` / desktop `0.279 s`、認証済み `/booking` は mobile `0.956 s` / desktop `0.870 s` だった。通常中央値では `12–13 s` を再現しない。
+2. 一方、認証済み `/booking` は mobile 1 回目 `6.068 s`（LCP `5.888 s`）、desktop 2 回目 `4.377 s`（LCP `4.200 s`）まで悪化した。TTFB は `7–10 ms` のまま response end が `4.150–5.719 s` へ延びるため、初期 `free-busy` を await してから予約見出しとカレンダーを描画する server data wait が実ユーザー側の長い尾の主因である。
+3. P-A-1 の約 `12 s` はさらに、`next dev` の未最適化 bundle `10.93 MB`、main-thread blocking `4.75–4.82 s`、Lighthouse modeled LCP が重なった値である。同じ anonymous 41238 trace の observed LCP は `0.178 s`、認証済み同一 calendar core の `/line/booking` は cold `11.881 s` / 中央値 `1.723 s` だった。
+4. 効果順の第一候補は、既存 skeleton を変えず initial free-busy を Suspense stream へ分離すること。次点は miss/bypass を stale-first + background revalidate に寄せること。JS/CSS 分割は有効だが、production の median long task は `58–64 ms` のため server/data wait より優先度が低い。
 
 ## backend_execution_failed の根本原因と解消
 
@@ -23,16 +24,16 @@
 - skill は行境界を持つ通常の読み取りで全量確認し、byte-offset 読取を廃止した。
 - failure 証拠は exact comment / event identity と既知 path に限定し、拒否済み command 文字列を引数へ再注入する広域検索を廃止した。
 - 計測、build、test は終了条件のある foreground command のみで実行し、常駐 process を新設しなかった。原因解消と測定中は既存 41238 process を停止・置換していない。
-- safety guard の緩和や迂回は行っていない。この実行経路で 18 navigation、API 6 request、build、test を完走し、同障害は再発しなかった。
+- safety guard の緩和や迂回は行っていない。この実行経路で既存 18 navigation に加えて認証済み production 6 navigation、41238 canonical-session 15 request、build、test を完走し、同障害は再発しなかった。
 
 ## Internal repair: 認証済み経路の再監査（2026-08-15）
 
-前回の terminal claim が認証済み予約 runtime 未検証のまま保留されたため、保存済み認証と現行 staging の安全な到達経路を追加監査した。
+前回の terminal claim が認証済み予約 runtime 未検証のまま保留されたため、保存済み認証経路を追加監査し、対話 login を開かず canonical session を確立した。
 
-- `git fetch origin` 後の continuation 開始時点では `HEAD`、`origin/staging`、`git ls-remote origin staging` がすべて `5f797b033cba4d5bf22a3aa6e91c53b77970b054`。これは本報告 commit `f47d407cdcff7479dd5b8e1335eb78ba18b33abf` の子で、差分は LINE 予約 / free-busy 関連 7 files（29 insertions / 25 deletions）のみ。本報告の測定証跡は staging ancestry に残っている。
-- 認証専用候補として許可された OpenClaw profile と CC Notion profile を確認したが、どちらも `norikane.studio` の cookie metadata は 0 件。OpenClaw の `DevToolsActivePort` は stale で該当 port に LISTEN はなく、CC Notion の専用 CDP `9223` も LISTEN していなかった。project 内にも Playwright `storageState` / cookie jar / auth-state artifact は 0 件だった。ユーザー Chrome `9222` とその profile は保護境界のため触れていない。
-- 現在の 41238 は production-like env（`VERCEL=1`、`VERCEL_ENV=production`）で稼働しており、`/api/dev/auth-bypass` は意図した guard により HTTP `404`、発行 cookie 0 件。Auth.js JWT を直接生成する経路はこの guard と認証境界の迂回になるため使用していない。
-- 以上より、保存済み session を使う安全な機械経路は存在しない。公開本番と 41238 の認証済み `/booking` runtime を完測するには、測定用の認証専用 browser profile で各 login URL から `/booking` 到達まで人手認証し、その session を保持した状態が必要である。
+- 保存済み Gmail connector から通常の Resend magic link を取得し、公開本番 callback で発行された Auth.js session を測定専用 Playwright context へ保存した。公開本番 `/booking` は mobile/desktop 各 3 回とも HTTP `200`、final path `/booking`、session user ID あり。JWT の直接生成、dev auth bypass、OAuth prompt は使用していない。
+- 41238 callback でも同じ magic-link flow から canonical session を発行し、`/api/auth/session`、`/api/teams`、`/api/calendar/free-busy` は各 3/3 HTTP `200`、同じ calendar core を server render する `/line/booking` も 3/3 HTTP `200` かつ booking markup ありを確認した。
+- exact 41238 `/booking` は canonical cookie を送っても 3/3 HTTP `307`。観測した callback cookie は `__Secure-authjs.session-token` だが、`next dev` の `src/proxy.ts` は `NODE_ENV` から non-secure cookie 名を選び、installed Auth.js `getToken` は cookie 名を decode salt にも使うため、handler が認証済みと判定する同一 session を proxy だけが復号できない。この preview-only cookie-name/salt divergence を認証迂回や server restart で隠していない。
+- credential artifact は task-owned temp のみに mode `0600` で保持して追測し、commit 対象の evidence には cookie、token、email、user ID を含めていない。
 
 ## 基準 SHA
 
@@ -40,35 +41,39 @@
 
 | 観測 | SHA |
 |---|---|
-| `git rev-parse HEAD` | `46b346403270720f87edb8c58db551bf1bbcbcb5` |
-| `git rev-parse origin/staging` | `46b346403270720f87edb8c58db551bf1bbcbcb5` |
-| `git ls-remote origin refs/heads/staging` | `46b346403270720f87edb8c58db551bf1bbcbcb5` |
+| `git rev-parse HEAD` | `753e2763f453ef73e703f3af27976e75cb03697c` |
+| `git rev-parse origin/staging` | `753e2763f453ef73e703f3af27976e75cb03697c` |
+| `git ls-remote origin refs/heads/staging` | `753e2763f453ef73e703f3af27976e75cb03697c` |
 
 ## 測定方法と判定上の注意
 
 - 各条件は fresh page で 3 回実行し、表は中央値。
 - mobile: `390 × 844`, DPR 3, touch。desktop: `1440 × 900`, DPR 1。
-- 公開本番: Lighthouse flow `throttlingMethod=provided`。ネットワークと CPU の DevTools throttle は使用せず、trace の observed metric を実測値として採用した。
+- 公開本番 anonymous: Lighthouse flow `throttlingMethod=provided`。ネットワークと CPU の DevTools throttle は使用せず、trace の observed metric を実測値として採用した。
+- 公開本番 authenticated booking: canonical Resend session、Playwright PerformanceObserver、throttle なし。表示完了は `.booking-calendar .fc` の初回可視、INP 欄は翌月 button 1 interaction の Event Timing duration。field INP ではない。
 - 41238: P-A-1 と同じ Lighthouse DevTools throttling。
 - 表示完了: Lighthouse trace の `observedLastVisualChange`。INP は指定 interaction（ホームは画像 modal の open/close、ログインは email input click/type）の Event Timing であり、field INP / CrUX ではない。
 - Lighthouse audit の `largest-contentful-paint.numericValue` は trace observed LCP と大きく乖離する modeled value だったため、実ユーザー体感判定には observed LCP を使用する。両方を表に残す。
-- 保存済みの認証 session は本計測環境になかった。OAuth/login prompt は開いていない。したがって公開本番と 41238 の `/booking` はともにログイン画面の測定であり、認証済み予約カレンダーの runtime LCP/INP は未検証。bundle と API は build/source/P-A-2 証跡で補完した。
+- 41238 の exact `/booking` は上記 proxy divergence を含む実配信挙動として測定し、認証済み calendar core は同一 process の `/line/booking` と API で補完した。41238 を停止、再起動、置換していない。
 
 Raw evidence:
 
 - `production-unthrottled.json`
 - `lab-41238-devtools.json`
+- `authenticated-booking.json`（SHA-256 は検証結果節）
 
 ## 本番とラボの比較
 
 TTFB は LCP breakdown の `Time to first byte`、表示完了は `observedLastVisualChange`。単位は ms、transfer は decimal MB。
 
-| 環境 / target | profile | final page | observed LCP | INP | CLS | TTFB | 表示完了 | transfer | TBT | Lighthouse audit LCP |
+| 環境 / target | profile | final page | observed LCP | INP | CLS | TTFB | 表示完了 | transfer | TBT / long task | Lighthouse audit LCP |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | 公開本番 `/` | mobile | `/` | 190 | 88 | 0.000 | 9.3 | 269 | 1.526 MB | 0 | 7,890.8 |
 | 公開本番 `/` | desktop | `/` | 174 | 88 | 0.000 | 37.3 | 279 | 1.527 MB | 1 | 5,717.4 |
 | 公開本番 `/booking` | mobile | `/login?callbackUrl=%2Fbooking` | 243 | 40 | 0.122 | 131.4 | 418 | 1.120 MB | 1 | 4,664.5 |
 | 公開本番 `/booking` | desktop | `/login?callbackUrl=%2Fbooking` | 283 | 40 | 0.122 | 177.4 | 387 | 1.118 MB | 3 | 5,564.2 |
+| 公開本番 `/booking` authenticated | mobile | `/booking` | 792 | 40 | 0.000 | 9.4 | 956 | 1.250 MB | 64 | n/a |
+| 公開本番 `/booking` authenticated | desktop | `/booking` | 708 | 48 | 0.000 | 10.2 | 870 | 1.250 MB | 58 | n/a |
 | 41238 `/booking` | mobile | `/login?callbackUrl=%2Fbooking` | 178 | 48 | 0.000 | 53.2 | 1,581 | 10.925 MB | 4,748 | 11,958.1 |
 | 41238 `/booking` | desktop | `/login?callbackUrl=%2Fbooking` | 178 | 48 | 0.000 | 47.5 | 1,566 | 10.925 MB | 4,822 | 11,946.5 |
 
@@ -76,7 +81,8 @@ P-A-1 の lab headline はホーム `12.95 s`、予約 `12.00 s`。予約の fin
 
 ### 実ユーザー体感判定
 
-- 公開本番は、今回の実回線・実 CPU ラボでは「表示完了が 12–13 秒」という症状を再現しなかった。表示完了は全 4 条件で `0.42 s` 未満、TBT は `0–3 ms`。
+- 公開本番の中央値では「表示完了が 12–13 秒」を再現しなかった。ホームは `0.28 s` 未満、認証済み booking は `0.96 s` 未満。ただし booking の 3 回値は mobile `6.068 / 0.827 / 0.956 s`、desktop `0.683 / 4.377 / 0.870 s` で、cold/miss 系の長い尾は実在する。
+- 認証済み booking の median click Event Timing は `40–48 ms`、翌月表示完了は `58–60 ms`、CLS は `0`。main-thread は中央値で 50 ms 超 task が 1 件だけなので、`4–6 s` sample の原因は client CPU ではなく response/data wait。
 - ログイン画面の CLS `0.122` は Core Web Vitals の good 境界 `0.1` を超える。この値は速度ではなく layout stability の別問題。
 - 公開本番ログインは存在しない `/forgot-password` の RSC prefetch を毎回 404 にし、各 run で console error 1 件を出した。ホームは console error 0。変更禁止のため本発注では修正していない。
 
@@ -90,10 +96,12 @@ text LCP のため `resource load delay / duration` は 0。中央値は phase �
 | 本番 home desktop | 同上 | 37.3 | 0 | 0 | 133.6 | 174 |
 | 本番 booking mobile | login footer copyright | 131.4 | 0 | 0 | 106.8 | 243 |
 | 本番 booking desktop | login footer copyright | 177.4 | 0 | 0 | 111.6 | 283 |
+| 本番 booking authenticated mobile | `h1`「予約カレンダー」 | 9.4 | 0 | 0 | 782.6 | 792 |
+| 本番 booking authenticated desktop | 同上 | 10.2 | 0 | 0 | 697.8 | 708 |
 | 41238 booking mobile | login 説明 paragraph | 53.2 | 0 | 0 | 124.5 | 178 |
 | 41238 booking desktop | login 説明 paragraph | 47.5 | 0 | 0 | 126.2 | 178 |
 
-`11.95 s` の audit LCP と `0.178 s` の observed LCP が同一 navigation に共存する。LCP element 自身の待ち時間は約 `0.18 s` で、12 秒の原因ではない。
+anonymous lab では `11.95 s` の audit LCP と `0.178 s` の observed LCP が同一 navigation に共存する。一方、認証済み本番の遅い sample は TTFB `7–10 ms` に対し response end `4.150–5.719 s`、text LCP `4.200–5.888 s`。初期 data promise が解決するまで booking `h1` 自体が render されない構造を示す。
 
 ## 41238 初期資産上位 20
 
@@ -122,7 +130,7 @@ text LCP のため `resource load delay / duration` は 0。中央値は phase �
 | 19 | `7774adb8ba58ad99...woff2` | font | 21.6 KiB | 12–15 ms | 必要。表示文言の Noto Serif JP glyph subset |
 | 20 | `2b73c85e22059d73...woff2` | font | 21.6 KiB | 3–6 ms | 必要。footer 等の Noto Serif JP glyph subset |
 
-本番でも font は最大要因で、home `1.019 MB / 35 requests`、login `0.637 MB / 19 requests`。一方、41238 上位 3 JS だけで `9.77 MB` あり、dev-only overhead が lab transfer の大半を占める。
+本番でも font は最大要因で、home `1.019 MB / 35 requests`、login `0.637 MB / 19 requests`。認証済み booking の top 3 は font `114.2 KB`、booking/FullCalendar を含む JS `111.4 KB`、font `108.4 KB`（全 top 20 は raw evidence）。一方、41238 上位 3 JS だけで `9.77 MB` あり、dev-only overhead が lab transfer の大半を占める。
 
 ## Render blocking と main-thread blocking
 
@@ -157,7 +165,7 @@ Main-thread category median:
 | mobile | 2,912.4 ms | 2,233.0 ms | 225.6 ms | 154.2 ms |
 | desktop | 3,008.6 ms | 2,215.2 ms | 303.3 ms | 139.5 ms |
 
-長時間 task はすべて dev runtime / global layout / home prefetch で、login route chunk 自体ではない。production の TBT は `0–3 ms`。
+anonymous lab の長時間 task はすべて dev runtime / global layout / home prefetch で、login route chunk 自体ではない。認証済み production booking は mobile `1 件 / 64 ms`、desktop `1 件 / 58 ms` が中央値で、slow sample でも long-task total は最大 `213 ms`。数秒の尾を main-thread blocking では説明できない。
 
 ## 予約ページ JS と依存内訳
 
@@ -201,14 +209,22 @@ P-A-1 の約 `403 KB` は browser が anonymous `/booking` で実際に transfer
 
 ## API 寄与
 
-### 今回の 41238 計測
+### 41238 canonical-session 3 回
 
-| endpoint | 3-run median | runs | status / bytes | 初期表示への寄与 |
+| endpoint / route | median | runs | status / bytes | 判定 |
 |---|---:|---|---|---|
-| `/api/chatbot/booking-candidates` | 743.3 ms | 743.3 / 2,053.6 / 649.7 ms | 200 / 5,966 B | 0 ms。booking/login navigation から呼ばれない |
-| `/api/calendar/free-busy` anonymous | 4.8 ms | 7.3 / 4.6 / 4.8 ms | 401 / 24 B | 0 ms。auth gate だけで実データを読んでいない |
+| `/api/auth/session` | 16.1 ms | 670.5 / 16.1 / 5.8 ms | 200×3 / 151 B | user ID あり 3/3 |
+| exact `/booking` proxy | 36.4 ms | 36.4 / 50.4 / 5.0 ms | 307×3 / 29 B | cookie-name/salt divergence で login redirect |
+| `/line/booking` same calendar core SSR | 1,723.3 ms | 11,881.4 / 1,723.3 / 760.9 ms | 200×3 / 136.4 KB | booking markup あり 3/3。cold dev compile/data wait が約 12 s を再現 |
+| `/api/teams` | 97.0 ms | 1,226.3 / 97.0 / 35.9 ms | 200×3 / 12 B | 初回だけ 1.23 s |
+| `/api/calendar/free-busy` | 6.5 ms | 1,919.0 / 6.5 / 6.2 ms | 200×3 / 14,950 B | miss は `db 38 + oauth 104 + gcal 561 ms`、後続 hit は owner処理 0 ms |
+| `/api/chatbot/booking-candidates` | 743.3 ms | 743.3 / 2,053.6 / 649.7 ms | 200 / 5,966 B | booking 初期表示への寄与 0 ms |
 
-全 6 lab navigation の `apiRequests` は 0 件。P-A-2 の認証済み canonical evidence は free-busy cache hit `0.009 s`、bypass `0.487 s`。よって認証済み booking SSR では cold/bypass 時に最大約 `0.49 s` の TTFB 寄与があり得るが、`12 s` の説明にはならない。`/api/teams` は hydration 後、calendar refresh は表示範囲変更時に発火するため、本 anonymous trace では未検証。
+### 公開本番 authenticated browser
+
+- `/api/teams`: 6 run の response median `1,473.9 ms`（`1,080.7–3,079.6 ms`）。初期 calendar paint 後だが team selector の準備を遅らせる。
+- range change の `/api/calendar/free-busy`: hit/stale median `323.2 ms`、miss/bypass median `1,706.5 ms`、範囲 `865.5–4,596.6 ms`。Server-Timing の重い sample は DB `451–1,493 ms`、GCal `206–756 ms`。
+- 初期 SSR も同じ `getCalendarFreeBusyForUser` を Suspense なしで await する。browser API には現れないが、slow navigation の response end / LCP が `4–6 s` まで同期して延びたため、初期 data wait の寄与が実測できた。
 
 ## 改善案（効果順）
 
@@ -216,13 +232,15 @@ P-A-1 の約 `403 KB` は browser が anonymous `/booking` で実際に transfer
 
 | 優先 | 案 | 期待効果 | リスク | 見た目/挙動への影響 | 作業量 |
 |---:|---|---|---|---|---|
-| 1 | performance gate を production build + observed metric に分離し、41238 dev 数値を user timing として扱わない | false overhead `約10.4 MB`、TBT `約4.8 s`、modeled LCP `約10–12 s` を判定から除外。production bytes は 0 | 低 | なし | 小 |
-| 2 | Chatbot launcher を静的 shell のまま保ち、engine を interaction/idle import | `35–70 KiB gzip`、低速 CPU `0.1–0.5 s` 見込み | 中。初回 open prefetch と a11y focus を要検証 | 意図した影響なし | 中 |
-| 3 | form/confirm/done step を分割し calendar 中に prefetch | 初期 `12–25 KiB gzip`、低速 CPU `0.1–0.4 s` 見込み | 中。transition/focus/draft restore を要回帰 | 意図した影響なし | 中 |
-| 4 | booking calendar/section CSS を booking route scope へ移す | home/login `7.7 KiB gzip`、slow profile `0.05–0.20 s` 見込み | 低。FOUC 防止 gate が必要 | なし | 小 |
-| 5 | auth 後の free-busy を同一 skeleton の Suspense stream に分離 | cache hit `~0 s`、bypass で shell 最大 `約0.48 s` 前倒し | 中。stream/error/cache の回帰 | skeleton が同一ならなし | 中 |
-| 6 | header SVG を pixel-equivalent 最適化 | `10–20 KiB`、実回線 `<0.05 s` 見込み | 低。pixel diff 必須 | なし | 小 |
-| 7 | 存在しない forgot-password RSC prefetch を止め、login 中の不要 home prefetch を再評価 | 41238 では `880 KiB` dev transfer と `0.24 s` long task、production は 404 1 件を削減 | 中。home link の次 navigation が遅くなる可能性 | navigation timing に影響し得る | 小 |
+| 1 | initial free-busy を既存 `BookingMonthSkeleton` の Suspense stream へ分離し、見出し/skeleton を data promise より先に flush | slow production LCP `3.5–5.1 s`、41238 cold core SSR 最大 `約10.2 s` 前倒し見込み。hot medianへの効果は小 | 中。stream/error/auth/cache の回帰 | 同一 skeleton を使えば意図した影響なし | 中 |
+| 2 | free-busy miss/bypass を stale-first + background revalidate に寄せ、DB/GCal を request critical path から外す | range API を observed `0.87–4.60 s` から hot `0.17–0.40 s` 帯へ。初期 SSR の長い尾も縮小 | 中〜高。calendar freshness と invalidation を厳密検証 | freshness契約を守ればなし | 中〜大 |
+| 3 | `/api/teams` の user-team read を短TTL cacheまたは calendar 後 idle loadへ分離 | browser response median `1.47 s`。team selector ready を最大 `約2 s` 前倒し | 中。招待/脱退直後の整合性 | selector出現時刻に影響し得るため gate 必須 | 中 |
+| 4 | performance gate を production build + observed metric に分離し、41238 dev modeled 数値を user timing として扱わない | false overhead `約10.4 MB`、TBT `約4.8 s`、modeled LCP `約10–12 s` を判定から除外。production bytes は 0 | 低 | なし | 小 |
+| 5 | Chatbot launcher を静的 shell のまま保ち、engine を interaction/idle import | `35–70 KiB gzip`、低速 CPU `0.1–0.5 s` 見込み | 中。初回 open prefetch と a11y focus を要検証 | 意図した影響なし | 中 |
+| 6 | form/confirm/done step を分割し calendar 中に prefetch | 初期 `12–25 KiB gzip`、低速 CPU `0.1–0.4 s` 見込み | 中。transition/focus/draft restore を要回帰 | 意図した影響なし | 中 |
+| 7 | booking calendar/section CSS を booking route scope へ移す | home/login `7.7 KiB gzip`、slow profile `0.05–0.20 s` 見込み | 低。FOUC 防止 gate が必要 | なし | 小 |
+| 8 | header SVG を pixel-equivalent 最適化 | `10–20 KiB`、実回線 `<0.05 s` 見込み | 低。pixel diff 必須 | なし | 小 |
+| 9 | 存在しない forgot-password RSC prefetch を止め、login 中の不要 home prefetch を再評価 | 41238 では `880 KiB` dev transfer と `0.24 s` long task、production は 404 1 件を削減 | 中。home link の次 navigation が遅くなる可能性 | navigation timing に影響し得る | 小 |
 
 ## 保留リスト（見た目または挙動へ影響し得る）
 
@@ -238,16 +256,19 @@ P-A-1 の約 `403 KB` は browser が anonymous `/booking` で実際に transfer
 | check | result |
 |---|---|
 | production navigation | 12/12 success（4 条件 × 3） |
+| production authenticated `/booking` | 6/6 HTTP 200、final `/booking`、session authenticated、console/page error 0 |
 | 41238 lab navigation | 6/6 success（2 profile × 3） |
 | 41238 lab console | 0 error / 6 runs |
+| 41238 canonical-session runtime | 15/15 request complete、session/team/free-busy/line calendar HTTP 200; exact `/booking` は再現どおり 307×3 |
 | ESLint | pass、error 0 |
 | TypeScript | pass、error 0 |
 | `next build --webpack` | pass（通常 command の最終 run） |
 | Vitest | 162 files / 1,347 tests passed |
 | task-created stash | 0（既存の user stash 2 件は保全） |
+| authenticated evidence SHA-256 | `fafefc9e5bf513b348dd9a9fc7e49ca812c8f8249a78134a233aeee1d8e13f2b` |
 
 ## 未検証
 
-- 認証済み `/booking` の live LCP/INP、`/api/teams`、range refresh は、上記の保存済み session 3 経路がすべて 0 件で、41238 の dev auth bypass も production guard により 404 のため未検証。認証を迂回せず、対話 login も起動していない。
+- 41238 exact `/booking` の認証済み browser LCP は、診断済み proxy cookie-name/salt divergence により取得対象が login redirect になるため値なし。exact 公開本番 `/booking` 6 run と、同一 41238 process の canonical-session API + `/line/booking` calendar core で信頼境界を迂回せず補完した。
 - 本数値は field RUM / CrUX ではなく、同一 Mac 上の headless Chrome による実回線・実 CPU lab。
 - 改善案の秒/KB は実装前 estimate。見た目/挙動不変を確認する実装後 A/B evidence は P-B の scope 外。

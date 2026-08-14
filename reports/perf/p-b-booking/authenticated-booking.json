@@ -1,0 +1,1946 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-08-14T21:09:22.347Z",
+  "source": {
+    "branch": "staging",
+    "commit": "753e2763f453ef73e703f3af27976e75cb03697c",
+    "localBaseUrl": "http://127.0.0.1:41238",
+    "productionBaseUrl": "https://norikane.studio"
+  },
+  "auth": {
+    "mechanism": "Resend magic link via the existing authenticated Gmail connector",
+    "productionSessionAuthenticated": true,
+    "localSessionAuthenticated": true,
+    "secretValuesIncludedInEvidence": false
+  },
+  "productionRuns": [
+    {
+      "environment": "production-authenticated",
+      "profile": "mobile",
+      "run": 1,
+      "navigationStatus": 200,
+      "finalPath": "/booking",
+      "sessionAuthenticated": true,
+      "ttfbMs": 7.4,
+      "responseEndMs": 5718.9,
+      "domContentLoadedMs": 5882,
+      "loadMs": 6250.5,
+      "displayCompleteMs": 6067.8,
+      "lcpMs": 5888,
+      "lcpElement": {
+        "tag": "h1",
+        "className": "text-4xl font-bold text-hp md:text-5xl xl:text-6xl",
+        "text": "予約カレンダー"
+      },
+      "lcpResource": null,
+      "cls": 0,
+      "interactionCompleteMs": 130.6,
+      "clickEventDurationMs": 40,
+      "totalTransferBytes": 1249848,
+      "resourceCount": 51,
+      "longTaskCount": 2,
+      "longTaskTotalMs": 213,
+      "longTasks": [
+        {
+          "startMs": 5730.5,
+          "durationMs": 148,
+          "name": "unknown"
+        },
+        {
+          "startMs": 6012.3,
+          "durationMs": 65,
+          "name": "self"
+        }
+      ],
+      "apiRequests": [
+        {
+          "path": "/api/teams",
+          "status": 200,
+          "durationMs": 3079.6,
+          "serverTiming": null
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 4309,
+          "serverTiming": "db;dur=479, oauth;dur=72, gcal;dur=543, cache;desc=\"miss\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 4511.5,
+          "serverTiming": "db;dur=759, oauth;dur=71, gcal;dur=608, cache;desc=\"bypass\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 4596.6,
+          "serverTiming": "db;dur=794, oauth;dur=86, gcal;dur=668, cache;desc=\"miss\""
+        }
+      ],
+      "topAssets": [
+        {
+          "path": "/_next/static/media/f274a7d773de54c9-s.163vk5zt4o7.p.woff2",
+          "initiatorType": "link",
+          "transferBytes": 114204,
+          "encodedBytes": 113904,
+          "durationMs": 29.5
+        },
+        {
+          "path": "/_next/static/chunks/0s3als..gkc57.js",
+          "initiatorType": "script",
+          "transferBytes": 111429,
+          "encodedBytes": 111129,
+          "durationMs": 47.1
+        },
+        {
+          "path": "/_next/static/media/89a5f5580acaadb6-s.0_~rle6~h14vx.woff2",
+          "initiatorType": "css",
+          "transferBytes": 108368,
+          "encodedBytes": 108068,
+          "durationMs": 66.5
+        },
+        {
+          "path": "/_next/static/chunks/059wahss15g~6.js",
+          "initiatorType": "script",
+          "transferBytes": 72528,
+          "encodedBytes": 72228,
+          "durationMs": 27.5
+        },
+        {
+          "path": "/_next/static/chunks/112n8_d~xvch0.js",
+          "initiatorType": "script",
+          "transferBytes": 68712,
+          "encodedBytes": 68412,
+          "durationMs": 37.1
+        },
+        {
+          "path": "/_next/static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2",
+          "initiatorType": "link",
+          "transferBytes": 48732,
+          "encodedBytes": 48432,
+          "durationMs": 36.4
+        },
+        {
+          "path": "/_next/static/chunks/0a64l6-_jyd7l.js",
+          "initiatorType": "script",
+          "transferBytes": 43591,
+          "encodedBytes": 43291,
+          "durationMs": 28.5
+        },
+        {
+          "path": "/_next/static/chunks/0e2tpvpiaiy__.js",
+          "initiatorType": "script",
+          "transferBytes": 38492,
+          "encodedBytes": 38192,
+          "durationMs": 27.6
+        },
+        {
+          "path": "/_next/static/chunks/0nr-_2l0fu7a9.js",
+          "initiatorType": "script",
+          "transferBytes": 36833,
+          "encodedBytes": 36533,
+          "durationMs": 27.1
+        },
+        {
+          "path": "/_next/static/chunks/0seewss44b2._.css",
+          "initiatorType": "link",
+          "transferBytes": 34294,
+          "encodedBytes": 33994,
+          "durationMs": 43.6
+        },
+        {
+          "path": "/_next/static/chunks/10cyftrnx4hzm.css",
+          "initiatorType": "link",
+          "transferBytes": 34289,
+          "encodedBytes": 33989,
+          "durationMs": 42.9
+        },
+        {
+          "path": "/_next/static/media/68d0ad77fd2c49e3-s.p.0wghyr-.6qbey.woff2",
+          "initiatorType": "link",
+          "transferBytes": 33688,
+          "encodedBytes": 33388,
+          "durationMs": 38.1
+        },
+        {
+          "path": "/_next/static/media/ef8ce4d4ce2ea41b-s.0eweyj_h9y8q0.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26648,
+          "encodedBytes": 26348,
+          "durationMs": 27.9
+        },
+        {
+          "path": "/nori_header_black.svg",
+          "initiatorType": "link",
+          "transferBytes": 26193,
+          "encodedBytes": 25893,
+          "durationMs": 70.3
+        },
+        {
+          "path": "/_next/static/media/f172a48ee1e78f93-s.02k6tly.ttj7f.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26016,
+          "encodedBytes": 25716,
+          "durationMs": 67.9
+        },
+        {
+          "path": "/_next/static/media/ad9c66e761fed85a-s.p.0e4b2z5rxsmxh.woff2",
+          "initiatorType": "link",
+          "transferBytes": 25296,
+          "encodedBytes": 24996,
+          "durationMs": 37.1
+        },
+        {
+          "path": "/_next/static/media/b42de01694d446ba-s.0q27d16ol6phi.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24768,
+          "encodedBytes": 24468,
+          "durationMs": 43.1
+        },
+        {
+          "path": "/_next/static/media/bd6893a4972e3de7-s.0t2wqqx.rl9t2.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24712,
+          "encodedBytes": 24412,
+          "durationMs": 158
+        },
+        {
+          "path": "/_next/static/media/637a53df9ae6a0a1-s.14z~gdcphcsai.woff2",
+          "initiatorType": "css",
+          "transferBytes": 23864,
+          "encodedBytes": 23564,
+          "durationMs": 24.3
+        },
+        {
+          "path": "/_next/static/media/797e433ab948586e-s.p.08e28id.o-okb.woff2",
+          "initiatorType": "link",
+          "transferBytes": 23408,
+          "encodedBytes": 23108,
+          "durationMs": 37.3
+        }
+      ],
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "failedRequestCount": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "environment": "production-authenticated",
+      "profile": "mobile",
+      "run": 2,
+      "navigationStatus": 200,
+      "finalPath": "/booking",
+      "sessionAuthenticated": true,
+      "ttfbMs": 17.4,
+      "responseEndMs": 649,
+      "domContentLoadedMs": 656.3,
+      "loadMs": 874.2,
+      "displayCompleteMs": 826.9,
+      "lcpMs": 696,
+      "lcpElement": {
+        "tag": "h1",
+        "className": "text-4xl font-bold text-hp md:text-5xl xl:text-6xl",
+        "text": "予約カレンダー"
+      },
+      "lcpResource": null,
+      "cls": 0,
+      "interactionCompleteMs": 58.1,
+      "clickEventDurationMs": 40,
+      "totalTransferBytes": 1249879,
+      "resourceCount": 51,
+      "longTaskCount": 1,
+      "longTaskTotalMs": 64,
+      "longTasks": [
+        {
+          "startMs": 774.6,
+          "durationMs": 64,
+          "name": "self"
+        }
+      ],
+      "apiRequests": [
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 173,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        },
+        {
+          "path": "/api/teams",
+          "status": 200,
+          "durationMs": 1080.7,
+          "serverTiming": null
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 1706.5,
+          "serverTiming": "db;dur=799, oauth;dur=0, gcal;dur=756, cache;desc=\"bypass\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 1624.4,
+          "serverTiming": "db;dur=876, oauth;dur=0, gcal;dur=546, cache;desc=\"miss\""
+        }
+      ],
+      "topAssets": [
+        {
+          "path": "/_next/static/media/f274a7d773de54c9-s.163vk5zt4o7.p.woff2",
+          "initiatorType": "link",
+          "transferBytes": 114204,
+          "encodedBytes": 113904,
+          "durationMs": 33.2
+        },
+        {
+          "path": "/_next/static/chunks/0s3als..gkc57.js",
+          "initiatorType": "script",
+          "transferBytes": 111429,
+          "encodedBytes": 111129,
+          "durationMs": 29.3
+        },
+        {
+          "path": "/_next/static/media/89a5f5580acaadb6-s.0_~rle6~h14vx.woff2",
+          "initiatorType": "css",
+          "transferBytes": 108368,
+          "encodedBytes": 108068,
+          "durationMs": 115.9
+        },
+        {
+          "path": "/_next/static/chunks/059wahss15g~6.js",
+          "initiatorType": "script",
+          "transferBytes": 72528,
+          "encodedBytes": 72228,
+          "durationMs": 24.3
+        },
+        {
+          "path": "/_next/static/chunks/112n8_d~xvch0.js",
+          "initiatorType": "script",
+          "transferBytes": 68712,
+          "encodedBytes": 68412,
+          "durationMs": 28
+        },
+        {
+          "path": "/_next/static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2",
+          "initiatorType": "link",
+          "transferBytes": 48732,
+          "encodedBytes": 48432,
+          "durationMs": 41.7
+        },
+        {
+          "path": "/_next/static/chunks/0a64l6-_jyd7l.js",
+          "initiatorType": "script",
+          "transferBytes": 43591,
+          "encodedBytes": 43291,
+          "durationMs": 22.1
+        },
+        {
+          "path": "/_next/static/chunks/0e2tpvpiaiy__.js",
+          "initiatorType": "script",
+          "transferBytes": 38492,
+          "encodedBytes": 38192,
+          "durationMs": 25.9
+        },
+        {
+          "path": "/_next/static/chunks/0nr-_2l0fu7a9.js",
+          "initiatorType": "script",
+          "transferBytes": 36833,
+          "encodedBytes": 36533,
+          "durationMs": 25.8
+        },
+        {
+          "path": "/_next/static/chunks/0seewss44b2._.css",
+          "initiatorType": "link",
+          "transferBytes": 34294,
+          "encodedBytes": 33994,
+          "durationMs": 42.1
+        },
+        {
+          "path": "/_next/static/chunks/10cyftrnx4hzm.css",
+          "initiatorType": "link",
+          "transferBytes": 34289,
+          "encodedBytes": 33989,
+          "durationMs": 43.6
+        },
+        {
+          "path": "/_next/static/media/68d0ad77fd2c49e3-s.p.0wghyr-.6qbey.woff2",
+          "initiatorType": "link",
+          "transferBytes": 33688,
+          "encodedBytes": 33388,
+          "durationMs": 17.1
+        },
+        {
+          "path": "/_next/static/media/ef8ce4d4ce2ea41b-s.0eweyj_h9y8q0.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26648,
+          "encodedBytes": 26348,
+          "durationMs": 107.1
+        },
+        {
+          "path": "/nori_header_black.svg",
+          "initiatorType": "link",
+          "transferBytes": 26193,
+          "encodedBytes": 25893,
+          "durationMs": 70.4
+        },
+        {
+          "path": "/_next/static/media/f172a48ee1e78f93-s.02k6tly.ttj7f.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26016,
+          "encodedBytes": 25716,
+          "durationMs": 115.4
+        },
+        {
+          "path": "/_next/static/media/ad9c66e761fed85a-s.p.0e4b2z5rxsmxh.woff2",
+          "initiatorType": "link",
+          "transferBytes": 25296,
+          "encodedBytes": 24996,
+          "durationMs": 43.3
+        },
+        {
+          "path": "/_next/static/media/b42de01694d446ba-s.0q27d16ol6phi.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24768,
+          "encodedBytes": 24468,
+          "durationMs": 109.2
+        },
+        {
+          "path": "/_next/static/media/bd6893a4972e3de7-s.0t2wqqx.rl9t2.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24712,
+          "encodedBytes": 24412,
+          "durationMs": 124.4
+        },
+        {
+          "path": "/_next/static/media/637a53df9ae6a0a1-s.14z~gdcphcsai.woff2",
+          "initiatorType": "css",
+          "transferBytes": 23864,
+          "encodedBytes": 23564,
+          "durationMs": 103.7
+        },
+        {
+          "path": "/_next/static/media/797e433ab948586e-s.p.08e28id.o-okb.woff2",
+          "initiatorType": "link",
+          "transferBytes": 23408,
+          "encodedBytes": 23108,
+          "durationMs": 24
+        }
+      ],
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "failedRequestCount": 2,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        {
+          "url": "/booking/history",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "/booking/settings",
+          "error": "net::ERR_ABORTED"
+        }
+      ]
+    },
+    {
+      "environment": "production-authenticated",
+      "profile": "mobile",
+      "run": 3,
+      "navigationStatus": 200,
+      "finalPath": "/booking",
+      "sessionAuthenticated": true,
+      "ttfbMs": 9.4,
+      "responseEndMs": 748.2,
+      "domContentLoadedMs": 755.3,
+      "loadMs": 846.1,
+      "displayCompleteMs": 955.7,
+      "lcpMs": 792,
+      "lcpElement": {
+        "tag": "h1",
+        "className": "text-4xl font-bold text-hp md:text-5xl xl:text-6xl",
+        "text": "予約カレンダー"
+      },
+      "lcpResource": null,
+      "cls": 0,
+      "interactionCompleteMs": 56.1,
+      "clickEventDurationMs": 40,
+      "totalTransferBytes": 1250179,
+      "resourceCount": 52,
+      "longTaskCount": 1,
+      "longTaskTotalMs": 61,
+      "longTasks": [
+        {
+          "startMs": 904.8,
+          "durationMs": 61,
+          "name": "self"
+        }
+      ],
+      "apiRequests": [
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 327.2,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        },
+        {
+          "path": "/api/teams",
+          "status": 200,
+          "durationMs": 1331.5,
+          "serverTiming": null
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 1528.2,
+          "serverTiming": "db;dur=1052, oauth;dur=0, gcal;dur=321, cache;desc=\"bypass\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 2086,
+          "serverTiming": "db;dur=1243, oauth;dur=0, gcal;dur=662, cache;desc=\"miss\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 169.9,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 865.5,
+          "serverTiming": "db;dur=458, oauth;dur=0, gcal;dur=247, cache;desc=\"bypass\""
+        }
+      ],
+      "topAssets": [
+        {
+          "path": "/_next/static/media/f274a7d773de54c9-s.163vk5zt4o7.p.woff2",
+          "initiatorType": "link",
+          "transferBytes": 114204,
+          "encodedBytes": 113904,
+          "durationMs": 35
+        },
+        {
+          "path": "/_next/static/chunks/0s3als..gkc57.js",
+          "initiatorType": "script",
+          "transferBytes": 111429,
+          "encodedBytes": 111129,
+          "durationMs": 27.9
+        },
+        {
+          "path": "/_next/static/media/89a5f5580acaadb6-s.0_~rle6~h14vx.woff2",
+          "initiatorType": "css",
+          "transferBytes": 108368,
+          "encodedBytes": 108068,
+          "durationMs": 32.5
+        },
+        {
+          "path": "/_next/static/chunks/059wahss15g~6.js",
+          "initiatorType": "script",
+          "transferBytes": 72528,
+          "encodedBytes": 72228,
+          "durationMs": 24
+        },
+        {
+          "path": "/_next/static/chunks/112n8_d~xvch0.js",
+          "initiatorType": "script",
+          "transferBytes": 68712,
+          "encodedBytes": 68412,
+          "durationMs": 27
+        },
+        {
+          "path": "/_next/static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2",
+          "initiatorType": "link",
+          "transferBytes": 48732,
+          "encodedBytes": 48432,
+          "durationMs": 20.3
+        },
+        {
+          "path": "/_next/static/chunks/0a64l6-_jyd7l.js",
+          "initiatorType": "script",
+          "transferBytes": 43591,
+          "encodedBytes": 43291,
+          "durationMs": 22
+        },
+        {
+          "path": "/_next/static/chunks/0e2tpvpiaiy__.js",
+          "initiatorType": "script",
+          "transferBytes": 38492,
+          "encodedBytes": 38192,
+          "durationMs": 20.9
+        },
+        {
+          "path": "/_next/static/chunks/0nr-_2l0fu7a9.js",
+          "initiatorType": "script",
+          "transferBytes": 36833,
+          "encodedBytes": 36533,
+          "durationMs": 22.4
+        },
+        {
+          "path": "/_next/static/chunks/0seewss44b2._.css",
+          "initiatorType": "link",
+          "transferBytes": 34294,
+          "encodedBytes": 33994,
+          "durationMs": 27.2
+        },
+        {
+          "path": "/_next/static/chunks/10cyftrnx4hzm.css",
+          "initiatorType": "link",
+          "transferBytes": 34289,
+          "encodedBytes": 33989,
+          "durationMs": 26.9
+        },
+        {
+          "path": "/_next/static/media/68d0ad77fd2c49e3-s.p.0wghyr-.6qbey.woff2",
+          "initiatorType": "link",
+          "transferBytes": 33688,
+          "encodedBytes": 33388,
+          "durationMs": 20.9
+        },
+        {
+          "path": "/_next/static/media/ef8ce4d4ce2ea41b-s.0eweyj_h9y8q0.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26648,
+          "encodedBytes": 26348,
+          "durationMs": 23
+        },
+        {
+          "path": "/nori_header_black.svg",
+          "initiatorType": "link",
+          "transferBytes": 26193,
+          "encodedBytes": 25893,
+          "durationMs": 50.8
+        },
+        {
+          "path": "/_next/static/media/f172a48ee1e78f93-s.02k6tly.ttj7f.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26016,
+          "encodedBytes": 25716,
+          "durationMs": 30.9
+        },
+        {
+          "path": "/_next/static/media/ad9c66e761fed85a-s.p.0e4b2z5rxsmxh.woff2",
+          "initiatorType": "link",
+          "transferBytes": 25296,
+          "encodedBytes": 24996,
+          "durationMs": 29
+        },
+        {
+          "path": "/_next/static/media/b42de01694d446ba-s.0q27d16ol6phi.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24768,
+          "encodedBytes": 24468,
+          "durationMs": 20.9
+        },
+        {
+          "path": "/_next/static/media/bd6893a4972e3de7-s.0t2wqqx.rl9t2.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24712,
+          "encodedBytes": 24412,
+          "durationMs": 33.9
+        },
+        {
+          "path": "/_next/static/media/637a53df9ae6a0a1-s.14z~gdcphcsai.woff2",
+          "initiatorType": "css",
+          "transferBytes": 23864,
+          "encodedBytes": 23564,
+          "durationMs": 20.4
+        },
+        {
+          "path": "/_next/static/media/797e433ab948586e-s.p.08e28id.o-okb.woff2",
+          "initiatorType": "link",
+          "transferBytes": 23408,
+          "encodedBytes": 23108,
+          "durationMs": 29.3
+        }
+      ],
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "failedRequestCount": 1,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        {
+          "url": "/booking/settings",
+          "error": "net::ERR_ABORTED"
+        }
+      ]
+    },
+    {
+      "environment": "production-authenticated",
+      "profile": "desktop",
+      "run": 1,
+      "navigationStatus": 200,
+      "finalPath": "/booking",
+      "sessionAuthenticated": true,
+      "ttfbMs": 11.4,
+      "responseEndMs": 458.7,
+      "domContentLoadedMs": 520.6,
+      "loadMs": 545.1,
+      "displayCompleteMs": 682.9,
+      "lcpMs": 532,
+      "lcpElement": {
+        "tag": "h1",
+        "className": "text-4xl font-bold text-hp md:text-5xl xl:text-6xl",
+        "text": "予約カレンダー"
+      },
+      "lcpResource": null,
+      "cls": 0,
+      "interactionCompleteMs": 59.7,
+      "clickEventDurationMs": 48,
+      "totalTransferBytes": 1252323,
+      "resourceCount": 53,
+      "longTaskCount": 1,
+      "longTaskTotalMs": 60,
+      "longTasks": [
+        {
+          "startMs": 633.9,
+          "durationMs": 60,
+          "name": "self"
+        }
+      ],
+      "apiRequests": [
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 247,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 401.7,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 884.6,
+          "serverTiming": "db;dur=451, oauth;dur=0, gcal;dur=262, cache;desc=\"bypass\""
+        },
+        {
+          "path": "/api/teams",
+          "status": 200,
+          "durationMs": 1473.9,
+          "serverTiming": null
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 983.5,
+          "serverTiming": "db;dur=466, oauth;dur=0, gcal;dur=344, cache;desc=\"bypass\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 326.7,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        }
+      ],
+      "topAssets": [
+        {
+          "path": "/_next/static/media/f274a7d773de54c9-s.163vk5zt4o7.p.woff2",
+          "initiatorType": "link",
+          "transferBytes": 114204,
+          "encodedBytes": 113904,
+          "durationMs": 33
+        },
+        {
+          "path": "/_next/static/chunks/0s3als..gkc57.js",
+          "initiatorType": "script",
+          "transferBytes": 111429,
+          "encodedBytes": 111129,
+          "durationMs": 42.9
+        },
+        {
+          "path": "/_next/static/media/89a5f5580acaadb6-s.0_~rle6~h14vx.woff2",
+          "initiatorType": "css",
+          "transferBytes": 108368,
+          "encodedBytes": 108068,
+          "durationMs": 32.9
+        },
+        {
+          "path": "/_next/static/chunks/059wahss15g~6.js",
+          "initiatorType": "script",
+          "transferBytes": 72528,
+          "encodedBytes": 72228,
+          "durationMs": 36
+        },
+        {
+          "path": "/_next/static/chunks/112n8_d~xvch0.js",
+          "initiatorType": "script",
+          "transferBytes": 68712,
+          "encodedBytes": 68412,
+          "durationMs": 39.2
+        },
+        {
+          "path": "/_next/static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2",
+          "initiatorType": "link",
+          "transferBytes": 48732,
+          "encodedBytes": 48432,
+          "durationMs": 33.6
+        },
+        {
+          "path": "/_next/static/chunks/0a64l6-_jyd7l.js",
+          "initiatorType": "script",
+          "transferBytes": 43591,
+          "encodedBytes": 43291,
+          "durationMs": 38.7
+        },
+        {
+          "path": "/_next/static/chunks/0e2tpvpiaiy__.js",
+          "initiatorType": "script",
+          "transferBytes": 38492,
+          "encodedBytes": 38192,
+          "durationMs": 35.3
+        },
+        {
+          "path": "/_next/static/chunks/0nr-_2l0fu7a9.js",
+          "initiatorType": "script",
+          "transferBytes": 36833,
+          "encodedBytes": 36533,
+          "durationMs": 36
+        },
+        {
+          "path": "/_next/static/chunks/0seewss44b2._.css",
+          "initiatorType": "link",
+          "transferBytes": 34294,
+          "encodedBytes": 33994,
+          "durationMs": 34
+        },
+        {
+          "path": "/_next/static/chunks/10cyftrnx4hzm.css",
+          "initiatorType": "link",
+          "transferBytes": 34289,
+          "encodedBytes": 33989,
+          "durationMs": 25
+        },
+        {
+          "path": "/_next/static/media/68d0ad77fd2c49e3-s.p.0wghyr-.6qbey.woff2",
+          "initiatorType": "link",
+          "transferBytes": 33688,
+          "encodedBytes": 33388,
+          "durationMs": 33.5
+        },
+        {
+          "path": "/_next/static/media/ef8ce4d4ce2ea41b-s.0eweyj_h9y8q0.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26648,
+          "encodedBytes": 26348,
+          "durationMs": 23.9
+        },
+        {
+          "path": "/nori_header_black.svg",
+          "initiatorType": "link",
+          "transferBytes": 26193,
+          "encodedBytes": 25893,
+          "durationMs": 37.5
+        },
+        {
+          "path": "/_next/static/media/f172a48ee1e78f93-s.02k6tly.ttj7f.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26016,
+          "encodedBytes": 25716,
+          "durationMs": 31.8
+        },
+        {
+          "path": "/_next/static/media/ad9c66e761fed85a-s.p.0e4b2z5rxsmxh.woff2",
+          "initiatorType": "link",
+          "transferBytes": 25296,
+          "encodedBytes": 24996,
+          "durationMs": 24.8
+        },
+        {
+          "path": "/_next/static/media/b42de01694d446ba-s.0q27d16ol6phi.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24768,
+          "encodedBytes": 24468,
+          "durationMs": 25.7
+        },
+        {
+          "path": "/_next/static/media/bd6893a4972e3de7-s.0t2wqqx.rl9t2.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24712,
+          "encodedBytes": 24412,
+          "durationMs": 35.3
+        },
+        {
+          "path": "/_next/static/media/637a53df9ae6a0a1-s.14z~gdcphcsai.woff2",
+          "initiatorType": "css",
+          "transferBytes": 23864,
+          "encodedBytes": 23564,
+          "durationMs": 22.8
+        },
+        {
+          "path": "/_next/static/media/797e433ab948586e-s.p.08e28id.o-okb.woff2",
+          "initiatorType": "link",
+          "transferBytes": 23408,
+          "encodedBytes": 23108,
+          "durationMs": 17.1
+        }
+      ],
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "failedRequestCount": 1,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        {
+          "url": "/booking/settings",
+          "error": "net::ERR_ABORTED"
+        }
+      ]
+    },
+    {
+      "environment": "production-authenticated",
+      "profile": "desktop",
+      "run": 2,
+      "navigationStatus": 200,
+      "finalPath": "/booking",
+      "sessionAuthenticated": true,
+      "ttfbMs": 10.2,
+      "responseEndMs": 4150.4,
+      "domContentLoadedMs": 4157.5,
+      "loadMs": 4306.8,
+      "displayCompleteMs": 4376.5,
+      "lcpMs": 4200,
+      "lcpElement": {
+        "tag": "h1",
+        "className": "text-4xl font-bold text-hp md:text-5xl xl:text-6xl",
+        "text": "予約カレンダー"
+      },
+      "lcpResource": null,
+      "cls": 0,
+      "interactionCompleteMs": 56.9,
+      "clickEventDurationMs": 40,
+      "totalTransferBytes": 1250180,
+      "resourceCount": 52,
+      "longTaskCount": 1,
+      "longTaskTotalMs": 57,
+      "longTasks": [
+        {
+          "startMs": 4330.3,
+          "durationMs": 57,
+          "name": "self"
+        }
+      ],
+      "apiRequests": [
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 170.2,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"stale\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 171.3,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"stale\""
+        },
+        {
+          "path": "/api/teams",
+          "status": 200,
+          "durationMs": 1675.3,
+          "serverTiming": null
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 1879.6,
+          "serverTiming": "db;dur=1493, oauth;dur=0, gcal;dur=211, cache;desc=\"bypass\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 205.5,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"stale\""
+        }
+      ],
+      "topAssets": [
+        {
+          "path": "/_next/static/media/f274a7d773de54c9-s.163vk5zt4o7.p.woff2",
+          "initiatorType": "link",
+          "transferBytes": 114204,
+          "encodedBytes": 113904,
+          "durationMs": 37.2
+        },
+        {
+          "path": "/_next/static/chunks/0s3als..gkc57.js",
+          "initiatorType": "script",
+          "transferBytes": 111429,
+          "encodedBytes": 111129,
+          "durationMs": 111.5
+        },
+        {
+          "path": "/_next/static/media/89a5f5580acaadb6-s.0_~rle6~h14vx.woff2",
+          "initiatorType": "css",
+          "transferBytes": 108368,
+          "encodedBytes": 108068,
+          "durationMs": 112
+        },
+        {
+          "path": "/_next/static/chunks/059wahss15g~6.js",
+          "initiatorType": "script",
+          "transferBytes": 72528,
+          "encodedBytes": 72228,
+          "durationMs": 23.6
+        },
+        {
+          "path": "/_next/static/chunks/112n8_d~xvch0.js",
+          "initiatorType": "script",
+          "transferBytes": 68712,
+          "encodedBytes": 68412,
+          "durationMs": 23.4
+        },
+        {
+          "path": "/_next/static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2",
+          "initiatorType": "link",
+          "transferBytes": 48732,
+          "encodedBytes": 48432,
+          "durationMs": 24.1
+        },
+        {
+          "path": "/_next/static/chunks/0a64l6-_jyd7l.js",
+          "initiatorType": "script",
+          "transferBytes": 43591,
+          "encodedBytes": 43291,
+          "durationMs": 21.5
+        },
+        {
+          "path": "/_next/static/chunks/0e2tpvpiaiy__.js",
+          "initiatorType": "script",
+          "transferBytes": 38492,
+          "encodedBytes": 38192,
+          "durationMs": 19.8
+        },
+        {
+          "path": "/_next/static/chunks/0nr-_2l0fu7a9.js",
+          "initiatorType": "script",
+          "transferBytes": 36833,
+          "encodedBytes": 36533,
+          "durationMs": 22
+        },
+        {
+          "path": "/_next/static/chunks/0seewss44b2._.css",
+          "initiatorType": "link",
+          "transferBytes": 34294,
+          "encodedBytes": 33994,
+          "durationMs": 31.3
+        },
+        {
+          "path": "/_next/static/chunks/10cyftrnx4hzm.css",
+          "initiatorType": "link",
+          "transferBytes": 34289,
+          "encodedBytes": 33989,
+          "durationMs": 30.2
+        },
+        {
+          "path": "/_next/static/media/68d0ad77fd2c49e3-s.p.0wghyr-.6qbey.woff2",
+          "initiatorType": "link",
+          "transferBytes": 33688,
+          "encodedBytes": 33388,
+          "durationMs": 16.6
+        },
+        {
+          "path": "/_next/static/media/ef8ce4d4ce2ea41b-s.0eweyj_h9y8q0.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26648,
+          "encodedBytes": 26348,
+          "durationMs": 96.2
+        },
+        {
+          "path": "/nori_header_black.svg",
+          "initiatorType": "link",
+          "transferBytes": 26193,
+          "encodedBytes": 25893,
+          "durationMs": 52.6
+        },
+        {
+          "path": "/_next/static/media/f172a48ee1e78f93-s.02k6tly.ttj7f.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26016,
+          "encodedBytes": 25716,
+          "durationMs": 102.2
+        },
+        {
+          "path": "/_next/static/media/ad9c66e761fed85a-s.p.0e4b2z5rxsmxh.woff2",
+          "initiatorType": "link",
+          "transferBytes": 25296,
+          "encodedBytes": 24996,
+          "durationMs": 30
+        },
+        {
+          "path": "/_next/static/media/b42de01694d446ba-s.0q27d16ol6phi.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24768,
+          "encodedBytes": 24468,
+          "durationMs": 99
+        },
+        {
+          "path": "/_next/static/media/bd6893a4972e3de7-s.0t2wqqx.rl9t2.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24712,
+          "encodedBytes": 24412,
+          "durationMs": 109
+        },
+        {
+          "path": "/_next/static/media/637a53df9ae6a0a1-s.14z~gdcphcsai.woff2",
+          "initiatorType": "css",
+          "transferBytes": 23864,
+          "encodedBytes": 23564,
+          "durationMs": 99.8
+        },
+        {
+          "path": "/_next/static/media/797e433ab948586e-s.p.08e28id.o-okb.woff2",
+          "initiatorType": "link",
+          "transferBytes": 23408,
+          "encodedBytes": 23108,
+          "durationMs": 38
+        }
+      ],
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "failedRequestCount": 1,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        {
+          "url": "/booking/settings",
+          "error": "net::ERR_ABORTED"
+        }
+      ]
+    },
+    {
+      "environment": "production-authenticated",
+      "profile": "desktop",
+      "run": 3,
+      "navigationStatus": 200,
+      "finalPath": "/booking",
+      "sessionAuthenticated": true,
+      "ttfbMs": 10.1,
+      "responseEndMs": 656,
+      "domContentLoadedMs": 663.6,
+      "loadMs": 781,
+      "displayCompleteMs": 870.3,
+      "lcpMs": 708,
+      "lcpElement": {
+        "tag": "h1",
+        "className": "text-4xl font-bold text-hp md:text-5xl xl:text-6xl",
+        "text": "予約カレンダー"
+      },
+      "lcpResource": null,
+      "cls": 0,
+      "interactionCompleteMs": 73.9,
+      "clickEventDurationMs": 48,
+      "totalTransferBytes": 1250178,
+      "resourceCount": 52,
+      "longTaskCount": 1,
+      "longTaskTotalMs": 58,
+      "longTasks": [
+        {
+          "startMs": 822.9,
+          "durationMs": 58,
+          "name": "self"
+        }
+      ],
+      "apiRequests": [
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 369.7,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 395.6,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"stale\""
+        },
+        {
+          "path": "/api/teams",
+          "status": 200,
+          "durationMs": 1148.6,
+          "serverTiming": null
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 1214.1,
+          "serverTiming": "db;dur=755, oauth;dur=0, gcal;dur=206, cache;desc=\"bypass\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 323.2,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        }
+      ],
+      "topAssets": [
+        {
+          "path": "/_next/static/media/f274a7d773de54c9-s.163vk5zt4o7.p.woff2",
+          "initiatorType": "link",
+          "transferBytes": 114204,
+          "encodedBytes": 113904,
+          "durationMs": 45
+        },
+        {
+          "path": "/_next/static/chunks/0s3als..gkc57.js",
+          "initiatorType": "script",
+          "transferBytes": 111429,
+          "encodedBytes": 111129,
+          "durationMs": 106.7
+        },
+        {
+          "path": "/_next/static/media/89a5f5580acaadb6-s.0_~rle6~h14vx.woff2",
+          "initiatorType": "css",
+          "transferBytes": 108368,
+          "encodedBytes": 108068,
+          "durationMs": 17.8
+        },
+        {
+          "path": "/_next/static/chunks/059wahss15g~6.js",
+          "initiatorType": "script",
+          "transferBytes": 72528,
+          "encodedBytes": 72228,
+          "durationMs": 26.6
+        },
+        {
+          "path": "/_next/static/chunks/112n8_d~xvch0.js",
+          "initiatorType": "script",
+          "transferBytes": 68712,
+          "encodedBytes": 68412,
+          "durationMs": 28
+        },
+        {
+          "path": "/_next/static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2",
+          "initiatorType": "link",
+          "transferBytes": 48732,
+          "encodedBytes": 48432,
+          "durationMs": 28.3
+        },
+        {
+          "path": "/_next/static/chunks/0a64l6-_jyd7l.js",
+          "initiatorType": "script",
+          "transferBytes": 43591,
+          "encodedBytes": 43291,
+          "durationMs": 27.6
+        },
+        {
+          "path": "/_next/static/chunks/0e2tpvpiaiy__.js",
+          "initiatorType": "script",
+          "transferBytes": 38492,
+          "encodedBytes": 38192,
+          "durationMs": 21.5
+        },
+        {
+          "path": "/_next/static/chunks/0nr-_2l0fu7a9.js",
+          "initiatorType": "script",
+          "transferBytes": 36833,
+          "encodedBytes": 36533,
+          "durationMs": 26.6
+        },
+        {
+          "path": "/_next/static/chunks/0seewss44b2._.css",
+          "initiatorType": "link",
+          "transferBytes": 34294,
+          "encodedBytes": 33994,
+          "durationMs": 37.6
+        },
+        {
+          "path": "/_next/static/chunks/10cyftrnx4hzm.css",
+          "initiatorType": "link",
+          "transferBytes": 34289,
+          "encodedBytes": 33989,
+          "durationMs": 36
+        },
+        {
+          "path": "/_next/static/media/68d0ad77fd2c49e3-s.p.0wghyr-.6qbey.woff2",
+          "initiatorType": "link",
+          "transferBytes": 33688,
+          "encodedBytes": 33388,
+          "durationMs": 28.6
+        },
+        {
+          "path": "/_next/static/media/ef8ce4d4ce2ea41b-s.0eweyj_h9y8q0.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26648,
+          "encodedBytes": 26348,
+          "durationMs": 24
+        },
+        {
+          "path": "/nori_header_black.svg",
+          "initiatorType": "link",
+          "transferBytes": 26193,
+          "encodedBytes": 25893,
+          "durationMs": 53.8
+        },
+        {
+          "path": "/_next/static/media/f172a48ee1e78f93-s.02k6tly.ttj7f.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26016,
+          "encodedBytes": 25716,
+          "durationMs": 30.4
+        },
+        {
+          "path": "/_next/static/media/ad9c66e761fed85a-s.p.0e4b2z5rxsmxh.woff2",
+          "initiatorType": "link",
+          "transferBytes": 25296,
+          "encodedBytes": 24996,
+          "durationMs": 37.6
+        },
+        {
+          "path": "/_next/static/media/b42de01694d446ba-s.0q27d16ol6phi.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24768,
+          "encodedBytes": 24468,
+          "durationMs": 29.6
+        },
+        {
+          "path": "/_next/static/media/bd6893a4972e3de7-s.0t2wqqx.rl9t2.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24712,
+          "encodedBytes": 24412,
+          "durationMs": 35.9
+        },
+        {
+          "path": "/_next/static/media/637a53df9ae6a0a1-s.14z~gdcphcsai.woff2",
+          "initiatorType": "css",
+          "transferBytes": 23864,
+          "encodedBytes": 23564,
+          "durationMs": 23.7
+        },
+        {
+          "path": "/_next/static/media/797e433ab948586e-s.p.08e28id.o-okb.woff2",
+          "initiatorType": "link",
+          "transferBytes": 23408,
+          "encodedBytes": 23108,
+          "durationMs": 37.1
+        }
+      ],
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "failedRequestCount": 1,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        {
+          "url": "/booking/settings",
+          "error": "net::ERR_ABORTED"
+        }
+      ]
+    }
+  ],
+  "productionMedians": {
+    "mobile": {
+      "ttfbMs": 9.4,
+      "responseEndMs": 748.2,
+      "domContentLoadedMs": 755.3,
+      "loadMs": 874.2,
+      "displayCompleteMs": 955.7,
+      "lcpMs": 792,
+      "cls": 0,
+      "interactionCompleteMs": 58.1,
+      "clickEventDurationMs": 40,
+      "totalTransferBytes": 1249879,
+      "resourceCount": 51,
+      "longTaskCount": 1,
+      "longTaskTotalMs": 64,
+      "lcpElement": {
+        "tag": "h1",
+        "className": "text-4xl font-bold text-hp md:text-5xl xl:text-6xl",
+        "text": "予約カレンダー"
+      },
+      "lcpResource": null,
+      "apiRequests": [
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 173,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        },
+        {
+          "path": "/api/teams",
+          "status": 200,
+          "durationMs": 1080.7,
+          "serverTiming": null
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 1706.5,
+          "serverTiming": "db;dur=799, oauth;dur=0, gcal;dur=756, cache;desc=\"bypass\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 1624.4,
+          "serverTiming": "db;dur=876, oauth;dur=0, gcal;dur=546, cache;desc=\"miss\""
+        }
+      ],
+      "topAssets": [
+        {
+          "path": "/_next/static/media/f274a7d773de54c9-s.163vk5zt4o7.p.woff2",
+          "initiatorType": "link",
+          "transferBytes": 114204,
+          "encodedBytes": 113904,
+          "durationMs": 33.2
+        },
+        {
+          "path": "/_next/static/chunks/0s3als..gkc57.js",
+          "initiatorType": "script",
+          "transferBytes": 111429,
+          "encodedBytes": 111129,
+          "durationMs": 29.3
+        },
+        {
+          "path": "/_next/static/media/89a5f5580acaadb6-s.0_~rle6~h14vx.woff2",
+          "initiatorType": "css",
+          "transferBytes": 108368,
+          "encodedBytes": 108068,
+          "durationMs": 115.9
+        },
+        {
+          "path": "/_next/static/chunks/059wahss15g~6.js",
+          "initiatorType": "script",
+          "transferBytes": 72528,
+          "encodedBytes": 72228,
+          "durationMs": 24.3
+        },
+        {
+          "path": "/_next/static/chunks/112n8_d~xvch0.js",
+          "initiatorType": "script",
+          "transferBytes": 68712,
+          "encodedBytes": 68412,
+          "durationMs": 28
+        },
+        {
+          "path": "/_next/static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2",
+          "initiatorType": "link",
+          "transferBytes": 48732,
+          "encodedBytes": 48432,
+          "durationMs": 41.7
+        },
+        {
+          "path": "/_next/static/chunks/0a64l6-_jyd7l.js",
+          "initiatorType": "script",
+          "transferBytes": 43591,
+          "encodedBytes": 43291,
+          "durationMs": 22.1
+        },
+        {
+          "path": "/_next/static/chunks/0e2tpvpiaiy__.js",
+          "initiatorType": "script",
+          "transferBytes": 38492,
+          "encodedBytes": 38192,
+          "durationMs": 25.9
+        },
+        {
+          "path": "/_next/static/chunks/0nr-_2l0fu7a9.js",
+          "initiatorType": "script",
+          "transferBytes": 36833,
+          "encodedBytes": 36533,
+          "durationMs": 25.8
+        },
+        {
+          "path": "/_next/static/chunks/0seewss44b2._.css",
+          "initiatorType": "link",
+          "transferBytes": 34294,
+          "encodedBytes": 33994,
+          "durationMs": 42.1
+        },
+        {
+          "path": "/_next/static/chunks/10cyftrnx4hzm.css",
+          "initiatorType": "link",
+          "transferBytes": 34289,
+          "encodedBytes": 33989,
+          "durationMs": 43.6
+        },
+        {
+          "path": "/_next/static/media/68d0ad77fd2c49e3-s.p.0wghyr-.6qbey.woff2",
+          "initiatorType": "link",
+          "transferBytes": 33688,
+          "encodedBytes": 33388,
+          "durationMs": 17.1
+        },
+        {
+          "path": "/_next/static/media/ef8ce4d4ce2ea41b-s.0eweyj_h9y8q0.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26648,
+          "encodedBytes": 26348,
+          "durationMs": 107.1
+        },
+        {
+          "path": "/nori_header_black.svg",
+          "initiatorType": "link",
+          "transferBytes": 26193,
+          "encodedBytes": 25893,
+          "durationMs": 70.4
+        },
+        {
+          "path": "/_next/static/media/f172a48ee1e78f93-s.02k6tly.ttj7f.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26016,
+          "encodedBytes": 25716,
+          "durationMs": 115.4
+        },
+        {
+          "path": "/_next/static/media/ad9c66e761fed85a-s.p.0e4b2z5rxsmxh.woff2",
+          "initiatorType": "link",
+          "transferBytes": 25296,
+          "encodedBytes": 24996,
+          "durationMs": 43.3
+        },
+        {
+          "path": "/_next/static/media/b42de01694d446ba-s.0q27d16ol6phi.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24768,
+          "encodedBytes": 24468,
+          "durationMs": 109.2
+        },
+        {
+          "path": "/_next/static/media/bd6893a4972e3de7-s.0t2wqqx.rl9t2.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24712,
+          "encodedBytes": 24412,
+          "durationMs": 124.4
+        },
+        {
+          "path": "/_next/static/media/637a53df9ae6a0a1-s.14z~gdcphcsai.woff2",
+          "initiatorType": "css",
+          "transferBytes": 23864,
+          "encodedBytes": 23564,
+          "durationMs": 103.7
+        },
+        {
+          "path": "/_next/static/media/797e433ab948586e-s.p.08e28id.o-okb.woff2",
+          "initiatorType": "link",
+          "transferBytes": 23408,
+          "encodedBytes": 23108,
+          "durationMs": 24
+        }
+      ],
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "failedRequestCount": 3
+    },
+    "desktop": {
+      "ttfbMs": 10.2,
+      "responseEndMs": 656,
+      "domContentLoadedMs": 663.6,
+      "loadMs": 781,
+      "displayCompleteMs": 870.3,
+      "lcpMs": 708,
+      "cls": 0,
+      "interactionCompleteMs": 59.7,
+      "clickEventDurationMs": 48,
+      "totalTransferBytes": 1250180,
+      "resourceCount": 52,
+      "longTaskCount": 1,
+      "longTaskTotalMs": 58,
+      "lcpElement": {
+        "tag": "h1",
+        "className": "text-4xl font-bold text-hp md:text-5xl xl:text-6xl",
+        "text": "予約カレンダー"
+      },
+      "lcpResource": null,
+      "apiRequests": [
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 170.2,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"stale\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 171.3,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"stale\""
+        },
+        {
+          "path": "/api/teams",
+          "status": 200,
+          "durationMs": 1675.3,
+          "serverTiming": null
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 1879.6,
+          "serverTiming": "db;dur=1493, oauth;dur=0, gcal;dur=211, cache;desc=\"bypass\""
+        },
+        {
+          "path": "/api/calendar/free-busy",
+          "status": 200,
+          "durationMs": 205.5,
+          "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"stale\""
+        }
+      ],
+      "topAssets": [
+        {
+          "path": "/_next/static/media/f274a7d773de54c9-s.163vk5zt4o7.p.woff2",
+          "initiatorType": "link",
+          "transferBytes": 114204,
+          "encodedBytes": 113904,
+          "durationMs": 37.2
+        },
+        {
+          "path": "/_next/static/chunks/0s3als..gkc57.js",
+          "initiatorType": "script",
+          "transferBytes": 111429,
+          "encodedBytes": 111129,
+          "durationMs": 111.5
+        },
+        {
+          "path": "/_next/static/media/89a5f5580acaadb6-s.0_~rle6~h14vx.woff2",
+          "initiatorType": "css",
+          "transferBytes": 108368,
+          "encodedBytes": 108068,
+          "durationMs": 112
+        },
+        {
+          "path": "/_next/static/chunks/059wahss15g~6.js",
+          "initiatorType": "script",
+          "transferBytes": 72528,
+          "encodedBytes": 72228,
+          "durationMs": 23.6
+        },
+        {
+          "path": "/_next/static/chunks/112n8_d~xvch0.js",
+          "initiatorType": "script",
+          "transferBytes": 68712,
+          "encodedBytes": 68412,
+          "durationMs": 23.4
+        },
+        {
+          "path": "/_next/static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2",
+          "initiatorType": "link",
+          "transferBytes": 48732,
+          "encodedBytes": 48432,
+          "durationMs": 24.1
+        },
+        {
+          "path": "/_next/static/chunks/0a64l6-_jyd7l.js",
+          "initiatorType": "script",
+          "transferBytes": 43591,
+          "encodedBytes": 43291,
+          "durationMs": 21.5
+        },
+        {
+          "path": "/_next/static/chunks/0e2tpvpiaiy__.js",
+          "initiatorType": "script",
+          "transferBytes": 38492,
+          "encodedBytes": 38192,
+          "durationMs": 19.8
+        },
+        {
+          "path": "/_next/static/chunks/0nr-_2l0fu7a9.js",
+          "initiatorType": "script",
+          "transferBytes": 36833,
+          "encodedBytes": 36533,
+          "durationMs": 22
+        },
+        {
+          "path": "/_next/static/chunks/0seewss44b2._.css",
+          "initiatorType": "link",
+          "transferBytes": 34294,
+          "encodedBytes": 33994,
+          "durationMs": 31.3
+        },
+        {
+          "path": "/_next/static/chunks/10cyftrnx4hzm.css",
+          "initiatorType": "link",
+          "transferBytes": 34289,
+          "encodedBytes": 33989,
+          "durationMs": 30.2
+        },
+        {
+          "path": "/_next/static/media/68d0ad77fd2c49e3-s.p.0wghyr-.6qbey.woff2",
+          "initiatorType": "link",
+          "transferBytes": 33688,
+          "encodedBytes": 33388,
+          "durationMs": 16.6
+        },
+        {
+          "path": "/_next/static/media/ef8ce4d4ce2ea41b-s.0eweyj_h9y8q0.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26648,
+          "encodedBytes": 26348,
+          "durationMs": 96.2
+        },
+        {
+          "path": "/nori_header_black.svg",
+          "initiatorType": "link",
+          "transferBytes": 26193,
+          "encodedBytes": 25893,
+          "durationMs": 52.6
+        },
+        {
+          "path": "/_next/static/media/f172a48ee1e78f93-s.02k6tly.ttj7f.woff2",
+          "initiatorType": "css",
+          "transferBytes": 26016,
+          "encodedBytes": 25716,
+          "durationMs": 102.2
+        },
+        {
+          "path": "/_next/static/media/ad9c66e761fed85a-s.p.0e4b2z5rxsmxh.woff2",
+          "initiatorType": "link",
+          "transferBytes": 25296,
+          "encodedBytes": 24996,
+          "durationMs": 30
+        },
+        {
+          "path": "/_next/static/media/b42de01694d446ba-s.0q27d16ol6phi.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24768,
+          "encodedBytes": 24468,
+          "durationMs": 99
+        },
+        {
+          "path": "/_next/static/media/bd6893a4972e3de7-s.0t2wqqx.rl9t2.woff2",
+          "initiatorType": "css",
+          "transferBytes": 24712,
+          "encodedBytes": 24412,
+          "durationMs": 109
+        },
+        {
+          "path": "/_next/static/media/637a53df9ae6a0a1-s.14z~gdcphcsai.woff2",
+          "initiatorType": "css",
+          "transferBytes": 23864,
+          "encodedBytes": 23564,
+          "durationMs": 99.8
+        },
+        {
+          "path": "/_next/static/media/797e433ab948586e-s.p.08e28id.o-okb.woff2",
+          "initiatorType": "link",
+          "transferBytes": 23408,
+          "encodedBytes": 23108,
+          "durationMs": 38
+        }
+      ],
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "failedRequestCount": 3
+    }
+  },
+  "localRuntime": {
+    "method": "canonical Resend session replayed to the existing 41238 process; no auth bypass or minted JWT",
+    "results": [
+      {
+        "run": 1,
+        "path": "/api/auth/session",
+        "status": 200,
+        "location": null,
+        "durationMs": 670.5,
+        "bodyBytes": 151,
+        "serverTiming": null,
+        "sessionAuthenticated": true
+      },
+      {
+        "run": 1,
+        "path": "/booking",
+        "status": 307,
+        "location": "/login?callbackUrl=%2Fbooking",
+        "durationMs": 36.4,
+        "bodyBytes": 29,
+        "serverTiming": null
+      },
+      {
+        "run": 1,
+        "path": "/line/booking",
+        "status": 200,
+        "location": null,
+        "durationMs": 11881.4,
+        "bodyBytes": 136628,
+        "serverTiming": null,
+        "bookingMarkup": true
+      },
+      {
+        "run": 1,
+        "path": "/api/teams",
+        "status": 200,
+        "location": null,
+        "durationMs": 1226.3,
+        "bodyBytes": 12,
+        "serverTiming": null
+      },
+      {
+        "run": 1,
+        "path": "/api/calendar/free-busy",
+        "status": 200,
+        "location": null,
+        "durationMs": 1919,
+        "bodyBytes": 14950,
+        "serverTiming": "db;dur=38, oauth;dur=104, gcal;dur=561, cache;desc=\"miss\""
+      },
+      {
+        "run": 2,
+        "path": "/api/auth/session",
+        "status": 200,
+        "location": null,
+        "durationMs": 16.1,
+        "bodyBytes": 151,
+        "serverTiming": null,
+        "sessionAuthenticated": true
+      },
+      {
+        "run": 2,
+        "path": "/booking",
+        "status": 307,
+        "location": "/login?callbackUrl=%2Fbooking",
+        "durationMs": 50.4,
+        "bodyBytes": 29,
+        "serverTiming": null
+      },
+      {
+        "run": 2,
+        "path": "/line/booking",
+        "status": 200,
+        "location": null,
+        "durationMs": 1723.3,
+        "bodyBytes": 136351,
+        "serverTiming": null,
+        "bookingMarkup": true
+      },
+      {
+        "run": 2,
+        "path": "/api/teams",
+        "status": 200,
+        "location": null,
+        "durationMs": 97,
+        "bodyBytes": 12,
+        "serverTiming": null
+      },
+      {
+        "run": 2,
+        "path": "/api/calendar/free-busy",
+        "status": 200,
+        "location": null,
+        "durationMs": 6.5,
+        "bodyBytes": 14950,
+        "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+      },
+      {
+        "run": 3,
+        "path": "/api/auth/session",
+        "status": 200,
+        "location": null,
+        "durationMs": 5.8,
+        "bodyBytes": 151,
+        "serverTiming": null,
+        "sessionAuthenticated": true
+      },
+      {
+        "run": 3,
+        "path": "/booking",
+        "status": 307,
+        "location": "/login?callbackUrl=%2Fbooking",
+        "durationMs": 5,
+        "bodyBytes": 29,
+        "serverTiming": null
+      },
+      {
+        "run": 3,
+        "path": "/line/booking",
+        "status": 200,
+        "location": null,
+        "durationMs": 760.9,
+        "bodyBytes": 136249,
+        "serverTiming": null,
+        "bookingMarkup": true
+      },
+      {
+        "run": 3,
+        "path": "/api/teams",
+        "status": 200,
+        "location": null,
+        "durationMs": 35.9,
+        "bodyBytes": 12,
+        "serverTiming": null
+      },
+      {
+        "run": 3,
+        "path": "/api/calendar/free-busy",
+        "status": 200,
+        "location": null,
+        "durationMs": 6.2,
+        "bodyBytes": 14950,
+        "serverTiming": "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+      }
+    ],
+    "medians": {
+      "/api/auth/session": {
+        "durationMs": 16.1,
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "bodyBytes": 151,
+        "serverTiming": [
+          null,
+          null,
+          null
+        ]
+      },
+      "/booking": {
+        "durationMs": 36.4,
+        "status": [
+          307,
+          307,
+          307
+        ],
+        "bodyBytes": 29,
+        "serverTiming": [
+          null,
+          null,
+          null
+        ]
+      },
+      "/line/booking": {
+        "durationMs": 1723.3,
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "bodyBytes": 136351,
+        "serverTiming": [
+          null,
+          null,
+          null
+        ]
+      },
+      "/api/teams": {
+        "durationMs": 97,
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "bodyBytes": 12,
+        "serverTiming": [
+          null,
+          null,
+          null
+        ]
+      },
+      "/api/calendar/free-busy": {
+        "durationMs": 6.5,
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "bodyBytes": 14950,
+        "serverTiming": [
+          "db;dur=38, oauth;dur=104, gcal;dur=561, cache;desc=\"miss\"",
+          "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\"",
+          "db;dur=0, oauth;dur=0, gcal;dur=0, cache;desc=\"hit\""
+        ]
+      }
+    }
+  }
+}
