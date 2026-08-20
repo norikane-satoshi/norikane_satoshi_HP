@@ -97,6 +97,53 @@ export function evaluateChatbotPerformanceObservation(input: {
   }
 }
 
+export function evaluateChatbotPerformanceWindow(input: {
+  baseline: ChatbotPerformanceBaseline
+  samples: ChatbotAuditStageTimings[]
+}): {
+  status: "within-budget" | "regressed" | "insufficient-data"
+  sampleCount: number
+  violations: string[]
+  observedP95Ms: Record<string, number>
+} {
+  const baseline = chatbotPerformanceBaselineSchema.parse(input.baseline)
+  if (input.samples.length < 5) {
+    return {
+      status: "insufficient-data",
+      sampleCount: input.samples.length,
+      violations: ["sample-count"],
+      observedP95Ms: {},
+    }
+  }
+
+  const observed = calibrateChatbotPerformanceBaseline({
+    buildSha: baseline.buildSha,
+    measuredAt: baseline.measuredAt,
+    allowedRegressionRatio: 1,
+    minimumHeadroomMs: 0,
+    samples: input.samples,
+  })
+  const observedP95Ms = Object.fromEntries(
+    Object.entries(observed.stages)
+      .map(([stageName, metric]) => [stageName, metric.p95Ms] as const)
+      .sort(([left], [right]) => left.localeCompare(right)),
+  )
+  const violations = Object.entries(observedP95Ms)
+    .filter(([stageName, p95Ms]) => {
+      const budget = baseline.stages[stageName]
+      return Boolean(budget) && p95Ms > budget.maxAllowedMs
+    })
+    .map(([stageName]) => stageName)
+    .sort()
+
+  return {
+    status: violations.length > 0 ? "regressed" : "within-budget",
+    sampleCount: input.samples.length,
+    violations,
+    observedP95Ms,
+  }
+}
+
 function percentileNearestRank(sortedValues: number[], percentile: number): number {
   const index = Math.max(0, Math.ceil(sortedValues.length * percentile) - 1)
   return sortedValues[index]

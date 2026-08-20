@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   calibrateChatbotPerformanceBaseline,
   evaluateChatbotPerformanceObservation,
+  evaluateChatbotPerformanceWindow,
 } from "@/lib/chatbot/audit/performance"
 
 describe("chatbot performance contract", () => {
@@ -49,5 +50,45 @@ describe("chatbot performance contract", () => {
       baseline: null,
       stageTimings: { totalServer: 54_000 },
     })).toEqual({ status: "unbaselined", violations: ["baseline-missing"] })
+  })
+
+  it("refuses to judge a performance window with fewer than five samples", () => {
+    const baseline = calibrateChatbotPerformanceBaseline({
+      buildSha: "baseline-sha",
+      measuredAt: "2026-08-20T15:11:30.377Z",
+      allowedRegressionRatio: 1.2,
+      minimumHeadroomMs: 1000,
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 30_000 })),
+    })
+
+    expect(evaluateChatbotPerformanceWindow({
+      baseline,
+      samples: Array.from({ length: 4 }, () => ({ totalServer: 30_000 })),
+    })).toEqual({
+      status: "insufficient-data",
+      sampleCount: 4,
+      violations: ["sample-count"],
+      observedP95Ms: {},
+    })
+  })
+
+  it("detects a p95 regression across a five-sample monitoring window", () => {
+    const baseline = calibrateChatbotPerformanceBaseline({
+      buildSha: "baseline-sha",
+      measuredAt: "2026-08-20T15:11:30.377Z",
+      allowedRegressionRatio: 1.2,
+      minimumHeadroomMs: 1000,
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 30_000, notionInference: 25_000 })),
+    })
+
+    expect(evaluateChatbotPerformanceWindow({
+      baseline,
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 40_000, notionInference: 25_000 })),
+    })).toEqual({
+      status: "regressed",
+      sampleCount: 5,
+      violations: ["totalServer"],
+      observedP95Ms: { notionInference: 25_000, totalServer: 40_000 },
+    })
   })
 })

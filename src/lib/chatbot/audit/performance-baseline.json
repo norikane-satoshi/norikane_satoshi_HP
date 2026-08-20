@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1",
+  "buildSha": "7eeaab886eb9e10a96743fc336a30f711beb553a",
+  "measuredAt": "2026-08-20T15:11:30.377Z",
+  "sampleCount": 5,
+  "allowedRegressionRatio": 1.2,
+  "minimumHeadroomMs": 1000,
+  "stages": {
+    "conversationLoad": {
+      "sampleCount": 5,
+      "p50Ms": 56,
+      "p95Ms": 420,
+      "maxAllowedMs": 1420
+    },
+    "contextPreparation": {
+      "sampleCount": 5,
+      "p50Ms": 39,
+      "p95Ms": 51,
+      "maxAllowedMs": 1051
+    },
+    "tierHealthCheck": {
+      "sampleCount": 5,
+      "p50Ms": 266,
+      "p95Ms": 318,
+      "maxAllowedMs": 1318
+    },
+    "notionInference": {
+      "sampleCount": 5,
+      "p50Ms": 25184,
+      "p95Ms": 26568,
+      "maxAllowedMs": 31882
+    },
+    "responseNormalization": {
+      "sampleCount": 5,
+      "p50Ms": 6,
+      "p95Ms": 26,
+      "maxAllowedMs": 1026
+    },
+    "conversationPersist": {
+      "sampleCount": 5,
+      "p50Ms": 519,
+      "p95Ms": 588,
+      "maxAllowedMs": 1588
+    },
+    "slackNotification": {
+      "sampleCount": 5,
+      "p50Ms": 917,
+      "p95Ms": 3188,
+      "maxAllowedMs": 4188
+    },
+    "totalServer": {
+      "sampleCount": 5,
+      "p50Ms": 30301,
+      "p95Ms": 33949,
+      "maxAllowedMs": 40739
+    }
+  }
+}
