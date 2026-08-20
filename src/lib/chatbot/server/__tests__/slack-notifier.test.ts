@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { sendChatbotSlackNotification } from "@/lib/chatbot/server/slack-notifier"
+import {
+  buildChatbotSlackClientMessageId,
+  sendChatbotSlackNotification,
+} from "@/lib/chatbot/server/slack-notifier"
 
 const enabledEnv = {
   CHATBOT_SLACK_NOTIFY_ENABLED: "true",
@@ -71,6 +74,11 @@ describe("sendChatbotSlackNotification", () => {
     expect(result).toEqual({ status: "sent", ts: "1700000000.000100" })
     const body = postedBody(fetcher)
     expect(body.unfurl_links).toBe(false)
+    expect(body.client_msg_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(body.metadata).toEqual({
+      event_type: "norikane_chatbot_notification",
+      event_payload: { delivery_id: body.client_msg_id, kind: "conversation" },
+    })
     expect(body.thread_ts).toBeUndefined()
     expect(body.text).toContain("新しいチャット相談")
     expect(body.text).toContain("requestId: req_1")
@@ -91,6 +99,27 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).not.toContain("session_1")
     expect(body.text).not.toContain("会話ID:")
     expect(body.text).not.toContain("セッションID:")
+  })
+
+  it("derives a stable provider dedupe id per logical notification", () => {
+    const first = buildChatbotSlackClientMessageId({
+      kind: "conversation",
+      requestId: "request-1",
+      conversationId: "conversation-1",
+    })
+    const retry = buildChatbotSlackClientMessageId({
+      kind: "conversation",
+      requestId: "request-1",
+      conversationId: "conversation-1",
+    })
+    const issue = buildChatbotSlackClientMessageId({
+      kind: "issue",
+      requestId: "request-1",
+      conversationId: "conversation-1",
+    })
+
+    expect(retry).toBe(first)
+    expect(issue).not.toBe(first)
   })
 
   it("posts conversation thread replies with required operation fields but without repeated conversation ids", async () => {

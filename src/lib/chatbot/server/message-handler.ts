@@ -99,6 +99,8 @@ import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
 import { buildSingleUserPromptGuardContent } from "@/lib/chatbot/server/prompt-guard-copy"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 import {
+  buildChatbotSlackDeliveryEvidence,
+  buildChatbotSlackDeliveryEvidenceItem,
   sendChatbotSlackNotification,
   type ChatbotRetryDiagnosticsSummary,
   type ChatbotSlackNotificationInput,
@@ -1156,9 +1158,14 @@ async function notifySlackForChatbotResponse(input: {
       pendingRequestKind: input.pendingRequestKind,
     }
     const result = await input.notifier(baseNotification)
+    const deliveries = [buildChatbotSlackDeliveryEvidenceItem(baseNotification, result)]
     let auditResult: ChatbotMessageAuditEvidence["slack"] = result.status === "sent"
-      ? { result: "success" }
-      : { result: "failure", errorCode: `slack-${result.status}` }
+      ? { result: "success", deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries) }
+      : {
+          result: "failure",
+          errorCode: `slack-${result.status}`,
+          deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries),
+        }
     const savedThreadTs = threadTs ?? (result.status === "sent" ? result.ts : null)
 
     if (!threadTs && savedThreadTs) {
@@ -1184,6 +1191,12 @@ async function notifySlackForChatbotResponse(input: {
         pendingRecovery: input.pendingRecovery,
         pendingRequestKind: input.pendingRequestKind,
       })
+      deliveries.push(buildChatbotSlackDeliveryEvidenceItem({
+        kind: "issue",
+        requestId: input.requestId,
+        conversationId: input.conversation.id,
+      }, issueResult))
+      auditResult.deliveryEvidence = buildChatbotSlackDeliveryEvidence(deliveries)
       if (issueResult.status !== "sent") {
         auditResult = { result: "failure", errorCode: `slack-${issueResult.status}` }
       }

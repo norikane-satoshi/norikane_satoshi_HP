@@ -24,7 +24,12 @@ import {
   loadConversationById,
   updateConversationSlackThreadTs,
 } from "@/lib/chatbot/server/repository"
-import { sendChatbotSlackNotification } from "@/lib/chatbot/server/slack-notifier"
+import {
+  buildChatbotSlackDeliveryEvidence,
+  buildChatbotSlackDeliveryEvidenceItem,
+  sendChatbotSlackNotification,
+  type ChatbotSlackNotificationInput,
+} from "@/lib/chatbot/server/slack-notifier"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { prisma } from "@/lib/prisma"
@@ -222,7 +227,7 @@ async function notifySlackBookingOrderSubmitted(input: {
   try {
     const conversation = await loadConversationById(input.request.conversationId)
     const threadTs = conversation?.context.slackThreadTs
-    const result = await sendChatbotSlackNotification({
+    const notificationInput = {
       kind: "booking-order-submitted",
       requestId: input.requestId,
       conversationId: input.request.conversationId,
@@ -230,10 +235,16 @@ async function notifySlackBookingOrderSubmitted(input: {
       threadTs,
       bookingGroupId: input.bookingGroupId,
       selectedSlotCount: input.selectedSlotCount,
-    })
+    } as const
+    const result = await sendChatbotSlackNotification(notificationInput)
+    const deliveries = [buildChatbotSlackDeliveryEvidenceItem(notificationInput, result)]
     let auditResult: ChatbotMessageAuditEvidence["slack"] = result.status === "sent"
-      ? { result: "success" }
-      : { result: "failure", errorCode: `slack-${result.status}` }
+      ? { result: "success", deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries) }
+      : {
+          result: "failure",
+          errorCode: `slack-${result.status}`,
+          deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries),
+        }
 
     const savedThreadTs = threadTs ?? (result.status === "sent" ? result.ts : null)
     if (!threadTs && savedThreadTs) {
@@ -258,7 +269,7 @@ async function notifySlackBookingOrderSubmitted(input: {
     }
 
     if (input.ownerNotificationWarning === "send_failed" && savedThreadTs) {
-      const issueResult = await sendChatbotSlackNotification({
+      const issueInput: ChatbotSlackNotificationInput = {
         kind: "issue",
         requestId: input.requestId,
         conversationId: input.request.conversationId,
@@ -266,7 +277,10 @@ async function notifySlackBookingOrderSubmitted(input: {
         threadTs: savedThreadTs,
         bookingGroupId: input.bookingGroupId,
         issueReasons: ["booking-owner-email-send-failed"],
-      })
+      }
+      const issueResult = await sendChatbotSlackNotification(issueInput)
+      deliveries.push(buildChatbotSlackDeliveryEvidenceItem(issueInput, issueResult))
+      auditResult.deliveryEvidence = buildChatbotSlackDeliveryEvidence(deliveries)
       if (issueResult.status !== "sent") {
         auditResult = { result: "failure", errorCode: `slack-${issueResult.status}` }
       }
@@ -412,6 +426,7 @@ export async function POST(request: NextRequest) {
         buildSha: getChatbotBuildSha(),
         createdAt: new Date().toISOString(),
         bookingCreated: result.status >= 200 && result.status < 300,
+        customerAuthenticated: Boolean(session?.user?.id),
         customerAccountLinked: Boolean(session?.user?.id && conversationLinked),
         slack: slackAudit,
         durationMs: Date.now() - bookingStartedAt,

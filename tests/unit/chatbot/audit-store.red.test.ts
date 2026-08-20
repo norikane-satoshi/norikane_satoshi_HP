@@ -13,6 +13,7 @@ const event = chatbotStoredAuditEventSchema.parse({
   correlationId: "11111111-1111-4111-8111-111111111111",
   conversationHash: "a".repeat(64),
   source: "browser",
+  sequence: 640,
   result: "success",
   uiKind: "booking-card",
   buildSha: "abc123",

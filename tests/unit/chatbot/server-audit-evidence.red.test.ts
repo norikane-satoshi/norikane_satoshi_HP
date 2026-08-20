@@ -10,6 +10,18 @@ import {
 } from "@/lib/chatbot/audit/server-evidence"
 
 const correlationId = "11111111-1111-4111-8111-111111111111"
+const slackSuccessEvidence = {
+  result: "success" as const,
+  deliveryEvidence: {
+    deliveries: [{
+      kind: "conversation" as const,
+      idempotencyKeyHash: "a".repeat(64),
+      providerDedupeKeySubmitted: true,
+      providerMessageTsPresent: true,
+    }],
+    uniqueIdempotencyKeys: true,
+  },
+}
 
 describe("chatbot server audit evidence", () => {
   it("reduces a Tier attempt to an allowlisted, privacy-safe fact", () => {
@@ -103,7 +115,7 @@ describe("chatbot server audit evidence", () => {
           durationMs: 180,
         },
       ],
-      slack: { result: "success" as const },
+      slack: slackSuccessEvidence,
       messageIntegrity: buildChatbotMessageIntegrity(["user", "assistant"]),
     }
 
@@ -126,6 +138,7 @@ describe("chatbot server audit evidence", () => {
       fallbackUsed: true,
       tierAttemptCount: 2,
       finalTierConsistent: true,
+      tierSequenceValid: true,
       uiKind: "booking-card",
       stageTimings: input.stageTimings,
     })
@@ -150,18 +163,54 @@ describe("chatbot server audit evidence", () => {
       uiKind: "none",
       stageTimings: {},
       tierAttempts: [],
-      slack: { result: "success" },
+      slack: slackSuccessEvidence,
       messageIntegrity: buildChatbotMessageIntegrity(["user", "user", "assistant"]),
     })
 
     expect(events.find((event) => event.eventName === "response_normalized")).toMatchObject({
       result: "failure",
       finalTierConsistent: false,
+      tierSequenceValid: false,
       errorCode: "tier-evidence-inconsistent",
     })
     expect(events.find((event) => event.eventName === "conversation_persisted")).toMatchObject({
       result: "failure",
       errorCode: "message-sequence-invalid",
+    })
+  })
+
+  it("fails when fallback tiers are attempted out of order or after success", () => {
+    const events = buildChatbotMessageAuditEvents({
+      requestId: correlationId,
+      conversationId: "conversation_private_1",
+      buildSha: "abc123",
+      createdAt: "2026-08-20T00:00:00.000Z",
+      finalTier: "tier-1-hosted-chrome-notion-ai",
+      uiKind: "none",
+      stageTimings: {},
+      tierAttempts: [
+        {
+          tier: "tier-1-hosted-chrome-notion-ai",
+          phase: "generate",
+          result: "success",
+          durationMs: 20,
+        },
+        {
+          tier: "tier-2-gemini-flash",
+          phase: "generate",
+          result: "failure",
+          durationMs: 20,
+          errorCode: "unexpected-fallback",
+        },
+      ],
+      slack: slackSuccessEvidence,
+      messageIntegrity: buildChatbotMessageIntegrity(["user", "assistant"]),
+    })
+
+    expect(events.find((event) => event.eventName === "response_normalized")).toMatchObject({
+      result: "failure",
+      tierSequenceValid: false,
+      errorCode: "tier-sequence-invalid",
     })
   })
 
@@ -172,8 +221,9 @@ describe("chatbot server audit evidence", () => {
       buildSha: "abc123",
       createdAt: "2026-08-20T00:00:00.000Z",
       bookingCreated: true,
+      customerAuthenticated: true,
       customerAccountLinked: true,
-      slack: { result: "success" },
+      slack: slackSuccessEvidence,
       durationMs: 420,
     })
 
@@ -184,7 +234,40 @@ describe("chatbot server audit evidence", () => {
     ])
     expect(events.every((event) => event.correlationId === correlationId)).toBe(true)
     expect(events.every((event) => event.conversationHash === events[0].conversationHash)).toBe(true)
+    expect(events.find((event) => event.eventName === "customer_account_linked")).toMatchObject({
+      result: "success",
+      customerAccountEvidence: {
+        authenticated: true,
+        expectedLinked: true,
+        actualLinked: true,
+        matches: true,
+      },
+    })
     expect(JSON.stringify(events)).not.toContain("conversation_private_1")
+  })
+
+  it("records the account-link check as successful and not applicable for a guest", () => {
+    const events = buildChatbotBookingAuditEvents({
+      requestId: correlationId,
+      conversationId: "conversation_private_1",
+      buildSha: "abc123",
+      createdAt: "2026-08-20T00:00:00.000Z",
+      bookingCreated: true,
+      customerAuthenticated: false,
+      customerAccountLinked: false,
+      slack: slackSuccessEvidence,
+      durationMs: 420,
+    })
+
+    expect(events.find((event) => event.eventName === "customer_account_linked")).toMatchObject({
+      result: "success",
+      customerAccountEvidence: {
+        authenticated: false,
+        expectedLinked: false,
+        actualLinked: false,
+        matches: true,
+      },
+    })
   })
 
   it("records operation failures by safe code without retaining the error message", () => {

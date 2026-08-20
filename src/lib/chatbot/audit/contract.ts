@@ -107,6 +107,27 @@ const messageIntegritySchema = z
   })
   .strict()
 
+const customerAccountEvidenceSchema = z
+  .object({
+    authenticated: z.boolean(),
+    expectedLinked: z.boolean(),
+    actualLinked: z.boolean(),
+    matches: z.boolean(),
+  })
+  .strict()
+
+export const chatbotSlackDeliveryEvidenceSchema = z
+  .object({
+    deliveries: z.array(z.object({
+      kind: z.enum(["conversation", "issue", "booking-order-submitted", "message-edit"]),
+      idempotencyKeyHash: conversationHashSchema.optional(),
+      providerDedupeKeySubmitted: z.boolean(),
+      providerMessageTsPresent: z.boolean(),
+    }).strict()).min(1).max(3),
+    uniqueIdempotencyKeys: z.boolean(),
+  })
+  .strict()
+
 export const chatbotAuditStageTimingsSchema = z
   .object({
     conversationLoad: durationSchema.optional(),
@@ -159,6 +180,9 @@ const sharedAuditFields = {
   messageIntegrity: messageIntegritySchema.optional(),
   tierAttemptCount: z.number().int().nonnegative().optional(),
   finalTierConsistent: z.boolean().optional(),
+  tierSequenceValid: z.boolean().optional(),
+  customerAccountEvidence: customerAccountEvidenceSchema.optional(),
+  slackDeliveryEvidence: chatbotSlackDeliveryEvidenceSchema.optional(),
 }
 
 export const chatbotBrowserAuditEventSchema = z
@@ -197,7 +221,14 @@ export const chatbotBrowserAuditEventSchema = z
         message: "prefill_evidence_is_only_valid_for_booking_prefill_rendered",
       })
     }
-    if (event.messageIntegrity || event.tierAttemptCount !== undefined || event.finalTierConsistent !== undefined) {
+    if (
+      event.messageIntegrity ||
+      event.tierAttemptCount !== undefined ||
+      event.finalTierConsistent !== undefined ||
+      event.tierSequenceValid !== undefined ||
+      event.customerAccountEvidence ||
+      event.slackDeliveryEvidence
+    ) {
       context.addIssue({
         code: "custom",
         message: "server_integrity_evidence_is_not_accepted_from_browser",
@@ -229,6 +260,52 @@ export const chatbotServerAuditEventSchema = z
         message: "response_normalized_requires_tier_integrity",
       })
     }
+    if (event.eventName === "response_normalized" && event.tierSequenceValid === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["tierSequenceValid"],
+        message: "response_normalized_requires_tier_integrity",
+      })
+    }
+    if (event.eventName === "customer_account_linked" && !event.customerAccountEvidence) {
+      context.addIssue({
+        code: "custom",
+        path: ["customerAccountEvidence"],
+        message: "customer_account_linked_requires_account_evidence",
+      })
+    }
+    if (event.eventName !== "customer_account_linked" && event.customerAccountEvidence) {
+      context.addIssue({
+        code: "custom",
+        path: ["customerAccountEvidence"],
+        message: "account_evidence_is_only_valid_for_customer_account_linked",
+      })
+    }
+    if (
+      event.eventName === "slack_notification_completed" &&
+      event.result === "success" &&
+      (!event.slackDeliveryEvidence ||
+        !event.slackDeliveryEvidence.uniqueIdempotencyKeys ||
+        event.slackDeliveryEvidence.deliveries.some(
+          (delivery) =>
+            !delivery.idempotencyKeyHash ||
+            !delivery.providerDedupeKeySubmitted ||
+            !delivery.providerMessageTsPresent,
+        ))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["slackDeliveryEvidence"],
+        message: "successful_slack_notification_requires_delivery_evidence",
+      })
+    }
+    if (event.eventName !== "slack_notification_completed" && event.slackDeliveryEvidence) {
+      context.addIssue({
+        code: "custom",
+        path: ["slackDeliveryEvidence"],
+        message: "slack_delivery_evidence_is_only_valid_for_slack_notification_completed",
+      })
+    }
   })
 
 export const chatbotStoredAuditEventSchema = z
@@ -236,6 +313,7 @@ export const chatbotStoredAuditEventSchema = z
     ...sharedAuditFields,
     eventName: z.enum(chatbotAuditEventNames),
     source: z.enum(["browser", "server", "hosted-worker"]),
+    sequence: z.number().int().nonnegative().max(10_000),
     conversationHash: conversationHashSchema,
     buildSha: buildShaSchema,
     createdAt: z.string().datetime({ offset: true }),
@@ -247,6 +325,8 @@ export type ChatbotServerAuditEvent = z.infer<typeof chatbotServerAuditEventSche
 export type ChatbotStoredAuditEvent = z.infer<typeof chatbotStoredAuditEventSchema>
 export type ChatbotAuditStageTimings = z.infer<typeof chatbotAuditStageTimingsSchema>
 export type ChatbotMessageIntegrity = z.infer<typeof messageIntegritySchema>
+export type ChatbotCustomerAccountEvidence = z.infer<typeof customerAccountEvidenceSchema>
+export type ChatbotSlackDeliveryEvidence = z.infer<typeof chatbotSlackDeliveryEvidenceSchema>
 
 type ExpectedPrefillField = Pick<BookingPrefillFieldAudit, "source" | "reason"> & {
   filled: boolean

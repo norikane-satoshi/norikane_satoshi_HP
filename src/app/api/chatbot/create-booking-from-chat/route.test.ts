@@ -69,7 +69,12 @@ async function loadPost(session: { user?: { id?: string; email?: string } } | nu
     loadConversationById,
     updateConversationSlackThreadTs,
   }))
-  vi.doMock("@/lib/chatbot/server/slack-notifier", () => ({ sendChatbotSlackNotification }))
+  vi.doMock("@/lib/chatbot/server/slack-notifier", async () => ({
+    ...await vi.importActual<typeof import("@/lib/chatbot/server/slack-notifier")>(
+      "@/lib/chatbot/server/slack-notifier",
+    ),
+    sendChatbotSlackNotification,
+  }))
   vi.doMock("@/lib/chatbot/audit/scheduler", () => ({ scheduleChatbotAuditPersistence }))
 
   const route = await import("./route")

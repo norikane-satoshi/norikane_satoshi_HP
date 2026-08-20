@@ -66,6 +66,7 @@ describe("chatbot machine-readable audit contract", () => {
 
     expect(chatbotStoredAuditEventSchema.parse(stored)).toEqual(stored)
     expect(stored.conversationHash).toMatch(/^[a-f0-9]{64}$/)
+    expect(stored.sequence).toBe(640)
     expect(stored).not.toHaveProperty("conversationId")
     expect(JSON.stringify(stored)).not.toContain("conversation_private_1")
     expect(stored.prefillFields).toHaveLength(bookingPrefillFieldNames.length)
@@ -191,8 +192,43 @@ describe("chatbot machine-readable audit contract", () => {
 
     expect(chatbotStoredAuditEventSchema.parse(stored)).toEqual(stored)
     expect(stored.conversationHash).toMatch(/^[a-f0-9]{64}$/)
+    expect(stored.sequence).toBe(201)
     expect(stored).not.toHaveProperty("conversationId")
     expect(JSON.stringify(stored)).not.toContain("conversation_private_1")
+  })
+
+  it("requires response Tier ordering and authenticated account-link evidence", () => {
+    expect(() => chatbotServerAuditEventSchema.parse({
+      schemaVersion: "1",
+      eventId,
+      eventName: "response_normalized",
+      correlationId,
+      conversationId: "conversation_private_1",
+      result: "success",
+      tier: "tier-1-hosted-chrome-notion-ai",
+      tierAttemptCount: 1,
+      finalTierConsistent: true,
+    })).toThrow("response_normalized_requires_tier_integrity")
+
+    expect(() => chatbotServerAuditEventSchema.parse({
+      schemaVersion: "1",
+      eventId,
+      eventName: "customer_account_linked",
+      correlationId,
+      conversationId: "conversation_private_1",
+      result: "success",
+    })).toThrow("customer_account_linked_requires_account_evidence")
+  })
+
+  it("requires provider dedupe and acknowledgement evidence for successful Slack delivery", () => {
+    expect(() => chatbotServerAuditEventSchema.parse({
+      schemaVersion: "1",
+      eventId,
+      eventName: "slack_notification_completed",
+      correlationId,
+      conversationId: "conversation_private_1",
+      result: "success",
+    })).toThrow("successful_slack_notification_requires_delivery_evidence")
   })
 
   it.each([

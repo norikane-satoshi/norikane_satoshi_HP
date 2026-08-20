@@ -13,14 +13,62 @@ import { GET } from "./route"
 
 const correlationId = "11111111-1111-4111-8111-111111111111"
 
+function row(input: Record<string, unknown> & { eventName: string; result: string; sequence: number }) {
+  return {
+    uiKind: null,
+    tier: null,
+    durationMs: 1,
+    errorCode: null,
+    source: "server",
+    createdAt: new Date("2026-08-20T00:00:00.000Z"),
+    ...input,
+    payloadJson: JSON.stringify(input),
+  }
+}
+
 describe("GET /api/chatbot/audit-summary", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.findMany.mockResolvedValue([
-      { eventName: "request_received", result: "success", uiKind: null, tier: null, durationMs: 10, errorCode: null, source: "server", createdAt: new Date("2026-08-20T00:00:00.000Z") },
-      { eventName: "response_normalized", result: "success", uiKind: "none", tier: "tier-1-hosted-chrome-notion-ai", durationMs: 20, errorCode: null, source: "server", createdAt: new Date("2026-08-20T00:00:01.000Z") },
-      { eventName: "conversation_persisted", result: "success", uiKind: null, tier: null, durationMs: 5, errorCode: null, source: "server", createdAt: new Date("2026-08-20T00:00:02.000Z") },
-      { eventName: "slack_notification_completed", result: "success", uiKind: null, tier: null, durationMs: 3, errorCode: null, source: "server", createdAt: new Date("2026-08-20T00:00:03.000Z") },
+      row({ eventName: "request_received", result: "success", sequence: 100 }),
+      row({
+        eventName: "tier_attempt_completed",
+        result: "success",
+        sequence: 201,
+        tier: "tier-1-hosted-chrome-notion-ai",
+        phase: "generate",
+        retryAttempt: 1,
+      }),
+      row({ eventName: "notion_thread_hidden_verified", result: "success", sequence: 251 }),
+      row({
+        eventName: "response_normalized",
+        result: "success",
+        sequence: 300,
+        uiKind: "none",
+        tier: "tier-1-hosted-chrome-notion-ai",
+        finalTierConsistent: true,
+        tierSequenceValid: true,
+        stageTimings: {
+          conversationLoad: 12,
+          notionInference: 53_000,
+          totalServer: 54_000,
+        },
+      }),
+      row({ eventName: "conversation_persisted", result: "success", sequence: 400 }),
+      row({
+        eventName: "slack_notification_completed",
+        result: "success",
+        sequence: 500,
+        slackDeliveryEvidence: {
+          deliveries: [{
+            kind: "conversation",
+            idempotencyKeyHash: "a".repeat(64),
+            providerDedupeKeySubmitted: true,
+            providerMessageTsPresent: true,
+          }],
+          uniqueIdempotencyKeys: true,
+        },
+      }),
     ])
   })
 
@@ -31,10 +79,18 @@ describe("GET /api/chatbot/audit-summary", () => {
     await expect(response.json()).resolves.toMatchObject({
       correlationId,
       status: "complete",
-      eventCount: 4,
+      eventCount: 6,
       missingEvents: [],
       events: expect.arrayContaining([
-        expect.objectContaining({ eventName: "request_received", createdAt: "2026-08-20T00:00:00.000Z" }),
+        expect.objectContaining({
+          eventName: "response_normalized",
+          stageTimings: {
+            conversationLoad: 12,
+            notionInference: 53_000,
+            totalServer: 54_000,
+          },
+          createdAt: "2026-08-20T00:00:00.000Z",
+        }),
       ]),
     })
   })

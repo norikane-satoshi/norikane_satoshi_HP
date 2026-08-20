@@ -7,6 +7,7 @@ import {
   type ChatbotStoredAuditEvent,
   type ChatbotAuditStageTimings,
   type ChatbotMessageIntegrity,
+  type ChatbotSlackDeliveryEvidence,
 } from "@/lib/chatbot/audit/contract"
 import { toStoredChatbotServerAuditEvent } from "@/lib/chatbot/audit/server-projection"
 import { ChatbotLlmError, type ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
@@ -42,7 +43,11 @@ export type ChatbotMessageAuditEvidence = {
     totalServer: number
   }>
   tierAttempts: ChatbotTierAttemptAuditEvidence[]
-  slack: { result: "success" | "failure"; errorCode?: string }
+  slack: {
+    result: "success" | "failure"
+    errorCode?: string
+    deliveryEvidence?: ChatbotSlackDeliveryEvidence
+  }
   messageIntegrity: ChatbotMessageIntegrity
 }
 
@@ -101,6 +106,7 @@ export function buildChatbotMessageAuditEvents(input: {
   const finalTierConsistent = successfulGenerateAttempts.length === 1 &&
     successfulGenerateAttempts[0].tier === input.finalTier &&
     (input.finalTier !== "tier-1-hosted-chrome-notion-ai" || !fallbackUsed)
+  const tierSequenceValid = validateTierSequence(generateAttempts, input.finalTier)
   const drafts: Array<Record<string, unknown>> = [
     {
       eventName: "request_received",
@@ -120,7 +126,7 @@ export function buildChatbotMessageAuditEvents(input: {
       fallbackUsed,
       retryAttempt: index + 1,
       ...(attempt.stageTimings ? { stageTimings: attempt.stageTimings } : {}),
-      ...(attempt.threadEvidence ? { threadEvidence: attempt.threadEvidence } : {}),
+        ...(attempt.threadEvidence ? { threadEvidence: attempt.threadEvidence } : {}),
     })
     if (attempt.threadEvidence) {
       drafts.push({
@@ -132,6 +138,7 @@ export function buildChatbotMessageAuditEvents(input: {
             ? "success"
             : "failure",
         tier: attempt.tier,
+        retryAttempt: index + 1,
         threadEvidence: attempt.threadEvidence,
       })
     }
@@ -140,13 +147,18 @@ export function buildChatbotMessageAuditEvents(input: {
   drafts.push(
     {
       eventName: "response_normalized",
-      result: finalTierConsistent ? "success" : "failure",
+      result: finalTierConsistent && tierSequenceValid ? "success" : "failure",
       tier: input.finalTier,
       uiKind,
       fallbackUsed,
       tierAttemptCount: input.tierAttempts.length,
       finalTierConsistent,
-      ...(!finalTierConsistent ? { errorCode: "tier-evidence-inconsistent" } : {}),
+      tierSequenceValid,
+      ...(!finalTierConsistent
+        ? { errorCode: "tier-evidence-inconsistent" }
+        : !tierSequenceValid
+          ? { errorCode: "tier-sequence-invalid" }
+          : {}),
       durationMs: stageTimings.responseNormalization,
       stageTimings,
     },
@@ -164,6 +176,9 @@ export function buildChatbotMessageAuditEvents(input: {
       tier: input.finalTier,
       durationMs: stageTimings.slackNotification,
       ...(input.slack.errorCode ? { errorCode: input.slack.errorCode } : {}),
+      ...(input.slack.deliveryEvidence
+        ? { slackDeliveryEvidence: input.slack.deliveryEvidence }
+        : {}),
     },
   )
 
@@ -197,6 +212,7 @@ export function buildChatbotBookingAuditEvents(input: {
   buildSha: string
   createdAt: string
   bookingCreated: boolean
+  customerAuthenticated: boolean
   customerAccountLinked: boolean
   slack: ChatbotMessageAuditEvidence["slack"]
   durationMs: number
@@ -208,13 +224,26 @@ export function buildChatbotBookingAuditEvents(input: {
       durationMs: toDuration(input.durationMs),
       ...(!input.bookingCreated ? { errorCode: "booking-create-failed" } : {}),
     },
-    ...(input.customerAccountLinked
-      ? [{ eventName: "customer_account_linked", result: "success" }]
-      : []),
+    {
+      eventName: "customer_account_linked",
+      result: input.customerAuthenticated === input.customerAccountLinked ? "success" : "failure",
+      customerAccountEvidence: {
+        authenticated: input.customerAuthenticated,
+        expectedLinked: input.customerAuthenticated,
+        actualLinked: input.customerAccountLinked,
+        matches: input.customerAuthenticated === input.customerAccountLinked,
+      },
+      ...(input.customerAuthenticated !== input.customerAccountLinked
+        ? { errorCode: "customer-account-link-mismatch" }
+        : {}),
+    },
     {
       eventName: "slack_notification_completed",
       result: input.slack.result,
       ...(input.slack.errorCode ? { errorCode: input.slack.errorCode } : {}),
+      ...(input.slack.deliveryEvidence
+        ? { slackDeliveryEvidence: input.slack.deliveryEvidence }
+        : {}),
     },
   ]
 
@@ -232,6 +261,29 @@ export function buildChatbotBookingAuditEvents(input: {
       createdAt: input.createdAt,
     })
   })
+}
+
+const tierRanks = {
+  "tier-1-hosted-chrome-notion-ai": 1,
+  "tier-2-gemini-flash": 2,
+  "tier-3-form-fallback": 3,
+} as const
+
+function validateTierSequence(
+  attempts: ChatbotTierAttemptAuditEvidence[],
+  finalTier: ChatbotTierAttemptAuditEvidence["tier"],
+): boolean {
+  if (attempts.length === 0) return false
+  const finalRank = tierRanks[finalTier]
+  const ranks = attempts.map((attempt) => tierRanks[attempt.tier])
+  const nondecreasing = ranks.every((rank, index) => index === 0 || rank >= ranks[index - 1])
+  const successIndexes = attempts.flatMap((attempt, index) => attempt.result === "success" ? [index] : [])
+  const oneFinalSuccess = successIndexes.length === 1 &&
+    successIndexes[0] === attempts.length - 1 &&
+    attempts[successIndexes[0]]?.tier === finalTier
+  const everyTierReached = Array.from({ length: finalRank }, (_, index) => index + 1)
+    .every((rank) => ranks.includes(rank as 1 | 2 | 3))
+  return nondecreasing && oneFinalSuccess && everyTierReached
 }
 
 export function buildChatbotOperationFailureAuditEvent(input: {

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto"
+
 import type { RoutingDecision } from "@/lib/chatbot/domain"
 import {
   chatbotLlmTierIds,
@@ -18,6 +20,13 @@ export type ChatbotSlackNotificationResult =
   | { status: "sent"; ts: string | null }
   | { status: "skipped"; reason: "disabled" | "missing-slack-config" }
   | { status: "failed"; reason: "send-failed" }
+
+export type ChatbotSlackDeliveryEvidenceItem = {
+  kind: ChatbotSlackNotificationInput["kind"]
+  idempotencyKeyHash?: string
+  providerDedupeKeySubmitted: boolean
+  providerMessageTsPresent: boolean
+}
 
 export type ChatbotRetryDiagnosticsSummary = {
   attemptCount?: number
@@ -95,10 +104,23 @@ export async function sendChatbotSlackNotification(
   if (!token || !channel) return { status: "skipped", reason: "missing-slack-config" }
 
   const fetcher = options.fetcher ?? fetch
+  const clientMessageId = buildChatbotSlackClientMessageId(input)
   const body = {
     channel,
     text: buildSlackText(input),
     unfurl_links: false,
+    ...(clientMessageId
+      ? {
+          client_msg_id: clientMessageId,
+          metadata: {
+            event_type: "norikane_chatbot_notification",
+            event_payload: {
+              delivery_id: clientMessageId,
+              kind: input.kind,
+            },
+          },
+        }
+      : {}),
     ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
   }
 
@@ -142,6 +164,65 @@ export async function sendChatbotSlackNotification(
       kind: input.kind,
     })
     return { status: "failed", reason: "send-failed" }
+  }
+}
+
+export function buildChatbotSlackClientMessageId(
+  input: Pick<
+    ChatbotSlackNotificationInput,
+    "kind" | "requestId" | "conversationId" | "bookingGroupId"
+  >,
+): string | null {
+  const logicalRequestId = input.requestId?.trim() || input.bookingGroupId?.trim()
+  if (!logicalRequestId) return null
+
+  const digest = createHash("sha256")
+    .update("norikane-hp-chatbot-slack-v1")
+    .update("\0")
+    .update(input.conversationId)
+    .update("\0")
+    .update(input.kind)
+    .update("\0")
+    .update(logicalRequestId)
+    .digest()
+  const bytes = Uint8Array.from(digest.subarray(0, 16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x50
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Buffer.from(bytes).toString("hex")
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+export function buildChatbotSlackDeliveryEvidenceItem(
+  input: Pick<
+    ChatbotSlackNotificationInput,
+    "kind" | "requestId" | "conversationId" | "bookingGroupId"
+  >,
+  result: ChatbotSlackNotificationResult,
+): ChatbotSlackDeliveryEvidenceItem {
+  const clientMessageId = buildChatbotSlackClientMessageId(input)
+  return {
+    kind: input.kind,
+    ...(clientMessageId
+      ? { idempotencyKeyHash: createHash("sha256").update(clientMessageId).digest("hex") }
+      : {}),
+    providerDedupeKeySubmitted: Boolean(clientMessageId),
+    providerMessageTsPresent: result.status === "sent" && Boolean(result.ts),
+  }
+}
+
+export function buildChatbotSlackDeliveryEvidence(
+  deliveries: ChatbotSlackDeliveryEvidenceItem[],
+): {
+  deliveries: ChatbotSlackDeliveryEvidenceItem[]
+  uniqueIdempotencyKeys: boolean
+} {
+  const hashes = deliveries.flatMap((delivery) =>
+    delivery.idempotencyKeyHash ? [delivery.idempotencyKeyHash] : [],
+  )
+  return {
+    deliveries,
+    uniqueIdempotencyKeys:
+      hashes.length === deliveries.length && new Set(hashes).size === deliveries.length,
   }
 }
 
