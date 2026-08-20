@@ -279,6 +279,7 @@ describe("handleChatbotMessage user context", () => {
   })
 
   it("keeps production-log drama series wording on the drama project-length contract", async () => {
+    vi.stubEnv("NODE_ENV", "production")
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup({
       existingConversation: conversation({
@@ -338,6 +339,7 @@ describe("handleChatbotMessage user context", () => {
       )
     } finally {
       consoleInfo.mockRestore()
+      vi.unstubAllEnvs()
     }
   })
 
@@ -545,6 +547,7 @@ describe("handleChatbotMessage user context", () => {
   })
 
   it("does not silently replace an LLM-authored cross-context project-length panel", async () => {
+    vi.stubEnv("NODE_ENV", "production")
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
@@ -602,6 +605,7 @@ describe("handleChatbotMessage user context", () => {
       )
     } finally {
       consoleInfo.mockRestore()
+      vi.unstubAllEnvs()
     }
   })
 
@@ -704,6 +708,7 @@ describe("handleChatbotMessage user context", () => {
   })
 
   it("converts production-style plain text final-medium choices after drama episode length into a choice panel", async () => {
+    vi.stubEnv("NODE_ENV", "production")
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup({
       existingConversation: conversation({
@@ -794,10 +799,12 @@ describe("handleChatbotMessage user context", () => {
       )
     } finally {
       consoleInfo.mockRestore()
+      vi.unstubAllEnvs()
     }
   })
 
   it("does not show the fixed final-medium fallback for drama context", async () => {
+    vi.stubEnv("NODE_ENV", "production")
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
@@ -856,10 +863,12 @@ describe("handleChatbotMessage user context", () => {
       )
     } finally {
       consoleInfo.mockRestore()
+      vi.unstubAllEnvs()
     }
   })
 
   it("returns to a natural final-medium rejudgment question when LLM mixes another context", async () => {
+    vi.stubEnv("NODE_ENV", "production")
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
@@ -914,6 +923,7 @@ describe("handleChatbotMessage user context", () => {
       )
     } finally {
       consoleInfo.mockRestore()
+      vi.unstubAllEnvs()
     }
   })
 

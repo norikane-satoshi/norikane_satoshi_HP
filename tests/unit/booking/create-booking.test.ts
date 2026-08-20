@@ -35,6 +35,7 @@ async function loadCreateBooking() {
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     bookingGroup: {
+      findUnique: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockResolvedValue({
         id: "group_1",
         timeSlots: [],
@@ -82,6 +83,65 @@ afterEach(() => {
 })
 
 describe("createBookingFromApiInput", () => {
+  it("returns the existing chatbot booking for the same idempotency key without repeating side effects", async () => {
+    const service = await loadCreateBooking()
+    service.prisma.bookingGroup.findUnique.mockResolvedValueOnce({
+      id: "group_existing",
+      status: "NEEDS_SCHEDULE",
+      timeSlots: [],
+    })
+
+    const result = await service.createBookingFromApiInput({
+      input: bookingInput(),
+      originatedFrom: "chatbot",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      userId: "public_chatbot_user_1",
+      userEmail: "client@example.com",
+    })
+
+    expect(result).toMatchObject({
+      status: 200,
+      body: {
+        status: "schedule_unselected",
+        bookingGroupId: "group_existing",
+        bookingIds: [],
+        bookingStatus: "NEEDS_SCHEDULE",
+        scheduleStatus: "unscheduled",
+        idempotentReplay: true,
+      },
+    })
+    expect(service.prisma.customer.upsert).not.toHaveBeenCalled()
+    expect(service.prisma.$transaction).not.toHaveBeenCalled()
+    expect(service.createCalendarEvent).not.toHaveBeenCalled()
+    expect(service.sendBookingConfirmedEmail).not.toHaveBeenCalled()
+  })
+
+  it("recovers an idempotency race from the unique database constraint", async () => {
+    const service = await loadCreateBooking()
+    service.prisma.bookingGroup.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "group_winner", status: "NEEDS_SCHEDULE", timeSlots: [] })
+    service.prisma.bookingGroup.create.mockRejectedValueOnce(
+      Object.assign(new Error("unique"), { code: "P2002" }),
+    )
+
+    const result = await service.createBookingFromApiInput({
+      input: bookingInput(),
+      originatedFrom: "chatbot",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      userId: "public_chatbot_user_1",
+      userEmail: "client@example.com",
+    })
+
+    expect(result).toMatchObject({
+      status: 200,
+      body: { bookingGroupId: "group_winner", idempotentReplay: true },
+    })
+    expect(service.prisma.bookingGroup.create).toHaveBeenCalledOnce()
+    expect(service.createCalendarEvent).not.toHaveBeenCalled()
+    expect(service.sendBookingConfirmedEmail).not.toHaveBeenCalled()
+  })
+
   it("creates selected-slot calendar entries as tentative holds", async () => {
     const service = await loadCreateBooking()
 

@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-function request(body: unknown) {
+function request(body: unknown, cookieSessionId = "session_1") {
   return new NextRequest("http://localhost/api/chatbot/create-booking-from-chat", {
     method: "POST",
+    headers: { cookie: `chatbot_session_id=${cookieSessionId}` },
     body: JSON.stringify(body),
   })
 }
@@ -25,11 +26,12 @@ function validChatBooking(overrides: Record<string, unknown> = {}) {
     },
     jobContext: { finalMedium: "web" },
     workflowEstimate: { totalMinDays: 2, totalMaxDays: 3 },
+    correlationId: "11111111-1111-4111-8111-111111111111",
     ...overrides,
   }
 }
 
-async function loadPost() {
+async function loadPost(session: { user?: { id?: string; email?: string } } | null = null) {
   vi.resetModules()
 
   const prisma = {
@@ -55,7 +57,10 @@ async function loadPost() {
   const updateConversationSlackThreadTs = vi.fn().mockResolvedValue(undefined)
   const sendChatbotBookingOwnerNotification = vi.fn().mockResolvedValue({ skipped: false, id: "email_1" })
   const sendChatbotSlackNotification = vi.fn().mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
+  const auth = vi.fn().mockResolvedValue(session)
+  const scheduleChatbotAuditPersistence = vi.fn()
 
+  vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/prisma", () => ({ prisma }))
   vi.doMock("@/lib/booking/server/create-booking", () => ({ createBookingFromApiInput }))
   vi.doMock("@/lib/booking/server/email", () => ({ sendChatbotBookingOwnerNotification }))
@@ -65,6 +70,7 @@ async function loadPost() {
     updateConversationSlackThreadTs,
   }))
   vi.doMock("@/lib/chatbot/server/slack-notifier", () => ({ sendChatbotSlackNotification }))
+  vi.doMock("@/lib/chatbot/audit/scheduler", () => ({ scheduleChatbotAuditPersistence }))
 
   const route = await import("./route")
   return {
@@ -76,6 +82,8 @@ async function loadPost() {
     updateConversationSlackThreadTs,
     sendChatbotBookingOwnerNotification,
     sendChatbotSlackNotification,
+    auth,
+    scheduleChatbotAuditPersistence,
   }
 }
 
@@ -86,6 +94,39 @@ afterEach(() => {
 })
 
 describe("POST /api/chatbot/create-booking-from-chat", () => {
+  it("rejects a booking link attempt for a conversation owned by another browser session", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request(validChatBooking(), "different_session"))
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: "conversation_not_owned" })
+    expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+    expect(route.linkChatToBookingGroup).not.toHaveBeenCalled()
+  })
+
+  it("links an authenticated chatbot booking to the customer's own account", async () => {
+    const route = await loadPost({ user: { id: "customer_user_1", email: "owner@example.com" } })
+
+    const response = await route.POST(request(validChatBooking()))
+
+    expect(response.status).toBe(200)
+    expect(route.prisma.user.upsert).not.toHaveBeenCalled()
+    expect(route.createBookingFromApiInput).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "customer_user_1",
+      userEmail: "client@example.com",
+      originatedFrom: "chatbot",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    }))
+    expect(route.scheduleChatbotAuditPersistence).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ eventName: "booking_created", result: "success" }),
+        expect.objectContaining({ eventName: "customer_account_linked", result: "success" }),
+        expect.objectContaining({ eventName: "slack_notification_completed", result: "success" }),
+      ]),
+    )
+  })
+
   it("accepts unauthenticated public chatbot booking submissions", async () => {
     const route = await loadPost()
 
@@ -107,9 +148,39 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       }),
       notionTaskType: "仮押さえ",
       originatedFrom: "chatbot",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
+  })
+
+  it("does not repeat owner email or Slack side effects for an idempotent booking replay", async () => {
+    const route = await loadPost()
+    route.createBookingFromApiInput.mockResolvedValue({
+      status: 200,
+      body: {
+        status: "ok",
+        bookingGroupId: "group_1",
+        bookingIds: ["slot_1"],
+        bookingStatus: "CONFIRMED",
+        idempotentReplay: true,
+      },
+    })
+
+    const response = await route.POST(request(validChatBooking()))
+
+    expect(response.status).toBe(200)
+    expect(route.sendChatbotBookingOwnerNotification).not.toHaveBeenCalled()
+    expect(route.sendChatbotSlackNotification).not.toHaveBeenCalled()
+    expect(route.scheduleChatbotAuditPersistence).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventName: "slack_notification_completed",
+          result: "failure",
+          errorCode: "idempotent-replay-notification-not-repeated",
+        }),
+      ]),
+    )
   })
 
   it("returns 400 for an invalid body", async () => {
@@ -166,6 +237,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       }),
       notionTaskType: "仮押さえ",
       originatedFrom: "chatbot",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
@@ -213,6 +285,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       }),
       notionTaskType: "仮押さえ",
       originatedFrom: "chatbot",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
@@ -236,6 +309,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       }),
       notionTaskType: "仮押さえ",
       originatedFrom: "chatbot",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
       userId: "public_chatbot_user_1",
       userEmail: "client@example.com",
     })
@@ -348,6 +422,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(response.status).toBe(200)
     expect(route.sendChatbotSlackNotification).toHaveBeenCalledWith({
       kind: "booking-order-submitted",
+      requestId: "11111111-1111-4111-8111-111111111111",
       conversationId: "conv_1",
       sessionId: "session_1",
       threadTs: "1700000000.000100",
@@ -365,7 +440,10 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     const conflictResponse = await route.POST(request(validChatBooking({ conversationId: undefined })))
 
     expect(conflictResponse.status).toBe(409)
-    await expect(conflictResponse.json()).resolves.toEqual({ error: "slot_taken" })
+    await expect(conflictResponse.json()).resolves.toEqual({
+      error: "slot_taken",
+      requestId: "11111111-1111-4111-8111-111111111111",
+    })
 
     route.createBookingFromApiInput.mockResolvedValueOnce({
       status: 502,
@@ -378,6 +456,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     await expect(calendarResponse.json()).resolves.toEqual({
       error: "calendar_unavailable",
       bookingGroupId: "group_2",
+      requestId: "11111111-1111-4111-8111-111111111111",
     })
   })
 })

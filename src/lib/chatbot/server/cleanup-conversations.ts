@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { hashChatbotConversationId } from "@/lib/chatbot/audit/server-projection"
 
 export const CHATBOT_CONVERSATION_RETENTION_DAYS = 30
 const DEFAULT_BATCH_SIZE = 100
@@ -10,6 +11,7 @@ export type CleanupExpiredChatbotConversationsResult = {
   scannedConversationCount: number
   deletedConversationCount: number
   deletedMessageCount: number
+  deletedAuditEventCount: number
   deletedSurveyResponseCount: number
   deletedInquiryCount: number
   unlinkedBookingGroupCount: number
@@ -52,6 +54,13 @@ export async function cleanupExpiredChatbotConversations(input: {
     const messages = await tx.chatbotMessage.deleteMany({
       where: { conversationId: { in: conversationIds } },
     })
+    const auditEvents = await tx.chatbotAuditEvent.deleteMany({
+      where: {
+        conversationHash: {
+          in: conversationIds.map(hashChatbotConversationId),
+        },
+      },
+    })
     const conversationsDeleted = await tx.chatbotConversation.deleteMany({
       where: { id: { in: conversationIds } },
     })
@@ -61,6 +70,7 @@ export async function cleanupExpiredChatbotConversations(input: {
       deletedInquiryCount: inquiries.count,
       deletedSurveyResponseCount: surveyResponses.count,
       deletedMessageCount: messages.count,
+      deletedAuditEventCount: auditEvents.count,
       deletedConversationCount: conversationsDeleted.count,
     }
   })
@@ -83,6 +93,7 @@ function emptyResult(input: {
     scannedConversationCount: 0,
     deletedConversationCount: 0,
     deletedMessageCount: 0,
+    deletedAuditEventCount: 0,
     deletedSurveyResponseCount: 0,
     deletedInquiryCount: 0,
     unlinkedBookingGroupCount: 0,

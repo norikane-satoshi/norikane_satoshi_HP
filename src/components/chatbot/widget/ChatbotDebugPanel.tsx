@@ -3,7 +3,7 @@
 import { Check, Copy, RefreshCw, X } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
-import type { ChatbotLifecycleDebug, ChatbotResponseTier, WidgetUi } from "./api"
+import type { ChatbotAuditDebug, ChatbotLifecycleDebug, ChatbotResponseTier, WidgetUi } from "./api"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
 export type ChatbotDebugRequest = {
@@ -18,6 +18,7 @@ export type ChatbotDebugRequest = {
   retryable?: boolean
   fallback?: string
   lifecycle?: ChatbotLifecycleDebug
+  audit?: ChatbotAuditDebug
 }
 
 export type ChatbotDebugSnapshot = {
@@ -26,7 +27,7 @@ export type ChatbotDebugSnapshot = {
   requestState: "idle" | "submitting" | "delayed" | "recoverable"
   activeUiKind: WidgetUi["kind"]
   messageCount: number
-  clientSessionId: string
+  hasClientSession: boolean
   pendingRequestKind?: string
   recoverableRequestKind?: string
   lastRequest?: ChatbotDebugRequest
@@ -44,6 +45,13 @@ type ChatbotBuildInfo = {
 type ChatbotDebugPanelProps = {
   snapshot: ChatbotDebugSnapshot
   onClose: () => void
+}
+
+type ChatbotAuditReadback = {
+  status: "complete" | "pending" | "failed"
+  eventCount: number
+  missingEvents: string[]
+  failedEvents: string[]
 }
 
 type ClipboardAdapters = {
@@ -97,6 +105,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
   const [buildInfoError, setBuildInfoError] = useState<string | null>(null)
   const [isLoadingBuildInfo, setIsLoadingBuildInfo] = useState(false)
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle")
+  const [auditReadback, setAuditReadback] = useState<ChatbotAuditReadback | null>(null)
 
   const refreshBuildInfo = useCallback(async () => {
     setIsLoadingBuildInfo(true)
@@ -118,9 +127,38 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
     void refreshBuildInfo()
   }, [refreshBuildInfo])
 
+  useEffect(() => {
+    const requestId = snapshot.lastRequest?.requestId
+    if (!requestId) return
+    let cancelled = false
+    void fetch(`/api/chatbot/audit-summary?correlationId=${encodeURIComponent(requestId)}`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        return await response.json() as ChatbotAuditReadback
+      })
+      .then((value) => {
+        if (!cancelled) setAuditReadback(value)
+      })
+      .catch(() => {
+        if (!cancelled) setAuditReadback(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [snapshot.lastRequest?.requestId])
+
   const copyDiagnostics = async () => {
     try {
-      await copyChatbotDiagnosticsText(JSON.stringify({ buildInfo, snapshot }, null, 2))
+      const safeBuildInfo = buildInfo
+        ? {
+            commitSha: buildInfo.commitSha,
+            expectedRef: buildInfo.expectedRef,
+            buildTime: buildInfo.buildTime,
+            commitShaSource: buildInfo.commitShaSource,
+            expectedRefSource: buildInfo.expectedRefSource,
+          }
+        : null
+      await copyChatbotDiagnosticsText(JSON.stringify({ buildInfo: safeBuildInfo, snapshot, auditReadback }, null, 2))
       setCopyState("copied")
     } catch {
       setCopyState("failed")
@@ -132,7 +170,6 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
     ["Expected ref", buildInfo?.expectedRef],
     ["Build source", buildInfo ? `${buildInfo.commitShaSource} / ${buildInfo.expectedRefSource}` : undefined],
     ["Build time", buildInfo?.buildTime],
-    ["Worktree", buildInfo?.worktreePath],
     ["Request state", snapshot.requestState],
     ["Last operation", snapshot.lastRequest?.operation],
     ["Last outcome", snapshot.lastRequest?.outcome],
@@ -143,6 +180,25 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
     ["Failure stage", snapshot.lastRequest?.stage],
     ["Retryable", snapshot.lastRequest?.retryable],
     ["Fallback", snapshot.lastRequest?.fallback],
+    ["Audit schema", snapshot.lastRequest?.audit?.schemaVersion],
+    ["Audit persistence", auditReadback?.status ?? snapshot.lastRequest?.audit?.persistenceStatus],
+    ["Audit event count", auditReadback?.eventCount ?? snapshot.lastRequest?.audit?.eventCount],
+    ["Audit missing events", auditReadback?.missingEvents.join(",")],
+    ["Audit failed events", auditReadback?.failedEvents.join(",")],
+    ["Conversation load", formatDuration(snapshot.lastRequest?.audit?.stageTimings.conversationLoad)],
+    ["Context preparation", formatDuration(snapshot.lastRequest?.audit?.stageTimings.contextPreparation)],
+    ["Tier health check", formatDuration(snapshot.lastRequest?.audit?.stageTimings.tierHealthCheck)],
+    ["Worker queue wait", formatDuration(snapshot.lastRequest?.audit?.stageTimings.workerQueueWait)],
+    ["CDP target session", formatDuration(snapshot.lastRequest?.audit?.stageTimings.cdpTargetSession)],
+    ["Runtime context preparation", formatDuration(snapshot.lastRequest?.audit?.stageTimings.runtimeContextPreparation)],
+    ["Prompt to first chunk", formatDuration(snapshot.lastRequest?.audit?.stageTimings.promptToFirstChunk)],
+    ["Response streaming", formatDuration(snapshot.lastRequest?.audit?.stageTimings.responseStreaming)],
+    ["Output validation", formatDuration(snapshot.lastRequest?.audit?.stageTimings.outputValidation)],
+    ["Notion inference", formatDuration(snapshot.lastRequest?.audit?.stageTimings.notionInference)],
+    ["Response normalization", formatDuration(snapshot.lastRequest?.audit?.stageTimings.responseNormalization)],
+    ["Conversation persist", formatDuration(snapshot.lastRequest?.audit?.stageTimings.conversationPersist)],
+    ["Slack notification", formatDuration(snapshot.lastRequest?.audit?.stageTimings.slackNotification)],
+    ["Total server", formatDuration(snapshot.lastRequest?.audit?.stageTimings.totalServer)],
     ["Conversation scope hash", snapshot.lastRequest?.lifecycle?.conversationScopeHash],
     ["Thread ID hash", snapshot.lastRequest?.lifecycle?.threadIdHash],
     ["Thread version", snapshot.lastRequest?.lifecycle?.threadVersion],
@@ -160,7 +216,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
     ["Context rebuilt from HP DB", snapshot.lastRequest?.lifecycle?.contextRebuiltFromHpDb],
     ["Tier fallback reason", snapshot.lastRequest?.lifecycle?.tierFallbackReason],
     ["Completed at", snapshot.lastRequest?.completedAt],
-    ["Client session", snapshot.clientSessionId],
+    ["Client session present", snapshot.hasClientSession],
     ["Active UI", snapshot.activeUiKind],
     ["Display mode", `${snapshot.displayMode} / ${snapshot.isDesktopLayout ? "desktop" : "mobile"}`],
     ["Pending", snapshot.pendingRequestKind],
@@ -239,4 +295,8 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
       </span>
     </section>
   )
+}
+
+function formatDuration(value: number | undefined): string | undefined {
+  return value === undefined ? undefined : `${value} ms`
 }

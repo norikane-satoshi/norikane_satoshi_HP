@@ -76,6 +76,51 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
 }
 
 describe("ChatbotBookingCard", () => {
+  it("acknowledges the committed Booking Order and every rendered prefill field without values", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void init
+      if (String(input) === "/api/chatbot/audit-event") {
+        return new Response(JSON.stringify({ accepted: true }), { status: 202 })
+      }
+      return new Response(JSON.stringify({ candidates: [], busyDateKeys: [], tentativeDateKeys: [] }), { status: 200 })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    renderCard({
+      jobContext,
+      auditContext: {
+        correlationId: "11111111-1111-4111-8111-111111111111",
+        tier: "tier-1-hosted-chrome-notion-ai",
+        responseReceivedAt: performance.now(),
+      },
+      defaultContactEmail: "client@example.jp",
+      defaultDueDate: "2026-07-31",
+      defaultMemo: "受け渡し素材: ProRes\n素材受け渡し時期: 7月\n素材受け渡し方法: アップローダー",
+    })
+
+    await waitFor(() => {
+      const auditCalls = fetchMock.mock.calls.filter(([url]) => String(url) === "/api/chatbot/audit-event")
+      expect(auditCalls).toHaveLength(2)
+    })
+    const auditBodies = fetchMock.mock.calls
+      .filter(([url]) => String(url) === "/api/chatbot/audit-event")
+      .map(([, init]) => JSON.parse(String(init?.body)))
+    expect(auditBodies.map((body) => body.eventName).sort()).toEqual([
+      "booking_card_rendered",
+      "booking_prefill_rendered",
+    ])
+    const prefill = auditBodies.find((body) => body.eventName === "booking_prefill_rendered")
+    expect(prefill.prefillFields).toHaveLength(9)
+    expect(prefill.memoCoverage).toEqual({
+      finalMedia: true,
+      materialContents: true,
+      materialTiming: true,
+      materialMethod: true,
+    })
+    expect(JSON.stringify(prefill)).not.toContain("client@example.jp")
+    expect(JSON.stringify(prefill)).not.toContain("ProRes")
+  })
+
   it("states that the Booking Order can be submitted even when dates are not decided", () => {
     render(
       <ChatbotBookingCard
@@ -117,6 +162,23 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByPlaceholderText("作品名または案件名（イニシャル表記も可）")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "利用規約" })).toHaveAttribute("href", "/terms")
     expect(screen.getByRole("link", { name: "プライバシーポリシー" })).toHaveAttribute("href", "/privacy")
+  })
+
+  it("does not preselect a suggested date before the customer confirms it", () => {
+    renderCard({
+      candidates: [candidates[0]],
+      estimate: {
+        stages: [],
+        totalMinDays: 1,
+        totalMaxDays: 1,
+        riskFlags: [],
+      },
+    })
+
+    const suggestedDate = screen.getByRole("button", { name: "2026-06-10 選択可" })
+    expect(suggestedDate).toHaveAttribute("aria-pressed", "false")
+    expect(suggestedDate).not.toHaveAttribute("data-selected", "true")
+    expect(screen.getByText("希望日未選択")).toBeInTheDocument()
   })
 
   it("marks required booking order fields in red without rendering optional label text", () => {
@@ -897,6 +959,9 @@ describe("ChatbotBookingCard", () => {
     expect(within(completion).getByText("田中")).toBeInTheDocument()
     expect(within(completion).getByText("client@example.jp")).toBeInTheDocument()
     expect(within(completion).getByText("株式会社サンプル")).toBeInTheDocument()
+    expect(within(completion).getByText("希望日は未定として受け付けています。日程が決まったら予約カレンダーから候補日を選べます。")).toBeInTheDocument()
+    expect(within(completion).getByRole("link", { name: "日程を選ぶ" })).toHaveAttribute("href", "/booking")
+    expect(within(completion).getByRole("link", { name: "予約履歴を確認" })).toHaveAttribute("href", "/booking/history")
     expect(within(completion).getByText("ありがとうございます。則兼が内容を確認してご連絡します。")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "予約内容を送信" })).not.toBeInTheDocument()
   })

@@ -97,6 +97,7 @@ async function loadPost({
   const formatUserChatbotContextForPrompt = vi.fn(() => "本人文脈:\n- 既存の本人文脈はありません。")
   const generate = vi.fn().mockResolvedValue(withDisplayEnvelope(llmResponse))
   const sendChatbotSlackNotification = vi.fn().mockResolvedValue(slackNotificationResult)
+  const scheduleChatbotAuditPersistence = vi.fn()
 
   vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/chatbot/server", () => ({
@@ -124,6 +125,7 @@ async function loadPost({
   vi.doMock("@/lib/chatbot/server/slack-notifier", () => ({
     sendChatbotSlackNotification,
   }))
+  vi.doMock("@/lib/chatbot/audit/scheduler", () => ({ scheduleChatbotAuditPersistence }))
 
   const route = await import("./route")
   return {
@@ -141,6 +143,7 @@ async function loadPost({
     formatUserChatbotContextForPrompt,
     generate,
     sendChatbotSlackNotification,
+    scheduleChatbotAuditPersistence,
   }
 }
 
@@ -213,7 +216,8 @@ describe("POST /api/chatbot/message", () => {
       sessionId: expect.any(String),
       userId: null,
     })
-    await expect(response.json()).resolves.toMatchObject({
+    const payload = await response.json()
+    expect(payload).toMatchObject({
       requestId: expect.any(String),
       conversationId: "conv_1",
       assistantMessage: {
@@ -222,6 +226,39 @@ describe("POST /api/chatbot/message", () => {
       },
       ui: { kind: "choice-panel", choiceSet: { id: "job-kind" } },
     })
+    expect(payload).not.toHaveProperty("auditEvidence")
+    expect(payload.auditDebug).toMatchObject({
+      schemaVersion: "1",
+      persistenceStatus: "scheduled",
+      eventCount: expect.any(Number),
+      stageTimings: {
+        conversationLoad: expect.any(Number),
+        contextPreparation: expect.any(Number),
+        totalServer: expect.any(Number),
+      },
+    })
+    expect(route.scheduleChatbotAuditPersistence).toHaveBeenCalledOnce()
+    expect(route.scheduleChatbotAuditPersistence).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ eventName: "request_received", source: "server" }),
+        expect.objectContaining({ eventName: "response_normalized", source: "server" }),
+        expect.objectContaining({ eventName: "conversation_persisted", source: "server" }),
+        expect.objectContaining({ eventName: "slack_notification_completed", source: "server" }),
+      ]),
+    )
+  })
+
+  it("does not expose audit diagnostics on a public hostname", async () => {
+    const route = await loadPost()
+    const response = await route.POST(new NextRequest("https://www.norikane.studio/api/chatbot/message", {
+      method: "POST",
+      body: JSON.stringify({ message: "相談したいです" }),
+    }))
+
+    expect(response.status).toBe(200)
+    const payload = await response.json()
+    expect(payload).not.toHaveProperty("auditDebug")
+    expect(payload).not.toHaveProperty("auditEvidence")
   })
 
   it("uses the authenticated user id when creating the conversation", async () => {
@@ -409,6 +446,13 @@ describe("POST /api/chatbot/message", () => {
       },
       requestId: expect.any(String),
     })
+    expect(route.scheduleChatbotAuditPersistence).toHaveBeenCalledWith([
+      expect.objectContaining({
+        eventName: "operation_failed",
+        result: "failure",
+        errorCode: "message-conversation-load-failed",
+      }),
+    ])
     expect(consoleError).toHaveBeenCalledWith(
       "[CHATBOT_OPERATION_FAILURE]",
       expect.stringContaining("\"operation\":\"message\""),
@@ -421,9 +465,17 @@ describe("POST /api/chatbot/message", () => {
       "[CHATBOT_OPERATION_FAILURE]",
       expect.stringContaining("\"requestId\":\""),
     )
-    expect(consoleError).toHaveBeenCalledWith(
+    expect(consoleError).not.toHaveBeenCalledWith(
       "[CHATBOT_OPERATION_FAILURE]",
-      expect.stringContaining("\"userAgent\":\"Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148\""),
+      expect.stringContaining("Mozilla/5.0"),
+    )
+    expect(consoleError).not.toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("conv_legacy"),
+    )
+    expect(consoleError).not.toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("session_legacy"),
     )
     expect(consoleError).toHaveBeenCalledWith(
       "[CHATBOT_OPERATION_FAILURE]",

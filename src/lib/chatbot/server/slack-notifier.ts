@@ -4,6 +4,7 @@ import {
   type ChatbotLlmTier,
 } from "@/lib/chatbot/server/llm-client"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
+import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 
 type SlackNotifierEnv = {
   CHATBOT_SLACK_NOTIFY_ENABLED?: string
@@ -112,7 +113,8 @@ export async function sendChatbotSlackNotification(
     })
 
     if (!response.ok) {
-      console.warn("[chatbot slack notification failed]", {
+      logPrivacySafeChatbotEvent({
+        event: "chatbot_slack_notification_failed",
         status: response.status,
         conversationId: input.conversationId,
         kind: input.kind,
@@ -122,8 +124,9 @@ export async function sendChatbotSlackNotification(
 
     const payload = (await response.json().catch(() => null)) as SlackPostMessageResponse | null
     if (!payload?.ok) {
-      console.warn("[chatbot slack notification failed]", {
-        error: payload?.error ?? "invalid_slack_response",
+      logPrivacySafeChatbotEvent({
+        event: "chatbot_slack_notification_failed",
+        errorCode: payload?.error ?? "invalid_slack_response",
         conversationId: input.conversationId,
         kind: input.kind,
       })
@@ -132,8 +135,9 @@ export async function sendChatbotSlackNotification(
 
     return { status: "sent", ts: payload.ts ?? null }
   } catch (error) {
-    console.warn("[chatbot slack notification failed]", {
-      error: error instanceof Error ? error.message : String(error),
+    logPrivacySafeChatbotEvent({
+      event: "chatbot_slack_notification_failed",
+      errorKind: error instanceof Error ? error.name : typeof error,
       conversationId: input.conversationId,
       kind: input.kind,
     })
@@ -191,11 +195,7 @@ function buildSlackText(input: ChatbotSlackNotificationInput): string {
 }
 
 function formatTrackingLines(input: ChatbotSlackNotificationInput): string[] {
-  return [
-    `会話ID: ${input.conversationId}`,
-    ...(input.sessionId ? [`セッションID: ${input.sessionId}`] : []),
-    ...formatRequiredOperationLines(input),
-  ]
+  return formatRequiredOperationLines(input)
 }
 
 function formatRequiredOperationLines(input: ChatbotSlackNotificationInput): string[] {

@@ -173,6 +173,14 @@ describe("WidgetShell API wiring", () => {
           }),
         )
       }
+      if (String(input).startsWith("/api/chatbot/audit-summary?")) {
+        return Promise.resolve(mockJsonResponse({
+          status: "complete",
+          eventCount: 8,
+          missingEvents: [],
+          failedEvents: [],
+        }))
+      }
       return Promise.resolve(
         mockJsonResponse({
           requestId: "request-debug-1",
@@ -198,6 +206,17 @@ describe("WidgetShell API wiring", () => {
             contextRebuiltFromHpDb: false,
             tierFallbackReason: "notion-thread-hide-verification-failed",
           },
+          auditDebug: {
+            schemaVersion: "1",
+            persistenceStatus: "scheduled",
+            eventCount: 6,
+            stageTimings: {
+              conversationLoad: 10,
+              workerQueueWait: 12,
+              promptToFirstChunk: 100,
+              totalServer: 210,
+            },
+          },
         }),
       )
     })
@@ -219,7 +238,12 @@ describe("WidgetShell API wiring", () => {
     expect(within(panel).getByText("thread123abc")).toBeInTheDocument()
     expect(within(panel).getByText("verified")).toBeInTheDocument()
     expect(within(panel).getByText("notion-thread-hide-verification-failed")).toBeInTheDocument()
+    expect(await within(panel).findByText("complete")).toBeInTheDocument()
+    expect(within(panel).getByText("12 ms")).toBeInTheDocument()
+    expect(within(panel).getByText("100 ms")).toBeInTheDocument()
+    expect(within(panel).getByText("210 ms")).toBeInTheDocument()
     expect(panel).not.toHaveTextContent("conv_debug")
+    expect(panel).not.toHaveTextContent("/tmp/debug-worktree")
     expect(within(panel).getByText("side-peek / desktop")).toBeInTheDocument()
     expect(within(panel).getByText("none")).toBeInTheDocument()
     expect(panel).not.toHaveTextContent("相談したいです")

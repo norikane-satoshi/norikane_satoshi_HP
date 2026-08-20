@@ -162,6 +162,17 @@ describe("Tier1HostedChromeNotionAiClient", () => {
         jsonResponse({
           rawText: "承知しました",
           diagnostics: {
+            stageTimings: {
+              workerQueueWait: { startedAtEpochMs: 0, completedAtEpochMs: 12, durationMs: 12 },
+              cdpTargetSession: { startedAtEpochMs: 12, completedAtEpochMs: 32, durationMs: 20 },
+              runtimeContextPreparation: { startedAtEpochMs: 32, completedAtEpochMs: 72, durationMs: 40 },
+              inferenceAttempts: [{
+                attempt: 1,
+                promptToFirstChunk: { startedAtEpochMs: 72, completedAtEpochMs: 172, durationMs: 100 },
+                firstChunkToFinalChunk: { startedAtEpochMs: 172, completedAtEpochMs: 222, durationMs: 50 },
+                ndjsonOutputContractValidation: { startedAtEpochMs: 222, completedAtEpochMs: 227, durationMs: 5 },
+              }],
+            },
             conversationThread: {
               mode: "reused",
               threadIdHash: "abc123def456",
@@ -194,6 +205,14 @@ describe("Tier1HostedChromeNotionAiClient", () => {
       visibilityStatus: "hidden",
       hiddenFromChatList: true,
       postHideInferenceVerified: true,
+    })
+    expect(response.diagnostics?.workerStageDurations).toEqual({
+      workerQueueWait: 12,
+      cdpTargetSession: 20,
+      runtimeContextPreparation: 40,
+      promptToFirstChunk: 100,
+      responseStreaming: 50,
+      outputValidation: 5,
     })
     expect(JSON.stringify(response.diagnostics)).not.toContain("must-not-leak")
   })

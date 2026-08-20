@@ -6,6 +6,7 @@ import {
 import {
   hostedWorkerTier,
   type HostedWorkerHealthResponse,
+  type HostedWorkerOperationalState,
   type HostedWorkerQueueState,
 } from "@/lib/chatbot/hosted-worker/types"
 
@@ -22,6 +23,7 @@ export type HostedWorkerThreadRotationState = {
 export type HostedWorkerRuntimeState = {
   workerStartedAtEpochMs: number
   queue: HostedWorkerQueueState
+  runtime: HostedWorkerOperationalState
   lastReadyHealth?: HostedWorkerHealthResponse
   threadRotation?: HostedWorkerThreadRotationState
 }
@@ -33,7 +35,38 @@ export function createHostedWorkerRuntimeState(): HostedWorkerRuntimeState {
       inFlight: false,
       queueLength: 0,
     },
+    runtime: {
+      currentStatus: "ready",
+      consecutiveFailures: 0,
+    },
   }
+}
+
+export function recordHostedWorkerGenerateFailure(
+  state: HostedWorkerRuntimeState,
+  input: {
+    code: HostedWorkerOperationalState["lastErrorCode"]
+    at: string
+    latencyMs: number
+  },
+): void {
+  state.runtime.currentStatus = "degraded"
+  state.runtime.consecutiveFailures += 1
+  state.runtime.lastErrorCode = input.code
+  state.runtime.lastErrorAt = input.at
+  state.runtime.lastLatencyMs = input.latencyMs
+}
+
+export function recordHostedWorkerGenerateSuccess(
+  state: HostedWorkerRuntimeState,
+  input: { at: string; latencyMs: number },
+): void {
+  const recovered = state.runtime.currentStatus === "degraded"
+  state.runtime.currentStatus = "ready"
+  state.runtime.consecutiveFailures = 0
+  state.runtime.lastSuccessfulGenerateAt = input.at
+  state.runtime.lastLatencyMs = input.latencyMs
+  if (recovered) state.runtime.lastRecoveredAt = input.at
 }
 
 export async function getHostedWorkerHealth(
@@ -44,6 +77,7 @@ export async function getHostedWorkerHealth(
     ...chrome,
     tier: hostedWorkerTier,
     queue: { ...state.queue },
+    runtime: { ...state.runtime },
     notionThread: buildNotionThreadHealth(state),
     healthMode: "deep" as const,
     checkedAt: new Date().toISOString(),
@@ -76,6 +110,7 @@ export function getHostedWorkerQuickHealth(
     targetCount: cached?.targetCount,
     tier: hostedWorkerTier,
     queue: { ...state.queue },
+    runtime: { ...state.runtime },
     notionThread: buildNotionThreadHealth(state),
     healthMode: "quick",
     checkedAt: new Date().toISOString(),

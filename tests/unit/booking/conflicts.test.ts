@@ -51,6 +51,7 @@ function conflict(overrides: Partial<ConflictBooking> = {}): ConflictBooking {
       originatedFrom: null,
       lineUserId: null,
       chatConversationId: null,
+      chatbotIdempotencyKey: null,
       createdAt: now,
       updatedAt: now,
       customer: {

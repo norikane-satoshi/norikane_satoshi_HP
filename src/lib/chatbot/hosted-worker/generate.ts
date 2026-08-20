@@ -33,9 +33,11 @@ import {
   hostedWorkerTier,
   type HostedWorkerGenerateResponse,
 } from "@/lib/chatbot/hosted-worker/types"
-import type {
-  HostedWorkerRuntimeState,
-  HostedWorkerThreadRotationState,
+import {
+  recordHostedWorkerGenerateFailure,
+  recordHostedWorkerGenerateSuccess,
+  type HostedWorkerRuntimeState,
+  type HostedWorkerThreadRotationState,
 } from "@/lib/chatbot/hosted-worker/health"
 
 type GenerateOptions = {
@@ -274,9 +276,10 @@ export async function generateHostedWorkerResponse(
     )
     const latencyMs = (options.now?.() ?? Date.now()) - startedAt
     outcome = "success"
-    state.queue.lastSuccessAt = new Date().toISOString()
-    state.queue.lastErrorCode = undefined
-    state.queue.lastLatencyMs = latencyMs
+    recordHostedWorkerGenerateSuccess(state, {
+      at: new Date(options.now?.() ?? Date.now()).toISOString(),
+      latencyMs,
+    })
     cdpConnectionState = safeHostedNotionAiCdpConnectionState(response.diagnostics?.cdpConnectionState)
     conversationThread = safeHostedWorkerConversationThreadDiagnostic(response.diagnostics?.conversationThread)
     const hostedNotionAiStageTimings = safeHostedNotionAiStageTimings(response.diagnostics?.stageTimings)
@@ -304,8 +307,12 @@ export async function generateHostedWorkerResponse(
         : normalized.code
     threadLifecycleFailure = safeThreadLifecycleFailure(normalized.cause)
     aborted = isAbortError(error) || errorCode === abortTag
-    state.queue.lastErrorCode = normalized.code
-    state.queue.lastLatencyMs = (options.now?.() ?? Date.now()) - startedAt
+    const failureRecordedAt = options.now?.() ?? Date.now()
+    recordHostedWorkerGenerateFailure(state, {
+      code: normalized.code,
+      at: new Date(failureRecordedAt).toISOString(),
+      latencyMs: failureRecordedAt - startedAt,
+    })
     throw normalized
   } finally {
     if (diagnosticsPath) {

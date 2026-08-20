@@ -82,6 +82,8 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).not.toContain("do-not-leak-token")
     expect(body.text).not.toContain("do-not-leak-cookie")
     expect(body.text).not.toContain("do-not-leak-request")
+    expect(body.text).not.toContain("conv_1")
+    expect(body.text).not.toContain("session_1")
   })
 
   it("includes retry diagnostics in issue thread replies", async () => {

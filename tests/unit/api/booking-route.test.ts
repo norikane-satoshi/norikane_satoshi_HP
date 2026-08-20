@@ -315,7 +315,8 @@ describe("POST /api/booking", () => {
   })
 
   it("keeps LINE receipt failures non-fatal and logs the failed method", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.stubEnv("NODE_ENV", "production")
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined)
     mockHappyPath()
     mocks.auth.mockResolvedValue({
       user: { id: "line_user_1", email: null },
@@ -335,13 +336,17 @@ describe("POST /api/booking", () => {
     })))
 
     expect(response.status).toBe(200)
-    expect(warn).toHaveBeenCalledWith("LINE booking receipt failed", {
-      bookingGroupId: "group_1",
+    const log = JSON.parse(String(info.mock.calls[0]?.[0]))
+    expect(log).toEqual({
+      event: "booking_line_receipt_failed",
       method: "push",
       status: 401,
-      error: "invalid token",
+      errorCode: "line_receipt_failed",
     })
-    warn.mockRestore()
+    expect(JSON.stringify(log)).not.toContain("group_1")
+    expect(JSON.stringify(log)).not.toContain("invalid token")
+    info.mockRestore()
+    vi.unstubAllEnvs()
   })
 
   it("keeps normal web bookings blocked when the authenticated session has no email", async () => {
@@ -393,37 +398,47 @@ describe("POST /api/booking", () => {
   })
 
   it("keeps the booking when confirmation email fails", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.stubEnv("NODE_ENV", "production")
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined)
     mockHappyPath()
     mocks.sendBookingConfirmedEmail.mockRejectedValue(new Error("resend down"))
 
     const response = await POST(request(validBooking()))
 
     expect(response.status).toBe(200)
-    expect(warn).toHaveBeenCalledWith(
-      "[email failed] tag=tentative_hold to=satoshi@example.com",
-      "resend down",
-    )
-    warn.mockRestore()
+    const logged = String(info.mock.calls[0]?.[0])
+    expect(JSON.parse(logged)).toEqual({
+      event: "booking_customer_email_failed",
+      tag: "tentative_hold",
+      errorCode: "Error",
+    })
+    expect(logged).not.toContain("satoshi@example.com")
+    expect(logged).not.toContain("resend down")
+    info.mockRestore()
+    vi.unstubAllEnvs()
   })
 
   it("logs non-Error confirmation email failures without failing the booking", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.stubEnv("NODE_ENV", "production")
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined)
     mockHappyPath()
     mocks.sendBookingConfirmedEmail.mockRejectedValue("down")
 
     const response = await POST(request(validBooking()))
 
     expect(response.status).toBe(200)
-    expect(warn).toHaveBeenCalledWith(
-      "[email failed] tag=tentative_hold to=satoshi@example.com",
-      "email send failed",
-    )
-    warn.mockRestore()
+    expect(JSON.parse(String(info.mock.calls[0]?.[0]))).toEqual({
+      event: "booking_customer_email_failed",
+      tag: "tentative_hold",
+      errorCode: "unknown_error",
+    })
+    info.mockRestore()
+    vi.unstubAllEnvs()
   })
 
   it("returns 502 when the Google Calendar write fails after the pending hold", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.stubEnv("NODE_ENV", "production")
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined)
     mockHappyPath()
     mocks.createCalendarEvent.mockRejectedValue(new Error("gcal down"))
 
@@ -443,11 +458,15 @@ describe("POST /api/booking", () => {
       where: { bookingGroupId: "group_1" },
       data: { status: "FAILED" },
     })
-    warn.mockRestore()
+    expect(String(info.mock.calls[0]?.[0])).not.toContain("group_1")
+    expect(String(info.mock.calls[0]?.[0])).not.toContain("gcal down")
+    info.mockRestore()
+    vi.unstubAllEnvs()
   })
 
   it("returns 502 when the shared Google Calendar token is missing", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.stubEnv("NODE_ENV", "production")
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined)
     mockHappyPath()
     mocks.prisma.calendarToken.findUnique.mockResolvedValue(null)
 
@@ -460,7 +479,9 @@ describe("POST /api/booking", () => {
       bookingGroupId: "group_1",
     })
     expect(mocks.refreshCalendarAccessToken).not.toHaveBeenCalled()
-    warn.mockRestore()
+    expect(String(info.mock.calls[0]?.[0])).not.toContain("group_1")
+    info.mockRestore()
+    vi.unstubAllEnvs()
   })
 
   it("returns normalized internal errors for unexpected persistence failures", async () => {

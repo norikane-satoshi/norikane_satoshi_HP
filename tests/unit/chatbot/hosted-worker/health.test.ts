@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   createHostedWorkerRuntimeState,
   getHostedWorkerQuickHealth,
+  recordHostedWorkerGenerateFailure,
+  recordHostedWorkerGenerateSuccess,
 } from "@/lib/chatbot/hosted-worker/health"
 
 describe("hosted worker health", () => {
@@ -53,6 +55,7 @@ describe("hosted worker health", () => {
       targetCount: 3,
       tier: "tier-1-hosted-chrome-notion-ai",
       queue: { inFlight: false, queueLength: 0 },
+      runtime: { currentStatus: "ready", consecutiveFailures: 0 },
       healthMode: "deep",
       checkedAt: "2026-06-29T00:00:00.000Z",
     }
@@ -65,6 +68,39 @@ describe("hosted worker health", () => {
       notionTarget: { found: true, targetUrlMatches: true },
       notionAiModelSelection: { selectedModel: "diagnostic-model" },
       targetCount: 3,
+    })
+  })
+
+  it("separates current readiness from the last historical incident", () => {
+    const state = createHostedWorkerRuntimeState()
+
+    recordHostedWorkerGenerateFailure(state, {
+      code: "rate-limit",
+      at: "2026-08-20T00:01:00.000Z",
+      latencyMs: 5_000,
+    })
+
+    expect(getHostedWorkerQuickHealth(state).runtime).toEqual({
+      currentStatus: "degraded",
+      consecutiveFailures: 1,
+      lastErrorCode: "rate-limit",
+      lastErrorAt: "2026-08-20T00:01:00.000Z",
+      lastLatencyMs: 5_000,
+    })
+
+    recordHostedWorkerGenerateSuccess(state, {
+      at: "2026-08-20T00:02:00.000Z",
+      latencyMs: 1_500,
+    })
+
+    expect(getHostedWorkerQuickHealth(state).runtime).toEqual({
+      currentStatus: "ready",
+      consecutiveFailures: 0,
+      lastSuccessfulGenerateAt: "2026-08-20T00:02:00.000Z",
+      lastErrorCode: "rate-limit",
+      lastErrorAt: "2026-08-20T00:01:00.000Z",
+      lastRecoveredAt: "2026-08-20T00:02:00.000Z",
+      lastLatencyMs: 1_500,
     })
   })
 })

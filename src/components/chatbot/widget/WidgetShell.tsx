@@ -42,6 +42,11 @@ import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
 import { SecurityNote } from "./SecurityNote"
 import { ThinkingIndicator } from "./ThinkingIndicator"
+import {
+  createChatbotBrowserAuditEventId,
+  postChatbotBrowserAuditEvent,
+  type ChatbotRenderAuditContext,
+} from "./browser-audit"
 import { useConversationScroll } from "./useConversationScroll"
 
 type WidgetShellProps = {
@@ -472,6 +477,7 @@ export function WidgetShell({
   const [conversationId, setConversationId] = useState<string | undefined>(undefined)
   const [clientSessionId, setClientSessionId] = useState<string>(() => createClientSessionId())
   const [activeUi, setActiveUi] = useState<WidgetUi>(noUi)
+  const [activeAuditContext, setActiveAuditContext] = useState<ChatbotRenderAuditContext | undefined>(undefined)
   const [customerDisplayName, setCustomerDisplayName] = useState<string | undefined>(undefined)
   const [inquiryPrefill, setInquiryPrefill] = useState<InquiryFormPrefill | undefined>(undefined)
   const [submitting, setSubmitting] = useState(false)
@@ -491,6 +497,8 @@ export function WidgetShell({
   const scrollIndicatorFrameRef = useRef<number | null>(null)
   const scrollIndicatorFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scrollThumbDragSessionRef = useRef<ScrollThumbDragSession | null>(null)
+  const browserAuditEventIdsRef = useRef(new Map<string, string>())
+  const sentBrowserAuditKeysRef = useRef(new Set<string>())
   const [scrollIndicator, setScrollIndicator] = useState<ScrollIndicatorState>(hiddenScrollIndicatorState)
   const [isScrollThumbDragging, setIsScrollThumbDragging] = useState(false)
   const conversationContentKey = [
@@ -668,6 +676,19 @@ export function WidgetShell({
     }
   }
 
+  const rememberResponseAuditContext = (payload: {
+    requestId?: string
+    tier: ChatbotRenderAuditContext["tier"]
+  }) => {
+    setActiveAuditContext(payload.requestId
+      ? {
+          correlationId: payload.requestId,
+          tier: payload.tier,
+          responseReceivedAt: performance.now(),
+        }
+      : undefined)
+  }
+
   useEffect(() => {
     if (!submitting) return
 
@@ -797,6 +818,7 @@ export function WidgetShell({
       })
       setActiveUi(payload.ui)
       rememberResponseContext(payload)
+      rememberResponseAuditContext(payload)
       setRecoverableRequest(undefined)
       setLastDebugRequest({
         operation: "message-recovery",
@@ -806,6 +828,7 @@ export function WidgetShell({
         requestId: payload.requestId,
         tier: payload.tier,
         lifecycle: payload.debug,
+        audit: payload.auditDebug,
       })
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) {
@@ -969,6 +992,7 @@ export function WidgetShell({
       })
       setActiveUi(nextActiveUi)
       rememberResponseContext(payload)
+      rememberResponseAuditContext(payload)
       setRecoverableRequest(undefined)
       setLastDebugRequest({
         operation: "message",
@@ -978,6 +1002,7 @@ export function WidgetShell({
         requestId: payload.requestId,
         tier: payload.tier,
         lifecycle: payload.debug,
+        audit: payload.auditDebug,
       })
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) {
@@ -1104,6 +1129,7 @@ export function WidgetShell({
       })
       setActiveUi(payload.ui)
       rememberResponseContext(payload)
+      rememberResponseAuditContext(payload)
       setRecoverableRequest(undefined)
       setLastDebugRequest({
         operation: "message-edit",
@@ -1113,6 +1139,7 @@ export function WidgetShell({
         requestId: payload.requestId,
         tier: payload.tier,
         lifecycle: payload.debug,
+        audit: payload.auditDebug,
       })
     } catch (error) {
       if (isChatbotRequestCancelledError(error)) {
@@ -1258,6 +1285,43 @@ export function WidgetShell({
   const isFloating = isDesktopLayout && displayMode === "floating"
   const isFullScreen = !isDesktopLayout && displayMode === "full-screen"
   const assistantDisplayName = isAssistantNameIntroduced(messages) ? "のーちゃん" : "AI アシスタント"
+
+  useEffect(() => {
+    if (!activeAuditContext || !conversationId) return
+    const eventNames = [
+      ...(customerDisplayName ? ["customer_display_name_applied" as const] : []),
+      ...(assistantDisplayName === "のーちゃん" ? ["assistant_display_name_applied" as const] : []),
+    ]
+    const durationMs = Math.max(
+      0,
+      Math.min(180_000, Math.round(performance.now() - activeAuditContext.responseReceivedAt)),
+    )
+    eventNames.forEach((eventName) => {
+      const auditKey = `${activeAuditContext.correlationId}:${eventName}`
+      if (sentBrowserAuditKeysRef.current.has(auditKey)) return
+      sentBrowserAuditKeysRef.current.add(auditKey)
+      const eventId = browserAuditEventIdsRef.current.get(auditKey) ?? createChatbotBrowserAuditEventId()
+      browserAuditEventIdsRef.current.set(auditKey, eventId)
+      void postChatbotBrowserAuditEvent({
+        schemaVersion: "1",
+        eventId,
+        eventName,
+        correlationId: activeAuditContext.correlationId,
+        conversationId,
+        result: "success",
+        tier: activeAuditContext.tier,
+        uiKind: activeUi.kind,
+        phase: "render",
+        durationMs,
+        stageTimings: { reactCommit: durationMs },
+      }).catch((error) => {
+        console.warn("[CHATBOT_BROWSER_AUDIT_FAILURE]", {
+          event: eventName,
+          errorCode: error instanceof Error ? error.message : "unknown",
+        })
+      })
+    })
+  }, [activeAuditContext, activeUi.kind, assistantDisplayName, conversationId, customerDisplayName])
   const shellSizeClassName = isDesktopLayout
     ? "h-full w-full max-w-none rounded-[var(--hp-radius)]"
     : isFullScreen
@@ -1474,7 +1538,7 @@ export function WidgetShell({
                 : "idle",
             activeUiKind: activeUi.kind,
             messageCount: messages.length,
-            clientSessionId,
+            hasClientSession: Boolean(clientSessionId),
             pendingRequestKind: pendingRequest?.kind,
             recoverableRequestKind: recoverableRequest?.kind,
             lastRequest: lastDebugRequest,
@@ -1520,6 +1584,7 @@ export function WidgetShell({
                   <ActiveWidgetUi
                     ui={message.embeddedUi}
                     conversationId={conversationId}
+                    auditContext={undefined}
                     onSubmit={handleSubmit}
                     onInquirySubmit={handleInquirySubmit}
                     onBookingCompleted={handleBookingCompleted}
@@ -1553,6 +1618,7 @@ export function WidgetShell({
           <ActiveWidgetUi
             ui={activeUi}
             conversationId={conversationId}
+            auditContext={activeAuditContext}
             onSubmit={handleSubmit}
             onInquirySubmit={handleInquirySubmit}
             onBookingCompleted={handleBookingCompleted}
@@ -1657,16 +1723,56 @@ function debugUnknownFailureRequest(
 function ActiveWidgetUi({
   ui,
   conversationId,
+  auditContext,
   onSubmit,
   onInquirySubmit,
   onBookingCompleted,
 }: {
   ui: WidgetUi
   conversationId?: string
+  auditContext?: ChatbotRenderAuditContext
   onSubmit: (text: string) => void
   onInquirySubmit: (input: Omit<SubmitInquiryInput, "conversationId">) => void
   onBookingCompleted: (booking: BookingCompletionSummary) => void
 }) {
+  const auditEventIdsRef = useRef(new Map<string, string>())
+  const sentAuditKeysRef = useRef(new Set<string>())
+
+  useEffect(() => {
+    if (!auditContext || !conversationId) return
+    const auditEvent = ui.kind === "choice-panel"
+      ? { eventName: "choice_panel_rendered" as const, uiKind: "choice-panel" as const }
+      : ui.kind === "tier3-inquiry-form"
+        ? { eventName: "fallback_ui_rendered" as const, uiKind: "tier3-inquiry-form" as const }
+        : undefined
+    if (!auditEvent) return
+    const auditKey = `${auditContext.correlationId}:${auditEvent.eventName}`
+    if (sentAuditKeysRef.current.has(auditKey)) return
+    sentAuditKeysRef.current.add(auditKey)
+    const eventId = auditEventIdsRef.current.get(auditKey) ?? createChatbotBrowserAuditEventId()
+    auditEventIdsRef.current.set(auditKey, eventId)
+    const durationMs = Math.max(0, Math.min(180_000, Math.round(performance.now() - auditContext.responseReceivedAt)))
+    void postChatbotBrowserAuditEvent({
+      schemaVersion: "1",
+      eventId,
+      eventName: auditEvent.eventName,
+      correlationId: auditContext.correlationId,
+      conversationId,
+      result: "success",
+      tier: auditContext.tier,
+      uiKind: auditEvent.uiKind,
+      phase: "render",
+      durationMs,
+      stageTimings: { reactCommit: durationMs },
+      fallbackUsed: auditEvent.eventName === "fallback_ui_rendered",
+    }).catch((error) => {
+      console.warn("[CHATBOT_BROWSER_AUDIT_FAILURE]", {
+        event: auditEvent.eventName,
+        errorCode: error instanceof Error ? error.message : "unknown",
+      })
+    })
+  }, [auditContext, conversationId, ui.kind])
+
   if (ui.kind === "choice-panel") {
     return (
       <ChoicePanel
@@ -1694,6 +1800,7 @@ function ActiveWidgetUi({
         defaultDueDate={ui.bookingPrefill?.dueDate ?? ui.jobContext.publicReleaseDate}
         defaultMemo={buildBookingSupplementalNote(ui.jobContext, ui.bookingPrefill?.memo)}
         completedBooking={ui.completedBooking}
+        auditContext={auditContext}
         onBooked={onBookingCompleted}
       />
     )

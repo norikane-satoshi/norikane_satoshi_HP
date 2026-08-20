@@ -50,7 +50,10 @@ import {
   findCandidateCalendar,
   type CandidateCalendarResult,
 } from "@/lib/chatbot/server/availability-finder"
-import { logChatbotBoundaryEvent } from "@/lib/chatbot/server/boundary-event-log"
+import {
+  logChatbotBoundaryEvent,
+  logPrivacySafeChatbotEvent,
+} from "@/lib/chatbot/server/boundary-event-log"
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import {
@@ -100,6 +103,12 @@ import {
   type ChatbotRetryDiagnosticsSummary,
   type ChatbotSlackNotificationInput,
 } from "@/lib/chatbot/server/slack-notifier"
+import {
+  buildChatbotMessageIntegrity,
+  summarizeTierAttemptForAudit,
+  type ChatbotMessageAuditEvidence,
+  type ChatbotTierAttemptAuditEvidence,
+} from "@/lib/chatbot/audit/server-evidence"
 
 type ChatbotMessageUi =
   | { kind: "none" }
@@ -152,6 +161,10 @@ export type ChatbotMessageApiResult = {
   }
 }
 
+export type ChatbotMessageHandlerResult = ChatbotMessageApiResult & {
+  auditEvidence: ChatbotMessageAuditEvidence
+}
+
 export type HandleChatbotMessageInput = {
   requestId?: string
   sessionId: string
@@ -195,6 +208,7 @@ type HandleChatbotMessageOptions = {
   candidateWindowFinder?: CandidateWindowFinder
   knowledgeSnapshotLoader?: typeof loadLatestChatbotKnowledgeSnapshot
   slackNotifier?: typeof sendChatbotSlackNotification
+  now?: () => number
 }
 
 export class ChatbotMessagePersistenceError extends Error {
@@ -239,13 +253,19 @@ const llmHistoryMaxCharactersPerMessage = 1_500
 export async function handleChatbotMessage(
   input: HandleChatbotMessageInput,
   options: HandleChatbotMessageOptions = {},
-): Promise<ChatbotMessageApiResult> {
+): Promise<ChatbotMessageHandlerResult> {
+  const now = options.now ?? Date.now
+  const totalServerStartedAt = now()
+  const stageTimings: ChatbotMessageAuditEvidence["stageTimings"] = {}
+  const tierAttempts: ChatbotTierAttemptAuditEvidence[] = []
+  let conversationPersistMs = 0
   const repository = options.repository ?? defaultRepository
   const userContextLoader = options.userContextLoader ?? loadUserChatbotContext
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
   const candidateWindowFinder = options.candidateWindowFinder ?? findCandidateCalendar
   const knowledgeSnapshotLoader = options.knowledgeSnapshotLoader ?? loadLatestChatbotKnowledgeSnapshot
   const slackNotifier = options.slackNotifier ?? sendChatbotSlackNotification
+  const conversationLoadStartedAt = now()
   let conversation =
     (await repository.loadConversationBySessionId(input.sessionId)) ??
     (await repository.createConversation({ sessionId: input.sessionId, userId: input.userId ?? null }))
@@ -258,6 +278,7 @@ export async function handleChatbotMessage(
   } else if (input.userId && conversation.context.userId !== input.userId) {
     await repository.linkConversationToUser({ conversationId: conversation.id, userId: input.userId })
   }
+  stageTimings.conversationLoad = elapsedMs(conversationLoadStartedAt, now())
 
   let didTruncateForEdit = false
   let editSlackEvent: ChatbotEditSlackEvent | undefined
@@ -312,7 +333,8 @@ export async function handleChatbotMessage(
         messageId: input.recoverClientUserMessageId,
       })
       conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, recoverTargetIndex))
-      console.info("[chatbot pending request recovered]", {
+      logPrivacySafeChatbotEvent({
+        event: "chatbot_pending_request_recovered",
         conversationId: conversation.id,
         sessionId: conversation.context.sessionId,
         recoveredMessageIdKind: "client",
@@ -323,12 +345,15 @@ export async function handleChatbotMessage(
 
   conversation = reconcileConversationContextFromHistory(conversation)
 
+  const userMessagePersistStartedAt = now()
   const userMessage = await repository.appendMessage({
     ...(input.clientUserMessageId ? { id: input.clientUserMessageId } : {}),
     conversationId: conversation.id,
     role: "user",
     content: input.message,
   })
+  conversationPersistMs += elapsedMs(userMessagePersistStartedAt, now())
+  const contextPreparationStartedAt = now()
   if (editSlackEvent) {
     await notifySlackForChatbotEdit({
       notifier: slackNotifier,
@@ -420,13 +445,14 @@ export async function handleChatbotMessage(
       conversationId: conversation.id,
       latestUserMessage: input.message,
       userAgent: input.userAgent,
-    })
+    }, (event) => tierAttempts.push(summarizeTierAttemptForAudit(event)))
   const fallbackRoutingDecision = decideRoutingFallback({
     jobContext,
     conversationState,
     latestUserMessage: input.message,
     knowledgeSnapshot,
   })
+  stageTimings.contextPreparation = elapsedMs(contextPreparationStartedAt, now())
   const llmResponse = await generateContractedLlmResponse({
     orchestrator,
     request: {
@@ -442,6 +468,7 @@ export async function handleChatbotMessage(
     },
     fallbackRoutingDecision,
   })
+  const responseNormalizationStartedAt = now()
   const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
   const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
   const resolvedRoutingDecision = shouldRegenerateStructuredUi(llmResponse)
@@ -555,11 +582,14 @@ export async function handleChatbotMessage(
     finalText: assistantContent,
     report: assistantDisplay.sanitizationReport,
   })
+  stageTimings.responseNormalization = elapsedMs(responseNormalizationStartedAt, now())
+  const assistantMessagePersistStartedAt = now()
   const assistantMessage = await repository.appendMessage({
     conversationId: conversation.id,
     role: "assistant",
     content: assistantContent,
   })
+  conversationPersistMs += elapsedMs(assistantMessagePersistStartedAt, now())
 
   const issueReasons = detectChatbotIssueReasons(llmResponse.tier)
   logChatbotLlmFinalResponse({
@@ -584,6 +614,7 @@ export async function handleChatbotMessage(
     persistedConversationState.hasCustomerIdentity !== storedConversationState.hasCustomerIdentity ||
     persistedConversationState.hasContactEmail !== storedConversationState.hasContactEmail
   if (routingDecision || submittedBooking || customerIdentityChanged) {
+    const routingPersistStartedAt = now()
     try {
       await repository.updateConversationRouting({
         conversationId: conversation.id,
@@ -603,6 +634,7 @@ export async function handleChatbotMessage(
         conversationState: persistedConversationState,
         jobContext,
       })
+      conversationPersistMs += elapsedMs(routingPersistStartedAt, now())
     } catch (error) {
       throw new ChatbotMessagePersistenceError({
         cause: error,
@@ -613,7 +645,9 @@ export async function handleChatbotMessage(
       })
     }
   }
-  await notifySlackForChatbotResponse({
+  stageTimings.conversationPersist = conversationPersistMs
+  const slackNotificationStartedAt = now()
+  const slack = await notifySlackForChatbotResponse({
     notifier: slackNotifier,
     repository,
     requestId: input.requestId,
@@ -636,6 +670,17 @@ export async function handleChatbotMessage(
     pendingRecovery: isPendingRequestRecovery,
     pendingRequestKind: input.pendingRequestKind,
   })
+  stageTimings.slackNotification = elapsedMs(slackNotificationStartedAt, now())
+  stageTimings.tierHealthCheck = sumAttemptDurations(tierAttempts, "health-check")
+  const tier1WorkerTimings = tierAttempts.find(
+    (attempt) => attempt.phase === "generate" && attempt.tier === "tier-1-hosted-chrome-notion-ai" && attempt.stageTimings,
+  )?.stageTimings
+  if (tier1WorkerTimings) Object.assign(stageTimings, tier1WorkerTimings)
+  stageTimings.notionInference = sumTierGenerateDurations(
+    tierAttempts,
+    "tier-1-hosted-chrome-notion-ai",
+  )
+  stageTimings.totalServer = elapsedMs(totalServerStartedAt, now())
 
   return {
     conversationId: conversation.id,
@@ -658,6 +703,16 @@ export async function handleChatbotMessage(
       ? { customerDisplayName: persistedConversationState.customerName }
       : {}),
     inquiryPrefill,
+    auditEvidence: {
+      stageTimings,
+      tierAttempts,
+      slack,
+      messageIntegrity: buildChatbotMessageIntegrity([
+        ...conversation.messages.map((message) => message.role),
+        userMessage.role,
+        assistantMessage.role,
+      ]),
+    },
     ...(() => {
       const debug = summarizeChatbotLifecycleDebug(llmResponse.diagnostics)
       return debug ? { debug } : {}
@@ -884,8 +939,7 @@ function logProjectTypeChoiceMismatch(input: {
   receivedChoiceLabels: string[]
   correctedChoiceLabels: string[]
 }): void {
-  console.info(
-    JSON.stringify({
+  logPrivacySafeChatbotEvent({
       event: "project_type_choice_mismatch",
       requestId: input.requestId,
       conversationId: input.conversation.id,
@@ -897,8 +951,7 @@ function logProjectTypeChoiceMismatch(input: {
       correctedQuestion: redactForChatbotLog(input.correctedQuestion),
       receivedChoiceLabels: input.receivedChoiceLabels.map(redactForChatbotLog),
       correctedChoiceLabels: input.correctedChoiceLabels.map(redactForChatbotLog),
-    }),
-  )
+  })
 }
 
 function enforceFinalMediumChoiceContract(input: {
@@ -1032,8 +1085,7 @@ function logFinalMediumChoiceMismatch(input: {
   correctedQuestion: string
   receivedChoiceLabels: string[]
 }): void {
-  console.info(
-    JSON.stringify({
+  logPrivacySafeChatbotEvent({
       event: "final_media_choice_mismatch",
       requestId: input.requestId,
       conversationId: input.conversation.id,
@@ -1044,8 +1096,7 @@ function logFinalMediumChoiceMismatch(input: {
       receivedQuestion: redactForChatbotLog(input.receivedQuestion),
       correctedQuestion: redactForChatbotLog(input.correctedQuestion),
       receivedChoiceLabels: input.receivedChoiceLabels.map(redactForChatbotLog),
-    }),
-  )
+  })
 }
 
 function hasConsultationStartIntent(message: string): boolean {
@@ -1082,7 +1133,7 @@ async function notifySlackForChatbotResponse(input: {
   retryDiagnostics?: ChatbotRetryDiagnosticsSummary
   pendingRecovery?: boolean
   pendingRequestKind?: "message" | "edit"
-}): Promise<void> {
+}): Promise<ChatbotMessageAuditEvidence["slack"]> {
   try {
     const threadTs = input.conversation.context.slackThreadTs
     const baseNotification: ChatbotSlackNotificationInput = {
@@ -1105,6 +1156,9 @@ async function notifySlackForChatbotResponse(input: {
       pendingRequestKind: input.pendingRequestKind,
     }
     const result = await input.notifier(baseNotification)
+    let auditResult: ChatbotMessageAuditEvidence["slack"] = result.status === "sent"
+      ? { result: "success" }
+      : { result: "failure", errorCode: `slack-${result.status}` }
     const savedThreadTs = threadTs ?? (result.status === "sent" ? result.ts : null)
 
     if (!threadTs && savedThreadTs) {
@@ -1116,7 +1170,7 @@ async function notifySlackForChatbotResponse(input: {
 
     const issueReasons = input.issueReasons ?? detectChatbotIssueReasons(input.tier)
     if (issueReasons.length > 0 && savedThreadTs) {
-      await input.notifier({
+      const issueResult = await input.notifier({
         kind: "issue",
         requestId: input.requestId,
         conversationId: input.conversation.id,
@@ -1130,10 +1184,46 @@ async function notifySlackForChatbotResponse(input: {
         pendingRecovery: input.pendingRecovery,
         pendingRequestKind: input.pendingRequestKind,
       })
+      if (issueResult.status !== "sent") {
+        auditResult = { result: "failure", errorCode: `slack-${issueResult.status}` }
+      }
     }
+    return auditResult
   } catch (error) {
-    console.warn("[chatbot slack notification failed]", error instanceof Error ? error.message : String(error))
+    logPrivacySafeChatbotEvent({
+      event: "chatbot_slack_notification_failed",
+      errorName: error instanceof Error ? error.name : typeof error,
+    })
+    return { result: "failure", errorCode: "slack-exception" }
   }
+}
+
+function elapsedMs(startedAt: number, completedAt: number): number {
+  return Math.max(0, Math.min(180_000, Math.round(completedAt - startedAt)))
+}
+
+function sumAttemptDurations(
+  attempts: ChatbotTierAttemptAuditEvidence[],
+  phase: ChatbotTierAttemptAuditEvidence["phase"],
+): number {
+  return Math.min(
+    180_000,
+    attempts
+      .filter((attempt) => attempt.phase === phase)
+      .reduce((total, attempt) => total + attempt.durationMs, 0),
+  )
+}
+
+function sumTierGenerateDurations(
+  attempts: ChatbotTierAttemptAuditEvidence[],
+  tier: ChatbotTierAttemptAuditEvidence["tier"],
+): number {
+  return Math.min(
+    180_000,
+    attempts
+      .filter((attempt) => attempt.phase === "generate" && attempt.tier === tier)
+      .reduce((total, attempt) => total + attempt.durationMs, 0),
+  )
 }
 
 async function notifySlackForChatbotEdit(input: {
@@ -1160,7 +1250,10 @@ async function notifySlackForChatbotEdit(input: {
       pendingRequestKind: "edit",
     })
   } catch (error) {
-    console.warn("[chatbot slack edit notification failed]", error instanceof Error ? error.message : String(error))
+    logPrivacySafeChatbotEvent({
+      event: "chatbot_slack_edit_notification_failed",
+      errorName: error instanceof Error ? error.name : typeof error,
+    })
   }
 }
 
@@ -1710,7 +1803,10 @@ function shouldIsolateExistingConversation(
   return conversation.context.userId !== userId
 }
 
-function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogContext): ChatbotLlmTierOrchestrator {
+function createDefaultChatbotLlmOrchestrator(
+  context: ChatbotTierAttemptLogContext,
+  onTierAttempt?: (event: TierAttemptEvent) => void,
+): ChatbotLlmTierOrchestrator {
   const clients: ChatbotLlmClient[] = [
     createTier1HostedChromeNotionAiClient(),
     createTier2GeminiFlashClient(),
@@ -1718,7 +1814,10 @@ function createDefaultChatbotLlmOrchestrator(context: ChatbotTierAttemptLogConte
   ]
   return createChatbotLlmTierOrchestrator({
     clients,
-    onTierAttempt: (event) => logChatbotLlmTierAttempt(context, event),
+    onTierAttempt: (event) => {
+      logChatbotLlmTierAttempt(context, event)
+      onTierAttempt?.(event)
+    },
   })
 }
 
@@ -2038,8 +2137,7 @@ function logChatbotDurationTrace(input: {
     return
   }
 
-  console.info(
-    JSON.stringify({
+  logPrivacySafeChatbotEvent({
       event: "chatbot_duration_trace",
       conversationId: input.conversation.id,
       sessionId: input.conversation.context.sessionId,
@@ -2054,8 +2152,7 @@ function logChatbotDurationTrace(input: {
       rawTextPreview: redactForChatbotLog(input.rawText),
       finalTextPreview: redactForChatbotLog(input.finalText),
       normalized: input.rawText !== input.finalText,
-    }),
-  )
+  })
 }
 
 function logChatbotKnowledgeSourceTrace(input: {
@@ -2066,8 +2163,7 @@ function logChatbotKnowledgeSourceTrace(input: {
   if (process.env.NODE_ENV === "test") return
   if (input.knowledgeSnapshot.noteKnowledge.length === 0) return
 
-  console.info(
-    JSON.stringify({
+  logPrivacySafeChatbotEvent({
       event: "chatbot_knowledge_source_trace",
       conversationId: input.conversation.id,
       sessionId: input.conversation.context.sessionId,
@@ -2081,8 +2177,7 @@ function logChatbotKnowledgeSourceTrace(input: {
         reason: entry.statusReason,
         includedInPrompt: entry.includedInPrompt === true && entry.content.trim().length > 0,
       })),
-    }),
-  )
+  })
 }
 
 function logSingleUserPromptGuard(input: {
@@ -2098,8 +2193,7 @@ function logSingleUserPromptGuard(input: {
   if (process.env.NODE_ENV === "test") return
   if (!input.report.applied) return
 
-  console.info(
-    JSON.stringify({
+  logPrivacySafeChatbotEvent({
       event: "chatbot_single_user_prompt_guard",
       requestId: input.requestId,
       conversationId: input.conversation.id,
@@ -2112,8 +2206,7 @@ function logSingleUserPromptGuard(input: {
       rawTextPreview: redactForChatbotLog(input.rawText),
       finalTextPreview: redactForChatbotLog(input.finalText),
       normalized: input.rawText !== input.finalText,
-    }),
-  )
+  })
 }
 
 function logChatbotDisplayBoundary(input: {
@@ -2283,8 +2376,7 @@ function logChatbotLlmTierAttempt(
 ): void {
   if (process.env.NODE_ENV === "test") return
 
-  console.info(
-    JSON.stringify({
+  logPrivacySafeChatbotEvent({
       event: "chatbot_llm_tier_attempt",
       requestId: context.requestId,
       conversationId: context.conversationId,
@@ -2297,8 +2389,7 @@ function logChatbotLlmTierAttempt(
       latencyMs: event.latencyMs,
       retryDiagnostics: summarizeChatbotRetryDiagnostics(event.diagnostics),
       ...(event.error ? { error: serializeTierAttemptError(event.error) } : {}),
-    }),
-  )
+  })
 }
 
 function logChatbotLlmFinalResponse(input: {
@@ -2317,8 +2408,7 @@ function logChatbotLlmFinalResponse(input: {
 }): void {
   if (process.env.NODE_ENV === "test") return
 
-  console.info(
-    JSON.stringify({
+  logPrivacySafeChatbotEvent({
       event: "chatbot_llm_final_response",
       requestId: input.requestId,
       conversationId: input.conversationId,
@@ -2333,8 +2423,7 @@ function logChatbotLlmFinalResponse(input: {
       retryDiagnostics: input.retryDiagnostics,
       pendingRecovery: Boolean(input.pendingRecovery),
       pendingRequestKind: input.pendingRequestKind,
-    }),
-  )
+  })
 }
 
 function summarizeChatbotRetryDiagnostics(diagnostics: unknown): ChatbotRetryDiagnosticsSummary | undefined {
@@ -3065,8 +3154,7 @@ function logChoicePanelTextFallbackDetected(input: {
   tier: ChatbotLlmTier
   choiceSet: SurveyChoiceSet
 }): void {
-  console.info(
-    JSON.stringify({
+  logPrivacySafeChatbotEvent({
       event: "choice_panel_text_fallback_detected",
       requestId: input.requestId,
       conversationId: input.conversation.id,
@@ -3075,8 +3163,7 @@ function logChoicePanelTextFallbackDetected(input: {
       choiceSetId: input.choiceSet.id,
       question: redactForChatbotLog(input.choiceSet.question),
       choiceLabels: input.choiceSet.choices.map((choice) => redactForChatbotLog(choice.label)),
-    }),
-  )
+  })
 }
 
 function normalizeLlmChoice(value: unknown): SurveyChoiceSet["choices"][number] | undefined {

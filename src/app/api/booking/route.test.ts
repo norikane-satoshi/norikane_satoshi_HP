@@ -254,7 +254,7 @@ describe("POST /api/booking Saga", () => {
     expect(route.prisma.adminActionLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          actorEmail: "satoshi@example.com",
+          actorEmail: "system:booking-service",
           action: "GCAL_OK_DB_CONFIRM_FAILED",
         }),
       }),

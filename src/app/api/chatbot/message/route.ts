@@ -3,7 +3,14 @@ import { z } from "zod"
 
 import { auth } from "@/auth"
 import { enforceBodyLimit } from "@/lib/api/server/body-limit"
+import {
+  buildChatbotMessageAuditEvents,
+  buildChatbotOperationFailureAuditEvent,
+} from "@/lib/chatbot/audit/server-evidence"
+import { scheduleChatbotAuditPersistence } from "@/lib/chatbot/audit/scheduler"
 import type { ChatbotConversation } from "@/lib/chatbot/domain"
+import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
+import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { respondChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
 import {
@@ -41,6 +48,7 @@ type ChatbotFailureTaggedError = Error & {
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID()
+  const requestStartedAt = Date.now()
   const bodyLimit = enforceBodyLimit(request)
   if (bodyLimit) return bodyLimit
 
@@ -82,10 +90,31 @@ export async function POST(request: NextRequest) {
       jobContext: parsed.data.jobContext,
       conversationState: parsed.data.conversationState,
     })
+    const { auditEvidence, ...publicResult } = result
+    const auditEvents = buildChatbotMessageAuditEvents({
+      requestId,
+      conversationId: result.conversationId,
+      buildSha: getChatbotBuildSha(),
+      createdAt: new Date().toISOString(),
+      finalTier: result.tier,
+      uiKind: result.ui.kind,
+      ...auditEvidence,
+    })
+    scheduleChatbotAuditPersistence(auditEvents)
     const response = NextResponse.json({
-      ...result,
+      ...publicResult,
       requestId,
       clientBuildId: process.env.NEXT_PUBLIC_CHATBOT_BUILD_ID ?? "local",
+      ...(isLoopbackHostname(request.nextUrl.hostname)
+        ? {
+            auditDebug: {
+              schemaVersion: "1",
+              persistenceStatus: "scheduled",
+              eventCount: auditEvents.length,
+              stageTimings: auditEvidence.stageTimings,
+            },
+          }
+        : {}),
     })
 
     if (existingSessionId !== sessionId) {
@@ -101,16 +130,28 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error) {
     const taggedError = error instanceof Error ? (error as ChatbotFailureTaggedError) : undefined
-    await notifySlackMessageFailure({
+    const failureStage = classifyMessageFailureStage(error)
+    const failureConversation = await notifySlackMessageFailure({
       requestId,
       conversationId: parsed.data.conversationId,
       sessionId,
-      stage: classifyMessageFailureStage(error),
+      stage: failureStage,
     })
+    const auditConversationId = failureConversation?.id ?? parsed.data.conversationId
+    if (auditConversationId) {
+      scheduleChatbotAuditPersistence([buildChatbotOperationFailureAuditEvent({
+        requestId,
+        conversationId: auditConversationId,
+        buildSha: getChatbotBuildSha(),
+        createdAt: new Date().toISOString(),
+        errorCode: `message-${failureStage}-failed`,
+        durationMs: Date.now() - requestStartedAt,
+      })])
+    }
     return respondChatbotOperationFailure({
       operation: "message",
       requestId,
-      stage: classifyMessageFailureStage(error),
+      stage: failureStage,
       error,
       requestSummary: {
         requestId,
@@ -132,14 +173,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase().replace(/^\[(.*)\]$/, "$1")
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1"
+}
+
 async function notifySlackMessageFailure(input: {
   requestId: string
   conversationId?: string
   sessionId: string
   stage: ReturnType<typeof classifyMessageFailureStage>
-}): Promise<void> {
+}): Promise<ChatbotConversation | null> {
+  let conversation: ChatbotConversation | null = null
   try {
-    const conversation = await loadFailureNotificationConversation({
+    conversation = await loadFailureNotificationConversation({
       conversationId: input.conversationId,
       sessionId: input.sessionId,
     })
@@ -159,8 +206,12 @@ async function notifySlackMessageFailure(input: {
       })
     }
   } catch (error) {
-    console.warn("[chatbot slack notification failed]", error instanceof Error ? error.message : String(error))
+    logPrivacySafeChatbotEvent({
+      event: "chatbot_slack_notification_failed",
+      errorKind: error instanceof Error ? error.name : typeof error,
+    })
   }
+  return conversation
 }
 
 async function loadFailureNotificationConversation(input: {
@@ -172,14 +223,20 @@ async function loadFailureNotificationConversation(input: {
       const conversation = await loadConversationById(input.conversationId)
       if (conversation) return conversation
     } catch (error) {
-      console.warn("[chatbot slack notification conversation load failed]", error instanceof Error ? error.message : String(error))
+      logPrivacySafeChatbotEvent({
+        event: "chatbot_slack_conversation_load_failed",
+        errorKind: error instanceof Error ? error.name : typeof error,
+      })
     }
   }
 
   try {
     return await loadConversationBySessionId(input.sessionId)
   } catch (error) {
-    console.warn("[chatbot slack notification conversation load failed]", error instanceof Error ? error.message : String(error))
+    logPrivacySafeChatbotEvent({
+      event: "chatbot_slack_conversation_load_failed",
+      errorKind: error instanceof Error ? error.name : typeof error,
+    })
     return null
   }
 }

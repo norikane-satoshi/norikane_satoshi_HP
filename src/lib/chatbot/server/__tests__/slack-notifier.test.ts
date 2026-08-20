@@ -73,8 +73,6 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.unfurl_links).toBe(false)
     expect(body.thread_ts).toBeUndefined()
     expect(body.text).toContain("新しいチャット相談")
-    expect(body.text).toContain("会話ID: conv_1")
-    expect(body.text).toContain("セッションID: session_1")
     expect(body.text).toContain("requestId: req_1")
     expect(body.text).toContain("tier: Tier 1（Hosted Chrome / Notion AI） [tier-1-hosted-chrome-notion-ai]")
     expect(body.text).toContain("ui: choice-panel")
@@ -89,6 +87,10 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).not.toContain("client@example.com")
     expect(body.text).not.toContain("abc12345")
     expect(body.text).not.toContain("abc67890")
+    expect(body.text).not.toContain("conv_1")
+    expect(body.text).not.toContain("session_1")
+    expect(body.text).not.toContain("会話ID:")
+    expect(body.text).not.toContain("セッションID:")
   })
 
   it("posts conversation thread replies with required operation fields but without repeated conversation ids", async () => {
@@ -250,7 +252,8 @@ describe("sendChatbotSlackNotification", () => {
   })
 
   it("returns failed without throwing when Slack rejects the message", async () => {
-    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.stubEnv("NODE_ENV", "production")
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const fetcher = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: false, error: "invalid_auth" }), { status: 200 }),
     )
@@ -261,10 +264,11 @@ describe("sendChatbotSlackNotification", () => {
     )
 
     expect(result).toEqual({ status: "failed", reason: "send-failed" })
-    expect(consoleWarn).toHaveBeenCalledWith(
-      "[chatbot slack notification failed]",
-      expect.objectContaining({ error: "invalid_auth" }),
-    )
-    consoleWarn.mockRestore()
+    const logged = String(consoleInfo.mock.calls[0]?.[0])
+    expect(logged).toContain('"event":"chatbot_slack_notification_failed"')
+    expect(logged).toContain('"errorCode":"invalid_auth"')
+    expect(logged).not.toContain("conv_1")
+    consoleInfo.mockRestore()
+    vi.unstubAllEnvs()
   })
 })

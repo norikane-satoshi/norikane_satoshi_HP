@@ -17,6 +17,8 @@ export type WidgetAssistantMessage = {
 export type BookingCompletionSummary = {
   bookingGroupId: string
   bookingIds?: string[]
+  bookingStatus?: string
+  scheduleStatus?: string
   scheduleLabel: string
   projectTitle: string
   contactName: string
@@ -72,6 +74,29 @@ export type ChatbotLifecycleDebug = {
   tierFallbackReason?: string
 }
 
+export type ChatbotAuditDebug = {
+  schemaVersion: "1"
+  persistenceStatus: "scheduled" | "complete" | "pending" | "failed"
+  eventCount: number
+  stageTimings: Partial<Record<
+    | "conversationLoad"
+    | "contextPreparation"
+    | "tierHealthCheck"
+    | "workerQueueWait"
+    | "cdpTargetSession"
+    | "runtimeContextPreparation"
+    | "promptToFirstChunk"
+    | "responseStreaming"
+    | "outputValidation"
+    | "notionInference"
+    | "responseNormalization"
+    | "conversationPersist"
+    | "slackNotification"
+    | "totalServer",
+    number
+  >>
+}
+
 export type ChatbotMessageResponse = {
   requestId?: string
   conversationId: string
@@ -84,6 +109,7 @@ export type ChatbotMessageResponse = {
   inquiryPrefill?: InquiryFormPrefill
   clientBuildId?: string
   debug?: ChatbotLifecycleDebug
+  auditDebug?: ChatbotAuditDebug
 }
 
 export type SubmitChatbotMessageInput = {

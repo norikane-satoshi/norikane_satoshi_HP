@@ -16,6 +16,7 @@ import {
 } from "@/lib/google-calendar/server"
 import { sendLineBookingReceipt } from "@/lib/line/messaging"
 import { prisma } from "@/lib/prisma"
+import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 
 export type CreateBookingResult = {
   body: unknown
@@ -27,6 +28,7 @@ type CreateBookingFromApiInputArgs = {
   input: BookingApiInput
   notionTaskType?: CalendarEventWriteInput["notionTaskType"]
   originatedFrom?: "web" | "line_liff" | "chatbot"
+  idempotencyKey?: string
   userId: string
   userEmail: string | null
 }
@@ -89,12 +91,15 @@ function nextDateKey(dateKey: string): string {
   return date.toISOString().slice(0, 10)
 }
 
-async function warnOnEmailFailure(task: Promise<unknown>, tag: string, to: string) {
+async function warnOnEmailFailure(task: Promise<unknown>, tag: string) {
   try {
     await task
   } catch (error) {
-    const message = error instanceof Error ? error.message : "email send failed"
-    console.warn(`[email failed] tag=${tag} to=${to}`, message)
+    logPrivacySafeChatbotEvent({
+      event: "booking_customer_email_failed",
+      tag,
+      errorCode: operationalErrorCode(error),
+    })
   }
 }
 
@@ -103,7 +108,6 @@ async function sendTentativeHoldEmail(input: BookingApiInput, to: string | null,
   await warnOnEmailFailure(
     sendBookingConfirmedEmail(createBookingEmailArgs(input, to, bookingGroupId)),
     "tentative_hold",
-    to,
   )
 }
 
@@ -117,11 +121,11 @@ async function sendCustomerReceipt(input: BookingApiInput, to: string | null, bo
       scheduleLabel,
     })
     if (!result.ok) {
-      console.warn("LINE booking receipt failed", {
-        bookingGroupId,
+      logPrivacySafeChatbotEvent({
+        event: "booking_line_receipt_failed",
         method: result.method,
         status: result.status,
-        error: result.error,
+        errorCode: "line_receipt_failed",
       })
     }
     return
@@ -154,8 +158,15 @@ function sanitizeGcalEventId(id: string): string {
   return id.toLowerCase().replace(/[^a-v0-9]/g, "")
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+function operationalErrorCode(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = error.code
+    if (typeof code === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(code)) return code
+  }
+  if (error instanceof Error && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(error.name)) {
+    return error.name
+  }
+  return "unknown_error"
 }
 
 function wait(ms: number) {
@@ -166,6 +177,7 @@ export async function createBookingFromApiInput({
   input,
   notionTaskType,
   originatedFrom,
+  idempotencyKey,
   userId,
   userEmail,
 }: CreateBookingFromApiInputArgs): Promise<CreateBookingResult> {
@@ -179,6 +191,14 @@ export async function createBookingFromApiInput({
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
     .join("\n")
+
+  if (idempotencyKey) {
+    const existing = await prisma.bookingGroup.findUnique({
+      where: { chatbotIdempotencyKey: idempotencyKey },
+      include: { timeSlots: true },
+    })
+    if (existing) return existingIdempotentBookingResult(existing)
+  }
 
   const customer = await prisma.customer.upsert({
     where: { userId },
@@ -197,43 +217,55 @@ export async function createBookingFromApiInput({
     },
   })
 
-  const bookingGroup = await prisma.$transaction(async (tx) => {
-    const conflictLists = []
-    for (const slot of slots) {
-      conflictLists.push(
-        await findConflictingBookings(new Date(slot.start), new Date(slot.end), {}, tx),
-      )
-    }
-    const conflicts = conflictLists.flat()
-    const conflict = resolveConflictForFinalSubmit(conflicts)
-    if (conflict) throw new BookingConflictError(conflict)
+  let bookingGroup: { id: string; timeSlots: Array<{ id: string }> }
+  try {
+    bookingGroup = await prisma.$transaction(async (tx) => {
+      const conflictLists = []
+      for (const slot of slots) {
+        conflictLists.push(
+          await findConflictingBookings(new Date(slot.start), new Date(slot.end), {}, tx),
+        )
+      }
+      const conflicts = conflictLists.flat()
+      const conflict = resolveConflictForFinalSubmit(conflicts)
+      if (conflict) throw new BookingConflictError(conflict)
 
-    return tx.bookingGroup.create({
-      data: {
-        customerId: customer.id,
-        teamId,
-        status: hasSelectedSlots ? "PENDING_GCAL" : "NEEDS_SCHEDULE",
-        pendingExpiresAt: hasSelectedSlots ? new Date(Date.now() + 60_000) : null,
-        projectTitle: input.projectTitle,
-        memo: nullable(storedMemo),
-        contactName: input.contactName,
-        companyName: nullable(input.companyName),
-        customerEmail: userEmail,
-        phone: nullable(input.phone),
-        dueDate: nullable(input.dueDate),
-        originatedFrom: originatedFrom ?? input.entryPoint ?? "web",
-        lineUserId: input.entryPoint === "line_liff" ? input.lineUserId ?? null : null,
-        timeSlots: {
-          create: slots.map((slot) => ({
-            startTime: new Date(slot.start),
-            endTime: new Date(slot.end),
-            status: "PENDING_GCAL",
-          })),
+      return tx.bookingGroup.create({
+        data: {
+          customerId: customer.id,
+          teamId,
+          status: hasSelectedSlots ? "PENDING_GCAL" : "NEEDS_SCHEDULE",
+          pendingExpiresAt: hasSelectedSlots ? new Date(Date.now() + 60_000) : null,
+          projectTitle: input.projectTitle,
+          memo: nullable(storedMemo),
+          contactName: input.contactName,
+          companyName: nullable(input.companyName),
+          customerEmail: userEmail,
+          phone: nullable(input.phone),
+          dueDate: nullable(input.dueDate),
+          originatedFrom: originatedFrom ?? input.entryPoint ?? "web",
+          lineUserId: input.entryPoint === "line_liff" ? input.lineUserId ?? null : null,
+          chatbotIdempotencyKey: idempotencyKey ?? null,
+          timeSlots: {
+            create: slots.map((slot) => ({
+              startTime: new Date(slot.start),
+              endTime: new Date(slot.end),
+              status: "PENDING_GCAL",
+            })),
+          },
         },
-      },
+        include: { timeSlots: true },
+      })
+    }, { maxWait: 5000, timeout: 10000 })
+  } catch (error) {
+    if (!idempotencyKey || !isUniqueConstraintViolation(error)) throw error
+    const existing = await prisma.bookingGroup.findUnique({
+      where: { chatbotIdempotencyKey: idempotencyKey },
       include: { timeSlots: true },
     })
-  }, { maxWait: 5000, timeout: 10000 })
+    if (!existing) throw error
+    return existingIdempotentBookingResult(existing)
+  }
 
   const bookingIds = bookingGroup.timeSlots.map((slot) => slot.id)
 
@@ -302,10 +334,10 @@ export async function createBookingFromApiInput({
         data: { gcalEventId: event.id ?? null },
       })
     } catch (error) {
-      const gcalError = errorMessage(error) || "Google Calendar event write failed"
-      console.warn("Booking Google Calendar date-only hold write failed", {
-        bookingGroupId: bookingGroup.id,
-        error: gcalError,
+      logPrivacySafeChatbotEvent({
+        event: "booking_calendar_write_failed",
+        dateOnly: true,
+        errorCode: operationalErrorCode(error),
       })
       await prisma.bookingGroup.update({
         where: { id: bookingGroup.id },
@@ -339,7 +371,10 @@ export async function createBookingFromApiInput({
     await confirmBooking(null)
     invalidateCalendarFreeBusyCacheForUser(userId, teamId)
     await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
-    console.warn("Booking created without Google Calendar event: GOOGLE_CALENDAR_BUSY_SOURCE_ID is not set")
+    logPrivacySafeChatbotEvent({
+      event: "booking_calendar_write_skipped",
+      reason: "missing_calendar_id",
+    })
     return {
       body: {
         status: "ok_with_warning",
@@ -375,10 +410,10 @@ export async function createBookingFromApiInput({
     }
     gcalEventId = event.id ?? null
   } catch (error) {
-    const gcalError = errorMessage(error) || "Google Calendar event write failed"
-    console.warn("Booking Google Calendar write failed", {
-      bookingGroupId: bookingGroup.id,
-      error: gcalError,
+    logPrivacySafeChatbotEvent({
+      event: "booking_calendar_write_failed",
+      dateOnly: false,
+      errorCode: operationalErrorCode(error),
     })
     await prisma.bookingGroup.update({
       where: { id: bookingGroup.id },
@@ -401,26 +436,28 @@ export async function createBookingFromApiInput({
   try {
     await confirmBooking(gcalEventId)
   } catch (error) {
-    const message = errorMessage(error)
-    console.error("GCal OK but DB confirm failed", {
-      bookingGroupId: bookingGroup.id,
-      gcalEventId,
-      error: message,
+    const errorCode = operationalErrorCode(error)
+    logPrivacySafeChatbotEvent({
+      event: "booking_db_confirm_failed_after_calendar_success",
+      errorCode,
     })
     try {
       await prisma.adminActionLog.create({
         data: {
-          actorEmail: userEmail ?? "line_liff",
+          actorEmail: "system:booking-service",
           action: "GCAL_OK_DB_CONFIRM_FAILED",
           payload: JSON.stringify({
             bookingGroupId: bookingGroup.id,
             gcalEventId,
-            error: message,
+            errorCode,
           }),
         },
       })
     } catch (logError) {
-      console.error("Failed to log GCal OK DB confirm failure", logError)
+      logPrivacySafeChatbotEvent({
+        event: "booking_reconcile_marker_write_failed",
+        errorCode: operationalErrorCode(logError),
+      })
     }
 
     return {
@@ -442,4 +479,62 @@ export async function createBookingFromApiInput({
     },
     status: 200,
   }
+}
+
+function existingIdempotentBookingResult(existing: {
+  id: string
+  status: string
+  timeSlots: Array<{ id: string; startTime?: Date; endTime?: Date }>
+}): CreateBookingResult {
+  const bookingIds = existing.timeSlots.map((slot) => slot.id)
+  const scheduleLabel = existing.timeSlots.length > 0
+    ? existing.timeSlots
+        .map((slot) => slot.startTime && slot.endTime ? `${slot.startTime.toISOString()} - ${slot.endTime.toISOString()}` : "")
+        .filter(Boolean)
+        .join(" / ")
+    : "候補日未選択"
+
+  if (existing.status === "FAILED") {
+    return {
+      status: 502,
+      body: { error: "calendar_unavailable", bookingGroupId: existing.id, idempotentReplay: true },
+    }
+  }
+  if (existing.status === "CANCELLED") {
+    return {
+      status: 409,
+      body: { error: "booking_cancelled", bookingGroupId: existing.id, idempotentReplay: true },
+    }
+  }
+  if (existing.status === "PENDING_GCAL") {
+    return {
+      status: 202,
+      body: {
+        status: "processing",
+        bookingGroupId: existing.id,
+        bookingIds,
+        bookingStatus: existing.status,
+        scheduleLabel,
+        idempotentReplay: true,
+      },
+    }
+  }
+
+  const needsSchedule = existing.status === "NEEDS_SCHEDULE"
+  return {
+    status: 200,
+    body: {
+      status: needsSchedule ? "schedule_unselected" : "ok",
+      bookingGroupId: existing.id,
+      bookingIds,
+      bookingStatus: existing.status,
+      ...(needsSchedule ? { scheduleStatus: "unscheduled" } : {}),
+      scheduleLabel,
+      idempotentReplay: true,
+    },
+  }
+}
+
+function isUniqueConstraintViolation(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2002")
 }

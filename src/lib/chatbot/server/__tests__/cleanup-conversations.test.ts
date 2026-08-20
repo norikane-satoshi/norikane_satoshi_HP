@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => {
     chatbotInquiry: { deleteMany: vi.fn() },
     chatbotSurveyResponse: { deleteMany: vi.fn() },
     chatbotMessage: { deleteMany: vi.fn() },
+    chatbotAuditEvent: { deleteMany: vi.fn() },
     chatbotConversation: { deleteMany: vi.fn() },
     user: { deleteMany: vi.fn() },
     customer: { deleteMany: vi.fn() },
@@ -39,6 +40,7 @@ describe("cleanupExpiredChatbotConversations", () => {
     mocks.tx.chatbotInquiry.deleteMany.mockResolvedValue({ count: 1 })
     mocks.tx.chatbotSurveyResponse.deleteMany.mockResolvedValue({ count: 2 })
     mocks.tx.chatbotMessage.deleteMany.mockResolvedValue({ count: 3 })
+    mocks.tx.chatbotAuditEvent.deleteMany.mockResolvedValue({ count: 4 })
     mocks.tx.chatbotConversation.deleteMany.mockResolvedValue({ count: 1 })
   })
 
@@ -66,6 +68,13 @@ describe("cleanupExpiredChatbotConversations", () => {
     expect(mocks.tx.chatbotMessage.deleteMany).toHaveBeenCalledWith({
       where: { conversationId: { in: ["conversation-old"] } },
     })
+    expect(mocks.tx.chatbotAuditEvent.deleteMany).toHaveBeenCalledWith({
+      where: {
+        conversationHash: {
+          in: ["e81fe733b8acbabb546b3cd8d9d4c4af4e0949c89c86ca92db45857029f00919"],
+        },
+      },
+    })
     expect(mocks.tx.chatbotConversation.deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ["conversation-old"] } },
     })
@@ -75,6 +84,7 @@ describe("cleanupExpiredChatbotConversations", () => {
       scannedConversationCount: 1,
       deletedConversationCount: 1,
       deletedMessageCount: 3,
+      deletedAuditEventCount: 4,
       deletedSurveyResponseCount: 2,
       deletedInquiryCount: 1,
       unlinkedBookingGroupCount: 1,
@@ -90,6 +100,7 @@ describe("cleanupExpiredChatbotConversations", () => {
       scannedConversationCount: 0,
       deletedConversationCount: 0,
       deletedMessageCount: 0,
+      deletedAuditEventCount: 0,
       deletedSurveyResponseCount: 0,
       deletedInquiryCount: 0,
       unlinkedBookingGroupCount: 0,

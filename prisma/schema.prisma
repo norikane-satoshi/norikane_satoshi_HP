@@ -158,6 +158,7 @@ model BookingGroup {
   originatedFrom String?
   lineUserId String?
   chatConversationId String?
+  chatbotIdempotencyKey String? @unique
 
   customer  Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
   team      Team?             @relation(fields: [teamId], references: [id], onDelete: SetNull)
@@ -298,6 +299,28 @@ model ChatbotHealthCheckLog {
 
   @@index([probeAt])
   @@index([responseSuccess])
+}
+
+model ChatbotAuditEvent {
+  eventId          String   @id
+  schemaVersion    String
+  correlationId    String
+  conversationHash String
+  eventName        String
+  source           String
+  result           String
+  tier             String?
+  durationMs       Int?
+  errorCode        String?
+  uiKind           String?
+  payloadJson      String
+  buildSha         String
+  createdAt        DateTime
+
+  @@index([correlationId, createdAt])
+  @@index([conversationHash, createdAt])
+  @@index([eventName, createdAt])
+  @@index([result, createdAt])
 }
 
 model ChatbotKnowledgeSnapshot {

@@ -14,6 +14,7 @@ type RateLimitName =
   | "verifyEmailIp"
   | "contactIp"
   | "cspReportIp"
+  | "chatbotAuditSession"
 
 type RateLimitConfig = {
   prefix: string
@@ -42,6 +43,7 @@ const RATE_LIMITS: Record<RateLimitName, RateLimitConfig> = {
   verifyEmailIp: { prefix: "auth:verify-email:ip", tokens: 30, window: "10 m" },
   contactIp: { prefix: "contact:ip", tokens: 1, window: "5 m" },
   cspReportIp: { prefix: "csp:report:ip", tokens: 60, window: "1 m" },
+  chatbotAuditSession: { prefix: "chatbot:audit:session", tokens: 120, window: "1 m" },
 }
 
 const redis =

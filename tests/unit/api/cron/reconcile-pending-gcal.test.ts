@@ -69,6 +69,7 @@ describe("GET /api/cron/reconcile-pending-gcal", () => {
     scannedConversationCount: 0,
     deletedConversationCount: 0,
     deletedMessageCount: 0,
+    deletedAuditEventCount: 0,
     deletedSurveyResponseCount: 0,
     deletedInquiryCount: 0,
     unlinkedBookingGroupCount: 0,

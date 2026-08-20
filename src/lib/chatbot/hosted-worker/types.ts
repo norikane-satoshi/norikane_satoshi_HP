@@ -11,8 +11,15 @@ export const hostedWorkerTier = chatbotLlmTierIds.tier1HostedChromeNotionAi
 export type HostedWorkerQueueState = {
   inFlight: boolean
   queueLength: number
-  lastSuccessAt?: string
+}
+
+export type HostedWorkerOperationalState = {
+  currentStatus: "ready" | "degraded"
+  consecutiveFailures: number
+  lastSuccessfulGenerateAt?: string
   lastErrorCode?: ChatbotLlmError["code"] | HostedWorkerEnsureStatus | "missing_token"
+  lastErrorAt?: string
+  lastRecoveredAt?: string
   lastLatencyMs?: number
 }
 
@@ -80,6 +87,7 @@ export type HostedWorkerHealthResponse = HostedWorkerEnsureResult & {
   notionThread?: HostedWorkerNotionThreadHealth
   tier: typeof hostedWorkerTier
   queue: HostedWorkerQueueState
+  runtime: HostedWorkerOperationalState
   healthMode?: "deep" | "quick"
   checkedAt?: string
 }

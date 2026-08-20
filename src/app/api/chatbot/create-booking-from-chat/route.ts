@@ -1,7 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 
+import { auth } from "@/auth"
 import { respondInternalError } from "@/lib/api/server/error-response"
+import {
+  buildChatbotBookingAuditEvents,
+  buildChatbotOperationFailureAuditEvent,
+  type ChatbotMessageAuditEvidence,
+} from "@/lib/chatbot/audit/server-evidence"
+import { scheduleChatbotAuditPersistence } from "@/lib/chatbot/audit/scheduler"
+import { isChatbotConversationOwnedBySession } from "@/lib/chatbot/audit/store"
 import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { bookingFormSchema } from "@/lib/booking/domain/form-schema"
 import { createBookingFromApiInput } from "@/lib/booking/server/create-booking"
@@ -17,10 +25,14 @@ import {
   updateConversationSlackThreadTs,
 } from "@/lib/chatbot/server/repository"
 import { sendChatbotSlackNotification } from "@/lib/chatbot/server/slack-notifier"
+import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
+import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+const sessionCookieName = "chatbot_session_id"
 
 const selectedSlotSchema = z
   .object({
@@ -54,6 +66,7 @@ const chatbotBookingRequestSchema = z
     selectedSlots: z.array(selectedSlotSchema).optional(),
     jobContext: z.unknown().optional(),
     workflowEstimate: z.unknown().optional(),
+    correlationId: z.string().uuid().optional(),
   })
 
 const PUBLIC_CHATBOT_BOOKING_USER_EMAIL = "chatbot-booking@norikane.studio"
@@ -107,6 +120,15 @@ function bookingGroupIdFromBody(body: unknown): string | null {
   if (!body || typeof body !== "object") return null
   const value = (body as { bookingGroupId?: unknown }).bookingGroupId
   return typeof value === "string" && value.trim() ? value : null
+}
+
+function isIdempotentReplayBody(body: unknown): boolean {
+  return Boolean(
+    body &&
+    typeof body === "object" &&
+    !Array.isArray(body) &&
+    (body as { idempotentReplay?: unknown }).idempotentReplay === true,
+  )
 }
 
 function bodyWithLinkWarning(body: unknown): unknown {
@@ -189,24 +211,29 @@ async function notifyOwner(input: z.infer<typeof chatbotBookingRequestSchema>, b
 }
 
 async function notifySlackBookingOrderSubmitted(input: {
+  requestId: string
   request: z.infer<typeof chatbotBookingRequestSchema>
   bookingGroupId: string
   selectedSlotCount: number
   ownerNotificationWarning: "skipped" | "send_failed" | null
-}): Promise<void> {
-  if (!input.request.conversationId) return
+}): Promise<ChatbotMessageAuditEvidence["slack"]> {
+  if (!input.request.conversationId) return { result: "failure", errorCode: "slack-no-conversation" }
 
   try {
     const conversation = await loadConversationById(input.request.conversationId)
     const threadTs = conversation?.context.slackThreadTs
     const result = await sendChatbotSlackNotification({
       kind: "booking-order-submitted",
+      requestId: input.requestId,
       conversationId: input.request.conversationId,
       sessionId: conversation?.context.sessionId,
       threadTs,
       bookingGroupId: input.bookingGroupId,
       selectedSlotCount: input.selectedSlotCount,
     })
+    let auditResult: ChatbotMessageAuditEvidence["slack"] = result.status === "sent"
+      ? { result: "success" }
+      : { result: "failure", errorCode: `slack-${result.status}` }
 
     const savedThreadTs = threadTs ?? (result.status === "sent" ? result.ts : null)
     if (!threadTs && savedThreadTs) {
@@ -231,15 +258,20 @@ async function notifySlackBookingOrderSubmitted(input: {
     }
 
     if (input.ownerNotificationWarning === "send_failed" && savedThreadTs) {
-      await sendChatbotSlackNotification({
+      const issueResult = await sendChatbotSlackNotification({
         kind: "issue",
+        requestId: input.requestId,
         conversationId: input.request.conversationId,
         sessionId: conversation?.context.sessionId,
         threadTs: savedThreadTs,
         bookingGroupId: input.bookingGroupId,
         issueReasons: ["booking-owner-email-send-failed"],
       })
+      if (issueResult.status !== "sent") {
+        auditResult = { result: "failure", errorCode: `slack-${issueResult.status}` }
+      }
     }
+    return auditResult
   } catch (error) {
     logChatbotOperationFailure({
       operation: "create-booking-from-chat",
@@ -252,6 +284,7 @@ async function notifySlackBookingOrderSubmitted(input: {
         selectedSlotCount: input.selectedSlotCount,
       },
     })
+    return { result: "failure", errorCode: "slack-exception" }
   }
 }
 
@@ -273,6 +306,25 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     )
   }
+  const requestId = parsed.data.correlationId ?? crypto.randomUUID()
+  const bookingStartedAt = Date.now()
+
+  if (parsed.data.conversationId) {
+    const cookieSessionId = request.cookies.get(sessionCookieName)?.value
+    if (!cookieSessionId) {
+      return NextResponse.json({ error: "missing_chatbot_session" }, { status: 401 })
+    }
+    const conversation = await loadConversationById(parsed.data.conversationId)
+    if (!conversation) {
+      return NextResponse.json({ error: "conversation_not_found" }, { status: 404 })
+    }
+    if (!isChatbotConversationOwnedBySession({
+      conversationSessionId: conversation.context.sessionId,
+      cookieSessionId,
+    })) {
+      return NextResponse.json({ error: "conversation_not_owned" }, { status: 403 })
+    }
+  }
 
   let input: BookingApiInput
   try {
@@ -291,20 +343,28 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const userId = await getPublicChatbotBookingUserId()
+    const session = await auth()
+    const userId = session?.user?.id ?? await getPublicChatbotBookingUserId()
     const userEmail = parsed.data.contactEmail
     const result = await createBookingFromApiInput({
       input,
       notionTaskType: "仮押さえ",
       originatedFrom: "chatbot",
+      idempotencyKey: requestId,
       userId,
       userEmail,
     })
     const bookingGroupId = bookingGroupIdFromBody(result.body)
+    const idempotentReplay = isIdempotentReplayBody(result.body)
     const selectedSlotCount = normalizeSelectedSlots(parsed.data).length
     let responseBody = result.body
     let notificationWarning: "skipped" | "send_failed" | null = null
-    if (result.status >= 200 && result.status < 300 && bookingGroupId) {
+    let conversationLinked = false
+    let slackAudit: ChatbotMessageAuditEvidence["slack"] = {
+      result: "failure",
+      errorCode: "slack-not-attempted",
+    }
+    if (result.status >= 200 && result.status < 300 && bookingGroupId && !idempotentReplay) {
       const ownerNotification = await notifyOwner(parsed.data, bookingGroupId)
       notificationWarning = ownerNotification.warning
       responseBody = bodyWithEmailDebug(responseBody, "chatbotOwnerNotificationId", ownerNotification.id)
@@ -319,34 +379,76 @@ export async function POST(request: NextRequest) {
           conversationId: parsed.data.conversationId,
           bookingGroupId,
         })
+        conversationLinked = true
       } catch (error) {
-        console.warn("Chatbot booking link failed", {
-          bookingGroupId,
-          error: error instanceof Error ? error.message : String(error),
+        logPrivacySafeChatbotEvent({
+          event: "chatbot_booking_link_failed",
+          requestId,
+          errorKind: error instanceof Error ? error.name : typeof error,
         })
-        return NextResponse.json(bodyWithLinkWarning(responseBody), {
-          status: result.status,
-          headers: result.headers,
-        })
+        responseBody = bodyWithLinkWarning(responseBody)
       }
     }
 
-    if (result.status >= 200 && result.status < 300 && bookingGroupId) {
-      await notifySlackBookingOrderSubmitted({
+    if (result.status >= 200 && result.status < 300 && bookingGroupId && !idempotentReplay) {
+      slackAudit = await notifySlackBookingOrderSubmitted({
+        requestId,
         request: parsed.data,
         bookingGroupId,
         selectedSlotCount,
         ownerNotificationWarning: notificationWarning,
       })
+    } else if (idempotentReplay) {
+      slackAudit = {
+        result: "failure",
+        errorCode: "idempotent-replay-notification-not-repeated",
+      }
     }
 
-    return NextResponse.json(responseBody, { status: result.status, headers: result.headers })
+    if (parsed.data.conversationId && bookingGroupId) {
+      scheduleChatbotAuditPersistence(buildChatbotBookingAuditEvents({
+        requestId,
+        conversationId: parsed.data.conversationId,
+        buildSha: getChatbotBuildSha(),
+        createdAt: new Date().toISOString(),
+        bookingCreated: result.status >= 200 && result.status < 300,
+        customerAccountLinked: Boolean(session?.user?.id && conversationLinked),
+        slack: slackAudit,
+        durationMs: Date.now() - bookingStartedAt,
+      }))
+    }
+
+    return NextResponse.json(bodyWithWarning(responseBody, "requestId", requestId), {
+      status: result.status,
+      headers: result.headers,
+    })
   } catch (error) {
     if (error instanceof BookingConflictError) {
-      return NextResponse.json({ error: error.message }, { status: 409 })
+      if (parsed.data.conversationId) {
+        scheduleChatbotAuditPersistence([buildChatbotOperationFailureAuditEvent({
+          requestId,
+          conversationId: parsed.data.conversationId,
+          buildSha: getChatbotBuildSha(),
+          createdAt: new Date().toISOString(),
+          errorCode: "booking-conflict",
+          durationMs: Date.now() - bookingStartedAt,
+        })])
+      }
+      return NextResponse.json({ error: error.message, requestId }, { status: 409 })
+    }
+    if (parsed.data.conversationId) {
+      scheduleChatbotAuditPersistence([buildChatbotOperationFailureAuditEvent({
+        requestId,
+        conversationId: parsed.data.conversationId,
+        buildSha: getChatbotBuildSha(),
+        createdAt: new Date().toISOString(),
+        errorCode: "booking-save-failed",
+        durationMs: Date.now() - bookingStartedAt,
+      })])
     }
     return respondChatbotOperationFailure({
       operation: "create-booking-from-chat",
+      requestId,
       stage: "booking-save",
       error,
       requestSummary: {

@@ -1,7 +1,8 @@
 "use client"
 
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { FormEvent, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
 
 import { DemoStage } from "@/components/chatbot/demo"
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
@@ -9,6 +10,13 @@ import { mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 import { bookingOnboardingDemoScript } from "@/lib/chatbot/demo"
 import type { CandidateWindow, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
 import { type BookingCompletionSummary, isChatbotOperationError, postChatbotJson } from "./api"
+import {
+  buildBrowserBookingPrefillAudit,
+  createChatbotBrowserAuditEventId,
+  evaluateBrowserBookingPrefillResult,
+  postChatbotBrowserAuditEvent,
+  type ChatbotRenderAuditContext,
+} from "./browser-audit"
 import {
   CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
   CHATBOT_CONVERSATION_CONTENT_STYLE,
@@ -33,9 +41,11 @@ type ChatbotBookingCardProps = {
   showDemo?: boolean
   onBooked?: (result: BookingResult) => void
   onRequireLogin?: () => void
+  auditContext?: ChatbotRenderAuditContext
 }
 
 type ApiResponse = {
+  requestId?: string
   error?: string
   bookingGroupId?: string
   bookingIds?: string[]
@@ -196,6 +206,7 @@ function displayOptionalValue(value: string | undefined): string {
 }
 
 function BookingCompletionView({ booking }: { booking: BookingCompletionSummary }) {
+  const needsSchedule = booking.scheduleStatus === "unscheduled"
   return (
     <section className="glass-card min-w-0 space-y-5 overflow-hidden p-5" aria-label="予約送信完了">
       <div>
@@ -233,6 +244,25 @@ function BookingCompletionView({ booking }: { booking: BookingCompletionSummary 
           </div>
         </dl>
       </div>
+
+      {needsSchedule ? (
+        <div className="space-y-3 rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-4">
+          <p
+            className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} text-sm font-medium text-hp`}
+            style={CHATBOT_CONVERSATION_CONTENT_STYLE}
+          >
+            希望日は未定として受け付けています。日程が決まったら予約カレンダーから候補日を選べます。
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link className="glass-btn inline-flex min-h-11 items-center px-4 py-2 text-sm font-semibold text-hp" href="/booking">
+              日程を選ぶ
+            </Link>
+            <Link className="glass-btn inline-flex min-h-11 items-center px-4 py-2 text-sm font-semibold text-hp" href="/booking/history">
+              予約履歴を確認
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <p
         className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} text-sm font-medium text-hp`}
@@ -296,6 +326,7 @@ export function ChatbotBookingCard({
   completedBooking,
   showDemo = false,
   onBooked,
+  auditContext,
 }: ChatbotBookingCardProps) {
   const visibleCandidates = useMemo(() => candidates.slice(0, MAX_VISIBLE_CANDIDATES), [candidates])
   const initialMonthKey = useMemo(
@@ -348,9 +379,7 @@ export function ChatbotBookingCard({
     () => buildCandidateCalendar(displayedMonthKey, displayedCandidates, displayedBusyDateKeys, displayedTentativeDateKeys),
     [displayedBusyDateKeys, displayedCandidates, displayedMonthKey, displayedTentativeDateKeys],
   )
-  const [selectedSlots, setSelectedSlots] = useState<CandidateWindow[]>(() => (
-    visibleCandidates.length === 1 && requiredDays === 1 ? [visibleCandidates[0]] : []
-  ))
+  const [selectedSlots, setSelectedSlots] = useState<CandidateWindow[]>([])
   const [monthLoadError, setMonthLoadError] = useState<string | null>(null)
   const [calendarHint, setCalendarHint] = useState<string | null>(null)
   const [projectTitle, setProjectTitle] = useState(defaultProjectTitle ?? "")
@@ -364,6 +393,8 @@ export function ChatbotBookingCard({
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [booked, setBooked] = useState<BookingResult | null>(completedBooking ?? null)
+  const auditEventIdsRef = useRef(new Map<string, string>())
+  const sentAuditKeysRef = useRef(new Set<string>())
 
   const currentJstDateKey = todayJstDateKey()
   const selectedKeys = useMemo(() => selectedDateKeys(selectedSlots), [selectedSlots])
@@ -377,6 +408,128 @@ export function ChatbotBookingCard({
       agreed &&
       !submitting,
   )
+
+  useEffect(() => {
+    if (!auditContext || !conversationId) return
+    const auditKey = `${auditContext.correlationId}:booking-render`
+    if (sentAuditKeysRef.current.has(auditKey)) return
+    sentAuditKeysRef.current.add(auditKey)
+
+    const durationMs = Math.max(0, Math.min(180_000, Math.round(performance.now() - auditContext.responseReceivedAt)))
+    const common = {
+      schemaVersion: "1" as const,
+      correlationId: auditContext.correlationId,
+      conversationId,
+      result: "success" as const,
+      tier: auditContext.tier,
+      uiKind: "booking-card" as const,
+      phase: "render" as const,
+      durationMs,
+      stageTimings: { reactCommit: durationMs },
+    }
+    const expectedFilled = {
+      projectTitle: Boolean(defaultProjectTitle.trim()),
+      dueDate: Boolean(defaultDueDate.trim()),
+      companyName: Boolean(defaultCompanyName.trim()),
+      contactName: Boolean(defaultContactName.trim()),
+      contactEmail: Boolean(defaultContactEmail.trim()),
+      phone: false,
+      memo: Boolean(defaultMemo.trim()),
+      selectedSlots: false,
+      agreed: false,
+    }
+    const actualFilled = {
+      projectTitle: Boolean(projectTitle.trim()),
+      dueDate: Boolean(dueDate.trim()),
+      companyName: Boolean(companyName.trim()),
+      contactName: Boolean(contactName.trim()),
+      contactEmail: Boolean(contactEmail.trim()),
+      phone: Boolean(phone.trim()),
+      memo: Boolean(memo.trim()),
+      selectedSlots: selectedSlots.length > 0,
+      agreed,
+    }
+    const prefillFields = buildBrowserBookingPrefillAudit({ expectedFilled, actualFilled })
+    const memoCoverage = {
+      finalMedia: Boolean(jobContext?.finalMedium),
+      materialContents: /受け渡し素材\s*[:：]/u.test(defaultMemo),
+      materialTiming: /素材受け渡し時期\s*[:：]/u.test(defaultMemo),
+      materialMethod: /素材受け渡し方法\s*[:：]/u.test(defaultMemo),
+    }
+    const eventId = (name: string) => {
+      const existing = auditEventIdsRef.current.get(name)
+      if (existing) return existing
+      const created = createChatbotBrowserAuditEventId()
+      auditEventIdsRef.current.set(name, created)
+      return created
+    }
+
+    void Promise.all([
+      postChatbotBrowserAuditEvent({
+        ...common,
+        eventId: eventId("booking_card_rendered"),
+        eventName: "booking_card_rendered",
+      }),
+      postChatbotBrowserAuditEvent({
+        ...common,
+        eventId: eventId("booking_prefill_rendered"),
+        eventName: "booking_prefill_rendered",
+        result: evaluateBrowserBookingPrefillResult({ prefillFields, memoCoverage }),
+        prefillFields,
+        memoCoverage,
+      }),
+    ]).catch((error) => {
+      console.warn("[CHATBOT_BROWSER_AUDIT_FAILURE]", {
+        event: "booking_render",
+        errorCode: error instanceof Error ? error.message : "unknown",
+      })
+    })
+  }, [
+    agreed,
+    auditContext,
+    companyName,
+    contactEmail,
+    contactName,
+    conversationId,
+    defaultCompanyName,
+    defaultContactEmail,
+    defaultContactName,
+    defaultDueDate,
+    defaultMemo,
+    defaultProjectTitle,
+    dueDate,
+    jobContext?.finalMedium,
+    memo,
+    phone,
+    projectTitle,
+    selectedSlots.length,
+  ])
+
+  useEffect(() => {
+    if (!auditContext || !conversationId || !booked) return
+    const auditKey = `${auditContext.correlationId}:booking-submit-success`
+    if (sentAuditKeysRef.current.has(auditKey)) return
+    sentAuditKeysRef.current.add(auditKey)
+    const eventName = "booking_submit_success_rendered" as const
+    const eventId = auditEventIdsRef.current.get(eventName) ?? createChatbotBrowserAuditEventId()
+    auditEventIdsRef.current.set(eventName, eventId)
+    void postChatbotBrowserAuditEvent({
+      schemaVersion: "1",
+      eventId,
+      eventName,
+      correlationId: auditContext.correlationId,
+      conversationId,
+      result: "success",
+      tier: auditContext.tier,
+      uiKind: "booking-card",
+      phase: "render",
+    }).catch((error) => {
+      console.warn("[CHATBOT_BROWSER_AUDIT_FAILURE]", {
+        event: eventName,
+        errorCode: error instanceof Error ? error.message : "unknown",
+      })
+    })
+  }, [auditContext, booked, conversationId])
 
   useEffect(() => {
     if (!displayedMonthRequest || !displayedMonthRequestKey) return
@@ -452,6 +605,7 @@ export function ChatbotBookingCard({
           })),
           jobContext,
           workflowEstimate: effectiveEstimate,
+          correlationId: auditContext?.correlationId,
         },
       )
 
@@ -463,6 +617,8 @@ export function ChatbotBookingCard({
       const result = {
         bookingGroupId: payload.bookingGroupId,
         bookingIds: payload.bookingIds,
+        bookingStatus: payload.bookingStatus,
+        scheduleStatus: payload.scheduleStatus,
         scheduleLabel: payload.scheduleLabel ?? (selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "希望日未選択"),
         ...submission,
       }

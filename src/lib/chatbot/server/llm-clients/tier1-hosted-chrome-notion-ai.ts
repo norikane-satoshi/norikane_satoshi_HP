@@ -166,6 +166,9 @@ export class Tier1HostedChromeNotionAiClient implements ChatbotLlmClient {
           totalGenerateBudgetMs: response.retryDiagnostics.totalBudgetMs,
           perAttemptTimeoutMs: response.retryDiagnostics.perAttemptTimeoutMs,
           attempts: response.retryDiagnostics.attempts,
+          ...(safeWorkerStageDurations(response.diagnostics)
+            ? { workerStageDurations: safeWorkerStageDurations(response.diagnostics) }
+            : {}),
           ...(safeConversationThreadDiagnostics(response.diagnostics)
             ? { conversationThread: safeConversationThreadDiagnostics(response.diagnostics) }
             : {}),
@@ -467,6 +470,49 @@ export class Tier1HostedChromeNotionAiClient implements ChatbotLlmClient {
       cause: input.cause,
     })
   }
+}
+
+function safeWorkerStageDurations(diagnostics: unknown): Record<string, number> | undefined {
+  const root = isRecord(diagnostics) ? diagnostics : undefined
+  const timings = root && isRecord(root.stageTimings) ? root.stageTimings : undefined
+  if (!timings) return undefined
+
+  const workerQueueWait = safeSpanDuration(timings.workerQueueWait)
+  const cdpTargetSession = safeSpanDuration(timings.cdpTargetSession)
+  const runtimeContextPreparation = safeSpanDuration(timings.runtimeContextPreparation)
+  const attempts = Array.isArray(timings.inferenceAttempts) ? timings.inferenceAttempts : []
+  let promptToFirstChunk = 0
+  let responseStreaming = 0
+  let outputValidation = 0
+  for (const attempt of attempts) {
+    if (!isRecord(attempt)) return undefined
+    const prompt = safeSpanDuration(attempt.promptToFirstChunk)
+    const streaming = safeSpanDuration(attempt.firstChunkToFinalChunk)
+    const validation = safeSpanDuration(attempt.ndjsonOutputContractValidation)
+    if (prompt === undefined || streaming === undefined || validation === undefined) return undefined
+    promptToFirstChunk += prompt
+    responseStreaming += streaming
+    outputValidation += validation
+  }
+
+  if (workerQueueWait === undefined || cdpTargetSession === undefined || runtimeContextPreparation === undefined) {
+    return undefined
+  }
+  return {
+    workerQueueWait,
+    cdpTargetSession,
+    runtimeContextPreparation,
+    promptToFirstChunk: Math.min(180_000, promptToFirstChunk),
+    responseStreaming: Math.min(180_000, responseStreaming),
+    outputValidation: Math.min(180_000, outputValidation),
+  }
+}
+
+function safeSpanDuration(value: unknown): number | undefined {
+  if (!isRecord(value) || typeof value.durationMs !== "number" || !Number.isFinite(value.durationMs)) {
+    return undefined
+  }
+  return Math.max(0, Math.min(180_000, Math.round(value.durationMs)))
 }
 
 function safeConversationThreadDiagnostics(diagnostics: unknown): Record<string, unknown> | undefined {
