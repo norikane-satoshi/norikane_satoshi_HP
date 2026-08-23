@@ -86,6 +86,7 @@ function handlerHarness(rawText: string) {
   const existingConversation = conversation()
   const repository = {
     loadConversationBySessionId: vi.fn().mockResolvedValue(existingConversation),
+    loadOrCreateConversationBySessionId: vi.fn().mockResolvedValue(existingConversation),
     createConversation: vi.fn().mockResolvedValue(existingConversation),
     appendMessage: vi.fn(async (input: { role: ChatbotMessage["role"]; content: string }) =>
       message(input.role, input.content),

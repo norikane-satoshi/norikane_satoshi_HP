@@ -40,6 +40,14 @@ type HostedWorkerErrorSummary = {
 
 type HostedWorkerHealthResponse = {
   ok?: unknown
+  runtime?: {
+    currentStatus?: unknown
+    consecutiveFailures?: unknown
+    lastErrorCode?: unknown
+    lastErrorAt?: unknown
+    lastRecoveredAt?: unknown
+    lastSuccessfulGenerateAt?: unknown
+  }
 }
 
 type HostedWorkerGenerateResponse = {
@@ -113,6 +121,21 @@ const httpStatusTooManyRequests = 429
 const firstServerErrorStatus = 500
 const maxGenerateAttempts = 3
 const minRetryAttemptBudgetMs = 5000
+const recentRateLimitCooldownMs = 5 * 60 * 1000
+
+function hasRecentRateLimit(response: HostedWorkerHealthResponse, nowMs = Date.now()): boolean {
+  if (
+    response.runtime?.currentStatus !== "degraded"
+    || response.runtime.lastErrorCode !== "rate-limit"
+    || typeof response.runtime.lastErrorAt !== "string"
+  ) {
+    return false
+  }
+
+  const lastErrorAtMs = Date.parse(response.runtime.lastErrorAt)
+  const elapsedMs = nowMs - lastErrorAtMs
+  return Number.isFinite(lastErrorAtMs) && elapsedMs >= 0 && elapsedMs < recentRateLimitCooldownMs
+}
 
 export class Tier1HostedChromeNotionAiClient implements ChatbotLlmClient {
   readonly tier = tier
@@ -287,6 +310,15 @@ export class Tier1HostedChromeNotionAiClient implements ChatbotLlmClient {
         this.config.healthCheckTimeoutMs,
       )
       const healthy = response.ok === true
+
+      if (healthy && hasRecentRateLimit(response)) {
+        this.lastHealthError = this.toLlmError({
+          message: "Hosted Notion AI worker is in a recent rate-limit cooldown.",
+          code: "rate-limit",
+          isRetryable: false,
+        })
+        return false
+      }
 
       if (!healthy) {
         this.lastHealthError = this.toLlmError({

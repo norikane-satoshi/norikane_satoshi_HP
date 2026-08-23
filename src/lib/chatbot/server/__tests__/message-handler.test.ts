@@ -122,8 +122,7 @@ function setup(overrides: {
       context: { sessionId: "session_1:user_b", userId: "user_b" },
       messages: [],
     })
-  const repository = {
-    loadConversationBySessionId: vi.fn(async (sessionId: string) => {
+  const loadConversationBySessionId = vi.fn(async (sessionId: string) => {
       if (sessionId === "session_1") return existingConversation
       if (sessionId === "session_1:user_b") return isolatedConversation
       if (sessionId === "session_1:anonymous") {
@@ -134,14 +133,18 @@ function setup(overrides: {
         })
       }
       return null
-    }),
-    createConversation: vi.fn(async (input: { sessionId: string; userId?: string | null }) =>
+    })
+  const createConversation = vi.fn(async (input: { sessionId: string; userId?: string | null }) =>
       conversation({
         id: `created_${input.sessionId}`,
         context: { sessionId: input.sessionId, ...(input.userId ? { userId: input.userId } : {}) },
         messages: [],
-      }),
-    ),
+      }))
+  const repository = {
+    loadConversationBySessionId,
+    loadOrCreateConversationBySessionId: vi.fn(async (input: { sessionId: string; userId?: string | null }) =>
+      (await loadConversationBySessionId(input.sessionId)) ?? createConversation(input)),
+    createConversation,
     appendMessage: vi
       .fn()
       .mockImplementation((input: { id?: string; role: ChatbotMessage["role"]; content: string }) =>
@@ -1672,7 +1675,10 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(harness.repository.loadConversationBySessionId).toHaveBeenCalledWith("session_1:user_b")
+    expect(harness.repository.loadOrCreateConversationBySessionId).toHaveBeenCalledWith({
+      sessionId: "session_1:user_b",
+      userId: "user_b",
+    })
     expect(harness.repository.linkConversationToUser).not.toHaveBeenCalled()
     expect(harness.userContextLoader).toHaveBeenCalledWith({
       userId: "user_b",

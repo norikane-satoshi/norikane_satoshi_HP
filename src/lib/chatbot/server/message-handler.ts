@@ -21,7 +21,6 @@ import {
   appendMessage,
   assertChatbotLlmResponseContract,
   createChatbotLlmTierOrchestrator,
-  createConversation,
   createTier1HostedChromeNotionAiClient,
   createTier2GeminiFlashClient,
   createTier3FormFallbackClient,
@@ -29,8 +28,8 @@ import {
   formatUserChatbotContextForPrompt,
   getChatbotLlmOutputContractRejection,
   linkConversationToUser,
+  loadOrCreateConversationBySessionId,
   loadUserChatbotContext,
-  loadConversationBySessionId,
   truncateConversationFromMessage,
   updateConversationRouting,
   updateConversationSlackThreadTs,
@@ -183,8 +182,7 @@ export type HandleChatbotMessageInput = {
 }
 
 type ChatbotMessageRepository = {
-  loadConversationBySessionId: typeof loadConversationBySessionId
-  createConversation: typeof createConversation
+  loadOrCreateConversationBySessionId: typeof loadOrCreateConversationBySessionId
   appendMessage: typeof appendMessage
   truncateConversationFromMessage: typeof truncateConversationFromMessage
   updateConversationRouting: typeof updateConversationRouting
@@ -241,8 +239,7 @@ export class ChatbotMessagePersistenceError extends Error {
 }
 
 const defaultRepository: ChatbotMessageRepository = {
-  loadConversationBySessionId,
-  createConversation,
+  loadOrCreateConversationBySessionId,
   appendMessage,
   truncateConversationFromMessage,
   updateConversationRouting,
@@ -270,15 +267,17 @@ export async function handleChatbotMessage(
   const knowledgeSnapshotLoader = options.knowledgeSnapshotLoader ?? loadLatestChatbotKnowledgeSnapshot
   const slackNotifier = options.slackNotifier ?? sendChatbotSlackNotification
   const conversationLoadStartedAt = now()
-  let conversation =
-    (await repository.loadConversationBySessionId(input.sessionId)) ??
-    (await repository.createConversation({ sessionId: input.sessionId, userId: input.userId ?? null }))
+  let conversation = await repository.loadOrCreateConversationBySessionId({
+    sessionId: input.sessionId,
+    userId: input.userId ?? null,
+  })
 
   if (shouldIsolateExistingConversation(conversation, input.userId)) {
     const isolatedSessionId = `${input.sessionId}:${input.userId ?? "anonymous"}`
-    conversation =
-      (await repository.loadConversationBySessionId(isolatedSessionId)) ??
-      (await repository.createConversation({ sessionId: isolatedSessionId, userId: input.userId ?? null }))
+    conversation = await repository.loadOrCreateConversationBySessionId({
+      sessionId: isolatedSessionId,
+      userId: input.userId ?? null,
+    })
   } else if (input.userId && conversation.context.userId !== input.userId) {
     await repository.linkConversationToUser({ conversationId: conversation.id, userId: input.userId })
   }

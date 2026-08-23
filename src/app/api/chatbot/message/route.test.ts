@@ -69,13 +69,12 @@ async function loadPost({
   vi.resetModules()
 
   const auth = vi.fn().mockResolvedValue(session)
-  const loadConversationBySessionId = loadConversationError
+  const loadOrCreateConversationBySessionId = loadConversationError
     ? vi.fn().mockRejectedValue(loadConversationError)
-    : vi.fn().mockResolvedValue(existingConversation)
+    : vi.fn().mockResolvedValue(existingConversation ?? conversation())
   const loadConversationById = vi.fn().mockResolvedValue(
     existingConversationById === undefined ? existingConversation : existingConversationById,
   )
-  const createConversation = vi.fn().mockResolvedValue(conversation())
   const appendMessage = vi
     .fn()
     .mockImplementation((input: { id?: string; role: ChatbotMessage["role"]; content: string }) =>
@@ -101,9 +100,8 @@ async function loadPost({
 
   vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/chatbot/server", () => ({
-    loadConversationBySessionId,
+    loadOrCreateConversationBySessionId,
     loadConversationById,
-    createConversation,
     appendMessage,
     truncateConversationFromMessage,
     updateConversationRouting,
@@ -131,9 +129,8 @@ async function loadPost({
   return {
     POST: route.POST,
     auth,
-    loadConversationBySessionId,
+    loadOrCreateConversationBySessionId,
     loadConversationById,
-    createConversation,
     appendMessage,
     truncateConversationFromMessage,
     updateConversationRouting,
@@ -204,7 +201,7 @@ describe("POST /api/chatbot/message", () => {
     }
   })
 
-  it("issues a new unauthenticated session cookie and creates a conversation", async () => {
+  it("issues a new unauthenticated session cookie and loads or creates a conversation", async () => {
     const route = await loadPost()
 
     const response = await route.POST(request({ message: "相談したいです" }))
@@ -212,7 +209,7 @@ describe("POST /api/chatbot/message", () => {
     expect(response.status).toBe(200)
     expect(response.headers.get("set-cookie")).toContain("chatbot_session_id=")
     expect(response.headers.get("set-cookie")).toContain("HttpOnly")
-    expect(route.createConversation).toHaveBeenCalledWith({
+    expect(route.loadOrCreateConversationBySessionId).toHaveBeenCalledWith({
       sessionId: expect.any(String),
       userId: null,
     })
@@ -261,13 +258,13 @@ describe("POST /api/chatbot/message", () => {
     expect(payload).not.toHaveProperty("auditEvidence")
   })
 
-  it("uses the authenticated user id when creating the conversation", async () => {
+  it("uses the authenticated user id when loading or creating the conversation", async () => {
     const route = await loadPost({ session: { user: { id: "user_1", email: "client@example.com" } } })
 
     const response = await route.POST(request({ message: "ログイン済みです" }, "chatbot_session_id=session_1"))
 
     expect(response.status).toBe(200)
-    expect(route.createConversation).toHaveBeenCalledWith({
+    expect(route.loadOrCreateConversationBySessionId).toHaveBeenCalledWith({
       sessionId: "session_1",
       userId: "user_1",
     })
@@ -297,7 +294,7 @@ describe("POST /api/chatbot/message", () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get("set-cookie")).toContain(`chatbot_session_id=${clientSessionId}`)
-    expect(route.createConversation).toHaveBeenCalledWith({
+    expect(route.loadOrCreateConversationBySessionId).toHaveBeenCalledWith({
       sessionId: clientSessionId,
       userId: null,
     })
@@ -361,7 +358,7 @@ describe("POST /api/chatbot/message", () => {
     expect(response.status).toBe(200)
     expect(response.headers.get("set-cookie")).toContain(`chatbot_session_id=${clientSessionId}`)
     expect(response.headers.get("set-cookie")).toContain("Max-Age=604800")
-    expect(route.createConversation).toHaveBeenCalledWith({
+    expect(route.loadOrCreateConversationBySessionId).toHaveBeenCalledWith({
       sessionId: clientSessionId,
       userId: null,
     })
@@ -413,7 +410,7 @@ describe("POST /api/chatbot/message", () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" })
-    expect(route.createConversation).not.toHaveBeenCalled()
+    expect(route.loadOrCreateConversationBySessionId).not.toHaveBeenCalled()
   })
 
   it("returns structured failure metadata when conversation loading fails", async () => {

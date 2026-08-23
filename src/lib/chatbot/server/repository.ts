@@ -84,6 +84,28 @@ export async function createConversation(input: {
   return toDomainConversation(withDefaultRepositoryContextFields({ ...row, messages: [] }))
 }
 
+export async function loadOrCreateConversationBySessionId(input: {
+  sessionId: string
+  userId?: string | null
+}): Promise<ChatbotConversation> {
+  const row = await prisma.chatbotConversation.upsert({
+    where: { sessionId: input.sessionId },
+    create: {
+      sessionId: input.sessionId,
+      userId: input.userId ?? null,
+      routingDecision: "continue",
+    },
+    update: {},
+    include: {
+      messages: {
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  })
+
+  return toDomainConversation(await withRepositoryContextFields(row))
+}
+
 export async function loadConversationBySessionId(
   sessionId: string,
 ): Promise<ChatbotConversation | null> {
@@ -122,23 +144,30 @@ export async function appendMessage(input: {
   role: ChatbotMessageRole
   content: string
 }): Promise<ChatbotMessage> {
-  const row = await prisma.$transaction(async (tx) => {
-    const message = await tx.chatbotMessage.create({
-      data: {
-        ...(input.id ? { id: input.id } : {}),
-        conversationId: input.conversationId,
-        role: input.role,
-        content: input.content,
+  const messageId = input.id ?? crypto.randomUUID()
+  const createdAt = new Date()
+  const result = await prisma.chatbotConversation.update({
+    where: { id: input.conversationId },
+    data: {
+      lastMessageAt: createdAt,
+      messages: {
+        create: {
+          id: messageId,
+          role: input.role,
+          content: input.content,
+          createdAt,
+        },
       },
-    })
-
-    await tx.chatbotConversation.update({
-      where: { id: input.conversationId },
-      data: { lastMessageAt: message.createdAt },
-    })
-
-    return message
+    },
+    select: {
+      messages: {
+        where: { id: messageId },
+        take: 1,
+      },
+    },
   })
+  const row = result.messages[0]
+  if (!row) throw new Error("chatbot_message_nested_create_missing")
 
   return toDomainMessage(row)
 }
@@ -243,13 +272,10 @@ export async function updateConversationRouting(input: {
     data: {
       routingDecision: input.routingDecision,
       ...(input.jobContext ? toJobContextUpdateData(input.jobContext) : {}),
+      currentQuestion: input.currentQuestion ?? null,
+      activeChoices: serializeActiveChoices(input.activeChoices ?? null),
+      conversationState: serializeConversationState(input.conversationState ?? null),
     },
-  })
-  await updateRepositoryContextFields(prisma, {
-    conversationId: input.conversationId,
-    currentQuestion: input.currentQuestion ?? null,
-    activeChoices: serializeActiveChoices(input.activeChoices ?? null),
-    conversationState: serializeConversationState(input.conversationState ?? null),
   })
 }
 

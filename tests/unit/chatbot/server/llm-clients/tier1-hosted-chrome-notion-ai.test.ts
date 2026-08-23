@@ -112,6 +112,47 @@ describe("Tier1HostedChromeNotionAiClient", () => {
     )
   })
 
+  it("skips a costly generate while the worker reports a recent Notion rate limit", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-08-23T12:00:00.000Z"))
+    const httpClient = vi.fn(async () => jsonResponse({
+      ok: true,
+      status: "ready",
+      runtime: {
+        currentStatus: "degraded",
+        consecutiveFailures: 4,
+        lastErrorCode: "rate-limit",
+        lastErrorAt: "2026-08-23T11:59:00.000Z",
+      },
+    }))
+    const client = hostedClient(httpClient)
+
+    await expect(client.isHealthy()).resolves.toBe(false)
+    expect(client.getLastHealthError()).toMatchObject({
+      code: "rate-limit",
+      isRetryable: false,
+    })
+  })
+
+  it("allows a recovery probe after the recent-rate-limit cooldown", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-08-23T12:10:00.000Z"))
+    const httpClient = vi.fn(async () => jsonResponse({
+      ok: true,
+      status: "ready",
+      runtime: {
+        currentStatus: "degraded",
+        consecutiveFailures: 4,
+        lastErrorCode: "rate-limit",
+        lastErrorAt: "2026-08-23T12:00:00.000Z",
+      },
+    }))
+    const client = hostedClient(httpClient)
+
+    await expect(client.isHealthy()).resolves.toBe(true)
+    expect(client.getLastHealthError()).toBeUndefined()
+  })
+
   it("ensures Chrome before posting the current ChatbotLlmRequest body to /generate", async () => {
     const httpClient = vi
       .fn()

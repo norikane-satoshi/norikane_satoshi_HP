@@ -9,6 +9,7 @@ export {
   linkChatToBookingGroup,
   linkConversationToUser,
   loadConversationById,
+  loadOrCreateConversationBySessionId,
   loadConversationBySessionId,
   recordInquiry,
   recordSurveyResponse,
