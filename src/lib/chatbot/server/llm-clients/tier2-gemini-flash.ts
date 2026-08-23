@@ -12,6 +12,7 @@ import {
 type Tier2GeminiFlashClientConfig = {
   apiKey?: string
   modelName: string
+  dailyQuotaFallbackModelName: string
   baseUrl: string
   requestTimeoutMs: number
   healthCheckTimeoutMs: number
@@ -51,6 +52,7 @@ class GeminiHttpStatusError extends Error {
   constructor(
     readonly status: number,
     readonly retryDelayMs?: number,
+    readonly quotaIds: string[] = [],
   ) {
     super("Gemini Flash HTTP request failed.")
     this.name = "GeminiHttpStatusError"
@@ -60,6 +62,7 @@ class GeminiHttpStatusError extends Error {
 export const tier2GeminiFlashDefaults = {
   baseUrl: "https://generativelanguage.googleapis.com",
   modelName: "gemini-2.5-flash",
+  dailyQuotaFallbackModelName: "gemini-2.5-flash-lite",
   requestTimeoutMs: 30000,
   healthCheckTimeoutMs: 3000,
   rateLimitMaxRetries: 1,
@@ -91,6 +94,8 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
     this.config = {
       apiKey: options.apiKey,
       modelName: options.modelName ?? tier2GeminiFlashDefaults.modelName,
+      dailyQuotaFallbackModelName:
+        options.dailyQuotaFallbackModelName ?? tier2GeminiFlashDefaults.dailyQuotaFallbackModelName,
       baseUrl: trimTrailingSlash(options.baseUrl) ?? tier2GeminiFlashDefaults.baseUrl,
       requestTimeoutMs: options.requestTimeoutMs ?? tier2GeminiFlashDefaults.requestTimeoutMs,
       healthCheckTimeoutMs: options.healthCheckTimeoutMs ?? tier2GeminiFlashDefaults.healthCheckTimeoutMs,
@@ -111,6 +116,8 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
   async generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse> {
     const startedAt = Date.now()
     let rateLimitRetryCount = 0
+    let dailyQuotaModelFallbackCount = 0
+    let activeModelName = this.config.modelName
 
     try {
       this.assertConfigured()
@@ -118,16 +125,21 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
       while (true) {
         try {
           response = await this.requestJson<GeminiGenerateResponse>(
-            `${this.modelPath()}${generateSuffix}`,
+            `${this.modelPath(activeModelName)}${generateSuffix}`,
             {
               method: httpMethodPost,
               headers: this.headers({ contentType: true }),
-              body: JSON.stringify(buildGenerateBody(request, this.config.modelName)),
+              body: JSON.stringify(buildGenerateBody(request, activeModelName)),
             },
             this.config.requestTimeoutMs,
           )
           break
         } catch (error) {
+          if (this.shouldFallbackDailyModelQuota(error, activeModelName, dailyQuotaModelFallbackCount)) {
+            activeModelName = this.config.dailyQuotaFallbackModelName
+            dailyQuotaModelFallbackCount += 1
+            continue
+          }
           if (!this.shouldRetryRateLimit(error, rateLimitRetryCount)) throw error
           rateLimitRetryCount += 1
           await this.sleep(error.retryDelayMs ?? defaultRateLimitRetryDelayMs)
@@ -150,10 +162,11 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
         latencyMs: Date.now() - startedAt,
         tier: this.tier,
         diagnostics: {
-          endpoint: `${apiVersionPath}${this.config.modelName}${generateSuffix}`,
-          model: typeof response.modelVersion === "string" ? response.modelVersion : this.config.modelName,
+          endpoint: `${apiVersionPath}${activeModelName}${generateSuffix}`,
+          model: typeof response.modelVersion === "string" ? response.modelVersion : activeModelName,
           finishReason: firstFinishReason(response),
           rateLimitRetryCount,
+          dailyQuotaModelFallbackCount,
         },
       })
     } catch (error) {
@@ -221,9 +234,24 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
 
   private shouldRetryRateLimit(error: unknown, retryCount: number): error is GeminiHttpStatusError {
     if (!(error instanceof GeminiHttpStatusError) || error.status !== 429) return false
+    if (isPerModelDailyQuota(error)) return false
     if (retryCount >= this.config.rateLimitMaxRetries) return false
     const retryDelayMs = error.retryDelayMs ?? defaultRateLimitRetryDelayMs
     return retryDelayMs <= this.config.rateLimitMaxDelayMs
+  }
+
+  private shouldFallbackDailyModelQuota(
+    error: unknown,
+    activeModelName: string,
+    fallbackCount: number,
+  ): error is GeminiHttpStatusError {
+    return (
+      error instanceof GeminiHttpStatusError &&
+      error.status === 429 &&
+      isPerModelDailyQuota(error) &&
+      fallbackCount === 0 &&
+      activeModelName !== this.config.dailyQuotaFallbackModelName
+    )
   }
 
   private async request(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
@@ -247,8 +275,8 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
     }
   }
 
-  private modelPath(): string {
-    return `${apiVersionPath}${encodeURIComponent(this.config.modelName)}`
+  private modelPath(modelName = this.config.modelName): string {
+    return `${apiVersionPath}${encodeURIComponent(modelName)}`
   }
 
   private mapError(error: unknown, fallbackMessage: string): ChatbotLlmError {
@@ -410,9 +438,12 @@ async function buildGeminiHttpStatusError(response: Response): Promise<GeminiHtt
   if (response.status !== 429) return new GeminiHttpStatusError(response.status)
 
   const retryDelays = [retryAfterHeaderMs(response)]
+  let quotaIds: string[] = []
   try {
     const payload = await response.json() as unknown
-    retryDelays.push(retryInfoDelayMs(payload))
+    const metadata = geminiErrorMetadata(payload)
+    retryDelays.push(metadata.retryDelayMs)
+    quotaIds = metadata.quotaIds
   } catch {
     // A missing or malformed error body still uses the bounded default delay.
   }
@@ -420,7 +451,7 @@ async function buildGeminiHttpStatusError(response: Response): Promise<GeminiHtt
   const retryDelayMs = parsedRetryDelays.length > 0
     ? Math.max(...parsedRetryDelays)
     : defaultRateLimitRetryDelayMs
-  return new GeminiHttpStatusError(response.status, retryDelayMs)
+  return new GeminiHttpStatusError(response.status, retryDelayMs, quotaIds)
 }
 
 function retryAfterHeaderMs(response: Response): number | undefined {
@@ -432,23 +463,39 @@ function retryAfterHeaderMs(response: Response): number | undefined {
   return Number.isFinite(timestamp) ? Math.max(0, timestamp - Date.now()) : undefined
 }
 
-function retryInfoDelayMs(value: unknown): number | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+function geminiErrorMetadata(value: unknown): { retryDelayMs?: number; quotaIds: string[] } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { quotaIds: [] }
   const error = (value as { error?: unknown }).error
-  if (!error || typeof error !== "object" || Array.isArray(error)) return undefined
+  if (!error || typeof error !== "object" || Array.isArray(error)) return { quotaIds: [] }
   const details = (error as { details?: unknown }).details
-  if (!Array.isArray(details)) return undefined
+  if (!Array.isArray(details)) return { quotaIds: [] }
 
+  let retryDelayMs: number | undefined
+  const quotaIds: string[] = []
   for (const detail of details) {
     if (!detail || typeof detail !== "object" || Array.isArray(detail)) continue
     const retryDelay = (detail as { retryDelay?: unknown }).retryDelay
-    if (typeof retryDelay !== "string") continue
-    const match = /^(\d+(?:\.\d+)?)s$/u.exec(retryDelay.trim())
-    if (!match) continue
-    const milliseconds = Number(match[1]) * 1000
-    if (Number.isFinite(milliseconds) && milliseconds >= 0) return Math.ceil(milliseconds)
+    if (typeof retryDelay === "string") {
+      const match = /^(\d+(?:\.\d+)?)s$/u.exec(retryDelay.trim())
+      const milliseconds = match ? Number(match[1]) * 1000 : Number.NaN
+      if (Number.isFinite(milliseconds) && milliseconds >= 0) retryDelayMs = Math.ceil(milliseconds)
+    }
+    const violations = (detail as { violations?: unknown }).violations
+    if (!Array.isArray(violations)) continue
+    for (const violation of violations) {
+      if (!violation || typeof violation !== "object" || Array.isArray(violation)) continue
+      const quotaId = (violation as { quotaId?: unknown }).quotaId
+      if (typeof quotaId === "string" && /^[a-z0-9_-]{1,160}$/iu.test(quotaId)) quotaIds.push(quotaId)
+    }
   }
-  return undefined
+  return {
+    ...(typeof retryDelayMs === "number" ? { retryDelayMs } : {}),
+    quotaIds: [...new Set(quotaIds)],
+  }
+}
+
+function isPerModelDailyQuota(error: GeminiHttpStatusError): boolean {
+  return error.quotaIds.some((quotaId) => /PerDayPerProjectPerModel/iu.test(quotaId))
 }
 
 function globalFetch(input: string, init?: RequestInit): Promise<Response> {

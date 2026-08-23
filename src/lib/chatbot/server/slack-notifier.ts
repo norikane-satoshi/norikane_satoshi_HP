@@ -40,6 +40,9 @@ export type ChatbotRetryDiagnosticsSummary = {
   perAttemptTimeoutMs?: number
   fallbackReason?: string
   exhausted?: boolean
+  providerModel?: string
+  rateLimitRetryCount?: number
+  dailyQuotaModelFallbackCount?: number
   attempts?: ChatbotRetryAttemptSummary[]
   threadLifecycle?: {
     visibilityStatus?: string
@@ -315,6 +318,13 @@ function formatRetryDiagnosticLines(
       : []),
     ...(typeof summary.totalGenerateBudgetMs === "number" ? [`totalGenerateBudgetMs: ${summary.totalGenerateBudgetMs}`] : []),
     ...(typeof summary.perAttemptTimeoutMs === "number" ? [`perAttemptTimeoutMs: ${summary.perAttemptTimeoutMs}`] : []),
+    ...(summary.providerModel ? [`providerModel: ${summary.providerModel}`] : []),
+    ...(typeof summary.rateLimitRetryCount === "number"
+      ? [`rateLimitRetryCount: ${summary.rateLimitRetryCount}`]
+      : []),
+    ...(typeof summary.dailyQuotaModelFallbackCount === "number"
+      ? [`dailyQuotaModelFallbackCount: ${summary.dailyQuotaModelFallbackCount}`]
+      : []),
     ...(summary.threadLifecycle?.visibilityStatus
       ? [`threadVisibility: ${redactForChatbotLog(summary.threadLifecycle.visibilityStatus)}`]
       : []),
@@ -354,9 +364,12 @@ function coerceRetryDiagnosticsSummary(
   maybeNumber("totalGenerateDurationMs")
   maybeNumber("totalGenerateBudgetMs")
   maybeNumber("perAttemptTimeoutMs")
+  maybeNumber("rateLimitRetryCount")
+  maybeNumber("dailyQuotaModelFallbackCount")
   maybeBoolean("repairAttempted")
   maybeBoolean("exhausted")
   maybeString("fallbackReason")
+  maybeString("providerModel")
 
   const retryReasons = diagnostics.retryReasons
   if (Array.isArray(retryReasons)) {

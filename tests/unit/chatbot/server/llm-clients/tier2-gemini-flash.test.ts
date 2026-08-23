@@ -259,4 +259,51 @@ describe("Tier2GeminiFlashClient", () => {
     expect(httpClient).toHaveBeenCalledOnce()
     expect(sleep).not.toHaveBeenCalled()
   })
+
+  it("switches to Flash-Lite inside tier 2 when the primary model daily quota is exhausted", async () => {
+    const sleep = vi.fn(async () => undefined)
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({
+        error: {
+          details: [
+            {
+              "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+              violations: [{ quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier" }],
+            },
+            { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "47s" },
+          ],
+        },
+      }, { ok: false, status: 429 }))
+      .mockResolvedValueOnce(jsonResponse({
+        candidates: [{
+          content: { parts: [{ text: "<customer_reply>対応可能です。</customer_reply>" }] },
+          finishReason: "STOP",
+        }],
+        modelVersion: "gemini-2.5-flash-lite",
+      }))
+    const gemini = new Tier2GeminiFlashClient({
+      apiKey,
+      modelName: "gemini-2.5-flash",
+      baseUrl: "https://generativelanguage.googleapis.com",
+      requestTimeoutMs: 20,
+      healthCheckTimeoutMs: 20,
+      httpClient,
+      sleep,
+    })
+
+    await expect(gemini.generate(llmRequest())).resolves.toMatchObject({
+      tier: "tier-2-gemini-flash",
+      diagnostics: {
+        model: "gemini-2.5-flash-lite",
+        dailyQuotaModelFallbackCount: 1,
+        rateLimitRetryCount: 0,
+      },
+    })
+    expect(httpClient.mock.calls.map(([url]) => url)).toEqual([
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
+    ])
+    expect(sleep).not.toHaveBeenCalled()
+  })
 })

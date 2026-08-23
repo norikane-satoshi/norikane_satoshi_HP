@@ -129,6 +129,40 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("内容: Tier 2でもAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え")
   })
 
+  it("shows the privacy-safe same-tier Gemini model fallback in Slack", async () => {
+    const fetcher = slackFetcher()
+
+    await sendChatbotSlackNotification(
+      {
+        kind: "conversation",
+        requestId: "req_gemini_daily_quota",
+        conversationId: "conv_gemini_daily_quota",
+        tier: "tier-2-gemini-flash",
+        retryDiagnostics: {
+          providerModel: "gemini-2.5-flash-lite",
+          rateLimitRetryCount: 0,
+          dailyQuotaModelFallbackCount: 1,
+          token: "must-not-leak",
+        } as Record<string, unknown>,
+      },
+      {
+        env: {
+          CHATBOT_SLACK_NOTIFY_ENABLED: "true",
+          SLACK_BOT_TOKEN: "xoxb-secret-token",
+          SLACK_CHATBOT_CHANNEL_ID: "C123",
+        },
+        fetcher,
+      },
+    )
+
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as { text: string }
+    expect(body.text).toContain("providerModel: gemini-2.5-flash-lite")
+    expect(body.text).toContain("rateLimitRetryCount: 0")
+    expect(body.text).toContain("dailyQuotaModelFallbackCount: 1")
+    expect(body.text).not.toContain("must-not-leak")
+    expect(body.text).not.toContain("xoxb-secret-token")
+  })
+
   it("includes a safe hidden-thread failure reason while keeping current Tier names", async () => {
     const fetcher = slackFetcher()
 

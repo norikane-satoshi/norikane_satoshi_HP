@@ -2481,8 +2481,14 @@ function summarizeChatbotRetryDiagnostics(diagnostics: unknown): ChatbotRetryDia
   assignFiniteNumber(summary, "totalGenerateDurationMs", source.totalGenerateDurationMs)
   assignFiniteNumber(summary, "totalGenerateBudgetMs", source.totalGenerateBudgetMs)
   assignFiniteNumber(summary, "perAttemptTimeoutMs", source.perAttemptTimeoutMs)
+  assignFiniteNumber(summary, "rateLimitRetryCount", source.rateLimitRetryCount)
+  assignFiniteNumber(summary, "dailyQuotaModelFallbackCount", source.dailyQuotaModelFallbackCount)
   assignBoolean(summary, "repairAttempted", source.repairAttempted)
   assignBoolean(summary, "exhausted", source.exhausted)
+
+  if (typeof source.model === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(source.model)) {
+    summary.providerModel = source.model
+  }
 
   if (typeof source.fallbackReason === "string" && source.fallbackReason.trim()) {
     summary.fallbackReason = redactForChatbotLog(source.fallbackReason.trim())
@@ -2566,7 +2572,14 @@ function assignAttemptString(
 
 function assignFiniteNumber(
   target: ChatbotRetryDiagnosticsSummary,
-  key: "attemptCount" | "maxAttempts" | "totalGenerateDurationMs" | "totalGenerateBudgetMs" | "perAttemptTimeoutMs",
+  key:
+    | "attemptCount"
+    | "maxAttempts"
+    | "totalGenerateDurationMs"
+    | "totalGenerateBudgetMs"
+    | "perAttemptTimeoutMs"
+    | "rateLimitRetryCount"
+    | "dailyQuotaModelFallbackCount",
   value: unknown,
 ): void {
   if (typeof value === "number" && Number.isFinite(value)) target[key] = value
