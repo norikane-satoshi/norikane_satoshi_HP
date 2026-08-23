@@ -204,7 +204,9 @@ type CandidateWindowFinder =
 
 type HandleChatbotMessageOptions = {
   repository?: ChatbotMessageRepository
-  orchestratorFactory?: () => ChatbotLlmTierOrchestrator
+  orchestratorFactory?: (
+    onTierAttempt: (event: TierAttemptEvent) => void,
+  ) => ChatbotLlmTierOrchestrator
   userContextLoader?: typeof loadUserChatbotContext
   userContextFormatter?: typeof formatUserChatbotContextForPrompt
   candidateWindowFinder?: CandidateWindowFinder
@@ -439,15 +441,17 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
     latestUserMessage: input.message,
   })
+  const recordTierAttempt = (event: TierAttemptEvent) =>
+    tierAttempts.push(summarizeTierAttemptForAudit(event))
   const orchestrator =
-    options.orchestratorFactory?.() ??
+    options.orchestratorFactory?.(recordTierAttempt) ??
     createDefaultChatbotLlmOrchestrator({
       requestId: input.requestId,
       sessionId: conversation.context.sessionId,
       conversationId: conversation.id,
       latestUserMessage: input.message,
       userAgent: input.userAgent,
-    }, (event) => tierAttempts.push(summarizeTierAttemptForAudit(event)))
+    }, recordTierAttempt)
   const fallbackRoutingDecision = decideRoutingFallback({
     jobContext,
     conversationState,
@@ -470,6 +474,7 @@ export async function handleChatbotMessage(
     },
     fallbackRoutingDecision,
   })
+  recordStructuredUiRepairAuditEvidence(tierAttempts, llmResponse)
   const responseNormalizationStartedAt = now()
   const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
   const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
@@ -1888,6 +1893,32 @@ function shouldRegenerateStructuredUi(response: ChatbotLlmResponse): boolean {
     !Array.isArray(rejection) &&
     (rejection as { decision?: unknown }).decision === "reject-and-regenerate-structured-ui"
   )
+}
+
+function recordStructuredUiRepairAuditEvidence(
+  attempts: ChatbotTierAttemptAuditEvidence[],
+  response: ChatbotLlmResponse,
+): void {
+  if (!shouldRegenerateStructuredUi(response)) return
+  const failedAttemptIndex = attempts.findLastIndex(
+    (attempt) =>
+      attempt.tier === response.tier &&
+      attempt.phase === "generate" &&
+      attempt.result === "failure",
+  )
+  if (failedAttemptIndex < 0) return
+
+  attempts[failedAttemptIndex] = {
+    ...attempts[failedAttemptIndex],
+    repairAttempted: true,
+  }
+  attempts.push({
+    tier: response.tier,
+    phase: "generate",
+    result: "success",
+    durationMs: 0,
+    repairAttempted: true,
+  })
 }
 
 function customerReplyMarkup(text: string): string {

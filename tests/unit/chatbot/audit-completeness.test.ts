@@ -40,6 +40,46 @@ function event(
 }
 
 describe("chatbot audit completeness", () => {
+  it("accepts a recorded same-tier deterministic repair only when its repaired success follows", () => {
+    const result = evaluateChatbotAuditCompleteness([
+      event("request_received"),
+      event("tier_attempt_completed", "failure", {
+        tier: "tier-1-hosted-chrome-notion-ai",
+        phase: "generate",
+        retryAttempt: 1,
+      }),
+      event("tier_attempt_completed", "failure", {
+        tier: "tier-2-gemini-flash",
+        phase: "generate",
+        retryAttempt: 2,
+        errorCode: "invalid-output",
+        errorReason: "choice-set-choice-count-out-of-range",
+        repairAttempted: true,
+      }),
+      event("tier_attempt_completed", "success", {
+        tier: "tier-2-gemini-flash",
+        phase: "generate",
+        retryAttempt: 3,
+        repairAttempted: true,
+      }),
+      event("response_normalized", "success", {
+        tier: "tier-2-gemini-flash",
+        uiKind: "choice-panel",
+        finalTierConsistent: true,
+        tierSequenceValid: true,
+      }),
+      event("conversation_persisted"),
+      event("slack_notification_completed"),
+      event("choice_panel_rendered"),
+    ])
+
+    expect(result).toMatchObject({
+      status: "complete",
+      failedEvents: [],
+      integrityViolations: [],
+    })
+  })
+
   it("requires both booking render acknowledgements for a booking response", () => {
     const result = evaluateChatbotAuditCompleteness([
       event("request_received"),

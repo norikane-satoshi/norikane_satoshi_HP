@@ -11,7 +11,10 @@ import {
   type ChatbotLlmTier,
 } from "@/lib/chatbot/server/llm-client"
 import { createTier3FormFallbackClient } from "@/lib/chatbot/server/llm-clients/tier3-form-fallback"
-import { createChatbotLlmTierOrchestrator } from "@/lib/chatbot/server/llm-orchestrator"
+import {
+  createChatbotLlmTierOrchestrator,
+  type TierAttemptEvent,
+} from "@/lib/chatbot/server/llm-orchestrator"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { createStaticChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
@@ -132,24 +135,26 @@ describe("lower-tier response without structured UI", () => {
     vi.stubEnv("NODE_ENV", "production")
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = handlerHarness(incident.tier2RawText)
-    const orchestrator = createChatbotLlmTierOrchestrator({
-      clients: [
-        fakeClient({
-          tier: "tier-1-hosted-chrome-notion-ai",
-          error: new ChatbotLlmError({
-            message: "Hosted Tier1 was rate limited.",
-            code: "rate-limit",
+    const orchestratorFactory = (onTierAttempt?: (event: TierAttemptEvent) => void) =>
+      createChatbotLlmTierOrchestrator({
+        clients: [
+          fakeClient({
             tier: "tier-1-hosted-chrome-notion-ai",
-            isRetryable: true,
+            error: new ChatbotLlmError({
+              message: "Hosted Tier1 was rate limited.",
+              code: "rate-limit",
+              tier: "tier-1-hosted-chrome-notion-ai",
+              isRetryable: true,
+            }),
           }),
-        }),
-        fakeClient({
-          tier: "tier-2-gemini-flash",
-          response: llmResponse("tier-2-gemini-flash", incident.tier2RawText),
-        }),
-        createTier3FormFallbackClient(),
-      ],
-    })
+          fakeClient({
+            tier: "tier-2-gemini-flash",
+            response: llmResponse("tier-2-gemini-flash", incident.tier2RawText),
+          }),
+          createTier3FormFallbackClient(),
+        ],
+        onTierAttempt,
+      })
     const result = await handleChatbotMessage(
       {
         requestId: incident.requestId,
@@ -157,7 +162,7 @@ describe("lower-tier response without structured UI", () => {
         message: incident.userMessage,
         conversationState: emptyConversationState(),
       },
-      { ...harness.options, orchestratorFactory: () => orchestrator },
+      { ...harness.options, orchestratorFactory },
     )
     const boundaryEvent = readJsonLogs(consoleInfo.mock.calls).find(
       (event) =>
@@ -181,6 +186,22 @@ describe("lower-tier response without structured UI", () => {
       decision: "reject-and-regenerate-structured-ui",
       reason: incident.expected.boundaryReason,
     })
+    expect.soft(result.auditEvidence.tierAttempts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        tier: "tier-2-gemini-flash",
+        phase: "generate",
+        result: "failure",
+        errorCode: "invalid-output",
+        errorReason: incident.expected.boundaryReason,
+        repairAttempted: true,
+      }),
+      expect.objectContaining({
+        tier: "tier-2-gemini-flash",
+        phase: "generate",
+        result: "success",
+        repairAttempted: true,
+      }),
+    ]))
   })
 })
 

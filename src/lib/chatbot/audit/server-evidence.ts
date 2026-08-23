@@ -24,6 +24,7 @@ export type ChatbotTierAttemptAuditEvidence = {
   durationMs: number
   errorCode?: string
   errorReason?: string
+  repairAttempted?: boolean
   stageTimings?: ChatbotAuditStageTimings
   threadEvidence?: {
     hiddenFromChatList: boolean
@@ -131,6 +132,9 @@ export function buildChatbotMessageAuditEvents(input: {
       durationMs: attempt.durationMs,
       ...(attempt.errorCode ? { errorCode: attempt.errorCode } : {}),
       ...(attempt.errorReason ? { errorReason: attempt.errorReason } : {}),
+      ...(attempt.repairAttempted !== undefined
+        ? { repairAttempted: attempt.repairAttempted }
+        : {}),
       fallbackUsed,
       retryAttempt: index + 1,
       ...(attempt.stageTimings ? { stageTimings: attempt.stageTimings } : {}),

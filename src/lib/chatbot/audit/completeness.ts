@@ -23,6 +23,7 @@ type CompletenessEvent = {
   retryAttempt?: number | null
   sequence?: number | null
   fallbackUsed?: boolean | null
+  repairAttempted?: boolean | null
   finalTierConsistent?: boolean | null
   tierSequenceValid?: boolean | null
   customerAccountEvidence?: {
@@ -57,7 +58,7 @@ export function evaluateChatbotAuditCompleteness(
   ]
   const missingEvents = required.filter((eventName) => !names.has(eventName))
   const failedEvents = events
-    .filter((event) => event.result === "failure" && !isExpectedFallbackFailure(event, response?.tier))
+    .filter((event) => event.result === "failure" && !isExpectedFallbackFailure(event, response?.tier, events))
     .map((event) => event.eventName)
   const duplicateEvents = singletonEventNames.filter(
     (eventName) => events.filter((event) => event.eventName === eventName).length > 1,
@@ -72,6 +73,7 @@ export function evaluateChatbotAuditCompleteness(
     ...(response && (response.finalTierConsistent !== true || response.tierSequenceValid !== true)
       ? ["tier-sequence-invalid"]
       : []),
+    ...(hasInvalidRepairEvidence(events) ? ["repair-evidence-invalid"] : []),
     ...events
       .filter((event) => event.eventName === "customer_account_linked" && event.customerAccountEvidence?.matches !== true)
       .map(() => "customer-account-link-mismatch"),
@@ -129,12 +131,51 @@ const singletonEventNames = [
   "booking_submit_success_rendered",
 ] as const
 
-function isExpectedFallbackFailure(event: CompletenessEvent, finalTier?: string | null): boolean {
-  if (event.eventName === "tier_attempt_completed") return finalTier !== event.tier
+function isExpectedFallbackFailure(
+  event: CompletenessEvent,
+  finalTier: string | null | undefined,
+  events: CompletenessEvent[],
+): boolean {
+  if (event.eventName === "tier_attempt_completed") {
+    if (finalTier !== event.tier) return true
+    return event.phase === "generate" &&
+      event.repairAttempted === true &&
+      events.some((candidate) =>
+        candidate.eventName === "tier_attempt_completed" &&
+        candidate.phase === "generate" &&
+        candidate.tier === event.tier &&
+        candidate.result === "success" &&
+        candidate.repairAttempted === true &&
+        (candidate.sequence ?? -1) > (event.sequence ?? Number.MAX_SAFE_INTEGER),
+      )
+  }
   if (event.eventName === "notion_thread_hidden_verified") {
     return finalTier !== "tier-1-hosted-chrome-notion-ai"
   }
   return false
+}
+
+function hasInvalidRepairEvidence(events: CompletenessEvent[]): boolean {
+  const repairedEvents = events.filter(
+    (event) => event.eventName === "tier_attempt_completed" && event.repairAttempted === true,
+  )
+  if (repairedEvents.length === 0) return false
+
+  return repairedEvents.some((event) => {
+    const pairedFailure = repairedEvents.some((candidate) =>
+      candidate.phase === "generate" &&
+      candidate.tier === event.tier &&
+      candidate.result === "failure" &&
+      (candidate.sequence ?? Number.MAX_SAFE_INTEGER) < (event.sequence ?? -1),
+    )
+    const pairedSuccess = repairedEvents.some((candidate) =>
+      candidate.phase === "generate" &&
+      candidate.tier === event.tier &&
+      candidate.result === "success" &&
+      (candidate.sequence ?? -1) > (event.sequence ?? Number.MAX_SAFE_INTEGER),
+    )
+    return event.result === "failure" ? !pairedSuccess : !pairedFailure
+  })
 }
 
 function expectedSequence(event: CompletenessEvent): number {

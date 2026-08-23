@@ -24,6 +24,65 @@ const slackSuccessEvidence = {
 }
 
 describe("chatbot server audit evidence", () => {
+  it("preserves a same-tier deterministic repair as a failed attempt followed by repaired success", () => {
+    const events = buildChatbotMessageAuditEvents({
+      requestId: correlationId,
+      conversationId: "conversation_private_1",
+      buildSha: "abc123",
+      createdAt: "2026-08-23T00:00:00.000Z",
+      finalTier: "tier-2-gemini-flash",
+      uiKind: "choice-panel",
+      stageTimings: {},
+      tierAttempts: [
+        {
+          tier: "tier-1-hosted-chrome-notion-ai",
+          phase: "generate",
+          result: "failure",
+          durationMs: 20,
+          errorCode: "rate-limit",
+        },
+        {
+          tier: "tier-2-gemini-flash",
+          phase: "generate",
+          result: "failure",
+          durationMs: 10,
+          errorCode: "invalid-output",
+          errorReason: "choice-set-choice-count-out-of-range",
+          repairAttempted: true,
+        },
+        {
+          tier: "tier-2-gemini-flash",
+          phase: "generate",
+          result: "success",
+          durationMs: 0,
+          repairAttempted: true,
+        },
+      ],
+      slack: slackSuccessEvidence,
+      messageIntegrity: buildChatbotMessageIntegrity(["user", "assistant"]),
+    })
+
+    expect(events.filter((event) => event.eventName === "tier_attempt_completed")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tier: "tier-2-gemini-flash",
+          result: "failure",
+          repairAttempted: true,
+        }),
+        expect.objectContaining({
+          tier: "tier-2-gemini-flash",
+          result: "success",
+          repairAttempted: true,
+        }),
+      ]),
+    )
+    expect(events.find((event) => event.eventName === "response_normalized")).toMatchObject({
+      result: "success",
+      finalTierConsistent: true,
+      tierSequenceValid: true,
+    })
+  })
+
   it("reduces a Tier attempt to an allowlisted, privacy-safe fact", () => {
     const evidence = summarizeTierAttemptForAudit({
       tier: "tier-1-hosted-chrome-notion-ai",
