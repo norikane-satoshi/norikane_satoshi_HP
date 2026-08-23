@@ -26,6 +26,48 @@ const slackSuccessEvidence = {
 }
 
 describe("chatbot server audit evidence", () => {
+  it("accepts a fallback sequence when Tier 1 is rejected by its health check", () => {
+    const events = buildChatbotMessageAuditEvents({
+      requestId: correlationId,
+      conversationId: "conversation_private_1",
+      buildSha: "abc123",
+      createdAt: "2026-08-23T00:00:00.000Z",
+      finalTier: "tier-2-gemini-flash",
+      uiKind: "choice-panel",
+      stageTimings: {},
+      tierAttempts: [
+        {
+          tier: "tier-1-hosted-chrome-notion-ai",
+          phase: "health-check",
+          result: "failure",
+          durationMs: 250,
+          errorCode: "rate-limit",
+        },
+        {
+          tier: "tier-2-gemini-flash",
+          phase: "health-check",
+          result: "success",
+          durationMs: 300,
+        },
+        {
+          tier: "tier-2-gemini-flash",
+          phase: "generate",
+          result: "success",
+          durationMs: 2_500,
+        },
+      ],
+      slack: slackSuccessEvidence,
+      messageIntegrity: buildChatbotMessageIntegrity(["user", "assistant"]),
+    })
+
+    expect(events.find((event) => event.eventName === "response_normalized")).toMatchObject({
+      result: "success",
+      finalTierConsistent: true,
+      tierSequenceValid: true,
+      tier: "tier-2-gemini-flash",
+    })
+  })
+
   it("preserves a same-tier deterministic repair as a failed attempt followed by repaired success", () => {
     const events = buildChatbotMessageAuditEvents({
       requestId: correlationId,

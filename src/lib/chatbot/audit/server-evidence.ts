@@ -114,7 +114,7 @@ export function buildChatbotMessageAuditEvents(input: {
   const finalTierConsistent = successfulGenerateAttempts.length === 1 &&
     successfulGenerateAttempts[0].tier === input.finalTier &&
     (input.finalTier !== "tier-1-hosted-chrome-notion-ai" || !fallbackUsed)
-  const tierSequenceValid = validateTierSequence(generateAttempts, input.finalTier)
+  const tierSequenceValid = validateTierSequence(input.tierAttempts, input.finalTier)
   const drafts: Array<Record<string, unknown>> = [
     {
       eventName: "request_received",
@@ -289,10 +289,15 @@ function validateTierSequence(
   const finalRank = tierRanks[finalTier]
   const ranks = attempts.map((attempt) => tierRanks[attempt.tier])
   const nondecreasing = ranks.every((rank, index) => index === 0 || rank >= ranks[index - 1])
-  const successIndexes = attempts.flatMap((attempt, index) => attempt.result === "success" ? [index] : [])
-  const oneFinalSuccess = successIndexes.length === 1 &&
-    successIndexes[0] === attempts.length - 1 &&
-    attempts[successIndexes[0]]?.tier === finalTier
+  const successfulGenerates = attempts.filter(
+    (attempt) => attempt.phase === "generate" && attempt.result === "success",
+  )
+  const finalAttempt = attempts.at(-1)
+  const oneFinalSuccess = successfulGenerates.length === 1 &&
+    successfulGenerates[0]?.tier === finalTier &&
+    finalAttempt?.phase === "generate" &&
+    finalAttempt.result === "success" &&
+    finalAttempt.tier === finalTier
   const everyTierReached = Array.from({ length: finalRank }, (_, index) => index + 1)
     .every((rank) => ranks.includes(rank as 1 | 2 | 3))
   return nondecreasing && oneFinalSuccess && everyTierReached

@@ -25,9 +25,14 @@ function request(token = "secret") {
   })
 }
 
-function event(totalServer: number, buildSha = "current-build") {
+function event(
+  totalServer: number,
+  buildSha = "current-build",
+  tier = "tier-1-hosted-chrome-notion-ai",
+) {
   return {
     buildSha,
+    tier,
     payloadJson: JSON.stringify({ stageTimings: { totalServer } }),
   }
 }
@@ -70,7 +75,7 @@ describe("GET /api/cron/chatbot-audit-health", () => {
       ok: false,
       status: "regressed",
       sampleCount: 5,
-      violations: ["totalServer"],
+      violations: ["tier-1-hosted-chrome-notion-ai:totalServer"],
     })
   })
 
@@ -90,6 +95,33 @@ describe("GET /api/cron/chatbot-audit-health", () => {
       sampleCount: 4,
       currentBuildSha: "current-build",
       observedBuildShas: ["current-build"],
+    })
+  })
+
+  it("evaluates Tier 2 fallback samples against the Tier 2 baseline", async () => {
+    mocks.findMany.mockResolvedValue(Array.from(
+      { length: 5 },
+      () => event(8_000, "current-build", "tier-2-gemini-flash"),
+    ))
+
+    const response = await GET(request())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      status: "within-budget",
+      sampleCount: 5,
+      scenarios: {
+        "tier-1-hosted-chrome-notion-ai": {
+          status: "insufficient-data",
+          sampleCount: 0,
+        },
+        "tier-2-gemini-flash": {
+          status: "within-budget",
+          sampleCount: 5,
+          observedP95Ms: { totalServer: 8_000 },
+        },
+      },
     })
   })
 })

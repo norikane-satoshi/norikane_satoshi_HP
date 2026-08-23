@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   calibrateChatbotPerformanceBaseline,
   evaluateChatbotPerformanceObservation,
+  evaluateChatbotPerformanceScenarios,
   evaluateChatbotPerformanceWindow,
 } from "@/lib/chatbot/audit/performance"
 
@@ -89,6 +90,87 @@ describe("chatbot performance contract", () => {
       sampleCount: 5,
       violations: ["totalServer"],
       observedP95Ms: { notionInference: 25_000, totalServer: 40_000 },
+    })
+  })
+
+  it("evaluates Tier 1 and Tier 2 samples against separate performance baselines", () => {
+    const tier1Baseline = calibrateChatbotPerformanceBaseline({
+      buildSha: "tier1-baseline",
+      measuredAt: "2026-08-20T15:11:30.377Z",
+      allowedRegressionRatio: 1.2,
+      minimumHeadroomMs: 1000,
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 34_000, notionInference: 26_000 })),
+    })
+    const tier2Baseline = calibrateChatbotPerformanceBaseline({
+      buildSha: "tier2-baseline",
+      measuredAt: "2026-08-23T12:40:28.820Z",
+      allowedRegressionRatio: 1.2,
+      minimumHeadroomMs: 1000,
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 7_500, notionInference: 0 })),
+    })
+
+    expect(evaluateChatbotPerformanceScenarios({
+      baselines: {
+        "tier-1-hosted-chrome-notion-ai": tier1Baseline,
+        "tier-2-gemini-flash": tier2Baseline,
+      },
+      samples: Array.from({ length: 5 }, () => ({
+        tier: "tier-2-gemini-flash",
+        stageTimings: { totalServer: 8_000, notionInference: 0 },
+      })),
+    })).toEqual({
+      status: "within-budget",
+      sampleCount: 5,
+      violations: [],
+      scenarios: {
+        "tier-1-hosted-chrome-notion-ai": {
+          status: "insufficient-data",
+          sampleCount: 0,
+          violations: ["sample-count"],
+          observedP95Ms: {},
+        },
+        "tier-2-gemini-flash": {
+          status: "within-budget",
+          sampleCount: 5,
+          violations: [],
+          observedP95Ms: { notionInference: 0, totalServer: 8_000 },
+        },
+      },
+    })
+  })
+
+  it("does not let fast Tier 2 samples hide a Tier 1 regression", () => {
+    const baseline = calibrateChatbotPerformanceBaseline({
+      buildSha: "baseline",
+      measuredAt: "2026-08-20T15:11:30.377Z",
+      allowedRegressionRatio: 1.2,
+      minimumHeadroomMs: 1000,
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 10_000 })),
+    })
+
+    expect(evaluateChatbotPerformanceScenarios({
+      baselines: {
+        "tier-1-hosted-chrome-notion-ai": baseline,
+        "tier-2-gemini-flash": baseline,
+      },
+      samples: [
+        ...Array.from({ length: 5 }, () => ({
+          tier: "tier-1-hosted-chrome-notion-ai",
+          stageTimings: { totalServer: 20_000 },
+        })),
+        ...Array.from({ length: 5 }, () => ({
+          tier: "tier-2-gemini-flash",
+          stageTimings: { totalServer: 5_000 },
+        })),
+      ],
+    })).toMatchObject({
+      status: "regressed",
+      sampleCount: 10,
+      violations: ["tier-1-hosted-chrome-notion-ai:totalServer"],
+      scenarios: {
+        "tier-1-hosted-chrome-notion-ai": { status: "regressed" },
+        "tier-2-gemini-flash": { status: "within-budget" },
+      },
     })
   })
 })

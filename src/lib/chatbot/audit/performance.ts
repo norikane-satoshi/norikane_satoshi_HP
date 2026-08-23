@@ -144,6 +144,50 @@ export function evaluateChatbotPerformanceWindow(input: {
   }
 }
 
+export function evaluateChatbotPerformanceScenarios(input: {
+  baselines: Record<string, ChatbotPerformanceBaseline>
+  samples: Array<{ tier: string; stageTimings: ChatbotAuditStageTimings }>
+}): {
+  status: "within-budget" | "regressed" | "insufficient-data"
+  sampleCount: number
+  violations: string[]
+  scenarios: Record<string, ReturnType<typeof evaluateChatbotPerformanceWindow>>
+} {
+  const scenarios = Object.fromEntries(
+    Object.entries(input.baselines)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([tier, baseline]) => [
+        tier,
+        evaluateChatbotPerformanceWindow({
+          baseline,
+          samples: input.samples
+            .filter((sample) => sample.tier === tier)
+            .map((sample) => sample.stageTimings),
+        }),
+      ]),
+  )
+  const reports = Object.entries(scenarios)
+  const regressed = reports.filter(([, report]) => report.status === "regressed")
+  const hasWithinBudget = reports.some(([, report]) => report.status === "within-budget")
+  const status = regressed.length > 0
+    ? "regressed"
+    : hasWithinBudget
+      ? "within-budget"
+      : "insufficient-data"
+  const violations = regressed.length > 0
+    ? regressed.flatMap(([tier, report]) => report.violations.map((violation) => `${tier}:${violation}`))
+    : status === "insufficient-data"
+      ? ["sample-count"]
+      : []
+
+  return {
+    status,
+    sampleCount: reports.reduce((total, [, report]) => total + report.sampleCount, 0),
+    violations,
+    scenarios,
+  }
+}
+
 function percentileNearestRank(sortedValues: number[], percentile: number): number {
   const index = Math.max(0, Math.ceil(sortedValues.length * percentile) - 1)
   return sortedValues[index]
