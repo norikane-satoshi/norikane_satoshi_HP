@@ -505,8 +505,8 @@ export function ChatbotBookingCard({
     selectedSlots.length,
   ])
 
-  useEffect(() => {
-    if (!auditContext || !conversationId || !booked) return
+  const emitBookingSubmitSuccessRendered = () => {
+    if (!auditContext || !conversationId) return
     const auditKey = `${auditContext.correlationId}:booking-submit-success`
     if (sentAuditKeysRef.current.has(auditKey)) return
     sentAuditKeysRef.current.add(auditKey)
@@ -529,7 +529,7 @@ export function ChatbotBookingCard({
         errorCode: error instanceof Error ? error.message : "unknown",
       })
     })
-  }, [auditContext, booked, conversationId])
+  }
 
   useEffect(() => {
     if (!displayedMonthRequest || !displayedMonthRequestKey) return
@@ -622,6 +622,7 @@ export function ChatbotBookingCard({
         scheduleLabel: payload.scheduleLabel ?? (selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "希望日未選択"),
         ...submission,
       }
+      emitBookingSubmitSuccessRendered()
       setBooked(result)
       onBooked?.(result)
     } catch (error) {

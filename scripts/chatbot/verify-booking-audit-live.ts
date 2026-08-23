@@ -143,8 +143,12 @@ async function fetchBuildSha(baseUrl: string): Promise<string> {
   return payload.commitSha
 }
 
-async function collectSlackDeliveryHashes(token: string, channel: string): Promise<Set<string>> {
-  const roots = await fetchSlackMessages(token, "conversations.history", { channel, limit: "100" })
+export async function collectSlackDeliveryHashes(token: string, channel: string): Promise<Set<string>> {
+  const roots = await fetchSlackMessages(token, "conversations.history", {
+    channel,
+    limit: "100",
+    include_all_metadata: "true",
+  })
   const messages = [...roots]
   for (const root of roots.filter((message) => Number(message.reply_count ?? 0) > 0)) {
     if (typeof root.ts !== "string") continue
@@ -152,6 +156,7 @@ async function collectSlackDeliveryHashes(token: string, channel: string): Promi
       channel,
       ts: root.ts,
       limit: "100",
+      include_all_metadata: "true",
     }))
   }
   return new Set(messages.flatMap((message) => {

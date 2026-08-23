@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { evaluateLiveBookingAudit } from "../../../../scripts/chatbot/verify-booking-audit-live"
+import {
+  collectSlackDeliveryHashes,
+  evaluateLiveBookingAudit,
+} from "../../../../scripts/chatbot/verify-booking-audit-live"
 
 const buildSha = "abc123"
 const slackHash = "a".repeat(64)
@@ -50,6 +53,10 @@ function completeSummary() {
 }
 
 describe("live booking audit verifier", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it("passes only when browser, booking, account, build, and Slack readback evidence all match", () => {
     const report = evaluateLiveBookingAudit({
       summary: completeSummary(),
@@ -80,5 +87,30 @@ describe("live booking audit verifier", () => {
       "authenticated-customer-evidence-missing",
       "booking-slack-readback-missing",
     ]))
+  })
+
+  it("requests all Slack message metadata before hashing booking delivery IDs", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        messages: [{ ts: "1700000000.000100", reply_count: 1 }],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        messages: [{
+          ts: "1700000000.000200",
+          metadata: { event_payload: { delivery_id: "booking-delivery-id" } },
+        }],
+      })))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const hashes = await collectSlackDeliveryHashes("xoxb-test", "C123")
+
+    expect([...hashes]).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    for (const [input] of fetchMock.mock.calls) {
+      expect(new URL(String(input)).searchParams.get("include_all_metadata")).toBe("true")
+    }
   })
 })

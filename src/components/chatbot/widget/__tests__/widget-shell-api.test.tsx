@@ -1456,6 +1456,7 @@ describe("WidgetShell API wiring", () => {
       if (url === "/api/chatbot/message") {
         return Promise.resolve(
           mockJsonResponse({
+            requestId: "11111111-1111-4111-8111-111111111111",
             conversationId: "conv_1",
             assistantMessage: {
               ...assistantMessage,
@@ -1502,6 +1503,13 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByLabelText("予約送信完了")).toBeInTheDocument()
     expect(screen.getByText("予約番号: group_1")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "予約内容を送信" })).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      const auditEventNames = fetchMock.mock.calls
+        .filter(([input]) => String(input) === "/api/chatbot/audit-event")
+        .map(([, init]) => JSON.parse(String(init?.body)).eventName)
+      expect(auditEventNames).toContain("booking_submit_success_rendered")
+    })
 
     await waitFor(() => {
       const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
