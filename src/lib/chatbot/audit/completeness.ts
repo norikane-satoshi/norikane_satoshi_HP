@@ -34,9 +34,12 @@ type CompletenessEvent = {
   } | null
   slackDeliveryEvidence?: {
     deliveries: Array<{
+      kind?: string
+      deliveryRole?: "parent" | "thread-reply"
       idempotencyKeyHash?: string
       providerDedupeKeySubmitted: boolean
       providerMessageTsPresent: boolean
+      providerDeliveryAccepted?: boolean
     }>
     uniqueIdempotencyKeys: boolean
   } | null
@@ -84,6 +87,30 @@ export function evaluateChatbotAuditCompleteness(
         !hasExactlyOnceSlackEvidence(event.slackDeliveryEvidence),
       )
       .map(() => "slack-delivery-not-exactly-once"),
+    ...events
+      .filter((event) =>
+        event.eventName === "slack_notification_completed" &&
+        event.result === "success" &&
+        event.slackDeliveryEvidence?.deliveries.some(
+          (delivery) =>
+            delivery.kind === "booking-order-submitted" &&
+            delivery.deliveryRole !== "thread-reply",
+        ),
+      )
+      .map(() => "booking-slack-not-thread-reply"),
+    ...(
+      names.has("booking_created") &&
+      names.has("customer_account_linked") &&
+      names.has("booking_submit_success_rendered") &&
+      !events.some((event) =>
+        event.eventName === "slack_notification_completed" &&
+        event.slackDeliveryEvidence?.deliveries.some(
+          (delivery) => delivery.kind === "booking-order-submitted",
+        )
+      )
+      ? ["booking-slack-evidence-missing"]
+      : []
+    ),
   ]
 
   return {
@@ -112,7 +139,9 @@ function hasExactlyOnceSlackEvidence(
       Boolean(
         delivery.idempotencyKeyHash &&
         delivery.providerDedupeKeySubmitted &&
-        delivery.providerMessageTsPresent,
+        delivery.providerMessageTsPresent &&
+        delivery.deliveryRole &&
+        delivery.providerDeliveryAccepted === true,
       ),
     ),
   )

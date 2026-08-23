@@ -20,6 +20,7 @@ function row(input: Record<string, unknown> & { eventName: string; result: strin
     durationMs: 1,
     errorCode: null,
     source: "server",
+    buildSha: "build-abc123",
     createdAt: new Date("2026-08-20T00:00:00.000Z"),
     ...input,
     payloadJson: JSON.stringify(input),
@@ -63,9 +64,11 @@ describe("GET /api/chatbot/audit-summary", () => {
         slackDeliveryEvidence: {
           deliveries: [{
             kind: "conversation",
+            deliveryRole: "parent",
             idempotencyKeyHash: "a".repeat(64),
             providerDedupeKeySubmitted: true,
             providerMessageTsPresent: true,
+            providerDeliveryAccepted: true,
           }],
           uniqueIdempotencyKeys: true,
         },
@@ -105,5 +108,57 @@ describe("GET /api/chatbot/audit-summary", () => {
 
     expect(response.status).toBe(404)
     expect(mocks.findMany).not.toHaveBeenCalled()
+  })
+
+  it("returns build and field-level Booking prefill evidence without customer values", async () => {
+    const prefillFields = [
+      "projectTitle",
+      "dueDate",
+      "companyName",
+      "contactName",
+      "contactEmail",
+      "phone",
+      "memo",
+      "selectedSlots",
+      "agreed",
+    ].map((field) => ({
+      field,
+      expectedFilled: false,
+      actualFilled: false,
+      matches: true,
+      source: field === "agreed" ? "safety-default" : "unconfirmed",
+      reason: field === "agreed" ? "requires-explicit-consent" : "not-confirmed-in-chat",
+    }))
+    mocks.findMany.mockResolvedValue([
+      row({
+        eventName: "booking_prefill_rendered",
+        result: "success",
+        sequence: 640,
+        source: "browser",
+        prefillFields,
+        memoCoverage: {
+          finalMedia: true,
+          materialContents: true,
+          materialTiming: true,
+          materialMethod: true,
+        },
+      }),
+    ])
+
+    const response = await GET(new NextRequest(`http://localhost/api/chatbot/audit-summary?correlationId=${correlationId}`))
+    const payload = await response.json()
+
+    expect(payload.events[0]).toMatchObject({
+      eventName: "booking_prefill_rendered",
+      buildSha: "build-abc123",
+      prefillFields,
+      memoCoverage: {
+        finalMedia: true,
+        materialContents: true,
+        materialTiming: true,
+        materialMethod: true,
+      },
+    })
+    expect(JSON.stringify(payload)).not.toContain("customer@example.com")
   })
 })

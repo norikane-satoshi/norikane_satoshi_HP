@@ -29,9 +29,11 @@ function event(
     ? {
         deliveries: [{
           kind: "conversation",
+          deliveryRole: "parent" as const,
           idempotencyKeyHash: "a".repeat(64),
           providerDedupeKeySubmitted: true,
           providerMessageTsPresent: true,
+          providerDeliveryAccepted: true,
         }],
         uniqueIdempotencyKeys: true,
       }
@@ -296,8 +298,10 @@ describe("chatbot audit completeness", () => {
         slackDeliveryEvidence: {
           deliveries: [{
             kind: "conversation",
+            deliveryRole: "parent",
             providerDedupeKeySubmitted: false,
             providerMessageTsPresent: true,
+            providerDeliveryAccepted: true,
           }],
           uniqueIdempotencyKeys: false,
         },
@@ -306,5 +310,86 @@ describe("chatbot audit completeness", () => {
 
     expect(result.status).toBe("failed")
     expect(result.integrityViolations).toContain("slack-delivery-not-exactly-once")
+  })
+
+  it("fails a successful booking notification posted as a new parent instead of the conversation thread", () => {
+    const result = evaluateChatbotAuditCompleteness([
+      event("request_received"),
+      event("tier_attempt_completed", "success", {
+        tier: "tier-2-gemini-flash",
+        phase: "generate",
+        retryAttempt: 1,
+      }),
+      event("response_normalized", "success", {
+        tier: "tier-2-gemini-flash",
+        uiKind: "booking-card",
+        finalTierConsistent: true,
+        tierSequenceValid: true,
+      }),
+      event("conversation_persisted"),
+      event("slack_notification_completed"),
+      event("booking_card_rendered"),
+      event("booking_prefill_rendered"),
+      event("booking_created"),
+      event("customer_account_linked", "success", {
+        customerAccountEvidence: {
+          authenticated: false,
+          expectedLinked: false,
+          actualLinked: false,
+          matches: true,
+        },
+      }),
+      event("booking_submit_success_rendered"),
+      event("slack_notification_completed", "success", {
+        slackDeliveryEvidence: {
+          deliveries: [{
+            kind: "booking-order-submitted",
+            deliveryRole: "parent",
+            idempotencyKeyHash: "b".repeat(64),
+            providerDedupeKeySubmitted: true,
+            providerMessageTsPresent: true,
+            providerDeliveryAccepted: true,
+          }],
+          uniqueIdempotencyKeys: true,
+        },
+      }),
+    ])
+
+    expect(result.status).toBe("failed")
+    expect(result.integrityViolations).toContain("booking-slack-not-thread-reply")
+  })
+
+  it("fails a completed booking lifecycle when the booking-specific Slack delivery evidence is missing", () => {
+    const result = evaluateChatbotAuditCompleteness([
+      event("request_received"),
+      event("tier_attempt_completed", "success", {
+        tier: "tier-2-gemini-flash",
+        phase: "generate",
+        retryAttempt: 1,
+      }),
+      event("response_normalized", "success", {
+        tier: "tier-2-gemini-flash",
+        uiKind: "booking-card",
+        finalTierConsistent: true,
+        tierSequenceValid: true,
+      }),
+      event("conversation_persisted"),
+      event("slack_notification_completed"),
+      event("booking_card_rendered"),
+      event("booking_prefill_rendered"),
+      event("booking_created"),
+      event("customer_account_linked", "success", {
+        customerAccountEvidence: {
+          authenticated: false,
+          expectedLinked: false,
+          actualLinked: false,
+          matches: true,
+        },
+      }),
+      event("booking_submit_success_rendered"),
+    ])
+
+    expect(result.status).toBe("failed")
+    expect(result.integrityViolations).toContain("booking-slack-evidence-missing")
   })
 })

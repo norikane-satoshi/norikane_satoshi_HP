@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   buildChatbotSlackClientMessageId,
+  buildChatbotSlackDeliveryEvidenceItem,
   sendChatbotSlackNotification,
 } from "@/lib/chatbot/server/slack-notifier"
 
@@ -120,6 +121,38 @@ describe("sendChatbotSlackNotification", () => {
 
     expect(retry).toBe(first)
     expect(issue).not.toBe(first)
+  })
+
+  it("records whether the provider accepted a parent post or a thread reply without storing the thread id", () => {
+    const parent = buildChatbotSlackDeliveryEvidenceItem(
+      {
+        kind: "conversation",
+        requestId: "request-parent",
+        conversationId: "conversation-1",
+      },
+      { status: "sent", ts: "1700000000.000100" },
+    )
+    const reply = buildChatbotSlackDeliveryEvidenceItem(
+      {
+        kind: "booking-order-submitted",
+        requestId: "request-booking",
+        conversationId: "conversation-1",
+        bookingGroupId: "booking-1",
+        threadTs: "1700000000.000100",
+      },
+      { status: "sent", ts: "1700000000.000200" },
+    )
+
+    expect(parent).toMatchObject({
+      deliveryRole: "parent",
+      providerDeliveryAccepted: true,
+    })
+    expect(reply).toMatchObject({
+      deliveryRole: "thread-reply",
+      providerDeliveryAccepted: true,
+    })
+    expect(parent).not.toHaveProperty("threadTs")
+    expect(reply).not.toHaveProperty("threadTs")
   })
 
   it("posts conversation thread replies with required operation fields but without repeated conversation ids", async () => {

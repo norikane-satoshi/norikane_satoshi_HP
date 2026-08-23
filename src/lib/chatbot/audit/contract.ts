@@ -89,7 +89,7 @@ export const bookingPrefillFieldAuditSchema = z
 export type BookingPrefillFieldAudit = z.infer<typeof bookingPrefillFieldAuditSchema>
 export type BookingPrefillFieldName = (typeof bookingPrefillFieldNames)[number]
 
-const memoCoverageSchema = z
+export const chatbotMemoCoverageSchema = z
   .object({
     finalMedia: z.boolean(),
     materialContents: z.boolean(),
@@ -120,9 +120,11 @@ export const chatbotSlackDeliveryEvidenceSchema = z
   .object({
     deliveries: z.array(z.object({
       kind: z.enum(["conversation", "issue", "booking-order-submitted", "message-edit"]),
+      deliveryRole: z.enum(["parent", "thread-reply"]).optional(),
       idempotencyKeyHash: conversationHashSchema.optional(),
       providerDedupeKeySubmitted: z.boolean(),
       providerMessageTsPresent: z.boolean(),
+      providerDeliveryAccepted: z.boolean().optional(),
     }).strict()).min(1).max(3),
     uniqueIdempotencyKeys: z.boolean(),
   })
@@ -175,7 +177,7 @@ const sharedAuditFields = {
   retryAttempt: z.number().int().positive().max(10).optional(),
   repairAttempted: z.boolean().optional(),
   prefillFields: z.array(bookingPrefillFieldAuditSchema).max(bookingPrefillFieldNames.length).optional(),
-  memoCoverage: memoCoverageSchema.optional(),
+  memoCoverage: chatbotMemoCoverageSchema.optional(),
   stageTimings: chatbotAuditStageTimingsSchema.optional(),
   threadEvidence: chatbotAuditThreadEvidenceSchema.optional(),
   messageIntegrity: messageIntegritySchema.optional(),
@@ -291,7 +293,9 @@ export const chatbotServerAuditEventSchema = z
           (delivery) =>
             !delivery.idempotencyKeyHash ||
             !delivery.providerDedupeKeySubmitted ||
-            !delivery.providerMessageTsPresent,
+            !delivery.providerMessageTsPresent ||
+            !delivery.deliveryRole ||
+            delivery.providerDeliveryAccepted !== true,
         ))
     ) {
       context.addIssue({

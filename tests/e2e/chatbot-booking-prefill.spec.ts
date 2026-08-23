@@ -26,7 +26,7 @@ test("renders Booking Order prefill fields without cross-field leakage", async (
           ],
           jobContext: {
             jobKind: "live-60m",
-            finalMedium: "live",
+            finalMedium: "youtube",
             projectLengthMinutes: 150,
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },

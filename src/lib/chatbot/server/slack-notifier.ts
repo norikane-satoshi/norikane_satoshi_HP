@@ -23,9 +23,11 @@ export type ChatbotSlackNotificationResult =
 
 export type ChatbotSlackDeliveryEvidenceItem = {
   kind: ChatbotSlackNotificationInput["kind"]
+  deliveryRole: "parent" | "thread-reply"
   idempotencyKeyHash?: string
   providerDedupeKeySubmitted: boolean
   providerMessageTsPresent: boolean
+  providerDeliveryAccepted: boolean
 }
 
 export type ChatbotRetryDiagnosticsSummary = {
@@ -195,18 +197,20 @@ export function buildChatbotSlackClientMessageId(
 export function buildChatbotSlackDeliveryEvidenceItem(
   input: Pick<
     ChatbotSlackNotificationInput,
-    "kind" | "requestId" | "conversationId" | "bookingGroupId"
+    "kind" | "requestId" | "conversationId" | "bookingGroupId" | "threadTs"
   >,
   result: ChatbotSlackNotificationResult,
 ): ChatbotSlackDeliveryEvidenceItem {
   const clientMessageId = buildChatbotSlackClientMessageId(input)
   return {
     kind: input.kind,
+    deliveryRole: input.threadTs ? "thread-reply" : "parent",
     ...(clientMessageId
       ? { idempotencyKeyHash: createHash("sha256").update(clientMessageId).digest("hex") }
       : {}),
     providerDedupeKeySubmitted: Boolean(clientMessageId),
     providerMessageTsPresent: result.status === "sent" && Boolean(result.ts),
+    providerDeliveryAccepted: result.status === "sent" && Boolean(result.ts),
   }
 }
 

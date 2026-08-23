@@ -55,7 +55,17 @@ const jobKinds = [
   "vertical-60s",
   "live-60m",
 ] as const satisfies readonly JobKind[]
-const finalMediums = ["ott", "cinema", "tv-broadcast", "live", "web", "vertical-sns", "other"] as const
+const finalMediums = [
+  "ott",
+  "cinema",
+  "tv-broadcast",
+  "blu-ray",
+  "youtube",
+  "live",
+  "web",
+  "vertical-sns",
+  "other",
+] as const
 const workSites = ["satoshi-studio", "remote-grading", "on-site"] as const
 const additionalWorkKinds = ["retouch", "skin-retouch", "other"] as const
 

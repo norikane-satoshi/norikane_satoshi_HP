@@ -15,9 +15,11 @@ const slackSuccessEvidence = {
   deliveryEvidence: {
     deliveries: [{
       kind: "conversation" as const,
+      deliveryRole: "parent" as const,
       idempotencyKeyHash: "a".repeat(64),
       providerDedupeKeySubmitted: true,
       providerMessageTsPresent: true,
+      providerDeliveryAccepted: true,
     }],
     uniqueIdempotencyKeys: true,
   },

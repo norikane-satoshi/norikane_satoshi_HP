@@ -1200,6 +1200,7 @@ async function notifySlackForChatbotResponse(input: {
         kind: "issue",
         requestId: input.requestId,
         conversationId: input.conversation.id,
+        threadTs: savedThreadTs,
       }, issueResult))
       auditResult.deliveryEvidence = buildChatbotSlackDeliveryEvidence(deliveries)
       if (issueResult.status !== "sent") {

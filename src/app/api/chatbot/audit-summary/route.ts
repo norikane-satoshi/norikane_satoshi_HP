@@ -3,7 +3,10 @@ import { z } from "zod"
 
 import { evaluateChatbotAuditCompleteness } from "@/lib/chatbot/audit/completeness"
 import {
+  bookingPrefillFieldAuditSchema,
+  bookingPrefillFieldNames,
   chatbotAuditStageTimingsSchema,
+  chatbotMemoCoverageSchema,
   chatbotSlackDeliveryEvidenceSchema,
   type ChatbotAuditStageTimings,
   type ChatbotCustomerAccountEvidence,
@@ -35,6 +38,7 @@ export async function GET(request: NextRequest) {
       durationMs: true,
       errorCode: true,
       source: true,
+      buildSha: true,
       payloadJson: true,
       createdAt: true,
     },
@@ -58,6 +62,7 @@ export async function GET(request: NextRequest) {
       errorCode: event.errorCode,
       ...(event.errorReason ? { errorReason: event.errorReason } : {}),
       source: event.source,
+      buildSha: event.buildSha,
       ...(typeof event.sequence === "number" ? { sequence: event.sequence } : {}),
       ...(typeof event.phase === "string" ? { phase: event.phase } : {}),
       ...(typeof event.retryAttempt === "number" ? { retryAttempt: event.retryAttempt } : {}),
@@ -69,6 +74,8 @@ export async function GET(request: NextRequest) {
         ? { tierSequenceValid: event.tierSequenceValid }
         : {}),
       ...(event.stageTimings ? { stageTimings: event.stageTimings } : {}),
+      ...(event.prefillFields ? { prefillFields: event.prefillFields } : {}),
+      ...(event.memoCoverage ? { memoCoverage: event.memoCoverage } : {}),
       ...(event.customerAccountEvidence
         ? { customerAccountEvidence: event.customerAccountEvidence }
         : {}),
@@ -88,6 +95,8 @@ type SafeAuditPayload = {
   finalTierConsistent?: boolean
   tierSequenceValid?: boolean
   stageTimings?: ChatbotAuditStageTimings
+  prefillFields?: Array<z.infer<typeof bookingPrefillFieldAuditSchema>>
+  memoCoverage?: z.infer<typeof chatbotMemoCoverageSchema>
   customerAccountEvidence?: ChatbotCustomerAccountEvidence
   slackDeliveryEvidence?: ChatbotSlackDeliveryEvidence
   errorReason?: string
@@ -109,6 +118,7 @@ function readSafePayload(payloadJson: string): SafeAuditPayload {
         : {}),
       ...(isSafeCode(parsed.errorReason) ? { errorReason: parsed.errorReason } : {}),
       ...readSafeStageTimings(parsed.stageTimings),
+      ...readSafeBookingPrefillEvidence(parsed.prefillFields, parsed.memoCoverage),
       ...(isSafeCustomerAccountEvidence(parsed.customerAccountEvidence)
         ? { customerAccountEvidence: parsed.customerAccountEvidence }
         : {}),
@@ -116,6 +126,25 @@ function readSafePayload(payloadJson: string): SafeAuditPayload {
     }
   } catch {
     return {}
+  }
+}
+
+const safePrefillFieldsSchema = z.array(bookingPrefillFieldAuditSchema)
+  .length(bookingPrefillFieldNames.length)
+  .refine(
+    (fields) => new Set(fields.map((field) => field.field)).size === bookingPrefillFieldNames.length,
+    "booking_prefill_fields_must_be_unique",
+  )
+
+function readSafeBookingPrefillEvidence(
+  fields: unknown,
+  memoCoverage: unknown,
+): Pick<SafeAuditPayload, "prefillFields" | "memoCoverage"> {
+  const parsedFields = safePrefillFieldsSchema.safeParse(fields)
+  const parsedMemoCoverage = chatbotMemoCoverageSchema.safeParse(memoCoverage)
+  return {
+    ...(parsedFields.success ? { prefillFields: parsedFields.data } : {}),
+    ...(parsedMemoCoverage.success ? { memoCoverage: parsedMemoCoverage.data } : {}),
   }
 }
 

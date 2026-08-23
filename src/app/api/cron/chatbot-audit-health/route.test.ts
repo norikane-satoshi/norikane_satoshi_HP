@@ -13,6 +13,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }))
 
+vi.mock("@/lib/chatbot/server/build-info", () => ({
+  getChatbotBuildSha: () => "current-build",
+}))
+
 import { GET } from "./route"
 
 function request(token = "secret") {
@@ -21,9 +25,9 @@ function request(token = "secret") {
   })
 }
 
-function event(totalServer: number) {
+function event(totalServer: number, buildSha = "current-build") {
   return {
-    buildSha: "7eeaab886eb9e10a96743fc336a30f711beb553a",
+    buildSha,
     payloadJson: JSON.stringify({ stageTimings: { totalServer } }),
   }
 }
@@ -67,6 +71,25 @@ describe("GET /api/cron/chatbot-audit-health", () => {
       status: "regressed",
       sampleCount: 5,
       violations: ["totalServer"],
+    })
+  })
+
+  it("does not mix old build samples into the current build performance verdict", async () => {
+    mocks.findMany.mockResolvedValue([
+      ...Array.from({ length: 4 }, () => event(30_000)),
+      event(80_000, "old-build"),
+    ])
+
+    const response = await GET(request())
+
+    expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ buildSha: "current-build" }),
+    }))
+    await expect(response.json()).resolves.toMatchObject({
+      status: "insufficient-data",
+      sampleCount: 4,
+      currentBuildSha: "current-build",
+      observedBuildShas: ["current-build"],
     })
   })
 })

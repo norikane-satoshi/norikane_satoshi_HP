@@ -96,6 +96,17 @@ describe("chatbot repository mapping helpers", () => {
     })
   })
 
+  it.each(["blu-ray", "youtube"] as const)(
+    "restores the current final-medium choice %s from the canonical DB field",
+    (finalMedium) => {
+      const result = __chatbotRepositoryTestUtils.toDomainConversation(
+        conversationRow({ finalMedium }),
+      )
+
+      expect(result.context.jobContext?.finalMedium).toBe(finalMedium)
+    },
+  )
+
   it("maps routing decisions to conversation statuses", () => {
     expect(
       __chatbotRepositoryTestUtils.toDomainConversation(
