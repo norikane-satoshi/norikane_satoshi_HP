@@ -15,11 +15,14 @@ type Tier2GeminiFlashClientConfig = {
   baseUrl: string
   requestTimeoutMs: number
   healthCheckTimeoutMs: number
+  rateLimitMaxRetries: number
+  rateLimitMaxDelayMs: number
   enabled: boolean
 }
 
 type Tier2GeminiFlashClientOptions = Partial<Tier2GeminiFlashClientConfig> & {
   httpClient?: Tier2GeminiHttpClient
+  sleep?: (delayMs: number) => Promise<void>
 }
 
 type Tier2GeminiHttpClient = (input: string, init?: RequestInit) => Promise<Response>
@@ -45,7 +48,10 @@ type GeminiGenerateResponse = {
 }
 
 class GeminiHttpStatusError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly retryDelayMs?: number,
+  ) {
     super("Gemini Flash HTTP request failed.")
     this.name = "GeminiHttpStatusError"
   }
@@ -56,6 +62,8 @@ export const tier2GeminiFlashDefaults = {
   modelName: "gemini-2.5-flash",
   requestTimeoutMs: 30000,
   healthCheckTimeoutMs: 3000,
+  rateLimitMaxRetries: 1,
+  rateLimitMaxDelayMs: 55000,
   enabled: true,
 } as const
 
@@ -70,11 +78,13 @@ const headerContentType = "content-type"
 const contentTypeJson = "application/json"
 const emptyText = ""
 const firstServerErrorStatus = 500
+const defaultRateLimitRetryDelayMs = 1000
 
 export class Tier2GeminiFlashClient implements ChatbotLlmClient {
   readonly tier = tier
   private readonly config: Tier2GeminiFlashClientConfig
   private readonly httpClient: Tier2GeminiHttpClient
+  private readonly sleep: (delayMs: number) => Promise<void>
   private lastHealthError?: ChatbotLlmError | Error
 
   constructor(options: Tier2GeminiFlashClientOptions = {}) {
@@ -84,25 +94,45 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
       baseUrl: trimTrailingSlash(options.baseUrl) ?? tier2GeminiFlashDefaults.baseUrl,
       requestTimeoutMs: options.requestTimeoutMs ?? tier2GeminiFlashDefaults.requestTimeoutMs,
       healthCheckTimeoutMs: options.healthCheckTimeoutMs ?? tier2GeminiFlashDefaults.healthCheckTimeoutMs,
+      rateLimitMaxRetries: normalizeNonnegativeInteger(
+        options.rateLimitMaxRetries,
+        tier2GeminiFlashDefaults.rateLimitMaxRetries,
+      ),
+      rateLimitMaxDelayMs: normalizeNonnegativeInteger(
+        options.rateLimitMaxDelayMs,
+        tier2GeminiFlashDefaults.rateLimitMaxDelayMs,
+      ),
       enabled: options.enabled ?? tier2GeminiFlashDefaults.enabled,
     }
     this.httpClient = options.httpClient ?? globalFetch
+    this.sleep = options.sleep ?? sleep
   }
 
   async generate(request: ChatbotLlmRequest): Promise<ChatbotLlmResponse> {
     const startedAt = Date.now()
+    let rateLimitRetryCount = 0
 
     try {
       this.assertConfigured()
-      const response = await this.requestJson<GeminiGenerateResponse>(
-        `${this.modelPath()}${generateSuffix}`,
-        {
-          method: httpMethodPost,
-          headers: this.headers({ contentType: true }),
-          body: JSON.stringify(buildGenerateBody(request, this.config.modelName)),
-        },
-        this.config.requestTimeoutMs,
-      )
+      let response: GeminiGenerateResponse
+      while (true) {
+        try {
+          response = await this.requestJson<GeminiGenerateResponse>(
+            `${this.modelPath()}${generateSuffix}`,
+            {
+              method: httpMethodPost,
+              headers: this.headers({ contentType: true }),
+              body: JSON.stringify(buildGenerateBody(request, this.config.modelName)),
+            },
+            this.config.requestTimeoutMs,
+          )
+          break
+        } catch (error) {
+          if (!this.shouldRetryRateLimit(error, rateLimitRetryCount)) throw error
+          rateLimitRetryCount += 1
+          await this.sleep(error.retryDelayMs ?? defaultRateLimitRetryDelayMs)
+        }
+      }
       const rawText = getGeminiText(response).trim()
 
       if (rawText === emptyText) {
@@ -123,6 +153,7 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
           endpoint: `${apiVersionPath}${this.config.modelName}${generateSuffix}`,
           model: typeof response.modelVersion === "string" ? response.modelVersion : this.config.modelName,
           finishReason: firstFinishReason(response),
+          rateLimitRetryCount,
         },
       })
     } catch (error) {
@@ -174,7 +205,7 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
 
   private async requestJson<T>(path: string, init: RequestInit, timeoutMs: number): Promise<T> {
     const response = await this.request(path, init, timeoutMs)
-    if (!response.ok) throw new GeminiHttpStatusError(response.status)
+    if (!response.ok) throw await buildGeminiHttpStatusError(response)
 
     try {
       return (await response.json()) as T
@@ -186,6 +217,13 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
         cause: error,
       })
     }
+  }
+
+  private shouldRetryRateLimit(error: unknown, retryCount: number): error is GeminiHttpStatusError {
+    if (!(error instanceof GeminiHttpStatusError) || error.status !== 429) return false
+    if (retryCount >= this.config.rateLimitMaxRetries) return false
+    const retryDelayMs = error.retryDelayMs ?? defaultRateLimitRetryDelayMs
+    return retryDelayMs <= this.config.rateLimitMaxDelayMs
   }
 
   private async request(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
@@ -368,6 +406,51 @@ function firstFinishReason(response: GeminiGenerateResponse): string | undefined
   return typeof reason === "string" ? reason : undefined
 }
 
+async function buildGeminiHttpStatusError(response: Response): Promise<GeminiHttpStatusError> {
+  if (response.status !== 429) return new GeminiHttpStatusError(response.status)
+
+  const retryDelays = [retryAfterHeaderMs(response)]
+  try {
+    const payload = await response.json() as unknown
+    retryDelays.push(retryInfoDelayMs(payload))
+  } catch {
+    // A missing or malformed error body still uses the bounded default delay.
+  }
+  const parsedRetryDelays = retryDelays.filter((value): value is number => typeof value === "number")
+  const retryDelayMs = parsedRetryDelays.length > 0
+    ? Math.max(...parsedRetryDelays)
+    : defaultRateLimitRetryDelayMs
+  return new GeminiHttpStatusError(response.status, retryDelayMs)
+}
+
+function retryAfterHeaderMs(response: Response): number | undefined {
+  const value = response.headers?.get?.("retry-after")?.trim()
+  if (!value) return undefined
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds * 1000)
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? Math.max(0, timestamp - Date.now()) : undefined
+}
+
+function retryInfoDelayMs(value: unknown): number | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  const error = (value as { error?: unknown }).error
+  if (!error || typeof error !== "object" || Array.isArray(error)) return undefined
+  const details = (error as { details?: unknown }).details
+  if (!Array.isArray(details)) return undefined
+
+  for (const detail of details) {
+    if (!detail || typeof detail !== "object" || Array.isArray(detail)) continue
+    const retryDelay = (detail as { retryDelay?: unknown }).retryDelay
+    if (typeof retryDelay !== "string") continue
+    const match = /^(\d+(?:\.\d+)?)s$/u.exec(retryDelay.trim())
+    if (!match) continue
+    const milliseconds = Number(match[1]) * 1000
+    if (Number.isFinite(milliseconds) && milliseconds >= 0) return Math.ceil(milliseconds)
+  }
+  return undefined
+}
+
 function globalFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init)
 }
@@ -425,6 +508,10 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
+function normalizeNonnegativeInteger(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : fallback
+}
+
 function trimTrailingSlash(value: string | undefined): string | undefined {
   const trimmed = value?.trim()
   if (!trimmed) return undefined
@@ -433,6 +520,10 @@ function trimTrailingSlash(value: string | undefined): string | undefined {
 
 function numberOrUndefined(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs))
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, tag: TimeoutTag): Promise<T> {

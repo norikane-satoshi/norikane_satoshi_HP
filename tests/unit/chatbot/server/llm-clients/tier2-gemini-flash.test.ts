@@ -60,6 +60,7 @@ function client(httpClient: (input: string, init?: RequestInit) => Promise<Respo
     baseUrl: "https://generativelanguage.googleapis.com",
     requestTimeoutMs: 20,
     healthCheckTimeoutMs: 20,
+    rateLimitMaxRetries: 0,
     httpClient,
   })
 }
@@ -194,5 +195,68 @@ describe("Tier2GeminiFlashClient", () => {
       code: "connection",
       isRetryable: true,
     })
+  })
+
+  it("honors Gemini RetryInfo once and keeps a rate-limited request on tier 2", async () => {
+    const sleep = vi.fn(async () => undefined)
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({
+        error: {
+          details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "0.043s" }],
+        },
+      }, { ok: false, status: 429 }))
+      .mockResolvedValueOnce(jsonResponse({
+        candidates: [{
+          content: { parts: [{ text: "<customer_reply>対応可能です。</customer_reply>" }] },
+          finishReason: "STOP",
+        }],
+      }))
+    const gemini = new Tier2GeminiFlashClient({
+      apiKey,
+      modelName: "gemini-2.5-flash",
+      baseUrl: "https://generativelanguage.googleapis.com",
+      requestTimeoutMs: 20,
+      healthCheckTimeoutMs: 20,
+      httpClient,
+      sleep,
+      rateLimitMaxRetries: 1,
+      rateLimitMaxDelayMs: 55_000,
+    })
+
+    await expect(gemini.generate(llmRequest())).resolves.toMatchObject({
+      tier: "tier-2-gemini-flash",
+      diagnostics: { rateLimitRetryCount: 1 },
+    })
+    expect(httpClient).toHaveBeenCalledTimes(2)
+    expect(sleep).toHaveBeenCalledOnce()
+    expect(sleep).toHaveBeenCalledWith(43)
+  })
+
+  it("does not wait when Gemini asks for a delay beyond the bounded tier 2 budget", async () => {
+    const sleep = vi.fn(async () => undefined)
+    const httpClient = vi.fn(async () => jsonResponse({
+      error: {
+        details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "56s" }],
+      },
+    }, { ok: false, status: 429 }))
+    const gemini = new Tier2GeminiFlashClient({
+      apiKey,
+      modelName: "gemini-2.5-flash",
+      baseUrl: "https://generativelanguage.googleapis.com",
+      requestTimeoutMs: 20,
+      healthCheckTimeoutMs: 20,
+      httpClient,
+      sleep,
+      rateLimitMaxRetries: 1,
+      rateLimitMaxDelayMs: 55_000,
+    })
+
+    await expectLlmError(gemini.generate(llmRequest()), {
+      code: "rate-limit",
+      isRetryable: true,
+    })
+    expect(httpClient).toHaveBeenCalledOnce()
+    expect(sleep).not.toHaveBeenCalled()
   })
 })
