@@ -10,7 +10,11 @@ import {
   type ChatbotSlackDeliveryEvidence,
 } from "@/lib/chatbot/audit/contract"
 import { toStoredChatbotServerAuditEvent } from "@/lib/chatbot/audit/server-projection"
-import { ChatbotLlmError, type ChatbotLlmResponse } from "@/lib/chatbot/server/llm-client"
+import {
+  ChatbotLlmError,
+  getChatbotLlmOutputContractRejection,
+  type ChatbotLlmResponse,
+} from "@/lib/chatbot/server/llm-client"
 import type { TierAttemptEvent } from "@/lib/chatbot/server/llm-orchestrator"
 
 export type ChatbotTierAttemptAuditEvidence = {
@@ -19,6 +23,7 @@ export type ChatbotTierAttemptAuditEvidence = {
   result: "success" | "failure"
   durationMs: number
   errorCode?: string
+  errorReason?: string
   stageTimings?: ChatbotAuditStageTimings
   threadEvidence?: {
     hiddenFromChatList: boolean
@@ -75,12 +80,14 @@ export function summarizeTierAttemptForAudit(event: TierAttemptEvent): ChatbotTi
   const threadEvidence = extractThreadEvidence(event.diagnostics)
   const stageTimings = extractWorkerStageTimings(event.diagnostics)
   const success = event.outcome === "healthy" || event.outcome === "success"
+  const errorReason = success ? undefined : safeErrorReason(event.error)
   return {
     tier: event.tier,
     phase: event.phase,
     result: success ? "success" : "failure",
     durationMs: toDuration(event.latencyMs),
     ...(!success ? { errorCode: safeErrorCode(event.error) } : {}),
+    ...(errorReason ? { errorReason } : {}),
     ...(stageTimings ? { stageTimings } : {}),
     ...(threadEvidence ? { threadEvidence } : {}),
   }
@@ -123,6 +130,7 @@ export function buildChatbotMessageAuditEvents(input: {
       phase: attempt.phase,
       durationMs: attempt.durationMs,
       ...(attempt.errorCode ? { errorCode: attempt.errorCode } : {}),
+      ...(attempt.errorReason ? { errorReason: attempt.errorReason } : {}),
       fallbackUsed,
       retryAttempt: index + 1,
       ...(attempt.stageTimings ? { stageTimings: attempt.stageTimings } : {}),
@@ -333,6 +341,14 @@ function extractThreadEvidence(
 
 function safeErrorCode(error: TierAttemptEvent["error"]): string {
   return error instanceof ChatbotLlmError ? error.code : "unknown"
+}
+
+function safeErrorReason(error: TierAttemptEvent["error"]): string | undefined {
+  const contractRejection = getChatbotLlmOutputContractRejection(error)
+  if (contractRejection) return contractRejection.reason
+  if (!(error instanceof ChatbotLlmError)) return undefined
+  const cause = asRecord(error.cause)
+  return cause?.invalidOutputReason === "empty-response" ? "empty-response" : undefined
 }
 
 function safeCode(value: string): string {

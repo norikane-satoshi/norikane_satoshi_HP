@@ -82,6 +82,36 @@ describe("chatbot server audit evidence", () => {
     expect(JSON.stringify(evidence)).not.toContain("private/endpoint")
   })
 
+  it("retains only the allowlisted invalid-output subtype needed for root-cause analysis", () => {
+    const evidence = summarizeTierAttemptForAudit({
+      tier: "tier-2-gemini-flash",
+      phase: "generate",
+      outcome: "error",
+      latencyMs: 1_050,
+      error: new ChatbotLlmError({
+        message: "customer text must never be persisted",
+        code: "invalid-output",
+        tier: "tier-2-gemini-flash",
+        isRetryable: false,
+        cause: {
+          boundary: "llm-output-contract",
+          decision: "reject-and-regenerate-structured-ui",
+          reason: "missing-structured-ui",
+        },
+      }),
+    })
+
+    expect(evidence).toEqual({
+      tier: "tier-2-gemini-flash",
+      phase: "generate",
+      result: "failure",
+      durationMs: 1_050,
+      errorCode: "invalid-output",
+      errorReason: "missing-structured-ui",
+    })
+    expect(JSON.stringify(evidence)).not.toContain("customer text")
+  })
+
   it("builds deterministic, correlated boundary events for a successful customer response", () => {
     const input = {
       requestId: correlationId,

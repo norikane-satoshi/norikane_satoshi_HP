@@ -47,7 +47,7 @@ export const tierFallbackOutputContractIncident = {
   tier2RawText:
     "<customer_reply>のりかね映像設計室の事務担当です。商業映画のカラーグレーディングですね。費用は条件で変わるため、詳細をお聞かせい</customer_reply>",
   expected: {
-    tier: "tier-3-form-fallback",
+    tier: "tier-2-gemini-flash",
     boundaryReason: "missing-structured-ui",
   },
 } as const

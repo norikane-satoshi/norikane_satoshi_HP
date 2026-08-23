@@ -179,6 +179,11 @@ describe("WidgetShell API wiring", () => {
           eventCount: 8,
           missingEvents: [],
           failedEvents: [],
+          events: [{
+            eventName: "tier_attempt_completed",
+            tier: "tier-2-gemini-flash",
+            errorReason: "missing-structured-ui",
+          }],
         }))
       }
       return Promise.resolve(
@@ -242,6 +247,9 @@ describe("WidgetShell API wiring", () => {
     expect(within(panel).getByText("Worker queue wait").parentElement).toHaveTextContent("12 ms")
     expect(within(panel).getByText("Prompt to first chunk").parentElement).toHaveTextContent("100 ms")
     expect(within(panel).getByText("Total server").parentElement).toHaveTextContent("210 ms")
+    expect(within(panel).getByText("Tier error reasons").parentElement).toHaveTextContent(
+      "tier-2-gemini-flash:missing-structured-ui",
+    )
     expect(panel).not.toHaveTextContent("conv_debug")
     expect(panel).not.toHaveTextContent("/tmp/debug-worktree")
     expect(within(panel).getByText("side-peek / desktop")).toBeInTheDocument()

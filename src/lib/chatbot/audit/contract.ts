@@ -169,6 +169,7 @@ const sharedAuditFields = {
   uiKind: chatbotAuditUiKindSchema.optional(),
   durationMs: durationSchema.optional(),
   errorCode: safeCodeSchema.optional(),
+  errorReason: safeCodeSchema.optional(),
   phase: z.enum(["health-check", "generate", "render", "persist", "notify"]).optional(),
   fallbackUsed: z.boolean().optional(),
   retryAttempt: z.number().int().positive().max(10).optional(),

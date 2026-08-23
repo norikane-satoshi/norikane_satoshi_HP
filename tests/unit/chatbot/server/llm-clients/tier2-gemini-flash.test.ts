@@ -127,7 +127,35 @@ describe("Tier2GeminiFlashClient", () => {
     expect(body).toMatchObject({
       systemInstruction: { parts: [{ text: request.systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: "来月のWeb CM案件です" }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 300 },
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 300,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    })
+  })
+
+  it("records a privacy-safe subtype when Gemini finishes without customer-visible text", async () => {
+    const gemini = client(async () => jsonResponse({
+      candidates: [{ finishReason: "MAX_TOKENS" }],
+      usageMetadata: {
+        totalTokenCount: 900,
+        thoughtsTokenCount: 900,
+        candidatesTokenCount: 0,
+      },
+      promptFeedback: { blockReason: "OTHER" },
+    }))
+
+    await expect(gemini.generate(llmRequest())).rejects.toMatchObject({
+      code: "invalid-output",
+      cause: {
+        invalidOutputReason: "empty-response",
+        finishReason: "MAX_TOKENS",
+        blockReason: "OTHER",
+        totalTokenCount: 900,
+        thoughtsTokenCount: 900,
+        candidatesTokenCount: 0,
+      },
     })
   })
 

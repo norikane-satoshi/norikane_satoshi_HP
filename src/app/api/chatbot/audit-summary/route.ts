@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
       tier: event.tier,
       durationMs: event.durationMs,
       errorCode: event.errorCode,
+      ...(event.errorReason ? { errorReason: event.errorReason } : {}),
       source: event.source,
       ...(typeof event.sequence === "number" ? { sequence: event.sequence } : {}),
       ...(typeof event.phase === "string" ? { phase: event.phase } : {}),
@@ -89,6 +90,7 @@ type SafeAuditPayload = {
   stageTimings?: ChatbotAuditStageTimings
   customerAccountEvidence?: ChatbotCustomerAccountEvidence
   slackDeliveryEvidence?: ChatbotSlackDeliveryEvidence
+  errorReason?: string
 }
 
 function readSafePayload(payloadJson: string): SafeAuditPayload {
@@ -105,6 +107,7 @@ function readSafePayload(payloadJson: string): SafeAuditPayload {
       ...(typeof parsed.tierSequenceValid === "boolean"
         ? { tierSequenceValid: parsed.tierSequenceValid }
         : {}),
+      ...(isSafeCode(parsed.errorReason) ? { errorReason: parsed.errorReason } : {}),
       ...readSafeStageTimings(parsed.stageTimings),
       ...(isSafeCustomerAccountEvidence(parsed.customerAccountEvidence)
         ? { customerAccountEvidence: parsed.customerAccountEvidence }
@@ -114,6 +117,10 @@ function readSafePayload(payloadJson: string): SafeAuditPayload {
   } catch {
     return {}
   }
+}
+
+function isSafeCode(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(value)
 }
 
 function readSafeSlackDeliveryEvidence(

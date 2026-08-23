@@ -174,6 +174,7 @@ describe("chatbot machine-readable audit contract", () => {
       phase: "generate",
       durationMs: 54_000,
       errorCode: "timeout",
+      errorReason: "missing-structured-ui",
       retryAttempt: 1,
       fallbackUsed: true,
       threadEvidence: {
@@ -193,6 +194,7 @@ describe("chatbot machine-readable audit contract", () => {
     expect(chatbotStoredAuditEventSchema.parse(stored)).toEqual(stored)
     expect(stored.conversationHash).toMatch(/^[a-f0-9]{64}$/)
     expect(stored.sequence).toBe(201)
+    expect(stored.errorReason).toBe("missing-structured-ui")
     expect(stored).not.toHaveProperty("conversationId")
     expect(JSON.stringify(stored)).not.toContain("conversation_private_1")
   })

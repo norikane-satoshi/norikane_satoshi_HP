@@ -35,6 +35,8 @@ type GeminiGenerateResponse = {
   }>
   usageMetadata?: {
     totalTokenCount?: unknown
+    thoughtsTokenCount?: unknown
+    candidatesTokenCount?: unknown
   }
   modelVersion?: unknown
   promptFeedback?: {
@@ -97,7 +99,7 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
         {
           method: httpMethodPost,
           headers: this.headers({ contentType: true }),
-          body: JSON.stringify(buildGenerateBody(request)),
+          body: JSON.stringify(buildGenerateBody(request, this.config.modelName)),
         },
         this.config.requestTimeoutMs,
       )
@@ -108,6 +110,7 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
           message: buildInvalidOutputMessage(response),
           code: "invalid-output",
           isRetryable: false,
+          cause: buildInvalidOutputCause(response),
         })
       }
 
@@ -294,7 +297,7 @@ export function createTier2GeminiFlashClient(
   })
 }
 
-function buildGenerateBody(request: ChatbotLlmRequest): Record<string, unknown> {
+function buildGenerateBody(request: ChatbotLlmRequest, modelName: string): Record<string, unknown> {
   const contents = request.messages.length > 0
     ? request.messages.map(toGeminiContent)
     : request.latestUserMessage
@@ -309,8 +312,15 @@ function buildGenerateBody(request: ChatbotLlmRequest): Record<string, unknown> 
     generationConfig: {
       temperature: request.temperature ?? 0.2,
       maxOutputTokens: request.maxOutputTokens ?? 900,
+      ...(supportsDisabledThinking(modelName)
+        ? { thinkingConfig: { thinkingBudget: 0 } }
+        : {}),
     },
   }
+}
+
+function supportsDisabledThinking(modelName: string): boolean {
+  return modelName.toLowerCase().startsWith("gemini-2.5-flash")
 }
 
 function toGeminiContent(message: { role: ChatbotMessageRole; content: string }): Record<string, unknown> {
@@ -332,6 +342,25 @@ function buildInvalidOutputMessage(response: GeminiGenerateResponse): string {
     return `Gemini Flash returned no text. blockReason=${blockReason}`
   }
   return "Gemini Flash returned an empty response."
+}
+
+function buildInvalidOutputCause(response: GeminiGenerateResponse): Record<string, string | number> {
+  return {
+    invalidOutputReason: "empty-response",
+    ...stringField("finishReason", firstFinishReason(response)),
+    ...stringField("blockReason", response.promptFeedback?.blockReason),
+    ...numberField("totalTokenCount", response.usageMetadata?.totalTokenCount),
+    ...numberField("thoughtsTokenCount", response.usageMetadata?.thoughtsTokenCount),
+    ...numberField("candidatesTokenCount", response.usageMetadata?.candidatesTokenCount),
+  }
+}
+
+function stringField(name: string, value: unknown): Record<string, string> {
+  return typeof value === "string" && value ? { [name]: value } : {}
+}
+
+function numberField(name: string, value: unknown): Record<string, number> {
+  return typeof value === "number" && Number.isFinite(value) ? { [name]: value } : {}
 }
 
 function firstFinishReason(response: GeminiGenerateResponse): string | undefined {

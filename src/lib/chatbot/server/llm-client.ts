@@ -167,7 +167,7 @@ export function assertChatbotLlmResponseContract(
   if (tierOutputPolicies[record.tier].structuredUi === "required" && uiPayload.kind === "none") {
     throw outputContractError(record.tier, {
       boundary: "llm-output-contract",
-      decision: "reject-and-fallback-tier",
+      decision: "reject-and-regenerate-structured-ui",
       reason: "missing-structured-ui",
     })
   }

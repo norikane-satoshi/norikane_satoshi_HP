@@ -38,6 +38,7 @@ describe("GET /api/chatbot/audit-summary", () => {
         tier: "tier-1-hosted-chrome-notion-ai",
         phase: "generate",
         retryAttempt: 1,
+        errorReason: "missing-structured-ui",
       }),
       row({ eventName: "notion_thread_hidden_verified", result: "success", sequence: 251 }),
       row({
@@ -82,6 +83,10 @@ describe("GET /api/chatbot/audit-summary", () => {
       eventCount: 6,
       missingEvents: [],
       events: expect.arrayContaining([
+        expect.objectContaining({
+          eventName: "tier_attempt_completed",
+          errorReason: "missing-structured-ui",
+        }),
         expect.objectContaining({
           eventName: "response_normalized",
           stageTimings: {

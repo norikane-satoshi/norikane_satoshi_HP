@@ -52,6 +52,11 @@ type ChatbotAuditReadback = {
   eventCount: number
   missingEvents: string[]
   failedEvents: string[]
+  events?: Array<{
+    eventName: string
+    tier?: ChatbotResponseTier
+    errorReason?: string
+  }>
 }
 
 type ClipboardAdapters = {
@@ -106,6 +111,13 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
   const [isLoadingBuildInfo, setIsLoadingBuildInfo] = useState(false)
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle")
   const [auditReadback, setAuditReadback] = useState<ChatbotAuditReadback | null>(null)
+  const tierErrorReasons = [...new Set(
+    auditReadback?.events?.flatMap((event) =>
+      event.eventName === "tier_attempt_completed" && event.tier && event.errorReason
+        ? [`${event.tier}:${event.errorReason}`]
+        : [],
+    ) ?? [],
+  )].join(",")
 
   const refreshBuildInfo = useCallback(async () => {
     setIsLoadingBuildInfo(true)
@@ -185,6 +197,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
     ["Audit event count", auditReadback?.eventCount ?? snapshot.lastRequest?.audit?.eventCount],
     ["Audit missing events", auditReadback?.missingEvents.join(",")],
     ["Audit failed events", auditReadback?.failedEvents.join(",")],
+    ["Tier error reasons", tierErrorReasons || undefined],
     ["Conversation load", formatDuration(snapshot.lastRequest?.audit?.stageTimings.conversationLoad)],
     ["Context preparation", formatDuration(snapshot.lastRequest?.audit?.stageTimings.contextPreparation)],
     ["Tier health check", formatDuration(snapshot.lastRequest?.audit?.stageTimings.tierHealthCheck)],

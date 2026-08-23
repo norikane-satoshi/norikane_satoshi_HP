@@ -82,9 +82,9 @@ describe("shared chatbot LLM output contract", () => {
     ).not.toThrow()
   })
 
-  it("rejects a Tier3 body-only response", () => {
+  it("rejects a Tier2 body-only response for deterministic same-tier UI repair", () => {
     expect(rejectionFor("<customer_reply>相談内容を確認しました。</customer_reply>")).toMatchObject({
-      decision: "reject-and-fallback-tier",
+      decision: "reject-and-regenerate-structured-ui",
       reason: "missing-structured-ui",
     })
   })

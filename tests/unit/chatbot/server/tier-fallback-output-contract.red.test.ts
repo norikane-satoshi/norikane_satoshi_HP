@@ -7,15 +7,11 @@ import {
   ChatbotLlmError,
   defaultLlmTierOrder,
   type ChatbotLlmClient,
-  type ChatbotLlmRequest,
   type ChatbotLlmResponse,
   type ChatbotLlmTier,
 } from "@/lib/chatbot/server/llm-client"
-import { createTier3FormFallbackClient, tier3FormFallbackDefaults } from "@/lib/chatbot/server/llm-clients/tier3-form-fallback"
-import {
-  createChatbotLlmTierOrchestrator,
-  type TierAttemptEvent,
-} from "@/lib/chatbot/server/llm-orchestrator"
+import { createTier3FormFallbackClient } from "@/lib/chatbot/server/llm-clients/tier3-form-fallback"
+import { createChatbotLlmTierOrchestrator } from "@/lib/chatbot/server/llm-orchestrator"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { createStaticChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
@@ -23,8 +19,6 @@ import {
   invalidChoiceSetRegressionCorpus,
   tierFallbackOutputContractIncident,
 } from "../../../fixtures/chatbot/tier-fallback-output-contract-corpus"
-
-type LoggedTierAttempt = TierAttemptEvent & { requestId?: string }
 
 function emptyConversationState(): ConversationState {
   return {
@@ -38,21 +32,6 @@ function emptyConversationState(): ConversationState {
     hasContactEmail: false,
     hasDesiredSchedule: false,
     turnCount: 0,
-  }
-}
-
-function llmRequest(requestId: string): ChatbotLlmRequest {
-  return {
-    requestId,
-    systemPrompt: "Collect one intake fact and return a structured customer response.",
-    messages: [{ role: "user", content: tierFallbackOutputContractIncident.userMessage }],
-    latestUserMessage: tierFallbackOutputContractIncident.userMessage,
-    conversationState: emptyConversationState(),
-    jobContext: {
-      finalMedium: "other",
-      workSite: "remote-grading",
-      documentaryAttachment: { kind: "none" },
-    },
   }
 }
 
@@ -78,57 +57,6 @@ function fakeClient(input: {
       return input.response
     }),
   }
-}
-
-async function runTier2OutputThroughSharedContract(input: {
-  requestId: string
-  rawText: string
-}): Promise<{ result: ChatbotLlmResponse; events: LoggedTierAttempt[] }> {
-  const request = llmRequest(input.requestId)
-  const events: LoggedTierAttempt[] = []
-  const tier1 = fakeClient({
-    tier: "tier-1-hosted-chrome-notion-ai",
-    error: new ChatbotLlmError({
-      message: "Hosted Tier1 timed out.",
-      code: "timeout",
-      tier: "tier-1-hosted-chrome-notion-ai",
-      isRetryable: true,
-    }),
-  })
-  const tier2 = fakeClient({
-    tier: "tier-2-gemini-flash",
-    response: llmResponse("tier-2-gemini-flash", input.rawText),
-  })
-  const orchestrator = createChatbotLlmTierOrchestrator({
-    clients: [tier1, tier2, createTier3FormFallbackClient()],
-    onTierAttempt: (event) => events.push({ requestId: request.requestId, ...event }),
-  })
-
-  return { result: await orchestrator.generate(request), events }
-}
-
-function expectTier2ContractRejection(input: {
-  events: LoggedTierAttempt[]
-  requestId: string
-  expectedReason: string
-}): void {
-  const rejection = input.events.find(
-    (event) =>
-      event.tier === "tier-2-gemini-flash" &&
-      event.phase === "generate" &&
-      event.outcome === "error",
-  )
-
-  expect.soft(rejection).toMatchObject({
-    requestId: input.requestId,
-    tier: "tier-2-gemini-flash",
-    phase: "generate",
-    outcome: "error",
-    error: expect.objectContaining({
-      code: "invalid-output",
-      message: expect.stringContaining(input.expectedReason),
-    }),
-  })
 }
 
 function conversation(): ChatbotConversation {
@@ -199,21 +127,59 @@ afterEach(() => {
 })
 
 describe("lower-tier response without structured UI", () => {
-  it("rejects a Tier2 body-only response after Tier1 failure and falls through to Tier3 form", async () => {
+  it("repairs a Tier2 body-only response with the deterministic intake UI without demoting to Tier3", async () => {
     const incident = tierFallbackOutputContractIncident
-    const { result, events } = await runTier2OutputThroughSharedContract({
-      requestId: incident.requestId,
-      rawText: incident.tier2RawText,
+    vi.stubEnv("NODE_ENV", "production")
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const harness = handlerHarness(incident.tier2RawText)
+    const orchestrator = createChatbotLlmTierOrchestrator({
+      clients: [
+        fakeClient({
+          tier: "tier-1-hosted-chrome-notion-ai",
+          error: new ChatbotLlmError({
+            message: "Hosted Tier1 was rate limited.",
+            code: "rate-limit",
+            tier: "tier-1-hosted-chrome-notion-ai",
+            isRetryable: true,
+          }),
+        }),
+        fakeClient({
+          tier: "tier-2-gemini-flash",
+          response: llmResponse("tier-2-gemini-flash", incident.tier2RawText),
+        }),
+        createTier3FormFallbackClient(),
+      ],
     })
+    const result = await handleChatbotMessage(
+      {
+        requestId: incident.requestId,
+        sessionId: "regression_session",
+        message: incident.userMessage,
+        conversationState: emptyConversationState(),
+      },
+      { ...harness.options, orchestratorFactory: () => orchestrator },
+    )
+    const boundaryEvent = readJsonLogs(consoleInfo.mock.calls).find(
+      (event) =>
+        event.requestId === incident.requestId &&
+        event.boundary === "llm-output-contract",
+    )
 
     expect.soft(result).toMatchObject({
       tier: incident.expected.tier,
-      rawText: tier3FormFallbackDefaults.responseText,
+      assistantMessage: {
+        content: "内容を確認しました。続けて相談内容を送ってください。",
+      },
+      ui: {
+        kind: "direct-contact-card",
+        reason: "pricing",
+      },
     })
-    expectTier2ContractRejection({
-      events,
+    expect.soft(boundaryEvent).toMatchObject({
       requestId: incident.requestId,
-      expectedReason: incident.expected.boundaryReason,
+      boundary: "llm-output-contract",
+      decision: "reject-and-regenerate-structured-ui",
+      reason: incident.expected.boundaryReason,
     })
   })
 })
