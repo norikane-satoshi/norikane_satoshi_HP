@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   conversationUpsert: vi.fn(),
   conversationUpdate: vi.fn(),
+  messageFindUnique: vi.fn(),
+  messageDeleteMany: vi.fn(),
   transaction: vi.fn(),
   executeRaw: vi.fn(),
 }))
@@ -13,6 +15,10 @@ vi.mock("@/lib/prisma", () => ({
       upsert: mocks.conversationUpsert,
       update: mocks.conversationUpdate,
     },
+    chatbotMessage: {
+      findUnique: mocks.messageFindUnique,
+      deleteMany: mocks.messageDeleteMany,
+    },
     $transaction: mocks.transaction,
     $executeRaw: mocks.executeRaw,
   },
@@ -21,6 +27,7 @@ vi.mock("@/lib/prisma", () => ({
 import {
   appendMessage,
   loadOrCreateConversationBySessionId,
+  truncateConversationFromMessage,
   updateConversationRouting,
 } from "@/lib/chatbot/server/repository"
 
@@ -155,5 +162,51 @@ describe("chatbot repository round-trip contract", () => {
         finalMedium: "youtube",
       }),
     }))
+  })
+
+  it("truncates an edited turn with a non-interactive atomic batch", async () => {
+    const createdAt = new Date("2026-08-24T13:55:16.761Z")
+    const deleted = { count: 2 }
+    const updated = { id: "conversation_1" }
+    mocks.messageFindUnique.mockResolvedValue({
+      id: "client_msg_11111111-1111-4111-8111-111111111111",
+      conversationId: "conversation_1",
+      createdAt,
+    })
+    mocks.messageDeleteMany.mockReturnValue(Promise.resolve(deleted))
+    mocks.conversationUpdate.mockReturnValue(Promise.resolve(updated))
+    mocks.transaction.mockResolvedValue([deleted, updated])
+
+    await expect(truncateConversationFromMessage({
+      conversationId: "conversation_1",
+      messageId: "client_msg_11111111-1111-4111-8111-111111111111",
+    })).resolves.toEqual({ deletedCount: 2 })
+
+    expect(mocks.transaction).toHaveBeenCalledWith([
+      expect.any(Promise),
+      expect.any(Promise),
+    ])
+    expect(mocks.messageDeleteMany).toHaveBeenCalledWith({
+      where: {
+        conversationId: "conversation_1",
+        OR: [
+          { createdAt: { gt: createdAt } },
+          {
+            createdAt,
+            id: { gte: "client_msg_11111111-1111-4111-8111-111111111111" },
+          },
+        ],
+      },
+    })
+    expect(mocks.conversationUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "conversation_1" },
+      data: expect.objectContaining({
+        routingDecision: "continue",
+        currentQuestion: null,
+        activeChoices: null,
+        conversationState: null,
+      }),
+    }))
+    expect(mocks.executeRaw).not.toHaveBeenCalled()
   })
 })

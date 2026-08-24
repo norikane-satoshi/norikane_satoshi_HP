@@ -146,24 +146,30 @@ describe("ChatMessage", () => {
     expect(onEdit).not.toHaveBeenCalled()
   })
 
-  it("cancels editing from an outside touch without saving", () => {
+  it("keeps mobile editing open when a touch starts outside the message", () => {
     const onEdit = vi.fn()
     render(
       <div>
-        <ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={onEdit} />
+        <ChatMessage id="msg_1" role="user" content="再テスト" onEdit={onEdit} />
         <button type="button">外側</button>
       </div>,
     )
 
     fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
-    fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "保存しない修正です。" } })
+    const editor = screen.getByLabelText("編集内容")
+    fireEvent.change(editor, { target: { value: "再テストします" } })
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "外側" }), {
+      pointerId: 8,
+      pointerType: "touch",
+      button: 0,
+    })
     fireEvent.touchStart(screen.getByRole("button", { name: "外側" }), {
-      touches: [touchPoint(1, 20, 20)],
-      changedTouches: [touchPoint(1, 20, 20)],
+      touches: [touchPoint(8, 20, 20)],
+      changedTouches: [touchPoint(8, 20, 20)],
     })
 
-    expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
-    expect(screen.getByText("初稿です。")).toBeInTheDocument()
+    expect(screen.getByLabelText("編集内容")).toHaveValue("再テストします")
     expect(onEdit).not.toHaveBeenCalled()
   })
 
@@ -233,8 +239,8 @@ describe("ChatMessage", () => {
     fireEvent.pointerMove(message!, {
       pointerId: 1,
       pointerType: "touch",
-      clientX: 124,
-      clientY: 84,
+      clientX: 121,
+      clientY: 81,
     })
     expect(screen.getByText("長押しして編集")).toBeInTheDocument()
 
@@ -271,13 +277,11 @@ describe("ChatMessage", () => {
     expect(hint.compareDocumentPosition(timestamp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it("restarts mobile long press editing after swipe movement stops on the same message", () => {
+  it("cancels long press editing for the rest of a scrolling gesture", () => {
     vi.useFakeTimers()
-    const vibrate = vi.fn()
-    vi.stubGlobal("navigator", { ...navigator, vibrate })
-    render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
+    render(<ChatMessage id="msg_1" role="user" content="再テスト" onEdit={vi.fn()} />)
 
-    const message = screen.getByText("初稿です。").closest("article")
+    const message = screen.getByText("再テスト").closest("article")
     expect(message).not.toBeNull()
 
     fireEvent.pointerDown(message!, {
@@ -293,21 +297,13 @@ describe("ChatMessage", () => {
       clientX: 120,
       clientY: 120,
     })
+
     act(() => {
-      vi.advanceTimersByTime(599)
+      vi.advanceTimersByTime(1_200)
     })
 
-    expect(screen.getByText("長押しして編集")).toBeInTheDocument()
     expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
-    expect(message).toHaveClass("chatbot-message-liquid")
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
-
-    act(() => {
-      vi.advanceTimersByTime(1)
-    })
-
-    expect(vibrate).toHaveBeenCalledWith([10])
-    expect(screen.getByLabelText("編集内容")).toHaveValue("初稿です。")
+    expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
   })
 
   it("does not enter edit mode while swipe movement keeps changing position", () => {
@@ -338,8 +334,8 @@ describe("ChatMessage", () => {
       expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
     }
 
-    expect(screen.getByText("長押しして編集")).toBeInTheDocument()
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+    expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
+    expect(message).not.toHaveAttribute("data-chatbot-touch-state")
 
     fireEvent.pointerUp(message!, { pointerId: 1, pointerType: "touch" })
     expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
@@ -381,7 +377,7 @@ describe("ChatMessage", () => {
     expect(screen.getByLabelText("編集内容")).toHaveValue("初稿です。")
   })
 
-  it("keeps active swipe feedback after pointer cancel and allows a new long press", () => {
+  it("cancels swipe feedback after pointer cancel and allows a fresh long press", () => {
     vi.useFakeTimers()
     render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
 
@@ -403,8 +399,8 @@ describe("ChatMessage", () => {
     })
     fireEvent.pointerCancel(message!, { pointerId: 1, pointerType: "touch" })
 
-    expect(screen.getByText("長押しして編集")).toBeInTheDocument()
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+    expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "release")
 
     fireEvent.pointerDown(message!, {
       pointerId: 2,
@@ -420,7 +416,7 @@ describe("ChatMessage", () => {
     expect(screen.getByLabelText("編集内容")).toHaveValue("初稿です。")
   })
 
-  it("restarts long press editing from touch movement after browser pointer cancel", () => {
+  it("does not restart long press editing from touch movement after browser pointer cancel", () => {
     vi.useFakeTimers()
     const vibrate = vi.fn()
     vi.stubGlobal("navigator", { ...navigator, vibrate })
@@ -449,9 +445,8 @@ describe("ChatMessage", () => {
       changedTouches: [touchPoint(7, 120, 150)],
     })
 
-    expect(screen.getByText("長押しして編集")).toBeInTheDocument()
-    expect(message).toHaveClass("chatbot-message-liquid")
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+    expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "release")
 
     act(() => {
       vi.advanceTimersByTime(599)
@@ -463,9 +458,8 @@ describe("ChatMessage", () => {
       vi.advanceTimersByTime(1)
     })
 
-    expect(vibrate).toHaveBeenCalledTimes(1)
-    expect(vibrate).toHaveBeenCalledWith([10])
-    expect(screen.getByLabelText("編集内容")).toHaveValue("初稿です。")
+    expect(vibrate).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
   })
 
   it("limits mobile long press editing to the touched user message", () => {
@@ -505,7 +499,7 @@ describe("ChatMessage", () => {
     expect(screen.getByText("別稿です。")).toBeInTheDocument()
   })
 
-  it("keeps pointercancel touch tracking owned by the started message only", () => {
+  it("releases pointercancel touch ownership without editing another message", () => {
     vi.useFakeTimers()
     render(
       <>
@@ -540,8 +534,8 @@ describe("ChatMessage", () => {
       vi.advanceTimersByTime(600)
     })
 
-    expect(screen.getAllByLabelText("編集内容")).toHaveLength(1)
-    expect(screen.getByLabelText("編集内容")).toHaveValue("初稿です。")
+    expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
+    expect(screen.getByText("初稿です。")).toBeInTheDocument()
     expect(screen.getByText("別稿です。")).toBeInTheDocument()
   })
 
@@ -604,15 +598,15 @@ describe("ChatMessage", () => {
       expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
     }
 
-    expect(screen.getByText("長押しして編集")).toBeInTheDocument()
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+    expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
+    expect(message).not.toHaveAttribute("data-chatbot-touch-state")
 
     fireEvent.touchEnd(window, {
       touches: [],
       changedTouches: [touchPoint(7, 120, 202)],
     })
     expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "release")
+    expect(message).not.toHaveAttribute("data-chatbot-touch-state")
 
     act(() => {
       vi.advanceTimersByTime(420)
@@ -621,7 +615,7 @@ describe("ChatMessage", () => {
     expect(message).not.toHaveClass("chatbot-message-liquid")
   })
 
-  it("keeps the touch affordance and active liquid state after browser pointer cancel during swipe", () => {
+  it("ends the touch affordance immediately after browser pointer cancel", () => {
     vi.useFakeTimers()
     render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
 
@@ -637,21 +631,21 @@ describe("ChatMessage", () => {
     })
     fireEvent.pointerCancel(message!, { pointerId: 1, pointerType: "touch" })
 
-    expect(screen.getByText("長押しして編集")).toBeInTheDocument()
+    expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
     expect(message).toHaveClass("chatbot-message-liquid")
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "release")
 
     act(() => {
       vi.advanceTimersByTime(899)
     })
-    expect(screen.getByText("長押しして編集")).toBeInTheDocument()
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+    expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
+    expect(message).not.toHaveAttribute("data-chatbot-touch-state")
 
     act(() => {
       vi.advanceTimersByTime(1)
     })
     expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "release")
+    expect(message).not.toHaveAttribute("data-chatbot-touch-state")
 
     act(() => {
       vi.advanceTimersByTime(420)
@@ -660,7 +654,7 @@ describe("ChatMessage", () => {
     expect(message).not.toHaveAttribute("data-chatbot-touch-state")
   })
 
-  it("keeps the touch affordance and active liquid state after pointer leave until touch end", () => {
+  it("ends the touch affordance immediately after pointer leave", () => {
     vi.useFakeTimers()
     render(<ChatMessage id="msg_1" role="user" content="初稿です。" onEdit={vi.fn()} />)
 
@@ -676,9 +670,9 @@ describe("ChatMessage", () => {
     })
     fireEvent.pointerLeave(message!, { pointerId: 1, pointerType: "touch" })
 
-    expect(screen.getByText("長押しして編集")).toBeInTheDocument()
+    expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()
     expect(message).toHaveClass("chatbot-message-liquid")
-    expect(message).toHaveAttribute("data-chatbot-touch-state", "active")
+    expect(message).toHaveAttribute("data-chatbot-touch-state", "release")
 
     fireEvent.touchEnd(window)
     expect(screen.queryByText("長押しして編集")).not.toBeInTheDocument()

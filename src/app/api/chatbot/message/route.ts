@@ -254,6 +254,7 @@ function classifyMessageFailureStage(error: unknown) {
     if (error.message.includes("Invalid chatbot conversation state JSON")) return "conversation-load"
     if (error.stack?.includes("updateConversationRouting")) return "conversation-save"
     if (error.stack?.includes("appendMessage")) return "conversation-save"
+    if (error.stack?.includes("truncateConversationFromMessage")) return "conversation-save"
   }
   return "server-handler"
 }

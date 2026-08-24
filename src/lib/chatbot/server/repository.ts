@@ -176,26 +176,25 @@ export async function truncateConversationFromMessage(input: {
   conversationId: string
   messageId: string
 }): Promise<{ deletedCount: number }> {
-  return prisma.$transaction(async (tx) => {
-    const messages = await tx.chatbotMessage.findMany({
-      where: { conversationId: input.conversationId },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: { id: true },
-    })
-    const targetIndex = messages.findIndex((message) => message.id === input.messageId)
-    if (targetIndex === -1) {
-      throw new Error("chatbot_edit_target_not_found")
-    }
+  const targetMessage = await prisma.chatbotMessage.findUnique({
+    where: { id: input.messageId },
+    select: { conversationId: true, createdAt: true },
+  })
+  if (!targetMessage || targetMessage.conversationId !== input.conversationId) {
+    throw new Error("chatbot_edit_target_not_found")
+  }
 
-    const deleteIds = messages.slice(targetIndex).map((message) => message.id)
-    const deleteResult = await tx.chatbotMessage.deleteMany({
+  const [deleteResult] = await prisma.$transaction([
+    prisma.chatbotMessage.deleteMany({
       where: {
         conversationId: input.conversationId,
-        id: { in: deleteIds },
+        OR: [
+          { createdAt: { gt: targetMessage.createdAt } },
+          { createdAt: targetMessage.createdAt, id: { gte: input.messageId } },
+        ],
       },
-    })
-
-    await tx.chatbotConversation.update({
+    }),
+    prisma.chatbotConversation.update({
       where: { id: input.conversationId },
       data: {
         routingDecision: "continue",
@@ -207,17 +206,14 @@ export async function truncateConversationFromMessage(input: {
         attachments: null,
         additionalWork: null,
         referenceUrls: null,
+        currentQuestion: null,
+        activeChoices: null,
+        conversationState: null,
       },
-    })
-    await updateRepositoryContextFields(tx, {
-      conversationId: input.conversationId,
-      currentQuestion: null,
-      activeChoices: null,
-      conversationState: null,
-    })
+    }),
+  ])
 
-    return { deletedCount: deleteResult.count }
-  })
+  return { deletedCount: deleteResult.count }
 }
 
 export async function recordSurveyResponse(input: {

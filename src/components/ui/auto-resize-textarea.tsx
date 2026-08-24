@@ -54,16 +54,6 @@ function syncTextareaHeight(textarea: HTMLTextAreaElement | null, maxRows?: numb
   textarea.style.overflowY = textarea.scrollHeight > maxHeight + SCROLL_EPSILON_PX ? "auto" : "hidden"
 }
 
-function keepTextareaCaretVisible(textarea: HTMLTextAreaElement) {
-  if (typeof textarea.scrollIntoView !== "function") return
-
-  const caretAtEnd = textarea.selectionEnd >= textarea.value.length
-  textarea.scrollIntoView({
-    block: caretAtEnd ? "end" : "nearest",
-    inline: "nearest",
-  })
-}
-
 function canScrollTextareaForDelta(textarea: HTMLTextAreaElement, deltaY: number) {
   if (deltaY === 0 || textarea.scrollHeight <= textarea.clientHeight + SCROLL_EPSILON_PX) return false
   if (deltaY < 0) return textarea.scrollTop > SCROLL_EPSILON_PX
@@ -131,13 +121,11 @@ export const AutoResizeTextarea = forwardRef<HTMLTextAreaElement, AutoResizeText
     const handleInput = (event: InputEvent<HTMLTextAreaElement>) => {
       onInput?.(event)
       syncTextareaHeight(event.currentTarget, maxRows)
-      keepTextareaCaretVisible(event.currentTarget)
     }
 
     const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
       onChange?.(event)
       syncTextareaHeight(event.currentTarget, maxRows)
-      keepTextareaCaretVisible(event.currentTarget)
     }
 
     const handleWheel = (event: ReactWheelEvent<HTMLTextAreaElement>) => {

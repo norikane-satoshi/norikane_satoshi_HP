@@ -166,4 +166,64 @@ test.describe("root chatbot entry", () => {
     await restoredChatbot.getByRole("button", { name: "通常表示に戻す" }).click()
     await expect(restoredChatbot.getByRole("button", { name: "全画面表示に切り替え" })).toBeVisible()
   })
+
+  test("keeps mobile long-press editing stable and resends the edited turn", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await clearWidgetState(page)
+    const postedBodies: Array<{ message?: string; editTargetMessageId?: string }> = []
+    await page.route("**/api/chatbot/message", async (route) => {
+      const body = route.request().postDataJSON() as { message?: string; editTargetMessageId?: string }
+      postedBodies.push(body)
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          conversationId: "mobile-edit-conversation",
+          assistantMessage: {
+            id: `assistant-${postedBodies.length}`,
+            role: "assistant",
+            content: postedBodies.length === 1 ? "最初の回答です" : "編集後の回答です",
+            createdAt: new Date("2026-08-24T14:00:00.000Z").toISOString(),
+          },
+          tier: "tier-2-gemini-flash",
+          ui: { kind: "text" },
+        }),
+      })
+    })
+
+    const response = await page.goto("/#contact")
+    expect(response?.status()).toBe(200)
+    const chatbot = page.getByRole("complementary", { name: assistantName })
+    await expectChatbotOpen(page)
+
+    await chatbot.getByLabel("相談内容").fill("再テスト")
+    await chatbot.getByRole("button", { name: "送信" }).click()
+    await expect(chatbot.getByText("最初の回答です")).toBeVisible()
+
+    const userMessage = chatbot.locator("[data-chatbot-user-message='true']").filter({ hasText: "再テスト" })
+    await userMessage.dispatchEvent("pointerdown", {
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+      clientX: 180,
+      clientY: 420,
+    })
+    await page.waitForTimeout(650)
+
+    const editor = chatbot.getByLabel("編集内容")
+    await expect(editor).toBeVisible()
+    const pageScrollBefore = await page.evaluate(() => window.scrollY)
+    await editor.fill("再テストします")
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(pageScrollBefore)
+
+    await chatbot.getByRole("button", { name: "保存" }).click()
+    await chatbot.getByRole("button", { name: "OK" }).click()
+    await expect(chatbot.getByText("編集後の回答です")).toBeVisible()
+
+    expect(postedBodies).toHaveLength(2)
+    expect(postedBodies[1]).toMatchObject({
+      message: "再テストします",
+      editTargetMessageId: expect.stringMatching(/^client_msg_/),
+    })
+  })
 })

@@ -50,6 +50,7 @@ async function loadPost({
   existingConversation = null,
   existingConversationById,
   loadConversationError,
+  truncateConversationError,
   updateConversationRoutingError,
   slackNotificationResult = { status: "skipped", reason: "disabled" },
   llmResponse = {
@@ -62,6 +63,7 @@ async function loadPost({
   existingConversation?: ChatbotConversation | null
   existingConversationById?: ChatbotConversation | null
   loadConversationError?: Error
+  truncateConversationError?: Error
   updateConversationRoutingError?: Error
   slackNotificationResult?: Record<string, unknown>
   llmResponse?: Record<string, unknown>
@@ -80,7 +82,9 @@ async function loadPost({
     .mockImplementation((input: { id?: string; role: ChatbotMessage["role"]; content: string }) =>
       Promise.resolve({ ...message(input.role, input.content), ...(input.id ? { id: input.id } : {}) }),
     )
-  const truncateConversationFromMessage = vi.fn().mockResolvedValue({ deletedCount: 1 })
+  const truncateConversationFromMessage = truncateConversationError
+    ? vi.fn().mockRejectedValue(truncateConversationError)
+    : vi.fn().mockResolvedValue({ deletedCount: 1 })
   const updateConversationRouting = updateConversationRoutingError
     ? vi.fn().mockRejectedValue(updateConversationRoutingError)
     : vi.fn().mockResolvedValue(undefined)
@@ -535,6 +539,51 @@ describe("POST /api/chatbot/message", () => {
     expect(consoleError).toHaveBeenCalledWith(
       "[CHATBOT_OPERATION_FAILURE]",
       expect.stringContaining("\"dbWrite\":\"updateConversationRouting\""),
+    )
+    consoleError.mockRestore()
+  })
+
+  it("classifies edited-turn truncation failures as conversation-save failures", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const error = new Error("Driver adapter failed")
+    error.stack = "DriverAdapterError: Driver adapter failed\n    at truncateConversationFromMessage (repository.ts:175:1)"
+    const route = await loadPost({
+      existingConversation: conversation({
+        messages: [
+          { id: "user_last", role: "user", content: "再テスト", createdAt: "2026-08-24T13:55:16.761Z" },
+        ],
+      }),
+      truncateConversationError: error,
+    })
+
+    const response = await route.POST(
+      request({
+        message: "再テストします",
+        conversationId: "conv_1",
+        clientSessionId: "11111111-1111-4111-8111-111111111111",
+        editTargetMessageId: "user_last",
+      }),
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "chatbot_operation_failed",
+      failure: {
+        stage: "conversation-save",
+        retryable: true,
+        fallback: "tier3-inquiry-form",
+      },
+    })
+    expect(route.scheduleChatbotAuditPersistence).toHaveBeenCalledWith([
+      expect.objectContaining({
+        eventName: "operation_failed",
+        result: "failure",
+        errorCode: "message-conversation-save-failed",
+      }),
+    ])
+    expect(consoleError).toHaveBeenCalledWith(
+      "[CHATBOT_OPERATION_FAILURE]",
+      expect.stringContaining("\"stage\":\"conversation-save\""),
     )
     consoleError.mockRestore()
   })

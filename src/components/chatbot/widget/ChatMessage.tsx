@@ -40,7 +40,6 @@ const LONG_PRESS_MOVE_TOLERANCE_PX = 10
 const LONG_PRESS_STATIONARY_TOLERANCE_PX = 3
 const LONG_PRESS_VIBRATION_MS = 10
 const TOUCH_RELEASE_RIPPLE_MS = 420
-const TOUCH_CANCEL_FALLBACK_MS = 900
 const TOUCH_EDIT_HINT_LABEL = "長押しして編集"
 const EDIT_TRUNCATION_WARNING = "下の会話は削除されます"
 const PENDING_TOUCH_IDENTIFIER = -1
@@ -171,9 +170,7 @@ export function ChatMessage({
   const activeTouchIdentifierRef = useRef<number | null>(null)
   const activeTouchFeedbackRef = useRef(false)
   const touchReleaseTimerRef = useRef<number | null>(null)
-  const touchCancelFallbackTimerRef = useRef<number | null>(null)
   const endTouchFeedbackRef = useRef<() => void>(() => {})
-  const scheduleTouchCancelFallbackRef = useRef<() => void>(() => {})
   const continueTouchLongPressRef = useRef<(point: TouchPoint) => void>(() => {})
   const articleRef = useRef<HTMLElement | null>(null)
   const trimmedDraft = draft.trim()
@@ -190,24 +187,16 @@ export function ChatMessage({
     touchReleaseTimerRef.current = null
   }, [])
 
-  const clearTouchCancelFallbackTimer = useCallback(() => {
-    if (touchCancelFallbackTimerRef.current === null) return
-    window.clearTimeout(touchCancelFallbackTimerRef.current)
-    touchCancelFallbackTimerRef.current = null
-  }, [])
-
   const showActiveTouchFeedback = useCallback(() => {
     clearTouchReleaseTimer()
-    clearTouchCancelFallbackTimer()
     activeTouchFeedbackRef.current = true
     setTouchFeedbackState("active")
     setShowTouchEditAffordance(true)
-  }, [clearTouchCancelFallbackTimer, clearTouchReleaseTimer])
+  }, [clearTouchReleaseTimer])
 
   const endTouchFeedback = useCallback(() => {
     if (!activeTouchFeedbackRef.current) return
     activeTouchFeedbackRef.current = false
-    clearTouchCancelFallbackTimer()
     setShowTouchEditAffordance(false)
     setTouchFeedbackState((currentState) => (currentState === "active" ? "release" : currentState))
     clearTouchReleaseTimer()
@@ -215,16 +204,7 @@ export function ChatMessage({
       touchReleaseTimerRef.current = null
       setTouchFeedbackState("idle")
     }, TOUCH_RELEASE_RIPPLE_MS)
-  }, [clearTouchCancelFallbackTimer, clearTouchReleaseTimer])
-
-  const scheduleTouchCancelFallback = useCallback(() => {
-    if (!activeTouchFeedbackRef.current) return
-    clearTouchCancelFallbackTimer()
-    touchCancelFallbackTimerRef.current = window.setTimeout(() => {
-      touchCancelFallbackTimerRef.current = null
-      endTouchFeedbackRef.current()
-    }, TOUCH_CANCEL_FALLBACK_MS)
-  }, [clearTouchCancelFallbackTimer])
+  }, [clearTouchReleaseTimer])
 
   const vibrateOnLongPress = useCallback(() => {
     if (typeof navigator === "undefined") return
@@ -246,7 +226,6 @@ export function ChatMessage({
     activeTouchIdentifierRef.current = null
     hideMobileEditHint()
     clearTouchReleaseTimer()
-    clearTouchCancelFallbackTimer()
     clearTextSelection()
     setTouchFeedbackState("idle")
     setEditConfirmPending(false)
@@ -257,7 +236,7 @@ export function ChatMessage({
         detail: { messageId: id },
       }),
     )
-  }, [clearTextSelection, clearTouchCancelFallbackTimer, clearTouchReleaseTimer, content, id])
+  }, [clearTextSelection, clearTouchReleaseTimer, content, id])
 
   const armLongPressTimer = useCallback((longPressState: LongPressState, startX: number, startY: number) => {
     window.clearTimeout(longPressState.timerId)
@@ -292,16 +271,19 @@ export function ChatMessage({
       movedFromHoldStartX > LONG_PRESS_MOVE_TOLERANCE_PX ||
       movedFromHoldStartY > LONG_PRESS_MOVE_TOLERANCE_PX
 
-    if (isActivelyMoving) {
-      armLongPressTimer(longPressState, clientX, clientY)
+    if (!isActivelyMoving) return true
+
+    window.clearTimeout(longPressState.timerId)
+    if (longPressStateRef.current === longPressState) {
+      longPressStateRef.current = null
     }
-  }, [armLongPressTimer])
+    return false
+  }, [])
 
   const continueTouchLongPress = useCallback((point: TouchPoint) => {
     if (!canEdit || !id || isEditing || !isLongPressOwner(id)) return
     if (!claimLongPressOwner(id, { touchIdentifier: point.identifier })) return
     activeTouchIdentifierRef.current = point.identifier
-    clearTouchCancelFallbackTimer()
     if (!activeTouchFeedbackRef.current) {
       showActiveTouchFeedback()
     }
@@ -321,8 +303,13 @@ export function ChatMessage({
       return
     }
 
-    updateLongPressPosition(longPressState, point.clientX, point.clientY)
-  }, [armLongPressTimer, canEdit, clearTouchCancelFallbackTimer, id, isEditing, showActiveTouchFeedback, updateLongPressPosition])
+    if (!updateLongPressPosition(longPressState, point.clientX, point.clientY)) {
+      releaseLongPressOwner(id)
+      activeTouchIdentifierRef.current = null
+      clearLongPressTimer()
+      endTouchFeedback()
+    }
+  }, [armLongPressTimer, canEdit, clearLongPressTimer, endTouchFeedback, id, isEditing, showActiveTouchFeedback, updateLongPressPosition])
 
   const finishTouchSession = () => {
     if (id) releaseLongPressOwner(id)
@@ -364,7 +351,9 @@ export function ChatMessage({
     if (!id || !isLongPressOwner(id)) return
     const longPressState = longPressStateRef.current
     if (!longPressState || longPressState.pointerId !== event.pointerId) return
-    updateLongPressPosition(longPressState, event.clientX, event.clientY)
+    if (!updateLongPressPosition(longPressState, event.clientX, event.clientY)) {
+      finishTouchSession()
+    }
   }
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
@@ -383,17 +372,15 @@ export function ChatMessage({
 
   const handlePointerCancel = (event: ReactPointerEvent<HTMLElement>) => {
     if (!id || !isLongPressOwner(id)) return
-    clearLongPressTimer()
     if (canEdit && isMobileLikePointer(event.pointerType)) {
-      scheduleTouchCancelFallback()
+      finishTouchSession()
     }
   }
 
   const handlePointerLeave = (event: ReactPointerEvent<HTMLElement>) => {
     if (!id || !isLongPressOwner(id)) return
-    clearLongPressTimer()
     if (canEdit && isMobileLikePointer(event.pointerType)) {
-      scheduleTouchCancelFallback()
+      finishTouchSession()
     }
   }
 
@@ -431,10 +418,7 @@ export function ChatMessage({
   }
 
   const handleTouchCancel = () => {
-    if (id) releaseLongPressOwner(id)
-    activeTouchIdentifierRef.current = null
-    clearLongPressTimer()
-    scheduleTouchCancelFallback()
+    finishTouchSession()
   }
 
   const requestSaveEdit = () => {
@@ -457,8 +441,7 @@ export function ChatMessage({
 
   useEffect(() => {
     endTouchFeedbackRef.current = endTouchFeedback
-    scheduleTouchCancelFallbackRef.current = scheduleTouchCancelFallback
-  }, [endTouchFeedback, scheduleTouchCancelFallback])
+  }, [endTouchFeedback])
 
   useEffect(() => {
     continueTouchLongPressRef.current = continueTouchLongPress
@@ -474,7 +457,6 @@ export function ChatMessage({
       activeTouchIdentifierRef.current = null
       clearLongPressTimer()
       clearTouchReleaseTimer()
-      clearTouchCancelFallbackTimer()
       hideMobileEditHint()
       setTouchFeedbackState("idle")
       setEditConfirmPending(false)
@@ -484,12 +466,13 @@ export function ChatMessage({
 
     window.addEventListener(CHATBOT_MESSAGE_EDITING_STARTED_EVENT, handleEditingStarted)
     return () => window.removeEventListener(CHATBOT_MESSAGE_EDITING_STARTED_EVENT, handleEditingStarted)
-  }, [clearLongPressTimer, clearTouchCancelFallbackTimer, clearTouchReleaseTimer, content, id])
+  }, [clearLongPressTimer, clearTouchReleaseTimer, content, id])
 
   useEffect(() => {
     if (!isEditing) return undefined
 
-    const handleOutsideEditPointer = (event: PointerEvent | MouseEvent | TouchEvent) => {
+    const handleOutsideEditPointer = (event: PointerEvent) => {
+      if (isMobileLikePointer(event.pointerType)) return
       const article = articleRef.current
       const target = event.target
       if (article && target instanceof Node && article.contains(target)) return
@@ -497,12 +480,8 @@ export function ChatMessage({
     }
 
     document.addEventListener("pointerdown", handleOutsideEditPointer, true)
-    document.addEventListener("mousedown", handleOutsideEditPointer, true)
-    document.addEventListener("touchstart", handleOutsideEditPointer, { capture: true, passive: true })
     return () => {
       document.removeEventListener("pointerdown", handleOutsideEditPointer, true)
-      document.removeEventListener("mousedown", handleOutsideEditPointer, true)
-      document.removeEventListener("touchstart", handleOutsideEditPointer, true)
     }
   }, [cancelEdit, isEditing])
 
@@ -519,7 +498,7 @@ export function ChatMessage({
       releaseLongPressOwner(id)
       activeTouchIdentifierRef.current = null
       clearLongPressTimer()
-      scheduleTouchCancelFallbackRef.current()
+      endTouchFeedbackRef.current()
     }
     const handleWindowTouchMove = (event: TouchEvent) => {
       if (!id || !isLongPressOwner(id)) return
@@ -546,13 +525,12 @@ export function ChatMessage({
       if (id) releaseLongPressOwner(id)
       clearLongPressTimer()
       clearTouchReleaseTimer()
-      clearTouchCancelFallbackTimer()
       window.removeEventListener("touchmove", handleWindowTouchMove, true)
       window.removeEventListener("touchend", handleWindowTouchEnd, true)
       window.removeEventListener("touchcancel", handleWindowTouchCancel, true)
       window.removeEventListener("pointerup", handleWindowPointerUp, true)
     }
-  }, [clearLongPressTimer, clearTouchCancelFallbackTimer, clearTouchReleaseTimer, id])
+  }, [clearLongPressTimer, clearTouchReleaseTimer, id])
 
   return (
     <article

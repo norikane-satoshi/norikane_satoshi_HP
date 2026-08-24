@@ -12,7 +12,7 @@ describe("AutoResizeTextarea", () => {
     vi.restoreAllMocks()
   })
 
-  it("expands and keeps the bottom of newly entered long text reachable", () => {
+  it("expands long text without forcing ancestor scroll", () => {
     const scrollIntoView = vi.fn()
     Object.defineProperty(HTMLTextAreaElement.prototype, "scrollIntoView", {
       configurable: true,
@@ -26,13 +26,26 @@ describe("AutoResizeTextarea", () => {
     fireEvent.change(field, { target: { value: "補足メモ\n".repeat(30) } })
 
     expect(field).toHaveStyle({ height: "640px", overflowY: "hidden" })
-    expect(scrollIntoView).toHaveBeenLastCalledWith({
-      block: "end",
-      inline: "nearest",
-    })
+    expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
-  it("does not force-scroll to the bottom when editing existing middle text", () => {
+  it("does not force the page or conversation to scroll while typing", () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLTextAreaElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    })
+    render(<AutoResizeTextarea aria-label="編集内容" defaultValue="再テスト" />)
+
+    const field = screen.getByLabelText("編集内容")
+    Object.defineProperty(field, "scrollHeight", { configurable: true, value: 120 })
+    fireEvent.change(field, { target: { value: "再テストします" } })
+
+    expect(field).toHaveStyle({ height: "120px" })
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it("resizes existing middle text without forcing ancestor scroll", () => {
     const scrollIntoView = vi.fn()
     Object.defineProperty(HTMLTextAreaElement.prototype, "scrollIntoView", {
       configurable: true,
@@ -47,10 +60,7 @@ describe("AutoResizeTextarea", () => {
     fireEvent.input(field, { target: { value: "1行目 編集\n2行目\n3行目" } })
 
     expect(field).toHaveStyle({ height: "120px" })
-    expect(scrollIntoView).toHaveBeenLastCalledWith({
-      block: "nearest",
-      inline: "nearest",
-    })
+    expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
   it("caps at maxRows and leaves wheel scrolling to the textarea", () => {
