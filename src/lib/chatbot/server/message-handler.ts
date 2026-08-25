@@ -1,4 +1,5 @@
 import {
+  additionalWorkChoices,
   finalMediumChoices,
   formatConsultationSummary,
   hasRequiredEmailConsultationSlots,
@@ -909,6 +910,7 @@ function hasProjectTypeTextMismatch(text: string, jobKind: NonNullable<JobContex
 
 function contextualizeStoredActiveChoices(conversation: ChatbotConversation): SurveyChoiceSet | undefined {
   const activeChoices = conversation.context.activeChoices
+  if (activeChoices?.id === additionalWorkChoices.id) return additionalWorkChoices
   if (activeChoices?.id !== "project-length") return activeChoices
 
   const jobKind = resolveStoredOrHistoricalJobKind(conversation)
@@ -3039,7 +3041,10 @@ function resolveLlmChoicePanelRoutingDecision(input: {
   const fallback = input.fallbackRoutingDecision
   if (fallback.kind !== "continue") return undefined
 
-  const choiceSet = input.toolCall.args
+  const requestedChoiceSet = input.toolCall.args
+  const choiceSet = requestedChoiceSet.id === additionalWorkChoices.id
+    ? additionalWorkChoices
+    : requestedChoiceSet
   const fallbackChoiceSetId = fallback.presentChoices?.id
   if (fallbackChoiceSetId && choiceSet.id !== fallbackChoiceSetId) return undefined
   if (isSatisfiedChoicePanel(choiceSet, input.conversationState)) return undefined

@@ -68,6 +68,7 @@ const finalMediums = [
 ] as const
 const workSites = ["satoshi-studio", "remote-grading", "on-site"] as const
 const additionalWorkKinds = ["retouch", "skin-retouch", "other"] as const
+const legacyPrimaryServiceAdditionalWorkKinds = ["color-grading", "color-correction"] as const
 
 export async function createConversation(input: {
   sessionId: string
@@ -446,7 +447,7 @@ function toInquiryCreateData(input: {
         : null,
     workSite: jobContext.workSite,
     attachments: JSON.stringify(jobContext.documentaryAttachment),
-    additionalWork: jobContext.additionalWork ? JSON.stringify(jobContext.additionalWork) : null,
+    additionalWork: serializeAdditionalWork(jobContext.additionalWork),
     referenceUrls: jobContext.referenceUrls ? JSON.stringify(jobContext.referenceUrls) : null,
     desiredDeadline: jobContext.publicReleaseDate ?? null,
     freeText: input.summary.openQuestions.join("\n"),
@@ -494,7 +495,7 @@ function toConversationSummaryUpdateData(
         : null,
     workSite: jobContext.workSite,
     attachments: JSON.stringify(jobContext.documentaryAttachment),
-    additionalWork: jobContext.additionalWork ? JSON.stringify(jobContext.additionalWork) : null,
+    additionalWork: serializeAdditionalWork(jobContext.additionalWork),
     referenceUrls: jobContext.referenceUrls ? JSON.stringify(jobContext.referenceUrls) : null,
   }
 }
@@ -509,7 +510,7 @@ function toJobContextUpdateData(jobContext: JobContext): Prisma.ChatbotConversat
         : null,
     workSite: jobContext.workSite,
     attachments: JSON.stringify(jobContext.documentaryAttachment),
-    additionalWork: jobContext.additionalWork ? JSON.stringify(jobContext.additionalWork) : null,
+    additionalWork: serializeAdditionalWork(jobContext.additionalWork),
     referenceUrls: jobContext.referenceUrls ? JSON.stringify(jobContext.referenceUrls) : null,
   }
 }
@@ -588,12 +589,26 @@ function toDocumentaryAttachment(value: string | null): DocumentaryAttachment | 
 function toAdditionalWork(value: string | null): JobContext["additionalWork"] | undefined {
   const parsed = toStringArray(value)
   if (!parsed) return undefined
-  for (const item of parsed) {
-    if (!isOneOf(item, additionalWorkKinds)) {
-      throw new Error(`Unknown chatbot additional work: ${item}`)
+  return normalizeAdditionalWorkValues(parsed)
+}
+
+function serializeAdditionalWork(value: JobContext["additionalWork"] | undefined): string | null {
+  if (!value) return null
+  const normalized = normalizeAdditionalWorkValues(value as readonly string[])
+  return normalized?.length ? JSON.stringify(normalized) : null
+}
+
+function normalizeAdditionalWorkValues(value: readonly string[]): JobContext["additionalWork"] | undefined {
+  const normalized: NonNullable<JobContext["additionalWork"]> = []
+  for (const item of value) {
+    if (isOneOf(item, additionalWorkKinds)) {
+      normalized.push(item)
+      continue
     }
+    if (isOneOf(item, legacyPrimaryServiceAdditionalWorkKinds)) continue
+    throw new Error(`Unknown chatbot additional work: ${item}`)
   }
-  return parsed as JobContext["additionalWork"]
+  return normalized.length > 0 ? normalized : undefined
 }
 
 function toSurveyChoiceSet(value: string | null | undefined): SurveyChoiceSet | undefined {
@@ -620,7 +635,21 @@ function toConversationState(value: string | null | undefined): Partial<Conversa
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("Invalid chatbot conversation state JSON")
   }
-  return parsed as Partial<ConversationState>
+  const state = parsed as Partial<ConversationState>
+  const durationContext = state.durationContext
+  const workflowFacts = durationContext?.workflowFacts
+  const storedAdditionalWork = workflowFacts?.additionalWork
+  if (!durationContext || !Array.isArray(storedAdditionalWork)) return state
+  return {
+    ...state,
+    durationContext: {
+      ...durationContext,
+      workflowFacts: {
+        ...workflowFacts,
+        additionalWork: normalizeAdditionalWorkValues(storedAdditionalWork as readonly string[]),
+      },
+    },
+  }
 }
 
 function withSubmittedBookingState(

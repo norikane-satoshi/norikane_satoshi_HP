@@ -4950,6 +4950,45 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
+  it("replaces non-canonical LLM additional-work choices before they can be displayed or persisted", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            hasFinalMedium: true,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasAdditionalWork: false,
+            turnCount: 3,
+          },
+          jobContext: {
+            jobKind: "cm-30s",
+            finalMedium: "cinema",
+            projectLengthMinutes: 1,
+          },
+        },
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply(
+        '追加作業を選んでください。 {"tool":"show_choice_panel","args":{"id":"additional-work","question":"追加作業を選んでください","selectionMode":"multiple","choices":[{"id":"color-grading","label":"カラーグレーディング"},{"id":"retouch","label":"消し物"}]}}',
+      ),
+      tier: "tier-1-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "ほかの作業も相談したいです" },
+      harness.options,
+    )
+
+    expect(result.ui).toEqual({ kind: "choice-panel", choiceSet: additionalWorkChoices })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({ activeChoices: additionalWorkChoices }),
+    )
+  })
+
   it("stores other comments from a confirmed multiple-choice answer", async () => {
     const harness = setup({
       existingConversation: conversation({

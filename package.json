@@ -32,6 +32,7 @@
     "chatbot:verify-hidden-thread-live": "tsx scripts/chatbot/verify-hidden-notion-thread-live.ts",
     "chatbot:verify-fallback-customer-experience-live": "tsx scripts/chatbot/verify-fallback-customer-experience-live.ts",
     "chatbot:verify-known-regressions-live": "tsx scripts/chatbot/verify-known-regressions-live.ts",
+    "chatbot:verify-endurance-live": "tsx scripts/chatbot/verify-endurance-live.ts",
     "chatbot:verify-booking-audit-live": "tsx scripts/chatbot/verify-booking-audit-live.ts"
   },
   "prisma": {

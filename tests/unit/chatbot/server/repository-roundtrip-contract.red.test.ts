@@ -85,6 +85,28 @@ describe("chatbot repository round-trip contract", () => {
     }))
   })
 
+  it("keeps a conversation readable when a legacy primary-service marker was stored as additional work", async () => {
+    mocks.conversationUpsert.mockResolvedValue({
+      ...conversationRow(),
+      additionalWork: JSON.stringify(["color-grading"]),
+      conversationState: JSON.stringify({
+        hasAdditionalWork: true,
+        durationContext: {
+          snapshotStatus: "current",
+          workflowFacts: { additionalWork: ["color-grading"] },
+        },
+      }),
+    })
+
+    const loaded = await loadOrCreateConversationBySessionId({
+      sessionId: "session_1",
+      userId: null,
+    })
+
+    expect(loaded.context.jobContext?.additionalWork).toBeUndefined()
+    expect(loaded.context.conversationState?.durationContext?.workflowFacts?.additionalWork).toBeUndefined()
+  })
+
   it("appends a message and advances lastMessageAt in one nested mutation", async () => {
     const createdAt = new Date("2026-08-23T00:01:00.000Z")
     mocks.conversationUpdate.mockResolvedValue({
@@ -162,6 +184,27 @@ describe("chatbot repository round-trip contract", () => {
         finalMedium: "youtube",
       }),
     }))
+  })
+
+  it("never writes a legacy primary-service marker into the additional-work column", async () => {
+    mocks.conversationUpdate.mockResolvedValue({ id: "conversation_1" })
+
+    await updateConversationRouting({
+      conversationId: "conversation_1",
+      routingDecision: "continue",
+      jobContext: {
+        finalMedium: "cinema",
+        workSite: "remote-grading",
+        documentaryAttachment: { kind: "none" },
+        additionalWork: ["color-grading"],
+      } as unknown as Parameters<typeof updateConversationRouting>[0]["jobContext"],
+    })
+
+    expect(mocks.conversationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ additionalWork: null }),
+      }),
+    )
   })
 
   it("truncates an edited turn with a non-interactive atomic batch", async () => {
