@@ -3,6 +3,7 @@ import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
+import { LookGallery } from "@/components/hp/look-gallery"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { ProfileToolBadges } from "@/components/hp/profile-tool-badges"
@@ -176,7 +177,9 @@ export default async function HomePage() {
         </p>
       </section>
 
-      {/* Philosophy — horizontal scroll notes */}
+      <LookGallery />
+
+      {/* Philosophy: horizontal scroll notes */}
       <section
         id="philosophy"
         className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
