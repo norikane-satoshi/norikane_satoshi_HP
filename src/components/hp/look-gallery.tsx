@@ -433,7 +433,7 @@ export function LookGallery() {
           </p>
         </details>
 
-        <div className="mt-7 grid gap-5 md:grid-cols-2">
+        <div className="mt-7 grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,28rem),1fr))]">
           {images.map((image) => {
             const imageLutId = imageLutIds[image.id] ?? "batch"
             const effectiveLutId = imageLutId === "batch" ? batchLutId : imageLutId
