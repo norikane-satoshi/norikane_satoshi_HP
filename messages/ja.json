@@ -1,0 +1,77 @@
+{
+  "Metadata": {
+    "description": "映像に、設計された色を。のりかね映像設計室のポートフォリオサイト。"
+  },
+  "Navigation": {
+    "home": "ホーム",
+    "notes": "ノート",
+    "profile": "プロフィール",
+    "booking": "予約カレンダー",
+    "openMenu": "メニューを開く",
+    "closeMenu": "メニューを閉じる",
+    "language": "表示言語",
+    "switchToJapanese": "日本語で表示",
+    "switchToEnglish": "英語で表示"
+  },
+  "Footer": {
+    "legalLabel": "法務",
+    "privacy": "プライバシーポリシー",
+    "terms": "利用規約"
+  },
+  "Home": {
+    "notes": "ノート",
+    "profile": "プロフィール",
+    "career": "経歴",
+    "readNote": "ノートを読む",
+    "viewAll": "すべて見る"
+  },
+  "Notes": {
+    "back": "ノート一覧に戻る",
+    "unpublishedTitle": "このノートは現在公開していません",
+    "unpublishedDescription": "公開状態が切り替わったため、このURLのノート本文は表示していません。現在公開中のノートは一覧から確認できます。",
+    "unpublishedMetadata": "公開停止中のノート"
+  },
+  "Auth": {
+    "login": "ログイン",
+    "loginIntro": "ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。",
+    "verified": "メールアドレスの認証が完了しました。ログインしてください",
+    "verifyError": "認証リンクが無効か期限切れです。お手数ですがもう一度サインアップから登録メールを送信してください",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "passwordPlaceholder": "8文字以上",
+    "signingIn": "サインイン中...",
+    "forgotPassword": "パスワードをお忘れですか？",
+    "magicTitle": "メールリンクでログイン",
+    "magicIntro": "パスワードを使わず、メールに届くリンクからログインできます。",
+    "magicEmail": "ログインリンク送信用メールアドレス",
+    "magicSent": "ログインリンクを送信しました。メールをご確認ください。",
+    "sending": "送信中...",
+    "sendMagic": "ログインリンクを送信",
+    "or": "または",
+    "googleLogin": "Google でログイン",
+    "twitterLogin": "X (Twitter) でログイン",
+    "lineLogin": "LINE でログイン",
+    "noAccount": "アカウントをお持ちでないですか？",
+    "signup": "新規登録",
+    "emailNotVerified": "メール認証が未完了です。受信メールのリンクから認証してください",
+    "invalidCredentials": "メールかパスワードが違います",
+    "loginFailed": "ログインに失敗しました",
+    "magicFailed": "ログインリンクを送信できませんでした",
+    "confirmationSent": "確認メールを送信しました",
+    "sentTo": "に確認メールを送信しました。",
+    "verifyInbox": "受信メール内のリンクから認証してください。",
+    "backToLogin": "ログイン画面に戻る",
+    "signupIntro": "メールアドレスとパスワードでアカウントを作成するか、ソーシャルログインから始められます。",
+    "name": "お名前",
+    "optional": "任意",
+    "namePlaceholder": "山田 太郎",
+    "register": "登録する",
+    "registering": "送信中...",
+    "googleSignup": "Google で登録",
+    "twitterSignup": "X (Twitter) で登録",
+    "lineSignup": "LINE で登録",
+    "hasAccount": "すでにアカウントをお持ちですか？",
+    "registrationFailed": "登録に失敗しました",
+    "networkError": "通信エラーが発生しました"
+  }
+}

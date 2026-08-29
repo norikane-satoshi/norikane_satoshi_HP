@@ -1,20 +1,8 @@
-import { getToken } from "next-auth/jwt"
-import { NextResponse, type NextRequest } from "next/server"
+import createMiddleware from "next-intl/middleware"
+import {routing} from "@/i18n/routing"
 
-export default async function proxy(request: NextRequest) {
-  const token = await getToken({
-    req: request,
-    secret: process.env.AUTH_SECRET,
-    secureCookie: process.env.NODE_ENV === "production",
-  })
-
-  if (token?.sub) return NextResponse.next()
-
-  const loginUrl = new URL("/login", request.url)
-  loginUrl.searchParams.set("callbackUrl", request.nextUrl.pathname)
-  return NextResponse.redirect(loginUrl)
-}
+export default createMiddleware(routing)
 
 export const config = {
-  matcher: ["/booking/:path*"],
+  matcher: "/((?!api|_next|_vercel|.*\\..*).*)",
 }

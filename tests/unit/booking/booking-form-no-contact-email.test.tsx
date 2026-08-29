@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest"
 import { BookingForm } from "@/components/booking/booking-form"
 import { createDefaultBookingFormData } from "@/lib/booking/domain/form-schema"
 
+vi.mock("next-intl", () => ({ useLocale: () => "ja" }))
+
 describe("BookingForm email fields", () => {
   it("does not render the removed contact email field", () => {
     const markup = renderToStaticMarkup(
@@ -41,7 +43,7 @@ describe("BookingForm email fields", () => {
     expect(markup).not.toContain('readOnly=""')
     expect(markup).toContain("メール")
     expect(markup).toContain("(任意)")
-    expect(markup).toContain('href="/terms"')
-    expect(markup).toContain('href="/privacy"')
+    expect(markup).toContain('href="/ja/terms"')
+    expect(markup).toContain('href="/ja/privacy"')
   })
 })

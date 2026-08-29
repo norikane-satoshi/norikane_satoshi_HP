@@ -2,10 +2,10 @@ import { createElement, type ReactNode } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
-vi.mock("next/link", async () => {
+vi.mock("@/i18n/navigation", async () => {
   const React = await import("react")
   return {
-    default: ({
+    Link: ({
       href,
       className,
       children,

@@ -13,6 +13,7 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/notion/server/client", () => ({
   getNotionClient: mocks.getNotionClient,
   IB_NOTE_DATA_SOURCE_ID: "notes-db",
+  LANGUAGE_PROPERTY: "Language",
   PUBLISHED_PROPERTY: "Published",
   SLUG_PROPERTY: "Slug",
   TITLE_PROPERTY: "Name",
@@ -102,6 +103,7 @@ describe("notion note fetching", () => {
         title: "First",
         createdTime: "2026-05-01T00:00:00.000Z",
         lastEditedTime: "2026-05-02T00:00:00.000Z",
+        locale: "ja",
       },
       {
         id: "p3",
@@ -109,6 +111,7 @@ describe("notion note fetching", () => {
         title: "Third",
         createdTime: "2026-05-01T00:00:00.000Z",
         lastEditedTime: "2026-05-02T00:00:00.000Z",
+        locale: "ja",
       },
     ])
     expect(mocks.query.mock.calls[0]?.[0]).toMatchObject({

@@ -7,7 +7,14 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/booking", "/availability-calendar"],
+      disallow: [
+        "/booking",
+        "/availability-calendar",
+        "/ja/booking",
+        "/en/booking",
+        "/ja/availability-calendar",
+        "/en/availability-calendar",
+      ],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,

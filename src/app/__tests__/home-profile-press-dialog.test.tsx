@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import type {ReactNode} from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import HomePage from "@/app/page"
@@ -13,6 +14,20 @@ import {
 } from "@/lib/hp/davinci-trainer"
 import { hpPublicContent } from "@/lib/hp/public-content"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
+
+vi.mock("next-intl", () => ({
+  hasLocale: (_locales: readonly string[], locale: string) => locale === "ja" || locale === "en",
+  useLocale: () => "ja",
+}))
+vi.mock("next-intl/server", () => ({
+  getLocale: async () => "ja",
+  getTranslations: async () => (key: string) => ({notes: "ノート"}[key] ?? key),
+}))
+vi.mock("@/i18n/navigation", () => ({
+  Link: ({href, children, className}: {href: string; children: ReactNode; className?: string}) => (
+    <a href={href} className={className}>{children}</a>
+  ),
+}))
 
 vi.mock("@/components/hp/featured-works", () => ({
   FeaturedWorks: () => <div data-testid="featured-works" />,

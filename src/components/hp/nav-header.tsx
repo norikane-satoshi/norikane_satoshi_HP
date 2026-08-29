@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import {useLocale, useTranslations} from "next-intl"
 import { Menu, X } from "lucide-react"
+import {Link, usePathname} from "@/i18n/navigation"
+import type {AppLocale} from "@/i18n/routing"
 import { isBookingEnabled } from "@/lib/feature-flags"
 import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
 import { SITE_BRAND_NAME } from "@/lib/site-brand"
@@ -12,32 +13,37 @@ import { SITE_BRAND_NAME } from "@/lib/site-brand"
 type SectionId = "home" | "profile" | "philosophy" | "schedule"
 type NavItem = { href: string; label: string; sectionId: SectionId }
 
-const baseNavItems: NavItem[] = [
-  { href: "/", label: "ホーム", sectionId: "home" as const },
-  { href: "/#philosophy", label: "ノート", sectionId: "philosophy" as const },
-  { href: "/#profile", label: "プロフィール", sectionId: "profile" as const },
-]
-
-const bookingNavItem: NavItem = {
-  href: "/#schedule",
-  label: "予約カレンダー",
-  sectionId: "schedule",
-}
-
 export function NavHeader() {
+  const t = useTranslations("Navigation")
+  const locale = useLocale() as AppLocale
   const pathname = usePathname()
   const isPublicAvailabilityPage = pathname === PUBLIC_AVAILABILITY_ROUTE
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<SectionId>("home")
   const bookingEnabled = isBookingEnabled()
+  const baseNavItems = useMemo<NavItem[]>(() => [
+    { href: "/", label: t("home"), sectionId: "home" },
+    { href: "/#philosophy", label: t("notes"), sectionId: "philosophy" },
+    { href: "/#profile", label: t("profile"), sectionId: "profile" },
+  ], [t])
+  const bookingNavItem = useMemo<NavItem>(() => ({
+    href: "/#schedule",
+    label: t("booking"),
+    sectionId: "schedule",
+  }), [t])
   const navItems = useMemo(
     () => (bookingEnabled ? [...baseNavItems, bookingNavItem] : baseNavItems),
-    [bookingEnabled],
+    [baseNavItems, bookingEnabled, bookingNavItem],
   )
   const sectionIds = useMemo(
     () => navItems.map((item) => item.sectionId),
     [navItems],
   )
+
+  const switchLocale = (nextLocale: AppLocale) => {
+    const hash = window.location.hash
+    window.location.assign(`/${nextLocale}${pathname === "/" ? "" : pathname}${hash}`)
+  }
 
   useEffect(() => {
     if (isPublicAvailabilityPage) return
@@ -133,13 +139,27 @@ export function NavHeader() {
               </li>
             )
           })}
+          <li className="ml-2 flex items-center rounded-[12px] border border-white/55 bg-white/35 p-1" aria-label={t("language")}>
+            {(["ja", "en"] as const).map((candidate) => (
+              <button
+                key={candidate}
+                type="button"
+                onClick={() => switchLocale(candidate)}
+                className={`rounded-[9px] px-2.5 py-1.5 text-xs font-semibold transition-colors ${candidate === locale ? "bg-white text-hp shadow-sm" : "text-hp-muted hover:text-hp"}`}
+                aria-label={candidate === "ja" ? t("switchToJapanese") : t("switchToEnglish")}
+                aria-pressed={candidate === locale}
+              >
+                {candidate.toUpperCase()}
+              </button>
+            ))}
+          </li>
         </ul>
 
         {/* Mobile hamburger */}
         <button
           className="md:hidden rounded-xl border border-neutral-300 p-2 text-black transition-colors hover:bg-neutral-100"
           onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label={mobileOpen ? "メニューを閉じる" : "メニューを開く"}
+          aria-label={mobileOpen ? t("closeMenu") : t("openMenu")}
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
@@ -168,6 +188,20 @@ export function NavHeader() {
                 </li>
               )
             })}
+            <li className="mt-1 flex items-center gap-2 border-t border-black/5 px-4 pt-3" aria-label={t("language")}>
+              {(["ja", "en"] as const).map((candidate) => (
+                <button
+                  key={candidate}
+                  type="button"
+                  onClick={() => switchLocale(candidate)}
+                  className={`rounded-[9px] px-3 py-2 text-xs font-semibold ${candidate === locale ? "bg-white text-hp shadow-sm" : "text-hp-muted"}`}
+                  aria-label={candidate === "ja" ? t("switchToJapanese") : t("switchToEnglish")}
+                  aria-pressed={candidate === locale}
+                >
+                  {candidate.toUpperCase()}
+                </button>
+              ))}
+            </li>
           </ul>
         </div>
       )}

@@ -7,6 +7,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { BookingForm } from "@/components/booking/booking-form"
 import { createDefaultBookingFormData } from "@/lib/booking/domain/form-schema"
 
+vi.mock("next-intl", () => ({
+  useLocale: () => "ja",
+}))
+
 describe("BookingForm supplemental textarea", () => {
   afterEach(() => {
     cleanup()

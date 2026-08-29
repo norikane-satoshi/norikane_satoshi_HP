@@ -2,9 +2,11 @@ import {
   HERO_ABSTRACT_ART_BACKGROUND,
   HERO_DEEP_SURFACE_BACKGROUND,
 } from "@/components/hp/hero-deep-surface"
-import { hpPublicContent } from "@/lib/hp/public-content"
+import {getHpPublicContent} from "@/lib/hp/public-content"
+import type {AppLocale} from "@/i18n/routing"
 
-export function HeroSection() {
+export function HeroSection({locale = "ja"}: {locale?: AppLocale}) {
+  const hpPublicContent = getHpPublicContent(locale)
   return (
     <section
       id="home"

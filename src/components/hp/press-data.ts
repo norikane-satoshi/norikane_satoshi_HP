@@ -145,3 +145,79 @@ export const PRESS_CATEGORIES: PressCategory[] = [
     ],
   },
 ]
+
+const ENGLISH_PRESS_CATEGORIES: PressCategory[] = [
+  {
+    title: "Talks and seminars",
+    items: [
+      {
+        period: "November 2024",
+        title: "Inter BEE 2024 / Imagica EMS Special Day, Makuhari Messe",
+        description: "Presented The Creative Color Grading: DRAMA at the Blackmagic Design DaVinci Resolve Theater, demonstrating how to separate dramatic color grading into controllable elements and apply digital relighting.",
+        links: PRESS_CATEGORIES[0].items[0].links,
+      },
+      {
+        period: "September 2024",
+        title: "Color by IMAGICA: HBO CAS Screening / In-Camera VFX / Grading Demo",
+        description: "Delivered an in-camera VFX presentation and graded ARRI AMIRA material live at an event co-hosted with ZEISS and the Japanese Society of Cinematographers.",
+        links: PRESS_CATEGORIES[0].items[1].links,
+      },
+      {
+        period: "November 2024",
+        title: "Virtual Production Experience at FACTORY ANZEN STUDIO",
+        description: "Participated as a virtual-production color creator, managing real-time color and speaking at a joint press session for the event hosted by Imagica EMS and Japanese cinematography and lighting associations.",
+        links: PRESS_CATEGORIES[0].items[2].links,
+      },
+      {
+        period: "May 2025",
+        title: "DaVinci Resolve Color Grading Training, Blackmagic Design",
+        description: "As a DaVinci Resolve Certified Trainer, taught a small-group practical seminar covering conform from other applications, shot matching, and creative grading.",
+        links: PRESS_CATEGORIES[0].items[3].links,
+      },
+    ],
+  },
+  {
+    title: "Media and case studies",
+    items: [
+      {
+        period: "2024",
+        title: "Hulu drama The Decagon House Murders — An in-camera VFX look",
+        description: "Worked on set as colorist for the adaptation of Yukito Ayatsuji's novel, collaborating with the lighting department on live correction and on-set grading, including black-level and LED adjustments.",
+        links: PRESS_CATEGORIES[1].items[0].links.map((link) => ({...link, label: link.label.includes("VIDEO") ? "VIDEO SALON article" : "Imagica EMS case study"})),
+      },
+      {
+        period: "2024",
+        title: "GEKI×CINE Yoshiwara Gomenjo — Dolby Cinema color",
+        description: "Created the high-contrast theatrical look for the 20th-anniversary Dolby Cinema release in close discussion with the director.",
+        links: PRESS_CATEGORIES[1].items[1].links,
+      },
+      {
+        period: "2023",
+        title: "GEKI×CINE Rose & Samurai 2 — Dolby Vision grading",
+        description: "Graded the stage production in Dolby Vision, decomposing the LUT into controllable elements to build a more immersive theatrical look and documenting the process in a case study.",
+        links: PRESS_CATEGORIES[1].items[2].links,
+      },
+      {
+        period: "2025",
+        title: "NHK centennial drama Queen of Mars — VFX production documentary",
+        description: "Contributed to the VFX and post-production workflow for a drama set on Mars a century in the future, collaborating across departments to realize its visual world.",
+        links: PRESS_CATEGORIES[1].items[3].links,
+      },
+    ],
+  },
+  {
+    title: "Presentation films",
+    items: [
+      {
+        period: "2023",
+        title: "Next Generation Workflow — Director",
+        description: "Directed a presentation film introducing a fully cloud-based workflow from production through finishing.",
+        links: PRESS_CATEGORIES[2].items[0].links,
+      },
+    ],
+  },
+]
+
+export function getPressCategories(locale: "ja" | "en") {
+  return locale === "en" ? ENGLISH_PRESS_CATEGORIES : PRESS_CATEGORIES
+}

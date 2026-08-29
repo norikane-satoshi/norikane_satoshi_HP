@@ -4,6 +4,7 @@ type LegalHeadingLevel = "h1" | "h2"
 
 type LegalContentProps = {
   headingLevel?: LegalHeadingLevel
+  locale?: "ja" | "en"
 }
 
 function LegalHeading({
@@ -16,7 +17,8 @@ function LegalHeading({
   return <Tag className="mt-2 text-3xl font-bold text-hp md:text-4xl">{children}</Tag>
 }
 
-export function PrivacyPolicyContent({ headingLevel = "h1" }: LegalContentProps) {
+export function PrivacyPolicyContent({ headingLevel = "h1", locale = "ja" }: LegalContentProps) {
+  if (locale === "en") return <EnglishPrivacyPolicyContent headingLevel={headingLevel} />
   return (
     <>
       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-hp-muted">Privacy Policy</p>
@@ -98,7 +100,8 @@ export function PrivacyPolicyContent({ headingLevel = "h1" }: LegalContentProps)
   )
 }
 
-export function TermsContent({ headingLevel = "h1" }: LegalContentProps) {
+export function TermsContent({ headingLevel = "h1", locale = "ja" }: LegalContentProps) {
+  if (locale === "en") return <EnglishTermsContent headingLevel={headingLevel} />
   return (
     <>
       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-hp-muted">Terms of Use</p>
@@ -191,6 +194,73 @@ export function TermsContent({ headingLevel = "h1" }: LegalContentProps) {
       </div>
 
       <p className="mt-10 text-xs text-hp-muted">改定日：2026年5月26日</p>
+    </>
+  )
+}
+
+function EnglishPrivacyPolicyContent({headingLevel}: {headingLevel: LegalHeadingLevel}) {
+  const sections = [
+    ["Information we collect", "We may collect chat messages, booking details, sign-in information, email addresses, company and personal names, reference URLs, cookies and session identifiers, access logs, timestamps, inquiry details, and information about booking changes or cancellations."],
+    ["Purposes of use", "We use this information to respond to inquiries, organize projects, manage bookings, restore consultation history for signed-in users, improve the service, detect misuse, maintain security, and retain records required by law."],
+    ["Use of AI", "The AI consultation desk may use AI to help organize project information and communications. AI responses are advisory and do not constitute a formal quotation, contract, delivery guarantee, or final decision."],
+    ["Consultation history and calendar access", "We use only the signed-in user's previous consultations, bookings, and reference URLs where needed to organize their inquiry. We do not use another user's information in responses. Calendar access is limited to availability; event titles, attendees, and locations are not collected."],
+    ["Retention", "Chat logs are deleted automatically seven days after the last message. Booking, inquiry, billing, contract, and legally required records are retained only for the period needed for business or legal purposes."],
+    ["Third parties and external services", "Except where required by law, we do not provide personal information to third parties without consent. We may use contractors and cloud services for email delivery, calendar integration, authentication, hosting, and data storage."],
+    ["Access, correction, and deletion", "When a person requests access to, correction of, suspension of use of, or deletion of personal data we hold, we verify their identity and respond in accordance with applicable law."],
+    ["Contact", "Questions about this policy may be sent to norikane.satoshi@gmail.com."],
+  ] as const
+
+  return (
+    <>
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-hp-muted">Privacy Policy</p>
+      <LegalHeading as={headingLevel}>Privacy Policy</LegalHeading>
+      <p className="mt-4 text-sm leading-7 text-hp-muted">
+        Norikane Film Design Office collects and manages information handled through norikane.studio,
+        its AI consultation desk, and booking flows only for clearly stated purposes necessary to serve projects safely.
+      </p>
+      <div className="mt-10 space-y-8 text-sm leading-7 text-hp">
+        {sections.map(([title, body]) => (
+          <section key={title}>
+            <h2 className="text-lg font-semibold text-hp">{title}</h2>
+            <p className="mt-3 text-hp-muted">{body}</p>
+          </section>
+        ))}
+      </div>
+      <p className="mt-10 text-xs text-hp-muted">Last revised: August 29, 2026</p>
+    </>
+  )
+}
+
+function EnglishTermsContent({headingLevel}: {headingLevel: LegalHeadingLevel}) {
+  const sections = [
+    ["Covered services", "These terms apply to norikane.studio, the AI consultation desk, booking forms, booking-change and cancellation flows, and related email communications operated by Norikane Film Design Office."],
+    ["Role of the AI consultation desk", "The AI consultation desk helps organize inquiries and bookings. Chat responses and proposed slots are not formal quotations, contracts, delivery guarantees, or commitments to accept work. Conditions become final only after confirmation by Satoshi Norikane."],
+    ["Prohibited conduct", "You must not submit false information, infringe third-party rights, disclose unnecessary confidential information, attack or gain unauthorized access to systems, send spam, or interfere with the service or other users."],
+    ["Bookings", "Bookings, changes, and cancellations require separate confirmation. Calendar and AI suggestions indicate possible availability and are not guarantees."],
+    ["Intellectual property and submitted materials", "Text, images, UI, and other site content belong to us or their legitimate owners. You represent that you hold the rights or permissions needed for materials, reference URLs, and project information you submit. Submitted materials are handled only to respond, review, quote, and manage bookings."],
+    ["Confidentiality", "Submitted information is handled for project-related purposes. Do not include confidential, personal, or third-party information beyond what is necessary to organize your inquiry."],
+    ["Disclaimer", "We do not guarantee the accuracy, completeness, or availability of AI responses, suggestions, or availability displays. External-service outages, communications, authentication, or calendar issues may make the service unavailable. Nothing here excludes liability for intentional misconduct, gross negligence, or liability that cannot legally be limited. Final decisions are confirmed by Satoshi Norikane."],
+    ["Confirmation of contract terms", "Terms such as fees, schedules, cancellation, rights clearance, and confidentiality are governed by the applicable quotation, purchase order, contract, or confirmed email. Chat alone does not determine legal validity or contract terms."],
+    ["Governing law and consultation", "These terms are governed by Japanese law. If a question or dispute arises, the parties will discuss it in good faith and seek a resolution."],
+    ["Contact", "Questions about these terms may be sent to norikane.satoshi@gmail.com."],
+  ] as const
+
+  return (
+    <>
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-hp-muted">Terms of Use</p>
+      <LegalHeading as={headingLevel}>Terms of Use</LegalHeading>
+      <p className="mt-4 text-sm leading-7 text-hp-muted">
+        These terms govern use of norikane.studio and its AI consultation and booking services.
+      </p>
+      <div className="mt-10 space-y-8 text-sm leading-7 text-hp">
+        {sections.map(([title, body]) => (
+          <section key={title}>
+            <h2 className="text-lg font-semibold text-hp">{title}</h2>
+            <p className="mt-3 text-hp-muted">{body}</p>
+          </section>
+        ))}
+      </div>
+      <p className="mt-10 text-xs text-hp-muted">Last revised: May 26, 2026</p>
     </>
   )
 }

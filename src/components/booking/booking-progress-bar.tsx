@@ -1,21 +1,24 @@
-import type { BookingStep } from "@/lib/booking/domain/form-schema"
+"use client"
 
-const steps: { value: BookingStep; label: string }[] = [
-  { value: "calendar", label: "日時" },
-  { value: "form", label: "入力" },
-  { value: "confirm", label: "確認" },
-  { value: "done", label: "完了" },
-]
+import {useLocale} from "next-intl"
+import type { BookingStep } from "@/lib/booking/domain/form-schema"
 
 type BookingProgressBarProps = {
   currentStep: BookingStep
 }
 
 export function BookingProgressBar({ currentStep }: BookingProgressBarProps) {
+  const english = useLocale() === "en"
+  const steps: { value: BookingStep; label: string }[] = [
+    { value: "calendar", label: english ? "Dates" : "日時" },
+    { value: "form", label: english ? "Details" : "入力" },
+    { value: "confirm", label: english ? "Review" : "確認" },
+    { value: "done", label: english ? "Done" : "完了" },
+  ]
   const currentIndex = steps.findIndex((step) => step.value === currentStep)
 
   return (
-    <div className="booking-progress glass-flat" aria-label="予約ステップ">
+    <div className="booking-progress glass-flat" aria-label={english ? "Booking steps" : "予約ステップ"}>
       {steps.map((step, index) => {
         const reached = index <= currentIndex
         const current = index === currentIndex

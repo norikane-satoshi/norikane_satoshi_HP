@@ -1,10 +1,10 @@
 "use client"
 
 import type { ReactNode } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import {useLocale} from "next-intl"
 import { useEffect, useState, useTransition } from "react"
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
+import {Link, useRouter} from "@/i18n/navigation"
 
 import styles from "./availability-calendar.module.css"
 
@@ -25,6 +25,7 @@ export function AvailabilityCalendarFrame({
   heading,
   children,
 }: AvailabilityCalendarFrameProps) {
+  const english = useLocale() === "en"
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [showLoading, setShowLoading] = useState(false)
@@ -50,13 +51,13 @@ export function AvailabilityCalendarFrame({
         <div className={styles.actions}>
           <Link className={`glass-card-sm ${styles.homeLink}`} href="/">
             <ExternalLink size={16} aria-hidden="true" />
-            本体サイトへ移動
+            {english ? "Go to main site" : "本体サイトへ移動"}
           </Link>
-          <nav className={styles.monthNav} aria-label="表示月">
+          <nav className={styles.monthNav} aria-label={english ? "Displayed month" : "表示月"}>
             <button
               className={`glass-card-sm ${styles.monthButton} ${styles.monthButtonIcon}`}
               type="button"
-              aria-label="前月"
+              aria-label={english ? "Previous month" : "前月"}
               onClick={() => navigate(previousHref)}
             >
               <ChevronLeft size={16} aria-hidden="true" />
@@ -64,7 +65,7 @@ export function AvailabilityCalendarFrame({
             <button
               className={`glass-card-sm ${styles.monthButton} ${styles.monthButtonIcon}`}
               type="button"
-              aria-label="翌月"
+              aria-label={english ? "Next month" : "翌月"}
               onClick={() => navigate(nextHref)}
             >
               <ChevronRight size={16} aria-hidden="true" />
@@ -72,10 +73,10 @@ export function AvailabilityCalendarFrame({
             <button
               className={`glass-card-sm ${styles.monthButton}`}
               type="button"
-              aria-label="今月へ移動"
+              aria-label={english ? "Go to current month" : "今月へ移動"}
               onClick={() => navigate(currentHref)}
             >
-              今月
+              {english ? "This month" : "今月"}
             </button>
           </nav>
         </div>
@@ -85,7 +86,7 @@ export function AvailabilityCalendarFrame({
         {showLoading ? (
           <div className={styles.loadingOverlay} role="status" data-testid="public-availability-calendar-loading">
             <span className={styles.loadingSpinner} aria-hidden="true" />
-            <span>空き状況を更新しています</span>
+            <span>{english ? "Updating availability" : "空き状況を更新しています"}</span>
           </div>
         ) : null}
       </div>

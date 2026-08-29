@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import {getLocale} from "next-intl/server"
 
 import { auth } from "@/auth"
 import { BookingEditForm } from "@/components/booking/booking-edit-form"
@@ -16,6 +17,7 @@ export default async function BookingEditPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const english = await getLocale() === "en"
   const session = await auth()
   const userId = session?.user?.id
   if (!userId) notFound()
@@ -32,7 +34,7 @@ export default async function BookingEditPage({
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">
       <div className="glass-card p-8 md:p-10 xl:p-14">
         <div>
-          <h1 className="text-3xl font-bold text-hp md:text-4xl">予約編集</h1>
+          <h1 className="text-3xl font-bold text-hp md:text-4xl">{english ? "Edit booking" : "予約編集"}</h1>
         </div>
         <div className="mt-8">
           <BookingEditForm

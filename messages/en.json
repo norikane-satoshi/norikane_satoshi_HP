@@ -1,0 +1,77 @@
+{
+  "Metadata": {
+    "description": "Designed color for moving images. The portfolio of Norikane Film Design Office."
+  },
+  "Navigation": {
+    "home": "Home",
+    "notes": "Notes",
+    "profile": "Profile",
+    "booking": "Availability",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "language": "Display language",
+    "switchToJapanese": "View in Japanese",
+    "switchToEnglish": "View in English"
+  },
+  "Footer": {
+    "legalLabel": "Legal",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Use"
+  },
+  "Home": {
+    "notes": "Notes",
+    "profile": "Profile",
+    "career": "Career",
+    "readNote": "Read note",
+    "viewAll": "View all"
+  },
+  "Notes": {
+    "back": "Back to notes",
+    "unpublishedTitle": "This note is currently unavailable",
+    "unpublishedDescription": "The publication status of this note has changed, so its contents are no longer displayed at this URL. You can browse the notes that are currently available from the list.",
+    "unpublishedMetadata": "Unavailable note"
+  },
+  "Auth": {
+    "login": "Sign in",
+    "loginIntro": "Sign in with your registered email and password or a social account.",
+    "verified": "Your email address has been verified. You can now sign in.",
+    "verifyError": "This verification link is invalid or has expired. Please sign up again to receive a new email.",
+    "email": "Email address",
+    "password": "Password",
+    "passwordPlaceholder": "At least 8 characters",
+    "signingIn": "Signing in...",
+    "forgotPassword": "Forgot your password?",
+    "magicTitle": "Sign in by email link",
+    "magicIntro": "Receive a sign-in link by email instead of using a password.",
+    "magicEmail": "Email address for the sign-in link",
+    "magicSent": "The sign-in link was sent. Please check your email.",
+    "sending": "Sending...",
+    "sendMagic": "Send sign-in link",
+    "or": "or",
+    "googleLogin": "Sign in with Google",
+    "twitterLogin": "Sign in with X (Twitter)",
+    "lineLogin": "Sign in with LINE",
+    "noAccount": "Don't have an account?",
+    "signup": "Create account",
+    "emailNotVerified": "Your email address has not been verified. Please use the link in your email.",
+    "invalidCredentials": "The email address or password is incorrect.",
+    "loginFailed": "Sign-in failed.",
+    "magicFailed": "The sign-in link could not be sent.",
+    "confirmationSent": "Confirmation email sent",
+    "sentTo": "was sent a confirmation email.",
+    "verifyInbox": "Please verify your address using the link in the email.",
+    "backToLogin": "Back to sign in",
+    "signupIntro": "Create an account with email and password or continue with a social account.",
+    "name": "Name",
+    "optional": "optional",
+    "namePlaceholder": "Taro Yamada",
+    "register": "Create account",
+    "registering": "Sending...",
+    "googleSignup": "Sign up with Google",
+    "twitterSignup": "Sign up with X (Twitter)",
+    "lineSignup": "Sign up with LINE",
+    "hasAccount": "Already have an account?",
+    "registrationFailed": "Registration failed.",
+    "networkError": "A network error occurred."
+  }
+}

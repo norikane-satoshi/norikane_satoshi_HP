@@ -5,7 +5,8 @@ import { isAdmin } from "@/lib/auth/server/is-admin"
 import { getCalendarFreeBusyForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
 import { History, Menu } from "lucide-react"
 import type { Metadata } from "next"
-import Link from "next/link"
+import {getLocale} from "next-intl/server"
+import {Link} from "@/i18n/navigation"
 
 export const dynamic = "force-dynamic"
 
@@ -42,6 +43,7 @@ async function loadInitialFreeBusy(input: {
 }
 
 export default async function BookingPage() {
+  const english = await getLocale() === "en"
   const now = new Date()
   const initialRange = initialBusyRange(now)
   const session = await auth()
@@ -58,7 +60,7 @@ export default async function BookingPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-4xl font-bold text-hp md:text-5xl xl:text-6xl">
-              予約カレンダー
+              {english ? "Booking calendar" : "予約カレンダー"}
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -67,15 +69,15 @@ export default async function BookingPage() {
               className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
             >
               <History aria-hidden="true" size={18} />
-              <span>予約履歴</span>
+              <span>{english ? "History" : "予約履歴"}</span>
             </Link>
             <Link
               href="/booking/settings"
               className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
-              aria-label="予約カレンダー設定"
+              aria-label={english ? "Booking calendar settings" : "予約カレンダー設定"}
             >
               <Menu aria-hidden="true" size={18} />
-              <span>設定</span>
+              <span>{english ? "Settings" : "設定"}</span>
             </Link>
           </div>
         </div>

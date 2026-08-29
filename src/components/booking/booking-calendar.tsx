@@ -27,6 +27,7 @@ import type {
 } from "@fullcalendar/core"
 import { format } from "date-fns"
 import { Clock3, Lock } from "lucide-react"
+import {useLocale} from "next-intl"
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from "react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
@@ -812,6 +813,7 @@ export function BookingCalendar({
   onCommit,
   onCodeChange,
 }: BookingCalendarProps) {
+  const english = useLocale() === "en"
   const initialDateSelectionState = normalizeDateSelection(
     initialDateSelection ?? (initialDateRange ? bookingDateRangeToSelection(initialDateRange) : null),
   )
@@ -2500,7 +2502,9 @@ export function BookingCalendar({
         <div className="booking-calendar__view-row-end">
           {modeKind === "adjust" ? (
             <div className="booking-calendar__adjust-badge glass-inset">
-              {(adjustingTitle ?? projectTitle)?.trim() ? `${(adjustingTitle ?? projectTitle)!.trim()}案件の日時調整中` : "日時調整中"}
+              {(adjustingTitle ?? projectTitle)?.trim()
+                ? (english ? `Adjusting dates for ${(adjustingTitle ?? projectTitle)!.trim()}` : `${(adjustingTitle ?? projectTitle)!.trim()}案件の日時調整中`)
+                : (english ? "Adjusting dates" : "日時調整中")}
             </div>
           ) : null}
           {handleSelectedTeamIdChange ? (
@@ -2508,13 +2512,13 @@ export function BookingCalendar({
               <select
                 id="booking-team-scope"
                 className="booking-calendar__scope-select glass-input"
-                aria-label="表示対象"
+                aria-label={english ? "Calendar scope" : "表示対象"}
                 value={selectedTeamId ?? ""}
                 onChange={(event) => {
                   handleSelectedTeamIdChange(event.target.value || null)
                 }}
               >
-                <option value="">{viewerEmail || "個人"}</option>
+                <option value="">{viewerEmail || (english ? "Personal" : "個人")}</option>
                 {teams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}
@@ -2544,7 +2548,7 @@ export function BookingCalendar({
               onClick={() => startCommit()}
               disabled={preflighting}
             >
-              {preflighting ? "確認中…" : "本予約"}
+              {preflighting ? (english ? "Checking…" : "確認中…") : (english ? "Confirm booking" : "本予約")}
             </button>
             <button
               type="button"
@@ -2552,7 +2556,7 @@ export function BookingCalendar({
               onClick={cancelActiveDraft}
               disabled={preflighting}
             >
-              キャンセル
+              {english ? "Cancel" : "キャンセル"}
             </button>
           </div>
         </div>
@@ -2577,7 +2581,7 @@ export function BookingCalendar({
                 ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView="dayGridMonth"
-                locale={jaLocale}
+                locale={english ? "en" : jaLocale}
                 firstDay={0}
                 headerToolbar={{
                   left: "prev,next today",
@@ -2585,7 +2589,7 @@ export function BookingCalendar({
                   right: "",
                 }}
                 buttonText={{
-                  today: "今日",
+                  today: english ? "Today" : "今日",
                 }}
                 height="auto"
                 selectable={isSelectableView(view)}
@@ -2631,25 +2635,27 @@ export function BookingCalendar({
             {isCalendarLoading ? (
               <div className="booking-calendar__loading-overlay" role="status" data-testid="booking-calendar-loading">
                 <span className="booking-calendar__loading-spinner" aria-hidden="true" />
-                <span>空き状況を更新しています</span>
+                <span>{english ? "Updating availability" : "空き状況を更新しています"}</span>
               </div>
             ) : null}
           </div>
         </div>
         <div className="booking-calendar__date-request glass-flat" data-testid="booking-date-request-panel">
           <div className="booking-calendar__date-request-head">
-            <h2 className="booking-calendar__date-request-title">希望日</h2>
+            <h2 className="booking-calendar__date-request-title">{english ? "Requested dates" : "希望日"}</h2>
             <p className="booking-calendar__date-request-note">
-              日付をタップして希望日を選んでください。もう一度タップすると解除できます。
+              {english ? "Tap dates to add them to your request. Tap a selected date again to remove it." : "日付をタップして希望日を選んでください。もう一度タップすると解除できます。"}
             </p>
           </div>
           <div className="booking-calendar__date-request-summary" aria-live="polite">
-            <span className="booking-calendar__date-request-label">選択中</span>
+            <span className="booking-calendar__date-request-label">{english ? "Selected" : "選択中"}</span>
             <strong data-testid="booking-date-request-summary">
-              {selectedDateSelectionLabel ?? "未選択"}
+              {english
+                ? (selectedDateSelection?.dates.join(" / ") ?? "Not selected")
+                : (selectedDateSelectionLabel ?? "未選択")}
             </strong>
             {selectedDateSelection ? null : (
-              <span className="booking-calendar__date-request-empty">希望日を 1 日以上選択してください。</span>
+              <span className="booking-calendar__date-request-empty">{english ? "Select at least one requested date." : "希望日を 1 日以上選択してください。"}</span>
             )}
           </div>
           <div className="booking-calendar__date-request-actions">
@@ -2659,7 +2665,7 @@ export function BookingCalendar({
               onClick={startDateRequestCommit}
               disabled={!selectedDateSelection || preflighting}
             >
-              この日程で相談する
+              {english ? "Continue with these dates" : "この日程で相談する"}
             </button>
             <button
               type="button"
@@ -2671,7 +2677,7 @@ export function BookingCalendar({
               }}
               disabled={!selectedDateSelection || preflighting}
             >
-              すべて解除
+              {english ? "Clear all" : "すべて解除"}
             </button>
           </div>
         </div>

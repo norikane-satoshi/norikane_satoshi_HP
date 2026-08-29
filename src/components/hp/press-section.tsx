@@ -1,10 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import {useLocale} from "next-intl"
 import { createPortal } from "react-dom"
 import { ExternalLink, X } from "lucide-react"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
-import { PRESS_CATEGORIES } from "@/components/hp/press-data"
+import {getPressCategories, type PressCategory} from "@/components/hp/press-data"
 import type { PointerEvent } from "react"
 export { PRESS_CATEGORIES } from "@/components/hp/press-data"
 
@@ -42,10 +43,10 @@ function OpenBookIcon({ className }: { className?: string }) {
   )
 }
 
-function PressDialogContent() {
+function PressDialogContent({categories, english}: {categories: PressCategory[]; english: boolean}) {
   return (
     <div className="space-y-8 md:space-y-9">
-      {PRESS_CATEGORIES.map((category) => (
+      {categories.map((category) => (
         <section key={category.title} aria-labelledby={`press-${category.title}`}>
           <h3
             id={`press-${category.title}`}
@@ -79,7 +80,7 @@ function PressDialogContent() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="glass-badge hp-technical-break inline-flex max-w-full items-center gap-2 px-3 py-1.5 text-xs"
-                      aria-label={`${item.title} ${link.label}を新しいタブで開く`}
+                      aria-label={english ? `Open ${item.title}: ${link.label} in a new tab` : `${item.title} ${link.label}を新しいタブで開く`}
                     >
                       <span className="truncate">{link.label}</span>
                       <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -96,6 +97,9 @@ function PressDialogContent() {
 }
 
 export function PressDialog() {
+  const locale = useLocale() as "ja" | "en"
+  const english = locale === "en"
+  const categories = getPressCategories(locale)
   const [open, setOpen] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -206,20 +210,20 @@ export function PressDialog() {
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
-            aria-label="登壇・メディア掲載 / 実績"
+            aria-label={english ? "Talks, media, and selected work" : "登壇・メディア掲載 / 実績"}
             className="glass-card press-dialog-surface flex max-h-[min(82vh,760px)] w-full max-w-5xl flex-col overflow-hidden p-6 md:p-8 xl:p-10"
           >
             <div className="flex items-start justify-between gap-5">
               <div>
                 <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
-                  登壇・メディア掲載 / 実績
+                  {english ? "Talks, media, and selected work" : "登壇・メディア掲載 / 実績"}
                 </h2>
               </div>
               <button
                 ref={closeButtonRef}
                 type="button"
                 className="glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-hp"
-                aria-label="実績ダイアログを閉じる"
+                aria-label={english ? "Close selected work dialog" : "実績ダイアログを閉じる"}
                 onClick={close}
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -227,7 +231,7 @@ export function PressDialog() {
             </div>
 
             <div className="mt-7 overflow-y-auto pr-1 md:pr-2">
-              <PressDialogContent />
+              <PressDialogContent categories={categories} english={english} />
             </div>
           </div>
         </div>,
@@ -243,8 +247,8 @@ export function PressDialog() {
         className="glass-btn glass-btn--profile-social flex h-10 w-[4.5rem] items-center justify-center gap-1 px-3 text-hp"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label="実績"
-        title="実績"
+        aria-label={english ? "Selected work" : "実績"}
+        title={english ? "Selected work" : "実績"}
         onPointerUp={openFromPrimaryPointer}
         onClick={openDialog}
       >

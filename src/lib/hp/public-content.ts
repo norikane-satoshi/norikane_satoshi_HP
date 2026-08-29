@@ -1,4 +1,6 @@
-export const hpPublicContent = {
+import type {AppLocale} from "@/i18n/routing"
+
+const jaContent = {
   hero: {
     name: "則兼 智志",
     title: "フリーランスカラリスト",
@@ -52,3 +54,54 @@ export const hpPublicContent = {
     ],
   },
 } as const
+
+const enContent = {
+  hero: {
+    name: "Satoshi Norikane",
+    title: "Freelance Colorist",
+    locationLine: "Tokyo · Independent since 2026",
+  },
+  intro:
+    "I provide color grading for theatrical films, streaming productions, commercials, and brand films. Both attended and remote sessions are available, with a flexible workflow tailored to each project's scale, schedule, and delivery requirements. I also accept requests for lectures and workshops as a DaVinci Resolve Certified Trainer.",
+  profile: {
+    sectionTitle: "Profile",
+    name: "Satoshi Norikane",
+    title: "Freelance Colorist",
+    tools: jaContent.profile.tools,
+    socialLinks: jaContent.profile.socialLinks,
+    timeline: [
+      {
+        year: "2013",
+        event: "Joined IMAGICA",
+        detail:
+          "After graduating from the Faculty of Design at Shizuoka University of Art and Culture, I began my career at IMAGICA as a colorist assistant. Following film telecine work, I developed my grading practice with DaVinci Resolve.",
+      },
+      {
+        year: "2018",
+        event: "Lead Colorist",
+        detail:
+          "I graded theatrical films, streaming productions, commercials, and music videos. I launched an online-editing and VFX collaboration service built around DaVinci Resolve and introduced the workflow across the department, specializing in ACES color management. As a DaVinci Resolve Certified Trainer, I also taught at broadcasters and Blackmagic Design's headquarters.",
+      },
+      {
+        year: "2023",
+        event: "Virtual Production Color Creator",
+        detail:
+          "Alongside grading, I managed on-set color for LED-wall productions, matching color across different sources and integrating CG, LED backgrounds, and live-action footage naturally.",
+      },
+      {
+        year: "2026",
+        event: "Founded an independent studio",
+        detail:
+          "I established Norikane Film Design Office, continuing to develop structured color-grading methods and education alongside production work.",
+      },
+    ],
+  },
+} as const
+
+export const hpPublicContent = jaContent
+
+export function getHpPublicContent(locale: AppLocale) {
+  return locale === "en" ? enContent : jaContent
+}
+
+export type HpPublicContent = ReturnType<typeof getHpPublicContent>

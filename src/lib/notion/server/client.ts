@@ -22,3 +22,4 @@ export const IB_WORK_DATA_SOURCE_ID =
 export const TITLE_PROPERTY = "名前"
 export const SLUG_PROPERTY = "slug"
 export const PUBLISHED_PROPERTY = "HP公開"
+export const LANGUAGE_PROPERTY = "言語"

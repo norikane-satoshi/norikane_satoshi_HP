@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Clock3, Lock } from "lucide-react"
+import {getLocale} from "next-intl/server"
 
 import styles from "./availability-calendar.module.css"
 import { AvailabilityCalendarFrame } from "./availability-calendar-frame"
@@ -13,7 +14,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"]
+const WEEKDAYS = {
+  ja: ["日", "月", "火", "水", "木", "金", "土"],
+  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+} as const
 
 type PageProps = {
   searchParams?: Promise<{ month?: string | string[] }>
@@ -23,10 +27,10 @@ function monthParam(value: string) {
   return `${PUBLIC_AVAILABILITY_ROUTE}?month=${encodeURIComponent(value)}`
 }
 
-function statusText(status: "available" | "busy" | "tentative") {
-  if (status === "busy") return "予約済み（本予約）"
-  if (status === "tentative") return "仮キープ"
-  return "空き"
+function statusText(status: "available" | "busy" | "tentative", english: boolean) {
+  if (status === "busy") return english ? "Booked" : "予約済み（本予約）"
+  if (status === "tentative") return english ? "Tentative hold" : "仮キープ"
+  return english ? "Available" : "空き"
 }
 
 function currentMonthParam(now = new Date()) {
@@ -41,6 +45,8 @@ function currentMonthParam(now = new Date()) {
 }
 
 export default async function PublicAvailabilityCalendarPage({ searchParams }: PageProps) {
+  const locale = await getLocale() as "ja" | "en"
+  const english = locale === "en"
   const params = await searchParams
   const month = Array.isArray(params?.month) ? params?.month[0] : params?.month
   const availability = await loadPublicAvailabilityMonth({ month })
@@ -58,14 +64,16 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
           heading={(
             <>
             <p className={styles.eyebrow}>Availability</p>
-            <h1 className={styles.title}>{availability.monthLabel}</h1>
-            <p className={styles.lead}>予約可否の目安だけを表示しています。案件名や予定の詳細は表示しません。</p>
+            <h1 className={styles.title}>{english
+              ? new Intl.DateTimeFormat("en-US", {year: "numeric", month: "long", timeZone: "Asia/Tokyo"}).format(new Date(`${availability.month}-01T00:00:00+09:00`))
+              : availability.monthLabel}</h1>
+            <p className={styles.lead}>{english ? "This calendar shows availability only. Project names and event details remain private." : "予約可否の目安だけを表示しています。案件名や予定の詳細は表示しません。"}</p>
             </>
           )}
         >
           <div className={styles.calendar} data-testid="public-availability-calendar">
             <div className={styles.weekdays} aria-hidden="true">
-              {WEEKDAYS.map((weekday) => (
+              {WEEKDAYS[locale].map((weekday) => (
                 <div key={weekday} className={styles.weekday}>
                   {weekday}
                 </div>
@@ -73,7 +81,7 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
             </div>
             <div className={styles.grid}>
               {availability.days.map((day) => {
-                const stateText = statusText(day.status)
+                const stateText = statusText(day.status, english)
                 const blockMarker = blockMarkers.get(day.dateKey)
                 return (
                   <div
@@ -92,15 +100,15 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
                     data-date={day.dateKey}
                     data-busy={day.isBusy ? "true" : "false"}
                     data-status={day.status}
-                    aria-label={`${day.dateKey}${day.isToday ? " 今日" : ""} ${stateText}`}
+                    aria-label={`${day.dateKey}${day.isToday ? (english ? " Today" : " 今日") : ""} ${stateText}`}
                   >
                     <span className={styles.dayNumber}>{day.day}</span>
-                    {day.isToday ? <span className={styles.todayLabel}>今日</span> : null}
+                    {day.isToday ? <span className={styles.todayLabel}>{english ? "Today" : "今日"}</span> : null}
                     {blockMarker?.isStart ? (
                       <span className={styles.status}>
                         {day.status === "busy" ? <Lock className={styles.lock} size={14} aria-hidden="true" /> : null}
                         {day.status === "tentative" ? <Clock3 className={styles.tentativeIcon} size={14} aria-hidden="true" /> : null}
-                        {day.status === "tentative" ? "仮キープ" : null}
+                        {day.status === "tentative" ? (english ? "Tentative" : "仮キープ") : null}
                       </span>
                     ) : null}
                   </div>
@@ -112,7 +120,7 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
 
         {hasIssue ? (
           <p className={styles.warning} role="status">
-            空き状況を取得できませんでした。
+            {english ? "Availability could not be loaded." : "空き状況を取得できませんでした。"}
           </p>
         ) : null}
       </div>

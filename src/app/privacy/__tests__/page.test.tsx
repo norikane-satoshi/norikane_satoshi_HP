@@ -2,19 +2,22 @@
 
 import "@testing-library/jest-dom/vitest"
 import { cleanup, render } from "@testing-library/react"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import PrivacyPolicyPage, { metadata } from "../page"
+import PrivacyPolicyPage, { generateMetadata } from "../page"
+
+vi.mock("next-intl/server", () => ({getLocale: async () => "ja"}))
 
 describe("PrivacyPolicyPage", () => {
   afterEach(() => cleanup())
 
-  it("sets the privacy policy metadata title", () => {
+  it("sets the privacy policy metadata title", async () => {
+    const metadata = await generateMetadata()
     expect(metadata.title).toBe("プライバシーポリシー | のりかね映像設計室")
   })
 
-  it("renders chatbot privacy, retention, context, and contact details", () => {
-    const { container } = render(<PrivacyPolicyPage />)
+  it("renders chatbot privacy, retention, context, and contact details", async () => {
+    const { container } = render(await PrivacyPolicyPage())
 
     expect(container).toHaveTextContent("プライバシーポリシー")
     expect(container).toHaveTextContent("最後のメッセージから 7 日")

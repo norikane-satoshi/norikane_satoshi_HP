@@ -2,10 +2,12 @@ import { unstable_cache } from "next/cache"
 import {
   getNotionClient,
   IB_NOTE_DATA_SOURCE_ID,
+  LANGUAGE_PROPERTY,
   PUBLISHED_PROPERTY,
   SLUG_PROPERTY,
   TITLE_PROPERTY,
 } from "./client"
+import type {AppLocale} from "@/i18n/routing"
 
 import type {
   BlockObjectResponse,
@@ -22,6 +24,7 @@ export type NoteSummary = {
   title: string
   createdTime: string
   lastEditedTime: string
+  locale: AppLocale
 }
 
 export type NoteFull = NoteSummary & {
@@ -60,6 +63,12 @@ function extractPublished(page: PageObjectResponse): boolean {
   return prop.checkbox
 }
 
+export function extractNoteLocale(page: Pick<PageObjectResponse, "properties">): AppLocale {
+  const prop = page.properties[LANGUAGE_PROPERTY]
+  if (prop?.type === "select" && prop.select?.name === "en") return "en"
+  return "ja"
+}
+
 function toSummary(page: PageObjectResponse): NoteSummary | null {
   const slug = extractSlug(page)
   const title = extractTitle(page)
@@ -70,32 +79,29 @@ function toSummary(page: PageObjectResponse): NoteSummary | null {
     title,
     createdTime: page.created_time,
     lastEditedTime: page.last_edited_time,
+    locale: extractNoteLocale(page),
   }
 }
 
 type QueryFilter = QueryDataSourceParameters["filter"]
 
 async function _queryPublishedImpl(
-  slugEquals?: string
+  locale: AppLocale,
+  slugEquals?: string,
 ): Promise<PageObjectResponse[]> {
   const notion = getNotionClient()
   if (!notion) return []
   const results: PageObjectResponse[] = []
   let cursor: string | undefined = undefined
 
-  const filter: QueryFilter = slugEquals
-    ? {
-        and: [
-          { property: PUBLISHED_PROPERTY, checkbox: { equals: true } },
-          { property: SLUG_PROPERTY, rich_text: { equals: slugEquals } },
-        ],
-      }
-    : {
-        and: [
-          { property: PUBLISHED_PROPERTY, checkbox: { equals: true } },
-          { property: SLUG_PROPERTY, rich_text: { is_not_empty: true } },
-        ],
-      }
+  const filter: QueryFilter = {
+    and: [
+      {property: PUBLISHED_PROPERTY, checkbox: {equals: true}},
+      slugEquals
+        ? {property: SLUG_PROPERTY, rich_text: {equals: slugEquals}}
+        : {property: SLUG_PROPERTY, rich_text: {is_not_empty: true}},
+    ],
+  }
 
   // Paginate defensively.
   for (let i = 0; i < 10; i += 1) {
@@ -113,7 +119,7 @@ async function _queryPublishedImpl(
     cursor = resp.next_cursor
   }
 
-  return results
+  return results.filter((page) => extractNoteLocale(page) === locale)
 }
 
 async function _queryBySlugImpl(slugEquals: string): Promise<PageObjectResponse[]> {
@@ -158,8 +164,8 @@ const queryBySlug = unstable_cache(
   { tags: ["notes"] }
 )
 
-export async function listPublishedNotes(): Promise<NoteSummary[]> {
-  const pages = await queryPublished()
+export async function listPublishedNotes(locale: AppLocale = "ja"): Promise<NoteSummary[]> {
+  const pages = await queryPublished(locale)
   const out: NoteSummary[] = []
   for (const p of pages) {
     const s = toSummary(p)
@@ -169,10 +175,11 @@ export async function listPublishedNotes(): Promise<NoteSummary[]> {
 }
 
 export async function getNotePublicationStatusBySlug(
-  slug: string
+  slug: string,
+  locale: AppLocale = "ja",
 ): Promise<NotePublicationStatus> {
   const pages = await queryBySlug(slug)
-  const page = pages[0]
+  const page = pages.find((candidate) => extractNoteLocale(candidate) === locale)
   if (!page) return "missing"
   return extractPublished(page) ? "published" : "unpublished"
 }
@@ -229,9 +236,10 @@ const listAllBlocks = unstable_cache(
 )
 
 export async function getPublishedNoteBySlug(
-  slug: string
+  slug: string,
+  locale: AppLocale = "ja",
 ): Promise<NoteFull | null> {
-  const pages = await queryPublished(slug)
+  const pages = await queryPublished(locale, slug)
   const page = pages[0]
   if (!page) return null
   const summary = toSummary(page)

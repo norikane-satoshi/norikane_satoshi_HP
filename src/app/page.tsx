@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
-import Link from "next/link"
+import {hasLocale} from "next-intl"
+import {getLocale, getTranslations} from "next-intl/server"
 import { ArrowRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
@@ -7,25 +8,38 @@ import { LookGallery } from "@/components/hp/look-gallery"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { ProfileToolBadges } from "@/components/hp/profile-tool-badges"
-import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
+import { SITE_TITLE } from "@/lib/site-brand"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
   DAVINCI_RESOLVE_TRAINING_URL,
 } from "@/lib/hp/davinci-trainer"
-import { hpPublicContent } from "@/lib/hp/public-content"
+import {getHpPublicContent, type HpPublicContent} from "@/lib/hp/public-content"
+import {localeAlternates} from "@/i18n/metadata"
+import {Link} from "@/i18n/navigation"
+import {routing} from "@/i18n/routing"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
-  title: SITE_TITLE,
-  description: SITE_TAGLINE,
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  const requestedLocale = await getLocale()
+  const locale = hasLocale(routing.locales, requestedLocale)
+    ? requestedLocale
+    : routing.defaultLocale
+  const t = await getTranslations({locale, namespace: "Metadata"})
+
+  return {
     title: SITE_TITLE,
-    description: SITE_TAGLINE,
-    type: "website",
-  },
-  twitter: { card: "summary_large_image" },
+    description: t("description"),
+    alternates: localeAlternates("/", locale),
+    openGraph: {
+      title: SITE_TITLE,
+      description: t("description"),
+      type: "website",
+      locale: locale === "ja" ? "ja_JP" : "en_US",
+    },
+    twitter: { card: "summary_large_image" },
+  }
 }
 
 function XIcon({ className }: { className?: string }) {
@@ -58,9 +72,9 @@ const socialIcons = {
   Instagram: InstagramIcon,
 } as const
 
-async function listPublishedNotesForHome() {
+async function listPublishedNotesForHome(locale: "ja" | "en") {
   try {
-    return await listPublishedNotes()
+    return await listPublishedNotes(locale)
   } catch (error) {
     const cause = error instanceof Error && error.cause instanceof Error ? error.cause : undefined
     console.error("[HP_HOME_NOTES_FETCH_FAILED]", {
@@ -73,11 +87,13 @@ async function listPublishedNotesForHome() {
   }
 }
 
-function renderIntroTextWithTrainerLink() {
-  const [before, after] = hpPublicContent.intro.split(DAVINCI_RESOLVE_TRAINER_TEXT)
+function renderIntroTextWithTrainerLink(content: HpPublicContent, locale: "ja" | "en") {
+  if (locale === "en") return content.intro
+
+  const [before, after] = content.intro.split(DAVINCI_RESOLVE_TRAINER_TEXT)
 
   if (after === undefined) {
-    return hpPublicContent.intro
+    return content.intro
   }
 
   return (
@@ -96,21 +112,21 @@ function renderIntroTextWithTrainerLink() {
   )
 }
 
-function ProfileForeground() {
+function ProfileForeground({content}: {content: HpPublicContent}) {
   return (
     <div className="hp-grid hp-profile-grid min-w-0">
       {/* Left: profile photo + social links */}
       <div className="hp-profile-sidebar flex min-w-0 max-w-full flex-col items-center gap-5 @[680px]/profile:items-start">
         <ProfilePhoto />
         <div className="min-w-0 text-center @[680px]/profile:text-left">
-          <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
+          <p className="text-sm text-hp-muted">{content.profile.name}</p>
           <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
-            {hpPublicContent.profile.title}
+            {content.profile.title}
           </p>
         </div>
-        <ProfileToolBadges tools={hpPublicContent.profile.tools} />
+        <ProfileToolBadges tools={content.profile.tools} />
         <div className="mt-1 flex items-center justify-center gap-3 @[680px]/profile:justify-start">
-          {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
+          {content.profile.socialLinks.map(({ label, href }) => {
             const Icon = socialIcons[label]
             return (
               <a
@@ -135,7 +151,7 @@ function ProfileForeground() {
           Career
         </p>
         <div className="hp-career-list">
-          {hpPublicContent.profile.timeline.map((item) => (
+          {content.profile.timeline.map((item) => (
             <div
               key={item.year}
               className="hp-career-item"
@@ -163,17 +179,23 @@ function ProfileForeground() {
 }
 
 export default async function HomePage() {
-  const notes = await listPublishedNotesForHome()
+  const requestedLocale = await getLocale()
+  const locale = hasLocale(routing.locales, requestedLocale)
+    ? requestedLocale
+    : routing.defaultLocale
+  const t = await getTranslations({locale, namespace: "Home"})
+  const content = getHpPublicContent(locale)
+  const notes = await listPublishedNotesForHome(locale)
   // listPublishedNotes returns created_time ascending; feature the latest note first.
   const orderedNotes = [...notes].reverse()
   return (
     <div className="hp-section-stack">
-      <HeroSection />
+      <HeroSection locale={locale} />
 
       {/* Intro */}
       <section className="hp-section-shell hp-grid">
         <p className="hp-body hp-intro-measure text-base text-hp md:text-lg">
-          {renderIntroTextWithTrainerLink()}
+          {renderIntroTextWithTrainerLink(content, locale)}
         </p>
       </section>
 
@@ -187,7 +209,7 @@ export default async function HomePage() {
         <div className="hp-grid">
           <div className="hp-section-heading hp-section-title-stack">
             <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
-              ノート
+              {t("notes")}
             </h2>
           </div>
         </div>
@@ -250,11 +272,11 @@ export default async function HomePage() {
           <div className="glass-card glass-card--hp-profile p-8 md:p-10 xl:p-12">
             <div className="hp-section-title-stack">
               <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
-                {hpPublicContent.profile.sectionTitle}
+                {content.profile.sectionTitle}
               </h2>
             </div>
             <div className="mt-[var(--hp-space-4)]">
-              <ProfileForeground />
+              <ProfileForeground content={content} />
             </div>
           </div>
         </div>
