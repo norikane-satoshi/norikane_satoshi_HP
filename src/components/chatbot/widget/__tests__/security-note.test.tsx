@@ -14,7 +14,7 @@ describe("SecurityNote", () => {
     render(<SecurityNote defaultOpen={false} />)
 
     expect(screen.getByRole("button", { name: "安全に扱います" })).toHaveAttribute("aria-expanded", "false")
-    expect(screen.queryByText("30 日自動削除", { exact: false })).not.toBeInTheDocument()
+    expect(screen.queryByText("7 日で自動削除", { exact: false })).not.toBeInTheDocument()
   })
 
   it("shows security details after the button is clicked", () => {
@@ -22,7 +22,7 @@ describe("SecurityNote", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "安全に扱います" }))
 
-    expect(screen.getByText("チャットログは 30 日自動削除の対象です。")).toBeInTheDocument()
+    expect(screen.getByText("チャットログは 7 日で自動削除します。")).toBeInTheDocument()
     expect(screen.getByText("他のご相談内容は参照せず、このご相談に必要な情報だけを使います。")).toBeInTheDocument()
     expect(screen.getByText("カレンダーは空き状況の確認に必要な予定の有無だけを確認します。")).toBeInTheDocument()
     expect(screen.queryByText("本人文脈", { exact: false })).not.toBeInTheDocument()

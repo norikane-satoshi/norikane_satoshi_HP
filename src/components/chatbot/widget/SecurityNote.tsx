@@ -49,7 +49,7 @@ export function SecurityNote({ defaultOpen = false }: SecurityNoteProps) {
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
           >
             <li>通信と保存データを暗号化して扱います。</li>
-            <li>チャットログは 30 日自動削除の対象です。</li>
+            <li>チャットログは 7 日で自動削除します。</li>
             <li>他のご相談内容は参照せず、このご相談に必要な情報だけを使います。</li>
             <li>カレンダーは空き状況の確認に必要な予定の有無だけを確認します。</li>
             <li>

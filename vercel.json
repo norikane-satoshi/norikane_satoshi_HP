@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/chatbot-audit-health",
       "schedule": "30 0 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-chatbot-conversations",
+      "schedule": "45 0 * * *"
     }
   ]
 }

@@ -17,7 +17,7 @@ describe("PrivacyPolicyPage", () => {
     const { container } = render(<PrivacyPolicyPage />)
 
     expect(container).toHaveTextContent("プライバシーポリシー")
-    expect(container).toHaveTextContent("30 日")
+    expect(container).toHaveTextContent("最後のメッセージから 7 日")
     expect(container).toHaveTextContent("ログインしている方")
     expect(container).toHaveTextContent("空き状況")
     expect(container).toHaveTextContent("予定の有無のみ")

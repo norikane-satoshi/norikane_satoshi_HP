@@ -64,7 +64,7 @@ export function PrivacyPolicyContent({ headingLevel = "h1" }: LegalContentProps)
         <section>
           <h2 className="text-lg font-semibold text-hp">保管期間</h2>
           <p className="mt-3 text-hp-muted">
-            チャットログは 30 日で自動削除します。予約、問い合わせ、
+            チャットログは、最後のメッセージから 7 日を過ぎると自動削除します。予約、問い合わせ、
             請求・契約・法令上必要な情報は、業務上必要な期間保管します。
           </p>
         </section>
@@ -93,7 +93,7 @@ export function PrivacyPolicyContent({ headingLevel = "h1" }: LegalContentProps)
         </section>
       </div>
 
-      <p className="mt-10 text-xs text-hp-muted">改定日：2026年5月26日</p>
+      <p className="mt-10 text-xs text-hp-muted">改定日：2026年8月29日</p>
     </>
   )
 }

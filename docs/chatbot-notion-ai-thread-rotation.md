@@ -39,7 +39,7 @@ stored threadが取得成功のうえで存在しない場合だけ、新しいh
 ## 保持期間
 
 - Notion側: `deleted_time`を起点に既定約30日。Businessではこの期間を変更しない。
-- HP側: `lastMessageAt`を起点に30日。既存cleanup契約を維持する。
+- HP側: `lastMessageAt`を起点に7日。日次cleanupで会話本体を削除する。
 - 起算点が違うため、Notion threadが先に消れることは正常系として許容する。
 - `deleted_time + 30日`以降にrecord missingを確認した再作成だけを
   `retentionPurgeDetected=true` とする。期限前のmissingとは分けて追跡する。

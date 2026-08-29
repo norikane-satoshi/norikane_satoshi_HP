@@ -23,8 +23,8 @@ describe("GET /api/cron/cleanup-chatbot-conversations", () => {
     vi.unstubAllEnvs()
     vi.stubEnv("CRON_SECRET", "secret")
     mocks.cleanupExpiredChatbotConversations.mockResolvedValue({
-      cutoffIso: "2026-04-26T00:00:00.000Z",
-      retentionDays: 30,
+      cutoffIso: "2026-05-19T00:00:00.000Z",
+      retentionDays: 7,
       scannedConversationCount: 2,
       deletedConversationCount: 2,
       deletedMessageCount: 4,
@@ -50,8 +50,8 @@ describe("GET /api/cron/cleanup-chatbot-conversations", () => {
     expect(mocks.cleanupExpiredChatbotConversations).toHaveBeenCalledTimes(1)
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      cutoffIso: "2026-04-26T00:00:00.000Z",
-      retentionDays: 30,
+      cutoffIso: "2026-05-19T00:00:00.000Z",
+      retentionDays: 7,
       scannedConversationCount: 2,
       deletedConversationCount: 2,
       deletedMessageCount: 4,
