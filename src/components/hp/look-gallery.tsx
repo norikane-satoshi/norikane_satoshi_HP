@@ -36,6 +36,8 @@ interface GalleryLut {
   uploaded: boolean
 }
 
+type LutTarget = "none" | "acescct-ap1" | "rec709-video"
+
 interface PreviewCanvasProps {
   image: GalleryImage
   lut: CubeLut | null
@@ -181,6 +183,12 @@ const outputLabels: Record<OutputTransform, string> = {
   "aces-sdr-rec709": "ACEScct to SDR Rec.709",
 }
 
+const lutTargetLabels: Record<LutTarget, string> = {
+  none: "指定なし",
+  "acescct-ap1": "AP1 / ACEScct",
+  "rec709-video": "Rec.709 / Video gamma",
+}
+
 export function LookGallery() {
   const [images, setImages] = useState<GalleryImage[]>([])
   const [luts, setLuts] = useState<GalleryLut[]>([])
@@ -188,6 +196,7 @@ export function LookGallery() {
   const [imageLutIds, setImageLutIds] = useState<Record<string, string>>({})
   const [sourceTransform, setSourceTransform] = useState<SourceTransform>("none")
   const [outputTransform, setOutputTransform] = useState<OutputTransform>("none")
+  const [lutTarget, setLutTarget] = useState<LutTarget>("rec709-video")
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [message, setMessage] = useState("準備しています")
   const modalCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -414,11 +423,17 @@ export function LookGallery() {
 
         <details className="mt-4 rounded-[12px] border border-white/55 bg-white/35 p-4">
           <summary className="cursor-pointer text-sm font-semibold text-hp">ACESプレビュー設定</summary>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
             <label className="grid gap-2 text-sm font-medium text-hp">
               Source image
               <select className="glass-input min-h-11 px-3 text-sm" value={sourceTransform} onChange={(event) => setSourceTransform(event.target.value as SourceTransform)}>
                 {Object.entries(sourceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-hp">
+              LUT target
+              <select className="glass-input min-h-11 px-3 text-sm" value={lutTarget} onChange={(event) => setLutTarget(event.target.value as LutTarget)}>
+                {Object.entries(lutTargetLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
             <label className="grid gap-2 text-sm font-medium text-hp">
@@ -429,7 +444,7 @@ export function LookGallery() {
             </label>
           </div>
           <p className="mt-3 text-xs leading-6 text-hp-muted">
-            SourceとOutputがともに「変換なし」でLUTも外すと、色値はそのまま通過します。ACES SDRは元ツール由来の簡易表示変換です。
+            SourceとLUT targetを「指定なし」にし、Outputを「変換なし」、LUTも外すと色値はそのまま通過します。ACES SDRは元ツール由来の簡易表示変換です。
           </p>
         </details>
 
@@ -479,6 +494,7 @@ export function LookGallery() {
                 <p className="mt-2 text-xs leading-5 text-hp-muted">
                   Source: {sourceLabels[sourceTransform]}<br />
                   LUT: {luts.find((lut) => lut.id === selectedLutId)?.name ?? "LUTなし"}<br />
+                  LUT target: {lutTargetLabels[lutTarget]}<br />
                   Output: {outputLabels[outputTransform]}
                 </p>
               </div>
