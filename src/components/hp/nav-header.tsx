@@ -8,7 +8,6 @@ import {Link, usePathname} from "@/i18n/navigation"
 import type {AppLocale} from "@/i18n/routing"
 import { isBookingEnabled } from "@/lib/feature-flags"
 import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
-import { SITE_BRAND_NAME } from "@/lib/site-brand"
 
 type SectionId = "home" | "profile" | "philosophy" | "schedule"
 type NavItem = { href: string; label: string; sectionId: SectionId }
@@ -113,7 +112,7 @@ export function NavHeader() {
         <Link href="/" className="flex shrink-0 items-center">
           <Image
             src="/nori_header_black.svg"
-            alt={SITE_BRAND_NAME}
+            alt={t("brandAlt")}
             width={832}
             height={141}
             sizes="(max-width: 767px) 220px, 260px"

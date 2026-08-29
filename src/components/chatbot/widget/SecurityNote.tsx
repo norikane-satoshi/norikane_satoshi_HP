@@ -10,6 +10,7 @@ import {
 } from "./conversationTypography"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { PrivacyPolicyContent, TermsContent } from "@/components/hp/legal-content"
+import {useChatbotCopy, useChatbotLocale} from "./i18n"
 
 type SecurityNoteProps = {
   defaultOpen?: boolean
@@ -21,12 +22,13 @@ const focusableSelector =
   "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
 
 export function SecurityNote({ defaultOpen = false }: SecurityNoteProps) {
+  const copy = useChatbotCopy()
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const [legalModal, setLegalModal] = useState<LegalModalKind | null>(null)
 
   return (
     <>
-      <section className="glass-inset p-3" aria-label="セキュリティ">
+      <section className="glass-inset p-3" aria-label={copy.security}>
         <button
           type="button"
           className="flex w-full items-center justify-between gap-3 text-left text-xs font-semibold text-hp"
@@ -36,7 +38,7 @@ export function SecurityNote({ defaultOpen = false }: SecurityNoteProps) {
         >
           <span className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-[var(--hp-color-accent)]" aria-hidden="true" />
-            安全に扱います
+            {copy.securityTitle}
           </span>
           <ChevronDown
             className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
@@ -48,28 +50,28 @@ export function SecurityNote({ defaultOpen = false }: SecurityNoteProps) {
             className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-3 space-y-1.5 text-xs text-hp-muted`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
           >
-            <li>通信と保存データを暗号化して扱います。</li>
-            <li>チャットログは 7 日で自動削除します。</li>
-            <li>他のご相談内容は参照せず、このご相談に必要な情報だけを使います。</li>
-            <li>カレンダーは空き状況の確認に必要な予定の有無だけを確認します。</li>
+            <li>{copy.securityEncryption}</li>
+            <li>{copy.securityRetention}</li>
+            <li>{copy.securityIsolation}</li>
+            <li>{copy.securityCalendar}</li>
             <li>
-              詳しくは{" "}
+              {copy.securityMorePrefix}{" "}
               <button
                 type="button"
                 className="underline decoration-dotted underline-offset-4 hover:text-hp"
                 onClick={() => setLegalModal("privacy")}
               >
-                プライバシーポリシー
+                {copy.privacy}
               </button>
-              と{" "}
+              {" "}{copy.securityAnd}{" "}
               <button
                 type="button"
                 className="underline decoration-dotted underline-offset-4 hover:text-hp"
                 onClick={() => setLegalModal("terms")}
               >
-                利用規約
+                {copy.terms}
               </button>
-              をご確認ください。
+              {copy.securitySuffix}
             </li>
           </ul>
         ) : null}
@@ -80,6 +82,8 @@ export function SecurityNote({ defaultOpen = false }: SecurityNoteProps) {
 }
 
 function LegalModal({ kind, onClose }: { kind: LegalModalKind | null; onClose: () => void }) {
+  const copy = useChatbotCopy()
+  const locale = useChatbotLocale()
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -133,7 +137,7 @@ function LegalModal({ kind, onClose }: { kind: LegalModalKind | null; onClose: (
 
   if (!kind || typeof document === "undefined") return null
 
-  const title = kind === "privacy" ? "プライバシーポリシー" : "利用規約"
+  const title = kind === "privacy" ? copy.privacy : copy.terms
   return createPortal(
     <div
       className="fixed inset-0 flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
@@ -154,14 +158,14 @@ function LegalModal({ kind, onClose }: { kind: LegalModalKind | null; onClose: (
             ref={closeButtonRef}
             type="button"
             className="glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-hp"
-            aria-label={`${title}を閉じる`}
+            aria-label={copy.closeDocument.replace("{title}", title)}
             onClick={onClose}
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <div className="mt-3 overflow-y-auto pr-1 md:pr-2">
-          {kind === "privacy" ? <PrivacyPolicyContent headingLevel="h2" /> : <TermsContent headingLevel="h2" />}
+          {kind === "privacy" ? <PrivacyPolicyContent headingLevel="h2" locale={locale} /> : <TermsContent headingLevel="h2" locale={locale} />}
         </div>
       </div>
     </div>,

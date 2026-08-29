@@ -7,6 +7,7 @@ import { History, Menu } from "lucide-react"
 import type { Metadata } from "next"
 import {getLocale} from "next-intl/server"
 import {Link} from "@/i18n/navigation"
+import {getLocalizedCopy} from "@/i18n/copy"
 
 export const dynamic = "force-dynamic"
 
@@ -43,7 +44,8 @@ async function loadInitialFreeBusy(input: {
 }
 
 export default async function BookingPage() {
-  const english = await getLocale() === "en"
+  const locale = await getLocale() as "ja" | "en"
+  const copy = getLocalizedCopy(locale, "Booking")
   const now = new Date()
   const initialRange = initialBusyRange(now)
   const session = await auth()
@@ -60,7 +62,7 @@ export default async function BookingPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-4xl font-bold text-hp md:text-5xl xl:text-6xl">
-              {english ? "Booking calendar" : "予約カレンダー"}
+              {copy.calendar}
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -69,15 +71,15 @@ export default async function BookingPage() {
               className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
             >
               <History aria-hidden="true" size={18} />
-              <span>{english ? "History" : "予約履歴"}</span>
+              <span>{copy.history}</span>
             </Link>
             <Link
               href="/booking/settings"
               className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
-              aria-label={english ? "Booking calendar settings" : "予約カレンダー設定"}
+              aria-label={copy.settingsLabel}
             >
               <Menu aria-hidden="true" size={18} />
-              <span>{english ? "Settings" : "設定"}</span>
+              <span>{copy.settings}</span>
             </Link>
           </div>
         </div>
@@ -96,6 +98,7 @@ export default async function BookingPage() {
                 now={now}
                 teamId={null}
                 pending={!session?.user?.id}
+                locale={locale}
               />
             )}
           />

@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { BookingEditForm } from "@/components/booking/booking-edit-form"
 import { isAdmin } from "@/lib/auth/server/is-admin"
 import { findAccessibleSlot } from "@/lib/booking/server/edit-access"
+import {getLocalizedCopy} from "@/i18n/copy"
 
 export const dynamic = "force-dynamic"
 
@@ -17,7 +18,8 @@ export default async function BookingEditPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const english = await getLocale() === "en"
+  const locale = await getLocale() as "ja" | "en"
+  const copy = getLocalizedCopy(locale, "Booking")
   const session = await auth()
   const userId = session?.user?.id
   if (!userId) notFound()
@@ -34,7 +36,7 @@ export default async function BookingEditPage({
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">
       <div className="glass-card p-8 md:p-10 xl:p-14">
         <div>
-          <h1 className="text-3xl font-bold text-hp md:text-4xl">{english ? "Edit booking" : "予約編集"}</h1>
+          <h1 className="text-3xl font-bold text-hp md:text-4xl">{copy.edit}</h1>
         </div>
         <div className="mt-8">
           <BookingEditForm
@@ -45,6 +47,7 @@ export default async function BookingEditPage({
             scope={booking.scope}
             isCalendarAdmin={isCalendarAdmin}
             isPast={isPast}
+            locale={locale}
           />
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import {useLocale} from "next-intl"
+import {getLocalizedCopy} from "@/i18n/copy"
 import type { BookingStep } from "@/lib/booking/domain/form-schema"
 
 type BookingProgressBarProps = {
@@ -8,17 +9,17 @@ type BookingProgressBarProps = {
 }
 
 export function BookingProgressBar({ currentStep }: BookingProgressBarProps) {
-  const english = useLocale() === "en"
+  const copy = getLocalizedCopy(useLocale(), "Booking")
   const steps: { value: BookingStep; label: string }[] = [
-    { value: "calendar", label: english ? "Dates" : "日時" },
-    { value: "form", label: english ? "Details" : "入力" },
-    { value: "confirm", label: english ? "Review" : "確認" },
-    { value: "done", label: english ? "Done" : "完了" },
+    { value: "calendar", label: copy.stepDates },
+    { value: "form", label: copy.stepDetails },
+    { value: "confirm", label: copy.stepReview },
+    { value: "done", label: copy.stepDone },
   ]
   const currentIndex = steps.findIndex((step) => step.value === currentStep)
 
   return (
-    <div className="booking-progress glass-flat" aria-label={english ? "Booking steps" : "予約ステップ"}>
+    <div className="booking-progress glass-flat" aria-label={copy.steps}>
       {steps.map((step, index) => {
         const reached = index <= currentIndex
         const current = index === currentIndex

@@ -28,6 +28,7 @@ import type {
 import { format } from "date-fns"
 import { Clock3, Lock } from "lucide-react"
 import {useLocale} from "next-intl"
+import {getLocalizedCopy} from "@/i18n/copy"
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from "react"
 
 import { mapErrorCodeToJa, type BookingConflictsResponse } from "@/lib/booking/domain/api-schema"
@@ -278,8 +279,8 @@ function resolveBusyBufferHours(slot: BusySlot): { before: number; after: number
   return { before, after }
 }
 
-function getBusyLabel(slot: BusySlot, isCalendarAdmin: boolean): string {
-  if (isFullDayBusySlot(slot)) return "終日"
+function getBusyLabel(slot: BusySlot, isCalendarAdmin: boolean, allDayLabel: string): string {
+  if (isFullDayBusySlot(slot)) return allDayLabel
 
   if (isCalendarAdmin) {
     return `${format(new Date(slot.start), "HH:mm")}-${format(new Date(slot.end), "HH:mm")}`
@@ -292,9 +293,9 @@ function getBusyLabel(slot: BusySlot, isCalendarAdmin: boolean): string {
   return `${format(start, "HH:mm")}-${format(end, "HH:mm")}`
 }
 
-function toBusyEvent(slot: BusySlot, isCalendarAdmin: boolean): EventInput {
+function toBusyEvent(slot: BusySlot, isCalendarAdmin: boolean, allDayLabel: string, unavailableLabel: string): EventInput {
   const allDay = isFullDayBusySlot(slot)
-  const label = getBusyLabel(slot, isCalendarAdmin)
+  const label = getBusyLabel(slot, isCalendarAdmin, allDayLabel)
   const shouldMergeBuffer = !allDay && !isCalendarAdmin
   const { before, after } = resolveBusyBufferHours(slot)
   const start = shouldMergeBuffer
@@ -314,7 +315,7 @@ function toBusyEvent(slot: BusySlot, isCalendarAdmin: boolean): EventInput {
 
   return {
     id: isCalendarAdmin && !allDay ? `busy-${slot.start}-${slot.end}` : `busy-merged-${slot.start}-${slot.end}`,
-    title: "予約不可",
+    title: unavailableLabel,
     start,
     end,
     allDay,
@@ -813,7 +814,9 @@ export function BookingCalendar({
   onCommit,
   onCodeChange,
 }: BookingCalendarProps) {
-  const english = useLocale() === "en"
+  const locale = useLocale()
+  const english = locale === "en"
+  const copy = getLocalizedCopy(locale, "Booking")
   const initialDateSelectionState = normalizeDateSelection(
     initialDateSelection ?? (initialDateRange ? bookingDateRangeToSelection(initialDateRange) : null),
   )
@@ -1279,7 +1282,7 @@ export function BookingCalendar({
     const isAvailabilityMonthView = isMonthView && showAvailabilityStatusBlocks
     const busyEvents = (data.busy ?? [])
       .filter(() => !isMonthView)
-      .map((slot) => toBusyEvent(slot, isCalendarAdmin))
+      .map((slot) => toBusyEvent(slot, isCalendarAdmin, copy.allDay, copy.unavailable))
     const lockedDateEvents = isMonthView
       ? showAvailabilityStatusBlocks
         ? buildBookingAvailabilityBlockEvents(data, arg.start, arg.end)
@@ -1303,7 +1306,7 @@ export function BookingCalendar({
         const endMs = new Date(slot.end).getTime()
         bufferEvents.push({
           id: `busy-buffer-before-${slot.start}-${slot.end}`,
-          title: `予定前 ${before} 時間は保護領域`,
+          title: copy.beforeExistingBuffer.replace("{hours}", String(before)),
           start: new Date(startMs - toBufferMs(before)).toISOString(),
           end: slot.start,
           display: "background",
@@ -1315,7 +1318,7 @@ export function BookingCalendar({
         })
         bufferEvents.push({
           id: `busy-buffer-after-${slot.start}-${slot.end}`,
-          title: `予定後 ${after} 時間は保護領域`,
+          title: copy.afterExistingBuffer.replace("{hours}", String(after)),
           start: slot.end,
           end: new Date(endMs + toBufferMs(after)).toISOString(),
           display: "background",
@@ -1354,7 +1357,7 @@ export function BookingCalendar({
         }
         bufferEvents.push({
           id: `buffer-before-${booking.id}`,
-          title: `本予約前 ${beforeHours} 時間は保護領域`,
+          title: copy.beforeBookingBuffer.replace("{hours}", String(beforeHours)),
           start: new Date(startMs - toBufferMs(beforeHours)).toISOString(),
           end: booking.start,
           ...(isCalendarAdmin ? {} : { display: "background" as const }),
@@ -1366,7 +1369,7 @@ export function BookingCalendar({
         })
         bufferEvents.push({
           id: `buffer-after-${booking.id}`,
-          title: `本予約後 ${afterHours} 時間は保護領域`,
+          title: copy.afterBookingBuffer.replace("{hours}", String(afterHours)),
           start: booking.end,
           end: new Date(endMs + toBufferMs(afterHours)).toISOString(),
           ...(isCalendarAdmin ? {} : { display: "background" as const }),
@@ -1384,6 +1387,7 @@ export function BookingCalendar({
   }, [
     adjustingGroupId,
     beginCalendarLoading,
+    copy,
     finishCalendarLoading,
     isCalendarAdmin,
     markFullCalendarReadyIfSettled,
@@ -1753,16 +1757,16 @@ export function BookingCalendar({
 
   const getBlockedRangeReason = useCallback((start: Date, end: Date) => {
     if (!hasMinimumSelectionDuration(start, end)) {
-      return "30分以上の空き時間を選んでください。"
+      return copy.minDuration
     }
     if (overlapsBlockedEvent(start, end)) {
-      return "この時間は既存予定があるため選べません。"
+      return copy.overlapsBusy
     }
     if (overlapsConfirmedBufferZone(start, end)) {
-      return "この時間は予約前後の保護時間のため選べません。"
+      return copy.overlapsBuffer
     }
     return null
-  }, [overlapsBlockedEvent, overlapsConfirmedBufferZone])
+  }, [copy.minDuration, copy.overlapsBuffer, copy.overlapsBusy, overlapsBlockedEvent, overlapsConfirmedBufferZone])
 
   const createDraftFromRange = useCallback((start: Date, end: Date) => {
     const calendarApi = calendarRef.current?.getApi()
@@ -1862,7 +1866,7 @@ export function BookingCalendar({
     )
   }, [overlapsBlockedEvent, overlapsConfirmedBufferZone])
 
-  const selectedDateSelectionLabel = selectedDateSelection ? formatBookingDateSelection(selectedDateSelection) : null
+  const selectedDateSelectionLabel = selectedDateSelection ? formatBookingDateSelection(selectedDateSelection, english ? "en" : "ja") : null
   const lockedDateKeySet = useMemo(() => new Set(lockedDateKeys), [lockedDateKeys])
   const tentativeDateKeySet = useMemo(() => new Set(tentativeDateKeys), [tentativeDateKeys])
   const todayDateKey = toTokyoDateKey()
@@ -1890,11 +1894,11 @@ export function BookingCalendar({
   const selectMonthDate = useCallback((date: Date) => {
     const dateKey = toDateKey(date)
     if (isDateKeyTodayOrPast(dateKey, todayDateKey)) {
-      setActionError("今日以前の日付は選べません。")
+      setActionError(copy.todayOrPast)
       return
     }
     if (lockedDateKeySet.has(dateKey)) {
-      setActionError("この日は既存予定があるため選べません。")
+      setActionError(copy.lockedDate)
       return
     }
     selectedViewRef.current = "dayGridMonth"
@@ -1911,7 +1915,7 @@ export function BookingCalendar({
     setActionError(null)
     setActionPanelPosition(null)
     calendarRef.current?.getApi().changeView("dayGridMonth", dateKey)
-  }, [lockedDateKeySet, todayDateKey])
+  }, [copy.lockedDate, copy.todayOrPast, lockedDateKeySet, todayDateKey])
 
   const handleEventAllow = useCallback<AllowFunc>((span, movingEvent) => {
     const props = movingEvent?.extendedProps as AnyEventProps | undefined
@@ -2205,7 +2209,7 @@ export function BookingCalendar({
     return (
       <>
         <span>{arg.date.getDate()}</span>
-        {isToday ? <span className="booking-calendar__today-label">今日</span> : null}
+        {isToday ? <span className="booking-calendar__today-label">{copy.today}</span> : null}
       </>
     )
   }
@@ -2245,7 +2249,7 @@ export function BookingCalendar({
         removeButton.className = "booking-calendar__slot-remove"
         removeButton.dataset.testid = "booking-slot-remove"
         removeButton.dataset.slotKind = "draft"
-        removeButton.setAttribute("aria-label", "日時を削除")
+        removeButton.setAttribute("aria-label", copy.removeDate)
         removeButton.textContent = "×"
         removeButton.addEventListener("click", (event) => {
           event.preventDefault()
@@ -2270,7 +2274,7 @@ export function BookingCalendar({
       removeButton.className = "booking-calendar__slot-remove"
       removeButton.dataset.testid = "booking-slot-remove"
       removeButton.dataset.slotKind = "booking"
-      removeButton.setAttribute("aria-label", "日時を削除")
+      removeButton.setAttribute("aria-label", copy.removeDate)
       removeButton.textContent = "×"
       removeButton.addEventListener("click", (event) => {
         event.preventDefault()
@@ -2296,19 +2300,18 @@ export function BookingCalendar({
       return (
         <span
           className={`booking-calendar__availability-content booking-calendar__availability-content--${props.availabilityStatus}`}
-          aria-label={isTentative ? "仮キープ" : "予約済み（本予約）"}
+          aria-label={isTentative ? copy.tentative : copy.confirmedBooked}
         >
           {isTentative ? <Clock3 aria-hidden="true" size={14} strokeWidth={2.4} /> : lockIcon}
-          {isTentative ? <span>仮キープ</span> : null}
+          {isTentative ? <span>{copy.tentative}</span> : null}
         </span>
       )
     }
     if (props.kind === "busy") {
       const isMonthView = arg.view.type === "dayGridMonth"
-      const statusLabel = props.status === "CONFIRMED" ? "本予約" : "予約不可"
-      const shortLabel = props.status === "CONFIRMED" ? "本" : "不"
+      const shortLabel = props.status === "CONFIRMED" ? copy.confirmedShort : copy.unavailableShort
       const rangeLabel = props.label ?? (arg.event.start && arg.event.end ? `${format(arg.event.start, "HH:mm")}-${format(arg.event.end, "HH:mm")}` : "")
-      const monthTimeLabel = arg.event.allDay ? "終日" : arg.event.start ? format(arg.event.start, "HH:mm") : rangeLabel
+      const monthTimeLabel = arg.event.allDay ? copy.allDay : arg.event.start ? format(arg.event.start, "HH:mm") : rangeLabel
       const title = props.projectTitle?.trim()
       const text = props.lockedDate
         ? ""
@@ -2316,13 +2319,13 @@ export function BookingCalendar({
             const canShowTitle = props.status === "CONFIRMED" && props.canView && title
             const baseText = canShowTitle
               ? isMonthView
-                ? `${monthTimeLabel} 本: ${title}`
-                : `本予約 ${rangeLabel}: ${title}`
+                ? copy.confirmedMonthTitle.replace("{time}", monthTimeLabel).replace("{title}", title)
+                : copy.confirmedRangeTitle.replace("{range}", rangeLabel).replace("{title}", title)
               : props.status === "CONFIRMED" && !props.canView
-                ? "本予約"
+                ? copy.confirmed
                 : isMonthView
                   ? `${monthTimeLabel} ${shortLabel}`
-                  : `${statusLabel} ${rangeLabel}`.trim()
+                  : (props.status === "CONFIRMED" ? copy.confirmedRange : copy.unavailableRange).replace("{range}", rangeLabel).trim()
             return !canShowTitle && !props.bookingId && title
               ? `${baseText}: ${title}`
               : baseText
@@ -2331,7 +2334,7 @@ export function BookingCalendar({
         return (
           <span
             className="booking-calendar__busy-pill-content booking-calendar__busy-pill-content--lock-only"
-            aria-label="locked"
+            aria-label={copy.protected}
           >
             {lockIcon}
           </span>
@@ -2382,13 +2385,13 @@ export function BookingCalendar({
         }
         onCommit({ slots, requestedDateSelection: null })
       } catch (error) {
-        const message = error instanceof Error ? error.message : "予約の重なり確認に失敗しました"
+        const message = error instanceof Error ? error.message : copy.conflictCheckError
         setActionError(message)
       } finally {
         setPreflighting(false)
       }
     },
-    [activeDraft, drafts, onCommit, preflighting, runPreflight],
+    [activeDraft, copy.conflictCheckError, drafts, onCommit, preflighting, runPreflight],
   )
 
   const startDateRequestCommit = useCallback(() => {
@@ -2396,11 +2399,11 @@ export function BookingCalendar({
     setActionError(null)
     const dates = normalizeBookingDateKeys(selectedDateSelection.dates.filter(isSelectableMonthDateKey))
     if (dates.length === 0) {
-      setActionError("希望日を 1 日以上選択してください。")
+      setActionError(copy.selectAtLeastOne)
       return
     }
     onCommit({ slots: [], requestedDateSelection: { dates } })
-  }, [isSelectableMonthDateKey, onCommit, preflighting, selectedDateSelection])
+  }, [copy.selectAtLeastOne, isSelectableMonthDateKey, onCommit, preflighting, selectedDateSelection])
 
   const executeMove = useCallback(
     async () => {
@@ -2503,8 +2506,8 @@ export function BookingCalendar({
           {modeKind === "adjust" ? (
             <div className="booking-calendar__adjust-badge glass-inset">
               {(adjustingTitle ?? projectTitle)?.trim()
-                ? (english ? `Adjusting dates for ${(adjustingTitle ?? projectTitle)!.trim()}` : `${(adjustingTitle ?? projectTitle)!.trim()}案件の日時調整中`)
-                : (english ? "Adjusting dates" : "日時調整中")}
+                ? copy.adjustingProject.replace("{title}", (adjustingTitle ?? projectTitle)!.trim())
+                : copy.adjusting}
             </div>
           ) : null}
           {handleSelectedTeamIdChange ? (
@@ -2512,13 +2515,13 @@ export function BookingCalendar({
               <select
                 id="booking-team-scope"
                 className="booking-calendar__scope-select glass-input"
-                aria-label={english ? "Calendar scope" : "表示対象"}
+                aria-label={copy.calendarScope}
                 value={selectedTeamId ?? ""}
                 onChange={(event) => {
                   handleSelectedTeamIdChange(event.target.value || null)
                 }}
               >
-                <option value="">{viewerEmail || (english ? "Personal" : "個人")}</option>
+                <option value="">{viewerEmail || copy.personal}</option>
                 {teams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}
@@ -2548,7 +2551,7 @@ export function BookingCalendar({
               onClick={() => startCommit()}
               disabled={preflighting}
             >
-              {preflighting ? (english ? "Checking…" : "確認中…") : (english ? "Confirm booking" : "本予約")}
+              {preflighting ? copy.checking : copy.confirmBooking}
             </button>
             <button
               type="button"
@@ -2556,7 +2559,7 @@ export function BookingCalendar({
               onClick={cancelActiveDraft}
               disabled={preflighting}
             >
-              {english ? "Cancel" : "キャンセル"}
+              {copy.cancel}
             </button>
           </div>
         </div>
@@ -2589,7 +2592,7 @@ export function BookingCalendar({
                   right: "",
                 }}
                 buttonText={{
-                  today: english ? "Today" : "今日",
+                  today: getLocalizedCopy(locale, "Availability").today,
                 }}
                 height="auto"
                 selectable={isSelectableView(view)}
@@ -2635,27 +2638,27 @@ export function BookingCalendar({
             {isCalendarLoading ? (
               <div className="booking-calendar__loading-overlay" role="status" data-testid="booking-calendar-loading">
                 <span className="booking-calendar__loading-spinner" aria-hidden="true" />
-                <span>{english ? "Updating availability" : "空き状況を更新しています"}</span>
+                <span>{copy.updatingAvailability}</span>
               </div>
             ) : null}
           </div>
         </div>
         <div className="booking-calendar__date-request glass-flat" data-testid="booking-date-request-panel">
           <div className="booking-calendar__date-request-head">
-            <h2 className="booking-calendar__date-request-title">{english ? "Requested dates" : "希望日"}</h2>
+            <h2 className="booking-calendar__date-request-title">{copy.requestedDates}</h2>
             <p className="booking-calendar__date-request-note">
-              {english ? "Tap dates to add them to your request. Tap a selected date again to remove it." : "日付をタップして希望日を選んでください。もう一度タップすると解除できます。"}
+              {copy.dateHelp}
             </p>
           </div>
           <div className="booking-calendar__date-request-summary" aria-live="polite">
-            <span className="booking-calendar__date-request-label">{english ? "Selected" : "選択中"}</span>
+            <span className="booking-calendar__date-request-label">{copy.selected}</span>
             <strong data-testid="booking-date-request-summary">
               {english
-                ? (selectedDateSelection?.dates.join(" / ") ?? "Not selected")
-                : (selectedDateSelectionLabel ?? "未選択")}
+                ? (selectedDateSelection?.dates.join(" / ") ?? copy.notSelected)
+                : (selectedDateSelectionLabel ?? copy.notSelected)}
             </strong>
             {selectedDateSelection ? null : (
-              <span className="booking-calendar__date-request-empty">{english ? "Select at least one requested date." : "希望日を 1 日以上選択してください。"}</span>
+              <span className="booking-calendar__date-request-empty">{copy.selectAtLeastOne}</span>
             )}
           </div>
           <div className="booking-calendar__date-request-actions">
@@ -2665,7 +2668,7 @@ export function BookingCalendar({
               onClick={startDateRequestCommit}
               disabled={!selectedDateSelection || preflighting}
             >
-              {english ? "Continue with these dates" : "この日程で相談する"}
+              {copy.continueDates}
             </button>
             <button
               type="button"
@@ -2677,7 +2680,7 @@ export function BookingCalendar({
               }}
               disabled={!selectedDateSelection || preflighting}
             >
-              {english ? "Clear all" : "すべて解除"}
+              {copy.clearAll}
             </button>
           </div>
         </div>
@@ -2694,16 +2697,16 @@ export function BookingCalendar({
               id="booking-admin-move-confirm-title"
               className="booking-calendar__modal-title"
             >
-              お客様の予約時間を変更しますか？
+              {copy.adminMoveTitle}
             </h2>
             <p className="booking-calendar__modal-message">
-              案件名：{adminMoveConfirm.projectTitle}
+              {copy.project}: {adminMoveConfirm.projectTitle}
             </p>
             <p className="booking-calendar__modal-message">
-              変更前：{formatRange(adminMoveConfirm.oldStart, adminMoveConfirm.oldEnd)}
+              {copy.beforeChange.replace("{range}", formatRange(adminMoveConfirm.oldStart, adminMoveConfirm.oldEnd))}
             </p>
             <p className="booking-calendar__modal-message">
-              変更後：{formatRange(adminMoveConfirm.newStart, adminMoveConfirm.newEnd)}
+              {copy.afterChange.replace("{range}", formatRange(adminMoveConfirm.newStart, adminMoveConfirm.newEnd))}
             </p>
             <div className="booking-calendar__modal-actions">
               <button
@@ -2711,14 +2714,14 @@ export function BookingCalendar({
                 className="booking-calendar__action-button"
                 onClick={() => setAdminMoveConfirm(null)}
               >
-                キャンセル
+                {copy.cancel}
               </button>
               <button
                 type="button"
                 className="booking-calendar__action-button booking-calendar__action-button--primary"
                 onClick={() => void executeAdminMove()}
               >
-                変更を確定
+                {copy.confirmChange}
               </button>
             </div>
           </div>

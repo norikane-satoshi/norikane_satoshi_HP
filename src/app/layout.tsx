@@ -10,7 +10,6 @@ import { NavHeader } from "@/components/hp/nav-header";
 import {Link} from "@/i18n/navigation";
 import {localeAlternates} from "@/i18n/metadata";
 import {routing} from "@/i18n/routing";
-import { SITE_BRAND_NAME, SITE_OWNER_NAME, SITE_TITLE } from "@/lib/site-brand";
 
 const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
@@ -47,11 +46,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase: new URL("https://norikane.studio"),
-    title: SITE_TITLE,
+    title: t("title"),
     description: t("description"),
     alternates: localeAlternates("/", locale),
     openGraph: {
-      title: SITE_TITLE,
+      title: t("title"),
       description: t("description"),
       type: "website",
       locale: locale === "ja" ? "ja_JP" : "en_US",
@@ -91,7 +90,7 @@ export default async function RootLayout({
             style={{ background: "rgba(248, 246, 255, 0.85)", borderTop: "1px solid rgba(255,255,255,0.6)" }}
           >
             <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-center gap-3 md:flex-row md:gap-6">
-              <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
+              <p>{footer("copyright")}</p>
               <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2" aria-label={footer("legalLabel")}>
                 <Link className="underline decoration-dotted underline-offset-4 hover:text-hp" href="/privacy">
                   {footer("privacy")}
@@ -102,7 +101,7 @@ export default async function RootLayout({
               </nav>
             </div>
           </footer>
-          <ChatbotWidget />
+          <ChatbotWidget locale={locale} />
         </NextIntlClientProvider>
       </body>
     </html>

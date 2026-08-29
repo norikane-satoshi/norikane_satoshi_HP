@@ -9,6 +9,7 @@ import type {
   SurveyChoiceSet,
   WorkSite,
 } from "@/lib/chatbot/domain"
+import { localizeSurveyChoiceSet } from "@/i18n/survey-choices"
 
 type ChoicePanelPatch = {
   choiceSetId: SurveyChoiceSet["id"]
@@ -18,8 +19,8 @@ type ChoicePanelPatch = {
   jobContext: Partial<JobContext>
 }
 
-const choicePrefixPattern = /^\s*選択\s*[:：]\s*/u
-const otherCommentPrefixPattern = /^\s*その他(?:コメント|の内容)?\s*[:：]\s*/u
+const choicePrefixPattern = /^\s*(?:選択|selection)\s*[:：]\s*/iu
+const otherCommentPrefixPattern = /^\s*(?:その他(?:コメント|の内容)?|other comment)\s*[:：]\s*/iu
 const noChoiceIds = new Set(["none"])
 const undecidedChoiceIds = new Set(["undecided"])
 
@@ -586,6 +587,7 @@ export function isSatisfiedChoicePanel(
 
 function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: string): SurveyChoice[] {
   if (!activeChoices) return []
+  const englishChoices = localizeSurveyChoiceSet(activeChoices, "en")
   const selectedText = extractSelectedChoiceText(message)
   const normalizedMessages = selectedText
     .replace(choicePrefixPattern, "")
@@ -598,6 +600,10 @@ function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: str
     .map((normalizedMessage) =>
       activeChoices.choices.find((choice) => normalizeChoiceText(choice.id) === normalizedMessage) ??
       activeChoices.choices.find((choice) => normalizeChoiceText(choice.label) === normalizedMessage) ??
+      activeChoices.choices.find((choice) => {
+        const englishLabel = englishChoices.choices.find((candidate) => candidate.id === choice.id)?.label
+        return englishLabel ? normalizeChoiceText(englishLabel) === normalizedMessage : false
+      }) ??
       activeChoices.choices.find((choice) => choiceTextMatches(activeChoices, choice, normalizedMessage)) ??
       null,
     )

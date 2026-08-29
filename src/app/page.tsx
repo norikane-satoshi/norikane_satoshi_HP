@@ -8,7 +8,6 @@ import { LookGallery } from "@/components/hp/look-gallery"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { ProfileToolBadges } from "@/components/hp/profile-tool-badges"
-import { SITE_TITLE } from "@/lib/site-brand"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
   DAVINCI_RESOLVE_TRAINING_URL,
@@ -29,11 +28,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations({locale, namespace: "Metadata"})
 
   return {
-    title: SITE_TITLE,
+    title: t("title"),
     description: t("description"),
     alternates: localeAlternates("/", locale),
     openGraph: {
-      title: SITE_TITLE,
+      title: t("title"),
       description: t("description"),
       type: "website",
       locale: locale === "ja" ? "ja_JP" : "en_US",
@@ -112,12 +111,12 @@ function renderIntroTextWithTrainerLink(content: HpPublicContent, locale: "ja" |
   )
 }
 
-function ProfileForeground({content}: {content: HpPublicContent}) {
+function ProfileForeground({content, locale, careerLabel}: {content: HpPublicContent; locale: "ja" | "en"; careerLabel: string}) {
   return (
     <div className="hp-grid hp-profile-grid min-w-0">
       {/* Left: profile photo + social links */}
       <div className="hp-profile-sidebar flex min-w-0 max-w-full flex-col items-center gap-5 @[680px]/profile:items-start">
-        <ProfilePhoto />
+        <ProfilePhoto locale={locale} />
         <div className="min-w-0 text-center @[680px]/profile:text-left">
           <p className="text-sm text-hp-muted">{content.profile.name}</p>
           <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
@@ -148,7 +147,7 @@ function ProfileForeground({content}: {content: HpPublicContent}) {
       {/* Right: career timeline */}
       <div className="hp-profile-main">
         <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-          Career
+          {careerLabel}
         </p>
         <div className="hp-career-list">
           {content.profile.timeline.map((item) => (
@@ -240,7 +239,7 @@ export default async function HomePage() {
                 >
                   <div className="flex items-baseline gap-3">
                     <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
-                      {`Note ${String(idx + 1).padStart(2, "0")}`}
+                      {t("noteNumber", {number: String(idx + 1).padStart(2, "0")})}
                     </span>
                   </div>
                   <h3
@@ -276,14 +275,14 @@ export default async function HomePage() {
               </h2>
             </div>
             <div className="mt-[var(--hp-space-4)]">
-              <ProfileForeground content={content} />
+            <ProfileForeground content={content} locale={locale} careerLabel={t("careerEyebrow")} />
             </div>
           </div>
         </div>
       </section>
 
       <section className="hp-section-shell">
-        <FeaturedWorks />
+        <FeaturedWorks locale={locale} />
       </section>
 
     </div>

@@ -3,13 +3,13 @@ import {getLocale} from "next-intl/server"
 import { TermsContent } from "@/components/hp/legal-content"
 import {localeAlternates} from "@/i18n/metadata"
 import type {AppLocale} from "@/i18n/routing"
+import {getLocalizedCopy} from "@/i18n/copy"
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale() as AppLocale
-  const english = locale === "en"
+  const copy = getLocalizedCopy(locale, "PageMetadata").terms
   return {
-    title: english ? "Terms of Use | Norikane Film Design Office" : "利用規約 | のりかね映像設計室",
-    description: english ? "Terms of use for Norikane Film Design Office." : "のりかね映像設計室の利用規約です。",
+    ...copy,
     alternates: localeAlternates("/terms", locale),
   }
 }

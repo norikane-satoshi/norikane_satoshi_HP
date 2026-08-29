@@ -1,8 +1,11 @@
 {
   "Metadata": {
+    "title": "のりかね映像設計室 | Freelance Colorist",
+    "brandName": "のりかね映像設計室",
     "description": "映像に、設計された色を。のりかね映像設計室のポートフォリオサイト。"
   },
   "Navigation": {
+    "brandAlt": "のりかね映像設計室",
     "home": "ホーム",
     "notes": "ノート",
     "profile": "プロフィール",
@@ -14,18 +17,27 @@
     "switchToEnglish": "英語で表示"
   },
   "Footer": {
+    "copyright": "© 2026 のりかね映像設計室 / 則兼 智志. All rights reserved.",
     "legalLabel": "法務",
     "privacy": "プライバシーポリシー",
     "terms": "利用規約"
   },
   "Home": {
+    "careerEyebrow": "Career",
+    "noteNumber": "Note {number}",
     "notes": "ノート",
     "profile": "プロフィール",
     "career": "経歴",
     "readNote": "ノートを読む",
-    "viewAll": "すべて見る"
+    "viewAll": "すべて見る",
+    "profilePhoto": "プロフィール写真",
+    "close": "閉じる",
+    "profilePhotoAlt": "則兼 智志",
+    "enlargeProfilePhoto": "プロフィール写真を拡大表示"
   },
   "Notes": {
+    "eyebrow": "Note",
+    "numberedEyebrow": "Note {number}",
     "back": "ノート一覧に戻る",
     "unpublishedTitle": "このノートは現在公開していません",
     "unpublishedDescription": "公開状態が切り替わったため、このURLのノート本文は表示していません。現在公開中のノートは一覧から確認できます。",
@@ -73,5 +85,298 @@
     "hasAccount": "すでにアカウントをお持ちですか？",
     "registrationFailed": "登録に失敗しました",
     "networkError": "通信エラーが発生しました"
+  },
+  "Availability": {
+    "eyebrow": "Availability",
+    "weekdays": ["日", "月", "火", "水", "木", "金", "土"],
+    "booked": "予約済み（本予約）",
+    "tentativeHold": "仮キープ",
+    "available": "空き",
+    "lead": "予約可否の目安だけを表示しています。案件名や予定の詳細は表示しません。",
+    "today": "今日",
+    "tentative": "仮キープ",
+    "loadError": "空き状況を取得できませんでした。",
+    "goToMainSite": "本体サイトへ移動",
+    "displayedMonth": "表示月",
+    "previousMonth": "前月",
+    "nextMonth": "翌月",
+    "goToCurrentMonth": "今月へ移動",
+    "thisMonth": "今月",
+    "updating": "空き状況を更新しています"
+  },
+  "Booking": {
+    "calendar": "予約カレンダー",
+    "history": "予約履歴",
+    "settings": "設定",
+    "settingsLabel": "予約カレンダー設定",
+    "back": "戻る",
+    "backToCalendar": "カレンダーに戻る",
+    "edit": "予約編集",
+    "historyTitle": "予約一覧",
+    "historyEmpty": "送信済みの日程相談はまだありません。",
+    "requestedDates": "希望日",
+    "requestedDatesList": "希望日一覧",
+    "name": "氏名",
+    "company": "会社名",
+    "notes": "補足",
+    "project": "案件名",
+    "deadline": "納期",
+    "optional": "任意",
+    "email": "メール",
+    "estimatedDuration": "想定作業時間合計",
+    "noDates": "希望日未選択",
+    "adjustDates": "{selection} の希望日に戻って調整",
+    "adjustTime": "{slot} の時間に戻って調整",
+    "submissionNotice": "送信時点では確定予約ではありません。希望日として内容をお預かりし、確認後に直接ご連絡します。",
+    "agreePrefix": "",
+    "agreeSuffix": "に同意します",
+    "terms": "利用規約",
+    "openTerms": "利用規約を開く",
+    "privacy": "プライバシーポリシー",
+    "openPrivacy": "プライバシーポリシーを開く",
+    "chooseDatesAgain": "希望日を選び直す",
+    "close": "閉じる",
+    "reviewTitle": "日程相談内容の確認",
+    "receivedTitle": "日程相談を受け付けました",
+    "lineReceipt": "公式LINEに受付のお知らせを送ります。内容を確認後、直接ご連絡します。",
+    "emailReceipt": "確認メールをお送りしました。内容を確認後、直接ご連絡します。",
+    "steps": "予約ステップ",
+    "stepDates": "日時",
+    "stepDetails": "入力",
+    "stepReview": "確認",
+    "stepDone": "完了",
+    "sending": "送信中…",
+    "sendRequest": "日程相談を送信",
+    "reviewRequest": "相談内容を確認",
+    "viewHistory": "マイページで予約一覧を見る",
+    "adjustingProject": "{title}案件の日時調整中",
+    "adjusting": "日時調整中",
+    "calendarScope": "表示対象",
+    "personal": "個人",
+    "checking": "確認中…",
+    "confirmBooking": "本予約",
+    "cancel": "キャンセル",
+    "selected": "選択中",
+    "notSelected": "未選択",
+    "updatingAvailability": "空き状況を更新しています",
+    "dateHelp": "日付をタップして希望日を選んでください。もう一度タップすると解除できます。",
+    "selectAtLeastOne": "希望日を 1 日以上選択してください。",
+    "continueDates": "この日程で相談する",
+    "clearAll": "すべて解除",
+    "dayCount": "{dates}、{count}日間", "notSelectedValue": "未選択", "hours": "{value} 時間", "minutes": "{value} 分", "durationHoursMinutes": "{hours} 時間 {minutes} 分",
+    "projectRequired": "案件名を入力してください", "maxCharacters": "{count} 字以内で入力してください", "nameRequired": "氏名を入力してください", "emailUnavailable": "認証済みメールを確認できません", "agreementRequired": "規約への同意が必要です"
+    ,"protected": "保護", "unavailable": "予約不可", "monthTitle": "{year}年{month}月", "draftNotice": "入力途中の予約申込があります（24 時間以内）", "continueDraft": "続きから入力する", "discardDraft": "破棄する", "reconnectMessage": "予約カレンダー連携が切れています。Google アカウント connections の「のりかね映像設計室」から再 consent してください。", "reconnectLabel": "Google カレンダー再接続", "reconnect": "再接続する", "closeBanner": "バナーを閉じる",
+    "allDay": "終日", "beforeExistingBuffer": "予定前 {hours} 時間は保護領域", "afterExistingBuffer": "予定後 {hours} 時間は保護領域", "beforeBookingBuffer": "本予約前 {hours} 時間は保護領域", "afterBookingBuffer": "本予約後 {hours} 時間は保護領域", "minDuration": "30分以上の空き時間を選んでください。", "overlapsBusy": "この時間は既存予定があるため選べません。", "overlapsBuffer": "この時間は予約前後の保護時間のため選べません。", "todayOrPast": "今日以前の日付は選べません。", "lockedDate": "この日は既存予定があるため選べません。", "today": "今日", "removeDate": "日時を削除", "tentative": "仮キープ", "confirmedBooked": "予約済み（本予約）", "confirmed": "本予約", "confirmedShort": "本", "unavailableShort": "不", "confirmedMonthTitle": "{time} 本: {title}", "confirmedRangeTitle": "本予約 {range}: {title}", "confirmedRange": "本予約 {range}", "unavailableRange": "予約不可 {range}", "conflictCheckError": "予約の重なり確認に失敗しました", "adminMoveTitle": "お客様の予約時間を変更しますか？", "beforeChange": "変更前：{range}", "afterChange": "変更後：{range}", "confirmChange": "変更を確定", "passwordError": "パスワードが正しくありません", "passwordHelp": "予約カレンダーの閲覧にはパスワードが必要です。", "passwordContact": "お問い合わせ後にパスワードをお伝えします。", "passwordPlaceholder": "パスワードを入力", "unlock": "解除", "availableSlots": "予約可能枠", "calendarEmbedHelp": "下記の枠から空き状況を確認し、リクエストを送信できます。", "calendarEmbedPlanned": "カレンダー統合は次のフェーズで実装予定"
+  },
+  "LineBooking": {
+    "calendarAria": "LINE予約カレンダー",
+    "calendar": "予約カレンダー",
+    "history": "予約履歴",
+    "checking": "LINE 連携を確認しています",
+    "preview": "LINE LIFF ID が未設定のため、ローカル確認用の表示で開いています。",
+    "error": "LINE 連携を確認できませんでした。予約カレンダーは通常表示で続行できます。"
+  },
+  "LookGallery": {
+    "eyebrow": "Look preview",
+    "imageLoadError": "画像を読み込めませんでした。",
+    "canvasError": "Canvasを初期化できませんでした。",
+    "protectedPreview": "{name}の保護プレビュー",
+    "rendering": "現像中",
+    "previewUnavailable": "プレビューを表示できません",
+    "fileTooLarge": "{name} は50MBを超えています。",
+    "noTransform": "変換なし",
+    "none": "指定なし",
+    "preparing": "準備しています",
+    "defaultLutError": "標準LUTを読み込めませんでした。",
+    "defaultImage": "標準Log素材",
+    "restored": "このタブの素材を復元しました",
+    "ready": "標準素材で試せます",
+    "initializeError": "初期化できませんでした。",
+    "noLut": "LUTなし",
+    "imageLimit": "追加画像は最大{count}枚です。",
+    "unsupportedImage": "{name} は対応形式ではありません。",
+    "imagesAdded": "{count}枚をこのタブへ追加しました",
+    "imagesAddError": "画像を追加できませんでした。",
+    "invalidCube": "{name} は.cubeではありません。",
+    "lutsAdded": "{count}件のLUTを追加しました",
+    "lutsAddError": "LUTを追加できませんでした。",
+    "imageRemoved": "{name}をこのタブから外しました",
+    "title": "LUTでルックを確かめる",
+    "description": "Log素材と.cubeをブラウザ内で比較できます。追加素材はこのタブだけに保存され、サーバーへ送信されません。",
+    "addImages": "画像を追加",
+    "imageHelp": "JPEG、PNG、WebP。各50MB、追加12枚まで",
+    "addLuts": "LUTを追加",
+    "lutHelp": ".cubeのみ、各50MBまで",
+    "batchLut": "一括LUT",
+    "session": "セッション",
+    "settings": "ACESプレビュー設定",
+    "settingsHelp": "SourceとLUT targetを「指定なし」にし、Outputを「変換なし」、LUTも外すと色値はそのまま通過します。ACES SDRは元ツール由来の簡易表示変換です。",
+    "imageLut": "この画像のLUT",
+    "useBatch": "一括設定を使う",
+    "remove": "外す",
+    "details": "{name}の詳細",
+    "close": "閉じる",
+    "savePreview": "保護プレビューを保存"
+  },
+  "Press": {
+    "openLink": "{title} {label}を新しいタブで開く",
+    "dialogTitle": "登壇・メディア掲載 / 実績",
+    "closeDialog": "実績ダイアログを閉じる",
+    "trigger": "実績"
+  },
+  "PageMetadata": {
+    "availability": {"title": "予約可能日 | のりかね映像設計室", "description": "カラーグレーディングの予約可能日を確認できます。"},
+    "booking": {"title": "予約 | のりかね映像設計室", "description": "カラーグレーディングの予約リクエストを送信できます。"},
+    "bookingDetails": {"title": "予約内容 | のりかね映像設計室", "description": "予約内容の確認・変更を行います。"},
+    "bookingHistory": {"title": "予約履歴 | のりかね映像設計室", "description": "予約履歴を確認できます。"},
+    "bookingSettings": {"title": "予約設定 | のりかね映像設計室", "description": "予約サービスの設定を管理します。"},
+    "lineBooking": {"title": "LINE予約 | のりかね映像設計室", "description": "LINEから予約候補日を選択できます。"},
+    "login": {"title": "ログイン | のりかね映像設計室", "description": "予約と相談履歴へログインします。"},
+    "signup": {"title": "アカウント作成 | のりかね映像設計室", "description": "予約と相談のためのアカウントを作成します。"},
+    "privacy": {"title": "プライバシーポリシー | のりかね映像設計室", "description": "のりかね映像設計室のプライバシーポリシーです。"},
+    "terms": {"title": "利用規約 | のりかね映像設計室", "description": "のりかね映像設計室の利用規約です。"}
+  },
+  "PublicContent": {
+    "hero": {"name": "則兼 智志", "title": "フリーランスカラリスト", "locationLine": "東京・2026年〜"},
+    "intro": "フリーランスカラリストとして、劇場映画・配信作品・CM・ブランドフィルムのカラーグレーディングを承っています。立ち会い対応・リモート対応どちらも可能です。プロジェクトの規模・スケジュール・納品仕様に合わせた柔軟なワークフローでご提案いたします。DaVinci Resolve 認定トレーナーとして講義、講習会のご依頼も承ってます。",
+    "profile": {
+      "sectionTitle": "プロフィール",
+      "name": "則兼 智志",
+      "title": "フリーランスカラリスト",
+      "timeline": [
+        {"year": "2013", "event": "IMAGICA 入社", "detail": "静岡文化芸術大学デザイン学部卒業後、IMAGICA にてカラリストアシスタントとしてキャリアをスタート。フィルムテレシネ業務を経て、DaVinci Resolve によるグレーディング技術を習得。"},
+        {"year": "2018", "event": "メインカラリスト", "detail": "劇場映画・配信作品・CM・MVのカラーグレーディングを担当。DaVinci Resolve によるオンラインエディット・VFX 連携のサービスを立ち上げ、部署全体に新ワークフローを展開。ACES ワークフローによるカラーマネジメントを専門に。DaVinci Resolve 認定トレーナーとして、テレビ局や Blackmagic Design 本社での講義活動も行う。"},
+        {"year": "2023", "event": "バーチャルプロダクション カラークリエイター兼任", "detail": "LED ウォールを用いた撮影現場でのオンセットカラーマネジメントを担当。異なるソース間のカラーを統一し、CG 素材・LED 背景と実写素材の自然な馴染ませを実現。"},
+        {"year": "2026", "event": "独立開業", "detail": "のりかね映像設計室（Norikane Film Design Office）として独立。カラーグレーディングの体系化と教育にも取り組む。"}
+      ]
+    }
+  },
+  "PressContent": {
+    "categories": [
+      {"title": "登壇・セミナー", "items": [
+        {"period": "2024年11月", "title": "Inter BEE 2024 / Imagica EMS スペシャルデイ（幕張メッセ）", "description": "Blackmagic Design DaVinci Resolve シアターに登壇。「The Creative Color Grading：DRAMA — カラーグレーディングの分解とリライティング」として、ドラマ作品のカラーグレーディングを構成要素に分解し、リライティングの手法を実演解説した。", "linkLabels": ["https://bmduser.jp/eve_detail.php?id=95"]},
+        {"period": "2024年9月", "title": "Color by IMAGICA「HBO CAS Screening / In-Camera VFX / Grading Demo」（竹芝メディアスタジオ）", "description": "ZEISS・日本映画撮影監督協会との共催イベントで、インカメラVFXのプレゼンテーションと、ARRI AMIRA 撮影作品のカラーグレーディングデモンストレーションを担当した。", "linkLabels": ["https://www.imagica-ems.co.jp/event/cbi_event_hbo-cas_240927/"]},
+        {"period": "2024年11月", "title": "バーチャルプロダクション撮影体験イベント（FACTORY ANZEN STUDIO）", "description": "Imagica EMS・日本映画撮影監督協会・日本映画テレビ照明協会の共催イベントに VP カラークリエイターとして参加。リアルタイムカラーマネジメントを担当し、メディア合同取材会にも登壇した。", "linkLabels": ["https://videosalon.jp/report/imagicaems_vp_event/"]},
+        {"period": "2025年5月", "title": "DaVinci Resolve カラーグレーディング トレーニング講師（ブラックマジックデザイン）", "description": "DaVinci Resolve 認定トレーナーとして、他ソフトからのコンフォーム・ショットマッチング・クリエイティブグレーディングなど実務テクニックを少人数セミナーで指導した。", "linkLabels": ["https://bmduser.jp/eve_detail.php?id=127"]}
+      ]},
+      {"title": "メディア掲載・事例紹介", "items": [
+        {"period": "2024年", "title": "Huluドラマ『十角館の殺人』— インカメラVFXによるルック作り", "description": "実写化不可能と言われた綾辻行人原作のドラマ化作品で、カラリストとして撮影現場に立ち会い、照明部と連携した現場カラコレ／オンセットグレーディング（黒浮き対策・LED 調整など）を担当した。", "linkLabels": ["VIDEO SALON 記事", "Imagica EMS 事例紹介"]},
+        {"period": "2024年", "title": "ゲキ×シネ『吉原御免状』— Dolby Cinema 版カラー", "description": "ゲキ×シネ20周年記念の Dolby Cinema 作品で、監督と通常版のカラーをディスカッションし、高コントラストを活かした劇場版のルックを制作した（プロデューサーの製作記で紹介）。", "linkLabels": ["https://gxcblog.exblog.jp/36845321/"]},
+        {"period": "2023年", "title": "ゲキ×シネ『薔薇とサムライ2 -海賊女王の帰還-』— Dolby Vision グレーディング", "description": "劇団☆新感線の舞台映像作品で Dolby Vision のカラーグレーディングを担当。LUT を要素分解し、舞台の没入感を高めるルックを構築した（事例記事を執筆）。", "linkLabels": ["https://www.imagica-ems.co.jp/case-study/barasamu2_231005/"]},
+        {"period": "2025年", "title": "NHK 放送100年特集ドラマ『火星の女王』— VFX制作ドキュメント", "description": "「100年後の火星」を描くドラマの VFX／ポストプロダクション工程に参加し、各部署と連携して世界観を映像化した（公式ブログで制作の舞台裏が紹介）。", "linkLabels": ["https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pz9aJoZRyz/"]}
+      ]},
+      {"title": "紹介動画制作", "items": [
+        {"period": "2023年", "title": "クラウドワークフロー紹介映像『Next Generation Workflow』— ディレクター", "description": "撮影から仕上げまでを全面クラウド化した新ワークフローの紹介映像で、ディレクターを担当した。", "linkLabels": ["https://www.imagica-ems.co.jp/case-study/next-generation-workflow-230810/"]}
+      ]}
+    ]
+  },
+  "Legal": {
+    "privacy": {
+      "eyebrow": "Privacy Policy", "title": "プライバシーポリシー",
+      "intro": "のりかね映像設計室は、norikane.studio および AI 相談窓口、予約導線で取り扱う情報を、案件対応と安全な運用に必要な範囲で取得し、利用目的を明確にしたうえで管理します。",
+      "sections": [
+        {"title": "取得する情報", "body": "チャット入力、予約情報、ログイン情報、メールアドレス、会社名・氏名、参考 URL、Cookie・セッション識別子、アクセスログ、送信日時、問い合わせ内容、予約変更やキャンセルに関する情報を取得する場合があります。"},
+        {"title": "利用目的", "body": "取得した情報は、問い合わせ対応、案件整理、予約管理、ログインしている方の相談内容の復元、サービス改善、不正利用の検知、セキュリティ対策、法令上必要な記録管理のために利用します。"},
+        {"title": "AI の利用", "body": "AI 相談窓口では、案件整理と連絡補助のために AI を利用する場合があります。AI 応答は相談補助であり、正式見積、契約成立、納期保証、または最終判断ではありません。"},
+        {"title": "ご相談内容とカレンダー参照", "body": "ログインしている方の過去の相談、予約、参考 URL のみを相談整理に必要な範囲で利用し、他ユーザー情報を相談応答に使いません。カレンダーは空き状況の確認に必要な範囲で、予定の有無のみを参照し、予定タイトル、参加者、場所は取得しません。"},
+        {"title": "保管期間", "body": "チャットログは、最後のメッセージから 7 日を過ぎると自動削除します。予約、問い合わせ、請求・契約・法令上必要な情報は、業務上必要な期間保管します。"},
+        {"title": "第三者提供と外部サービス", "body": "法令に基づく場合を除き、本人の同意なく第三者へ提供しません。メール送信、カレンダー連携、認証、ホスティング、データ保管のため、外部の業務委託先やクラウドサービスを利用する場合があります。"},
+        {"title": "開示・訂正・削除等", "body": "保有する個人データについて、本人から開示、訂正、利用停止、削除等の相談があった場合は、本人確認のうえ、法令に従って対応します。"},
+        {"title": "問い合わせ窓口", "body": "本ポリシーに関する問い合わせは、norikane.satoshi@gmail.com までご連絡ください。"}
+      ],
+      "revised": "改定日：2026年8月29日"
+    },
+    "terms": {
+      "eyebrow": "Terms of Use", "title": "利用規約",
+      "intro": "本規約は、norikane.studio と、同サイト上の AI 相談窓口および予約導線の利用条件を定めるものです。",
+      "sections": [
+        {"title": "対象サービス", "body": "本規約は、のりかね映像設計室が運営する norikane.studio、AI 相談窓口、予約フォーム、予約変更・キャンセル導線、関連するメール連絡に適用されます。"},
+        {"title": "AI 相談窓口の位置づけ", "body": "AI 相談窓口は、案件整理と予約補助を目的とした相談補助機能です。チャット内の回答や候補提示は、正式見積、契約成立、納期保証、業務受託の確約ではありません。正式な条件は則兼本人の確認後に確定します。"},
+        {"title": "禁止事項", "body": "虚偽情報の入力、第三者の権利侵害、必要範囲を超える秘密情報の投入、攻撃・不正アクセス、スパム送信、システムや他の利用者に支障を与える行為を禁止します。"},
+        {"title": "予約", "body": "予約成立、変更、キャンセルは、別途確認が必要です。カレンダー上の候補や AI が提示する時間帯は、空き状況の目安であり、確定保証ではありません。"},
+        {"title": "知的財産と送信資料", "body": "サイト上の文章、画像、UI、その他コンテンツの権利は、当方または正当な権利者に帰属します。利用者は、チャットで送る資料、参考 URL、案件情報について、必要な権利または利用許諾を有することを表明します。送信資料は案件対応、確認、見積検討、予約管理のために取り扱います。"},
+        {"title": "秘密保持", "body": "送信内容は案件対応目的で取り扱います。ただし、チャット入力には、案件整理に不要な機密情報、個人情報、第三者の秘密情報を過度に含めないでください。"},
+        {"title": "免責", "body": "AI 応答、候補提示、空き状況表示の正確性、完全性、可用性を保証しません。外部サービス障害、通信環境、認証・カレンダー連携の不具合により利用できない場合があります。事業者の故意または重過失による責任、法令上制限できない責任を免除するものではありません。最終判断は則兼本人の確認に基づきます。"},
+        {"title": "契約条件の確認", "body": "料金、納期、キャンセル、権利処理、秘密保持などの条件は、個別の見積書、発注書、契約書、またはメール等で確認した内容を優先します。チャットだけで法的な有効性や契約条件を断定しません。"},
+        {"title": "準拠法と協議", "body": "本規約は日本法に準拠します。本サービスに関して疑義または紛争が生じた場合は、当事者間で誠実に協議し、解決を図ります。"},
+        {"title": "問い合わせ窓口", "body": "本規約に関する問い合わせは、norikane.satoshi@gmail.com までご連絡ください。"}
+      ],
+      "revised": "改定日：2026年5月26日"
+    }
+  },
+  "FeaturedWorks": {
+    "works": [
+      {"title": "火星の女王", "client": "NHK100周年記念ドラマ", "officialLabel": "公式ホームページ"},
+      {"title": "十角館の殺人 / 時計館の殺人", "client": "hulu", "officialLabel": "公式HP"},
+      {"title": "福山雅治ライブフィルム「言霊の幸わう夏」「月光」", "client": "松竹配給", "officialLabel": "公式HP"},
+      {"title": "ゲキ×シネシリーズ", "client": "ヴィレッヂ", "officialLabel": "公式HP"},
+      {"title": "リラックマと遊園地", "client": "NETFLIX", "officialLabel": "公式HP"}
+    ],
+    "playlists": [
+      {"title": "ライブ映像作品", "client": "配信"},
+      {"title": "CM", "client": ""},
+      {"title": "MV", "client": ""}
+    ],
+    "openLink": "{title} {label}を新しいタブで開く",
+    "closeModal": "動画モーダルを閉じる",
+    "playModal": "{title} の動画をモーダルで再生",
+    "playlistPlayModal": "{title}をモーダルで再生",
+    "workCard": "{title} 作品カード",
+    "randomCard": "{title}のランダムループ再生カード",
+    "sectionLabel": "Featured Works", "scrollbarLabel": "Featured Works スクロールバー"
+  },
+  "BookingSettings": {
+    "inviteAccepted": "招待リンクからチャンネルに参加しました。", "inviteUsed": "この招待リンクは既に使用済みです。", "inviteInvalid": "招待リンクが無効です。",
+    "loadError": "所属チャンネルを取得できませんでした。", "createError": "チャンネルを作成できませんでした。", "created": "チャンネルを作成しました。",
+    "inviteError": "招待リンクを発行できませんでした。", "inviteCreated": "招待リンクを発行しました。", "inviteCopied": "招待リンクをコピーしました。",
+    "leaveError": "チャンネルから退出できませんでした。", "left": "チャンネルから退出しました。", "deleteError": "チャンネルを削除できませんでした。", "deleted": "チャンネルを削除しました。",
+    "newChannel": "新規チャンネル", "channelName": "チャンネル名", "create": "作成", "memberships": "所属チャンネル", "noMembership": "所属チャンネルなし",
+    "leave": "抜ける", "delete": "削除", "details": "チャンネル詳細", "memberCount": "{count} 名", "member": "メンバー",
+    "createInvite": "招待リンク発行", "copyInvite": "招待リンクをコピー", "empty": "チャンネルはまだありません。",
+    "deleteTitle": "チャンネルを削除しますか", "deleteBody": "削除すると(1) チャンネルは消える(2) チャンネル表示からメンバーの案件は消える(3) ただし各自の個人履歴には案件が残る", "cancel": "キャンセル", "deleteAction": "削除する"
+  },
+  "BookingEdit": {
+    "policy": "本予約のキャンセルおよび日時変更は、別途締結する業務委託契約書に記載のキャンセルポリシーをご確認ください。",
+    "teamReadOnly": "同じチャンネルのメンバーの予約のため閲覧のみ可能です", "pastReadOnly": "過去の予約は管理者のみ編集できます",
+    "information": "予約情報", "project": "案件名", "name": "氏名", "company": "会社名", "email": "メール", "deadline": "納期", "notes": "補足", "dateTime": "日時",
+    "start": "開始 {index}", "end": "終了 {index}", "saving": "保存中", "save": "保存", "back": "予約カレンダーへ戻る", "cancelBooking": "予約をキャンセル", "hardDelete": "DB から完全削除"
+  },
+  "SurveyChoices": {
+    "jobKind": {"question": "まず案件種別を選んでください", "choices": {"cm-30s": "Web CM / CM", "mv-5m": "MV / 音楽映像", "feature-90m": "映画 / 長編 / 本編", "drama-first": "ドラマ / シリーズ", "live-60m": "ライブ / コンサート / 舞台収録", "vertical-60s": "縦型動画 / SNS動画", "corporate-video": "企業VP / 採用動画 / 広報動画", "event-video": "イベント映像", "lecture-training": "講演会 / 講習会 / 教育 / 研修 / 講師依頼", "film-look-consultation": "フィルムルック / ルック設計相談", "other": "その他"}},
+    "projectLength": {"question": "尺・分量の大枠を選んでください", "choices": {"short-under-60s": "60秒以内", "medium-5m": "5分前後", "long-30m": "30分前後", "feature-90m": "90分前後", "live-60m": "ライブ 60分前後", "live-150m": "ライブ 150分前後", "undecided": "未定", "other": "その他"}},
+    "cmLength": {"question": "CM / Web CM の尺・本数を選んでください", "choices": {"cm-length-15s": "15秒", "cm-length-30s": "30秒", "cm-length-60s": "60秒", "cm-length-multiple": "複数本", "undecided": "未定・相談したい", "other": "その他"}},
+    "mvLength": {"question": "MV / 音楽映像の尺を選んでください", "choices": {"mv-length-3-5m": "3〜5分", "mv-length-5-10m": "5〜10分", "mv-length-over-10m": "10分以上", "undecided": "未定・相談したい", "other": "その他"}},
+    "dramaLength": {"question": "ドラマ / シリーズの尺・話数を選んでください", "choices": {"drama-episode-under-15m": "1話15分以内", "drama-episode-30m": "1話30分前後", "drama-episode-45-60m": "1話45〜60分", "drama-series-total": "話数・全体尺を相談したい", "undecided": "未定・相談したい", "other": "その他"}},
+    "liveLength": {"question": "ライブ / 舞台収録の尺を選んでください", "choices": {"live-length-30m": "30分", "live-length-60m": "60分", "live-length-90m": "90分", "live-length-over-120m": "2時間以上", "undecided": "未定・相談したい", "other": "その他"}},
+    "featureLength": {"question": "映画 / 長編 / 本編の尺を選んでください", "choices": {"feature-length-under-60m": "60分未満", "feature-length-90m": "90分前後", "feature-length-over-120m": "120分以上", "undecided": "未定・相談したい", "other": "その他"}},
+    "verticalLength": {"question": "縦型動画 / SNS動画の尺・本数を選んでください", "choices": {"vertical-length-15s": "15秒", "vertical-length-30s": "30秒", "vertical-length-60s": "60秒", "vertical-length-multiple": "複数本", "undecided": "未定・相談したい", "other": "その他"}},
+    "finalMedium": {"question": "最終媒体をすべて選んでください", "choices": {"ott": "VOD・オンデマンド配信", "cinema": "劇場公開", "tv-broadcast": "地上波・BS／CS放送", "blu-ray": "Blu-ray / ディスク", "youtube": "YouTube", "web": "Web公開", "vertical-sns": "縦型 SNS", "other": "その他"}},
+    "additionalWork": {"question": "カラグレ以外の追加作業はありますか", "choices": {"retouch": "消し物", "skin-retouch": "肌修正", "other": "その他", "none": "なし"}},
+    "documentaryAttachment": {"question": "付随する映像はありますか", "choices": {"digest": "ダイジェスト", "interview": "インタビュー", "bonus": "特典映像", "making": "メイキング", "other": "その他", "none": "なし"}},
+    "workSite": {"question": "作業場所の希望はありますか", "choices": {"client-facility-attended": "クライアント施設立ち会い", "remote-grading": "リモートグレーディング", "on-site-post-production": "出張ポスプロ常駐", "satoshi-studio": "さとしさんのスタジオ", "entrust": "お任せ", "other": "その他"}},
+    "trainingContent": {"question": "講習・教育で扱いたい内容を選んでください", "choices": {"grading": "カラーグレーディング", "resolve-basic": "DaVinci Resolve 基礎", "look-design": "フィルムルック / ルック設計", "workflow": "ワークフロー相談", "other": "その他"}},
+    "trainingFormat": {"question": "開催形式を選んでください", "choices": {"online": "オンライン", "in-person": "対面", "hybrid": "オンライン＋対面", "undecided": "未定", "other": "その他"}},
+    "trainingSoftware": {"question": "使用ソフトを選んでください", "choices": {"davinci-resolve-studio": "DaVinci Resolve Studio", "davinci-resolve": "DaVinci Resolve", "other": "その他"}},
+    "productionOptions": {"question": "字幕・テロップ、ナレーション、音楽はありますか", "choices": {"captions": "字幕", "telops": "テロップ", "narration": "ナレーション", "music": "音楽", "other": "その他", "none": "なし"}},
+    "bookingConfirmation": {"question": "ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？", "choices": {"none": "なし、このまま進める", "other": "伝えたいこと・不安な点がある"}}
+  },
+  "Chatbot": {
+    "windowLabel": "AI 相談窓口", "open": "AI 相談窓口を開く", "launcher": "ご相談窓口",
+    "assistant": "AI アシスタント", "thinking": "考え中", "thinkingDelay": "少々お時間をいただいています…",
+    "inputPlaceholder": "案件内容やその他質問", "newlineHint": "で改行", "sendHint": "で送信", "inputLabel": "相談内容", "stop": "停止", "send": "送信",
+    "otherContent": "その他の内容", "otherPlaceholder": "補足があれば入力してください", "sendSelection": "選択を送信",
+    "contactLabel": "連絡誘導", "contactSummary": "送信前の整理内容", "contactSummaryBody": "確認が必要な内容として、入力された相談内容とご連絡先のメールアドレスを則兼本人へ送ります。", "contactNoSend": "送信ボタンを押すまでメールは送信されません。",
+    "email": "メールアドレス", "required": "必須", "optional": "任意", "emailPlaceholder": "例: client@example.com", "company": "会社名", "personName": "お名前", "sendContact": "この内容で送信",
+    "reasonOutOfScope": "標準対応外", "reasonTech": "技術相談", "reasonReview": "作品レビュー", "reasonVfx": "VFX / CG 主体", "reasonTight": "短納期", "reasonRawEdit": "編集反映あり", "reasonRetouch": "重めの修正", "reasonPlugin": "詳細確認", "reasonPricing": "料金確認", "reasonContract": "契約確認", "reasonPersonal": "個人情報", "reasonOtherClient": "他案件情報", "reasonConfidential": "非公開情報", "reasonComplex": "個別確認",
+    "inquiryForm": "問い合わせフォーム", "sendConsultation": "相談内容を送信", "consultationIntro": "整理した相談内容をご連絡先のメールアドレス（必須）と一緒に送信します。", "inquiryIntro": "AI アシスタントが応答できない場合の連絡用フォームです。メールアドレスは必須です。", "consultationSummary": "相談サマリ", "unconfirmed": "未確認: {items}", "name": "氏名", "jobType": "案件種別", "jobTypeHint": "T・Y案件 等イニシャルでも可", "duration": "尺", "desiredDeadline": "希望納期", "freeText": "自由記述",
+    "security": "セキュリティ", "securityTitle": "安全に扱います", "securityEncryption": "通信と保存データを暗号化して扱います。", "securityRetention": "チャットログは 7 日で自動削除します。", "securityIsolation": "他のご相談内容は参照せず、このご相談に必要な情報だけを使います。", "securityCalendar": "カレンダーは空き状況の確認に必要な予定の有無だけを確認します。", "securityMorePrefix": "詳しくは", "securityAnd": "と", "securitySuffix": "をご確認ください。", "privacy": "プライバシーポリシー", "terms": "利用規約", "closeDocument": "{title}を閉じる",
+    "initialMessage": "ご相談や案件依頼はこちらです。最終媒体、公開時期、作業時期などを会話で整理します。", "communicationFallback": "応答が中断しました。入力内容は残っています。もう一度送信できます。復旧できない場合だけフォームに切り替えます。", "formFallback": "自動再試行でも応答できませんでした。入力内容は残したまま、必要なら下のフォームから連絡できます。", "inquirySent": "送信しました。担当者からの返信をお待ちください。", "inquiryUndelivered": "申し訳ありません、送信処理は完了しましたが、担当者への通知が届きませんでした。入力内容はそのまま残していますので、もう一度送信をお試しください。お急ぎの場合は norikane.satoshi@gmail.com へ直接ご連絡ください。",
+    "assistantNickname": "のーちゃん", "system": "システム", "deskSubtitle": "のりかね映像設計室のご相談窓口", "resizeSidePeek": "サイドピーク幅を変更", "closeDebug": "診断情報を閉じる", "openDebug": "診断情報を表示", "switchFloating": "フローティング表示に切り替え", "switchSidePeek": "サイドピーク表示に切り替え", "restoreNormal": "通常表示に戻す", "switchFullscreen": "全画面表示に切り替え", "minimize": "最小化", "conversation": "チャット本文", "recoveryNotice": "直前の送信が完了していません。入力内容は保持しています。", "retry": "再送する", "switchForm": "フォームに切り替える", "scrollLatest": "一番下へ移動", "resizePanel": "パネルを拡大・縮小",
+    "editMessage": "メッセージを編集", "touchEdit": "長押しして編集", "editContent": "編集内容", "editWarning": "下の会話は削除されます", "cancel": "キャンセル", "save": "保存",
+    "lineAdd": "公式LINEを友だち追加", "lineCloseQr": "LINE QRコードを閉じる", "lineQrAlt": "公式LINEを友だち追加するQRコード", "lineQrHelp": "QRコードを読み取るか、LINEアプリから公式アカウントを開いてください。", "lineOpen": "LINEを開く",
+    "bookingOrder": "Booking Order", "bookingName": "氏名", "selectionCount": "{selected}／{required}",
+    "estimate": "工程目安 {min}〜{max} 日", "candidateCalendar": "候補カレンダー", "notEntered": "未入力", "bookingCompleteLabel": "予約送信完了", "bookingCompleteTitle": "仮キープ相談を受け付けました", "bookingNumber": "予約番号: {id}", "project": "案件名", "bookingEmail": "メール", "requestedDates": "希望日", "notes": "補足", "unscheduledHelp": "希望日は未定として受け付けています。日程が決まったら予約カレンダーから候補日を選べます。", "chooseDates": "日程を選ぶ", "viewHistory": "予約履歴を確認", "bookingThanks": "ありがとうございます。則兼が内容を確認してご連絡します。",
+    "candidateLoadError": "候補の読み込みに失敗しました", "noRequestedDates": "希望日未選択", "bookingCard": "チャット内予約", "bookingHelp": "日付が決まっている場合は候補を選んでください。まだ決まっていなければ、未定のままでも予約内容を送信できます。", "tentativeCandidates": "仮キープ候補", "tentativeCalendar": "仮キープ候補のカレンダー選択", "previousMonth": "前月を表示", "nextMonth": "翌月を表示", "busyDate": "{date} 埋まり", "unstartableDate": "{date} 空き・開始不可", "tentativeDate": "{date} 選択可・仮キープあり", "selectableDate": "{date} 選択可", "selectionLimit": "候補日は最大{count}日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。", "tentativeShort": "仮", "projectPlaceholder": "作品名または案件名（イニシャル表記も可）", "deadline": "納期", "phone": "TEL", "emailInvalid": "メールの形式を確認してください", "phonePlaceholder": "連絡可能な TEL", "notesPlaceholder": "入力欄に入りきらない共有事項", "bookingAgreement": "と予約内容に同意します。", "submitting": "送信中...", "sendBooking": "予約内容を送信", "bookingDemo": "予約デモ", "bookingError": "予約内容を送信できませんでした。もう一度お試しください。",
+    "materialTiming": "素材搬入/受け取り時期", "deliveryDate": "納品希望日", "durationLabel": "尺", "durationHours": "{value}h", "durationMinutes": "{value}分", "additionalWorkLabel": "追加作業", "retouch": "消し物/レタッチ", "skinRetouch": "肌修正", "otherWork": "その他追加作業", "workSiteLabel": "作業場所", "satoshiStudio": "のりかね映像設計室", "remoteGrading": "リモート", "onSite": "現地/ポスプロ常駐", "selection": "選択: {value}", "otherComment": "その他コメント: {value}", "debugLoadError": "取得失敗", "debugLabel": "チャットボット診断情報", "debugTitle": "ローカル診断", "debugHelp": "ループバック環境でのみ有効。顧客情報は表示しません。", "debugRefresh": "ビルド情報を再取得", "debugCopy": "診断JSONをコピー", "debugCopied": "診断JSONをコピーしました", "debugCopyFailed": "診断JSONをコピーできませんでした", "debugCopiedStatus": "診断JSONをコピーしました。", "debugCopyFailedStatus": "診断JSONをコピーできませんでした。", "debugClose": "診断情報を閉じる"
   }
 }

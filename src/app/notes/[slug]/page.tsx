@@ -8,7 +8,6 @@ import {
   listPublishedNotes,
 } from "@/lib/notion/server/fetch-note"
 import { buildSlugIndex, RenderBlocks } from "@/lib/notion/server/render-blocks"
-import { SITE_BRAND_NAME } from "@/lib/site-brand"
 import {localeAlternates} from "@/i18n/metadata"
 import {Link} from "@/i18n/navigation"
 import {routing} from "@/i18n/routing"
@@ -38,10 +37,11 @@ export async function generateMetadata(
     ? requestedLocale
     : routing.defaultLocale
   const t = await getTranslations({locale, namespace: "Notes"})
+  const metadata = await getTranslations({locale, namespace: "Metadata"})
   const note = await getPublishedNoteBySlug(slug, locale)
   if (note) {
     return {
-      title: `${note.title} | ${SITE_BRAND_NAME}`,
+      title: `${note.title} | ${metadata("brandName")}`,
       description: note.title,
       alternates: {
         ...localeAlternates(`/notes/${note.slug}`, locale),
@@ -59,7 +59,7 @@ export async function generateMetadata(
   const publicationStatus = await getNotePublicationStatusBySlug(slug, locale)
   if (publicationStatus === "unpublished") {
     return {
-      title: `${t("unpublishedMetadata")} | ${SITE_BRAND_NAME}`,
+      title: `${t("unpublishedMetadata")} | ${metadata("brandName")}`,
       robots: {
         index: false,
         follow: false,
@@ -71,11 +71,12 @@ export async function generateMetadata(
     }
   }
 
-  return { title: SITE_BRAND_NAME }
+  return { title: metadata("brandName") }
 }
 
-function UnpublishedNotePage({back, title, description}: {
+function UnpublishedNotePage({back, eyebrow, title, description}: {
   back: string
+  eyebrow: string
   title: string
   description: string
 }) {
@@ -92,7 +93,7 @@ function UnpublishedNotePage({back, title, description}: {
       </nav>
       <article className="glass-card p-8 md:p-10 xl:p-14">
         <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-          Note
+          {eyebrow}
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-hp md:text-4xl xl:text-5xl">
           {title}
@@ -122,6 +123,7 @@ export default async function NotePage({ params }: PageProps) {
     if (publicationStatus === "unpublished") {
       return <UnpublishedNotePage
         back={t("back")}
+        eyebrow={t("eyebrow")}
         title={t("unpublishedTitle")}
         description={t("unpublishedDescription")}
       />
@@ -131,8 +133,9 @@ export default async function NotePage({ params }: PageProps) {
 
   const slugIndex = buildSlugIndex(allNotes)
   const index = allNotes.findIndex((n) => n.slug === note.slug)
-  const label =
-    index >= 0 ? `Note ${String(index + 1).padStart(2, "0")}` : "Note"
+  const label = index >= 0
+    ? t("numberedEyebrow", {number: String(index + 1).padStart(2, "0")})
+    : t("eyebrow")
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 space-y-6">

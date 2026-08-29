@@ -1,6 +1,7 @@
 "use client"
 
 import {useLocale} from "next-intl"
+import {getLocalizedCopy} from "@/i18n/copy"
 import {
   formatBookingDateSelection,
   formatDurationMinutes,
@@ -20,16 +21,17 @@ type BookingConfirmProps = {
   sessionEmailOptional?: boolean
 }
 
-function formatSlot(slot: BookingSlot): string {
+function formatSlot(slot: BookingSlot, locale: "ja" | "en"): string {
   const start = new Date(slot.start)
   const end = new Date(slot.end)
-  return `${start.toLocaleString("ja-JP", {
+  const intlLocale = locale === "en" ? "en-US" : "ja-JP"
+  return `${start.toLocaleString(intlLocale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  })} - ${end.toLocaleTimeString("ja-JP", {
+  })} - ${end.toLocaleTimeString(intlLocale, {
     hour: "2-digit",
     minute: "2-digit",
   })}`
@@ -40,10 +42,10 @@ function valueOrDash(value: string | string[]): string {
   return value.trim() || "-"
 }
 
-function formatSlots(slots: BookingSlot[], requestedDateSelection: BookingDateSelection | null | undefined, english: boolean): string {
-  if (requestedDateSelection) return formatBookingDateSelection(requestedDateSelection)
-  if (slots.length === 0) return english ? "No dates selected" : "希望日未選択"
-  return slots.map((slot) => formatSlot(slot)).join(" / ")
+function formatSlots(slots: BookingSlot[], requestedDateSelection: BookingDateSelection | null | undefined, noDates: string, locale: "ja" | "en"): string {
+  if (requestedDateSelection) return formatBookingDateSelection(requestedDateSelection, locale)
+  if (slots.length === 0) return noDates
+  return slots.map((slot) => formatSlot(slot, locale)).join(" / ")
 }
 
 export function BookingConfirm({
@@ -55,17 +57,19 @@ export function BookingConfirm({
   onReselectDate,
   sessionEmailOptional = false,
 }: BookingConfirmProps) {
-  const english = useLocale() === "en"
+  const locale = useLocale() as "ja" | "en"
+  const copy = getLocalizedCopy(locale, "Booking")
+  const optional = (label: string) => `${label} (${copy.optional})`
   const rows = [
-    [english ? "Project" : "案件名", formData.projectTitle],
-    [english ? "Requested dates" : "希望日", formatSlots(selectedSlots, requestedDateSelection, english)],
-    ...(selectedSlots.length > 0 ? [[english ? "Estimated total duration" : "想定作業時間合計", formatDurationMinutes(getTotalDurationMinutes(selectedSlots))] as const] : []),
-    [english ? "Deadline (optional)" : "納期(任意)", formData.dueDate],
-    [english ? "Company" : "会社名", formData.companyName],
-    [english ? "Name" : "氏名", formData.contactName],
-    [english ? (sessionEmailOptional ? "Email (optional)" : "Email") : (sessionEmailOptional ? "メール(任意)" : "メール"), formData.sessionEmail],
+    [copy.project, formData.projectTitle],
+    [copy.requestedDates, formatSlots(selectedSlots, requestedDateSelection, copy.noDates, locale)],
+    ...(selectedSlots.length > 0 ? [[copy.estimatedDuration, formatDurationMinutes(getTotalDurationMinutes(selectedSlots), locale)] as const] : []),
+    [optional(copy.deadline), formData.dueDate],
+    [copy.company, formData.companyName],
+    [copy.name, formData.contactName],
+    [sessionEmailOptional ? optional(copy.email) : copy.email, formData.sessionEmail],
     ["TEL", formData.phone],
-    [english ? "Notes (optional)" : "補足(任意)", formData.memo],
+    [optional(copy.notes), formData.memo],
   ] as const
 
   return (
@@ -78,12 +82,12 @@ export function BookingConfirm({
             <div className="booking-confirm__submit-actions">
               {onReselectDate ? (
                 <button className="booking-section__text-button" type="button" onClick={() => onReselectDate()}>
-                  {english ? "Choose dates again" : "希望日を選び直す"}
+                  {copy.chooseDatesAgain}
                 </button>
               ) : null}
               {onDismissSubmitError ? (
                 <button className="booking-section__text-button" type="button" onClick={onDismissSubmitError}>
-                  {english ? "Close" : "閉じる"}
+                  {copy.close}
                 </button>
               ) : null}
             </div>
@@ -91,8 +95,8 @@ export function BookingConfirm({
         </div>
       ) : null}
       <div>
-        <span className="glass-badge booking-confirm__slot-pill">{formatSlots(selectedSlots, requestedDateSelection, english)}</span>
-        <h2 className="booking-confirm__title">{english ? "Review booking request" : "日程相談内容の確認"}</h2>
+        <span className="glass-badge booking-confirm__slot-pill">{formatSlots(selectedSlots, requestedDateSelection, copy.noDates, locale)}</span>
+        <h2 className="booking-confirm__title">{copy.reviewTitle}</h2>
       </div>
       <dl className="booking-confirm__list glass-inset">
         {rows.map(([label, value]) => (

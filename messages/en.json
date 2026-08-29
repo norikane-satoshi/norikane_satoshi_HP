@@ -1,8 +1,11 @@
 {
   "Metadata": {
+    "title": "Norikane Film Design Office | Freelance Colorist",
+    "brandName": "Norikane Film Design Office",
     "description": "Designed color for moving images. The portfolio of Norikane Film Design Office."
   },
   "Navigation": {
+    "brandAlt": "Norikane Film Design Office",
     "home": "Home",
     "notes": "Notes",
     "profile": "Profile",
@@ -14,18 +17,27 @@
     "switchToEnglish": "View in English"
   },
   "Footer": {
+    "copyright": "© 2026 Norikane Film Design Office / Satoshi Norikane. All rights reserved.",
     "legalLabel": "Legal",
     "privacy": "Privacy Policy",
     "terms": "Terms of Use"
   },
   "Home": {
+    "careerEyebrow": "Career",
+    "noteNumber": "Note {number}",
     "notes": "Notes",
     "profile": "Profile",
     "career": "Career",
     "readNote": "Read note",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "profilePhoto": "Profile photo",
+    "close": "Close",
+    "profilePhotoAlt": "Satoshi Norikane",
+    "enlargeProfilePhoto": "Enlarge profile photo"
   },
   "Notes": {
+    "eyebrow": "Note",
+    "numberedEyebrow": "Note {number}",
     "back": "Back to notes",
     "unpublishedTitle": "This note is currently unavailable",
     "unpublishedDescription": "The publication status of this note has changed, so its contents are no longer displayed at this URL. You can browse the notes that are currently available from the list.",
@@ -73,5 +85,298 @@
     "hasAccount": "Already have an account?",
     "registrationFailed": "Registration failed.",
     "networkError": "A network error occurred."
+  },
+  "Availability": {
+    "eyebrow": "Availability",
+    "weekdays": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    "booked": "Booked",
+    "tentativeHold": "Tentative hold",
+    "available": "Available",
+    "lead": "This calendar shows availability only. Project names and event details remain private.",
+    "today": "Today",
+    "tentative": "Tentative",
+    "loadError": "Availability could not be loaded.",
+    "goToMainSite": "Go to main site",
+    "displayedMonth": "Displayed month",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "goToCurrentMonth": "Go to current month",
+    "thisMonth": "This month",
+    "updating": "Updating availability"
+  },
+  "Booking": {
+    "calendar": "Booking calendar",
+    "history": "History",
+    "settings": "Settings",
+    "settingsLabel": "Booking calendar settings",
+    "back": "Back",
+    "backToCalendar": "Back to calendar",
+    "edit": "Edit booking",
+    "historyTitle": "Booking history",
+    "historyEmpty": "No booking requests have been sent yet.",
+    "requestedDates": "Requested dates",
+    "requestedDatesList": "Requested dates",
+    "name": "Name",
+    "company": "Company",
+    "notes": "Notes",
+    "project": "Project",
+    "deadline": "Deadline",
+    "optional": "optional",
+    "email": "Email",
+    "estimatedDuration": "Estimated total duration",
+    "noDates": "No dates selected",
+    "adjustDates": "Adjust requested dates: {selection}",
+    "adjustTime": "Adjust time: {slot}",
+    "submissionNotice": "Submitting this form does not confirm a booking. We will review your requested dates and contact you directly.",
+    "agreePrefix": "I agree to the ",
+    "agreeSuffix": "",
+    "terms": "Terms of Use",
+    "openTerms": "Open terms of use",
+    "privacy": "Privacy Policy",
+    "openPrivacy": "Open privacy policy",
+    "chooseDatesAgain": "Choose dates again",
+    "close": "Close",
+    "reviewTitle": "Review booking request",
+    "receivedTitle": "Booking request received",
+    "lineReceipt": "We will send a receipt through the official LINE account and contact you after reviewing the request.",
+    "emailReceipt": "A confirmation email has been sent. We will contact you after reviewing the request.",
+    "steps": "Booking steps",
+    "stepDates": "Dates",
+    "stepDetails": "Details",
+    "stepReview": "Review",
+    "stepDone": "Done",
+    "sending": "Sending…",
+    "sendRequest": "Send booking request",
+    "reviewRequest": "Review request",
+    "viewHistory": "View booking history",
+    "adjustingProject": "Adjusting dates for {title}",
+    "adjusting": "Adjusting dates",
+    "calendarScope": "Calendar scope",
+    "personal": "Personal",
+    "checking": "Checking…",
+    "confirmBooking": "Confirm booking",
+    "cancel": "Cancel",
+    "selected": "Selected",
+    "notSelected": "Not selected",
+    "updatingAvailability": "Updating availability",
+    "dateHelp": "Tap dates to add them to your request. Tap a selected date again to remove it.",
+    "selectAtLeastOne": "Select at least one requested date.",
+    "continueDates": "Continue with these dates",
+    "clearAll": "Clear all",
+    "dayCount": "{dates}, {count} day(s)", "notSelectedValue": "Not selected", "hours": "{value} hour(s)", "minutes": "{value} min", "durationHoursMinutes": "{hours} hour(s) {minutes} min",
+    "projectRequired": "Enter a project name", "maxCharacters": "Enter no more than {count} characters", "nameRequired": "Enter your name", "emailUnavailable": "The verified email address could not be confirmed", "agreementRequired": "You must agree to the terms"
+    ,"protected": "Protected", "unavailable": "Unavailable", "monthTitle": "{month}/{year}", "draftNotice": "You have an unfinished booking request from the last 24 hours.", "continueDraft": "Continue", "discardDraft": "Discard", "reconnectMessage": "The booking calendar connection has expired. Re-consent from Norikane Film Design Office under Google Account connections.", "reconnectLabel": "Reconnect Google Calendar", "reconnect": "Reconnect", "closeBanner": "Close banner",
+    "allDay": "All day", "beforeExistingBuffer": "Protected for {hours} hour(s) before the event", "afterExistingBuffer": "Protected for {hours} hour(s) after the event", "beforeBookingBuffer": "Protected for {hours} hour(s) before the confirmed booking", "afterBookingBuffer": "Protected for {hours} hour(s) after the confirmed booking", "minDuration": "Select at least 30 minutes of available time.", "overlapsBusy": "This time overlaps an existing event.", "overlapsBuffer": "This time falls within the protected period around a booking.", "todayOrPast": "Today and past dates cannot be selected.", "lockedDate": "This date has an existing event and cannot be selected.", "today": "Today", "removeDate": "Remove date and time", "tentative": "Tentative hold", "confirmedBooked": "Booked (confirmed)", "confirmed": "Confirmed booking", "confirmedShort": "C", "unavailableShort": "X", "confirmedMonthTitle": "{time} Confirmed: {title}", "confirmedRangeTitle": "Confirmed {range}: {title}", "confirmedRange": "Confirmed {range}", "unavailableRange": "Unavailable {range}", "conflictCheckError": "The booking overlap check failed", "adminMoveTitle": "Change this customer's booking time?", "beforeChange": "Before: {range}", "afterChange": "After: {range}", "confirmChange": "Confirm change", "passwordError": "The password is incorrect", "passwordHelp": "A password is required to view the booking calendar.", "passwordContact": "We will provide the password after you contact us.", "passwordPlaceholder": "Enter password", "unlock": "Unlock", "availableSlots": "Available slots", "calendarEmbedHelp": "Check availability below and send a request.", "calendarEmbedPlanned": "Calendar integration is planned for the next phase"
+  },
+  "LineBooking": {
+    "calendarAria": "LINE booking calendar",
+    "calendar": "Booking calendar",
+    "history": "History",
+    "checking": "Checking the LINE connection",
+    "preview": "No LINE LIFF ID is configured, so this page is running in local-preview mode.",
+    "error": "The LINE connection could not be verified. You can continue with the standard booking calendar."
+  },
+  "LookGallery": {
+    "eyebrow": "Look preview",
+    "imageLoadError": "The image could not be loaded.",
+    "canvasError": "The canvas could not be initialized.",
+    "protectedPreview": "Protected preview of {name}",
+    "rendering": "Rendering",
+    "previewUnavailable": "Preview unavailable",
+    "fileTooLarge": "{name} exceeds 50 MB.",
+    "noTransform": "No transform",
+    "none": "None",
+    "preparing": "Preparing",
+    "defaultLutError": "The default LUT could not be loaded.",
+    "defaultImage": "Default Log image",
+    "restored": "Restored assets for this tab",
+    "ready": "Ready with the default assets",
+    "initializeError": "The gallery could not be initialized.",
+    "noLut": "No LUT",
+    "imageLimit": "You can add up to {count} images.",
+    "unsupportedImage": "{name} is not a supported image format.",
+    "imagesAdded": "Added {count} image(s) to this tab",
+    "imagesAddError": "Images could not be added.",
+    "invalidCube": "{name} is not a .cube file.",
+    "lutsAdded": "Added {count} LUT(s)",
+    "lutsAddError": "LUTs could not be added.",
+    "imageRemoved": "Removed {name} from this tab",
+    "title": "Explore a look with LUTs",
+    "description": "Compare Log images and .cube LUTs entirely in your browser. Added assets stay in this tab and are never sent to the server.",
+    "addImages": "Add images",
+    "imageHelp": "JPEG, PNG, or WebP. Up to 50 MB each and 12 added images",
+    "addLuts": "Add LUTs",
+    "lutHelp": ".cube only, up to 50 MB each",
+    "batchLut": "Batch LUT",
+    "session": "Session",
+    "settings": "ACES preview settings",
+    "settingsHelp": "Set Source and LUT target to None, Output to No transform, and remove the LUT for a direct value passthrough. ACES SDR is a simplified viewing transform derived from the source tool.",
+    "imageLut": "LUT for this image",
+    "useBatch": "Use batch setting",
+    "remove": "Remove",
+    "details": "Details for {name}",
+    "close": "Close",
+    "savePreview": "Save protected preview"
+  },
+  "Press": {
+    "openLink": "Open {title}: {label} in a new tab",
+    "dialogTitle": "Talks, media, and selected work",
+    "closeDialog": "Close selected work dialog",
+    "trigger": "Selected work"
+  },
+  "PageMetadata": {
+    "availability": {"title": "Availability | Norikane Film Design Office", "description": "View available dates for color-grading projects."},
+    "booking": {"title": "Booking | Norikane Film Design Office", "description": "Send a color-grading booking request."},
+    "bookingDetails": {"title": "Booking details | Norikane Film Design Office", "description": "Review or change a booking."},
+    "bookingHistory": {"title": "Booking history | Norikane Film Design Office", "description": "Review your booking history."},
+    "bookingSettings": {"title": "Booking settings | Norikane Film Design Office", "description": "Manage booking-service settings."},
+    "lineBooking": {"title": "LINE booking | Norikane Film Design Office", "description": "Choose booking dates through LINE."},
+    "login": {"title": "Sign in | Norikane Film Design Office", "description": "Sign in to booking and consultation history."},
+    "signup": {"title": "Create account | Norikane Film Design Office", "description": "Create an account for bookings and consultations."},
+    "privacy": {"title": "Privacy Policy | Norikane Film Design Office", "description": "Privacy policy for Norikane Film Design Office."},
+    "terms": {"title": "Terms of Use | Norikane Film Design Office", "description": "Terms of use for Norikane Film Design Office."}
+  },
+  "PublicContent": {
+    "hero": {"name": "Satoshi Norikane", "title": "Freelance Colorist", "locationLine": "Tokyo · Independent since 2026"},
+    "intro": "I provide color grading for theatrical films, streaming productions, commercials, and brand films. Both attended and remote sessions are available, with a flexible workflow tailored to each project's scale, schedule, and delivery requirements. I also accept requests for lectures and workshops as a DaVinci Resolve Certified Trainer.",
+    "profile": {
+      "sectionTitle": "Profile",
+      "name": "Satoshi Norikane",
+      "title": "Freelance Colorist",
+      "timeline": [
+        {"year": "2013", "event": "Joined IMAGICA", "detail": "After graduating from the Faculty of Design at Shizuoka University of Art and Culture, I began my career at IMAGICA as a colorist assistant. Following film telecine work, I developed my grading practice with DaVinci Resolve."},
+        {"year": "2018", "event": "Lead Colorist", "detail": "I graded theatrical films, streaming productions, commercials, and music videos. I launched an online-editing and VFX collaboration service built around DaVinci Resolve and introduced the workflow across the department, specializing in ACES color management. As a DaVinci Resolve Certified Trainer, I also taught at broadcasters and Blackmagic Design's headquarters."},
+        {"year": "2023", "event": "Virtual Production Color Creator", "detail": "Alongside grading, I managed on-set color for LED-wall productions, matching color across different sources and integrating CG, LED backgrounds, and live-action footage naturally."},
+        {"year": "2026", "event": "Founded an independent studio", "detail": "I established Norikane Film Design Office, continuing to develop structured color-grading methods and education alongside production work."}
+      ]
+    }
+  },
+  "PressContent": {
+    "categories": [
+      {"title": "Talks and seminars", "items": [
+        {"period": "November 2024", "title": "Inter BEE 2024 / Imagica EMS Special Day, Makuhari Messe", "description": "Presented The Creative Color Grading: DRAMA at the Blackmagic Design DaVinci Resolve Theater, demonstrating how to separate dramatic color grading into controllable elements and apply digital relighting.", "linkLabels": ["https://bmduser.jp/eve_detail.php?id=95"]},
+        {"period": "September 2024", "title": "Color by IMAGICA: HBO CAS Screening / In-Camera VFX / Grading Demo", "description": "Delivered an in-camera VFX presentation and graded ARRI AMIRA material live at an event co-hosted with ZEISS and the Japanese Society of Cinematographers.", "linkLabels": ["https://www.imagica-ems.co.jp/event/cbi_event_hbo-cas_240927/"]},
+        {"period": "November 2024", "title": "Virtual Production Experience at FACTORY ANZEN STUDIO", "description": "Participated as a virtual-production color creator, managing real-time color and speaking at a joint press session for the event hosted by Imagica EMS and Japanese cinematography and lighting associations.", "linkLabels": ["https://videosalon.jp/report/imagicaems_vp_event/"]},
+        {"period": "May 2025", "title": "DaVinci Resolve Color Grading Training, Blackmagic Design", "description": "As a DaVinci Resolve Certified Trainer, taught a small-group practical seminar covering conform from other applications, shot matching, and creative grading.", "linkLabels": ["https://bmduser.jp/eve_detail.php?id=127"]}
+      ]},
+      {"title": "Media and case studies", "items": [
+        {"period": "2024", "title": "Hulu drama The Decagon House Murders — An in-camera VFX look", "description": "Worked on set as colorist for the adaptation of Yukito Ayatsuji's novel, collaborating with the lighting department on live correction and on-set grading, including black-level and LED adjustments.", "linkLabels": ["VIDEO SALON article", "Imagica EMS case study"]},
+        {"period": "2024", "title": "GEKI×CINE Yoshiwara Gomenjo — Dolby Cinema color", "description": "Created the high-contrast theatrical look for the 20th-anniversary Dolby Cinema release in close discussion with the director.", "linkLabels": ["https://gxcblog.exblog.jp/36845321/"]},
+        {"period": "2023", "title": "GEKI×CINE Rose & Samurai 2 — Dolby Vision grading", "description": "Graded the stage production in Dolby Vision, decomposing the LUT into controllable elements to build a more immersive theatrical look and documenting the process in a case study.", "linkLabels": ["https://www.imagica-ems.co.jp/case-study/barasamu2_231005/"]},
+        {"period": "2025", "title": "NHK centennial drama Queen of Mars — VFX production documentary", "description": "Contributed to the VFX and post-production workflow for a drama set on Mars a century in the future, collaborating across departments to realize its visual world.", "linkLabels": ["https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pz9aJoZRyz/"]}
+      ]},
+      {"title": "Presentation films", "items": [
+        {"period": "2023", "title": "Next Generation Workflow — Director", "description": "Directed a presentation film introducing a fully cloud-based workflow from production through finishing.", "linkLabels": ["https://www.imagica-ems.co.jp/case-study/next-generation-workflow-230810/"]}
+      ]}
+    ]
+  },
+  "Legal": {
+    "privacy": {
+      "eyebrow": "Privacy Policy", "title": "Privacy Policy",
+      "intro": "Norikane Film Design Office collects and manages information handled through norikane.studio, its AI consultation desk, and booking flows only for clearly stated purposes necessary to serve projects safely.",
+      "sections": [
+        {"title": "Information we collect", "body": "We may collect chat messages, booking details, sign-in information, email addresses, company and personal names, reference URLs, cookies and session identifiers, access logs, timestamps, inquiry details, and information about booking changes or cancellations."},
+        {"title": "Purposes of use", "body": "We use this information to respond to inquiries, organize projects, manage bookings, restore consultation history for signed-in users, improve the service, detect misuse, maintain security, and retain records required by law."},
+        {"title": "Use of AI", "body": "The AI consultation desk may use AI to help organize project information and communications. AI responses are advisory and do not constitute a formal quotation, contract, delivery guarantee, or final decision."},
+        {"title": "Consultation history and calendar access", "body": "We use only the signed-in user's previous consultations, bookings, and reference URLs where needed to organize their inquiry. We do not use another user's information in responses. Calendar access is limited to availability; event titles, attendees, and locations are not collected."},
+        {"title": "Retention", "body": "Chat logs are deleted automatically seven days after the last message. Booking, inquiry, billing, contract, and legally required records are retained only for the period needed for business or legal purposes."},
+        {"title": "Third parties and external services", "body": "Except where required by law, we do not provide personal information to third parties without consent. We may use contractors and cloud services for email delivery, calendar integration, authentication, hosting, and data storage."},
+        {"title": "Access, correction, and deletion", "body": "When a person requests access to, correction of, suspension of use of, or deletion of personal data we hold, we verify their identity and respond in accordance with applicable law."},
+        {"title": "Contact", "body": "Questions about this policy may be sent to norikane.satoshi@gmail.com."}
+      ],
+      "revised": "Last revised: August 29, 2026"
+    },
+    "terms": {
+      "eyebrow": "Terms of Use", "title": "Terms of Use",
+      "intro": "These terms govern use of norikane.studio and its AI consultation and booking services.",
+      "sections": [
+        {"title": "Covered services", "body": "These terms apply to norikane.studio, the AI consultation desk, booking forms, booking-change and cancellation flows, and related email communications operated by Norikane Film Design Office."},
+        {"title": "Role of the AI consultation desk", "body": "The AI consultation desk helps organize inquiries and bookings. Chat responses and proposed slots are not formal quotations, contracts, delivery guarantees, or commitments to accept work. Conditions become final only after confirmation by Satoshi Norikane."},
+        {"title": "Prohibited conduct", "body": "You must not submit false information, infringe third-party rights, disclose unnecessary confidential information, attack or gain unauthorized access to systems, send spam, or interfere with the service or other users."},
+        {"title": "Bookings", "body": "Bookings, changes, and cancellations require separate confirmation. Calendar and AI suggestions indicate possible availability and are not guarantees."},
+        {"title": "Intellectual property and submitted materials", "body": "Text, images, UI, and other site content belong to us or their legitimate owners. You represent that you hold the rights or permissions needed for materials, reference URLs, and project information you submit. Submitted materials are handled only to respond, review, quote, and manage bookings."},
+        {"title": "Confidentiality", "body": "Submitted information is handled for project-related purposes. Do not include confidential, personal, or third-party information beyond what is necessary to organize your inquiry."},
+        {"title": "Disclaimer", "body": "We do not guarantee the accuracy, completeness, or availability of AI responses, suggestions, or availability displays. External-service outages, communications, authentication, or calendar issues may make the service unavailable. Nothing here excludes liability for intentional misconduct, gross negligence, or liability that cannot legally be limited. Final decisions are confirmed by Satoshi Norikane."},
+        {"title": "Confirmation of contract terms", "body": "Terms such as fees, schedules, cancellation, rights clearance, and confidentiality are governed by the applicable quotation, purchase order, contract, or confirmed email. Chat alone does not determine legal validity or contract terms."},
+        {"title": "Governing law and consultation", "body": "These terms are governed by Japanese law. If a question or dispute arises, the parties will discuss it in good faith and seek a resolution."},
+        {"title": "Contact", "body": "Questions about these terms may be sent to norikane.satoshi@gmail.com."}
+      ],
+      "revised": "Last revised: May 26, 2026"
+    }
+  },
+  "FeaturedWorks": {
+    "works": [
+      {"title": "Queen of Mars", "client": "NHK centennial drama", "officialLabel": "Official website"},
+      {"title": "The Decagon House Murders / The Clock Mansion Murders", "client": "Hulu", "officialLabel": "Official website"},
+      {"title": "Masaharu Fukuyama Live Films: Kotodama no Sakiwau Natsu / Gekko", "client": "Shochiku distribution", "officialLabel": "Official website"},
+      {"title": "GEKI×CINE series", "client": "Village", "officialLabel": "Official website"},
+      {"title": "Rilakkuma's Theme Park Adventure", "client": "NETFLIX", "officialLabel": "Official website"}
+    ],
+    "playlists": [
+      {"title": "Live productions", "client": "Streaming"},
+      {"title": "Commercials", "client": ""},
+      {"title": "Music videos", "client": ""}
+    ],
+    "openLink": "Open {title}: {label} in a new tab",
+    "closeModal": "Close video modal",
+    "playModal": "Play a video from {title} in a modal",
+    "playlistPlayModal": "Play a video from {title} in a modal",
+    "workCard": "{title} work card",
+    "randomCard": "Random-loop playback card for {title}",
+    "sectionLabel": "Featured Works", "scrollbarLabel": "Featured Works scrollbar"
+  },
+  "BookingSettings": {
+    "inviteAccepted": "You joined the channel through the invitation link.", "inviteUsed": "This invitation link has already been used.", "inviteInvalid": "This invitation link is invalid.",
+    "loadError": "Your channels could not be loaded.", "createError": "The channel could not be created.", "created": "Channel created.",
+    "inviteError": "The invitation link could not be created.", "inviteCreated": "Invitation link created.", "inviteCopied": "Invitation link copied.",
+    "leaveError": "You could not leave the channel.", "left": "You left the channel.", "deleteError": "The channel could not be deleted.", "deleted": "Channel deleted.",
+    "newChannel": "New channel", "channelName": "Channel name", "create": "Create", "memberships": "Your channels", "noMembership": "No channels",
+    "leave": "Leave", "delete": "Delete", "details": "Channel details", "memberCount": "{count} members", "member": "Member",
+    "createInvite": "Create invitation link", "copyInvite": "Copy invitation link", "empty": "There are no channels yet.",
+    "deleteTitle": "Delete this channel?", "deleteBody": "Deleting it removes the channel and its members' projects from the channel view. Each member's projects remain in their personal history.", "cancel": "Cancel", "deleteAction": "Delete"
+  },
+  "BookingEdit": {
+    "policy": "For cancellations or schedule changes to a confirmed booking, please review the cancellation policy in the separate service agreement.",
+    "teamReadOnly": "This booking belongs to another member of the same channel and is read-only.", "pastReadOnly": "Only an administrator can edit a past booking.",
+    "information": "Booking information", "project": "Project", "name": "Name", "company": "Company", "email": "Email", "deadline": "Deadline", "notes": "Notes", "dateTime": "Date and time",
+    "start": "Start {index}", "end": "End {index}", "saving": "Saving", "save": "Save", "back": "Back to booking calendar", "cancelBooking": "Cancel booking", "hardDelete": "Permanently delete from DB"
+  },
+  "SurveyChoices": {
+    "jobKind": {"question": "Choose your project type", "choices": {"cm-30s": "Web commercial / commercial", "mv-5m": "Music video", "feature-90m": "Film / feature", "drama-first": "Drama / series", "live-60m": "Live performance / concert / stage recording", "vertical-60s": "Vertical / social video", "corporate-video": "Corporate / recruiting / PR video", "event-video": "Event video", "lecture-training": "Lecture / workshop / education / training", "film-look-consultation": "Film look / look design consultation", "other": "Other"}},
+    "projectLength": {"question": "Choose the approximate duration or volume", "choices": {"short-under-60s": "Up to 60 seconds", "medium-5m": "Around 5 minutes", "long-30m": "Around 30 minutes", "feature-90m": "Around 90 minutes", "live-60m": "Around 60 minutes live", "live-150m": "Around 150 minutes live", "undecided": "Undecided", "other": "Other"}},
+    "cmLength": {"question": "Choose the commercial duration and number of versions", "choices": {"cm-length-15s": "15 seconds", "cm-length-30s": "30 seconds", "cm-length-60s": "60 seconds", "cm-length-multiple": "Multiple versions", "undecided": "Undecided / need advice", "other": "Other"}},
+    "mvLength": {"question": "Choose the music-video duration", "choices": {"mv-length-3-5m": "3–5 minutes", "mv-length-5-10m": "5–10 minutes", "mv-length-over-10m": "More than 10 minutes", "undecided": "Undecided / need advice", "other": "Other"}},
+    "dramaLength": {"question": "Choose the episode duration and count", "choices": {"drama-episode-under-15m": "Up to 15 minutes per episode", "drama-episode-30m": "Around 30 minutes per episode", "drama-episode-45-60m": "45–60 minutes per episode", "drama-series-total": "Need advice on episode count and total duration", "undecided": "Undecided / need advice", "other": "Other"}},
+    "liveLength": {"question": "Choose the live or stage recording duration", "choices": {"live-length-30m": "30 minutes", "live-length-60m": "60 minutes", "live-length-90m": "90 minutes", "live-length-over-120m": "2 hours or more", "undecided": "Undecided / need advice", "other": "Other"}},
+    "featureLength": {"question": "Choose the film or feature duration", "choices": {"feature-length-under-60m": "Under 60 minutes", "feature-length-90m": "Around 90 minutes", "feature-length-over-120m": "120 minutes or more", "undecided": "Undecided / need advice", "other": "Other"}},
+    "verticalLength": {"question": "Choose the vertical-video duration and number of versions", "choices": {"vertical-length-15s": "15 seconds", "vertical-length-30s": "30 seconds", "vertical-length-60s": "60 seconds", "vertical-length-multiple": "Multiple versions", "undecided": "Undecided / need advice", "other": "Other"}},
+    "finalMedium": {"question": "Select every final medium", "choices": {"ott": "VOD / on-demand streaming", "cinema": "Theatrical release", "tv-broadcast": "Television broadcast", "blu-ray": "Blu-ray / disc", "youtube": "YouTube", "web": "Web", "vertical-sns": "Vertical social video", "other": "Other"}},
+    "additionalWork": {"question": "Is any work needed beyond color grading?", "choices": {"retouch": "Object removal", "skin-retouch": "Skin retouching", "other": "Other", "none": "None"}},
+    "documentaryAttachment": {"question": "Are there any accompanying videos?", "choices": {"digest": "Digest", "interview": "Interview", "bonus": "Bonus video", "making": "Behind the scenes", "other": "Other", "none": "None"}},
+    "workSite": {"question": "Do you have a preferred work location?", "choices": {"client-facility-attended": "Attended session at client facility", "remote-grading": "Remote grading", "on-site-post-production": "On-site at a post-production facility", "satoshi-studio": "Satoshi's studio", "entrust": "Leave it to us", "other": "Other"}},
+    "trainingContent": {"question": "Choose the topics for the training", "choices": {"grading": "Color grading", "resolve-basic": "DaVinci Resolve basics", "look-design": "Film look / look design", "workflow": "Workflow consultation", "other": "Other"}},
+    "trainingFormat": {"question": "Choose the training format", "choices": {"online": "Online", "in-person": "In person", "hybrid": "Online + in person", "undecided": "Undecided", "other": "Other"}},
+    "trainingSoftware": {"question": "Choose the software", "choices": {"davinci-resolve-studio": "DaVinci Resolve Studio", "davinci-resolve": "DaVinci Resolve", "other": "Other"}},
+    "productionOptions": {"question": "Are captions, titles, narration, or music included?", "choices": {"captions": "Captions", "telops": "On-screen titles", "narration": "Narration", "music": "Music", "other": "Other", "none": "None"}},
+    "bookingConfirmation": {"question": "Is there anything else you would like to confirm, share, or ask about?", "choices": {"none": "No, continue", "other": "I have something to share or ask"}}
+  },
+  "Chatbot": {
+    "windowLabel": "AI consultation", "open": "Open AI consultation", "launcher": "Consultation",
+    "assistant": "AI assistant", "thinking": "Thinking", "thinkingDelay": "This is taking a little longer…",
+    "inputPlaceholder": "Tell us about your project or ask a question", "newlineHint": "for a new line", "sendHint": "to send", "inputLabel": "Message", "stop": "Stop", "send": "Send",
+    "otherContent": "Other details", "otherPlaceholder": "Add any helpful details", "sendSelection": "Send selection",
+    "contactLabel": "Direct contact", "contactSummary": "What will be sent", "contactSummaryBody": "We will send your inquiry and contact email to Satoshi Norikane for personal review.", "contactNoSend": "No email is sent until you press the send button.",
+    "email": "Email address", "required": "required", "optional": "optional", "emailPlaceholder": "e.g. client@example.com", "company": "Company", "personName": "Name", "sendContact": "Send these details",
+    "reasonOutOfScope": "Outside standard scope", "reasonTech": "Technical consultation", "reasonReview": "Work review", "reasonVfx": "VFX / CG focused", "reasonTight": "Tight deadline", "reasonRawEdit": "Edit changes included", "reasonRetouch": "Heavy retouching", "reasonPlugin": "Details needed", "reasonPricing": "Pricing review", "reasonContract": "Contract review", "reasonPersonal": "Personal information", "reasonOtherClient": "Other client information", "reasonConfidential": "Confidential information", "reasonComplex": "Personal review",
+    "inquiryForm": "Inquiry form", "sendConsultation": "Send consultation", "consultationIntro": "Send the organized consultation together with a required contact email address.", "inquiryIntro": "Use this contact form if the AI assistant cannot respond. An email address is required.", "consultationSummary": "Consultation summary", "unconfirmed": "Open questions: {items}", "name": "Name", "jobType": "Project type", "jobTypeHint": "Initials such as T or Y are fine", "duration": "Duration", "desiredDeadline": "Preferred deadline", "freeText": "Additional details",
+    "security": "Security", "securityTitle": "Handled securely", "securityEncryption": "Communications and stored data are encrypted.", "securityRetention": "Chat logs are deleted automatically after seven days.", "securityIsolation": "We use only the information needed for this consultation and do not access other inquiries.", "securityCalendar": "Calendar access checks availability only.", "securityMorePrefix": "See the", "securityAnd": "and", "securitySuffix": "for details.", "privacy": "Privacy Policy", "terms": "Terms of Use", "closeDocument": "Close {title}",
+    "initialMessage": "Start here for project inquiries. We can organize final formats, release timing, and production schedules together.", "communicationFallback": "The response was interrupted. Your message is still here, so you can send it again. Use the form only if the service does not recover.", "formFallback": "The automatic retry did not receive a response. Your message is still here, and you can use the form below if needed.", "inquirySent": "Sent. Please wait for a reply from Satoshi Norikane.", "inquiryUndelivered": "Your inquiry was processed, but the notification did not reach Satoshi Norikane. Your details are still here, so please try again. For urgent inquiries, email norikane.satoshi@gmail.com.",
+    "assistantNickname": "No-chan", "system": "System", "deskSubtitle": "Norikane Film Design Office consultation", "resizeSidePeek": "Resize side-peek panel", "closeDebug": "Close diagnostics", "openDebug": "Show diagnostics", "switchFloating": "Switch to floating view", "switchSidePeek": "Switch to side-peek view", "restoreNormal": "Return to normal view", "switchFullscreen": "Switch to full screen", "minimize": "Minimize", "conversation": "Conversation", "recoveryNotice": "Your previous message was not completed. Its contents have been preserved.", "retry": "Send again", "switchForm": "Switch to form", "scrollLatest": "Go to latest message", "resizePanel": "Resize panel",
+    "editMessage": "Edit message", "touchEdit": "Press and hold to edit", "editContent": "Edit message", "editWarning": "Messages below this point will be removed", "cancel": "Cancel", "save": "Save",
+    "lineAdd": "Add the official LINE account", "lineCloseQr": "Close LINE QR code", "lineQrAlt": "QR code for adding the official LINE account", "lineQrHelp": "Scan the QR code or open the official account in the LINE app.", "lineOpen": "Open LINE",
+    "bookingOrder": "Booking Order", "bookingName": "Name", "selectionCount": "{selected}/{required}",
+    "estimate": "Estimated workflow: {min}–{max} days", "candidateCalendar": "Candidate calendar", "notEntered": "Not entered", "bookingCompleteLabel": "Booking submitted", "bookingCompleteTitle": "Tentative booking request received", "bookingNumber": "Booking number: {id}", "project": "Project", "bookingEmail": "Email", "requestedDates": "Requested dates", "notes": "Notes", "unscheduledHelp": "Your request was received without dates. Once the schedule is clearer, you can choose candidate dates from the booking calendar.", "chooseDates": "Choose dates", "viewHistory": "View booking history", "bookingThanks": "Thank you. Satoshi Norikane will review the details and contact you.",
+    "candidateLoadError": "Candidate dates could not be loaded", "noRequestedDates": "No dates selected", "bookingCard": "Chat booking", "bookingHelp": "Choose candidate dates if your schedule is known. You can also submit the booking details without dates.", "tentativeCandidates": "Tentative candidates", "tentativeCalendar": "Tentative candidate calendar", "previousMonth": "Show previous month", "nextMonth": "Show next month", "busyDate": "{date} unavailable", "unstartableDate": "{date} available but cannot start", "tentativeDate": "{date} selectable with a tentative hold", "selectableDate": "{date} selectable", "selectionLimit": "You can select up to {count} candidate dates. Remove a selected date before choosing another.", "tentativeShort": "Tentative", "projectPlaceholder": "Project or title; initials are fine", "deadline": "Deadline", "phone": "Phone", "emailInvalid": "Check the email address format", "phonePlaceholder": "Contact phone number", "notesPlaceholder": "Anything that did not fit in the fields above", "bookingAgreement": "and the booking details.", "submitting": "Sending...", "sendBooking": "Send booking details", "bookingDemo": "Booking demo", "bookingError": "The booking details could not be sent. Please try again.",
+    "materialTiming": "Material delivery / pickup timing", "deliveryDate": "Requested delivery date", "durationLabel": "Duration", "durationHours": "{value}h", "durationMinutes": "{value} min", "additionalWorkLabel": "Additional work", "retouch": "Object removal / retouching", "skinRetouch": "Skin retouching", "otherWork": "Other additional work", "workSiteLabel": "Work location", "satoshiStudio": "Norikane Film Design Office", "remoteGrading": "Remote", "onSite": "On-site / post-production facility", "selection": "Selection: {value}", "otherComment": "Other comment: {value}", "debugLoadError": "Could not load", "debugLabel": "Chatbot diagnostics", "debugTitle": "Local diagnostics", "debugHelp": "Available only on a loopback host. Customer data is not displayed.", "debugRefresh": "Refresh build information", "debugCopy": "Copy diagnostics JSON", "debugCopied": "Diagnostics JSON copied", "debugCopyFailed": "Diagnostics JSON could not be copied", "debugCopiedStatus": "Diagnostics JSON copied.", "debugCopyFailedStatus": "Diagnostics JSON could not be copied.", "debugClose": "Close diagnostics"
   }
 }

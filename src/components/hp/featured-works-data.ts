@@ -1,3 +1,5 @@
+import {getLocalizedCopy} from "@/i18n/copy"
+
 export type FeaturedWork = {
   title: string
   client: string
@@ -33,84 +35,44 @@ export type FeaturedPlaylistWork = {
   videos: readonly FeaturedWorkPreviewVideo[]
 }
 
-export const FEATURED_WORKS: FeaturedWork[] = [
+const FEATURED_WORK_CONFIG = [
   {
-    title: "火星の女王",
-    client: "NHK100周年記念ドラマ",
     officialUrl:
       "https://www.web.nhk/tv/an/kaseinojoo/pl/series-tep-54KJPL1QGM",
-    links: [
-      {
-        label: "公式ホームページ",
-        url: "https://www.web.nhk/tv/an/kaseinojoo/pl/series-tep-54KJPL1QGM",
-      },
-    ],
   },
   {
-    title: "十角館の殺人 / 時計館の殺人",
-    client: "hulu",
     youtubeId: "-2kSMEiw0wA",
     officialUrl: "https://www.hulu.jp/static/tokeikannosatsujin/",
-    links: [
-      {
-        label: "公式HP",
-        url: "https://www.hulu.jp/static/tokeikannosatsujin/",
-      },
-      {
-        label: "YouTube",
-        url: "https://www.youtube.com/watch?v=-2kSMEiw0wA",
-      },
-    ],
   },
   {
-    title: "福山雅治ライブフィルム「言霊の幸わう夏」「月光」",
-    client: "松竹配給",
     youtubeId: "aiPpSEcNLTk",
     officialUrl: "https://www.fukuyamamasaharu-livefilm.com/gekko/",
-    links: [
-      {
-        label: "公式HP",
-        url: "https://www.fukuyamamasaharu-livefilm.com/gekko/",
-      },
-      {
-        label: "YouTube",
-        url: "https://www.youtube.com/watch?v=aiPpSEcNLTk",
-      },
-    ],
   },
   {
-    title: "ゲキ×シネシリーズ",
-    client: "ヴィレッヂ",
     youtubeId: "GiqkQel2CeU",
     officialUrl: "https://www.geki-cine.jp/",
-    links: [
-      {
-        label: "公式HP",
-        url: "https://www.geki-cine.jp/",
-      },
-      {
-        label: "YouTube",
-        url: "https://www.youtube.com/watch?v=GiqkQel2CeU",
-      },
-    ],
   },
   {
-    title: "リラックマと遊園地",
-    client: "NETFLIX",
     youtubeId: "-X5BMqt0m2c",
     officialUrl: "https://www.san-x.co.jp/rilakkuma/theme_park_adventure/",
-    links: [
-      {
-        label: "公式HP",
-        url: "https://www.san-x.co.jp/rilakkuma/theme_park_adventure/",
-      },
-      {
-        label: "YouTube",
-        url: "https://www.youtube.com/watch?v=-X5BMqt0m2c",
-      },
-    ],
   },
-]
+] as const
+
+export function getFeaturedWorks(locale: "ja" | "en"): FeaturedWork[] {
+  const copy = getLocalizedCopy(locale, "FeaturedWorks").works
+  return FEATURED_WORK_CONFIG.map((config, index) => {
+    const localized = copy[index]
+    const links: FeaturedWorkLink[] = [
+      {label: localized.officialLabel, url: config.officialUrl},
+      ...("youtubeId" in config
+        ? [{label: "YouTube", url: `https://www.youtube.com/watch?v=${config.youtubeId}`}]
+        : []),
+    ]
+    return {...config, title: localized.title, client: localized.client, links}
+  })
+}
+
+export const FEATURED_WORKS = getFeaturedWorks("ja")
 
 export const LIVE_REEL_VIDEOS = [
   { videoId: "fEYJazIPxUg" },
@@ -127,14 +89,11 @@ export const LIVE_REEL_VIDEOS = [
 
 export const LIVE_REEL_VIDEO_IDS = LIVE_REEL_VIDEOS.map((video) => video.videoId)
 
-export const FEATURED_PLAYLIST_WORKS: FeaturedPlaylistWork[] = [
+const FEATURED_PLAYLIST_CONFIG = [
   {
-    title: "ライブ映像作品",
-    client: "配信",
     videos: LIVE_REEL_VIDEOS,
   },
   {
-    title: "CM",
     videos: [
       { videoId: "Eo2IIH-w3h8", clipRangeStart: 0, clipRangeEnd: 60 },
       { videoId: "fStjAoAOlbQ" },
@@ -143,7 +102,6 @@ export const FEATURED_PLAYLIST_WORKS: FeaturedPlaylistWork[] = [
     ],
   },
   {
-    title: "MV",
     videos: [
       { videoId: "Pgvb6t2oLqg", clipRangeStart: 0, clipRangeEnd: 244 },
       { videoId: "N7c7ZaVXjvk", clipRangeStart: 0, clipRangeEnd: 205 },
@@ -155,7 +113,18 @@ export const FEATURED_PLAYLIST_WORKS: FeaturedPlaylistWork[] = [
       { videoId: "O8EynS4boVU", clipRangeStart: 0, clipRangeEnd: 165 },
     ],
   },
-]
+] as const
+
+export function getFeaturedPlaylistWorks(locale: "ja" | "en"): FeaturedPlaylistWork[] {
+  const copy = getLocalizedCopy(locale, "FeaturedWorks").playlists
+  return FEATURED_PLAYLIST_CONFIG.map((config, index) => ({
+    ...config,
+    title: copy[index].title,
+    ...(copy[index].client ? {client: copy[index].client} : {}),
+  }))
+}
+
+export const FEATURED_PLAYLIST_WORKS = getFeaturedPlaylistWorks("ja")
 
 export type ClipWindow = {
   startSeconds: number

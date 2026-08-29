@@ -5,10 +5,12 @@ import { Check } from "lucide-react"
 
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import type { SurveyChoiceSet } from "@/lib/chatbot/domain/survey-choice"
+import { localizeSurveyChoiceSet } from "@/i18n/survey-choices"
 import {
   CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
   CHATBOT_CONVERSATION_CONTENT_STYLE,
 } from "./conversationTypography"
+import {useChatbotCopy, useChatbotLocale} from "./i18n"
 
 export type ChoicePanelSelection = {
   selectedIds: string[]
@@ -23,6 +25,9 @@ type ChoicePanelProps = {
 }
 
 export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: ChoicePanelProps) {
+  const copy = useChatbotCopy()
+  const locale = useChatbotLocale()
+  const localizedChoiceSet = localizeSurveyChoiceSet(choiceSet, locale)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [otherComment, setOtherComment] = useState("")
   const hasOtherSelected = selectedIds.includes("other")
@@ -48,7 +53,7 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
   }
 
   const submitSelection = (ids: string[], comment: string) => {
-    const labels = choiceSet.choices.filter((choice) => ids.includes(choice.id)).map((choice) => choice.label)
+    const labels = localizedChoiceSet.choices.filter((choice) => ids.includes(choice.id)).map((choice) => choice.label)
     onSelect({
       selectedIds: ids,
       selectedLabels: labels,
@@ -57,15 +62,15 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
   }
 
   return (
-    <section className="glass-inset space-y-3 p-4" aria-label={choiceSet.question}>
+    <section className="glass-inset space-y-3 p-4" aria-label={localizedChoiceSet.question}>
       <p
         className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} text-sm text-hp`}
         style={CHATBOT_CONVERSATION_CONTENT_STYLE}
       >
-        {choiceSet.question}
+        {localizedChoiceSet.question}
       </p>
       <div className="flex flex-wrap gap-2">
-        {choiceSet.choices.map((choice) => {
+        {localizedChoiceSet.choices.map((choice) => {
           const isSelected = selectedIds.includes(choice.id)
           return (
             <button
@@ -88,13 +93,13 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
       </div>
       {hasOtherSelected ? (
         <label className="block space-y-1 text-xs font-semibold text-hp">
-          <span>その他の内容</span>
+          <span>{copy.otherContent}</span>
           <AutoResizeTextarea
             value={otherComment}
             onChange={(event) => setOtherComment(event.target.value)}
             rows={3}
             className="glass-input min-h-20 w-full px-3 py-2 text-sm font-medium text-hp placeholder:text-hp-muted/70"
-            placeholder="補足があれば入力してください"
+            placeholder={copy.otherPlaceholder}
           />
         </label>
       ) : null}
@@ -105,7 +110,7 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: Choi
           disabled={selectedIds.length === 0}
           className="glass-btn px-3 py-2 text-xs font-semibold text-hp disabled:cursor-not-allowed disabled:opacity-50"
         >
-          選択を送信
+          {copy.sendSelection}
         </button>
       ) : null}
     </section>

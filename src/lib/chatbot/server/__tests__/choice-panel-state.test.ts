@@ -77,6 +77,21 @@ describe("choice panel state", () => {
     })
   })
 
+  it("accepts localized English labels from the English choice panel", () => {
+    const patch = applyActiveChoiceAnswer({
+      activeChoices: finalMediumChoices,
+      message: "Selection: Television broadcast, Blu-ray / disc, YouTube",
+    })
+
+    expect(patch).toMatchObject({
+      choiceIds: ["tv-broadcast", "blu-ray", "youtube"],
+      conversationState: {
+        hasFinalMedium: true,
+        finalMedia: ["tv-broadcast", "blu-ray", "youtube"],
+      },
+    })
+  })
+
   it("treats documentary attachments as a multiple-choice set", () => {
     expect((documentaryAttachmentChoices as SurveyChoiceSet).selectionMode).toBe("multiple")
   })

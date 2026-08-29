@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import { listBookingHistoryForUser, type BookingHistoryItem } from "@/lib/booking/server/history"
 import {Link} from "@/i18n/navigation"
+import {getLocalizedCopy, type AppMessages} from "@/i18n/copy"
 
 export const dynamic = "force-dynamic"
 
@@ -27,31 +28,31 @@ function displayValue(value: string | null): string {
   return value?.trim() ? value.trim() : "-"
 }
 
-function BookingHistoryCard({ booking, english }: { booking: BookingHistoryItem; english: boolean }) {
+function BookingHistoryCard({ booking, locale, copy }: { booking: BookingHistoryItem; locale: "ja" | "en"; copy: AppMessages["Booking"] }) {
   return (
     <article className="booking-history__card glass-card-sm">
       <div className="booking-history__card-head">
         <div className="booking-history__title-group">
           <h2 className="booking-history__item-title">{booking.projectTitle}</h2>
-          <p className="booking-history__created">{formatCreatedAt(booking.createdAt, english ? "en" : "ja")}</p>
+          <p className="booking-history__created">{formatCreatedAt(booking.createdAt, locale)}</p>
         </div>
         <span className="glass-badge booking-history__status">{booking.statusLabel}</span>
       </div>
       <dl className="booking-history__details">
         <div className="booking-history__row">
-          <dt>{english ? "Requested dates" : "希望日一覧"}</dt>
+          <dt>{copy.requestedDatesList}</dt>
           <dd>{booking.requestedDates.length > 0 ? booking.requestedDates.join(" / ") : "-"}</dd>
         </div>
         <div className="booking-history__row">
-          <dt>{english ? "Name" : "氏名"}</dt>
+          <dt>{copy.name}</dt>
           <dd>{booking.contactName}</dd>
         </div>
         <div className="booking-history__row">
-          <dt>{english ? "Company" : "会社名"}</dt>
+          <dt>{copy.company}</dt>
           <dd>{displayValue(booking.companyName)}</dd>
         </div>
         <div className="booking-history__row">
-          <dt>{english ? "Notes" : "補足"}</dt>
+          <dt>{copy.notes}</dt>
           <dd>{displayValue(booking.memo)}</dd>
         </div>
       </dl>
@@ -61,7 +62,7 @@ function BookingHistoryCard({ booking, english }: { booking: BookingHistoryItem;
 
 export default async function BookingHistoryPage() {
   const locale = await getLocale() as "ja" | "en"
-  const english = locale === "en"
+  const copy = getLocalizedCopy(locale, "Booking")
   const session = await auth()
   const userId = session?.user?.id
   if (!userId) redirect(`/api/auth/signin?callbackUrl=/${locale}/booking/history`)
@@ -73,18 +74,18 @@ export default async function BookingHistoryPage() {
       <div className="glass-card p-8 md:p-10 xl:p-14">
         <div className="booking-history__page-head">
           <div>
-            <h1 className="text-3xl font-bold text-hp md:text-4xl">{english ? "Booking history" : "予約一覧"}</h1>
+            <h1 className="text-3xl font-bold text-hp md:text-4xl">{copy.historyTitle}</h1>
           </div>
           <Link className="booking-history__back glass-flat" href="/booking">
-            {english ? "Back to calendar" : "カレンダーに戻る"}
+            {copy.backToCalendar}
           </Link>
         </div>
 
         <div className="booking-history__list">
           {bookings.length > 0 ? (
-            bookings.map((booking) => <BookingHistoryCard key={booking.id} booking={booking} english={english} />)
+            bookings.map((booking) => <BookingHistoryCard key={booking.id} booking={booking} locale={locale} copy={copy} />)
           ) : (
-            <p className="booking-history__empty glass-card-sm">{english ? "No booking requests have been sent yet." : "送信済みの日程相談はまだありません。"}</p>
+            <p className="booking-history__empty glass-card-sm">{copy.historyEmpty}</p>
           )}
         </div>
       </div>

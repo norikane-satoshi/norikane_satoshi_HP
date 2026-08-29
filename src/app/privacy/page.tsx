@@ -3,13 +3,13 @@ import {getLocale} from "next-intl/server"
 import { PrivacyPolicyContent } from "@/components/hp/legal-content"
 import {localeAlternates} from "@/i18n/metadata"
 import type {AppLocale} from "@/i18n/routing"
+import {getLocalizedCopy} from "@/i18n/copy"
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale() as AppLocale
-  const english = locale === "en"
+  const copy = getLocalizedCopy(locale, "PageMetadata").privacy
   return {
-    title: english ? "Privacy Policy | Norikane Film Design Office" : "プライバシーポリシー | のりかね映像設計室",
-    description: english ? "Privacy policy for Norikane Film Design Office." : "のりかね映像設計室のプライバシーポリシーです。",
+    ...copy,
     alternates: localeAlternates("/privacy", locale),
   }
 }
