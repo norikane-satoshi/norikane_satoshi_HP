@@ -159,6 +159,9 @@ export async function coordinateChatbotMessageRequest<T>(
     if (request?.status === "completed") {
       return { ...parseStoredResult<T>(request.resultJson), replayed: true }
     }
+    if (request?.status === "failed" && waitedForActiveRequest) {
+      throw new ChatbotMessageCoordinationError("chatbot_message_request_expired_requires_recovery", 503)
+    }
     if (request?.status === "failed" && !input.recoverRequestKey) {
       throw new ChatbotMessageCoordinationError("chatbot_message_request_previously_failed", 409)
     }
@@ -181,6 +184,9 @@ export async function coordinateChatbotMessageRequest<T>(
       await waitOrThrow({ currentTime, waitDeadline, sleep, pollIntervalMs })
       continue
     }
+    if (waitedForActiveRequest) {
+      throw new ChatbotMessageCoordinationError("chatbot_message_request_expired_requires_recovery", 503)
+    }
     if (!request && activeLease) {
       throw new ChatbotMessageCoordinationError("chatbot_message_previous_request_processing", 503)
     }
@@ -190,10 +196,6 @@ export async function coordinateChatbotMessageRequest<T>(
     if (request?.status === "processing" && !input.recoverRequestKey) {
       throw new ChatbotMessageCoordinationError("chatbot_message_request_expired_requires_recovery", 503)
     }
-    if (request?.status === "processing" && waitedForActiveRequest) {
-      throw new ChatbotMessageCoordinationError("chatbot_message_request_expired_requires_recovery", 503)
-    }
-
     const leaseExpiresAt = new Date(currentTime + leaseDurationMs)
     const claimed = request
       ? await store.reclaim({ snapshot, request, owner: input.requestId, leaseExpiresAt })

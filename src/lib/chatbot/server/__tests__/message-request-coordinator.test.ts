@@ -343,6 +343,67 @@ describe("coordinateChatbotMessageRequest", () => {
     expect(execute).toHaveBeenCalledOnce()
   })
 
+  it("does not start recovery in the same HTTP after the waited request changes to failed", async () => {
+    let currentTime = 0
+    store.activeKey = "client_msg_1"
+    store.activeOwner = "old_owner"
+    store.activeLeaseExpiresAt = new Date(50)
+    store.lockVersion = 1
+    store.requests.set("client_msg_1", {
+      key: "client_msg_1",
+      conversationId: "conv_1",
+      payloadHash: "payload_1",
+      status: "processing",
+      owner: "old_owner",
+      leaseExpiresAt: new Date(50),
+      resultJson: null,
+      version: 1,
+      conversationVersion: 1,
+    })
+    const execute = vi.fn(async () => ({ answer: "recovered" }))
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId: "session_1",
+      requestId: "waiting_recovery",
+      requestKey: "client_msg_1",
+      recoverRequestKey: "client_msg_1",
+      payloadHash: "payload_1",
+      store,
+      now: () => new Date(currentTime),
+      sleep: async () => {
+        currentTime = 10
+        const current = store.requests.get("client_msg_1")!
+        store.requests.set("client_msg_1", {
+          ...current,
+          status: "failed",
+          owner: null,
+          leaseExpiresAt: null,
+          version: current.version + 1,
+        })
+        store.activeKey = null
+        store.activeOwner = null
+        store.activeLeaseExpiresAt = null
+        store.lockVersion += 1
+      },
+      waitTimeoutMs: 100,
+      pollIntervalMs: 1,
+      execute,
+    })).rejects.toMatchObject({ code: "chatbot_message_request_expired_requires_recovery", status: 503 })
+    expect(execute).not.toHaveBeenCalled()
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId: "session_1",
+      requestId: "fresh_recovery",
+      requestKey: "client_msg_1",
+      recoverRequestKey: "client_msg_1",
+      payloadHash: "payload_1",
+      store,
+      now: () => new Date(currentTime),
+      execute,
+    })).resolves.toMatchObject({ result: { answer: "recovered" }, replayed: false })
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
   it("does not recover a failed turn after a later turn changed the conversation", async () => {
     await expect(coordinateChatbotMessageRequest({
       sessionId: "session_1", requestId: "request_1", requestKey: "client_msg_1",

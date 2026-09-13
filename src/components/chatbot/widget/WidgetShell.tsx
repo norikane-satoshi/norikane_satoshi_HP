@@ -774,7 +774,10 @@ export function WidgetShell({
           clientSessionId,
           pendingRequestKind: pending.kind,
           ...(pending.kind === "edit"
-            ? { editTargetMessageId: pending.editTargetMessageId }
+            ? {
+                editTargetMessageId: pending.editTargetMessageId,
+                recoverClientUserMessageId: pending.clientUserMessageId,
+              }
             : { recoverClientUserMessageId: pending.clientUserMessageId }),
         },
         { signal: controller.signal },

@@ -307,8 +307,34 @@ export async function handleChatbotMessage(
   let didTruncateForEdit = false
   let editSlackEvent: ChatbotEditSlackEvent | undefined
   let replacedUserMessage: ChatbotMessage | undefined
+  let recoveredUserMessage: ChatbotMessage | undefined
   await assertRequestOwnership()
-  if (input.editTargetMessageId) {
+  if (input.recoverClientUserMessageId) {
+    const recoverTargetIndex = conversation.messages.findIndex(
+      (message) => message.id === input.recoverClientUserMessageId && message.role === "user",
+    )
+    if (recoverTargetIndex >= 0) {
+      if (recoverPendingUserMessage) {
+        recoveredUserMessage = await recoverPendingUserMessage({ content: input.message })
+      } else {
+        await repository.truncateConversationFromMessage({
+          conversationId: conversation.id,
+          messageId: input.recoverClientUserMessageId,
+        })
+      }
+      conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, recoverTargetIndex))
+      if (input.pendingRequestKind === "edit") didTruncateForEdit = true
+      logPrivacySafeChatbotEvent({
+        event: "chatbot_pending_request_recovered",
+        conversationId: conversation.id,
+        sessionId: conversation.context.sessionId,
+        recoveredMessageIdKind: "client",
+        truncated: true,
+      })
+    }
+  }
+
+  if (input.editTargetMessageId && !recoveredUserMessage) {
     const targetIndex = conversation.messages.findIndex((message) => message.id === input.editTargetMessageId)
     if (targetIndex === -1) {
       if (!isClientGeneratedMessageId(input.editTargetMessageId)) {
@@ -360,31 +386,6 @@ export async function handleChatbotMessage(
       }
       conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, targetIndex))
       didTruncateForEdit = true
-    }
-  }
-
-  let recoveredUserMessage: ChatbotMessage | undefined
-  if (input.recoverClientUserMessageId && !input.editTargetMessageId) {
-    const recoverTargetIndex = conversation.messages.findIndex(
-      (message) => message.id === input.recoverClientUserMessageId && message.role === "user",
-    )
-    if (recoverTargetIndex >= 0) {
-      if (recoverPendingUserMessage) {
-        recoveredUserMessage = await recoverPendingUserMessage({ content: input.message })
-      } else {
-        await repository.truncateConversationFromMessage({
-          conversationId: conversation.id,
-          messageId: input.recoverClientUserMessageId,
-        })
-      }
-      conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, recoverTargetIndex))
-      logPrivacySafeChatbotEvent({
-        event: "chatbot_pending_request_recovered",
-        conversationId: conversation.id,
-        sessionId: conversation.context.sessionId,
-        recoveredMessageIdKind: "client",
-        truncated: true,
-      })
     }
   }
 
