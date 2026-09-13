@@ -121,6 +121,26 @@ class MemoryStore implements ChatbotMessageRequestStore {
   }
 }
 
+class SynchronizedInitialLoadStore extends MemoryStore {
+  private initialLoadCount = 0
+  private releaseInitialLoads!: () => void
+  private readonly initialLoadsReady = new Promise<void>((resolve) => {
+    this.releaseInitialLoads = resolve
+  })
+
+  override async load(
+    input: Parameters<ChatbotMessageRequestStore["load"]>[0],
+  ): Promise<ChatbotMessageRequestSnapshot> {
+    const snapshot = await super.load(input)
+    if (!snapshot.request && this.initialLoadCount < 2) {
+      this.initialLoadCount += 1
+      if (this.initialLoadCount === 2) this.releaseInitialLoads()
+      await this.initialLoadsReady
+    }
+    return snapshot
+  }
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((resolvePromise) => {
@@ -158,6 +178,30 @@ describe("coordinateChatbotMessageRequest", () => {
       result: { answer: "一度だけ生成" },
       replayed: true,
     })
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
+  it("executes once when both workers read the same no-request snapshot before either claim", async () => {
+    const synchronizedStore = new SynchronizedInitialLoadStore()
+    const execution = deferred<{ answer: string }>()
+    const execute = vi.fn(() => execution.promise)
+    const common = {
+      sessionId: "session_1",
+      requestKey: "client_msg_1",
+      payloadHash: "payload_1",
+      store: synchronizedStore,
+      execute,
+      pollIntervalMs: 1,
+    }
+
+    const first = coordinateChatbotMessageRequest({ ...common, requestId: "request_1" })
+    const second = coordinateChatbotMessageRequest({ ...common, requestId: "request_2" })
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce())
+    execution.resolve({ answer: "single claim winner" })
+
+    const results = await Promise.all([first, second])
+    expect(results.filter((result) => !result.replayed)).toHaveLength(1)
+    expect(results.filter((result) => result.replayed)).toHaveLength(1)
     expect(execute).toHaveBeenCalledOnce()
   })
 
@@ -250,6 +294,53 @@ describe("coordinateChatbotMessageRequest", () => {
       sessionId: "session_1", requestId: "request_3", requestKey: "client_msg_1",
       payloadHash: "changed", store, execute: async () => ({ answer: "wrong" }),
     })).rejects.toMatchObject({ code: "chatbot_message_request_payload_mismatch", status: 409 })
+  })
+
+  it("does not start a recovery execution after spending time waiting for the old lease", async () => {
+    let currentTime = 0
+    store.activeKey = "client_msg_1"
+    store.activeOwner = "old_owner"
+    store.activeLeaseExpiresAt = new Date(5)
+    store.lockVersion = 1
+    store.requests.set("client_msg_1", {
+      key: "client_msg_1",
+      conversationId: "conv_1",
+      payloadHash: "payload_1",
+      status: "processing",
+      owner: "old_owner",
+      leaseExpiresAt: new Date(5),
+      resultJson: null,
+      version: 1,
+      conversationVersion: 1,
+    })
+    const execute = vi.fn(async () => ({ answer: "recovered" }))
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId: "session_1",
+      requestId: "recovery_waiter",
+      requestKey: "client_msg_1",
+      recoverRequestKey: "client_msg_1",
+      payloadHash: "payload_1",
+      store,
+      now: () => new Date(currentTime),
+      sleep: async () => { currentTime = 10 },
+      waitTimeoutMs: 100,
+      pollIntervalMs: 1,
+      execute,
+    })).rejects.toMatchObject({ code: "chatbot_message_request_expired_requires_recovery", status: 503 })
+    expect(execute).not.toHaveBeenCalled()
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId: "session_1",
+      requestId: "fresh_recovery",
+      requestKey: "client_msg_1",
+      recoverRequestKey: "client_msg_1",
+      payloadHash: "payload_1",
+      store,
+      now: () => new Date(currentTime),
+      execute,
+    })).resolves.toMatchObject({ result: { answer: "recovered" }, replayed: false })
+    expect(execute).toHaveBeenCalledOnce()
   })
 
   it("does not recover a failed turn after a later turn changed the conversation", async () => {

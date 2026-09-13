@@ -112,6 +112,15 @@ async function loadPost({
     content: input.content,
     createdAt: "2026-05-26T00:00:02.000Z",
   }))
+  const replaceChatbotMessageRequestUserMessage = vi.fn(async (input: {
+    ownership: { requestKey: string }
+    content: string
+  }) => ({
+    id: input.ownership.requestKey,
+    role: "user",
+    content: input.content,
+    createdAt: "2026-05-26T00:00:02.000Z",
+  }))
   const persistChatbotMessageFinalization = vi.fn().mockResolvedValue(undefined)
   const coordinateChatbotMessageRequest = vi.fn(async (input: {
     requestId: string
@@ -154,6 +163,7 @@ async function loadPost({
     coordinateChatbotMessageRequest,
     finalizeChatbotMessageRequest,
     recoverChatbotMessageRequestUserMessage,
+    replaceChatbotMessageRequestUserMessage,
     hashChatbotMessagePayload: vi.fn(() => "payload_hash"),
   }))
   vi.doMock("@/lib/chatbot/server/repository", () => ({ persistChatbotMessageFinalization }))
@@ -178,6 +188,7 @@ async function loadPost({
     coordinateChatbotMessageRequest,
     finalizeChatbotMessageRequest,
     recoverChatbotMessageRequestUserMessage,
+    replaceChatbotMessageRequestUserMessage,
     persistChatbotMessageFinalization,
   }
 }
@@ -401,6 +412,47 @@ describe("POST /api/chatbot/message", () => {
       content: "途中の相談",
     })
     expect(route.appendMessage).not.toHaveBeenCalled()
+    expect(route.truncateConversationFromMessage).not.toHaveBeenCalled()
+  })
+
+  it("wires edit replacement through the request-owner transaction", async () => {
+    const requestKey = "client_msg_11111111-1111-4111-8111-111111111111"
+    const route = await loadPost({
+      existingConversation: conversation({
+        messages: [
+          { id: "user_original", role: "user", content: "編集前", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_original", role: "assistant", content: "元の回答", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+    const ownership = {
+      conversationId: "conv_1",
+      requestKey,
+      owner: "11111111-2222-4333-8444-555555555555",
+      requestVersion: 1,
+    }
+    route.coordinateChatbotMessageRequest.mockImplementationOnce(async (input: {
+      execute: (value: typeof ownership) => Promise<unknown>
+    }) => ({
+      requestId: ownership.owner,
+      result: await input.execute(ownership),
+      replayed: false,
+    }))
+
+    const response = await route.POST(request({
+      message: "編集後",
+      clientUserMessageId: requestKey,
+      editTargetMessageId: "user_original",
+      pendingRequestKind: "edit",
+    }))
+
+    expect(response.status).toBe(200)
+    expect(route.replaceChatbotMessageRequestUserMessage).toHaveBeenCalledWith({
+      ownership,
+      targetMessageId: "user_original",
+      content: "編集後",
+    })
+    expect(route.appendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ role: "user" }))
     expect(route.truncateConversationFromMessage).not.toHaveBeenCalled()
   })
 

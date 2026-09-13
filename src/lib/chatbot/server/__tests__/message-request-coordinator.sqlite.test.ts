@@ -5,6 +5,51 @@ import type { ChatbotMessageRequestOwnership } from "@/lib/chatbot/server/messag
 const describeSqlite = process.env.CHATBOT_COORDINATOR_SQLITE_INTEGRATION === "1" ? describe : describe.skip
 
 describeSqlite("message request coordinator SQLite integration", () => {
+  it("resolves two pre-claim no-request snapshots through CAS and replay", async () => {
+    const { coordinateChatbotMessageRequest, prismaChatbotMessageRequestStore } = await import(
+      "@/lib/chatbot/server/message-request-coordinator"
+    )
+    let initialLoadCount = 0
+    let releaseInitialLoads!: () => void
+    const initialLoadsReady = new Promise<void>((resolve) => { releaseInitialLoads = resolve })
+    const synchronizedStore = {
+      ...prismaChatbotMessageRequestStore,
+      load: async (input: Parameters<typeof prismaChatbotMessageRequestStore.load>[0]) => {
+        const snapshot = await prismaChatbotMessageRequestStore.load(input)
+        if (!snapshot.request && initialLoadCount < 2) {
+          initialLoadCount += 1
+          if (initialLoadCount === 2) releaseInitialLoads()
+          await initialLoadsReady
+        }
+        return snapshot
+      },
+    }
+    let releaseExecution!: () => void
+    const executionGate = new Promise<void>((resolve) => { releaseExecution = resolve })
+    const execute = vi.fn(async () => {
+      await executionGate
+      return { answer: "single CAS winner" }
+    })
+    const common = {
+      sessionId: crypto.randomUUID(),
+      requestKey: `client_msg_${crypto.randomUUID()}`,
+      payloadHash: "synchronized_initial_load",
+      store: synchronizedStore,
+      execute,
+      pollIntervalMs: 5,
+    }
+
+    const first = coordinateChatbotMessageRequest({ ...common, requestId: crypto.randomUUID() })
+    const second = coordinateChatbotMessageRequest({ ...common, requestId: crypto.randomUUID() })
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce())
+    releaseExecution()
+
+    const results = await Promise.all([first, second])
+    expect(results.filter((result) => !result.replayed)).toHaveLength(1)
+    expect(results.filter((result) => result.replayed)).toHaveLength(1)
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
   it("coordinates concurrent workers through the real database store", async () => {
     const { assertChatbotMessageRequestOwnership, coordinateChatbotMessageRequest } = await import(
       "@/lib/chatbot/server/message-request-coordinator"
@@ -374,5 +419,137 @@ describeSqlite("message request coordinator SQLite integration", () => {
     )
     expect(Number(requestRows[0]?.count ?? 0)).toBe(0)
     await expect(prisma.chatbotMessage.count({ where: { conversationId: conversation.id } })).resolves.toBe(1)
+  })
+
+  it("prevents an old edit owner from deleting history after a reclaim has completed", async () => {
+    const {
+      assertChatbotMessageRequestOwnership,
+      coordinateChatbotMessageRequest,
+      finalizeChatbotMessageRequest,
+      replaceChatbotMessageRequestUserMessage,
+    } = await import("@/lib/chatbot/server/message-request-coordinator")
+    const { handleChatbotMessage } = await import("@/lib/chatbot/server/message-handler")
+    const { createStaticChatbotKnowledgeSnapshot } = await import("@/lib/chatbot/server/notion-knowledge-sync")
+    const { prisma } = await import("@/lib/prisma")
+    const sessionId = crypto.randomUUID()
+    const requestKey = `client_msg_${crypto.randomUUID()}`
+    const originalUserId = crypto.randomUUID()
+    const originalAssistantId = crypto.randomUUID()
+    const winnerAssistantId = crypto.randomUUID()
+    const conversation = await prisma.chatbotConversation.create({
+      data: {
+        sessionId,
+        routingDecision: "continue",
+        messages: {
+          create: [
+            { id: originalUserId, role: "user", content: "編集前", createdAt: new Date("2026-09-13T00:00:00Z") },
+            { id: originalAssistantId, role: "assistant", content: "元の回答", createdAt: new Date("2026-09-13T00:00:01Z") },
+          ],
+        },
+      },
+    })
+    let oldOwnership!: ChatbotMessageRequestOwnership
+    let replacementEntered!: () => void
+    const replacementStarted = new Promise<void>((resolve) => { replacementEntered = resolve })
+    let releaseReplacement!: () => void
+    const replacementGate = new Promise<void>((resolve) => { releaseReplacement = resolve })
+    const generate = vi.fn()
+
+    const oldRun = coordinateChatbotMessageRequest({
+      sessionId,
+      requestId: crypto.randomUUID(),
+      requestKey,
+      payloadHash: "edit_owner_fence",
+      completeDuringExecute: true,
+      execute: (ownership) => {
+        oldOwnership = ownership!
+        return handleChatbotMessage(
+          {
+            sessionId,
+            message: "編集後",
+            clientUserMessageId: requestKey,
+            editTargetMessageId: originalUserId,
+            pendingRequestKind: "edit",
+          },
+          {
+            orchestratorFactory: () => ({ generate, isHealthy: vi.fn().mockResolvedValue(true) }),
+            knowledgeSnapshotLoader: vi.fn().mockResolvedValue(createStaticChatbotKnowledgeSnapshot()),
+            slackNotifier: vi.fn().mockResolvedValue({ status: "skipped" as const, reason: "disabled" }),
+            assertRequestOwnership: () => assertChatbotMessageRequestOwnership(oldOwnership),
+            replaceEditedUserMessage: async ({ targetMessageId, content }) => {
+              replacementEntered()
+              await replacementGate
+              return replaceChatbotMessageRequestUserMessage({
+                ownership: oldOwnership,
+                targetMessageId,
+                content,
+              })
+            },
+          },
+        )
+      },
+    })
+    await replacementStarted
+    await prisma.$executeRawUnsafe(
+      `UPDATE "ChatbotConversation" SET "messageRequestLeaseExpiresAt" = ? WHERE "id" = ?`,
+      new Date(0).toISOString(),
+      conversation.id,
+    )
+    await prisma.$executeRawUnsafe(
+      `UPDATE "ChatbotMessageRequest" SET "leaseExpiresAt" = ? WHERE "key" = ?`,
+      new Date(0).toISOString(),
+      requestKey,
+    )
+
+    const winner = await coordinateChatbotMessageRequest({
+      sessionId,
+      requestId: crypto.randomUUID(),
+      requestKey,
+      recoverRequestKey: requestKey,
+      payloadHash: "edit_owner_fence",
+      completeDuringExecute: true,
+      execute: async (ownership) => {
+        await finalizeChatbotMessageRequest({
+          ownership: ownership!,
+          resultJson: JSON.stringify({ requestId: ownership!.owner, result: { owner: "winner" } }),
+          persistBusinessData: async (transaction) => {
+            await transaction.chatbotConversation.update({
+              where: { id: conversation.id },
+              data: {
+                routingDecision: "to-email",
+                messages: {
+                  create: {
+                    id: winnerAssistantId,
+                    role: "assistant",
+                    content: "勝者の確定履歴",
+                    createdAt: new Date("2026-09-13T00:00:02Z"),
+                  },
+                },
+              },
+            })
+          },
+        })
+        return { owner: "winner" }
+      },
+    })
+    expect(winner).toMatchObject({ result: { owner: "winner" }, replayed: false })
+
+    releaseReplacement()
+    await expect(oldRun).resolves.toMatchObject({ result: { owner: "winner" }, replayed: true })
+    const messages = await prisma.chatbotMessage.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, content: true },
+    })
+    expect(messages).toEqual([
+      { id: originalUserId, content: "編集前" },
+      { id: originalAssistantId, content: "元の回答" },
+      { id: winnerAssistantId, content: "勝者の確定履歴" },
+    ])
+    await expect(prisma.chatbotConversation.findUnique({
+      where: { id: conversation.id },
+      select: { routingDecision: true },
+    })).resolves.toEqual({ routingDecision: "to-email" })
+    expect(generate).not.toHaveBeenCalled()
   })
 })

@@ -223,6 +223,10 @@ type HandleChatbotMessageOptions = {
   recoverPendingUserMessage?: (input: {
     content: string
   }) => Promise<ChatbotMessage>
+  replaceEditedUserMessage?: (input: {
+    targetMessageId: string
+    content: string
+  }) => Promise<ChatbotMessage>
   finalizeMessage?: (input: ChatbotMessageFinalizationInput) => Promise<void>
   now?: () => number
 }
@@ -282,6 +286,7 @@ export async function handleChatbotMessage(
   const slackNotifier = options.slackNotifier ?? sendChatbotSlackNotification
   const assertRequestOwnership = options.assertRequestOwnership ?? (async () => undefined)
   const recoverPendingUserMessage = options.recoverPendingUserMessage
+  const replaceEditedUserMessage = options.replaceEditedUserMessage
   const conversationLoadStartedAt = now()
   let conversation = await repository.loadOrCreateConversationBySessionId({
     sessionId: input.sessionId,
@@ -301,6 +306,7 @@ export async function handleChatbotMessage(
 
   let didTruncateForEdit = false
   let editSlackEvent: ChatbotEditSlackEvent | undefined
+  let replacedUserMessage: ChatbotMessage | undefined
   await assertRequestOwnership()
   if (input.editTargetMessageId) {
     const targetIndex = conversation.messages.findIndex((message) => message.id === input.editTargetMessageId)
@@ -313,10 +319,17 @@ export async function handleChatbotMessage(
             targetIndex: fallbackTargetIndex,
             nextMessage: input.message,
           })
-          await repository.truncateConversationFromMessage({
-            conversationId: conversation.id,
-            messageId: conversation.messages[fallbackTargetIndex].id,
-          })
+          if (replaceEditedUserMessage) {
+            replacedUserMessage = await replaceEditedUserMessage({
+              targetMessageId: conversation.messages[fallbackTargetIndex].id,
+              content: input.message,
+            })
+          } else {
+            await repository.truncateConversationFromMessage({
+              conversationId: conversation.id,
+              messageId: conversation.messages[fallbackTargetIndex].id,
+            })
+          }
           conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, fallbackTargetIndex))
           didTruncateForEdit = true
         } else {
@@ -334,10 +347,17 @@ export async function handleChatbotMessage(
         targetIndex,
         nextMessage: input.message,
       })
-      await repository.truncateConversationFromMessage({
-        conversationId: conversation.id,
-        messageId: input.editTargetMessageId,
-      })
+      if (replaceEditedUserMessage) {
+        replacedUserMessage = await replaceEditedUserMessage({
+          targetMessageId: input.editTargetMessageId,
+          content: input.message,
+        })
+      } else {
+        await repository.truncateConversationFromMessage({
+          conversationId: conversation.id,
+          messageId: input.editTargetMessageId,
+        })
+      }
       conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, targetIndex))
       didTruncateForEdit = true
     }
@@ -371,7 +391,7 @@ export async function handleChatbotMessage(
   conversation = reconcileConversationContextFromHistory(conversation)
 
   const userMessagePersistStartedAt = now()
-  const userMessage = recoveredUserMessage ?? await (async () => {
+  const userMessage = recoveredUserMessage ?? replacedUserMessage ?? await (async () => {
     await assertRequestOwnership()
     return repository.appendMessage({
       ...(input.clientUserMessageId ? { id: input.clientUserMessageId } : {}),

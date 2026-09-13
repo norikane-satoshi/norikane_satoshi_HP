@@ -128,6 +128,7 @@ export async function coordinateChatbotMessageRequest<T>(
   const leaseDurationMs = input.leaseDurationMs ?? defaultLeaseDurationMs
   const waitDeadline = now().getTime() + (input.waitTimeoutMs ?? defaultWaitTimeoutMs)
   const pollIntervalMs = input.pollIntervalMs ?? defaultPollIntervalMs
+  let waitedForActiveRequest = false
 
   while (true) {
     const snapshot = await store.load({
@@ -176,6 +177,7 @@ export async function coordinateChatbotMessageRequest<T>(
       snapshot.activeLeaseExpiresAt.getTime() > currentTime
 
     if (request?.status === "processing" && activeLease) {
+      waitedForActiveRequest = true
       await waitOrThrow({ currentTime, waitDeadline, sleep, pollIntervalMs })
       continue
     }
@@ -186,6 +188,9 @@ export async function coordinateChatbotMessageRequest<T>(
       throw new ChatbotMessageCoordinationError("chatbot_message_previous_request_expired", 503)
     }
     if (request?.status === "processing" && !input.recoverRequestKey) {
+      throw new ChatbotMessageCoordinationError("chatbot_message_request_expired_requires_recovery", 503)
+    }
+    if (request?.status === "processing" && waitedForActiveRequest) {
       throw new ChatbotMessageCoordinationError("chatbot_message_request_expired_requires_recovery", 503)
     }
 
@@ -288,8 +293,17 @@ type OwnershipRow = {
   activeMessageRequestOwner: string | null
 }
 
-type LegacyMessageRow = {
-  conversationId: string
+type LoadRow = LockRow & {
+  key: string | null
+  conversationId: string | null
+  payloadHash: string | null
+  status: string | null
+  owner: string | null
+  leaseExpiresAt: string | Date | null
+  resultJson: string | null
+  version: number | bigint | null
+  conversationVersion: number | bigint | null
+  legacyMessageConversationId: string | null
 }
 
 export async function assertChatbotMessageRequestOwnership(
@@ -358,6 +372,18 @@ export async function recoverChatbotMessageRequestUserMessage(input: {
   ownership: ChatbotMessageRequestOwnership
   content: string
 }): Promise<{ id: string; role: "user"; content: string; createdAt: string }> {
+  return replaceChatbotMessageRequestUserMessage({
+    ownership: input.ownership,
+    targetMessageId: input.ownership.requestKey,
+    content: input.content,
+  })
+}
+
+export async function replaceChatbotMessageRequestUserMessage(input: {
+  ownership: ChatbotMessageRequestOwnership
+  targetMessageId: string
+  content: string
+}): Promise<{ id: string; role: "user"; content: string; createdAt: string }> {
   let createdAt = new Date()
   const recovered = await runCasTransaction(async (tx) => {
     const ownershipRetained = await tx.$executeRawUnsafe(
@@ -380,23 +406,21 @@ export async function recoverChatbotMessageRequestUserMessage(input: {
     if (ownershipRetained !== 1) throw new CoordinationCasError()
 
     const target = await tx.chatbotMessage.findUnique({
-      where: { id: input.ownership.requestKey },
+      where: { id: input.targetMessageId },
       select: { conversationId: true, role: true, createdAt: true },
     })
-    if (target && (target.conversationId !== input.ownership.conversationId || target.role !== "user")) {
+    if (!target || target.conversationId !== input.ownership.conversationId || target.role !== "user") {
       throw new CoordinationCasError()
     }
-    if (target) {
-      await tx.chatbotMessage.deleteMany({
-        where: {
-          conversationId: input.ownership.conversationId,
-          OR: [
-            { createdAt: { gt: target.createdAt } },
-            { createdAt: target.createdAt, id: { gte: input.ownership.requestKey } },
-          ],
-        },
-      })
-    }
+    await tx.chatbotMessage.deleteMany({
+      where: {
+        conversationId: input.ownership.conversationId,
+        OR: [
+          { createdAt: { gt: target.createdAt } },
+          { createdAt: target.createdAt, id: { gte: input.targetMessageId } },
+        ],
+      },
+    })
 
     createdAt = new Date()
     await tx.chatbotConversation.update({
@@ -457,27 +481,37 @@ export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
       update: {},
       select: { id: true, sessionId: true },
     })
-    const lockRows = await prisma.$queryRawUnsafe<LockRow[]>(
-      `SELECT "sessionId", "activeMessageRequestKey", "activeMessageRequestOwner",
-              "messageRequestLeaseExpiresAt", "messageRequestVersion"
-       FROM "ChatbotConversation" WHERE "id" = ? LIMIT 1`,
+    const lookupKey = input.recoverRequestKey ?? input.requestKey
+    const rows = await prisma.$queryRawUnsafe<LoadRow[]>(
+      `SELECT c."sessionId", c."activeMessageRequestKey", c."activeMessageRequestOwner",
+              c."messageRequestLeaseExpiresAt", c."messageRequestVersion",
+              r."key", r."conversationId", r."payloadHash", r."status", r."owner",
+              r."leaseExpiresAt", r."resultJson", r."version", r."conversationVersion",
+              m."conversationId" AS "legacyMessageConversationId"
+       FROM "ChatbotConversation" c
+       LEFT JOIN "ChatbotMessageRequest" r ON r."key" = ?
+       LEFT JOIN "ChatbotMessage" m ON m."id" = ? AND r."key" IS NULL
+       WHERE c."id" = ? LIMIT 1`,
+      lookupKey,
+      lookupKey,
       conversation.id,
     )
-    const lookupKey = input.recoverRequestKey ?? input.requestKey
-    const requestRows = await prisma.$queryRawUnsafe<RequestRow[]>(
-      `SELECT "key", "conversationId", "payloadHash", "status", "owner",
-              "leaseExpiresAt", "resultJson", "version", "conversationVersion"
-       FROM "ChatbotMessageRequest" WHERE "key" = ? LIMIT 1`,
-      lookupKey,
-    )
-    const legacyMessageRows = requestRows[0]
-      ? []
-      : await prisma.$queryRawUnsafe<LegacyMessageRow[]>(
-          `SELECT "conversationId" FROM "ChatbotMessage" WHERE "id" = ? LIMIT 1`,
-          lookupKey,
-        )
-    const lock = lockRows[0]
+    const lock = rows[0]
     if (!lock) throw new ChatbotMessageCoordinationError("chatbot_message_request_lock_missing", 500)
+    const request = lock.key && lock.conversationId && lock.payloadHash && lock.status && lock.version !== null &&
+      lock.conversationVersion !== null
+      ? toRequestRecord({
+          key: lock.key,
+          conversationId: lock.conversationId,
+          payloadHash: lock.payloadHash,
+          status: lock.status,
+          owner: lock.owner,
+          leaseExpiresAt: lock.leaseExpiresAt,
+          resultJson: lock.resultJson,
+          version: lock.version,
+          conversationVersion: lock.conversationVersion,
+        })
+      : null
     return {
       conversationId: conversation.id,
       conversationSessionId: lock.sessionId,
@@ -485,8 +519,8 @@ export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
       activeOwner: lock.activeMessageRequestOwner,
       activeLeaseExpiresAt: toDate(lock.messageRequestLeaseExpiresAt),
       lockVersion: Number(lock.messageRequestVersion),
-      request: requestRows[0] ? toRequestRecord(requestRows[0]) : null,
-      legacyMessageConversationId: legacyMessageRows[0]?.conversationId ?? null,
+      request,
+      legacyMessageConversationId: lock.legacyMessageConversationId,
     }
   },
 
