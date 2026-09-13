@@ -17,6 +17,7 @@ class MemoryStore implements ChatbotMessageRequestStore {
   lockVersion = 0
   requests = new Map<string, ChatbotMessageRequestRecord>()
   legacyMessageConversationId: string | null = null
+  pendingFailedRequestKey: string | null = null
 
   async load(input: Parameters<ChatbotMessageRequestStore["load"]>[0]): Promise<ChatbotMessageRequestSnapshot> {
     const lookupKey = input.recoverRequestKey ?? input.requestKey
@@ -30,6 +31,7 @@ class MemoryStore implements ChatbotMessageRequestStore {
       lockVersion: this.lockVersion,
       request: request ? { ...request } : null,
       legacyMessageConversationId: request ? null : this.legacyMessageConversationId,
+      pendingFailedRequestKey: request ? null : this.pendingFailedRequestKey,
     }
   }
 
@@ -274,6 +276,22 @@ describe("coordinateChatbotMessageRequest", () => {
       store,
       execute,
     })).rejects.toMatchObject({ code: "chatbot_message_legacy_request_untracked", status: 409 })
+    expect(execute).not.toHaveBeenCalled()
+    expect(store.requests.size).toBe(0)
+  })
+
+  it("blocks a new request while a failed request still has its saved user message", async () => {
+    store.pendingFailedRequestKey = "client_msg_failed"
+    const execute = vi.fn(async () => ({ answer: "must not run" }))
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId: "session_1",
+      requestId: "request_new",
+      requestKey: "client_msg_new",
+      payloadHash: "payload_new",
+      store,
+      execute,
+    })).rejects.toMatchObject({ code: "chatbot_message_previous_request_recovery_required", status: 409 })
     expect(execute).not.toHaveBeenCalled()
     expect(store.requests.size).toBe(0)
   })

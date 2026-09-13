@@ -27,6 +27,7 @@ export type ChatbotMessageRequestSnapshot = {
   lockVersion: number
   request: ChatbotMessageRequestRecord | null
   legacyMessageConversationId?: string | null
+  pendingFailedRequestKey?: string | null
 }
 
 export type ChatbotMessageRequestStore = {
@@ -142,6 +143,9 @@ export async function coordinateChatbotMessageRequest<T>(
           : "chatbot_message_request_session_mismatch",
         409,
       )
+    }
+    if (!request && snapshot.pendingFailedRequestKey) {
+      throw new ChatbotMessageCoordinationError("chatbot_message_previous_request_recovery_required", 409)
     }
     if (input.recoverRequestKey && !request && input.recoverRequestKey !== input.requestKey) {
       throw new ChatbotMessageCoordinationError("chatbot_message_recovery_request_unknown", 409)
@@ -302,6 +306,7 @@ type LoadRow = LockRow & {
   version: number | bigint | null
   conversationVersion: number | bigint | null
   legacyMessageConversationId: string | null
+  pendingFailedRequestKey: string | null
 }
 
 export async function assertChatbotMessageRequestOwnership(
@@ -502,7 +507,18 @@ export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
               c."messageRequestLeaseExpiresAt", c."messageRequestVersion",
               r."key", r."conversationId", r."payloadHash", r."status", r."owner",
               r."leaseExpiresAt", r."resultJson", r."version", r."conversationVersion",
-              m."conversationId" AS "legacyMessageConversationId"
+              m."conversationId" AS "legacyMessageConversationId",
+              (
+                SELECT failed."key"
+                FROM "ChatbotMessageRequest" failed
+                JOIN "ChatbotMessage" failed_user
+                  ON failed_user."id" = failed."key"
+                 AND failed_user."conversationId" = failed."conversationId"
+                 AND failed_user."role" = 'user'
+                WHERE failed."conversationId" = c."id" AND failed."status" = 'failed'
+                ORDER BY failed."updatedAt" DESC
+                LIMIT 1
+              ) AS "pendingFailedRequestKey"
        FROM "ChatbotConversation" c
        LEFT JOIN "ChatbotMessageRequest" r ON r."key" = ?
        LEFT JOIN "ChatbotMessage" m ON m."id" = ? AND r."key" IS NULL
@@ -536,6 +552,7 @@ export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
       lockVersion: Number(lock.messageRequestVersion),
       request,
       legacyMessageConversationId: lock.legacyMessageConversationId,
+      pendingFailedRequestKey: lock.pendingFailedRequestKey,
     }
   },
 

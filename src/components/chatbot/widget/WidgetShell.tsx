@@ -920,7 +920,7 @@ export function WidgetShell({
   }
 
   const handleSubmit = async (text: string) => {
-    if (submitting || activeRequestControllerRef.current) return
+    if (submitting || activeRequestControllerRef.current || recoverableRequest) return
     const debugStartedAt = Date.now()
     const controller = new AbortController()
     activeRequestControllerRef.current = controller
@@ -1049,7 +1049,7 @@ export function WidgetShell({
   const handleEditMessage = async (messageId: string, newText: string) => {
     const targetIndex = messages.findIndex((message) => message.id === messageId && message.role === "user")
     const trimmedText = newText.trim()
-    if (targetIndex === -1 || !trimmedText || submitting || activeRequestControllerRef.current) return
+    if (targetIndex === -1 || !trimmedText || submitting || activeRequestControllerRef.current || recoverableRequest) return
     const debugStartedAt = Date.now()
     const controller = new AbortController()
     activeRequestControllerRef.current = controller
@@ -1580,7 +1580,7 @@ export function WidgetShell({
                           ? assistantDisplayName
                           : undefined
                     }
-                    editingDisabled={submitting}
+                    editingDisabled={submitting || Boolean(recoverableRequest)}
                     onEdit={handleEditMessage}
                   />
                 ) : null}
@@ -1674,7 +1674,7 @@ export function WidgetShell({
         inputRef={chatInputRef}
         onSubmit={handleSubmit}
         onStop={handleStop}
-        disabled={submitting}
+        disabled={submitting || Boolean(recoverableRequest)}
         stoppingEnabled={submitting}
       />
       {isFloating ? (
