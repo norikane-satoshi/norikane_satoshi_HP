@@ -928,6 +928,79 @@ describe("WidgetShell API wiring", () => {
     expect(screen.queryByLabelText("問い合わせフォーム")).not.toBeInTheDocument()
   })
 
+  it("retries an interrupted edit with both its original target and durable recovery key", async () => {
+    const submittedAt = new Date(Date.now() - 20 * 60 * 1000).toISOString()
+    const pendingRequest = {
+      kind: "edit" as const,
+      message: "編集後の相談です",
+      clientUserMessageId: "client_msg_11111111-1111-4111-8111-111111111111",
+      editTargetMessageId: "user_original",
+      submittedAt,
+      conversationId: "conv_1",
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        userMessage: {
+          id: pendingRequest.clientUserMessageId,
+          role: "user",
+          content: pendingRequest.message,
+          createdAt: "2026-05-26T00:00:02.000Z",
+        },
+        assistantMessage: {
+          id: "assistant_recovered_edit",
+          role: "assistant",
+          content: "編集を復旧しました",
+          createdAt: "2026-05-26T00:00:03.000Z",
+        },
+        tier: "tier-2-gemini-flash",
+        ui: { kind: "none" },
+      }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    writeStoredWidgetSession({
+      messages: [
+        {
+          id: "user_prior",
+          role: "user",
+          content: "先行相談",
+          createdAt: "2026-05-26T00:00:00.000Z",
+        },
+        {
+          id: "assistant_prior",
+          role: "assistant",
+          content: "先行回答",
+          createdAt: "2026-05-26T00:00:01.000Z",
+        },
+        {
+          id: "user_original",
+          role: "user",
+          content: pendingRequest.message,
+          createdAt: submittedAt,
+        },
+      ],
+      conversationId: "conv_1",
+      activeUi: { kind: "none" },
+      pendingRequest,
+    })
+
+    render(<WidgetShell onMinimize={vi.fn()} displayMode="full-screen" />)
+    fireEvent.click(await screen.findByRole("button", { name: "再送する" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      message: pendingRequest.message,
+      conversationId: "conv_1",
+      clientUserMessageId: pendingRequest.clientUserMessageId,
+      recoverClientUserMessageId: pendingRequest.clientUserMessageId,
+      editTargetMessageId: pendingRequest.editTargetMessageId,
+      pendingRequestKind: "edit",
+    })
+    expect(await screen.findByText("編集を復旧しました")).toBeInTheDocument()
+    expect(screen.getByText("先行相談")).toBeInTheDocument()
+    expect(screen.getByText("先行回答")).toBeInTheDocument()
+  })
+
   it("auto-scrolls to the latest assistant response when the conversation is already at bottom", async () => {
     let resolveFetch: (response: ReturnType<typeof mockJsonResponse>) => void = () => undefined
     const fetchMock = vi.fn(

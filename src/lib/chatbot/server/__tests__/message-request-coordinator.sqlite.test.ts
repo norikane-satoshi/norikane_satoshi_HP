@@ -389,6 +389,151 @@ describeSqlite("message request coordinator SQLite integration", () => {
     })).resolves.toBe(1)
   })
 
+  it("recovers a failed actual-handler edit by its saved request id and preserves prior history", async () => {
+    const {
+      assertChatbotMessageRequestOwnership,
+      coordinateChatbotMessageRequest,
+      finalizeChatbotMessageRequest,
+      recoverChatbotMessageRequestUserMessage,
+      replaceChatbotMessageRequestUserMessage,
+    } = await import("@/lib/chatbot/server/message-request-coordinator")
+    const { handleChatbotMessage } = await import("@/lib/chatbot/server/message-handler")
+    const { createChatbotLlmDisplayEnvelope } = await import("@/lib/chatbot/server/llm-response-normalizer")
+    const { createStaticChatbotKnowledgeSnapshot } = await import("@/lib/chatbot/server/notion-knowledge-sync")
+    const { persistChatbotMessageFinalization } = await import("@/lib/chatbot/server/repository")
+    const { prisma } = await import("@/lib/prisma")
+    const sessionId = crypto.randomUUID()
+    const priorUserId = crypto.randomUUID()
+    const priorAssistantId = crypto.randomUUID()
+    const originalEditTargetId = crypto.randomUUID()
+    const originalEditAssistantId = crypto.randomUUID()
+    const requestKey = `client_msg_${crypto.randomUUID()}`
+    const payloadHash = "actual_handler_edit_recovery"
+    await prisma.chatbotConversation.create({
+      data: {
+        sessionId,
+        routingDecision: "continue",
+        messages: {
+          create: [
+            { id: priorUserId, role: "user", content: "先行相談", createdAt: new Date("2026-09-13T00:00:00Z") },
+            { id: priorAssistantId, role: "assistant", content: "先行回答", createdAt: new Date("2026-09-13T00:00:01Z") },
+            { id: originalEditTargetId, role: "user", content: "編集前", createdAt: new Date("2026-09-13T00:00:02Z") },
+            { id: originalEditAssistantId, role: "assistant", content: "編集前回答", createdAt: new Date("2026-09-13T00:00:03Z") },
+          ],
+        },
+      },
+    })
+    const rawText = "<customer_reply>編集を安全に復旧しました</customer_reply>"
+    const generate = vi.fn().mockResolvedValue({
+      rawText,
+      displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
+      tier: "tier-1-hosted-chrome-notion-ai" as const,
+    })
+    const baseOptions = {
+      orchestratorFactory: () => ({ generate, isHealthy: vi.fn().mockResolvedValue(true) }),
+      knowledgeSnapshotLoader: vi.fn().mockResolvedValue(createStaticChatbotKnowledgeSnapshot()),
+      slackNotifier: vi.fn().mockResolvedValue({ status: "skipped" as const, reason: "disabled" }),
+    }
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId,
+      requestId: crypto.randomUUID(),
+      requestKey,
+      payloadHash,
+      completeDuringExecute: true,
+      execute: (ownership) => handleChatbotMessage(
+        {
+          sessionId,
+          message: "編集後",
+          clientUserMessageId: requestKey,
+          editTargetMessageId: originalEditTargetId,
+          pendingRequestKind: "edit",
+        },
+        {
+          ...baseOptions,
+          assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership!),
+          replaceEditedUserMessage: ({ targetMessageId, content }) =>
+            replaceChatbotMessageRequestUserMessage({ ownership: ownership!, targetMessageId, content }),
+          finalizeMessage: async () => { throw new Error("forced edit interruption after user persistence") },
+        },
+      ),
+    })).rejects.toThrow("forced edit interruption after user persistence")
+    await expect(prisma.chatbotMessage.findMany({
+      where: { conversation: { sessionId } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, role: true },
+    })).resolves.toEqual([
+      { id: priorUserId, role: "user" },
+      { id: priorAssistantId, role: "assistant" },
+      { id: requestKey, role: "user" },
+    ])
+
+    const recoveryExecute = vi.fn((ownership?: ChatbotMessageRequestOwnership) => handleChatbotMessage(
+      {
+        sessionId,
+        message: "編集後",
+        clientUserMessageId: requestKey,
+        recoverClientUserMessageId: requestKey,
+        editTargetMessageId: originalEditTargetId,
+        pendingRequestKind: "edit",
+      },
+      {
+        ...baseOptions,
+        assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership!),
+        recoverPendingUserMessage: ({ content }) => recoverChatbotMessageRequestUserMessage({
+          ownership: ownership!,
+          content,
+        }),
+        replaceEditedUserMessage: ({ targetMessageId, content }) =>
+          replaceChatbotMessageRequestUserMessage({ ownership: ownership!, targetMessageId, content }),
+        finalizeMessage: (finalization) => finalizeChatbotMessageRequest({
+          ownership: ownership!,
+          resultJson: JSON.stringify({ requestId: ownership!.owner, result: finalization.replayResult }),
+          persistBusinessData: (transaction) => persistChatbotMessageFinalization(transaction, finalization),
+        }),
+      },
+    ))
+    const recoveryInput = {
+      sessionId,
+      requestKey,
+      recoverRequestKey: requestKey,
+      payloadHash,
+      completeDuringExecute: true,
+      execute: recoveryExecute,
+    }
+    const recovered = await coordinateChatbotMessageRequest({
+      ...recoveryInput,
+      requestId: crypto.randomUUID(),
+    })
+    const replayed = await coordinateChatbotMessageRequest({
+      ...recoveryInput,
+      requestId: crypto.randomUUID(),
+    })
+
+    expect(recovered.replayed).toBe(false)
+    const publicRecoveredResult = { ...recovered.result }
+    Reflect.deleteProperty(publicRecoveredResult, "auditEvidence")
+    expect(replayed).toEqual({
+      requestId: recovered.requestId,
+      result: JSON.parse(JSON.stringify(publicRecoveredResult)),
+      replayed: true,
+    })
+    expect(recoveryExecute).toHaveBeenCalledOnce()
+    const finalMessages = await prisma.chatbotMessage.findMany({
+      where: { conversation: { sessionId } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, role: true, content: true },
+    })
+    expect(finalMessages.slice(0, 2)).toEqual([
+      { id: priorUserId, role: "user", content: "先行相談" },
+      { id: priorAssistantId, role: "assistant", content: "先行回答" },
+    ])
+    expect(finalMessages.filter((message) => message.id === requestKey)).toHaveLength(1)
+    expect(finalMessages.filter((message) => message.role === "assistant" && message.id !== priorAssistantId)).toHaveLength(1)
+    expect(finalMessages.some((message) => message.id === originalEditTargetId)).toBe(false)
+    expect(finalMessages.some((message) => message.id === originalEditAssistantId)).toBe(false)
+  })
+
   it("rejects a pre-migration message id without inserting a request or running the LLM", async () => {
     const { coordinateChatbotMessageRequest } = await import(
       "@/lib/chatbot/server/message-request-coordinator"

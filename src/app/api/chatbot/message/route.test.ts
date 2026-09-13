@@ -415,6 +415,47 @@ describe("POST /api/chatbot/message", () => {
     expect(route.truncateConversationFromMessage).not.toHaveBeenCalled()
   })
 
+  it("recovers an already-saved edit request before looking for its removed edit target", async () => {
+    const requestKey = "client_msg_11111111-1111-4111-8111-111111111111"
+    const route = await loadPost({
+      existingConversation: conversation({
+        messages: [
+          { id: "user_prior", role: "user", content: "先行相談", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: requestKey, role: "user", content: "編集後", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+    const ownership = {
+      conversationId: "conv_1",
+      requestKey,
+      owner: "11111111-2222-4333-8444-555555555555",
+      requestVersion: 2,
+    }
+    route.coordinateChatbotMessageRequest.mockImplementationOnce(async (input: {
+      execute: (value: typeof ownership) => Promise<unknown>
+    }) => ({
+      requestId: ownership.owner,
+      result: await input.execute(ownership),
+      replayed: false,
+    }))
+
+    const response = await route.POST(request({
+      message: "編集後",
+      clientUserMessageId: requestKey,
+      recoverClientUserMessageId: requestKey,
+      editTargetMessageId: "client_msg_22222222-2222-4222-8222-222222222222",
+      pendingRequestKind: "edit",
+    }))
+
+    expect(response.status).toBe(200)
+    expect(route.recoverChatbotMessageRequestUserMessage).toHaveBeenCalledWith({
+      ownership,
+      content: "編集後",
+    })
+    expect(route.replaceChatbotMessageRequestUserMessage).not.toHaveBeenCalled()
+    expect(route.appendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ role: "user" }))
+  })
+
   it("wires edit replacement through the request-owner transaction", async () => {
     const requestKey = "client_msg_11111111-1111-4111-8111-111111111111"
     const route = await loadPost({
