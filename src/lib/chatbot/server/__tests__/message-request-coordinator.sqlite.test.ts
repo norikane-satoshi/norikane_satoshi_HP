@@ -399,6 +399,7 @@ describeSqlite("message request coordinator SQLite integration", () => {
 
   it("runs actual-handler recovery atomically and rejects a simultaneous next turn", async () => {
     const {
+      appendChatbotMessageRequestUserMessage,
       assertChatbotMessageRequestOwnership,
       coordinateChatbotMessageRequest,
       finalizeChatbotMessageRequest,
@@ -441,10 +442,33 @@ describeSqlite("message request coordinator SQLite integration", () => {
         {
           ...baseOptions,
           assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership!),
+          appendOwnedUserMessage: ({ content }) => appendChatbotMessageRequestUserMessage({
+            ownership: ownership!,
+            content,
+          }),
           finalizeMessage: async () => { throw new Error("forced interruption after user persistence") },
         },
       ),
     })).rejects.toThrow("forced interruption after user persistence")
+    await expect(prisma.chatbotMessage.count({
+      where: { conversation: { sessionId }, role: "user" },
+    })).resolves.toBe(1)
+    await expect(prisma.chatbotMessage.count({
+      where: { conversation: { sessionId }, role: "assistant" },
+    })).resolves.toBe(0)
+
+    const unrelatedExecute = vi.fn(async () => ({ shouldNotRun: true }))
+    await expect(coordinateChatbotMessageRequest({
+      sessionId,
+      requestId: crypto.randomUUID(),
+      requestKey: `client_msg_${crypto.randomUUID()}`,
+      payloadHash: "unrelated_turn_before_recovery",
+      execute: unrelatedExecute,
+    })).rejects.toMatchObject({
+      code: "chatbot_message_previous_request_recovery_required",
+      status: 409,
+    })
+    expect(unrelatedExecute).not.toHaveBeenCalled()
     await expect(prisma.chatbotMessage.count({
       where: { conversation: { sessionId }, role: "user" },
     })).resolves.toBe(1)
@@ -501,6 +525,29 @@ describeSqlite("message request coordinator SQLite integration", () => {
     await expect(prisma.chatbotMessage.count({
       where: { conversation: { sessionId }, role: "assistant" },
     })).resolves.toBe(1)
+  })
+
+  it("does not block the next request when a failed request never saved a user message", async () => {
+    const { coordinateChatbotMessageRequest } = await import(
+      "@/lib/chatbot/server/message-request-coordinator"
+    )
+    const sessionId = crypto.randomUUID()
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId,
+      requestId: crypto.randomUUID(),
+      requestKey: `client_msg_${crypto.randomUUID()}`,
+      payloadHash: "failed_before_user_insert",
+      execute: async () => { throw new Error("failed before user insert") },
+    })).rejects.toThrow("failed before user insert")
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId,
+      requestId: crypto.randomUUID(),
+      requestKey: `client_msg_${crypto.randomUUID()}`,
+      payloadHash: "next_request_after_empty_failure",
+      execute: async () => ({ accepted: true }),
+    })).resolves.toMatchObject({ result: { accepted: true }, replayed: false })
   })
 
   it("recovers a failed actual-handler edit by its saved request id and preserves prior history", async () => {

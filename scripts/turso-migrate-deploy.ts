@@ -86,13 +86,16 @@ async function main(): Promise<void> {
     const sql = await readFile(m.sqlPath, "utf-8")
     const statements = splitStatements(sql)
     console.log(`[apply] ${m.name} (${statements.length} statements)`)
-    for (const stmt of statements) {
-      await client.execute(stmt)
-    }
-    await client.execute({
-      sql: `INSERT INTO ${APPLIED_TABLE}(name) VALUES (?)`,
-      args: [m.name],
-    })
+    await client.batch(
+      [
+        ...statements,
+        {
+          sql: `INSERT INTO ${APPLIED_TABLE}(name) VALUES (?)`,
+          args: [m.name],
+        },
+      ],
+      "write",
+    )
     appliedCount += 1
   }
 

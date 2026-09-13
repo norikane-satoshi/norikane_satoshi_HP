@@ -2009,6 +2009,7 @@ describe("WidgetShell API wiring", () => {
     expect(screen.queryByLabelText("問い合わせフォーム")).not.toBeInTheDocument()
     expect(screen.getByText("相談したいです")).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledOnce()
+    expect(screen.getByLabelText("相談内容")).toBeDisabled()
 
     fireEvent.click(screen.getByRole("button", { name: "フォームに切り替える" }))
     expect(await screen.findByLabelText("問い合わせフォーム")).toBeInTheDocument()
