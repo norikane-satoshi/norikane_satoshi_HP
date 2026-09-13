@@ -488,6 +488,7 @@ export function WidgetShell({
   const [isDebugOpen, setIsDebugOpen] = useState(false)
   const [lastDebugRequest, setLastDebugRequest] = useState<ChatbotDebugRequest | undefined>(undefined)
   const activeRequestControllerRef = useRef<AbortController | null>(null)
+  const activePendingRequestRef = useRef<StoredPendingRequest | undefined>(undefined)
   const minimizeTimerRef = useRef<number | null>(null)
   const pendingRecoveryStartedRef = useRef(false)
   const restoredPendingRequestRef = useRef<StoredPendingRequest | undefined>(undefined)
@@ -710,6 +711,7 @@ export function WidgetShell({
     setCustomerDisplayName(storedSession.customerDisplayName)
     setInquiryPrefill(storedSession.inquiryPrefill)
     restoredPendingRequestRef.current = storedSession.pendingRequest
+    activePendingRequestRef.current = storedSession.pendingRequest
     setPendingRequest(storedSession.pendingRequest)
     setRecoverableRequest(storedSession.recoverableRequest)
     setHasRestoredSession(true)
@@ -867,6 +869,15 @@ export function WidgetShell({
         createdAt: new Date(),
       })
       setActiveUi(noUi)
+      persistWidgetSession({
+        messages: serializeWidgetMessages(messages),
+        clientSessionId,
+        conversationId: pending.conversationId ?? conversationId,
+        activeUi: noUi,
+        ...(customerDisplayName ? { customerDisplayName } : {}),
+        ...(inquiryPrefill ? { inquiryPrefill } : {}),
+        recoverableRequest: pending,
+      })
       setRecoverableRequest(pending)
     } finally {
       finishRequest(controller)
@@ -904,6 +915,7 @@ export function WidgetShell({
   const finishRequest = (controller: AbortController) => {
     if (activeRequestControllerRef.current !== controller) return
     activeRequestControllerRef.current = null
+    activePendingRequestRef.current = undefined
     setPendingRequest(undefined)
     setShowThinkingDelayNotice(false)
     setSubmitting(false)
@@ -912,9 +924,23 @@ export function WidgetShell({
   const handleStop = () => {
     const controller = activeRequestControllerRef.current
     if (!controller) return
+    const interruptedRequest = activePendingRequestRef.current ?? pendingRequest ?? recoverableRequest
     controller.abort()
     activeRequestControllerRef.current = null
+    activePendingRequestRef.current = undefined
     setPendingRequest(undefined)
+    if (interruptedRequest) {
+      persistWidgetSession({
+        messages: serializeWidgetMessages(messages),
+        clientSessionId,
+        conversationId: interruptedRequest.conversationId ?? conversationId,
+        activeUi: noUi,
+        ...(customerDisplayName ? { customerDisplayName } : {}),
+        ...(inquiryPrefill ? { inquiryPrefill } : {}),
+        recoverableRequest: interruptedRequest,
+      })
+      setRecoverableRequest(interruptedRequest)
+    }
     setShowThinkingDelayNotice(false)
     setSubmitting(false)
   }
@@ -933,6 +959,7 @@ export function WidgetShell({
       submittedAt: createdAt.toISOString(),
       ...(conversationId ? { conversationId } : {}),
     }
+    activePendingRequestRef.current = nextPendingRequest
     setPendingRequest(nextPendingRequest)
     setRecoverableRequest(undefined)
     setMessages((currentMessages) => {
@@ -1040,6 +1067,15 @@ export function WidgetShell({
         createdAt: new Date(),
       })
       setActiveUi(noUi)
+      persistWidgetSession({
+        messages: serializeWidgetMessages(messages),
+        clientSessionId,
+        conversationId: nextPendingRequest.conversationId ?? conversationId,
+        activeUi: noUi,
+        ...(customerDisplayName ? { customerDisplayName } : {}),
+        ...(inquiryPrefill ? { inquiryPrefill } : {}),
+        recoverableRequest: nextPendingRequest,
+      })
       setRecoverableRequest(nextPendingRequest)
     } finally {
       finishRequest(controller)
@@ -1063,6 +1099,7 @@ export function WidgetShell({
       submittedAt: optimisticCreatedAt.toISOString(),
       ...(conversationId ? { conversationId } : {}),
     }
+    activePendingRequestRef.current = nextPendingRequest
     setPendingRequest(nextPendingRequest)
     setRecoverableRequest(undefined)
 
@@ -1175,6 +1212,15 @@ export function WidgetShell({
         createdAt: new Date(),
       })
       setActiveUi(noUi)
+      persistWidgetSession({
+        messages: serializeWidgetMessages(messages),
+        clientSessionId,
+        conversationId: nextPendingRequest.conversationId ?? conversationId,
+        activeUi: noUi,
+        ...(customerDisplayName ? { customerDisplayName } : {}),
+        ...(inquiryPrefill ? { inquiryPrefill } : {}),
+        recoverableRequest: nextPendingRequest,
+      })
       setRecoverableRequest(nextPendingRequest)
     } finally {
       finishRequest(controller)
@@ -1183,6 +1229,17 @@ export function WidgetShell({
 
   const handleRecoverableRetry = () => {
     if (!recoverableRequest || submitting || activeRequestControllerRef.current) return
+    persistWidgetSession({
+      messages: serializeWidgetMessages(messages),
+      clientSessionId,
+      conversationId: recoverableRequest.conversationId ?? conversationId,
+      activeUi: noUi,
+      ...(customerDisplayName ? { customerDisplayName } : {}),
+      ...(inquiryPrefill ? { inquiryPrefill } : {}),
+      pendingRequest: recoverableRequest,
+    })
+    activePendingRequestRef.current = recoverableRequest
+    setPendingRequest(recoverableRequest)
     setRecoverableRequest(undefined)
     const controller = new AbortController()
     activeRequestControllerRef.current = controller
@@ -1193,13 +1250,26 @@ export function WidgetShell({
 
   const handleRecoverableFormFallback = () => {
     if (!recoverableRequest || submitting) return
+    const nextClientSessionId = createClientSessionId()
+    const nextActiveUi: WidgetUi = { kind: "tier3-inquiry-form", prefill: inquiryPrefill }
+    const nextMessages = [
+      ...messages,
+      { role: "system" as const, content: copy.formFallback, createdAt: new Date() },
+    ]
+    activePendingRequestRef.current = undefined
+    setPendingRequest(undefined)
     setRecoverableRequest(undefined)
-    appendMessage({
-      role: "system",
-      content: copy.formFallback,
-      createdAt: new Date(),
+    setClientSessionId(nextClientSessionId)
+    setConversationId(undefined)
+    setMessages(nextMessages)
+    setActiveUi(nextActiveUi)
+    persistWidgetSession({
+      messages: serializeWidgetMessages(nextMessages),
+      clientSessionId: nextClientSessionId,
+      activeUi: nextActiveUi,
+      ...(customerDisplayName ? { customerDisplayName } : {}),
+      ...(inquiryPrefill ? { inquiryPrefill } : {}),
     })
-    setActiveUi({ kind: "tier3-inquiry-form", prefill: inquiryPrefill })
   }
 
   const handleInquirySubmit = async (input: Omit<SubmitInquiryInput, "conversationId">) => {
