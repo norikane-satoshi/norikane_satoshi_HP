@@ -1327,6 +1327,44 @@ describe("handleChatbotMessage user context", () => {
     }))
   })
 
+  it("delegates pending recovery deletion and reinsert to the fenced database operation", async () => {
+    const pendingId = "client_msg_11111111-1111-4111-8111-111111111111"
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [
+          { id: pendingId, role: "user", content: "送信中に閉じた相談", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "assistant_partial", role: "assistant", content: "未確定回答", createdAt: "2026-05-26T00:00:01.000Z" },
+        ],
+      }),
+    })
+    const recoverPendingUserMessage = vi.fn().mockResolvedValue({
+      id: pendingId,
+      role: "user",
+      content: "送信中に閉じた相談",
+      createdAt: "2026-05-26T00:00:02.000Z",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "送信中に閉じた相談",
+        clientUserMessageId: pendingId,
+        recoverClientUserMessageId: pendingId,
+        pendingRequestKind: "message",
+      },
+      { ...harness.options, recoverPendingUserMessage },
+    )
+
+    expect(recoverPendingUserMessage).toHaveBeenCalledOnce()
+    expect(recoverPendingUserMessage).toHaveBeenCalledWith({ content: "送信中に閉じた相談" })
+    expect(harness.repository.truncateConversationFromMessage).not.toHaveBeenCalled()
+    expect(harness.repository.appendMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ role: "user" }),
+    )
+    expect(result.userMessage).toMatchObject({ id: pendingId, role: "user" })
+  })
+
   it("does not truncate the previous conversation when the pending optimistic id never reached the server", async () => {
     const harness = setup({
       existingConversation: conversation({

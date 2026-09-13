@@ -16,6 +16,7 @@ class MemoryStore implements ChatbotMessageRequestStore {
   activeLeaseExpiresAt: Date | null = null
   lockVersion = 0
   requests = new Map<string, ChatbotMessageRequestRecord>()
+  legacyMessageConversationId: string | null = null
 
   async load(input: Parameters<ChatbotMessageRequestStore["load"]>[0]): Promise<ChatbotMessageRequestSnapshot> {
     const lookupKey = input.recoverRequestKey ?? input.requestKey
@@ -28,6 +29,7 @@ class MemoryStore implements ChatbotMessageRequestStore {
       activeLeaseExpiresAt: this.activeLeaseExpiresAt,
       lockVersion: this.lockVersion,
       request: request ? { ...request } : null,
+      legacyMessageConversationId: request ? null : this.legacyMessageConversationId,
     }
   }
 
@@ -214,6 +216,22 @@ describe("coordinateChatbotMessageRequest", () => {
       execute: async () => ({ answer: "recovered" }),
     })).resolves.toMatchObject({ result: { answer: "recovered" }, replayed: false })
     expect(store.requests.get("client_msg_original")?.status).toBe("completed")
+  })
+
+  it("rejects a pre-migration message id that has no durable request record", async () => {
+    store.legacyMessageConversationId = "conv_1"
+    const execute = vi.fn(async () => ({ answer: "must not run" }))
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId: "session_1",
+      requestId: "request_late",
+      requestKey: "client_msg_legacy",
+      payloadHash: "payload_legacy",
+      store,
+      execute,
+    })).rejects.toMatchObject({ code: "chatbot_message_legacy_request_untracked", status: 409 })
+    expect(execute).not.toHaveBeenCalled()
+    expect(store.requests.size).toBe(0)
   })
 
   it("allows explicit recovery after failure and rejects same-key payload changes", async () => {

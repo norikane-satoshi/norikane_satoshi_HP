@@ -103,6 +103,15 @@ async function loadPost({
   const scheduleChatbotAuditPersistence = vi.fn()
   const assertChatbotMessageRequestOwnership = vi.fn().mockResolvedValue(undefined)
   const finalizeChatbotMessageRequest = vi.fn().mockResolvedValue(undefined)
+  const recoverChatbotMessageRequestUserMessage = vi.fn(async (input: {
+    ownership: { requestKey: string }
+    content: string
+  }) => ({
+    id: input.ownership.requestKey,
+    role: "user",
+    content: input.content,
+    createdAt: "2026-05-26T00:00:02.000Z",
+  }))
   const persistChatbotMessageFinalization = vi.fn().mockResolvedValue(undefined)
   const coordinateChatbotMessageRequest = vi.fn(async (input: {
     requestId: string
@@ -144,6 +153,7 @@ async function loadPost({
     assertChatbotMessageRequestOwnership,
     coordinateChatbotMessageRequest,
     finalizeChatbotMessageRequest,
+    recoverChatbotMessageRequestUserMessage,
     hashChatbotMessagePayload: vi.fn(() => "payload_hash"),
   }))
   vi.doMock("@/lib/chatbot/server/repository", () => ({ persistChatbotMessageFinalization }))
@@ -167,6 +177,7 @@ async function loadPost({
     assertChatbotMessageRequestOwnership,
     coordinateChatbotMessageRequest,
     finalizeChatbotMessageRequest,
+    recoverChatbotMessageRequestUserMessage,
     persistChatbotMessageFinalization,
   }
 }
@@ -352,6 +363,45 @@ describe("POST /api/chatbot/message", () => {
     expect(route.appendMessage).toHaveBeenCalledOnce()
     expect(route.appendMessage).toHaveBeenCalledWith(expect.objectContaining({ role: "user" }))
     expect(route.updateConversationRouting).not.toHaveBeenCalled()
+  })
+
+  it("wires pending recovery through the request-owner transaction", async () => {
+    const requestKey = "client_msg_11111111-1111-4111-8111-111111111111"
+    const route = await loadPost({
+      existingConversation: conversation({
+        messages: [
+          { id: requestKey, role: "user", content: "途中の相談", createdAt: "2026-05-26T00:00:00.000Z" },
+        ],
+      }),
+    })
+    const ownership = {
+      conversationId: "conv_1",
+      requestKey,
+      owner: "11111111-2222-4333-8444-555555555555",
+      requestVersion: 2,
+    }
+    route.coordinateChatbotMessageRequest.mockImplementationOnce(async (input: {
+      execute: (value: typeof ownership) => Promise<unknown>
+    }) => ({
+      requestId: ownership.owner,
+      result: await input.execute(ownership),
+      replayed: false,
+    }))
+
+    const response = await route.POST(request({
+      message: "途中の相談",
+      clientUserMessageId: requestKey,
+      recoverClientUserMessageId: requestKey,
+      pendingRequestKind: "message",
+    }))
+
+    expect(response.status).toBe(200)
+    expect(route.recoverChatbotMessageRequestUserMessage).toHaveBeenCalledWith({
+      ownership,
+      content: "途中の相談",
+    })
+    expect(route.appendMessage).not.toHaveBeenCalled()
+    expect(route.truncateConversationFromMessage).not.toHaveBeenCalled()
   })
 
   it("uses the authenticated user id when loading or creating the conversation", async () => {
