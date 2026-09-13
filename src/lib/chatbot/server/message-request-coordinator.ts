@@ -377,6 +377,40 @@ export async function recoverChatbotMessageRequestUserMessage(input: {
   })
 }
 
+export async function appendChatbotMessageRequestUserMessage(input: {
+  ownership: ChatbotMessageRequestOwnership
+  content: string
+}): Promise<{ id: string; role: "user"; content: string; createdAt: string }> {
+  let createdAt = new Date()
+  const appended = await runCasTransaction(async (tx) => {
+    await assertRequestOwnershipInTransaction(tx, input.ownership)
+    createdAt = new Date()
+    await tx.chatbotConversation.update({
+      where: { id: input.ownership.conversationId },
+      data: {
+        lastMessageAt: createdAt,
+        messages: {
+          create: {
+            id: input.ownership.requestKey,
+            role: "user",
+            content: input.content,
+            createdAt,
+          },
+        },
+      },
+    })
+  })
+  if (!appended) {
+    throw new ChatbotMessageCoordinationError("chatbot_message_request_ownership_lost", 409)
+  }
+  return {
+    id: input.ownership.requestKey,
+    role: "user",
+    content: input.content,
+    createdAt: createdAt.toISOString(),
+  }
+}
+
 export async function replaceChatbotMessageRequestUserMessage(input: {
   ownership: ChatbotMessageRequestOwnership
   targetMessageId: string
@@ -384,24 +418,7 @@ export async function replaceChatbotMessageRequestUserMessage(input: {
 }): Promise<{ id: string; role: "user"; content: string; createdAt: string }> {
   let createdAt = new Date()
   const recovered = await runCasTransaction(async (tx) => {
-    const ownershipRetained = await tx.$executeRawUnsafe(
-      `UPDATE "ChatbotConversation"
-       SET "messageRequestVersion" = "messageRequestVersion"
-       WHERE "id" = ? AND "activeMessageRequestKey" = ? AND "activeMessageRequestOwner" = ?
-         AND EXISTS (
-           SELECT 1 FROM "ChatbotMessageRequest" r
-           WHERE r."key" = ? AND r."conversationId" = ? AND r."owner" = ?
-             AND r."version" = ? AND r."status" = 'processing'
-         )`,
-      input.ownership.conversationId,
-      input.ownership.requestKey,
-      input.ownership.owner,
-      input.ownership.requestKey,
-      input.ownership.conversationId,
-      input.ownership.owner,
-      input.ownership.requestVersion,
-    )
-    if (ownershipRetained !== 1) throw new CoordinationCasError()
+    await assertRequestOwnershipInTransaction(tx, input.ownership)
 
     const target = await tx.chatbotMessage.findUnique({
       where: { id: input.targetMessageId },
@@ -650,6 +667,30 @@ async function runCasTransaction(
     if (error instanceof CoordinationCasError || isUniqueConstraintError(error)) return false
     throw error
   }
+}
+
+async function assertRequestOwnershipInTransaction(
+  transaction: Prisma.TransactionClient,
+  ownership: ChatbotMessageRequestOwnership,
+): Promise<void> {
+  const ownershipRetained = await transaction.$executeRawUnsafe(
+    `UPDATE "ChatbotConversation"
+     SET "messageRequestVersion" = "messageRequestVersion"
+     WHERE "id" = ? AND "activeMessageRequestKey" = ? AND "activeMessageRequestOwner" = ?
+       AND EXISTS (
+         SELECT 1 FROM "ChatbotMessageRequest" r
+         WHERE r."key" = ? AND r."conversationId" = ? AND r."owner" = ?
+           AND r."version" = ? AND r."status" = 'processing'
+       )`,
+    ownership.conversationId,
+    ownership.requestKey,
+    ownership.owner,
+    ownership.requestKey,
+    ownership.conversationId,
+    ownership.owner,
+    ownership.requestVersion,
+  )
+  if (ownershipRetained !== 1) throw new CoordinationCasError()
 }
 
 function isUniqueConstraintError(error: unknown): boolean {

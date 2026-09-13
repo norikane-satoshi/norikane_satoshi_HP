@@ -14,6 +14,7 @@ import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import {
   ChatbotMessageCoordinationError,
+  appendChatbotMessageRequestUserMessage,
   assertChatbotMessageRequestOwnership,
   coordinateChatbotMessageRequest,
   finalizeChatbotMessageRequest,
@@ -119,6 +120,10 @@ export async function POST(request: NextRequest) {
         ownership
           ? {
               assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership),
+              appendOwnedUserMessage: ({ content }) => appendChatbotMessageRequestUserMessage({
+                ownership,
+                content,
+              }),
               recoverPendingUserMessage: ({ content }) => recoverChatbotMessageRequestUserMessage({
                 ownership,
                 content,

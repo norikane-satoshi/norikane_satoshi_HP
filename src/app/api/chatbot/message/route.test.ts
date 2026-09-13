@@ -119,6 +119,15 @@ async function loadPost({
   const scheduleChatbotAuditPersistence = vi.fn()
   const assertChatbotMessageRequestOwnership = vi.fn().mockResolvedValue(undefined)
   const finalizeChatbotMessageRequest = vi.fn().mockResolvedValue(undefined)
+  const appendChatbotMessageRequestUserMessage = vi.fn(async (input: {
+    ownership: { requestKey: string }
+    content: string
+  }) => ({
+    id: input.ownership.requestKey,
+    role: "user",
+    content: input.content,
+    createdAt: "2026-05-26T00:00:00.000Z",
+  }))
   const recoverChatbotMessageRequestUserMessage = vi.fn(async (input: {
     ownership: { requestKey: string }
     content: string
@@ -175,6 +184,7 @@ async function loadPost({
   vi.doMock("@/lib/chatbot/audit/scheduler", () => ({ scheduleChatbotAuditPersistence }))
   vi.doMock("@/lib/chatbot/server/message-request-coordinator", () => ({
     ChatbotMessageCoordinationError: class ChatbotMessageCoordinationError extends Error {},
+    appendChatbotMessageRequestUserMessage,
     assertChatbotMessageRequestOwnership,
     coordinateChatbotMessageRequest,
     finalizeChatbotMessageRequest,
@@ -201,6 +211,7 @@ async function loadPost({
     sendChatbotSlackNotification,
     scheduleChatbotAuditPersistence,
     assertChatbotMessageRequestOwnership,
+    appendChatbotMessageRequestUserMessage,
     coordinateChatbotMessageRequest,
     finalizeChatbotMessageRequest,
     recoverChatbotMessageRequestUserMessage,
@@ -407,8 +418,11 @@ describe("POST /api/chatbot/message", () => {
         assistantMessage: expect.objectContaining({ role: "assistant" }),
       }),
     )
-    expect(route.appendMessage).toHaveBeenCalledOnce()
-    expect(route.appendMessage).toHaveBeenCalledWith(expect.objectContaining({ role: "user" }))
+    expect(route.appendChatbotMessageRequestUserMessage).toHaveBeenCalledWith({
+      ownership,
+      content: "相談したいです",
+    })
+    expect(route.appendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ role: "user" }))
     expect(route.updateConversationRouting).not.toHaveBeenCalled()
   })
 
