@@ -19,6 +19,7 @@ import {
   finalizeChatbotMessageRequest,
   hashChatbotMessagePayload,
   recoverChatbotMessageRequestUserMessage,
+  replaceChatbotMessageRequestUserMessage,
 } from "@/lib/chatbot/server/message-request-coordinator"
 import { respondChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
 import { persistChatbotMessageFinalization } from "@/lib/chatbot/server/repository"
@@ -122,6 +123,12 @@ export async function POST(request: NextRequest) {
                 ownership,
                 content,
               }),
+              replaceEditedUserMessage: ({ targetMessageId, content }) =>
+                replaceChatbotMessageRequestUserMessage({
+                  ownership,
+                  targetMessageId,
+                  content,
+                }),
               finalizeMessage: (finalization) => finalizeChatbotMessageRequest({
                 ownership,
                 resultJson: JSON.stringify({
