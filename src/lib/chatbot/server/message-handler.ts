@@ -111,6 +111,7 @@ import {
   type ChatbotMessageAuditEvidence,
   type ChatbotTierAttemptAuditEvidence,
 } from "@/lib/chatbot/audit/server-evidence"
+import type { UpdateConversationRoutingInput } from "@/lib/chatbot/server/repository"
 
 type ChatbotMessageUi =
   | { kind: "none" }
@@ -167,6 +168,13 @@ export type ChatbotMessageHandlerResult = ChatbotMessageApiResult & {
   auditEvidence: ChatbotMessageAuditEvidence
 }
 
+export type ChatbotMessageFinalizationInput = {
+  conversationId: string
+  assistantMessage: ChatbotMessageApiResult["assistantMessage"]
+  routingUpdate?: UpdateConversationRoutingInput
+  replayResult: ChatbotMessageApiResult
+}
+
 export type HandleChatbotMessageInput = {
   requestId?: string
   sessionId: string
@@ -211,6 +219,8 @@ type HandleChatbotMessageOptions = {
   candidateWindowFinder?: CandidateWindowFinder
   knowledgeSnapshotLoader?: typeof loadLatestChatbotKnowledgeSnapshot
   slackNotifier?: typeof sendChatbotSlackNotification
+  assertRequestOwnership?: () => Promise<void>
+  finalizeMessage?: (input: ChatbotMessageFinalizationInput) => Promise<void>
   now?: () => number
 }
 
@@ -267,6 +277,7 @@ export async function handleChatbotMessage(
   const candidateWindowFinder = options.candidateWindowFinder ?? findCandidateCalendar
   const knowledgeSnapshotLoader = options.knowledgeSnapshotLoader ?? loadLatestChatbotKnowledgeSnapshot
   const slackNotifier = options.slackNotifier ?? sendChatbotSlackNotification
+  const assertRequestOwnership = options.assertRequestOwnership ?? (async () => undefined)
   const conversationLoadStartedAt = now()
   let conversation = await repository.loadOrCreateConversationBySessionId({
     sessionId: input.sessionId,
@@ -286,6 +297,7 @@ export async function handleChatbotMessage(
 
   let didTruncateForEdit = false
   let editSlackEvent: ChatbotEditSlackEvent | undefined
+  await assertRequestOwnership()
   if (input.editTargetMessageId) {
     const targetIndex = conversation.messages.findIndex((message) => message.id === input.editTargetMessageId)
     if (targetIndex === -1) {
@@ -350,6 +362,7 @@ export async function handleChatbotMessage(
   conversation = reconcileConversationContextFromHistory(conversation)
 
   const userMessagePersistStartedAt = now()
+  await assertRequestOwnership()
   const userMessage = await repository.appendMessage({
     ...(input.clientUserMessageId ? { id: input.clientUserMessageId } : {}),
     conversationId: conversation.id,
@@ -359,6 +372,7 @@ export async function handleChatbotMessage(
   conversationPersistMs += elapsedMs(userMessagePersistStartedAt, now())
   const contextPreparationStartedAt = now()
   if (editSlackEvent) {
+    await assertRequestOwnership()
     await notifySlackForChatbotEdit({
       notifier: slackNotifier,
       requestId: input.requestId,
@@ -591,12 +605,24 @@ export async function handleChatbotMessage(
   })
   stageTimings.responseNormalization = elapsedMs(responseNormalizationStartedAt, now())
   const assistantMessagePersistStartedAt = now()
-  const assistantMessage = await repository.appendMessage({
-    conversationId: conversation.id,
-    role: "assistant",
-    content: assistantContent,
-  })
-  conversationPersistMs += elapsedMs(assistantMessagePersistStartedAt, now())
+  const assistantMessage: ChatbotMessageApiResult["assistantMessage"] = options.finalizeMessage
+    ? {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: assistantContent,
+        createdAt: new Date(now()).toISOString(),
+      }
+    : await (async () => {
+        await assertRequestOwnership()
+        return repository.appendMessage({
+          conversationId: conversation.id,
+          role: "assistant",
+          content: assistantContent,
+        })
+      })()
+  if (!options.finalizeMessage) {
+    conversationPersistMs += elapsedMs(assistantMessagePersistStartedAt, now())
+  }
 
   const issueReasons = detectChatbotIssueReasons(llmResponse.tier)
   logChatbotLlmFinalResponse({
@@ -620,27 +646,61 @@ export async function handleChatbotMessage(
     persistedConversationState.contactEmail !== storedConversationState.contactEmail ||
     persistedConversationState.hasCustomerIdentity !== storedConversationState.hasCustomerIdentity ||
     persistedConversationState.hasContactEmail !== storedConversationState.hasContactEmail
-  if (routingDecision || submittedBooking || customerIdentityChanged) {
+  const routingUpdate: UpdateConversationRoutingInput | undefined =
+    routingDecision || submittedBooking || customerIdentityChanged
+      ? {
+          conversationId: conversation.id,
+          routingDecision: routingDecision?.kind ?? conversation.context.routingDecision?.kind ?? "continue",
+          currentQuestion:
+            routingDecision?.kind === "continue"
+              ? routingDecision.nextQuestion
+              : routingDecision
+                ? null
+                : conversation.context.currentQuestion ?? null,
+          activeChoices:
+            routingDecision?.kind === "continue"
+              ? routingDecision.presentChoices ?? null
+              : routingDecision
+                ? null
+                : conversation.context.activeChoices ?? null,
+          conversationState: persistedConversationState,
+          jobContext,
+        }
+      : undefined
+  const lifecycleDebug = summarizeChatbotLifecycleDebug(llmResponse.diagnostics)
+  const publicResult: ChatbotMessageApiResult = {
+    conversationId: conversation.id,
+    userMessage: {
+      id: userMessage.id,
+      role: userMessage.role,
+      content: userMessage.content,
+      createdAt: userMessage.createdAt,
+    },
+    assistantMessage,
+    routingDecision,
+    tier: llmResponse.tier,
+    ui,
+    ...(persistedConversationState.customerName
+      ? { customerDisplayName: persistedConversationState.customerName }
+      : {}),
+    inquiryPrefill,
+    ...(lifecycleDebug ? { debug: lifecycleDebug } : {}),
+  }
+
+  if (options.finalizeMessage) {
+    await assertRequestOwnership()
+    await options.finalizeMessage({
+      conversationId: conversation.id,
+      assistantMessage,
+      routingUpdate,
+      replayResult: publicResult,
+    })
+    conversationPersistMs += elapsedMs(assistantMessagePersistStartedAt, now())
+  } else if (routingUpdate) {
     const routingPersistStartedAt = now()
     try {
-      await repository.updateConversationRouting({
-        conversationId: conversation.id,
-        routingDecision: routingDecision?.kind ?? conversation.context.routingDecision?.kind ?? "continue",
-        currentQuestion:
-          routingDecision?.kind === "continue"
-            ? routingDecision.nextQuestion
-            : routingDecision
-              ? null
-              : conversation.context.currentQuestion ?? null,
-        activeChoices:
-          routingDecision?.kind === "continue"
-            ? routingDecision.presentChoices ?? null
-            : routingDecision
-              ? null
-              : conversation.context.activeChoices ?? null,
-        conversationState: persistedConversationState,
-        jobContext,
-      })
+      await assertRequestOwnership()
+      await repository.updateConversationRouting(routingUpdate)
       conversationPersistMs += elapsedMs(routingPersistStartedAt, now())
     } catch (error) {
       throw new ChatbotMessagePersistenceError({
@@ -654,6 +714,7 @@ export async function handleChatbotMessage(
   }
   stageTimings.conversationPersist = conversationPersistMs
   const slackNotificationStartedAt = now()
+  if (!options.finalizeMessage) await assertRequestOwnership()
   const slack = await notifySlackForChatbotResponse({
     notifier: slackNotifier,
     repository,
@@ -690,26 +751,7 @@ export async function handleChatbotMessage(
   stageTimings.totalServer = elapsedMs(totalServerStartedAt, now())
 
   return {
-    conversationId: conversation.id,
-    userMessage: {
-      id: userMessage.id,
-      role: userMessage.role,
-      content: userMessage.content,
-      createdAt: userMessage.createdAt,
-    },
-    assistantMessage: {
-      id: assistantMessage.id,
-      role: assistantMessage.role,
-      content: assistantMessage.content,
-      createdAt: assistantMessage.createdAt,
-    },
-    routingDecision,
-    tier: llmResponse.tier,
-    ui,
-    ...(persistedConversationState.customerName
-      ? { customerDisplayName: persistedConversationState.customerName }
-      : {}),
-    inquiryPrefill,
+    ...publicResult,
     auditEvidence: {
       stageTimings,
       tierAttempts,
@@ -720,10 +762,6 @@ export async function handleChatbotMessage(
         assistantMessage.role,
       ]),
     },
-    ...(() => {
-      const debug = summarizeChatbotLifecycleDebug(llmResponse.diagnostics)
-      return debug ? { debug } : {}
-    })(),
   }
 }
 

@@ -12,7 +12,15 @@ import type { ChatbotConversation } from "@/lib/chatbot/domain"
 import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
+import {
+  ChatbotMessageCoordinationError,
+  assertChatbotMessageRequestOwnership,
+  coordinateChatbotMessageRequest,
+  finalizeChatbotMessageRequest,
+  hashChatbotMessagePayload,
+} from "@/lib/chatbot/server/message-request-coordinator"
 import { respondChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
+import { persistChatbotMessageFinalization } from "@/lib/chatbot/server/repository"
 import {
   loadConversationById,
   loadConversationBySessionId,
@@ -76,43 +84,85 @@ export async function POST(request: NextRequest) {
   const userAgent = request.headers.get("user-agent") ?? undefined
 
   try {
-    const result = await handleChatbotMessage({
-      requestId,
+    const coordinated = await coordinateChatbotMessageRequest({
       sessionId,
-      userAgent,
       userId: session?.user?.id,
-      message: parsed.data.message,
-      conversationId: parsed.data.conversationId,
-      editTargetMessageId: parsed.data.editTargetMessageId,
-      clientUserMessageId: parsed.data.clientUserMessageId,
-      recoverClientUserMessageId: parsed.data.recoverClientUserMessageId,
-      pendingRequestKind: parsed.data.pendingRequestKind,
-      jobContext: parsed.data.jobContext,
-      conversationState: parsed.data.conversationState,
-    })
-    const { auditEvidence, ...publicResult } = result
-    const auditEvents = buildChatbotMessageAuditEvents({
       requestId,
-      conversationId: result.conversationId,
-      buildSha: getChatbotBuildSha(),
-      createdAt: new Date().toISOString(),
-      finalTier: result.tier,
-      uiKind: result.ui.kind,
-      ...auditEvidence,
+      requestKey: parsed.data.clientUserMessageId,
+      recoverRequestKey: parsed.data.recoverClientUserMessageId,
+      payloadHash: hashChatbotMessagePayload({
+        sessionId,
+        userId: session?.user?.id ?? null,
+        message: parsed.data.message,
+        editTargetMessageId: parsed.data.editTargetMessageId ?? null,
+        jobContext: parsed.data.jobContext ?? null,
+        conversationState: parsed.data.conversationState ?? null,
+      }),
+      completeDuringExecute: Boolean(parsed.data.clientUserMessageId),
+      execute: (ownership) => handleChatbotMessage(
+        {
+          requestId,
+          sessionId,
+          userAgent,
+          userId: session?.user?.id,
+          message: parsed.data.message,
+          conversationId: parsed.data.conversationId,
+          editTargetMessageId: parsed.data.editTargetMessageId,
+          clientUserMessageId: parsed.data.clientUserMessageId,
+          recoverClientUserMessageId: parsed.data.recoverClientUserMessageId,
+          pendingRequestKind: parsed.data.pendingRequestKind,
+          jobContext: parsed.data.jobContext,
+          conversationState: parsed.data.conversationState,
+        },
+        ownership
+          ? {
+              assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership),
+              finalizeMessage: (finalization) => finalizeChatbotMessageRequest({
+                ownership,
+                resultJson: JSON.stringify({
+                  requestId: ownership.owner,
+                  result: finalization.replayResult,
+                }),
+                persistBusinessData: (transaction) => persistChatbotMessageFinalization(
+                  transaction,
+                  finalization,
+                ),
+              }),
+            }
+          : undefined,
+      ),
     })
-    scheduleChatbotAuditPersistence(auditEvents)
+    const result = coordinated.result
+    const responseRequestId = coordinated.requestId
+    const { auditEvidence, ...publicResult } = result
+    if (!coordinated.replayed && !auditEvidence) {
+      throw new Error("chatbot_message_audit_evidence_missing")
+    }
+    const auditEvents = coordinated.replayed
+      ? []
+      : buildChatbotMessageAuditEvents({
+          requestId: responseRequestId,
+          conversationId: result.conversationId,
+          buildSha: getChatbotBuildSha(),
+          createdAt: new Date().toISOString(),
+          finalTier: result.tier,
+          uiKind: result.ui.kind,
+          ...auditEvidence!,
+        })
+    if (!coordinated.replayed) scheduleChatbotAuditPersistence(auditEvents)
     const response = NextResponse.json({
       ...publicResult,
-      requestId,
+      requestId: responseRequestId,
       clientBuildId: process.env.NEXT_PUBLIC_CHATBOT_BUILD_ID ?? "local",
       ...(isLoopbackHostname(request.nextUrl.hostname)
         ? {
             auditDebug: {
               schemaVersion: "1",
-              persistenceStatus: "scheduled",
+              persistenceStatus: coordinated.replayed ? "complete" : "scheduled",
               eventCount: auditEvents.length,
-              stageTimings: auditEvidence.stageTimings,
+              stageTimings: auditEvidence?.stageTimings ?? {},
             },
+            requestReplay: coordinated.replayed,
           }
         : {}),
     })
@@ -153,6 +203,7 @@ export async function POST(request: NextRequest) {
       requestId,
       stage: failureStage,
       error,
+      status: error instanceof ChatbotMessageCoordinationError ? error.status : undefined,
       requestSummary: {
         requestId,
         conversationId: parsed.data.conversationId,

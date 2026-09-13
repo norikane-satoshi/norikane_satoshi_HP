@@ -752,7 +752,9 @@ export function WidgetShell({
 
   const recoverPendingRequest = async (pending: StoredPendingRequest, controller: AbortController) => {
     const debugStartedAt = Date.now()
-    const recoveryClientUserMessageId = createClientUserMessageId()
+    // Reuse the original idempotency key. If the first request never reached the server,
+    // this retry claims that key; if it did, the server waits for or replays its result.
+    const recoveryClientUserMessageId = pending.clientUserMessageId
     const restoreAgeMs = Date.now() - new Date(pending.submittedAt).getTime()
     console.warn("[CHATBOT_WIDGET_PENDING_RECOVERY]", {
       event: "chatbot_widget_pending_recovery",
@@ -915,7 +917,7 @@ export function WidgetShell({
   }
 
   const handleSubmit = async (text: string) => {
-    if (submitting) return
+    if (submitting || activeRequestControllerRef.current) return
     const debugStartedAt = Date.now()
     const controller = new AbortController()
     activeRequestControllerRef.current = controller
@@ -1044,7 +1046,7 @@ export function WidgetShell({
   const handleEditMessage = async (messageId: string, newText: string) => {
     const targetIndex = messages.findIndex((message) => message.id === messageId && message.role === "user")
     const trimmedText = newText.trim()
-    if (targetIndex === -1 || !trimmedText || submitting) return
+    if (targetIndex === -1 || !trimmedText || submitting || activeRequestControllerRef.current) return
     const debugStartedAt = Date.now()
     const controller = new AbortController()
     activeRequestControllerRef.current = controller
@@ -1177,7 +1179,7 @@ export function WidgetShell({
   }
 
   const handleRecoverableRetry = () => {
-    if (!recoverableRequest || submitting) return
+    if (!recoverableRequest || submitting || activeRequestControllerRef.current) return
     setRecoverableRequest(undefined)
     const controller = new AbortController()
     activeRequestControllerRef.current = controller

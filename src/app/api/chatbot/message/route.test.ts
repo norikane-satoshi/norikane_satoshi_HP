@@ -101,6 +101,17 @@ async function loadPost({
   const generate = vi.fn().mockResolvedValue(withDisplayEnvelope(llmResponse))
   const sendChatbotSlackNotification = vi.fn().mockResolvedValue(slackNotificationResult)
   const scheduleChatbotAuditPersistence = vi.fn()
+  const assertChatbotMessageRequestOwnership = vi.fn().mockResolvedValue(undefined)
+  const finalizeChatbotMessageRequest = vi.fn().mockResolvedValue(undefined)
+  const persistChatbotMessageFinalization = vi.fn().mockResolvedValue(undefined)
+  const coordinateChatbotMessageRequest = vi.fn(async (input: {
+    requestId: string
+    execute: () => Promise<unknown>
+  }) => ({
+    requestId: input.requestId,
+    result: await input.execute(),
+    replayed: false,
+  }))
 
   vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/chatbot/server", () => ({
@@ -128,6 +139,14 @@ async function loadPost({
     sendChatbotSlackNotification,
   }))
   vi.doMock("@/lib/chatbot/audit/scheduler", () => ({ scheduleChatbotAuditPersistence }))
+  vi.doMock("@/lib/chatbot/server/message-request-coordinator", () => ({
+    ChatbotMessageCoordinationError: class ChatbotMessageCoordinationError extends Error {},
+    assertChatbotMessageRequestOwnership,
+    coordinateChatbotMessageRequest,
+    finalizeChatbotMessageRequest,
+    hashChatbotMessagePayload: vi.fn(() => "payload_hash"),
+  }))
+  vi.doMock("@/lib/chatbot/server/repository", () => ({ persistChatbotMessageFinalization }))
 
   const route = await import("./route")
   return {
@@ -145,6 +164,10 @@ async function loadPost({
     generate,
     sendChatbotSlackNotification,
     scheduleChatbotAuditPersistence,
+    assertChatbotMessageRequestOwnership,
+    coordinateChatbotMessageRequest,
+    finalizeChatbotMessageRequest,
+    persistChatbotMessageFinalization,
   }
 }
 
@@ -260,6 +283,75 @@ describe("POST /api/chatbot/message", () => {
     const payload = await response.json()
     expect(payload).not.toHaveProperty("auditDebug")
     expect(payload).not.toHaveProperty("auditEvidence")
+  })
+
+  it("returns a coordinated replay without duplicating audit persistence", async () => {
+    const route = await loadPost()
+    route.coordinateChatbotMessageRequest.mockImplementationOnce(async (input: {
+      execute: () => Promise<unknown>
+    }) => ({
+      requestId: "request_original",
+      result: await input.execute(),
+      replayed: true,
+    }))
+
+    const response = await route.POST(request({
+      message: "相談したいです",
+      clientUserMessageId: "client_msg_11111111-1111-4111-8111-111111111111",
+    }))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      requestId: "request_original",
+      requestReplay: true,
+      auditDebug: {
+        persistenceStatus: "complete",
+        eventCount: 0,
+      },
+    })
+    expect(route.scheduleChatbotAuditPersistence).not.toHaveBeenCalled()
+  })
+
+  it("wires assistant and routing persistence into the fenced finalization", async () => {
+    const route = await loadPost()
+    const ownership = {
+      conversationId: "conv_1",
+      requestKey: "client_msg_11111111-1111-4111-8111-111111111111",
+      owner: "11111111-2222-4333-8444-555555555555",
+      requestVersion: 1,
+    }
+    route.coordinateChatbotMessageRequest.mockImplementationOnce(async (input: {
+      execute: (value: typeof ownership) => Promise<unknown>
+    }) => ({
+      requestId: ownership.owner,
+      result: await input.execute(ownership),
+      replayed: false,
+    }))
+    route.finalizeChatbotMessageRequest.mockImplementationOnce(async (input: {
+      persistBusinessData: (transaction: unknown) => Promise<void>
+    }) => input.persistBusinessData("transaction"))
+
+    const response = await route.POST(request({
+      message: "相談したいです",
+      clientUserMessageId: ownership.requestKey,
+    }))
+
+    expect(response.status).toBe(200)
+    expect(route.assertChatbotMessageRequestOwnership).toHaveBeenCalledWith(ownership)
+    expect(route.finalizeChatbotMessageRequest).toHaveBeenCalledWith(expect.objectContaining({
+      ownership,
+      resultJson: expect.stringContaining("assistantMessage"),
+    }))
+    expect(route.persistChatbotMessageFinalization).toHaveBeenCalledWith(
+      "transaction",
+      expect.objectContaining({
+        conversationId: "conv_1",
+        assistantMessage: expect.objectContaining({ role: "assistant" }),
+      }),
+    )
+    expect(route.appendMessage).toHaveBeenCalledOnce()
+    expect(route.appendMessage).toHaveBeenCalledWith(expect.objectContaining({ role: "user" }))
+    expect(route.updateConversationRouting).not.toHaveBeenCalled()
   })
 
   it("uses the authenticated user id when loading or creating the conversation", async () => {
