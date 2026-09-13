@@ -77,7 +77,7 @@ export type CoordinateChatbotMessageRequestInput<T> = {
   sessionId: string
   userId?: string | null
   requestId: string
-  requestKey?: string
+  requestKey: string
   recoverRequestKey?: string
   payloadHash: string
   execute: (ownership?: ChatbotMessageRequestOwnership) => Promise<T>
@@ -118,10 +118,6 @@ export function hashChatbotMessagePayload(input: unknown): string {
 export async function coordinateChatbotMessageRequest<T>(
   input: CoordinateChatbotMessageRequestInput<T>,
 ): Promise<CoordinatedChatbotMessageResult<T>> {
-  if (!input.requestKey) {
-    return { requestId: input.requestId, result: await input.execute(), replayed: false }
-  }
-
   const store = input.store ?? prismaChatbotMessageRequestStore
   const now = input.now ?? (() => new Date())
   const sleep = input.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)))

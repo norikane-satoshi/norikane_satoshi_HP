@@ -43,7 +43,7 @@ const chatbotMessageRequestSchema = z.object({
   message: z.string().trim().min(1).max(4000),
   conversationId: z.string().trim().min(1).optional(),
   editTargetMessageId: z.string().trim().min(1).optional(),
-  clientUserMessageId: z.string().regex(clientUserMessageIdPattern).optional(),
+  clientUserMessageId: z.string().regex(clientUserMessageIdPattern),
   recoverClientUserMessageId: z.string().regex(clientUserMessageIdPattern).optional(),
   pendingRequestKind: z.enum(["message", "edit"]).optional(),
   clientSessionId: z.string().uuid().optional(),
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
         jobContext: parsed.data.jobContext ?? null,
         conversationState: parsed.data.conversationState ?? null,
       }),
-      completeDuringExecute: Boolean(parsed.data.clientUserMessageId),
+      completeDuringExecute: true,
       execute: (ownership) => handleChatbotMessage(
         {
           requestId,
