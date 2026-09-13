@@ -5,6 +5,44 @@ import type { ChatbotMessageRequestOwnership } from "@/lib/chatbot/server/messag
 const describeSqlite = process.env.CHATBOT_COORDINATOR_SQLITE_INTEGRATION === "1" ? describe : describe.skip
 
 describeSqlite("message request coordinator SQLite integration", () => {
+  it("waits for an independent writer before claiming the first request", async () => {
+    const { createClient } = await import("@libsql/client")
+    const { coordinateChatbotMessageRequest } = await import(
+      "@/lib/chatbot/server/message-request-coordinator"
+    )
+    const { prisma } = await import("@/lib/prisma")
+    const databaseUrl = process.env.TURSO_DATABASE_URL
+    if (!databaseUrl) throw new Error("TURSO_DATABASE_URL is required")
+    const sessionId = crypto.randomUUID()
+    const conversation = await prisma.chatbotConversation.create({
+      data: { sessionId, routingDecision: "continue" },
+      select: { id: true },
+    })
+    const independentClient = createClient({
+      url: databaseUrl,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    })
+    const blockingTransaction = await independentClient.transaction("write")
+    await blockingTransaction.execute({
+      sql: `UPDATE "ChatbotConversation" SET "lastMessageAt" = "lastMessageAt" WHERE "id" = ?`,
+      args: [conversation.id],
+    })
+
+    const coordinated = coordinateChatbotMessageRequest({
+      sessionId,
+      requestId: crypto.randomUUID(),
+      requestKey: `client_msg_${crypto.randomUUID()}`,
+      payloadHash: "independent_writer_contention",
+      execute: async () => ({ accepted: true }),
+      pollIntervalMs: 5,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 75))
+    await blockingTransaction.commit()
+    independentClient.close()
+
+    await expect(coordinated).resolves.toMatchObject({ result: { accepted: true }, replayed: false })
+  })
+
   it("resolves two pre-claim no-request snapshots through CAS and replay", async () => {
     const { coordinateChatbotMessageRequest, prismaChatbotMessageRequestStore } = await import(
       "@/lib/chatbot/server/message-request-coordinator"

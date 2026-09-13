@@ -158,6 +158,30 @@ describe("coordinateChatbotMessageRequest", () => {
     store = new MemoryStore()
   })
 
+  it("retries transient database contention while loading the first request", async () => {
+    const originalLoad = store.load.bind(store)
+    const load = vi
+      .fn<typeof store.load>()
+      .mockRejectedValueOnce(new Error("SQLITE_BUSY: database is locked"))
+      .mockImplementation(originalLoad)
+    store.load = load
+    const sleep = vi.fn().mockResolvedValue(undefined)
+    const execute = vi.fn(async () => ({ answer: "loaded after contention" }))
+
+    await expect(coordinateChatbotMessageRequest({
+      sessionId: "session_1",
+      requestId: "request_1",
+      requestKey: "client_msg_1",
+      payloadHash: "payload_1",
+      store,
+      sleep,
+      execute,
+    })).resolves.toMatchObject({ result: { answer: "loaded after contention" }, replayed: false })
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(sleep).toHaveBeenCalledWith(25)
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
   it("executes only once when two workers receive the same first message", async () => {
     const execution = deferred<{ answer: string }>()
     const execute = vi.fn(() => execution.promise)
