@@ -928,6 +928,72 @@ describe("WidgetShell API wiring", () => {
     expect(screen.queryByLabelText("問い合わせフォーム")).not.toBeInTheDocument()
   })
 
+  it("keeps the original recovery key durable when the shell remounts during a manual retry", async () => {
+    let retrySignal: AbortSignal | undefined
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        mockJsonResponse(
+          {
+            error: "chatbot_operation_failed",
+            failure: { stage: "conversation-save", retryable: true, fallback: "tier3-inquiry-form" },
+          },
+          500,
+        ),
+      )
+      .mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => {
+        retrySignal = init?.signal ?? undefined
+        return new Promise<ReturnType<typeof mockJsonResponse>>((_resolve, reject) => {
+          retrySignal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")))
+        })
+      })
+      .mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body))
+        return Promise.resolve(mockJsonResponse({
+          conversationId: "conv_recovered_after_remount",
+          userMessage: {
+            id: body.clientUserMessageId,
+            role: "user",
+            content: body.message,
+            createdAt: "2026-05-26T00:00:00.000Z",
+          },
+          assistantMessage: {
+            id: "assistant_recovered_after_remount",
+            role: "assistant",
+            content: "再読込後に復旧しました",
+            createdAt: "2026-05-26T00:00:01.000Z",
+          },
+          tier: "tier-2-gemini-flash",
+          ui: { kind: "none" },
+        }))
+      })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const firstRender = render(<WidgetShell onMinimize={vi.fn()} />)
+    submitMessage("再送中に再読込する相談です")
+    fireEvent.click(await screen.findByRole("button", { name: "再送する" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+
+    const originalBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
+    const storedDuringRetry = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
+    expect(storedDuringRetry.pendingRequest).toMatchObject({
+      message: "再送中に再読込する相談です",
+      clientUserMessageId: originalBody.clientUserMessageId,
+    })
+
+    firstRender.unmount()
+    expect(retrySignal?.aborted).toBe(true)
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    expect(await screen.findByText("再読込後に復旧しました")).toBeInTheDocument()
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({
+      clientUserMessageId: originalBody.clientUserMessageId,
+      recoverClientUserMessageId: originalBody.clientUserMessageId,
+      pendingRequestKind: "message",
+    })
+  })
+
   it("retries an interrupted edit with both its original target and durable recovery key", async () => {
     const submittedAt = new Date(Date.now() - 20 * 60 * 1000).toISOString()
     const pendingRequest = {
@@ -999,6 +1065,69 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("編集を復旧しました")).toBeInTheDocument()
     expect(screen.getByText("先行相談")).toBeInTheDocument()
     expect(screen.getByText("先行回答")).toBeInTheDocument()
+  })
+
+  it("keeps an interrupted edit recoverable after stopping its retry", async () => {
+    const pendingRequest = {
+      kind: "edit" as const,
+      message: "停止後も復旧する編集です",
+      clientUserMessageId: "client_msg_22222222-2222-4222-8222-222222222222",
+      editTargetMessageId: "user_original",
+      submittedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+      conversationId: "conv_edit_stop",
+    }
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => {
+        const signal = init?.signal
+        return new Promise<ReturnType<typeof mockJsonResponse>>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")))
+        })
+      })
+      .mockResolvedValueOnce(mockJsonResponse({
+        conversationId: pendingRequest.conversationId,
+        userMessage: {
+          id: pendingRequest.clientUserMessageId,
+          role: "user",
+          content: pendingRequest.message,
+          createdAt: "2026-05-26T00:00:02.000Z",
+        },
+        assistantMessage: {
+          id: "assistant_edit_after_stop",
+          role: "assistant",
+          content: "停止後の編集を復旧しました",
+          createdAt: "2026-05-26T00:00:03.000Z",
+        },
+        tier: "tier-2-gemini-flash",
+        ui: { kind: "none" },
+      }))
+    vi.stubGlobal("fetch", fetchMock)
+    writeStoredWidgetSession({
+      messages: [
+        { id: "user_original", role: "user", content: pendingRequest.message, createdAt: pendingRequest.submittedAt },
+      ],
+      conversationId: pendingRequest.conversationId,
+      pendingRequest,
+    })
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    fireEvent.click(await screen.findByRole("button", { name: "再送する" }))
+    expect(await screen.findByText("考え中")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "停止" }))
+
+    const storedAfterStop = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
+    expect(storedAfterStop.pendingRequest).toBeUndefined()
+    expect(storedAfterStop.recoverableRequest).toMatchObject(pendingRequest)
+    expect(screen.getByLabelText("相談内容")).toBeDisabled()
+
+    fireEvent.click(await screen.findByRole("button", { name: "再送する" }))
+    expect(await screen.findByText("停止後の編集を復旧しました")).toBeInTheDocument()
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
+      clientUserMessageId: pendingRequest.clientUserMessageId,
+      recoverClientUserMessageId: pendingRequest.clientUserMessageId,
+      editTargetMessageId: pendingRequest.editTargetMessageId,
+      pendingRequestKind: "edit",
+    })
   })
 
   it("auto-scrolls to the latest assistant response when the conversation is already at bottom", async () => {
@@ -1079,13 +1208,35 @@ describe("WidgetShell API wiring", () => {
     expect(screen.queryByRole("button", { name: "一番下へ移動" })).not.toBeInTheDocument()
   })
 
-  it("stops an in-flight chatbot response without showing a network error", async () => {
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
-      const signal = init?.signal
-      return new Promise<ReturnType<typeof mockJsonResponse>>((_resolve, reject) => {
-        signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")))
+  it("stops an in-flight chatbot response without losing its recovery key", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce((_url: string, init?: RequestInit) => {
+        const signal = init?.signal
+        return new Promise<ReturnType<typeof mockJsonResponse>>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")))
+        })
       })
-    })
+      .mockImplementationOnce((_url: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body))
+        return Promise.resolve(mockJsonResponse({
+          conversationId: "conv_stop_recovered",
+          userMessage: {
+            id: body.clientUserMessageId,
+            role: "user",
+            content: body.message,
+            createdAt: "2026-05-26T00:00:00.000Z",
+          },
+          assistantMessage: {
+            id: "assistant_stop_recovered",
+            role: "assistant",
+            content: "停止後に復旧しました",
+            createdAt: "2026-05-26T00:00:01.000Z",
+          },
+          tier: "tier-2-gemini-flash",
+          ui: { kind: "none" },
+        }))
+      })
     vi.stubGlobal("fetch", fetchMock)
 
     render(<WidgetShell onMinimize={vi.fn()} />)
@@ -1097,7 +1248,9 @@ describe("WidgetShell API wiring", () => {
     await waitFor(() => expect(screen.queryByText("考え中")).not.toBeInTheDocument())
     expect(screen.queryByText(/応答が中断しました/u)).not.toBeInTheDocument()
     expect(screen.getByText("停止したい相談です")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "メッセージを編集" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "メッセージを編集" })).not.toBeInTheDocument()
+    expect(screen.getByLabelText("相談内容")).toBeDisabled()
+    expect(screen.getByRole("button", { name: "再送する" })).toBeInTheDocument()
     const fetchInit = fetchMock.mock.calls[0]?.[1]
     expect(fetchInit).toBeDefined()
     expect(JSON.parse(String(fetchInit?.body))).toMatchObject({
@@ -1106,6 +1259,18 @@ describe("WidgetShell API wiring", () => {
       clientUserMessageId: expect.stringMatching(/^client_msg_/),
     })
     expect(fetchInit?.signal).toBeInstanceOf(AbortSignal)
+    const firstBody = JSON.parse(String(fetchInit?.body))
+    expect(JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}").recoverableRequest).toMatchObject({
+      clientUserMessageId: firstBody.clientUserMessageId,
+      message: "停止したい相談です",
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "再送する" }))
+    expect(await screen.findByText("停止後に復旧しました")).toBeInTheDocument()
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
+      clientUserMessageId: firstBody.clientUserMessageId,
+      recoverClientUserMessageId: firstBody.clientUserMessageId,
+    })
   })
 
   it("adds a delay notice after six seconds while the response is pending", async () => {
@@ -2011,8 +2176,15 @@ describe("WidgetShell API wiring", () => {
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(screen.getByLabelText("相談内容")).toBeDisabled()
 
+    const failedSession = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
+
     fireEvent.click(screen.getByRole("button", { name: "フォームに切り替える" }))
     expect(await screen.findByLabelText("問い合わせフォーム")).toBeInTheDocument()
+    const formSession = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
+    expect(formSession.clientSessionId).not.toBe(failedSession.clientSessionId)
+    expect(formSession.conversationId).toBeUndefined()
+    expect(formSession.pendingRequest).toBeUndefined()
+    expect(formSession.recoverableRequest).toBeUndefined()
   })
 
   it("edits a sent user message, truncates later local UI, and persists the edited conversation", async () => {
