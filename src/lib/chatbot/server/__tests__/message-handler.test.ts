@@ -200,6 +200,46 @@ function setup(overrides: {
 }
 
 describe("handleChatbotMessage user context", () => {
+  it("stops before assistant persistence when request ownership is lost during generation", async () => {
+    const harness = setup()
+    const ownershipLost = new Error("chatbot_message_request_ownership_lost")
+    const assertRequestOwnership = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(ownershipLost)
+
+    await expect(handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "所有権テスト" },
+      { ...harness.options, assertRequestOwnership },
+    )).rejects.toBe(ownershipLost)
+
+    expect(harness.generate).toHaveBeenCalledOnce()
+    expect(harness.repository.appendMessage).toHaveBeenCalledOnce()
+    expect(harness.repository.appendMessage).toHaveBeenCalledWith(expect.objectContaining({ role: "user" }))
+    expect(harness.repository.updateConversationRouting).not.toHaveBeenCalled()
+    expect(harness.slackNotifier).not.toHaveBeenCalled()
+  })
+
+  it("delegates assistant and routing persistence to the atomic finalizer", async () => {
+    const harness = setup()
+    const finalizeMessage = vi.fn().mockResolvedValue(undefined)
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "確定処理テスト" },
+      { ...harness.options, finalizeMessage },
+    )
+
+    expect(result.assistantMessage.role).toBe("assistant")
+    expect(finalizeMessage).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: "conv_1",
+      assistantMessage: expect.objectContaining({ role: "assistant" }),
+      replayResult: expect.objectContaining({ conversationId: "conv_1" }),
+    }))
+    expect(harness.repository.appendMessage).toHaveBeenCalledOnce()
+    expect(harness.repository.updateConversationRouting).not.toHaveBeenCalled()
+  })
+
   it("keeps the assistant identity neutral unless the user asks its name", async () => {
     const harness = setup()
 

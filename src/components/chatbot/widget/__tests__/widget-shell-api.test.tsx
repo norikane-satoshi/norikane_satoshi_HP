@@ -159,6 +159,21 @@ describe("WidgetShell API wiring", () => {
     expect(document.body).not.toHaveTextContent(/Local debug|Notion AI|Tier|\bmodel\b/i)
   })
 
+  it("suppresses two submits dispatched before React can render the busy state", async () => {
+    const fetchMock = vi.fn(() => new Promise(() => undefined))
+    vi.stubGlobal("fetch", fetchMock)
+    render(<WidgetShell onMinimize={vi.fn()} />)
+
+    const input = screen.getByLabelText("相談内容")
+    fireEvent.change(input, { target: { value: "同時送信しないでください" } })
+    const form = input.closest("form")
+    expect(form).not.toBeNull()
+    fireEvent.submit(form!)
+    fireEvent.submit(form!)
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it("shows request, tier, state, and build metadata only after opening the local diagnostic panel", async () => {
     const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       if (String(input) === "/api/chatbot/build-info") {
@@ -819,7 +834,7 @@ describe("WidgetShell API wiring", () => {
       pendingRequestKind: "message",
     })
     expect(recoveredBody.clientUserMessageId).toMatch(/^client_msg_/)
-    expect(recoveredBody.clientUserMessageId).not.toBe(storedBeforeRemount.pendingRequest.clientUserMessageId)
+    expect(recoveredBody.clientUserMessageId).toBe(storedBeforeRemount.pendingRequest.clientUserMessageId)
     resolveRecoveredFetch(
       mockJsonResponse({
         conversationId: "conv_recovered",
@@ -1873,7 +1888,7 @@ describe("WidgetShell API wiring", () => {
     })
   })
 
-  it("retries a transient message failure before showing the response", async () => {
+  it("does not automatically overlap a transient message failure", async () => {
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new Error("network"))
@@ -1890,9 +1905,9 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage("一時失敗から復旧する相談です")
 
-    expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(screen.queryByText(/応答が中断しました/u)).not.toBeInTheDocument()
+    expect(await screen.findByText(/応答が中断しました/u)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(screen.queryByText("最終媒体を選んでください")).not.toBeInTheDocument()
   })
 
   it("keeps an exhausted transient message failure retryable before showing the inquiry form", async () => {
@@ -1920,7 +1935,7 @@ describe("WidgetShell API wiring", () => {
     expect(screen.getByText("直前の送信が完了していません。入力内容は保持しています。")).toBeInTheDocument()
     expect(screen.queryByLabelText("問い合わせフォーム")).not.toBeInTheDocument()
     expect(screen.getByText("相談したいです")).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledOnce()
 
     fireEvent.click(screen.getByRole("button", { name: "フォームに切り替える" }))
     expect(await screen.findByLabelText("問い合わせフォーム")).toBeInTheDocument()

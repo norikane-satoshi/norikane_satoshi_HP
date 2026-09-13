@@ -23,7 +23,7 @@ import type {
 import { prisma } from "@/lib/prisma"
 
 type RoutingDecisionKind = RoutingDecision["kind"]
-type ChatbotRepositoryClient = Prisma.TransactionClient | PrismaClient
+export type ChatbotRepositoryClient = Prisma.TransactionClient | PrismaClient
 
 type ChatbotConversationRow = Prisma.ChatbotConversationGetPayload<{
   include: { messages: true }
@@ -256,14 +256,16 @@ export async function recordInquiry(input: {
   })
 }
 
-export async function updateConversationRouting(input: {
+export type UpdateConversationRoutingInput = {
   conversationId: string
   routingDecision: RoutingDecisionKind
   currentQuestion?: string | null
   activeChoices?: SurveyChoiceSet | null
   conversationState?: ConversationState
   jobContext?: JobContext
-}): Promise<void> {
+}
+
+export async function updateConversationRouting(input: UpdateConversationRoutingInput): Promise<void> {
   await prisma.chatbotConversation.update({
     where: { id: input.conversationId },
     data: {
@@ -272,6 +274,40 @@ export async function updateConversationRouting(input: {
       currentQuestion: input.currentQuestion ?? null,
       activeChoices: serializeActiveChoices(input.activeChoices ?? null),
       conversationState: serializeConversationState(input.conversationState ?? null),
+    },
+  })
+}
+
+export async function persistChatbotMessageFinalization(
+  client: ChatbotRepositoryClient,
+  input: {
+    conversationId: string
+    assistantMessage: Pick<ChatbotMessage, "id" | "role" | "content" | "createdAt">
+    routingUpdate?: UpdateConversationRoutingInput
+  },
+): Promise<void> {
+  const createdAt = new Date(input.assistantMessage.createdAt)
+  await client.chatbotConversation.update({
+    where: { id: input.conversationId },
+    data: {
+      lastMessageAt: createdAt,
+      messages: {
+        create: {
+          id: input.assistantMessage.id,
+          role: input.assistantMessage.role,
+          content: input.assistantMessage.content,
+          createdAt,
+        },
+      },
+      ...(input.routingUpdate
+        ? {
+            routingDecision: input.routingUpdate.routingDecision,
+            ...(input.routingUpdate.jobContext ? toJobContextUpdateData(input.routingUpdate.jobContext) : {}),
+            currentQuestion: input.routingUpdate.currentQuestion ?? null,
+            activeChoices: serializeActiveChoices(input.routingUpdate.activeChoices ?? null),
+            conversationState: serializeConversationState(input.routingUpdate.conversationState ?? null),
+          }
+        : {}),
     },
   })
 }

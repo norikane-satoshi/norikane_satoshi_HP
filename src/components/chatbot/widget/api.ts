@@ -267,7 +267,9 @@ export async function postChatbotJson<T>(
   input: unknown,
   options: SubmitChatbotMessageOptions = {},
 ): Promise<T> {
-  const maxAttempts = 2
+  // A message request can take close to a minute. Retrying it automatically can overlap
+  // the still-running server invocation, so recovery stays explicit and idempotent.
+  const maxAttempts = operation === "message" ? 1 : 2
   let latestError: unknown
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {

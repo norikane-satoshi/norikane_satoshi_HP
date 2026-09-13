@@ -62,6 +62,7 @@ describe("submitChatbotMessage", () => {
       expect(error.retryable).toBe(true)
       expect(error.fallback).toBe("tier3-inquiry-form")
     }
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it("schedules a reload when the server response was produced by a newer client build", () => {
