@@ -283,6 +283,120 @@ describeSqlite("message request coordinator SQLite integration", () => {
     await expect(prisma.chatbotMessage.count({ where: { id: newAssistantId } })).resolves.toBe(1)
   })
 
+  it("rejects an old owner at the normal user insert and lets the reclaiming handler finish once", async () => {
+    const {
+      appendChatbotMessageRequestUserMessage,
+      assertChatbotMessageRequestOwnership,
+      coordinateChatbotMessageRequest,
+      finalizeChatbotMessageRequest,
+      recoverChatbotMessageRequestUserMessage,
+    } = await import("@/lib/chatbot/server/message-request-coordinator")
+    const { handleChatbotMessage } = await import("@/lib/chatbot/server/message-handler")
+    const { createChatbotLlmDisplayEnvelope } = await import("@/lib/chatbot/server/llm-response-normalizer")
+    const { createStaticChatbotKnowledgeSnapshot } = await import("@/lib/chatbot/server/notion-knowledge-sync")
+    const { persistChatbotMessageFinalization } = await import("@/lib/chatbot/server/repository")
+    const { prisma } = await import("@/lib/prisma")
+    const sessionId = crypto.randomUUID()
+    const requestKey = `client_msg_${crypto.randomUUID()}`
+    const payloadHash = "normal_user_insert_fence"
+    const rawText = "<customer_reply>新ownerだけが確定しました</customer_reply>"
+    const generate = vi.fn().mockResolvedValue({
+      rawText,
+      displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
+      tier: "tier-1-hosted-chrome-notion-ai" as const,
+    })
+    const baseOptions = {
+      orchestratorFactory: () => ({ generate, isHealthy: vi.fn().mockResolvedValue(true) }),
+      knowledgeSnapshotLoader: vi.fn().mockResolvedValue(createStaticChatbotKnowledgeSnapshot()),
+      slackNotifier: vi.fn().mockResolvedValue({ status: "skipped" as const, reason: "disabled" }),
+    }
+    let oldOwnership!: ChatbotMessageRequestOwnership
+    let oldInsertEntered!: () => void
+    const oldInsertStarted = new Promise<void>((resolve) => { oldInsertEntered = resolve })
+    let releaseOldInsert!: () => void
+    const oldInsertGate = new Promise<void>((resolve) => { releaseOldInsert = resolve })
+
+    const oldRun = coordinateChatbotMessageRequest({
+      sessionId,
+      requestId: crypto.randomUUID(),
+      requestKey,
+      payloadHash,
+      completeDuringExecute: true,
+      execute: (ownership) => {
+        oldOwnership = ownership!
+        return handleChatbotMessage(
+          { sessionId, message: "通常相談", clientUserMessageId: requestKey },
+          {
+            ...baseOptions,
+            assertRequestOwnership: () => assertChatbotMessageRequestOwnership(oldOwnership),
+            appendOwnedUserMessage: async ({ content }) => {
+              oldInsertEntered()
+              await oldInsertGate
+              return appendChatbotMessageRequestUserMessage({ ownership: oldOwnership, content })
+            },
+          },
+        )
+      },
+    })
+    await oldInsertStarted
+    await prisma.$executeRawUnsafe(
+      `UPDATE "ChatbotConversation" SET "messageRequestLeaseExpiresAt" = ? WHERE "id" = ?`,
+      new Date(0).toISOString(),
+      oldOwnership.conversationId,
+    )
+    await prisma.$executeRawUnsafe(
+      `UPDATE "ChatbotMessageRequest" SET "leaseExpiresAt" = ? WHERE "key" = ?`,
+      new Date(0).toISOString(),
+      requestKey,
+    )
+
+    const winner = await coordinateChatbotMessageRequest({
+      sessionId,
+      requestId: crypto.randomUUID(),
+      requestKey,
+      recoverRequestKey: requestKey,
+      payloadHash,
+      completeDuringExecute: true,
+      execute: (ownership) => handleChatbotMessage(
+        {
+          sessionId,
+          message: "通常相談",
+          clientUserMessageId: requestKey,
+          recoverClientUserMessageId: requestKey,
+          pendingRequestKind: "message",
+        },
+        {
+          ...baseOptions,
+          assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership!),
+          appendOwnedUserMessage: ({ content }) => appendChatbotMessageRequestUserMessage({
+            ownership: ownership!,
+            content,
+          }),
+          recoverPendingUserMessage: ({ content }) => recoverChatbotMessageRequestUserMessage({
+            ownership: ownership!,
+            content,
+          }),
+          finalizeMessage: (finalization) => finalizeChatbotMessageRequest({
+            ownership: ownership!,
+            resultJson: JSON.stringify({ requestId: ownership!.owner, result: finalization.replayResult }),
+            persistBusinessData: (transaction) => persistChatbotMessageFinalization(transaction, finalization),
+          }),
+        },
+      ),
+    })
+    expect(winner.replayed).toBe(false)
+
+    releaseOldInsert()
+    await expect(oldRun).resolves.toMatchObject({ requestId: winner.requestId, replayed: true })
+    await expect(prisma.chatbotMessage.count({
+      where: { conversation: { sessionId }, id: requestKey, role: "user" },
+    })).resolves.toBe(1)
+    await expect(prisma.chatbotMessage.count({
+      where: { conversation: { sessionId }, role: "assistant" },
+    })).resolves.toBe(1)
+    expect(generate).toHaveBeenCalledOnce()
+  })
+
   it("runs actual-handler recovery atomically and rejects a simultaneous next turn", async () => {
     const {
       assertChatbotMessageRequestOwnership,

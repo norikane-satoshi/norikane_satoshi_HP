@@ -227,6 +227,9 @@ type HandleChatbotMessageOptions = {
     targetMessageId: string
     content: string
   }) => Promise<ChatbotMessage>
+  appendOwnedUserMessage?: (input: {
+    content: string
+  }) => Promise<ChatbotMessage>
   finalizeMessage?: (input: ChatbotMessageFinalizationInput) => Promise<void>
   now?: () => number
 }
@@ -287,6 +290,7 @@ export async function handleChatbotMessage(
   const assertRequestOwnership = options.assertRequestOwnership ?? (async () => undefined)
   const recoverPendingUserMessage = options.recoverPendingUserMessage
   const replaceEditedUserMessage = options.replaceEditedUserMessage
+  const appendOwnedUserMessage = options.appendOwnedUserMessage
   const conversationLoadStartedAt = now()
   let conversation = await repository.loadOrCreateConversationBySessionId({
     sessionId: input.sessionId,
@@ -393,6 +397,7 @@ export async function handleChatbotMessage(
 
   const userMessagePersistStartedAt = now()
   const userMessage = recoveredUserMessage ?? replacedUserMessage ?? await (async () => {
+    if (appendOwnedUserMessage) return appendOwnedUserMessage({ content: input.message })
     await assertRequestOwnership()
     return repository.appendMessage({
       ...(input.clientUserMessageId ? { id: input.clientUserMessageId } : {}),
