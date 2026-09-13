@@ -149,35 +149,11 @@ async function loadPost({
 }
 
 afterEach(() => {
-  delete process.env.VERCEL_ENV
   vi.resetModules()
   vi.clearAllMocks()
 })
 
 describe("POST /api/chatbot/message", () => {
-  it("drains Production message writes during the coordinated rollout", async () => {
-    process.env.VERCEL_ENV = "production"
-    const route = await loadPost()
-
-    const response = await route.POST(request({ message: "相談したいです" }))
-
-    expect(response.status).toBe(503)
-    expect(response.headers.get("retry-after")).toBe("180")
-    await expect(response.json()).resolves.toMatchObject({
-      error: "chatbot_maintenance",
-      requestId: expect.any(String),
-      operation: "message",
-      failure: {
-        stage: "server-handler",
-        retryable: true,
-        fallback: "tier3-inquiry-form",
-      },
-    })
-    expect(route.auth).not.toHaveBeenCalled()
-    expect(route.loadOrCreateConversationBySessionId).not.toHaveBeenCalled()
-    expect(route.appendMessage).not.toHaveBeenCalled()
-  })
-
   it.each(chatbotLeakCorpus)("keeps the shared leak corpus safe at API level: $id", async (item) => {
     const route = await loadPost({
       llmResponse: {

@@ -48,24 +48,6 @@ type ChatbotFailureTaggedError = Error & {
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID()
-  if (process.env.VERCEL_ENV === "production") {
-    return NextResponse.json(
-      {
-        error: "chatbot_maintenance",
-        requestId,
-        operation: "message",
-        failure: {
-          stage: "server-handler",
-          retryable: true,
-          fallback: "tier3-inquiry-form",
-        },
-      },
-      {
-        status: 503,
-        headers: { "Retry-After": "180" },
-      },
-    )
-  }
   const requestStartedAt = Date.now()
   const bodyLimit = enforceBodyLimit(request)
   if (bodyLimit) return bodyLimit
