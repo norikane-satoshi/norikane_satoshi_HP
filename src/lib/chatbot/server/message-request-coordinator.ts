@@ -111,6 +111,7 @@ export class ChatbotMessageCoordinationError extends Error {
 const defaultLeaseDurationMs = 180_000
 const defaultWaitTimeoutMs = 110_000
 const defaultPollIntervalMs = 200
+const databaseContentionRetryDelaysMs = [25, 50, 100, 200, 250, 250]
 
 export function hashChatbotMessagePayload(input: unknown): string {
   return createHash("sha256").update(stableStringify(input)).digest("hex")
@@ -128,12 +129,15 @@ export async function coordinateChatbotMessageRequest<T>(
   let waitedForActiveRequest = false
 
   while (true) {
-    const snapshot = await store.load({
-      sessionId: input.sessionId,
-      userId: input.userId,
-      requestKey: input.requestKey,
-      recoverRequestKey: input.recoverRequestKey,
-    })
+    const snapshot = await retryDatabaseContention(
+      () => store.load({
+        sessionId: input.sessionId,
+        userId: input.userId,
+        requestKey: input.requestKey,
+        recoverRequestKey: input.recoverRequestKey,
+      }),
+      sleep,
+    )
     const request = snapshot.request
 
     if (!request && snapshot.legacyMessageConversationId) {
@@ -219,12 +223,15 @@ export async function coordinateChatbotMessageRequest<T>(
       }
       const result = await input.execute(ownership)
       if (input.completeDuringExecute) {
-        const completedSnapshot = await store.load({
-          sessionId: input.sessionId,
-          userId: input.userId,
-          requestKey: input.requestKey,
-          recoverRequestKey: input.recoverRequestKey,
-        })
+        const completedSnapshot = await retryDatabaseContention(
+          () => store.load({
+            sessionId: input.sessionId,
+            userId: input.userId,
+            requestKey: input.requestKey,
+            recoverRequestKey: input.recoverRequestKey,
+          }),
+          sleep,
+        )
         if (completedSnapshot.request?.status !== "completed") {
           throw new ChatbotMessageCoordinationError("chatbot_message_request_completion_missing", 500)
         }
@@ -244,12 +251,15 @@ export async function coordinateChatbotMessageRequest<T>(
       return { ...storedResult, replayed: false }
     } catch (error) {
       if (input.completeDuringExecute) {
-        const completedSnapshot = await store.load({
-          sessionId: input.sessionId,
-          userId: input.userId,
-          requestKey: input.requestKey,
-          recoverRequestKey: input.recoverRequestKey,
-        }).catch(() => null)
+        const completedSnapshot = await retryDatabaseContention(
+          () => store.load({
+            sessionId: input.sessionId,
+            userId: input.userId,
+            requestKey: input.requestKey,
+            recoverRequestKey: input.recoverRequestKey,
+          }),
+          sleep,
+        ).catch(() => null)
         if (completedSnapshot?.request?.status === "completed") {
           return { ...parseStoredResult<T>(completedSnapshot.request.resultJson), replayed: true }
         }
@@ -677,12 +687,31 @@ export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
 async function runCasTransaction(
   operation: (transaction: Prisma.TransactionClient) => Promise<void>,
 ): Promise<boolean> {
-  try {
-    await prisma.$transaction(operation)
-    return true
-  } catch (error) {
-    if (error instanceof CoordinationCasError || isUniqueConstraintError(error)) return false
-    throw error
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await prisma.$transaction(operation)
+      return true
+    } catch (error) {
+      if (error instanceof CoordinationCasError || isUniqueConstraintError(error)) return false
+      const retryDelayMs = databaseContentionRetryDelaysMs[attempt]
+      if (!isDatabaseContentionError(error) || retryDelayMs === undefined) throw error
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+    }
+  }
+}
+
+async function retryDatabaseContention<T>(
+  operation: () => Promise<T>,
+  sleep: (milliseconds: number) => Promise<void>,
+): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation()
+    } catch (error) {
+      const retryDelayMs = databaseContentionRetryDelaysMs[attempt]
+      if (!isDatabaseContentionError(error) || retryDelayMs === undefined) throw error
+      await sleep(retryDelayMs)
+    }
   }
 }
 
@@ -714,6 +743,23 @@ function isUniqueConstraintError(error: unknown): boolean {
   if (!(error && typeof error === "object")) return false
   if ("code" in error && error.code === "P2002") return true
   return error instanceof Error && /unique constraint/i.test(error.message)
+}
+
+function isDatabaseContentionError(error: unknown, depth = 0): boolean {
+  if (depth > 4 || !(error && typeof error === "object")) return false
+  if ("code" in error && typeof error.code === "string" && /SQLITE_BUSY|SQLITE_LOCKED/i.test(error.code)) {
+    return true
+  }
+  if (error instanceof Error && /SQLITE_BUSY|SQLITE_LOCKED|database (?:table )?is locked/i.test(error.message)) {
+    return true
+  }
+  if ("cause" in error && isDatabaseContentionError(error.cause, depth + 1)) return true
+  if ("meta" in error && isDatabaseContentionError(error.meta, depth + 1)) return true
+  if ("driverAdapterError" in error && isDatabaseContentionError(error.driverAdapterError, depth + 1)) return true
+  if ("originalMessage" in error && typeof error.originalMessage === "string") {
+    return /SQLITE_BUSY|SQLITE_LOCKED|database (?:table )?is locked/i.test(error.originalMessage)
+  }
+  return false
 }
 
 async function waitOrThrow(input: {
