@@ -21,7 +21,10 @@ describe("submitChatbotMessage", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     await expect(
-      submitChatbotMessage({ message: "止めます" }, { signal: controller.signal }),
+      submitChatbotMessage(
+        { message: "止めます", clientUserMessageId: "client_msg_11111111-1111-4111-8111-111111111111" },
+        { signal: controller.signal },
+      ),
     ).rejects.toBeInstanceOf(ChatbotRequestCancelledError)
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -52,7 +55,10 @@ describe("submitChatbotMessage", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     try {
-      await submitChatbotMessage({ message: "相談したいです" })
+      await submitChatbotMessage({
+        message: "相談したいです",
+        clientUserMessageId: "client_msg_11111111-1111-4111-8111-111111111111",
+      })
       throw new Error("expected submitChatbotMessage to reject")
     } catch (error) {
       expect(isChatbotOperationError(error)).toBe(true)

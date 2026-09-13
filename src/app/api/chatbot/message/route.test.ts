@@ -11,10 +11,26 @@ import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-respon
 import { chatbotLeakCorpus } from "../../../../../tests/fixtures/chatbot/leak-corpus"
 
 function request(body: unknown, cookie?: string, headers: Record<string, string> = {}) {
+  const requestBody = body && typeof body === "object" && !Array.isArray(body) &&
+    typeof (body as { message?: unknown }).message === "string" &&
+    !("clientUserMessageId" in body)
+    ? {
+        clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001",
+        ...body,
+      }
+    : body
+  return new NextRequest("http://localhost/api/chatbot/message", {
+    method: "POST",
+    body: JSON.stringify(requestBody),
+    headers: { ...headers, ...(cookie ? { cookie } : {}) },
+  })
+}
+
+function requestWithoutClientUserMessageId(body: Record<string, unknown>, cookie?: string) {
   return new NextRequest("http://localhost/api/chatbot/message", {
     method: "POST",
     body: JSON.stringify(body),
-    headers: { ...headers, ...(cookie ? { cookie } : {}) },
+    headers: cookie ? { cookie } : undefined,
   })
 }
 
@@ -199,6 +215,23 @@ afterEach(() => {
 })
 
 describe("POST /api/chatbot/message", () => {
+  it.each([
+    { label: "message", body: { message: "IDなし通常送信" } },
+    { label: "edit", body: { message: "IDなし編集", editTargetMessageId: "user_original" } },
+  ])("rejects an id-less $label before coordination or conversation mutation", async ({ body }) => {
+    const route = await loadPost()
+
+    const response = await route.POST(requestWithoutClientUserMessageId(body, "chatbot_session_id=session_1"))
+
+    expect(response.status).toBe(400)
+    expect(route.coordinateChatbotMessageRequest).not.toHaveBeenCalled()
+    expect(route.loadOrCreateConversationBySessionId).not.toHaveBeenCalled()
+    expect(route.appendMessage).not.toHaveBeenCalled()
+    expect(route.truncateConversationFromMessage).not.toHaveBeenCalled()
+    expect(route.updateConversationRouting).not.toHaveBeenCalled()
+    expect(route.generate).not.toHaveBeenCalled()
+  })
+
   it.each(chatbotLeakCorpus)("keeps the shared leak corpus safe at API level: $id", async (item) => {
     const route = await loadPost({
       llmResponse: {
@@ -298,7 +331,10 @@ describe("POST /api/chatbot/message", () => {
     const route = await loadPost()
     const response = await route.POST(new NextRequest("https://www.norikane.studio/api/chatbot/message", {
       method: "POST",
-      body: JSON.stringify({ message: "相談したいです" }),
+      body: JSON.stringify({
+        message: "相談したいです",
+        clientUserMessageId: "client_msg_00000000-0000-4000-8000-000000000001",
+      }),
     }))
 
     expect(response.status).toBe(200)
@@ -614,11 +650,11 @@ describe("POST /api/chatbot/message", () => {
     const response = await route.POST(request({ message: "媒体を選びます" }, "chatbot_session_id=session_1"))
 
     expect(response.status).toBe(200)
-    expect(route.appendMessage).toHaveBeenCalledWith({
+    expect(route.appendMessage).toHaveBeenCalledWith(expect.objectContaining({
       conversationId: "conv_1",
       role: "user",
       content: "媒体を選びます",
-    })
+    }))
     await expect(response.json()).resolves.toMatchObject({
       tier: "tier-3-form-fallback",
       ui: { kind: "tier3-inquiry-form" },

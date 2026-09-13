@@ -116,7 +116,7 @@ export type SubmitChatbotMessageInput = {
   message: string
   conversationId?: string
   editTargetMessageId?: string
-  clientUserMessageId?: string
+  clientUserMessageId: string
   recoverClientUserMessageId?: string
   pendingRequestKind?: "message" | "edit"
   clientSessionId?: string
