@@ -26,6 +26,7 @@ export type ChatbotMessageRequestSnapshot = {
   activeLeaseExpiresAt: Date | null
   lockVersion: number
   request: ChatbotMessageRequestRecord | null
+  legacyMessageConversationId?: string | null
 }
 
 export type ChatbotMessageRequestStore = {
@@ -137,6 +138,14 @@ export async function coordinateChatbotMessageRequest<T>(
     })
     const request = snapshot.request
 
+    if (!request && snapshot.legacyMessageConversationId) {
+      throw new ChatbotMessageCoordinationError(
+        snapshot.legacyMessageConversationId === snapshot.conversationId
+          ? "chatbot_message_legacy_request_untracked"
+          : "chatbot_message_request_session_mismatch",
+        409,
+      )
+    }
     if (input.recoverRequestKey && !request && input.recoverRequestKey !== input.requestKey) {
       throw new ChatbotMessageCoordinationError("chatbot_message_recovery_request_unknown", 409)
     }
@@ -279,6 +288,10 @@ type OwnershipRow = {
   activeMessageRequestOwner: string | null
 }
 
+type LegacyMessageRow = {
+  conversationId: string
+}
+
 export async function assertChatbotMessageRequestOwnership(
   input: ChatbotMessageRequestOwnership,
 ): Promise<void> {
@@ -341,6 +354,89 @@ export async function finalizeChatbotMessageRequest(input: {
   }
 }
 
+export async function recoverChatbotMessageRequestUserMessage(input: {
+  ownership: ChatbotMessageRequestOwnership
+  content: string
+}): Promise<{ id: string; role: "user"; content: string; createdAt: string }> {
+  let createdAt = new Date()
+  const recovered = await runCasTransaction(async (tx) => {
+    const ownershipRetained = await tx.$executeRawUnsafe(
+      `UPDATE "ChatbotConversation"
+       SET "messageRequestVersion" = "messageRequestVersion"
+       WHERE "id" = ? AND "activeMessageRequestKey" = ? AND "activeMessageRequestOwner" = ?
+         AND EXISTS (
+           SELECT 1 FROM "ChatbotMessageRequest" r
+           WHERE r."key" = ? AND r."conversationId" = ? AND r."owner" = ?
+             AND r."version" = ? AND r."status" = 'processing'
+         )`,
+      input.ownership.conversationId,
+      input.ownership.requestKey,
+      input.ownership.owner,
+      input.ownership.requestKey,
+      input.ownership.conversationId,
+      input.ownership.owner,
+      input.ownership.requestVersion,
+    )
+    if (ownershipRetained !== 1) throw new CoordinationCasError()
+
+    const target = await tx.chatbotMessage.findUnique({
+      where: { id: input.ownership.requestKey },
+      select: { conversationId: true, role: true, createdAt: true },
+    })
+    if (target && (target.conversationId !== input.ownership.conversationId || target.role !== "user")) {
+      throw new CoordinationCasError()
+    }
+    if (target) {
+      await tx.chatbotMessage.deleteMany({
+        where: {
+          conversationId: input.ownership.conversationId,
+          OR: [
+            { createdAt: { gt: target.createdAt } },
+            { createdAt: target.createdAt, id: { gte: input.ownership.requestKey } },
+          ],
+        },
+      })
+    }
+
+    createdAt = new Date()
+    await tx.chatbotConversation.update({
+      where: { id: input.ownership.conversationId },
+      data: {
+        lastMessageAt: createdAt,
+        routingDecision: "continue",
+        bookingId: null,
+        finalMedium: null,
+        jobType: null,
+        mainDuration: null,
+        workSite: null,
+        attachments: null,
+        additionalWork: null,
+        referenceUrls: null,
+        currentQuestion: null,
+        activeChoices: null,
+        conversationState: null,
+        messages: {
+          create: {
+            id: input.ownership.requestKey,
+            role: "user",
+            content: input.content,
+            createdAt,
+          },
+        },
+      },
+    })
+  })
+  if (!recovered) {
+    throw new ChatbotMessageCoordinationError("chatbot_message_request_ownership_lost", 409)
+  }
+  return {
+    id: input.ownership.requestKey,
+    role: "user",
+    content: input.content,
+    createdAt: createdAt.toISOString(),
+  }
+}
+
 export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
   async load(input) {
     const existingConversation = await prisma.chatbotConversation.findUnique({
@@ -374,6 +470,12 @@ export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
        FROM "ChatbotMessageRequest" WHERE "key" = ? LIMIT 1`,
       lookupKey,
     )
+    const legacyMessageRows = requestRows[0]
+      ? []
+      : await prisma.$queryRawUnsafe<LegacyMessageRow[]>(
+          `SELECT "conversationId" FROM "ChatbotMessage" WHERE "id" = ? LIMIT 1`,
+          lookupKey,
+        )
     const lock = lockRows[0]
     if (!lock) throw new ChatbotMessageCoordinationError("chatbot_message_request_lock_missing", 500)
     return {
@@ -384,6 +486,7 @@ export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
       activeLeaseExpiresAt: toDate(lock.messageRequestLeaseExpiresAt),
       lockVersion: Number(lock.messageRequestVersion),
       request: requestRows[0] ? toRequestRecord(requestRows[0]) : null,
+      legacyMessageConversationId: legacyMessageRows[0]?.conversationId ?? null,
     }
   },
 

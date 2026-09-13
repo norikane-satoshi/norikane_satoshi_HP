@@ -18,6 +18,7 @@ import {
   coordinateChatbotMessageRequest,
   finalizeChatbotMessageRequest,
   hashChatbotMessagePayload,
+  recoverChatbotMessageRequestUserMessage,
 } from "@/lib/chatbot/server/message-request-coordinator"
 import { respondChatbotOperationFailure } from "@/lib/chatbot/server/operation-failure"
 import { persistChatbotMessageFinalization } from "@/lib/chatbot/server/repository"
@@ -117,6 +118,10 @@ export async function POST(request: NextRequest) {
         ownership
           ? {
               assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership),
+              recoverPendingUserMessage: ({ content }) => recoverChatbotMessageRequestUserMessage({
+                ownership,
+                content,
+              }),
               finalizeMessage: (finalization) => finalizeChatbotMessageRequest({
                 ownership,
                 resultJson: JSON.stringify({

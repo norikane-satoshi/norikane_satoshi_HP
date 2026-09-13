@@ -220,6 +220,9 @@ type HandleChatbotMessageOptions = {
   knowledgeSnapshotLoader?: typeof loadLatestChatbotKnowledgeSnapshot
   slackNotifier?: typeof sendChatbotSlackNotification
   assertRequestOwnership?: () => Promise<void>
+  recoverPendingUserMessage?: (input: {
+    content: string
+  }) => Promise<ChatbotMessage>
   finalizeMessage?: (input: ChatbotMessageFinalizationInput) => Promise<void>
   now?: () => number
 }
@@ -278,6 +281,7 @@ export async function handleChatbotMessage(
   const knowledgeSnapshotLoader = options.knowledgeSnapshotLoader ?? loadLatestChatbotKnowledgeSnapshot
   const slackNotifier = options.slackNotifier ?? sendChatbotSlackNotification
   const assertRequestOwnership = options.assertRequestOwnership ?? (async () => undefined)
+  const recoverPendingUserMessage = options.recoverPendingUserMessage
   const conversationLoadStartedAt = now()
   let conversation = await repository.loadOrCreateConversationBySessionId({
     sessionId: input.sessionId,
@@ -339,15 +343,20 @@ export async function handleChatbotMessage(
     }
   }
 
+  let recoveredUserMessage: ChatbotMessage | undefined
   if (input.recoverClientUserMessageId && !input.editTargetMessageId) {
     const recoverTargetIndex = conversation.messages.findIndex(
       (message) => message.id === input.recoverClientUserMessageId && message.role === "user",
     )
     if (recoverTargetIndex >= 0) {
-      await repository.truncateConversationFromMessage({
-        conversationId: conversation.id,
-        messageId: input.recoverClientUserMessageId,
-      })
+      if (recoverPendingUserMessage) {
+        recoveredUserMessage = await recoverPendingUserMessage({ content: input.message })
+      } else {
+        await repository.truncateConversationFromMessage({
+          conversationId: conversation.id,
+          messageId: input.recoverClientUserMessageId,
+        })
+      }
       conversation = resetEditedConversationContext(conversation, conversation.messages.slice(0, recoverTargetIndex))
       logPrivacySafeChatbotEvent({
         event: "chatbot_pending_request_recovered",
@@ -362,13 +371,15 @@ export async function handleChatbotMessage(
   conversation = reconcileConversationContextFromHistory(conversation)
 
   const userMessagePersistStartedAt = now()
-  await assertRequestOwnership()
-  const userMessage = await repository.appendMessage({
-    ...(input.clientUserMessageId ? { id: input.clientUserMessageId } : {}),
-    conversationId: conversation.id,
-    role: "user",
-    content: input.message,
-  })
+  const userMessage = recoveredUserMessage ?? await (async () => {
+    await assertRequestOwnership()
+    return repository.appendMessage({
+      ...(input.clientUserMessageId ? { id: input.clientUserMessageId } : {}),
+      conversationId: conversation.id,
+      role: "user",
+      content: input.message,
+    })
+  })()
   conversationPersistMs += elapsedMs(userMessagePersistStartedAt, now())
   const contextPreparationStartedAt = now()
   if (editSlackEvent) {
