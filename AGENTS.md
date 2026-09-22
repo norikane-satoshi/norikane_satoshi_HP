@@ -70,13 +70,12 @@ See `docs/repository-hygiene.md` for the operating procedure.
 
 ## Long-running process lifecycle
 
-Verification dev servers (`pnpm next dev`, etc.) launched during a cc-notion session are owned by Satoshi, not by the session that started them. They are reused across phases for repeated visual verification.
+Start a verification dev server only when the current task needs it; no dev server or port must stay running between tasks.
 
-- Do not kill a verification dev server at session end without an explicit instruction from Satoshi. Treat it the same as the launchctl-managed cc-notion daemon: shared infrastructure that outlives any single session.
-- Do not kill a dev server you find already running just because you did not start it. Reuse it, probe the port, and attach to the existing PID. The standing HP 41238 refresh authorization below is the only project-level exception; other servers may be restarted only when actually broken or explicitly requested.
-- Start dev servers fully detached, with stdio redirected to a log file, so the cc-notion job exit does not take the server down.
-- When you do start or restart one, report URL, PID, and log path so the next session can find it without rediscovery.
-- If Satoshi explicitly says "kill the dev server" / "stop the dev server" / "restart the dev server", that authorizes the named operation. The HP 41238 refresh flow below is already authorized after each completed HP change and does not require another confirmation.
+- Check the owner and active users before stopping or restarting an existing server. Do not interrupt another task's live verification.
+- A server started for this task may be stopped gracefully after verification when no other task depends on it. Do not leave it running solely for a future task.
+- When starting or restarting one, record its URL, PID, and log path for the current verification and cleanup.
+- The HP 41238 refresh below is authorized when local preview is requested; other service operations follow their exact owner and current task needs.
 
 ## 予約可否の表示契約（3カレンダー共通・恒久）
 
@@ -132,12 +131,12 @@ AI チャットボットと予約カレンダーの実装は、検証済み変�
 
 ## 41238 最新化ルール
 
-今後この HP の修正が lint・typecheck・対象 unit test を通過し、専用作業ブランチへ commit されたら、報告前に次を実行する。
+今後この HP の修正が lint・typecheck・対象 unit test を通過し、専用作業ブランチへ commit されたら、staging 統合について次の 1〜2 を実行する。41238 の起動・更新と 3〜4 の確認は、そのタスクでローカルプレビューが必要な場合に限る。41238 の常時 LISTEN は完了条件にしない。
 
 1. `origin` を fetch し、作業 commit を最新 `origin/staging` 上へ競合なく載せられることを確認する。作業ブランチが遅れているだけなら最新 `origin/staging` へ rebase し、競合が起きた場合は rebase を中止して push せず、さとしさんへ判断を戻す。
 2. `origin/staging` が統合後 HEAD の祖先であること、保護対象 baseline の祖先関係、diff allowlist を確認し、通常の fast-forward push だけで `origin/staging` を前進させる。force push / reset / staging 直作業は禁止する。
-3. launchd `com.norikane.hp41238` が管理する `.codex-worktrees/staging-live-41238` を新しい `origin/staging` HEAD へ fast-forward し、`launchctl kill SIGTERM gui/<uid>/com.norikane.hp41238` で launchd 管理 job を graceful restart する。KeepAlive による再起動だけを使い、`SIGKILL`、`kickstart -k`、別 port、別 server への置換は禁止する。
-4. 新 PID の 41238 LISTEN、配信 worktree HEAD、HTTP 200、`/api/chatbot/build-info` の `commitSha == origin/staging` を確認し、「41238で最新の見た目を確認できます」と報告する。
+3. ローカルプレビューが必要な場合だけ、`.codex-worktrees/staging-live-41238` を新しい `origin/staging` HEAD へ fast-forward し、exact owner の経路で 41238 サーバーを起動または graceful restart する。`SIGKILL`、`kickstart -k`、別 port、別 server への置換は禁止する。
+4. ローカルプレビューを行った場合だけ、41238 LISTEN、配信 worktree HEAD、HTTP 200、`/api/chatbot/build-info` の `commitSha == origin/staging` を確認して報告する。検証終了後は上の process lifecycle に従う。
 
 41238 の更新はローカル確認用に限る。HP デザイン変更の master push / Vercel Production deploy は、さとしさんの明示的な目視 GO が出るまで禁止する。
 
