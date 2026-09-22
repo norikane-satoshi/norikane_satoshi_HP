@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache"
 import {
   getNotionClient,
   IB_NOTE_DATA_SOURCE_ID,
+  LANGUAGE_PROPERTY,
   PUBLISHED_PROPERTY,
   SLUG_PROPERTY,
   TITLE_PROPERTY,
@@ -60,6 +61,11 @@ function extractPublished(page: PageObjectResponse): boolean {
   return prop.checkbox
 }
 
+function isJapaneseNote(page: PageObjectResponse): boolean {
+  const language = page.properties[LANGUAGE_PROPERTY]
+  return language?.type !== "select" || language.select?.name === "ja"
+}
+
 function toSummary(page: PageObjectResponse): NoteSummary | null {
   const slug = extractSlug(page)
   const title = extractTitle(page)
@@ -107,7 +113,7 @@ async function _queryPublishedImpl(
       start_cursor: cursor,
     })
     for (const row of resp.results) {
-      if (isFullPage(row)) results.push(row)
+      if (isFullPage(row) && isJapaneseNote(row)) results.push(row)
     }
     if (!resp.has_more || !resp.next_cursor) break
     cursor = resp.next_cursor
@@ -172,7 +178,7 @@ export async function getNotePublicationStatusBySlug(
   slug: string
 ): Promise<NotePublicationStatus> {
   const pages = await queryBySlug(slug)
-  const page = pages[0]
+  const page = pages.find(isJapaneseNote)
   if (!page) return "missing"
   return extractPublished(page) ? "published" : "unpublished"
 }

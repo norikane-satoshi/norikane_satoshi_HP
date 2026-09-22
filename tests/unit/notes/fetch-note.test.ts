@@ -13,6 +13,7 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/notion/server/client", () => ({
   getNotionClient: mocks.getNotionClient,
   IB_NOTE_DATA_SOURCE_ID: "notes-db",
+  LANGUAGE_PROPERTY: "Language",
   PUBLISHED_PROPERTY: "Published",
   SLUG_PROPERTY: "Slug",
   TITLE_PROPERTY: "Name",
@@ -27,10 +28,12 @@ function page({
   id,
   slug,
   title,
+  language,
 }: {
   id: string
   slug?: string
   title?: string
+  language?: string
 }) {
   return {
     id,
@@ -41,6 +44,7 @@ function page({
         type: "title",
         title: title === undefined ? [] : [{ plain_text: title }],
       },
+      Language: language ? { type: "select", select: { name: language } } : undefined,
       Slug:
         slug === undefined
           ? { type: "rich_text", rich_text: [] }
@@ -173,6 +177,30 @@ describe("notion note fetching", () => {
         },
       })
     )
+  })
+
+  it("does not expose an English translation on the Japanese note route", async () => {
+    mocks.getNotionClient.mockReturnValue({
+      dataSources: { query: mocks.query },
+      blocks: { children: { list: mocks.listChildren } },
+    })
+    mocks.query.mockResolvedValue({
+      results: [
+        page({ id: "english", slug: "correction", title: "English title", language: "en" }),
+        page({ id: "japanese", slug: "correction", title: "日本語タイトル", language: "ja" }),
+      ],
+      has_more: false,
+      next_cursor: null,
+    })
+    mocks.listChildren.mockResolvedValue({ results: [], has_more: false, next_cursor: null })
+
+    await expect(listPublishedNotes()).resolves.toEqual([
+      expect.objectContaining({ id: "japanese", slug: "correction", title: "日本語タイトル" }),
+    ])
+    await expect(getPublishedNoteBySlug("correction")).resolves.toMatchObject({
+      id: "japanese",
+      title: "日本語タイトル",
+    })
   })
 
   it("returns null when no page or no usable summary is found", async () => {
