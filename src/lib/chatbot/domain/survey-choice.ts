@@ -278,6 +278,51 @@ export const bookingFinalConfirmationChoices = {
   ],
 } as const satisfies SurveyChoiceSet
 
+// Material handoff and reference URL intake. The question texts must keep matching the
+// material-handoff and reference-URL patterns, which read the answer against the previous question.
+export const materialContentsChoices = {
+  id: "material-contents",
+  question: "何の素材をお送りいただく予定ですか？",
+  selectionMode: "multiple",
+  choices: [
+    { id: "exported-video", label: "書き出し済みの映像" },
+    { id: "camera-originals", label: "撮影素材一式" },
+    { id: "selected-clips", label: "使用クリップのみ" },
+    { id: "other", label: "その他" },
+  ],
+} as const satisfies SurveyChoiceSet
+
+export const materialTimingChoices = {
+  id: "material-timing",
+  question: "その素材は、いつお送りいただけそうですか？",
+  choices: [
+    { id: "within-1-week", label: "1週間以内" },
+    { id: "within-3-weeks", label: "2〜3週間以内" },
+    { id: "over-1-month", label: "1か月以上先" },
+    { id: "undecided", label: "未定" },
+  ],
+} as const satisfies SurveyChoiceSet
+
+export const materialHandoffMethodChoices = {
+  id: "material-handoff-method",
+  question: "素材の受け渡し方法を教えてください。",
+  choices: [
+    { id: "uploader", label: "アップローダー" },
+    { id: "drive-shipping", label: "SSD・HDDを郵送・バイク便" },
+    { id: "hand-delivery", label: "手渡し" },
+    { id: "other", label: "その他" },
+  ],
+} as const satisfies SurveyChoiceSet
+
+export const referenceUrlChoices = {
+  id: "reference-urls",
+  question: "事前に把握しておきたい参考URLがあれば教えてください",
+  choices: [
+    { id: "none", label: "なし" },
+    { id: "other", label: "URLを入力する" },
+  ],
+} as const satisfies SurveyChoiceSet
+
 export const surveyChoiceSets = [
   jobKindChoices,
   ...contextualProjectLengthChoices,
@@ -290,5 +335,9 @@ export const surveyChoiceSets = [
   lectureTrainingFormatChoices,
   lectureTrainingSoftwareChoices,
   productionOptionChoices,
+  materialContentsChoices,
+  materialTimingChoices,
+  materialHandoffMethodChoices,
+  referenceUrlChoices,
   bookingFinalConfirmationChoices,
 ] as const satisfies readonly SurveyChoiceSet[]

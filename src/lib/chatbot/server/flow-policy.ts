@@ -1,5 +1,12 @@
 import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
-import { bookingFinalConfirmationChoices, projectLengthChoicesForJobKind, surveyChoiceSets } from "@/lib/chatbot/domain"
+import {
+  bookingFinalConfirmationChoices,
+  materialContentsChoices,
+  materialHandoffMethodChoices,
+  materialTimingChoices,
+  projectLengthChoicesForJobKind,
+  surveyChoiceSets,
+} from "@/lib/chatbot/domain"
 import { isLectureTrainingInquiry } from "@/lib/chatbot/server/lecture-training"
 
 export type ChatbotFlowStep =
@@ -96,11 +103,15 @@ export function applyBookingFinalConfirmationPolicy(input: {
     firstMissingMaterialSlot &&
     isMaterialHandoffDecision(input.routingDecision)
   ) {
+    const materialChoices = materialReadinessChoiceSets[firstMissingMaterialSlot]
+    // Keep the code-authored panel for the first missing item; any other material prompt is
+    // replaced by the plain question for that item.
+    const alreadyAsksMissingItem =
+      input.routingDecision?.kind === "continue" && input.routingDecision.presentChoices?.id === materialChoices.id
     return {
-      routingDecision: {
-        kind: "continue",
-        nextQuestion: buildMissingBookingReadinessQuestion(firstMissingMaterialSlot),
-      },
+      routingDecision: alreadyAsksMissingItem
+        ? input.routingDecision
+        : { kind: "continue", nextQuestion: materialChoices.question },
       conversationState: input.conversationState,
     }
   }
@@ -494,6 +505,12 @@ function markBookingFinalConfirmationSupplemental(
   }
 }
 
+const materialReadinessChoiceSets = {
+  "material-contents": materialContentsChoices,
+  "material-timing": materialTimingChoices,
+  "material-method": materialHandoffMethodChoices,
+} as const
+
 function buildMissingBookingReadinessQuestion(slot: ReturnType<typeof getMissingBookingReadinessSlots>[number]): string {
   switch (slot) {
     case "job-kind":
@@ -505,11 +522,9 @@ function buildMissingBookingReadinessQuestion(slot: ReturnType<typeof getMissing
     case "work-site":
       return "作業場所のご希望はありますか？"
     case "material-contents":
-      return "何の素材をお送りいただく予定ですか？（例: ProRes書き出し、撮影素材一式、使用するクリップのみ）"
     case "material-timing":
-      return "その素材は、いつお送りいただけそうですか？未定の場合は「未定」とお答えください。"
     case "material-method":
-      return "素材の受け渡し方法を教えてください。（例: SSD / HDDをバイク便・郵送・手渡し、アップローダーで共有）"
+      return materialReadinessChoiceSets[slot].question
     case "contact-email":
       return "ご連絡先メールを教えてください"
   }

@@ -268,6 +268,49 @@ export function applyActiveChoiceAnswer(input: {
         },
         jobContext: {},
       }
+    case "material-contents":
+    case "material-timing":
+    case "material-handoff-method":
+      // The answer text itself is stored by applyMaterialHandoffAnswer, which reads it against the
+      // previous question; the panel only confirms which intake item was answered.
+      return {
+        choiceSetId: activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: choices.map((item) => item.id),
+        conversationState: {
+          ...(activeChoices.id === "material-contents" ? { hasMaterialDetails: true } : {}),
+          ...(activeChoices.id === "material-timing" ? { hasMaterialTiming: true } : {}),
+          ...(activeChoices.id === "material-handoff-method" ? { hasMaterialHandoff: true } : {}),
+          ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+        },
+        jobContext: {},
+      }
+    case "reference-urls":
+      if (choices.some((item) => item.id === "none")) {
+        return {
+          choiceSetId: activeChoices.id,
+          choiceId: "none",
+          choiceIds: ["none"],
+          conversationState: {
+            hasReferenceUrls: true,
+            ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+          },
+          jobContext: {},
+        }
+      }
+      if (!otherCommentPatch.otherChoiceComments?.[activeChoices.id]) return null
+      return {
+        choiceSetId: activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: [choice.id],
+        conversationState: {
+          hasReferenceUrls: true,
+          ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+        },
+        jobContext: {},
+      }
     default:
       return null
   }
@@ -579,6 +622,14 @@ export function isSatisfiedChoicePanel(
       return Boolean(conversationState.hasLectureTrainingSoftware)
     case "production-options":
       return Boolean(conversationState.hasProductionOptions)
+    case "material-contents":
+      return Boolean(conversationState.hasMaterialDetails)
+    case "material-timing":
+      return Boolean(conversationState.hasMaterialTiming)
+    case "material-handoff-method":
+      return Boolean(conversationState.hasMaterialHandoff)
+    case "reference-urls":
+      return conversationState.hasReferenceUrls
     default:
       return false
   }

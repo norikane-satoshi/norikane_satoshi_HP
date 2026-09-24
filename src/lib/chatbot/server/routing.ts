@@ -6,7 +6,11 @@ import {
   documentaryAttachmentChoices,
   finalMediumChoices,
   jobKindChoices,
+  materialContentsChoices,
+  materialHandoffMethodChoices,
+  materialTimingChoices,
   projectLengthChoicesForJobKind,
+  referenceUrlChoices,
 } from "@/lib/chatbot/domain"
 import {
   tightDeadlineThresholdDays,
@@ -180,30 +184,32 @@ function continueDecision(input: {
   if (!conversationState.hasMaterialDetails || !conversationState.materialHandoff?.contents) {
     return {
       kind: "continue",
-      nextQuestion:
-        "何の素材をお送りいただく予定ですか？（例: ProRes書き出し、撮影素材一式、使用するクリップのみ）",
+      nextQuestion: materialContentsChoices.question,
+      presentChoices: materialContentsChoices,
     }
   }
 
   if (!conversationState.hasMaterialTiming || !conversationState.materialHandoff?.timing) {
     return {
       kind: "continue",
-      nextQuestion: "その素材は、いつお送りいただけそうですか？未定の場合は「未定」とお答えください。",
+      nextQuestion: materialTimingChoices.question,
+      presentChoices: materialTimingChoices,
     }
   }
 
   if (!conversationState.hasMaterialHandoff || !conversationState.materialHandoff?.method) {
     return {
       kind: "continue",
-      nextQuestion:
-        "素材の受け渡し方法を教えてください。（例: SSD / HDDをバイク便・郵送・手渡し、アップローダーで共有）",
+      nextQuestion: materialHandoffMethodChoices.question,
+      presentChoices: materialHandoffMethodChoices,
     }
   }
 
   if (!conversationState.hasReferenceUrls) {
     return {
       kind: "continue",
-      nextQuestion: "事前に把握しておきたい参考URLがあれば教えてください",
+      nextQuestion: referenceUrlChoices.question,
+      presentChoices: referenceUrlChoices,
     }
   }
 

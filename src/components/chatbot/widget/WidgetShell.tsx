@@ -15,6 +15,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { InquiryFormPrefill } from "@/lib/chatbot/domain"
+import { jobKindChoices } from "@/lib/chatbot/domain/survey-choice"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
@@ -78,6 +79,9 @@ const initialMessage = {
 } satisfies WidgetMessage
 
 const noUi = { kind: "none" } satisfies WidgetUi
+// The job-kind panel is shown before the first message so a customer can start with one click;
+// the server treats a first panel submission as the answer to this panel (Tier 0, no model call).
+const openingUi = { kind: "choice-panel", choiceSet: jobKindChoices } satisfies WidgetUi
 const communicationFallbackMessage =
   "応答が中断しました。入力内容は残っています。もう一度送信できます。復旧できない場合だけフォームに切り替えます。"
 const formFallbackMessage =
@@ -152,7 +156,7 @@ type StoredPendingRequest = {
 function getInitialWidgetSession() {
   return {
     messages: [initialMessage],
-    activeUi: noUi,
+    activeUi: openingUi,
   }
 }
 
@@ -369,7 +373,12 @@ function loadStoredWidgetSession(): {
             ...(message.embeddedUi ? { embeddedUi: message.embeddedUi } : {}),
           }))
       : []
-    const restoredActiveUi = pendingRequest || recoverableRequest ? noUi : parsed.activeUi ?? noUi
+    const restoredActiveUi =
+      pendingRequest || recoverableRequest
+        ? noUi
+        : messages.length === 0
+          ? openingUi
+          : parsed.activeUi ?? noUi
     const restoredMessages =
       messages.length > 0
         ? isCompletedBookingUi(restoredActiveUi)
@@ -476,7 +485,7 @@ export function WidgetShell({
   const [messages, setMessages] = useState<WidgetMessage[]>(() => getInitialWidgetSession().messages)
   const [conversationId, setConversationId] = useState<string | undefined>(undefined)
   const [clientSessionId, setClientSessionId] = useState<string>(() => createClientSessionId())
-  const [activeUi, setActiveUi] = useState<WidgetUi>(noUi)
+  const [activeUi, setActiveUi] = useState<WidgetUi>(openingUi)
   const [activeAuditContext, setActiveAuditContext] = useState<ChatbotRenderAuditContext | undefined>(undefined)
   const [customerDisplayName, setCustomerDisplayName] = useState<string | undefined>(undefined)
   const [inquiryPrefill, setInquiryPrefill] = useState<InquiryFormPrefill | undefined>(undefined)
