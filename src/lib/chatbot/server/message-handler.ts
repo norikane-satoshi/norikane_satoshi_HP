@@ -97,6 +97,7 @@ import {
 } from "@/lib/chatbot/server/material-handoff"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
 import { buildSingleUserPromptGuardContent } from "@/lib/chatbot/server/prompt-guard-copy"
+import { interpretChoiceWithJev, type ChatbotChoiceInterpreter } from "@/lib/chatbot/server/choice-interpreter"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 import {
   buildChatbotSlackDeliveryEvidence,
@@ -231,6 +232,7 @@ type HandleChatbotMessageOptions = {
     content: string
   }) => Promise<ChatbotMessage>
   finalizeMessage?: (input: ChatbotMessageFinalizationInput) => Promise<void>
+  choiceInterpreter?: ChatbotChoiceInterpreter
   now?: () => number
 }
 
@@ -418,11 +420,36 @@ export async function handleChatbotMessage(
     })
   }
   const activeChoices = contextualizeStoredActiveChoices(conversation)
-  const activeChoiceAnswer = applyActiveChoiceAnswer({
+  const activeIntakeClarification = conversation.context.conversationState?.activeIntakeClarification
+  let activeChoiceAnswer = applyActiveChoiceAnswer({
     activeChoices,
     message: input.message,
-    activeIntakeClarification: conversation.context.conversationState?.activeIntakeClarification,
+    activeIntakeClarification,
   })
+  if (
+    activeChoices &&
+    !isConfirmedChoiceAnswer(activeChoiceAnswer) &&
+    !isExplicitChoiceSubmission(input.message) &&
+    !looksLikeCustomerQuestion(input.message)
+  ) {
+    const interpreted = await (options.choiceInterpreter ?? interpretChoiceWithJev)({
+      requestId: input.requestId,
+      choiceSet: activeChoices,
+      message: input.message,
+    })
+    const labels = interpreted?.choiceIds.flatMap((choiceId) => {
+      const label = activeChoices.choices.find((choice) => choice.id === choiceId)?.label
+      return label ? [label] : []
+    })
+    if (labels && labels.length > 0) {
+      const interpretedAnswer = applyActiveChoiceAnswer({
+        activeChoices,
+        message: `選択: ${labels.join("、")}`,
+        activeIntakeClarification,
+      })
+      if (isConfirmedChoiceAnswer(interpretedAnswer)) activeChoiceAnswer = interpretedAnswer
+    }
+  }
   const userContext = input.userId
     ? await userContextLoader({
         userId: input.userId,
@@ -510,7 +537,17 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   stageTimings.contextPreparation = elapsedMs(contextPreparationStartedAt, now())
-  const llmResponse = await generateContractedLlmResponse({
+  const deterministicReply = decideDeterministicIntakeReply({
+    fallbackRoutingDecision,
+    activeChoiceAnswer,
+    previousAssistantMessage,
+    latestUserMessage: input.message,
+    noteAccess,
+    hasSubmittedBooking: Boolean(submittedBooking),
+  })
+  const llmResponse = deterministicReply
+    ? createDeterministicIntakeResponse(deterministicReply, recordTierAttempt)
+    : await generateContractedLlmResponse({
     orchestrator,
     request: {
       requestId: input.requestId,
@@ -544,7 +581,8 @@ export async function handleChatbotMessage(
       })
   const rawRoutingDecision =
     resolvedRoutingDecision ??
-    (activeChoiceAnswer ||
+    (deterministicReply ||
+    activeChoiceAnswer ||
     isLectureTrainingInquiry(conversationState) ||
     shouldUseFallbackRouting({
       fallbackRoutingDecision,
@@ -1972,6 +2010,72 @@ async function generateContractedLlmResponse(input: {
       },
     })
   }
+}
+
+type DeterministicIntakeReply = {
+  nextQuestion: string
+  reason: "choice-answer" | "intake-answer"
+}
+
+/**
+ * Tier 0: when the customer's message was fully consumed by code (a confirmed choice-panel answer,
+ * or a required free-text intake answer that advanced the state) and the next step is a fixed
+ * intake question, the reply is authored by code and no model is called. Anything that may need
+ * a model's judgment (first message, questions, knowledge lookups, protective branches, booked
+ * follow-ups, clarifications) keeps the normal tier path.
+ */
+function decideDeterministicIntakeReply(input: {
+  fallbackRoutingDecision: RoutingDecision
+  activeChoiceAnswer: ReturnType<typeof applyActiveChoiceAnswer>
+  previousAssistantMessage: string | undefined
+  latestUserMessage: string
+  noteAccess: CustomerFacingNoteAccess
+  hasSubmittedBooking: boolean
+}): DeterministicIntakeReply | undefined {
+  const fallback = input.fallbackRoutingDecision
+  if (fallback.kind !== "continue" || !fallback.nextQuestion.trim()) return undefined
+  if (!input.previousAssistantMessage || input.hasSubmittedBooking) return undefined
+  if (input.noteAccess.kind !== "none" || looksLikeCustomerQuestion(input.latestUserMessage)) return undefined
+
+  if (isConfirmedChoiceAnswer(input.activeChoiceAnswer)) {
+    return { nextQuestion: fallback.nextQuestion, reason: "choice-answer" }
+  }
+  if (
+    isRequiredIntakeQuestion(input.previousAssistantMessage) &&
+    !input.previousAssistantMessage.includes(fallback.nextQuestion)
+  ) {
+    return { nextQuestion: fallback.nextQuestion, reason: "intake-answer" }
+  }
+  return undefined
+}
+
+function createDeterministicIntakeResponse(
+  reply: DeterministicIntakeReply,
+  onTierAttempt: (event: TierAttemptEvent) => void,
+): ChatbotLlmResponse {
+  onTierAttempt({
+    tier: chatbotLlmTierIds.tier0DeterministicIntake,
+    phase: "generate",
+    outcome: "success",
+    latencyMs: 0,
+  })
+  return createChatbotLlmResponse({
+    rawText: customerReplyMarkup(reply.nextQuestion),
+    tier: chatbotLlmTierIds.tier0DeterministicIntake,
+    diagnostics: { deterministicIntakeReason: reply.reason },
+  })
+}
+
+function isConfirmedChoiceAnswer(patch: ReturnType<typeof applyActiveChoiceAnswer>): boolean {
+  return Boolean(patch?.choiceIds.length) && patch?.conversationState.activeIntakeClarification?.status !== "needs-clarification"
+}
+
+function isExplicitChoiceSubmission(message: string): boolean {
+  return /^\s*選択\s*[:：]/u.test(message)
+}
+
+function looksLikeCustomerQuestion(message: string): boolean {
+  return /[?？]/u.test(message) || isDurationAnswerRequest(message)
 }
 
 function shouldRegenerateStructuredUi(response: ChatbotLlmResponse): boolean {
