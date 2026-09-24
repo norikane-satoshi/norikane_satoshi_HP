@@ -1,5 +1,6 @@
 {
   "buildCommand": "npm run db:migrate:turso && next build",
+  "regions": ["hnd1"],
   "crons": [
     {
       "path": "/api/cron/reconcile-pending-gcal",

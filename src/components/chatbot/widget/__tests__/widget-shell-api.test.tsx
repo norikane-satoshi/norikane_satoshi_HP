@@ -2259,3 +2259,36 @@ describe("WidgetShell API wiring", () => {
     expect(JSON.stringify(stored)).not.toContain("最終媒体を選んでください")
   })
 })
+
+describe("WidgetShell opening job-kind panel", () => {
+  beforeEach(() => {
+    installLocalStorage()
+    removeStoredWidgetSession()
+  })
+
+  afterEach(() => {
+    cleanup()
+    removeStoredWidgetSession()
+    vi.unstubAllGlobals()
+  })
+
+  it("shows the job-kind panel before the first message and sends a click as a panel answer", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockJsonResponse({
+        conversationId: "conv_1",
+        userMessage: { id: "user_1", role: "user", content: "選択: Web CM / CM", createdAt: "2026-09-25T00:00:00.000Z" },
+        assistantMessage: { ...assistantMessage, content: "尺を選んでください" },
+        tier: "tier-0-deterministic-intake",
+        ui: { kind: "none" },
+        inquiryPrefill: {},
+      }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    fireEvent.click(await screen.findByRole("button", { name: "Web CM / CM" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ message: "選択: Web CM / CM" })
+  })
+})

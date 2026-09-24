@@ -3,6 +3,7 @@ import {
   finalMediumChoices,
   formatConsultationSummary,
   hasRequiredEmailConsultationSlots,
+  jobKindChoices,
   projectLengthChoices,
   projectLengthChoicesForJobKind,
   surveyChoiceSets,
@@ -419,7 +420,15 @@ export async function handleChatbotMessage(
       edit: editSlackEvent,
     })
   }
-  const activeChoices = contextualizeStoredActiveChoices(conversation)
+  // The widget shows the job-kind panel before the first message, so a first message that is a
+  // panel submission answers that panel even though no assistant message was stored yet.
+  const isOpeningPanelAnswer =
+    conversation.messages.length === 0 &&
+    !conversation.context.activeChoices &&
+    isExplicitChoiceSubmission(input.message) &&
+    applyActiveChoiceAnswer({ activeChoices: jobKindChoices, message: input.message }) !== null
+  const activeChoices =
+    contextualizeStoredActiveChoices(conversation) ?? (isOpeningPanelAnswer ? jobKindChoices : undefined)
   const activeIntakeClarification = conversation.context.conversationState?.activeIntakeClarification
   let activeChoiceAnswer = applyActiveChoiceAnswer({
     activeChoices,
@@ -530,7 +539,7 @@ export async function handleChatbotMessage(
       latestUserMessage: input.message,
       userAgent: input.userAgent,
     }, recordTierAttempt)
-  const fallbackRoutingDecision = decideRoutingFallback({
+  const codeRoutingDecision = decideRoutingFallback({
     jobContext,
     conversationState,
     latestUserMessage: input.message,
@@ -538,13 +547,16 @@ export async function handleChatbotMessage(
   })
   stageTimings.contextPreparation = elapsedMs(contextPreparationStartedAt, now())
   const deterministicReply = decideDeterministicIntakeReply({
-    fallbackRoutingDecision,
+    fallbackRoutingDecision: codeRoutingDecision,
     activeChoiceAnswer,
-    previousAssistantMessage,
+    previousAssistantMessage: previousAssistantMessage ?? (isOpeningPanelAnswer ? jobKindChoices.question : undefined),
     latestUserMessage: input.message,
     noteAccess,
     hasSubmittedBooking: Boolean(submittedBooking),
   })
+  const fallbackRoutingDecision = deterministicReply
+    ? codeRoutingDecision
+    : withoutFreeTextIntakePanel(codeRoutingDecision)
   const llmResponse = deterministicReply
     ? createDeterministicIntakeResponse(deterministicReply, recordTierAttempt)
     : await generateContractedLlmResponse({
@@ -617,7 +629,9 @@ export async function handleChatbotMessage(
     latestUserMessage: input.message,
     assistantText: llmResponse.rawText,
   })
-  const routingDecision = flowPolicy.routingDecision
+  const routingDecision = deterministicReply
+    ? flowPolicy.routingDecision
+    : withoutFreeTextIntakePanel(flowPolicy.routingDecision)
   const persistedConversationState = flowPolicy.conversationState
   logChatbotBookingReadinessBoundary({
     requestId: input.requestId,
@@ -1457,7 +1471,9 @@ function applyEmptyReferenceUrlAnswer(input: {
 }): ConversationState {
   if (input.conversationState.hasReferenceUrls) return input.conversationState
   if (!isReferenceUrlQuestion(input.previousAssistantMessage)) return input.conversationState
-  if (!isNoAdditionalBookingConcern(input.latestUserMessage)) return input.conversationState
+  if (!isNoAdditionalBookingConcern(input.latestUserMessage) && !/https?:\/\/\S+/u.test(input.latestUserMessage)) {
+    return input.conversationState
+  }
 
   return {
     ...input.conversationState,
@@ -2010,6 +2026,20 @@ async function generateContractedLlmResponse(input: {
       },
     })
   }
+}
+
+const freeTextIntakePanelIds = new Set(["material-contents", "material-timing", "material-handoff-method", "reference-urls"])
+
+/**
+ * The material and reference-URL intake items were free-text questions before they became panels.
+ * Their panels are shown on Tier 0 replies. When a model answers the turn (the customer asked
+ * something or wrote free text), keep the earlier plain-question behavior, because a panel
+ * display would replace the model's answer; the item is still read from the next free-text reply.
+ */
+function withoutFreeTextIntakePanel<T extends RoutingDecision | undefined>(decision: T): T {
+  if (!decision || decision.kind !== "continue" || !decision.presentChoices) return decision
+  if (!freeTextIntakePanelIds.has(decision.presentChoices.id)) return decision
+  return { kind: "continue", nextQuestion: decision.nextQuestion } as T
 }
 
 type DeterministicIntakeReply = {

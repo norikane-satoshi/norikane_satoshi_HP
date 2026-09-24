@@ -18,6 +18,10 @@ function resolveCopyKey(choiceSet: SurveyChoiceSet): SurveyChoiceCopyKey | null 
   if (choiceSet.id === "lecture-training-software") return "trainingSoftware"
   if (choiceSet.id === "production-options") return "productionOptions"
   if (choiceSet.id === "booking-final-confirmation") return "bookingConfirmation"
+  if (choiceSet.id === "material-contents") return "materialContents"
+  if (choiceSet.id === "material-timing") return "materialTiming"
+  if (choiceSet.id === "material-handoff-method") return "materialHandoffMethod"
+  if (choiceSet.id === "reference-urls") return "referenceUrls"
   if (choiceSet.id !== "project-length") return null
 
   const firstChoiceId = choiceSet.choices[0]?.id ?? ""

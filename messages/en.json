@@ -358,7 +358,11 @@
     "trainingFormat": {"question": "Choose the training format", "choices": {"online": "Online", "in-person": "In person", "hybrid": "Online + in person", "undecided": "Undecided", "other": "Other"}},
     "trainingSoftware": {"question": "Choose the software", "choices": {"davinci-resolve-studio": "DaVinci Resolve Studio", "davinci-resolve": "DaVinci Resolve", "other": "Other"}},
     "productionOptions": {"question": "Are captions, titles, narration, or music included?", "choices": {"captions": "Captions", "telops": "On-screen titles", "narration": "Narration", "music": "Music", "other": "Other", "none": "None"}},
-    "bookingConfirmation": {"question": "Is there anything else you would like to confirm, share, or ask about?", "choices": {"none": "No, continue", "other": "I have something to share or ask"}}
+    "bookingConfirmation": {"question": "Is there anything else you would like to confirm, share, or ask about?", "choices": {"none": "No, continue", "other": "I have something to share or ask"}},
+    "materialContents": {"question": "What footage will you send?", "choices": {"exported-video": "Exported video", "camera-originals": "All camera originals", "selected-clips": "Selected clips only", "other": "Other"}},
+    "materialTiming": {"question": "When can you send the footage?", "choices": {"within-1-week": "Within 1 week", "within-3-weeks": "Within 2–3 weeks", "over-1-month": "More than a month from now", "undecided": "Not decided"}},
+    "materialHandoffMethod": {"question": "How will you hand over the footage?", "choices": {"uploader": "File upload service", "drive-shipping": "SSD/HDD by post or courier", "hand-delivery": "Hand delivery", "other": "Other"}},
+    "referenceUrls": {"question": "Any reference URLs we should see in advance?", "choices": {"none": "None", "other": "Enter a URL"}}
   },
   "Chatbot": {
     "windowLabel": "AI consultation", "open": "Open AI consultation", "launcher": "Consultation",

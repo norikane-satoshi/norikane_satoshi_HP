@@ -358,7 +358,11 @@
     "trainingFormat": {"question": "開催形式を選んでください", "choices": {"online": "オンライン", "in-person": "対面", "hybrid": "オンライン＋対面", "undecided": "未定", "other": "その他"}},
     "trainingSoftware": {"question": "使用ソフトを選んでください", "choices": {"davinci-resolve-studio": "DaVinci Resolve Studio", "davinci-resolve": "DaVinci Resolve", "other": "その他"}},
     "productionOptions": {"question": "字幕・テロップ、ナレーション、音楽はありますか", "choices": {"captions": "字幕", "telops": "テロップ", "narration": "ナレーション", "music": "音楽", "other": "その他", "none": "なし"}},
-    "bookingConfirmation": {"question": "ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？", "choices": {"none": "なし、このまま進める", "other": "伝えたいこと・不安な点がある"}}
+    "bookingConfirmation": {"question": "ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？", "choices": {"none": "なし、このまま進める", "other": "伝えたいこと・不安な点がある"}},
+    "materialContents": {"question": "何の素材をお送りいただく予定ですか？", "choices": {"exported-video": "書き出し済みの映像", "camera-originals": "撮影素材一式", "selected-clips": "使用クリップのみ", "other": "その他"}},
+    "materialTiming": {"question": "その素材は、いつお送りいただけそうですか？", "choices": {"within-1-week": "1週間以内", "within-3-weeks": "2〜3週間以内", "over-1-month": "1か月以上先", "undecided": "未定"}},
+    "materialHandoffMethod": {"question": "素材の受け渡し方法を教えてください。", "choices": {"uploader": "アップローダー", "drive-shipping": "SSD・HDDを郵送・バイク便", "hand-delivery": "手渡し", "other": "その他"}},
+    "referenceUrls": {"question": "事前に把握しておきたい参考URLがあれば教えてください", "choices": {"none": "なし", "other": "URLを入力する"}}
   },
   "Chatbot": {
     "windowLabel": "AI 相談窓口", "open": "AI 相談窓口を開く", "launcher": "ご相談窓口",

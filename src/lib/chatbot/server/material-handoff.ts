@@ -85,10 +85,21 @@ export function recoverMaterialHandoffFromHistory(
 }
 
 function normalizeMaterialAnswer(value: string): string | undefined {
-  const normalized = value
-    .normalize("NFKC")
-    .replace(/^\s*選択\s*[:：]\s*/u, "")
-    .replace(/\s+/gu, " ")
-    .trim()
+  const lines = value.normalize("NFKC").split(/\r?\n/u)
+  const selected = lines.find((line) => /^\s*選択\s*[:：]/u.test(line))
+  const otherComment = lines
+    .map((line) => line.match(/^\s*その他(?:コメント|の内容)?\s*[:：]\s*(.+)$/u)?.[1]?.trim())
+    .find(Boolean)
+  // A panel answer arrives as "選択: <labels>" plus an optional "その他コメント: <text>" line.
+  // Store what the customer actually chose, and the comment itself when only "その他" was picked.
+  const answer = selected
+    ? (() => {
+        const labels = selected.replace(/^\s*選択\s*[:：]\s*/u, "").split(/[、,]/u).map((label) => label.trim()).filter(Boolean)
+        const concrete = labels.filter((label) => label !== "その他")
+        if (otherComment) return [...concrete, otherComment].join("、")
+        return labels.join("、")
+      })()
+    : value.normalize("NFKC")
+  const normalized = answer.replace(/\s+/gu, " ").trim()
   return normalized ? normalized.slice(0, 500) : undefined
 }
