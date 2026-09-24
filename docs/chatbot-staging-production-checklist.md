@@ -83,4 +83,6 @@ The command uses controlled failure injection and does not stop the hosted Tier 
 5. The unit and E2E suites prove the resulting `tier3-inquiry-form` is visible, submit targets `/api/chatbot/submit-inquiry`, success feedback is visible, and fallback Slack notifications use the current tier labels.
 6. The verifier report contains only tier labels and boolean contract evidence. It must not print API keys, email addresses, prompts, response bodies, or customer data.
 
+`tier-0-deterministic-intake` is not a fallback. It is the normal reply for intake turns that code fully decides (a confirmed choice-panel answer, or a required free-text intake answer that advanced the state); no model is called and the reply is the fixed next question. First messages, customer questions, knowledge answers, protective branches, and clarifications keep the Tier 1 path. A free-text answer to a shown panel is mapped by TypeSafe Jev only when `TYPESAFE_API_KEY` is set and the answer is confident; otherwise it goes to Tier 1.
+
 The live command sends one clearly labelled canary notification to the operator. Record only the target SHA, execution time, tier results, delivery boolean, and the provider/message identifier when separately available. Never record the canary email body or credentials.

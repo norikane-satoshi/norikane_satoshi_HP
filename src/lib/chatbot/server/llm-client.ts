@@ -11,6 +11,8 @@ import {
 } from "@/lib/chatbot/server/llm-response-normalizer"
 
 export const chatbotLlmTierIds = {
+  /** Server-authored reply for intake turns fully decided by code; no model is called. */
+  tier0DeterministicIntake: "tier-0-deterministic-intake",
   tier1HostedChromeNotionAi: "tier-1-hosted-chrome-notion-ai",
   tier2GeminiFlash: "tier-2-gemini-flash",
   tier3FormFallback: "tier-3-form-fallback",
@@ -188,6 +190,7 @@ export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
 ] as const
 
 const tierOutputPolicies: Record<ChatbotLlmTier, { structuredUi: "optional" | "required" }> = {
+  [chatbotLlmTierIds.tier0DeterministicIntake]: { structuredUi: "optional" },
   [chatbotLlmTierIds.tier1HostedChromeNotionAi]: { structuredUi: "optional" },
   [chatbotLlmTierIds.tier2GeminiFlash]: { structuredUi: "required" },
   [chatbotLlmTierIds.tier3FormFallback]: { structuredUi: "optional" },

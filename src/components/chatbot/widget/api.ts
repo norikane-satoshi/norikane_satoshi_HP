@@ -51,6 +51,7 @@ export type WidgetUi =
   | { kind: "tier3-inquiry-form"; prefill?: InquiryFormPrefill }
 
 export type ChatbotResponseTier =
+  | "tier-0-deterministic-intake"
   | "tier-1-hosted-chrome-notion-ai"
   | "tier-2-gemini-flash"
   | "tier-3-form-fallback"

@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       eventName: "response_normalized",
       result: "success",
       buildSha: currentBuildSha,
+      tier: { in: Object.keys(baselines) },
     },
     select: { buildSha: true, tier: true, payloadJson: true },
     orderBy: { createdAt: "desc" },

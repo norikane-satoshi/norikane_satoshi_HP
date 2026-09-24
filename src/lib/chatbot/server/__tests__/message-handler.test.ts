@@ -1769,29 +1769,28 @@ describe("handleChatbotMessage user context", () => {
     )
 
     expect(harness.repository.truncateConversationFromMessage).not.toHaveBeenCalled()
-    expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
-      { role: "user", content: "ライブ2.5hの相談です" },
-      { role: "assistant", content: "カラグレ以外の追加作業はありますか？" },
-      { role: "user", content: "選択: 消し物、肌修正" },
-      { role: "assistant", content: "付随する映像はありますか？" },
-      { role: "user", content: "選択: 特典映像だよ" },
-    ])
-    expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
-      hasFinalMedium: true,
-      hasJobKind: true,
-      hasAdditionalWork: true,
-      hasDocumentaryAttachments: true,
-      otherChoiceComments: { "documentary-attachment": "特典映像だよ" },
-      turnCount: 3,
-    })
-    expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
-      jobKind: "live-60m",
-      finalMedium: "live",
-      workSite: "remote-grading",
-      projectLengthMinutes: 150,
-      additionalWork: ["retouch", "skin-retouch"],
-      documentaryAttachment: { kind: "other", count: 1, note: "特典映像だよ" },
-    })
+    // A confirmed panel answer is now answered by Tier 0 without a model call; the preserved
+    // routing state is observed at the persistence boundary instead of the LLM request.
+    expect(harness.generate).not.toHaveBeenCalled()
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationState: expect.objectContaining({
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          otherChoiceComments: { "documentary-attachment": "特典映像だよ" },
+        }),
+        jobContext: expect.objectContaining({
+          jobKind: "live-60m",
+          finalMedium: "live",
+          workSite: "remote-grading",
+          projectLengthMinutes: 150,
+          additionalWork: ["retouch", "skin-retouch"],
+          documentaryAttachment: { kind: "other", count: 1, note: "特典映像だよ" },
+        }),
+      }),
+    )
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         activeChoices: expect.objectContaining({ id: "work-site" }),

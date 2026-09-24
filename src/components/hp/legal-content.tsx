@@ -73,7 +73,8 @@ export function PrivacyPolicyContent({ headingLevel = "h1" }: LegalContentProps)
           <h2 className="text-lg font-semibold text-hp">第三者提供と外部サービス</h2>
           <p className="mt-3 text-hp-muted">
             法令に基づく場合を除き、本人の同意なく第三者へ提供しません。メール送信、カレンダー連携、
-            認証、ホスティング、データ保管のため、外部の業務委託先やクラウドサービスを利用する場合があります。
+            認証、ホスティング、データ保管、AI による応答生成と回答内容の整理のため、
+            外部の業務委託先やクラウドサービスを利用する場合があります。
           </p>
         </section>
 
