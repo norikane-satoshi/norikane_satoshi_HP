@@ -2063,9 +2063,15 @@ function decideDeterministicIntakeReply(input: {
   hasSubmittedBooking: boolean
 }): DeterministicIntakeReply | undefined {
   const fallback = input.fallbackRoutingDecision
-  if (fallback.kind !== "continue" || !fallback.nextQuestion.trim()) return undefined
   if (!input.previousAssistantMessage || input.hasSubmittedBooking) return undefined
   if (input.noteAccess.kind !== "none" || looksLikeCustomerQuestion(input.latestUserMessage)) return undefined
+  if (fallback.kind === "to-email") {
+    // The summary form copy replaces any model text, so a panel answer that lands here needs no model.
+    return isConfirmedChoiceAnswer(input.activeChoiceAnswer)
+      ? { nextQuestion: "下のフォームで相談内容を確認して送信してください。", reason: "choice-answer" }
+      : undefined
+  }
+  if (fallback.kind !== "continue" || !fallback.nextQuestion.trim()) return undefined
 
   if (isConfirmedChoiceAnswer(input.activeChoiceAnswer)) {
     return { nextQuestion: fallback.nextQuestion, reason: "choice-answer" }

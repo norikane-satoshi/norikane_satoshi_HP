@@ -2,6 +2,7 @@ import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatb
 import {
   additionalWorkChoices,
   bookingFinalConfirmationChoices,
+  formatConsultationSummary,
   customerFacingWorkSiteChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
@@ -220,9 +221,38 @@ function continueDecision(input: {
     }
   }
 
+  // The booking card needs an estimate, which only an estimable job kind has. Without one the
+  // confirmed intake goes to the consultation summary form; returning the final question again
+  // left those customers answering the same confirmation panel forever.
+  if (!jobContext.jobKind && conversationState.bookingFinalConfirmation?.status === "confirmed") {
+    return consultationEmailDecision(jobContext, conversationState)
+  }
+
   return {
     kind: "continue",
     nextQuestion: buildBookingFinalConfirmationQuestion(jobContext, conversationState),
     presentChoices: bookingFinalConfirmationChoices,
+  }
+}
+
+function consultationEmailDecision(jobContext: JobContext, conversationState: ConversationState): RoutingDecision {
+  const requestLabel = conversationState.otherChoiceComments?.["job-kind"]?.trim()
+  const summaryText = formatConsultationSummary({ jobContext, conversationState })
+    .split("\n")
+    .slice(1)
+    .filter((line) => !line.endsWith(":"))
+    .map((line) => line.replace(/^- /u, ""))
+    .join(" / ")
+  return {
+    kind: "to-email",
+    summary: {
+      subject: requestLabel ? `映像制作のご相談（${requestLabel}）` : "映像制作のご相談",
+      customerEmail: conversationState.contactEmail ?? "",
+      ...(conversationState.customerName ? { customerName: conversationState.customerName } : {}),
+      ...(conversationState.companyName ? { companyName: conversationState.companyName } : {}),
+      jobContext,
+      summaryText,
+      openQuestions: ["定型外の案件種別のため、作業期間と日程は則兼本人が確認"],
+    },
   }
 }
