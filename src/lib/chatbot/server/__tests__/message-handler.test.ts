@@ -5937,3 +5937,73 @@ describe("handleChatbotMessage user context", () => {
     expect(issueNotification.retryDiagnostics).not.toHaveProperty("systemPrompt")
   })
 })
+
+describe("handleChatbotMessage final confirmation without an estimable job kind", () => {
+  const otherJobContext: JobContext = {
+    finalMedium: "web",
+    workSite: "remote-grading",
+    documentaryAttachment: { kind: "none" },
+  }
+  const confirmedReadyState = (status: "pending" | "confirmed") =>
+    baseProductionConversationState({
+      hasContactEmail: true,
+      contactEmail: "client@example.com",
+      otherChoiceComments: { "job-kind": "カラーグレーディング" },
+      bookingFinalConfirmation: { status, requestedAtTurn: 8 },
+    })
+
+  it("routes the confirming panel answer to the consultation summary form without an LLM call", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          activeChoices: bookingFinalConfirmationChoices,
+          currentQuestion: bookingFinalConfirmationChoices.question,
+          conversationState: confirmedReadyState("pending"),
+          jobContext: otherJobContext,
+        },
+        messages: [
+          message("user", "client@example.com"),
+          { ...message("assistant", `${bookingFinalConfirmationChoices.question}\n下の選択肢から選んでください。`), id: "assistant_final" },
+        ],
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "選択: なし、このまま進める" },
+      harness.options,
+    )
+
+    expect(harness.generate).not.toHaveBeenCalled()
+    expect(result.routingDecision).toMatchObject({ kind: "to-email" })
+    expect(result.ui).toMatchObject({ kind: "consultation-summary-form" })
+    expect(result.assistantMessage.content).toBe("下のフォームで相談内容を確認して送信してください。")
+  })
+
+  it("does not show the final confirmation panel again once it is confirmed", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: confirmedReadyState("confirmed"),
+          jobContext: otherJobContext,
+        },
+        messages: [
+          message("user", "選択: なし、このまま進める"),
+          { ...message("assistant", `${bookingFinalConfirmationChoices.question}\n下の選択肢から選んでください。`), id: "assistant_final" },
+        ],
+      }),
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", userId: "user_a", message: "このまま進めてください" },
+      harness.options,
+    )
+
+    expect(result.ui).not.toMatchObject({ kind: "choice-panel" })
+    expect(result.routingDecision).toMatchObject({ kind: "to-email" })
+    expect(result.ui).toMatchObject({ kind: "consultation-summary-form" })
+  })
+})
