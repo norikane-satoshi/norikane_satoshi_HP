@@ -47,7 +47,10 @@ export type ChatbotMessageAuditEvidence = {
     conversationPersist: number
     slackNotification: number
     totalServer: number
+    routeBodyParse: number
     routeAuth: number
+    requestLoad: number
+    requestClaim: number
     routePreHandler: number
     routePostHandler: number
     routeTotal: number

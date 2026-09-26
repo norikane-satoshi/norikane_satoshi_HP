@@ -195,6 +195,12 @@ async function loadPost({
     recoverChatbotMessageRequestUserMessage,
     replaceChatbotMessageRequestUserMessage,
     hashChatbotMessagePayload: vi.fn(() => "payload_hash"),
+    prismaChatbotMessageRequestStore: {
+      load: vi.fn(),
+      claimNew: vi.fn(),
+      reclaim: vi.fn(),
+      complete: vi.fn(),
+    },
   }))
   vi.doMock("@/lib/chatbot/server/repository", () => ({ persistChatbotMessageFinalization }))
 
@@ -1006,12 +1012,23 @@ describe("POST /api/chatbot/message", () => {
     }
     for (const call of [0, 1]) {
       expect(timingsOf(call)).toMatchObject({
+        routeBodyParse: expect.any(Number),
         routeAuth: expect.any(Number),
+        requestLoad: expect.any(Number),
+        requestClaim: expect.any(Number),
         routePreHandler: expect.any(Number),
         routePostHandler: expect.any(Number),
         routeTotal: expect.any(Number),
       })
     }
+    expect(route.coordinateChatbotMessageRequest).toHaveBeenCalledWith(expect.objectContaining({
+      store: expect.objectContaining({
+        load: expect.any(Function),
+        claimNew: expect.any(Function),
+        reclaim: expect.any(Function),
+        complete: expect.any(Function),
+      }),
+    }))
     expect(timingsOf(0)).toHaveProperty("instanceWarmup", expect.any(Number))
     expect(timingsOf(1)).not.toHaveProperty("instanceWarmup")
   })

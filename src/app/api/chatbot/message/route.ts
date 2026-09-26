@@ -22,6 +22,7 @@ import {
   coordinateChatbotMessageRequest,
   finalizeChatbotMessageRequest,
   hashChatbotMessagePayload,
+  prismaChatbotMessageRequestStore,
   recoverChatbotMessageRequestUserMessage,
   replaceChatbotMessageRequestUserMessage,
 } from "@/lib/chatbot/server/message-request-coordinator"
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
   if (bodyLimit) return bodyLimit
 
   let raw: unknown
+  const bodyParseStartedAt = Date.now()
   try {
     raw = await request.json()
   } catch {
@@ -91,11 +93,31 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const routeBodyParse = Date.now() - bodyParseStartedAt
   const authStartedAt = Date.now()
   const session = await auth()
   const routeAuth = Date.now() - authStartedAt
   let handlerStartedAt: number | undefined
   let handlerEndedAt: number | undefined
+  // Time the request store's database work before the handler starts (claiming the request).
+  const requestStoreTimings = { requestLoad: 0, requestClaim: 0 }
+  const timed = <A extends unknown[], R>(
+    key: keyof typeof requestStoreTimings,
+    call: (...args: A) => Promise<R>,
+  ) => async (...args: A): Promise<R> => {
+    const startedAt = Date.now()
+    try {
+      return await call(...args)
+    } finally {
+      if (handlerStartedAt === undefined) requestStoreTimings[key] += Date.now() - startedAt
+    }
+  }
+  const requestStore = {
+    ...prismaChatbotMessageRequestStore,
+    load: timed("requestLoad", prismaChatbotMessageRequestStore.load),
+    claimNew: timed("requestClaim", prismaChatbotMessageRequestStore.claimNew),
+    reclaim: timed("requestClaim", prismaChatbotMessageRequestStore.reclaim),
+  }
   const existingSessionId = request.cookies.get(sessionCookieName)?.value
   const sessionId = parsed.data.clientSessionId ?? existingSessionId ?? crypto.randomUUID()
   const userAgent = request.headers.get("user-agent") ?? undefined
@@ -116,6 +138,7 @@ export async function POST(request: NextRequest) {
         conversationState: parsed.data.conversationState ?? null,
       }),
       completeDuringExecute: true,
+      store: requestStore,
       execute: async (ownership) => {
         handlerStartedAt = Date.now()
         try {
@@ -182,7 +205,9 @@ export async function POST(request: NextRequest) {
     }
     if (auditEvidence) {
       Object.assign(auditEvidence.stageTimings, {
+        routeBodyParse,
         routeAuth,
+        ...requestStoreTimings,
         ...(handlerStartedAt !== undefined ? { routePreHandler: handlerStartedAt - requestStartedAt } : {}),
         ...(handlerEndedAt !== undefined ? { routePostHandler: coordinatedAt - handlerEndedAt } : {}),
         routeTotal: Date.now() - requestStartedAt,

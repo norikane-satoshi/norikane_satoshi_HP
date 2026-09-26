@@ -153,7 +153,10 @@ export const chatbotAuditStageTimingsSchema = z
     totalServer: durationSchema.optional(),
     // Route-level time outside the message handler, and how long the instance had been up when
     // it took its first request (present on that first request only, i.e. a cold start).
+    routeBodyParse: durationSchema.optional(),
     routeAuth: durationSchema.optional(),
+    requestLoad: durationSchema.optional(),
+    requestClaim: durationSchema.optional(),
     routePreHandler: durationSchema.optional(),
     routePostHandler: durationSchema.optional(),
     routeTotal: durationSchema.optional(),
