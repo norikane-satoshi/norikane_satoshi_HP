@@ -6,6 +6,7 @@ import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 import {
   createTier2GeminiFlashClient,
   Tier2GeminiFlashClient,
+  tier2GeminiFlashDefaults,
 } from "@/lib/chatbot/server/llm-clients/tier2-gemini-flash"
 
 const apiKey = "test-gemini-key"
@@ -256,8 +257,56 @@ describe("Tier2GeminiFlashClient", () => {
       code: "rate-limit",
       isRetryable: true,
     })
-    expect(httpClient).toHaveBeenCalledOnce()
+    // The primary model's long wait is skipped by trying Flash-Lite once; it is limited too.
+    expect(httpClient).toHaveBeenCalledTimes(2)
     expect(sleep).not.toHaveBeenCalled()
+  })
+
+  it("answers from Flash-Lite at once instead of waiting out a long per-minute limit", async () => {
+    // With Tier 1 down every model turn lands here; a 40 s RetryInfo wait held a customer for 47 s.
+    const sleep = vi.fn(async () => undefined)
+    const httpClient = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({
+        error: {
+          details: [
+            {
+              "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+              violations: [{ quotaId: "GenerateRequestsPerMinutePerProjectPerModel-FreeTier" }],
+            },
+            { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "40s" },
+          ],
+        },
+      }, { ok: false, status: 429 }))
+      .mockResolvedValueOnce(jsonResponse({
+        candidates: [{
+          content: { parts: [{ text: "<customer_reply>対応可能です。</customer_reply>" }] },
+          finishReason: "STOP",
+        }],
+        modelVersion: "gemini-2.5-flash-lite",
+      }))
+    const gemini = new Tier2GeminiFlashClient({
+      apiKey,
+      modelName: "gemini-2.5-flash",
+      baseUrl: "https://generativelanguage.googleapis.com",
+      requestTimeoutMs: 20,
+      healthCheckTimeoutMs: 20,
+      httpClient,
+      sleep,
+    })
+
+    await expect(gemini.generate(llmRequest())).resolves.toMatchObject({
+      diagnostics: { model: "gemini-2.5-flash-lite", rateLimitRetryCount: 0 },
+    })
+    expect(httpClient.mock.calls.map(([url]) => url)).toEqual([
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
+    ])
+    expect(sleep).not.toHaveBeenCalled()
+  })
+
+  it("caps the default wait for a per-minute limit at ten seconds", () => {
+    expect(tier2GeminiFlashDefaults.rateLimitMaxDelayMs).toBe(10_000)
   })
 
   it("switches to Flash-Lite inside tier 2 when the primary model daily quota is exhausted", async () => {
