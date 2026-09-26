@@ -9,8 +9,8 @@ import {
 // The generate smoke is what grows the Notion AI thread the worker posts from, so its interval is
 // the main lever on how often the worker has to rotate.
 describe("heartbeat support for thread rotation", () => {
-  it("samples generate every thirty minutes", () => {
-    expect(defaultGenerateIntervalMs).toBe(30 * 60_000)
+  it("samples generate every six hours while healthy", () => {
+    expect(defaultGenerateIntervalMs).toBe(6 * 60 * 60_000)
   })
 
   it("reads the worker's current thread out of the health body", () => {
