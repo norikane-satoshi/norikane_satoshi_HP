@@ -72,6 +72,10 @@ The live VPS worker repo is `/home/chatbot-worker/norikane_satoshi_HP`; do not s
 
 Do not commit the env file.
 
+## Spent Notion AI allowance
+
+When Notion reports the AI allowance as spent (`notion_ai_usage_limit_reached`), the worker records the time in `~/.local/state/norikane_satoshi_hp/hosted-worker-notion-ai-quota.json` and exposes it as `runtime.notionAiQuotaExhaustedAt` on `/health`. For 45 minutes after the last such observation the worker refuses customer `/generate` requests at once with `rate-limit` instead of provisioning a Notion thread (~30 s) that cannot answer, and Production skips Tier1 on the health check. Only the heartbeat smoke (`hosted-tier1-heartbeat`) still reaches Notion; each failing smoke renews the window and the first successful answer clears it. Customers are answered by Tier 0 and Tier 2 meanwhile.
+
 ## VPS SSH access
 
 `worker.norikane.studio` is the Cloudflare-fronted public worker hostname, not the SSH destination; SSH to it times out. Connect from Satoshi's Mac directly to the VPS IPv4 address (recorded in the Mac's shell history, not in this repo) as user `chatbot-worker` on port 22 with the identity file `~/.ssh/notion-worker-key.key`. No ProxyCommand, ProxyJump, or Cloudflare Access is involved.

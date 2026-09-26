@@ -34,6 +34,14 @@ import {
   type HostedWorkerGenerateResponse,
 } from "@/lib/chatbot/hosted-worker/types"
 import {
+  assertNotionAiQuotaGateOpen,
+  clearNotionAiQuotaExhausted,
+  isNotionAiUsageLimitError,
+  isQuotaGateRefusal,
+  loadNotionAiQuotaState,
+  recordNotionAiQuotaExhausted,
+} from "@/lib/chatbot/hosted-worker/notion-ai-quota-gate"
+import {
   recordHostedWorkerGenerateFailure,
   recordHostedWorkerGenerateSuccess,
   type HostedWorkerRuntimeState,
@@ -51,6 +59,7 @@ type GenerateOptions = {
   }
   signal?: AbortSignal
   diagnosticsPath?: string
+  quotaStatePath?: string
 }
 
 const defaultWorkerGenerateTimeoutMs = 72000
@@ -59,6 +68,7 @@ const abortTag = "request_aborted"
 const diagnosticsEventName = "hosted_worker_generate"
 const stateDir = path.join(homedir(), ".local", "state", "norikane_satoshi_hp")
 const defaultDiagnosticsPath = path.join(stateDir, "hosted-worker-generate.jsonl")
+const defaultQuotaStatePath = path.join(stateDir, "hosted-worker-notion-ai-quota.json")
 const stageTimingBoundary = "hosted-notion-ai-stage-timings"
 
 type HostedWorkerStageTimings = HostedNotionAiStageTimings & {
@@ -179,6 +189,8 @@ export async function generateHostedWorkerResponse(
     options.diagnosticsPath ??
     process.env.CHATBOT_HOSTED_WORKER_GENERATE_DIAGNOSTICS_PATH ??
     (process.env.NODE_ENV === "test" ? undefined : defaultDiagnosticsPath)
+  const quotaStatePath =
+    options.quotaStatePath ?? (process.env.NODE_ENV === "test" ? undefined : defaultQuotaStatePath)
   let queueWaitMs = 0
   let generateDurationMs = 0
   let outcome: "success" | "error" = "error"
@@ -236,6 +248,8 @@ export async function generateHostedWorkerResponse(
 
   try {
     throwIfAborted(options.signal)
+    await loadNotionAiQuotaState(state, quotaStatePath)
+    assertNotionAiQuotaGateOpen({ state, conversationId, nowMs: startedAt })
     const response = await queue.run(
       async (queueContext) => {
         queueWaitMs = queueContext.queueWaitMs
@@ -280,6 +294,7 @@ export async function generateHostedWorkerResponse(
     )
     const latencyMs = (options.now?.() ?? Date.now()) - startedAt
     outcome = "success"
+    await clearNotionAiQuotaExhausted(state, quotaStatePath)
     recordHostedWorkerGenerateSuccess(state, {
       at: new Date(options.now?.() ?? Date.now()).toISOString(),
       latencyMs,
@@ -317,6 +332,9 @@ export async function generateHostedWorkerResponse(
       at: new Date(failureRecordedAt).toISOString(),
       latencyMs: failureRecordedAt - startedAt,
     })
+    if (isNotionAiUsageLimitError(normalized) && !isQuotaGateRefusal(normalized)) {
+      await recordNotionAiQuotaExhausted(state, new Date(failureRecordedAt).toISOString(), quotaStatePath)
+    }
     throw normalized
   } finally {
     if (diagnosticsPath) {

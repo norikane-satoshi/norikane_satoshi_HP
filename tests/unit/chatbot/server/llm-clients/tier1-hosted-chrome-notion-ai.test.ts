@@ -134,6 +134,28 @@ describe("Tier1HostedChromeNotionAiClient", () => {
     })
   })
 
+  it("skips generate while the worker reports a spent Notion AI allowance, whatever the last error was", async () => {
+    // A failed thread provisioning during a spent allowance ends as a connection error, which
+    // hid the quota from the rate-limit cooldown and cost customers up to 90 s of retries.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-26T07:30:00.000Z"))
+    const httpClient = vi.fn(async () => jsonResponse({
+      ok: true,
+      status: "ready",
+      runtime: {
+        currentStatus: "degraded",
+        consecutiveFailures: 3,
+        lastErrorCode: "connection",
+        lastErrorAt: "2026-09-26T07:15:48.000Z",
+        notionAiQuotaExhaustedAt: "2026-09-26T07:00:00.000Z",
+      },
+    }))
+    const client = hostedClient(httpClient)
+
+    await expect(client.isHealthy()).resolves.toBe(false)
+    expect(client.getLastHealthError()).toMatchObject({ code: "rate-limit", isRetryable: false })
+  })
+
   it("allows a recovery probe after the recent-rate-limit cooldown", async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-08-23T12:10:00.000Z"))
