@@ -47,6 +47,7 @@ type HostedWorkerHealthResponse = {
     lastErrorAt?: unknown
     lastRecoveredAt?: unknown
     lastSuccessfulGenerateAt?: unknown
+    notionAiQuotaExhaustedAt?: unknown
   }
 }
 
@@ -122,6 +123,16 @@ const firstServerErrorStatus = 500
 const maxGenerateAttempts = 3
 const minRetryAttemptBudgetMs = 5000
 const recentRateLimitCooldownMs = 5 * 60 * 1000
+// Matches the worker's quota gate window. While Notion reports the AI allowance as spent the worker
+// refuses customer requests anyway, so skipping here saves the round trip.
+const notionAiQuotaGateWindowMs = 45 * 60 * 1000
+
+function hasSpentNotionAiAllowance(response: HostedWorkerHealthResponse, nowMs = Date.now()): boolean {
+  const exhaustedAt = response.runtime?.notionAiQuotaExhaustedAt
+  if (typeof exhaustedAt !== "string") return false
+  const elapsedMs = nowMs - Date.parse(exhaustedAt)
+  return Number.isFinite(elapsedMs) && elapsedMs >= 0 && elapsedMs < notionAiQuotaGateWindowMs
+}
 
 function hasRecentRateLimit(response: HostedWorkerHealthResponse, nowMs = Date.now()): boolean {
   if (
@@ -310,6 +321,15 @@ export class Tier1HostedChromeNotionAiClient implements ChatbotLlmClient {
         this.config.healthCheckTimeoutMs,
       )
       const healthy = response.ok === true
+
+      if (healthy && hasSpentNotionAiAllowance(response)) {
+        this.lastHealthError = this.toLlmError({
+          message: "Hosted Notion AI worker reports the Notion AI allowance as spent.",
+          code: "rate-limit",
+          isRetryable: false,
+        })
+        return false
+      }
 
       if (healthy && hasRecentRateLimit(response)) {
         this.lastHealthError = this.toLlmError({

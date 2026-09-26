@@ -21,6 +21,8 @@ export type HostedWorkerOperationalState = {
   lastErrorAt?: string
   lastRecoveredAt?: string
   lastLatencyMs?: number
+  /** When Notion last reported the AI allowance as spent; cleared by the next successful answer. */
+  notionAiQuotaExhaustedAt?: string
 }
 
 export type HostedWorkerChromeConfig = {

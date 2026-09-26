@@ -26,6 +26,8 @@ export type HostedWorkerRuntimeState = {
   runtime: HostedWorkerOperationalState
   lastReadyHealth?: HostedWorkerHealthResponse
   threadRotation?: HostedWorkerThreadRotationState
+  /** Whether the persisted Notion AI quota state was read after start. */
+  quotaStateLoaded?: boolean
 }
 
 export function createHostedWorkerRuntimeState(): HostedWorkerRuntimeState {

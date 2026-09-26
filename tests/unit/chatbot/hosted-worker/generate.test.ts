@@ -447,3 +447,103 @@ describe("hosted worker generate", () => {
     rmSync(dir, { recursive: true, force: true })
   })
 })
+
+describe("hosted worker Notion AI quota gate", () => {
+  const quotaError = () =>
+    new ChatbotLlmError({
+      message: "Notion AI usage limit reached. notion_ai_usage_limit_reached bytes=311 preview=...",
+      code: "rate-limit",
+      tier: "tier-1-hosted-chrome-notion-ai",
+      isRetryable: false,
+    })
+  const okResponse = () => ({
+    rawText: "ok",
+    displayEnvelope: createChatbotLlmDisplayEnvelope("ok"),
+    tier: "tier-1-hosted-chrome-notion-ai" as const,
+  })
+  const dirs: string[] = []
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("answers customer requests at once while the allowance is known to be spent", async () => {
+    // Without the gate a new customer conversation spent ~29 s provisioning a Notion thread that
+    // could never answer, failed as a retryable connection error, and Production retried it.
+    let now = Date.parse("2026-09-26T07:00:00.000Z")
+    const state = createHostedWorkerRuntimeState()
+    const queue = createHostedWorkerQueue(state)
+    await expect(
+      generateHostedWorkerResponse(llmRequest("req_quota_first"), state, queue, {
+        now: () => now,
+        clientFactory: () => ({ generate: async () => { throw quotaError() } }),
+      }),
+    ).rejects.toMatchObject({ code: "rate-limit" })
+    expect(state.runtime.notionAiQuotaExhaustedAt).toBe("2026-09-26T07:00:00.000Z")
+
+    now += 20 * 60_000
+    const generate = vi.fn()
+    await expect(
+      generateHostedWorkerResponse(llmRequest("req_quota_gated"), state, queue, {
+        now: () => now,
+        clientFactory: () => ({ generate }),
+      }),
+    ).rejects.toMatchObject({ code: "rate-limit", isRetryable: false })
+    expect(generate).not.toHaveBeenCalled()
+    expect(state.runtime).toMatchObject({ lastErrorCode: "rate-limit", lastErrorAt: "2026-09-26T07:20:00.000Z" })
+    // A gated refusal is not a new observation, so it does not extend the gate.
+    expect(state.runtime.notionAiQuotaExhaustedAt).toBe("2026-09-26T07:00:00.000Z")
+  })
+
+  it("lets the heartbeat smoke through so recovery is noticed, and a success reopens the gate", async () => {
+    const now = Date.parse("2026-09-26T07:10:00.000Z")
+    const state = createHostedWorkerRuntimeState()
+    state.runtime.notionAiQuotaExhaustedAt = "2026-09-26T07:00:00.000Z"
+    const queue = createHostedWorkerQueue(state)
+    const generate = vi.fn(async () => okResponse())
+    await generateHostedWorkerResponse({ ...llmRequest("req_heartbeat"), conversationId: "hosted-tier1-heartbeat" }, state, queue, {
+      now: () => now,
+      clientFactory: () => ({ generate }),
+    })
+    expect(generate).toHaveBeenCalledTimes(1)
+    expect(state.runtime.notionAiQuotaExhaustedAt).toBeUndefined()
+  })
+
+  it("reopens the gate on its own after 45 minutes without a new observation", async () => {
+    const state = createHostedWorkerRuntimeState()
+    state.runtime.notionAiQuotaExhaustedAt = "2026-09-26T07:00:00.000Z"
+    const queue = createHostedWorkerQueue(state)
+    const generate = vi.fn(async () => okResponse())
+    await generateHostedWorkerResponse(llmRequest("req_after_window"), state, queue, {
+      now: () => Date.parse("2026-09-26T07:45:00.000Z"),
+      clientFactory: () => ({ generate }),
+    })
+    expect(generate).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps the gate closed across a worker restart", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "quota-gate-"))
+    dirs.push(dir)
+    const quotaStatePath = path.join(dir, "quota.json")
+    let now = Date.parse("2026-09-26T07:00:00.000Z")
+    const before = createHostedWorkerRuntimeState()
+    await expect(
+      generateHostedWorkerResponse(llmRequest("req_before_restart"), before, createHostedWorkerQueue(before), {
+        now: () => now,
+        quotaStatePath,
+        clientFactory: () => ({ generate: async () => { throw quotaError() } }),
+      }),
+    ).rejects.toMatchObject({ code: "rate-limit" })
+
+    now += 5 * 60_000
+    const after = createHostedWorkerRuntimeState()
+    const generate = vi.fn()
+    await expect(
+      generateHostedWorkerResponse(llmRequest("req_after_restart"), after, createHostedWorkerQueue(after), {
+        now: () => now,
+        quotaStatePath,
+        clientFactory: () => ({ generate }),
+      }),
+    ).rejects.toMatchObject({ code: "rate-limit" })
+    expect(generate).not.toHaveBeenCalled()
+  })
+})
