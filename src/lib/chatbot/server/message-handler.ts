@@ -2212,6 +2212,7 @@ function buildChatbotSystemPrompt(
     "Booking Orderへ進む前に、何の素材を、いつ、どういう方法で受け渡すかを1項目ずつ確認します。SSD / HDDの郵送・バイク便・手渡し、アップローダー、ProRes、撮影素材の使用クリップなど、ユーザーの回答を要約で潰さず保持します。",
     "現在確認している1項目について、会話文脈、選択済み項目、自由入力、未確認項目から次へ進めるほど明確かを判断します。疑問が残る場合は同じ項目について確認を1問だけ返し、十分明確なら過剰確認せず次へ進みます。",
     "明確でないが未定として扱える回答は未定として保持し、後段の相談、最終確認、予約可否判断で扱います。",
+    "選択肢パネルの回答待ちの間に質問された場合は、その質問に答えるだけにし、答えの最後に聞き返しや追加の質問を付けません。次の確認は選択肢パネルが担います。",
     "勝手に予約確定、料金判断、実施可否判断、本人判断が必要な確約はしません。",
     "回答範囲は新規案件の調整、要件整理、予約導線に限定し、技術指導、作品レビュー、標準外要望は担当者確認へ誘導します。",
     "ただし講演会、講習会、セミナー、講師依頼、研修、ワークショップは新規依頼種別として扱い、通常の制作案件に寄せません。",
@@ -2305,6 +2306,15 @@ function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnap
   ].join("\n")
 }
 
+const closingRequestPattern =
+  /(?:[？?]|(?:教えて|お聞かせ|お知らせ|ご教示|ご共有)(?:ください|くださいませ|いただけますか|いただけますでしょうか)|でしょうか|ませんか)[。．]?$/
+
+function withoutClosingCounterQuestion(content: string): string {
+  const sentences = content.trim().split(/(?<=[。．！!？?\n])/)
+  while (sentences.length > 0 && closingRequestPattern.test(sentences[sentences.length - 1].trim())) sentences.pop()
+  return sentences.join("").trim()
+}
+
 function buildAssistantDisplayContent(input: {
   requestId?: string
   rawText: string
@@ -2367,12 +2377,14 @@ function buildAssistantDisplayContent(input: {
     if (guardedContent.reason === "choice-panel" && input.customerQuestionAnswered && answerText) {
       // The raw text carries the model's own customer-reply boundary, so it is checked like any reply.
       const answer = sanitize(text)
+      // The panel prompt below is the one ask; a closing question of the model's own would be a second.
+      const answerContent = withoutClosingCounterQuestion(answer.content)
       const panelPrompt = sanitize(guardedContent.content, true)
       const pendingQuestion =
         input.routingDecision?.kind === "continue" ? input.routingDecision.nextQuestion.trim() : ""
-      if (answer.content.trim() && (!pendingQuestion || !answer.content.includes(pendingQuestion))) {
+      if (answerContent && (!pendingQuestion || !answerContent.includes(pendingQuestion))) {
         return withGuardReport(
-          { content: `${answer.content.trim()}\n\n${panelPrompt.content}`, sanitizationReport: answer.sanitizationReport },
+          { content: `${answerContent}\n\n${panelPrompt.content}`, sanitizationReport: answer.sanitizationReport },
           guardReport,
         )
       }

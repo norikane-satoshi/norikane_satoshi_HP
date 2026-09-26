@@ -119,5 +119,47 @@ describe("a question typed while a panel is shown", () => {
     expect(result.assistantMessage.content).toContain("1〜2日")
     expect(result.ui).toMatchObject({ kind: "choice-panel" })
   })
-})
 
+  it("drops a closing counter-question so the panel prompt is the only ask", async () => {
+    const h = harness(projectLengthPanelConversation(), {
+      raw: "<customer_reply>作業期間は尺と素材の状態で変わります。ご予定の媒体を詳しく教えていただけますでしょうか？</customer_reply>",
+      tier: chatbotLlmTierIds.tier2GeminiFlash,
+    })
+    const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
+
+    expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります。")
+    expect(result.assistantMessage.content).not.toContain("教えていただけますでしょうか")
+    expect(result.assistantMessage.content).toContain("下の選択肢から選んでください。")
+    expect(result.ui).toMatchObject({ kind: "choice-panel" })
+  })
+
+  it("drops a closing request phrased without a question mark", async () => {
+    const h = harness(projectLengthPanelConversation(), {
+      raw: "<customer_reply>作業期間は尺と素材の状態で変わります。\nご予定の本数も教えてください。</customer_reply>",
+      tier: chatbotLlmTierIds.tier1HostedChromeNotionAi,
+    })
+    const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
+
+    expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります。")
+    expect(result.assistantMessage.content).not.toContain("教えてください")
+  })
+
+  it("shows only the panel prompt when the answer is nothing but a counter-question", async () => {
+    const h = harness(projectLengthPanelConversation(), {
+      raw: "<customer_reply>どの媒体で使う予定ですか？</customer_reply>",
+      tier: chatbotLlmTierIds.tier2GeminiFlash,
+    })
+    const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
+
+    expect(result.assistantMessage.content).not.toContain("どの媒体で使う予定ですか")
+    expect(result.assistantMessage.content).toContain("下の選択肢から選んでください。")
+  })
+
+  it("tells the model to answer without asking back while a panel waits", async () => {
+    const h = harness(projectLengthPanelConversation(), { raw: answer, tier: chatbotLlmTierIds.tier2GeminiFlash })
+    await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
+
+    const request = (h.generate.mock.calls[0] as unknown as [{ systemPrompt: string }])[0]
+    expect(request.systemPrompt).toContain("選択肢パネルの回答待ちの間に質問された場合")
+  })
+})
