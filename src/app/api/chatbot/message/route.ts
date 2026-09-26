@@ -14,6 +14,7 @@ import {
 import type { ChatbotConversation } from "@/lib/chatbot/domain"
 import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
+import { warmChatbotDatabase } from "@/lib/chatbot/server/database-warmup"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import {
   ChatbotMessageCoordinationError,
@@ -62,6 +63,13 @@ const chatbotMessageRequestSchema = z.object({
 type ChatbotFailureTaggedError = Error & {
   chatbotFailureStage?: "conversation-save"
   chatbotFailureSummary?: Record<string, unknown>
+}
+
+// Sent by the widget when it opens, so the instance that will take the first message has already
+// loaded this route and run its database queries once (a fresh instance otherwise adds 1-2 s).
+export async function GET() {
+  await warmChatbotDatabase()
+  return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } })
 }
 
 export async function POST(request: NextRequest) {

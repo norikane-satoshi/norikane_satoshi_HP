@@ -4,6 +4,7 @@ import {
   ChatbotRequestCancelledError,
   isChatbotOperationError,
   isChatbotRequestCancelledError,
+  prewarmChatbotMessageRoute,
   scheduleChatbotReloadForStaleClient,
   submitChatbotInquiry,
   submitChatbotMessage,
@@ -131,5 +132,20 @@ describe("submitChatbotInquiry", () => {
     stubInquiryResponse({ ok: true })
 
     await expect(submitChatbotInquiry(input)).resolves.toEqual({ delivered: true })
+  })
+})
+
+describe("prewarmChatbotMessageRoute", () => {
+  it("wakes the message route at most once a minute and never throws", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError("offline"))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await prewarmChatbotMessageRoute(1_000_000)
+    await prewarmChatbotMessageRoute(1_030_000)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledWith("/api/chatbot/message", expect.objectContaining({ method: "GET", cache: "no-store" }))
+
+    await prewarmChatbotMessageRoute(1_061_000)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

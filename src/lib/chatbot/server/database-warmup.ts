@@ -1,15 +1,11 @@
-import { prisma } from "@/lib/prisma"
-
+import { warmChatbotMessageRequestStore } from "./message-request-coordinator"
 import { logPrivacySafeChatbotEvent } from "./boundary-event-log"
 
-// A new server instance otherwise pays for starting the database client and opening its connection
-// (about 0.7 s in production) inside the first customer message it handles.
+// A server instance's first customer message otherwise pays for starting the database client,
+// opening its connection and running the claim queries for the first time (0.4-0.5 s in production).
 export async function warmChatbotDatabase(): Promise<"warm" | "failed"> {
-  const startedAt = Date.now()
   try {
-    await prisma.$queryRawUnsafe("SELECT 1")
-    await prisma.chatbotConversation.findUnique({ where: { id: "__warmup__" }, select: { id: true } })
-    logPrivacySafeChatbotEvent({ event: "chatbot_database_warmed", durationMs: Date.now() - startedAt })
+    await warmChatbotMessageRequestStore()
     return "warm"
   } catch (error) {
     logPrivacySafeChatbotEvent({

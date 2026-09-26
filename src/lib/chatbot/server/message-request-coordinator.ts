@@ -491,6 +491,35 @@ export async function replaceChatbotMessageRequestUserMessage(input: {
   }
 }
 
+const requestLockSql = `SELECT c."sessionId", c."activeMessageRequestKey", c."activeMessageRequestOwner",
+              c."messageRequestLeaseExpiresAt", c."messageRequestVersion",
+              r."key", r."conversationId", r."payloadHash", r."status", r."owner",
+              r."leaseExpiresAt", r."resultJson", r."version", r."conversationVersion",
+              m."conversationId" AS "legacyMessageConversationId",
+              (
+                SELECT failed."key"
+                FROM "ChatbotMessageRequest" failed
+                JOIN "ChatbotMessage" failed_user
+                  ON failed_user."id" = failed."key"
+                 AND failed_user."conversationId" = failed."conversationId"
+                 AND failed_user."role" = 'user'
+                WHERE failed."conversationId" = c."id" AND failed."status" = 'failed'
+                ORDER BY failed."updatedAt" DESC
+                LIMIT 1
+              ) AS "pendingFailedRequestKey"
+       FROM "ChatbotConversation" c
+       LEFT JOIN "ChatbotMessageRequest" r ON r."key" = ?
+       LEFT JOIN "ChatbotMessage" m ON m."id" = ? AND r."key" IS NULL
+       WHERE c."id" = ? LIMIT 1`
+
+// Read-only versions of the queries load() runs, so a warm-up request exercises the same
+// database path as a customer's first message without writing anything.
+export async function warmChatbotMessageRequestStore(): Promise<void> {
+  const missingId = "__warmup__"
+  await prisma.chatbotConversation.findUnique({ where: { sessionId: missingId }, select: { userId: true } })
+  await prisma.$queryRawUnsafe(requestLockSql, missingId, missingId, missingId)
+}
+
 export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
   async load(input) {
     const existingConversation = await prisma.chatbotConversation.findUnique({
@@ -513,26 +542,7 @@ export const prismaChatbotMessageRequestStore: ChatbotMessageRequestStore = {
     })
     const lookupKey = input.recoverRequestKey ?? input.requestKey
     const rows = await prisma.$queryRawUnsafe<LoadRow[]>(
-      `SELECT c."sessionId", c."activeMessageRequestKey", c."activeMessageRequestOwner",
-              c."messageRequestLeaseExpiresAt", c."messageRequestVersion",
-              r."key", r."conversationId", r."payloadHash", r."status", r."owner",
-              r."leaseExpiresAt", r."resultJson", r."version", r."conversationVersion",
-              m."conversationId" AS "legacyMessageConversationId",
-              (
-                SELECT failed."key"
-                FROM "ChatbotMessageRequest" failed
-                JOIN "ChatbotMessage" failed_user
-                  ON failed_user."id" = failed."key"
-                 AND failed_user."conversationId" = failed."conversationId"
-                 AND failed_user."role" = 'user'
-                WHERE failed."conversationId" = c."id" AND failed."status" = 'failed'
-                ORDER BY failed."updatedAt" DESC
-                LIMIT 1
-              ) AS "pendingFailedRequestKey"
-       FROM "ChatbotConversation" c
-       LEFT JOIN "ChatbotMessageRequest" r ON r."key" = ?
-       LEFT JOIN "ChatbotMessage" m ON m."id" = ? AND r."key" IS NULL
-       WHERE c."id" = ? LIMIT 1`,
+      requestLockSql,
       lookupKey,
       lookupKey,
       conversation.id,

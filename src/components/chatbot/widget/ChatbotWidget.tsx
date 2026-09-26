@@ -4,6 +4,7 @@ import { type CSSProperties, type PointerEvent as ReactPointerEvent, useCallback
 import { usePathname } from "next/navigation"
 import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
 import { isChatbotEnabled } from "@/lib/feature-flags"
+import { prewarmChatbotMessageRoute } from "./api"
 import { LineBookingBadge } from "./line-booking-badge"
 import { MinimizedBar } from "./MinimizedBar"
 import { WidgetShell } from "./WidgetShell"
@@ -74,6 +75,11 @@ export function ChatbotWidget() {
     window.addEventListener("hashchange", openForContactHash)
     return () => window.removeEventListener("hashchange", openForContactHash)
   }, [open, shouldRenderChatbot, widgetState.hasHydrated])
+
+  const isExpanded = shouldRenderChatbot && widgetState.isVisible && !widgetState.isMinimized
+  useEffect(() => {
+    if (isExpanded) void prewarmChatbotMessageRoute()
+  }, [isExpanded])
 
   useScrollTrigger({
     disabled: !shouldRenderChatbot || !widgetState.hasHydrated || widgetState.isVisible,
