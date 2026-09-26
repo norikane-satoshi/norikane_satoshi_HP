@@ -410,3 +410,38 @@ describe("choice panel state", () => {
     })
   })
 })
+
+describe("job kind answer after an other-choice clarification", () => {
+  const pendingOtherClarification: ConversationState["activeIntakeClarification"] = {
+    status: "needs-clarification",
+    choiceSetId: "job-kind",
+    selectedChoiceIds: ["other"],
+    question: "「その他」の内容を1つだけ補足してください。",
+    reason: "other-choice-needs-detail",
+    answerPreview: "選択: その他",
+  }
+
+  it("clears the clarification when a listed job kind is chosen instead", () => {
+    const patch = applyActiveChoiceAnswer({
+      activeChoices: jobKindChoices,
+      message: "選択: Web CM / CM",
+      activeIntakeClarification: pendingOtherClarification,
+    })
+
+    expect(patch?.jobContext).toEqual({ jobKind: "cm-30s" })
+    expect(patch?.conversationState).toHaveProperty("activeIntakeClarification", undefined)
+    expect(patch?.conversationState.intakeClarifications?.["job-kind"]?.status).toBe("clear")
+  })
+
+  it("clears the clarification when the other detail is written in", () => {
+    const patch = applyActiveChoiceAnswer({
+      activeChoices: jobKindChoices,
+      message: "カラーグレーディングのみの相談です",
+      activeIntakeClarification: pendingOtherClarification,
+    })
+
+    expect(patch?.conversationState.otherChoiceComments?.["job-kind"]).toBe("カラーグレーディングのみの相談です")
+    expect(patch?.conversationState).toHaveProperty("activeIntakeClarification", undefined)
+    expect(patch?.conversationState.intakeClarifications?.["job-kind"]?.status).toBe("clear")
+  })
+})

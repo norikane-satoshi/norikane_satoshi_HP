@@ -43,8 +43,16 @@ export function applyActiveChoiceAnswer(input: {
   if (clarification) return clarification
 
   switch (activeChoices.id) {
-    case "job-kind":
-      return applyJobKindChoice(activeChoices, choice, otherCommentPatch)
+    case "job-kind": {
+      const jobKindPatch = applyJobKindChoice(activeChoices, choice, otherCommentPatch)
+      return {
+        ...jobKindPatch,
+        conversationState: {
+          ...jobKindPatch.conversationState,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+        },
+      }
+    }
     case "project-length":
       return {
         choiceSetId: activeChoices.id,
