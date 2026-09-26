@@ -71,4 +71,20 @@ describe("hidden thread inventory", () => {
     expect(create).toHaveBeenCalledTimes(1)
     expect(await pool.take()).toBeDefined()
   })
+
+  it("backs off after a failed creation instead of retrying on every 30-second tick", async () => {
+    // Replenishment posts to Notion AI. While the allowance is spent every attempt fails, and a
+    // 30-second retry would hit Notion thousands of times a day.
+    let now = Date.parse("2026-09-26T00:00:00.000Z")
+    const create = vi.fn(async (): Promise<PoolThread> => { throw new Error("notion_ai_usage_limit_reached") })
+    const pool = new HiddenThreadPool({ idle: () => true, now: () => now, create })
+    await pool.refill()
+    expect(create).toHaveBeenCalledTimes(1)
+    now += 29 * 60_000
+    await pool.refill()
+    expect(create).toHaveBeenCalledTimes(1)
+    now += 60_000
+    await pool.refill()
+    expect(create).toHaveBeenCalledTimes(2)
+  })
 })

@@ -18,6 +18,9 @@ type Options = {
   save?: (threads: PoolThread[]) => Promise<void>
 }
 const maxAge = 7 * 86400000
+// Replenishment posts to Notion AI. When it fails (for example a spent allowance), retrying on the
+// 30-second timer would hit Notion thousands of times a day, so wait before the next attempt.
+const failureBackoffMs = 30 * 60_000
 
 export class HiddenThreadPool {
   private threads: PoolThread[] = []
@@ -26,6 +29,7 @@ export class HiddenThreadPool {
   private tail: Promise<unknown> = Promise.resolve()
   private stopped = false
   private unavailable = false
+  private retryAfter = 0
   constructor(private readonly options: Options) {}
 
   private valid(t: PoolThread): boolean {
@@ -69,6 +73,7 @@ export class HiddenThreadPool {
   }
   private async refillUnqueued() {
     await this.load()
+    if ((this.options.now?.() ?? Date.now()) < this.retryAfter) return
     while (!this.stopped && !this.unavailable && this.options.idle()) {
       this.threads = this.threads.filter(t => this.valid(t))
       if (this.threads.length >= 2) return
@@ -81,7 +86,10 @@ export class HiddenThreadPool {
           try { await this.options.save?.([...this.threads]) }
           catch { this.unavailable = true; this.threads = [] }
         })
-      } catch { return }
+      } catch {
+        this.retryAfter = (this.options.now?.() ?? Date.now()) + failureBackoffMs
+        return
+      }
     }
   }
   stop() { this.stopped = true }
