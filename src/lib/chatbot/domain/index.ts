@@ -56,3 +56,4 @@ export type {
   WorkflowStage,
   WorkSite,
 } from "@/lib/chatbot/domain/workflow-estimate"
+export { formatProjectLengthMinutes } from "./project-length"

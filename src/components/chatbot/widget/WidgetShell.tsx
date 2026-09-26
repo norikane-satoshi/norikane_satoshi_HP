@@ -429,6 +429,8 @@ function formatProjectLengthValue(minutes: number | undefined, copy: ChatbotCopy
     const hours = minutes / 60
     return copy.durationHours.replace("{value}", String(Number.isInteger(hours) ? hours : hours.toFixed(1)))
   }
+  // Short CMs are stored as fractional minutes (15 seconds is 0.25); show them in seconds.
+  if (minutes > 0 && minutes < 1) return copy.durationSeconds.replace("{value}", String(Math.round(minutes * 60)))
   return copy.durationMinutes.replace("{value}", String(minutes))
 }
 

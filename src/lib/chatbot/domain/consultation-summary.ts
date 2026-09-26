@@ -1,4 +1,5 @@
 import type { ConversationState, DocumentaryAttachmentItem, JobContext } from "@/lib/chatbot/domain"
+import { formatProjectLengthMinutes } from "./project-length"
 
 export type ConsultationSummaryInput = {
   jobContext?: Partial<JobContext>
@@ -235,7 +236,7 @@ function documentaryAttachmentKindLabel(kind: DocumentaryAttachmentItem["kind"])
 }
 
 function formatProjectLength(minutes: number | undefined, fallback: string | undefined): string | undefined {
-  if (typeof minutes === "number") return `${minutes}分`
+  if (typeof minutes === "number") return formatProjectLengthMinutes(minutes)
   return fallback
 }
 

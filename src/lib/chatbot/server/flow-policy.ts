@@ -1,6 +1,7 @@
 import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
 import {
   bookingFinalConfirmationChoices,
+  formatProjectLengthMinutes,
   materialContentsChoices,
   materialHandoffMethodChoices,
   materialTimingChoices,
@@ -610,9 +611,5 @@ function labelDeliveryUse(jobContext: JobContext, conversationState?: Conversati
 }
 
 function formatMinutes(minutes: number): string {
-  if (minutes >= 60) {
-    const hours = minutes / 60
-    return Number.isInteger(hours) ? `${hours}時間` : `${hours.toFixed(1).replace(/\.0$/u, "")}時間`
-  }
-  return `${minutes}分`
+  return formatProjectLengthMinutes(minutes)
 }
