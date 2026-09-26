@@ -117,6 +117,7 @@ async function loadPost({
   const generate = vi.fn().mockResolvedValue(withDisplayEnvelope(llmResponse))
   const sendChatbotSlackNotification = vi.fn().mockResolvedValue(slackNotificationResult)
   const scheduleChatbotAuditPersistence = vi.fn()
+  const scheduleDeferredChatbotAuditPersistence = vi.fn()
   const assertChatbotMessageRequestOwnership = vi.fn().mockResolvedValue(undefined)
   const finalizeChatbotMessageRequest = vi.fn().mockResolvedValue(undefined)
   const appendChatbotMessageRequestUserMessage = vi.fn(async (input: {
@@ -181,7 +182,10 @@ async function loadPost({
   vi.doMock("@/lib/chatbot/server/slack-notifier", () => ({
     sendChatbotSlackNotification,
   }))
-  vi.doMock("@/lib/chatbot/audit/scheduler", () => ({ scheduleChatbotAuditPersistence }))
+  vi.doMock("@/lib/chatbot/audit/scheduler", () => ({
+    scheduleChatbotAuditPersistence,
+    scheduleDeferredChatbotAuditPersistence,
+  }))
   vi.doMock("@/lib/chatbot/server/message-request-coordinator", () => ({
     ChatbotMessageCoordinationError: class ChatbotMessageCoordinationError extends Error {},
     appendChatbotMessageRequestUserMessage,
@@ -210,6 +214,7 @@ async function loadPost({
     generate,
     sendChatbotSlackNotification,
     scheduleChatbotAuditPersistence,
+    scheduleDeferredChatbotAuditPersistence,
     assertChatbotMessageRequestOwnership,
     appendChatbotMessageRequestUserMessage,
     coordinateChatbotMessageRequest,
@@ -941,5 +946,48 @@ describe("POST /api/chatbot/message", () => {
       slackThreadTs: "1700000000.000300",
     })
     consoleError.mockRestore()
+  })
+
+  it("answers without waiting for the Slack post once the conversation has a Slack thread", async () => {
+    const route = await loadPost({
+      existingConversation: conversation({
+        context: { sessionId: "session_1", slackThreadTs: "1700000000.000100" },
+      }),
+    })
+    let releaseSlack: (value: unknown) => void = () => undefined
+    route.sendChatbotSlackNotification.mockImplementation(
+      () => new Promise((resolve) => { releaseSlack = resolve }),
+    )
+
+    const response = await route.POST(request({ message: "相談したいです" }))
+
+    expect(response.status).toBe(200)
+    expect(route.sendChatbotSlackNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "conversation", threadTs: "1700000000.000100" }),
+    )
+    expect(route.scheduleChatbotAuditPersistence).not.toHaveBeenCalled()
+    expect(route.scheduleDeferredChatbotAuditPersistence).toHaveBeenCalledOnce()
+    const buildEvents = route.scheduleDeferredChatbotAuditPersistence.mock.calls[0][0] as () => Promise<unknown[]>
+    let built = false
+    const events = buildEvents().then((result) => { built = true; return result })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(built).toBe(false)
+    releaseSlack({ status: "skipped", reason: "disabled" })
+    await expect(events).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventName: "request_received", source: "server" }),
+      expect.objectContaining({ eventName: "slack_notification_completed", source: "server" }),
+    ]))
+  })
+
+  it("still waits for the first Slack post, which opens the thread later posts reply to", async () => {
+    const route = await loadPost()
+
+    const response = await route.POST(request({ message: "相談したいです" }))
+
+    expect(response.status).toBe(200)
+    expect(route.scheduleDeferredChatbotAuditPersistence).not.toHaveBeenCalled()
+    expect(route.scheduleChatbotAuditPersistence).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ eventName: "slack_notification_completed", source: "server" }),
+    ]))
   })
 })

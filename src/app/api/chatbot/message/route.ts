@@ -7,7 +7,10 @@ import {
   buildChatbotMessageAuditEvents,
   buildChatbotOperationFailureAuditEvent,
 } from "@/lib/chatbot/audit/server-evidence"
-import { scheduleChatbotAuditPersistence } from "@/lib/chatbot/audit/scheduler"
+import {
+  scheduleChatbotAuditPersistence,
+  scheduleDeferredChatbotAuditPersistence,
+} from "@/lib/chatbot/audit/scheduler"
 import type { ChatbotConversation } from "@/lib/chatbot/domain"
 import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
@@ -117,7 +120,9 @@ export async function POST(request: NextRequest) {
           jobContext: parsed.data.jobContext,
           conversationState: parsed.data.conversationState,
         },
-        ownership
+        {
+          deferSlackNotification: true,
+          ...(ownership
           ? {
               assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership),
               appendOwnedUserMessage: ({ content }) => appendChatbotMessageRequestUserMessage({
@@ -146,7 +151,8 @@ export async function POST(request: NextRequest) {
                 ),
               }),
             }
-          : undefined,
+          : {}),
+        },
       ),
     })
     const result = coordinated.result
@@ -155,18 +161,25 @@ export async function POST(request: NextRequest) {
     if (!coordinated.replayed && !auditEvidence) {
       throw new Error("chatbot_message_audit_evidence_missing")
     }
-    const auditEvents = coordinated.replayed
+    const auditCreatedAt = new Date().toISOString()
+    const buildAuditEvents = (slack: Awaited<NonNullable<typeof auditEvidence>["slack"]>) =>
+      buildChatbotMessageAuditEvents({
+        requestId: responseRequestId,
+        conversationId: result.conversationId,
+        buildSha: getChatbotBuildSha(),
+        createdAt: auditCreatedAt,
+        finalTier: result.tier,
+        uiKind: result.ui.kind,
+        ...auditEvidence!,
+        slack,
+      })
+    const pendingSlack = auditEvidence?.slack instanceof Promise ? auditEvidence.slack : undefined
+    // A threaded Slack post finishes after the response; its audit events are written once it has.
+    const auditEvents = coordinated.replayed || pendingSlack
       ? []
-      : buildChatbotMessageAuditEvents({
-          requestId: responseRequestId,
-          conversationId: result.conversationId,
-          buildSha: getChatbotBuildSha(),
-          createdAt: new Date().toISOString(),
-          finalTier: result.tier,
-          uiKind: result.ui.kind,
-          ...auditEvidence!,
-        })
-    if (!coordinated.replayed) scheduleChatbotAuditPersistence(auditEvents)
+      : buildAuditEvents(auditEvidence!.slack as Awaited<NonNullable<typeof auditEvidence>["slack"]>)
+    if (pendingSlack) scheduleDeferredChatbotAuditPersistence(async () => buildAuditEvents(await pendingSlack))
+    else if (!coordinated.replayed) scheduleChatbotAuditPersistence(auditEvents)
     const response = NextResponse.json({
       ...publicResult,
       requestId: responseRequestId,
@@ -175,7 +188,7 @@ export async function POST(request: NextRequest) {
         ? {
             auditDebug: {
               schemaVersion: "1",
-              persistenceStatus: coordinated.replayed ? "complete" : "scheduled",
+              persistenceStatus: coordinated.replayed ? "complete" : pendingSlack ? "deferred" : "scheduled",
               eventCount: auditEvents.length,
               stageTimings: auditEvidence?.stageTimings ?? {},
             },
