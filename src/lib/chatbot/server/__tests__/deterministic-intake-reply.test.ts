@@ -168,4 +168,25 @@ describe("deterministic intake replies (Tier 0)", () => {
 
     expect(h.options.choiceInterpreter).not.toHaveBeenCalled()
   })
+
+  it("asks the code's clarification for その他 without calling the LLM", async () => {
+    // The clarification question and its panel are code-decided; the model's text was discarded.
+    const h = harness(jobKindPanelConversation())
+    const result = await handleChatbotMessage({ sessionId: "session_det", message: "選択: その他" }, h.options)
+
+    expect(h.generate).not.toHaveBeenCalled()
+    expect(result.tier).toBe(chatbotLlmTierIds.tier0DeterministicIntake)
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "job-kind" } })
+    expect(result.assistantMessage.content).toContain("「その他」の内容を1つだけ補足してください。")
+  })
+
+  it("asks the code's clarification for その他 on the opening panel without calling the LLM", async () => {
+    const h = harness(conversation({ messages: [] }))
+    const result = await handleChatbotMessage({ sessionId: "session_det", message: "選択: その他" }, h.options)
+
+    expect(h.generate).not.toHaveBeenCalled()
+    expect(result.tier).toBe(chatbotLlmTierIds.tier0DeterministicIntake)
+    expect(result.assistantMessage.content).toContain("「その他」の内容を1つだけ補足してください。")
+  })
 })
+

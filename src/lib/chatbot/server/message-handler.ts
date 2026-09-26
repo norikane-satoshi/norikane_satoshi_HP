@@ -2044,7 +2044,7 @@ function withoutFreeTextIntakePanel<T extends RoutingDecision | undefined>(decis
 
 type DeterministicIntakeReply = {
   nextQuestion: string
-  reason: "choice-answer" | "intake-answer"
+  reason: "choice-answer" | "intake-answer" | "choice-clarification"
 }
 
 /**
@@ -2072,6 +2072,13 @@ function decideDeterministicIntakeReply(input: {
       : undefined
   }
   if (fallback.kind !== "continue" || !fallback.nextQuestion.trim()) return undefined
+
+  // A panel submission that needs one more detail (for example その他) is answered with the code's
+  // clarification question and panel; a model reply to it was discarded by the display guard.
+  const clarification = input.activeChoiceAnswer?.conversationState.activeIntakeClarification
+  if (clarification?.status === "needs-clarification" && isExplicitChoiceSubmission(input.latestUserMessage)) {
+    return { nextQuestion: clarification.question, reason: "choice-clarification" }
+  }
 
   if (isConfirmedChoiceAnswer(input.activeChoiceAnswer)) {
     return { nextQuestion: fallback.nextQuestion, reason: "choice-answer" }
