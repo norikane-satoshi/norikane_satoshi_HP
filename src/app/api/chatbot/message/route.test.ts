@@ -203,10 +203,14 @@ async function loadPost({
     },
   }))
   vi.doMock("@/lib/chatbot/server/repository", () => ({ persistChatbotMessageFinalization }))
+  const warmChatbotDatabase = vi.fn().mockResolvedValue("warm")
+  vi.doMock("@/lib/chatbot/server/database-warmup", () => ({ warmChatbotDatabase }))
 
   const route = await import("./route")
   return {
     POST: route.POST,
+    GET: route.GET,
+    warmChatbotDatabase,
     auth,
     loadOrCreateConversationBySessionId,
     loadConversationById,
@@ -1031,5 +1035,16 @@ describe("POST /api/chatbot/message", () => {
     }))
     expect(timingsOf(0)).toHaveProperty("instanceWarmup", expect.any(Number))
     expect(timingsOf(1)).not.toHaveProperty("instanceWarmup")
+  })
+
+  it("answers a warm-up GET without a body after running the first message's database queries", async () => {
+    const route = await loadPost()
+
+    const response = await route.GET()
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get("cache-control")).toBe("no-store")
+    expect(route.warmChatbotDatabase).toHaveBeenCalledOnce()
+    expect(route.coordinateChatbotMessageRequest).not.toHaveBeenCalled()
   })
 })

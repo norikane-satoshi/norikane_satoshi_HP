@@ -251,6 +251,22 @@ describe("chatbot widget shell", () => {
     expect(screen.getByRole("complementary", { name: "AI 相談窓口" })).toBeInTheDocument()
   })
 
+  it("wakes the message route when the widget opens, before the first message", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 })
+    vi.stubGlobal("fetch", fetchMock)
+    // Earlier tests in this file opened the widget at the same fixed time; the warm-up is once a minute.
+    vi.setSystemTime(new Date("2026-05-27T00:00:00.000Z"))
+    render(<ChatbotWidget />)
+    await vi.runOnlyPendingTimersAsync()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      window.dispatchEvent(new Event("hp-chatbot:open"))
+    })
+    expect(fetchMock).toHaveBeenCalledWith("/api/chatbot/message", expect.objectContaining({ method: "GET" }))
+    vi.unstubAllGlobals()
+  })
+
   it("keeps the chatbot enabled when the public chatbot flag is unset", async () => {
     delete process.env.NEXT_PUBLIC_ENABLE_CHATBOT
     render(<ChatbotWidget />)

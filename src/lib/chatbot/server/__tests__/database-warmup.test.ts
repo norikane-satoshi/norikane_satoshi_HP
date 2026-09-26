@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-const { queryRawUnsafe, findUnique } = vi.hoisted(() => ({
-  queryRawUnsafe: vi.fn(async () => [{ ok: 1 }]),
+const { findUnique, queryRawUnsafe } = vi.hoisted(() => ({
   findUnique: vi.fn(async () => null),
+  queryRawUnsafe: vi.fn(async () => []),
 }))
 vi.mock("@/lib/prisma", () => ({
-  prisma: { $queryRawUnsafe: queryRawUnsafe, chatbotConversation: { findUnique } },
+  prisma: { chatbotConversation: { findUnique }, $queryRawUnsafe: queryRawUnsafe },
 }))
 
 import { warmChatbotDatabase } from "@/lib/chatbot/server/database-warmup"
@@ -13,14 +13,19 @@ import { warmChatbotDatabase } from "@/lib/chatbot/server/database-warmup"
 afterEach(() => vi.clearAllMocks())
 
 describe("warmChatbotDatabase", () => {
-  it("opens the connection and runs a model query, so the first message does not pay for either", async () => {
+  it("runs the claim's read queries without writing anything", async () => {
     await expect(warmChatbotDatabase()).resolves.toBe("warm")
-    expect(queryRawUnsafe).toHaveBeenCalledWith("SELECT 1")
-    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ select: { id: true } }))
+    expect(findUnique).toHaveBeenCalledWith({ where: { sessionId: "__warmup__" }, select: { userId: true } })
+    expect(queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('FROM "ChatbotConversation" c'),
+      "__warmup__",
+      "__warmup__",
+      "__warmup__",
+    )
   })
 
-  it("reports a failure instead of throwing, because a cold database must not stop the server starting", async () => {
-    queryRawUnsafe.mockRejectedValueOnce(new Error("database unreachable"))
+  it("reports a failure instead of throwing", async () => {
+    findUnique.mockRejectedValueOnce(new Error("database unreachable"))
     await expect(warmChatbotDatabase()).resolves.toBe("failed")
   })
 })
