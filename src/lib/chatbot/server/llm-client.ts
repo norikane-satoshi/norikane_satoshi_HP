@@ -167,12 +167,23 @@ export function assertChatbotLlmResponseContract(
     })
   }
   if (tierOutputPolicies[record.tier].structuredUi === "required" && uiPayload.kind === "none") {
-    throw outputContractError(record.tier, {
+    const error = outputContractError(record.tier, {
       boundary: "llm-output-contract",
       decision: "reject-and-regenerate-structured-ui",
       reason: "missing-structured-ui",
     })
+    const displayText = typeof envelope.displayText === "string" ? envelope.displayText.trim() : ""
+    if (displayText && envelope.defaultDenied === false) rejectedDisplayTexts.set(error, displayText)
+    throw error
   }
+}
+
+// The reply text of a response rejected only for missing structured UI. Kept outside the error's
+// cause so the rejection log never carries model text.
+const rejectedDisplayTexts = new WeakMap<ChatbotLlmError, string>()
+
+export function getRejectedDisplayText(error: unknown): string | undefined {
+  return error instanceof ChatbotLlmError ? rejectedDisplayTexts.get(error) : undefined
 }
 
 export function isChatbotLlmResponseContractError(error: unknown): error is ChatbotLlmError {

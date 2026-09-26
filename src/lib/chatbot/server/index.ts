@@ -56,6 +56,7 @@ export {
   createChatbotLlmResponse,
   defaultLlmTierOrder,
   getChatbotLlmOutputContractRejection,
+  getRejectedDisplayText,
   isChatbotLlmResponseContractError,
   logChatbotLlmOutputContractRejection,
   normalizeChatbotLlmChoiceSet,
