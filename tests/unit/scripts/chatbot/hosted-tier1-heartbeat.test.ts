@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   buildSmokeRequest,
+  defaultGenerateIntervalMs,
+  defaultGenerateRetryIntervalMs,
   defaultTransientGenerateFailureThreshold,
   evaluateGenerateResponse,
   evaluateHealthResponse,
@@ -21,6 +23,7 @@ function config(dir: string, overrides: Partial<HeartbeatConfig> = {}): Heartbea
     timeoutMs: 1000,
     generateTimeoutMs: 1000,
     generateIntervalMs: 15 * 60_000,
+    generateRetryIntervalMs: 15 * 60_000,
     failureThreshold: 3,
     transientGenerateFailureThreshold: 3,
     notificationCooldownMs: 60 * 60_000,
@@ -778,5 +781,83 @@ describe("hosted-tier1-heartbeat", () => {
         repairAttempted: true,
       },
     })
+  })
+})
+
+describe("hosted-tier1-heartbeat Notion AI allowance budget", () => {
+  const dirs: string[] = []
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  const budgetConfig = (dir: string) =>
+    config(dir, {
+      failureThreshold: 1,
+      generateIntervalMs: defaultGenerateIntervalMs,
+      generateRetryIntervalMs: defaultGenerateRetryIntervalMs,
+    })
+
+  it("keeps the healthy generate smoke to a few Notion AI calls a day", () => {
+    // Every smoke is a real Notion AI answer charged to the same allowance as customer replies.
+    // At ~126 smokes a day the monitor itself spent the monthly allowance (2026-08-07, 2026-09-26).
+    expect(defaultGenerateIntervalMs).toBe(6 * 60 * 60_000)
+    expect(defaultGenerateRetryIntervalMs).toBe(30 * 60_000)
+    const template = readFileSync(
+      join(process.cwd(), "scripts/chatbot/studio.norikane.hosted-tier1-heartbeat.service.template"),
+      "utf8",
+    )
+    expect(template).toContain(`CHATBOT_HOSTED_TIER1_HEARTBEAT_GENERATE_INTERVAL_MS=${defaultGenerateIntervalMs}`)
+    expect(template).toContain(`CHATBOT_HOSTED_TIER1_HEARTBEAT_GENERATE_RETRY_INTERVAL_MS=${defaultGenerateRetryIntervalMs}`)
+  })
+
+  it("does not probe a spent allowance again on the next two-minute run", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
+    dirs.push(dir)
+    await runHeartbeat(budgetConfig(dir), {
+      fetch: vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+        .mockResolvedValueOnce(usageLimitResponse()) as unknown as typeof fetch,
+      now: () => new Date("2026-09-26T00:00:00.000Z"),
+      runCommand: vi.fn(),
+    })
+    expect(readState(dir)).toMatchObject({ lastGenerateAt: "2026-09-26T00:00:00.000Z" })
+
+    const soon = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+    await runHeartbeat(budgetConfig(dir), {
+      fetch: soon as unknown as typeof fetch,
+      now: () => new Date("2026-09-26T00:02:00.000Z"),
+      runCommand: vi.fn(),
+    })
+    expect(soon).toHaveBeenCalledTimes(1)
+    // The health-only tick must not close the incident the failed smoke opened.
+    expect(readState(dir)).toMatchObject({ status: "unhealthy", incidentClass: "notion_ai_quota_exhausted" })
+
+    const later = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+      .mockResolvedValueOnce(usageLimitResponse())
+    await runHeartbeat(budgetConfig(dir), {
+      fetch: later as unknown as typeof fetch,
+      now: () => new Date("2026-09-26T00:30:00.000Z"),
+      runCommand: vi.fn(),
+    })
+    expect(later).toHaveBeenCalledTimes(2)
+  })
+
+  it("waits the healthy interval after a successful smoke", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tier1-heartbeat-"))
+    dirs.push(dir)
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({ status: "healthy", consecutiveFailures: 0, lastGenerateAt: "2026-09-26T00:00:00.000Z" }),
+    )
+    const early = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true, status: "ready" }))
+    await runHeartbeat(budgetConfig(dir), {
+      fetch: early as unknown as typeof fetch,
+      now: () => new Date("2026-09-26T01:00:00.000Z"),
+      runCommand: vi.fn(),
+    })
+    expect(early).toHaveBeenCalledTimes(1)
   })
 })

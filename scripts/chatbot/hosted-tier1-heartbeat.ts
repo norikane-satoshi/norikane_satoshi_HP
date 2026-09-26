@@ -32,6 +32,8 @@ export type HeartbeatState = {
   incidentClass?: IncidentClass
   incidentStartedAt?: string
   lastTransientGenerateFailureAt?: string
+  /** Whether the latest generate smoke failed. A health-only tick cannot clear that incident. */
+  lastGenerateFailed?: boolean
   /** Last Notion AI thread the worker reported, so an autonomous rotation is announced once. */
   lastNotionThreadId?: string
 }
@@ -62,6 +64,7 @@ export type HeartbeatConfig = {
   timeoutMs: number
   generateTimeoutMs: number
   generateIntervalMs: number
+  generateRetryIntervalMs: number
   failureThreshold: number
   transientGenerateFailureThreshold: number
   notificationCooldownMs: number
@@ -101,11 +104,14 @@ const defaultWorkerUrl = "http://127.0.0.1:8787"
 const defaultNotificationTo = "norikane.satoshi@gmail.com"
 const defaultTimeoutMs = 10_000
 const defaultGenerateTimeoutMs = 60_000
-// The generate smoke is what actually grows the Notion AI thread the worker posts from: ~144 turns
-// a day at ten minutes, against a handful of real consultations. Thirty minutes triples the
-// thread's life. Generic outages now escalate in ~30-60 min instead of ~20-25, which is accepted
-// because the incident this trades against — thread capacity — escalates on the first sample.
-export const defaultGenerateIntervalMs = 30 * 60_000
+// Every generate smoke is a real Notion AI answer, charged to the same allowance as customer
+// replies. At ~126 smokes a day against a handful of real consultations, the monitor itself spent
+// the monthly allowance (2026-08-07, 2026-09-26) and took Tier1 down for everyone. While healthy,
+// four smokes a day are enough; the health check still runs every timer tick.
+export const defaultGenerateIntervalMs = 6 * 60 * 60_000
+// After a failed smoke, probe again sooner so a transient outage still escalates on its second
+// sample and recovery is noticed, without re-probing on every two-minute tick.
+export const defaultGenerateRetryIntervalMs = 30 * 60_000
 const defaultNotificationCooldownMs = 60 * 60_000
 const defaultFailureThreshold = 1
 // Notion-side Tier1 outages have run 13-36 minutes (2026-06-17, 06-18, 06-24, 08-06). At the
@@ -135,9 +141,36 @@ export async function runHeartbeat(
   checks.push(health)
 
   let generate: CheckResult | undefined
-  if (health.ok && shouldRunGenerate(previous, now, config.generateIntervalMs, config.forceGenerate)) {
+  const generateIntervalMs =
+    previous.status === "healthy" ? config.generateIntervalMs : config.generateRetryIntervalMs
+  if (health.ok && shouldRunGenerate(previous, now, generateIntervalMs, config.forceGenerate)) {
     generate = await checkGenerate(config, deps.fetch)
     checks.push(generate)
+  }
+
+  // Between smokes only the health check runs. A passing health check says nothing about the
+  // Notion AI answer path, so it must not close an incident the last smoke opened.
+  if (!generate && health.ok && previous.lastGenerateFailed) {
+    await writeLog(config.logPath, {
+      ts: now.toISOString(),
+      event: "hosted_tier1_heartbeat",
+      tier,
+      ok: false,
+      status: previous.status,
+      incident: buildHeartbeatIncident(checks, repairActions),
+      checks,
+      repairActions,
+      generateFailureCarried: true,
+    })
+    return {
+      ok: false,
+      status: previous.status,
+      checks,
+      repairActions,
+      notification: undefined,
+      statePath: config.statePath,
+      logPath: config.logPath,
+    }
   }
 
   const primaryFailure = checks.find((check) => !check.ok)
@@ -591,6 +624,7 @@ function buildNextState(input: {
       status: "healthy",
       consecutiveFailures: 0,
       lastGenerateAt: generateSucceeded ? now.toISOString() : previous.lastGenerateAt,
+      lastGenerateFailed: undefined,
       incidentClass: undefined,
       incidentStartedAt: undefined,
     }
@@ -609,7 +643,8 @@ function buildNextState(input: {
     consecutiveFailures,
     incidentClass,
     incidentStartedAt,
-    lastGenerateAt: generateFailed && transientGenerateFailure ? now.toISOString() : previous.lastGenerateAt,
+    lastGenerateAt: generateFailed ? now.toISOString() : previous.lastGenerateAt,
+    lastGenerateFailed: generateFailed ? true : previous.lastGenerateFailed,
     lastTransientGenerateFailureAt:
       generateFailed && transientGenerateFailure ? now.toISOString() : previous.lastTransientGenerateFailureAt,
   }
@@ -709,6 +744,7 @@ async function readState(statePath: string): Promise<HeartbeatState> {
       incidentStartedAt: stringOrUndefined(parsed.incidentStartedAt),
       lastTransientGenerateFailureAt: stringOrUndefined(parsed.lastTransientGenerateFailureAt),
       lastNotionThreadId: stringOrUndefined(parsed.lastNotionThreadId),
+      ...(parsed.lastGenerateFailed === true ? { lastGenerateFailed: true } : {}),
     }
   } catch {
     return { status: "healthy", consecutiveFailures: 0 }
@@ -773,6 +809,10 @@ function resolveConfig(argv: string[]): { config: HeartbeatConfig; sendTestNotif
       generateIntervalMs: readPositiveInt(
         args["generate-interval-ms"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_GENERATE_INTERVAL_MS,
         defaultGenerateIntervalMs,
+      ),
+      generateRetryIntervalMs: readPositiveInt(
+        args["generate-retry-interval-ms"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_GENERATE_RETRY_INTERVAL_MS,
+        defaultGenerateRetryIntervalMs,
       ),
       failureThreshold: readPositiveInt(
         args["failure-threshold"] ?? process.env.CHATBOT_HOSTED_TIER1_HEARTBEAT_FAILURE_THRESHOLD,

@@ -8,7 +8,7 @@ Runtime shape:
 - Each heartbeat run checks the VPS loopback worker (`http://127.0.0.1:8787` by default) with bearer auth, so worker JSON error codes stay visible instead of being flattened by the public tunnel.
 - Production chatbot preflight uses quick `GET /health?mode=quick` so an active Notion AI generation or CDP runtime inspection spike does not skip Tier1 before `/generate`.
 - If the hosted Tier1 health probe times out or returns a retryable connection failure, Production still attempts `/generate`; fallback to Tier2 starts only after Tier1 generate exhausts its own repair/retry budget.
-- A lightweight `POST /generate` smoke runs every 30 minutes by default; the 2-minute timer still performs the cheap health check. The smoke always uses the fixed `hosted-tier1-heartbeat` conversation id, so it reuses its own Notion AI thread and never shares history with a customer consultation.
+- A lightweight `POST /generate` smoke runs every 6 hours by default while healthy, and every 30 minutes after a failed smoke (`CHATBOT_HOSTED_TIER1_HEARTBEAT_GENERATE_RETRY_INTERVAL_MS`). Every smoke is a real Notion AI answer charged to the same allowance as customer replies: at ~126 smokes a day the monitor itself spent the monthly allowance on 2026-08-07 and 2026-09-26. A health-only tick between smokes does not close an incident the last smoke opened; the 2-minute timer still performs the cheap health check. The smoke always uses the fixed `hosted-tier1-heartbeat` conversation id, so it reuses its own Notion AI thread and never shares history with a customer consultation.
 - Every conversation-scoped thread, including the heartbeat scope, is hidden from the workspace Chat list before Tier1 inference and verified hidden again after inference. A hide or verification failure fails Tier1 closed; it never falls back to the bootstrap or another customer's thread.
 - One failed health/connection run moves state to `unhealthy`; transient hosted Notion AI `invalid-output` and `rate-limit` generate misses stay `suspect` until `CHATBOT_HOSTED_TIER1_HEARTBEAT_TRANSIENT_GENERATE_FAILURE_THRESHOLD` consecutive misses (default 2, so a sustained Notion-side outage escalates on the second generate sample instead of the third).
 - Tier1 generate failure is not treated as a successful lower-tier fallback.
@@ -71,3 +71,12 @@ it does not suppress real non-zero worker exits.
 The live VPS worker repo is `/home/chatbot-worker/norikane_satoshi_HP`; do not switch its branch just to install the heartbeat because the worker service also runs from that directory. Reconcile from the approved master commit, then copy only the heartbeat service/timer templates or script when the web app code does not require a Vercel deploy.
 
 Do not commit the env file.
+
+## VPS SSH access
+
+`worker.norikane.studio` is the Cloudflare-fronted public worker hostname, not the SSH destination; SSH to it times out. Connect from Satoshi's Mac directly to the VPS IPv4 address (recorded in the Mac's shell history, not in this repo) as user `chatbot-worker` on port 22 with the identity file `~/.ssh/notion-worker-key.key`. No ProxyCommand, ProxyJump, or Cloudflare Access is involved.
+
+```
+ssh -i ~/.ssh/notion-worker-key.key -o BatchMode=yes -o ConnectTimeout=10 chatbot-worker@<VPS IPv4>
+```
+
