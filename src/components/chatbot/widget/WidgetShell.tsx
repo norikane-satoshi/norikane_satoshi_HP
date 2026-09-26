@@ -16,6 +16,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { InquiryFormPrefill } from "@/lib/chatbot/domain"
 import { jobKindChoices } from "@/lib/chatbot/domain/survey-choice"
+import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
@@ -446,7 +447,7 @@ function formatProjectLengthMemo(minutes: number | undefined): string | undefine
     const hours = minutes / 60
     return `尺: ${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`
   }
-  return `尺: ${minutes}分`
+  return `尺: ${formatProjectLengthMinutes(minutes)}`
 }
 
 function formatAdditionalWorkMemo(additionalWork: JobContext["additionalWork"]): string | undefined {

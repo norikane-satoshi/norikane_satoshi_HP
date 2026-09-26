@@ -1,3 +1,4 @@
+import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import type { ChatbotConversation, ConversationState, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
@@ -284,5 +285,5 @@ function formatDays(value: number): string {
 function formatMinutes(value: number): string {
   if (value >= 60 && value % 60 === 0) return `${value / 60}時間`
   if (value > 60) return `${Math.floor(value / 60)}時間${value % 60}分`
-  return `${value}分`
+  return formatProjectLengthMinutes(value)
 }
