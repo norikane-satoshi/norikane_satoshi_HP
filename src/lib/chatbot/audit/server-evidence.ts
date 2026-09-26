@@ -47,6 +47,11 @@ export type ChatbotMessageAuditEvidence = {
     conversationPersist: number
     slackNotification: number
     totalServer: number
+    routeAuth: number
+    routePreHandler: number
+    routePostHandler: number
+    routeTotal: number
+    instanceWarmup: number
   }>
   tierAttempts: ChatbotTierAttemptAuditEvidence[]
   slack: {

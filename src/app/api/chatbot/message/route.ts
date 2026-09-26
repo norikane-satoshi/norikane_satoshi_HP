@@ -38,6 +38,9 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
 
+// Set on the first request this instance handles, so a cold start shows up in the audit timings.
+let instanceFirstRequestPending = true
+
 const sessionCookieName = "chatbot_session_id"
 const sessionMaxAgeSeconds = 7 * 24 * 60 * 60
 const clientUserMessageIdPattern =
@@ -63,6 +66,10 @@ type ChatbotFailureTaggedError = Error & {
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID()
   const requestStartedAt = Date.now()
+  const instanceWarmup = instanceFirstRequestPending
+    ? Math.round(performance.now())
+    : undefined
+  instanceFirstRequestPending = false
   const bodyLimit = enforceBodyLimit(request)
   if (bodyLimit) return bodyLimit
 
@@ -84,7 +91,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const authStartedAt = Date.now()
   const session = await auth()
+  const routeAuth = Date.now() - authStartedAt
+  let handlerStartedAt: number | undefined
+  let handlerEndedAt: number | undefined
   const existingSessionId = request.cookies.get(sessionCookieName)?.value
   const sessionId = parsed.data.clientSessionId ?? existingSessionId ?? crypto.randomUUID()
   const userAgent = request.headers.get("user-agent") ?? undefined
@@ -105,61 +116,78 @@ export async function POST(request: NextRequest) {
         conversationState: parsed.data.conversationState ?? null,
       }),
       completeDuringExecute: true,
-      execute: (ownership) => handleChatbotMessage(
-        {
-          requestId,
-          sessionId,
-          userAgent,
-          userId: session?.user?.id,
-          message: parsed.data.message,
-          conversationId: parsed.data.conversationId,
-          editTargetMessageId: parsed.data.editTargetMessageId,
-          clientUserMessageId: parsed.data.clientUserMessageId,
-          recoverClientUserMessageId: parsed.data.recoverClientUserMessageId,
-          pendingRequestKind: parsed.data.pendingRequestKind,
-          jobContext: parsed.data.jobContext,
-          conversationState: parsed.data.conversationState,
-        },
-        {
-          deferSlackNotification: true,
-          ...(ownership
-          ? {
-              assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership),
-              appendOwnedUserMessage: ({ content }) => appendChatbotMessageRequestUserMessage({
-                ownership,
-                content,
-              }),
-              recoverPendingUserMessage: ({ content }) => recoverChatbotMessageRequestUserMessage({
-                ownership,
-                content,
-              }),
-              replaceEditedUserMessage: ({ targetMessageId, content }) =>
-                replaceChatbotMessageRequestUserMessage({
-                  ownership,
-                  targetMessageId,
-                  content,
-                }),
-              finalizeMessage: (finalization) => finalizeChatbotMessageRequest({
-                ownership,
-                resultJson: JSON.stringify({
-                  requestId: ownership.owner,
-                  result: finalization.replayResult,
-                }),
-                persistBusinessData: (transaction) => persistChatbotMessageFinalization(
-                  transaction,
-                  finalization,
-                ),
-              }),
-            }
-          : {}),
-        },
-      ),
+      execute: async (ownership) => {
+        handlerStartedAt = Date.now()
+        try {
+          return await handleChatbotMessage(
+            {
+              requestId,
+              sessionId,
+              userAgent,
+              userId: session?.user?.id,
+              message: parsed.data.message,
+              conversationId: parsed.data.conversationId,
+              editTargetMessageId: parsed.data.editTargetMessageId,
+              clientUserMessageId: parsed.data.clientUserMessageId,
+              recoverClientUserMessageId: parsed.data.recoverClientUserMessageId,
+              pendingRequestKind: parsed.data.pendingRequestKind,
+              jobContext: parsed.data.jobContext,
+              conversationState: parsed.data.conversationState,
+            },
+            {
+              deferSlackNotification: true,
+              ...(ownership
+              ? {
+                  assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership),
+                  appendOwnedUserMessage: ({ content }) => appendChatbotMessageRequestUserMessage({
+                    ownership,
+                    content,
+                  }),
+                  recoverPendingUserMessage: ({ content }) => recoverChatbotMessageRequestUserMessage({
+                    ownership,
+                    content,
+                  }),
+                  replaceEditedUserMessage: ({ targetMessageId, content }) =>
+                    replaceChatbotMessageRequestUserMessage({
+                      ownership,
+                      targetMessageId,
+                      content,
+                    }),
+                  finalizeMessage: (finalization) => finalizeChatbotMessageRequest({
+                    ownership,
+                    resultJson: JSON.stringify({
+                      requestId: ownership.owner,
+                      result: finalization.replayResult,
+                    }),
+                    persistBusinessData: (transaction) => persistChatbotMessageFinalization(
+                      transaction,
+                      finalization,
+                    ),
+                  }),
+                }
+              : {}),
+            },
+          )
+        } finally {
+          handlerEndedAt = Date.now()
+        }
+      },
     })
+    const coordinatedAt = Date.now()
     const result = coordinated.result
     const responseRequestId = coordinated.requestId
     const { auditEvidence, ...publicResult } = result
     if (!coordinated.replayed && !auditEvidence) {
       throw new Error("chatbot_message_audit_evidence_missing")
+    }
+    if (auditEvidence) {
+      Object.assign(auditEvidence.stageTimings, {
+        routeAuth,
+        ...(handlerStartedAt !== undefined ? { routePreHandler: handlerStartedAt - requestStartedAt } : {}),
+        ...(handlerEndedAt !== undefined ? { routePostHandler: coordinatedAt - handlerEndedAt } : {}),
+        routeTotal: Date.now() - requestStartedAt,
+        ...(instanceWarmup !== undefined ? { instanceWarmup } : {}),
+      })
     }
     const auditCreatedAt = new Date().toISOString()
     const buildAuditEvents = (slack: Awaited<NonNullable<typeof auditEvidence>["slack"]>) =>
