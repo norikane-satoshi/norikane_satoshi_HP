@@ -101,6 +101,7 @@ export function readNotionAiSendPresenceInPage(doc: Document): { present: boolea
 /** Keeps rotation on whichever Notion host the tab is already authenticated against. */
 export function buildNotionAiBlankChatUrl(currentHref: string | undefined): string {
   if (!currentHref) return notionAiBlankChatUrl
+  if (currentHref === "about:blank") return notionAiBlankChatUrl
   try {
     return `${new URL(currentHref).origin}/ai`
   } catch {

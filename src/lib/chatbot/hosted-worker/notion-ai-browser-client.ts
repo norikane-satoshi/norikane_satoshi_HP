@@ -417,6 +417,8 @@ export const hostedNotionAiBrowserDefaults = {
   healthCheckTimeoutMs: 3000,
 } as const
 
+const inventoryTargetIds = new Set<string>()
+
 export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
   readonly tier = tier
   private readonly config: HostedNotionAiBrowserClientConfig
@@ -671,6 +673,34 @@ export class HostedNotionAiBrowserClient implements ChatbotLlmClient {
       }
     } finally {
       await session.close()
+    }
+  }
+
+  async provisionHiddenInventoryThread(): Promise<HostedNotionAiPreparedConversationThread> {
+    const signal = AbortSignal.timeout(this.config.requestTimeoutMs)
+    const response = await this.fetchClient(
+      `${this.config.cdpBaseUrl}/json/new?about:blank`,
+      { method: "PUT", signal },
+    )
+    if (!response.ok) throw new Error("Inventory page creation failed")
+    const target = await response.json() as NotionAiCdpTarget
+    if (!target.id || !target.webSocketDebuggerUrl) throw new Error("Invalid inventory page")
+    inventoryTargetIds.add(target.id)
+    let session: NotionAiCdpSession | undefined
+    try {
+      session = await this.sessionFactory(target)
+      return await this.provisionAndHideConversationThread({
+        session, startedAt: Date.now(), signal, mode: "provisioned",
+        threadRecordMissing: false, retentionPurgeDetected: false,
+      })
+    } finally {
+      try { await session?.close() }
+      finally {
+        const closed = await this.fetchClient(`${this.config.cdpBaseUrl}/json/close/${encodeURIComponent(target.id)}`,
+          { method: "GET", signal: AbortSignal.timeout(5000) })
+        if (!closed.ok) throw new Error("Inventory page cleanup failed")
+        inventoryTargetIds.delete(target.id)
+      }
     }
   }
 
@@ -1634,6 +1664,7 @@ function findNotionAiTarget(
   targets: CdpTargetsResponse,
   targetUrlIncludes: string,
 ): NotionAiCdpTarget | undefined {
+  targets = targets.filter(target => !target.id || !inventoryTargetIds.has(target.id))
   const configuredTarget = targets.find((target) => {
     return target.type === targetTypePage && isConfiguredNotionAiChatTargetUrl(target.url, targetUrlIncludes)
   })

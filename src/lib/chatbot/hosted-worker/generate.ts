@@ -40,7 +40,10 @@ import {
   type HostedWorkerThreadRotationState,
 } from "@/lib/chatbot/hosted-worker/health"
 
+import type { HiddenThreadPool } from "./notion-ai-thread-pool"
+
 type GenerateOptions = {
+  threadPool?: HiddenThreadPool
   timeoutMs?: number
   now?: () => number
   clientFactory?: () => {
@@ -255,6 +258,7 @@ export async function generateHostedWorkerResponse(
                   ? { ok: true, durationMs: outcome.durationMs }
                   : { ok: false, stage: outcome.stage, detail: outcome.detail, durationMs: outcome.durationMs }
               },
+              options.threadPool,
             ),
             timeoutMs,
             timeoutTag,
@@ -361,11 +365,21 @@ async function createHostedNotionAiResponse(
     lifecycle: NotionAiConversationThreadLifecycle
   }) => Promise<void>,
   onThreadRotationOutcome?: (outcome: HostedNotionAiThreadRotationOutcome) => void,
+  threadPool?: HiddenThreadPool,
 ): Promise<ChatbotLlmResponse> {
   const conversationId = requireConversationId(request.conversationId)
   if (clientFactory) return clientFactory().generate(request, { signal })
 
-  const conversationThread = await readNotionAiConversationThread(conversationId)
+  let conversationThread = await readNotionAiConversationThread(conversationId)
+  // Only persisted customer CUIDs may consume inventory; probes retain their own lifecycle.
+  if (!conversationThread && /^c[a-z0-9]{24}$/.test(conversationId)) {
+    const ready = await threadPool?.take()
+    if (ready) conversationThread = await writeNotionAiConversationThread({
+      conversationId, threadUrl: ready.threadUrl,
+      lifecycle: { visibilityStatus: "hidden", alive: false, deletedAt: ready.deletedAt,
+        hiddenFromChatList: true, hideVerificationResult: "verified" },
+    })
+  }
   const client = createHostedNotionAiBrowserClient({
       cdpBaseUrl: process.env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL ?? hostedNotionAiBrowserDefaults.cdpBaseUrl,
       targetUrlIncludes: conversationThread?.threadUrl ?? resolveEffectiveNotionAiThreadUrl().threadUrl,
