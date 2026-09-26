@@ -158,8 +158,8 @@ describe("Notion AI conversation thread isolation", () => {
     expect(response.diagnostics?.conversationThread).not.toHaveProperty("threadUrl")
   })
 
-  it("mints the first thread through the Notion UI before inference", async () => {
-    let currentUrl = oldThreadUrl
+  it.each(["customer", "inventory"])("mints a hidden %s thread through the Notion UI", async mode => {
+    let currentUrl = mode === "inventory" ? "about:blank" : oldThreadUrl
     const calls: string[] = []
     const rotations: Array<{ threadUrl: string; reason: string }> = []
     const session = {
@@ -200,26 +200,44 @@ describe("Notion AI conversation thread isolation", () => {
       async insertText(): Promise<void> {
         calls.push("insert-seed")
       },
-      async close(): Promise<void> {},
+      async close(): Promise<void> { calls.push("close-session") },
     }
     const client = createHostedNotionAiBrowserClient({
       targetUrlIncludes: oldThreadUrl,
       conversationThreadRequired: true,
-      fetchClient: async (url) =>
-        new Response(
+      fetchClient: async (url) => {
+        if (url.includes("/json/new?")) {
+          expect(url).toContain("/json/new?about:blank")
+          calls.push("create-dedicated-page")
+          return new Response(JSON.stringify({ id: "inventory-page", webSocketDebuggerUrl: "ws://inventory" }))
+        }
+        if (url.includes("/json/close/")) {
+          expect(url).toContain("/json/close/inventory-page")
+          calls.push("close-dedicated-page")
+          return new Response("closed")
+        }
+        return new Response(
           JSON.stringify(
             url.endsWith("/json/list")
               ? [{ type: "page", url: oldThreadUrl, webSocketDebuggerUrl: "ws://test" }]
               : { Browser: "Chrome/test" },
           ),
           { status: 200 },
-        ),
+        )
+      },
       sessionFactory: async () => session,
       onThreadRotated: async (rotation) => {
         rotations.push({ threadUrl: rotation.threadUrl, reason: rotation.reason })
       },
     })
 
+    if (mode === "inventory") {
+      const prepared = await client.provisionHiddenInventoryThread()
+      expect(prepared).toMatchObject({ alive: false, hiddenFromChatList: true, hideVerificationResult: "verified" })
+      expect(calls).not.toContain("inference")
+      expect(calls).toEqual(expect.arrayContaining(["create-dedicated-page", "hide-and-verify", "close-session", "close-dedicated-page"]))
+      return
+    }
     const response = await client.generate(isolatedRequest())
 
     expect(calls).toEqual(expect.arrayContaining(["open-blank-chat", "insert-seed", "send-seed", "hide-and-verify", "inference"]))
