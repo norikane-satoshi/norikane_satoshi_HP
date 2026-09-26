@@ -16,6 +16,7 @@ type Options = {
   now?: () => number
   load?: () => Promise<PoolThread[]>
   save?: (threads: PoolThread[]) => Promise<void>
+  log?: (event: { event: string; retryAfter: string; error: string }) => void
 }
 const maxAge = 7 * 86400000
 // Replenishment posts to Notion AI. When it fails (for example a spent allowance), retrying on the
@@ -86,8 +87,15 @@ export class HiddenThreadPool {
           try { await this.options.save?.([...this.threads]) }
           catch { this.unavailable = true; this.threads = [] }
         })
-      } catch {
+      } catch (error) {
         this.retryAfter = (this.options.now?.() ?? Date.now()) + failureBackoffMs
+        const log = this.options.log ?? ((event) => console.warn(JSON.stringify(event)))
+        log({
+          event: "hosted_worker_thread_pool_refill_failed",
+          retryAfter: new Date(this.retryAfter).toISOString(),
+          // Thread URLs identify hidden customer threads; keep them out of the journal.
+          error: String(error instanceof Error ? error.message : error).replace(/https?:\/\/\S+/gu, "[url]").slice(0, 200),
+        })
         return
       }
     }
