@@ -87,4 +87,19 @@ describe("hidden thread inventory", () => {
     await pool.refill()
     expect(create).toHaveBeenCalledTimes(2)
   })
+
+  it("logs a failed replenishment without the thread URL so the 30-minute wait is visible", async () => {
+    const log = vi.fn()
+    const create = vi.fn(async (): Promise<PoolThread> => {
+      throw new Error("could not open https://app.notion.com/chat?t=00000000000000000000000000000001")
+    })
+    const pool = new HiddenThreadPool({ idle: () => true, now: () => Date.parse("2026-09-26T00:00:00.000Z"), create, log })
+    await pool.refill()
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({
+      event: "hosted_worker_thread_pool_refill_failed",
+      retryAfter: "2026-09-26T00:30:00.000Z",
+    }))
+    expect(JSON.stringify(log.mock.calls)).not.toContain("notion.com")
+  })
 })
+
