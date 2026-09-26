@@ -169,7 +169,10 @@ export type ChatbotMessageApiResult = {
 }
 
 export type ChatbotMessageHandlerResult = ChatbotMessageApiResult & {
-  auditEvidence: ChatbotMessageAuditEvidence
+  auditEvidence: Omit<ChatbotMessageAuditEvidence, "slack"> & {
+    // Still pending when the Slack post was left to finish after the response.
+    slack: ChatbotMessageAuditEvidence["slack"] | Promise<ChatbotMessageAuditEvidence["slack"]>
+  }
 }
 
 export type ChatbotMessageFinalizationInput = {
@@ -237,6 +240,9 @@ type HandleChatbotMessageOptions = {
   finalizeMessage?: (input: ChatbotMessageFinalizationInput) => Promise<void>
   choiceInterpreter?: ChatbotChoiceInterpreter
   now?: () => number
+  // Post to an existing Slack thread without holding the response; the caller must keep the
+  // returned auditEvidence.slack promise alive (e.g. with next/server after()).
+  deferSlackNotification?: boolean
 }
 
 export class ChatbotMessagePersistenceError extends Error {
@@ -819,7 +825,7 @@ export async function handleChatbotMessage(
   stageTimings.conversationPersist = conversationPersistMs
   const slackNotificationStartedAt = now()
   if (!options.finalizeMessage) await assertRequestOwnership()
-  const slack = await notifySlackForChatbotResponse({
+  const slackNotification = notifySlackForChatbotResponse({
     notifier: slackNotifier,
     repository,
     requestId: input.requestId,
@@ -841,8 +847,14 @@ export async function handleChatbotMessage(
     retryDiagnostics,
     pendingRecovery: isPendingRequestRecovery,
     pendingRequestKind: input.pendingRequestKind,
+  }).then((result) => {
+    stageTimings.slackNotification = elapsedMs(slackNotificationStartedAt, now())
+    return result
   })
-  stageTimings.slackNotification = elapsedMs(slackNotificationStartedAt, now())
+  // The first post opens the thread later posts reply to, so only a threaded post may run on after the response.
+  const slack = options.deferSlackNotification && conversation.context.slackThreadTs
+    ? slackNotification
+    : await slackNotification
   stageTimings.tierHealthCheck = sumAttemptDurations(tierAttempts, "health-check")
   const tier1WorkerTimings = tierAttempts.find(
     (attempt) => attempt.phase === "generate" && attempt.tier === "tier-1-hosted-chrome-notion-ai" && attempt.stageTimings,
