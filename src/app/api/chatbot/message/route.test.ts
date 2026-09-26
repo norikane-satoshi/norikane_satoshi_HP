@@ -990,4 +990,29 @@ describe("POST /api/chatbot/message", () => {
       expect.objectContaining({ eventName: "slack_notification_completed", source: "server" }),
     ]))
   })
+
+  it("records where the route spends time around the handler, and the instance warm-up on its first request", async () => {
+    const route = await loadPost()
+
+    await route.POST(request({ message: "相談したいです" }))
+    await route.POST(request({ message: "相談したいです" }))
+
+    const timingsOf = (call: number) => {
+      const events = route.scheduleChatbotAuditPersistence.mock.calls[call][0] as Array<{
+        eventName: string
+        stageTimings?: Record<string, number>
+      }>
+      return events.find((event) => event.eventName === "response_normalized")?.stageTimings
+    }
+    for (const call of [0, 1]) {
+      expect(timingsOf(call)).toMatchObject({
+        routeAuth: expect.any(Number),
+        routePreHandler: expect.any(Number),
+        routePostHandler: expect.any(Number),
+        routeTotal: expect.any(Number),
+      })
+    }
+    expect(timingsOf(0)).toHaveProperty("instanceWarmup", expect.any(Number))
+    expect(timingsOf(1)).not.toHaveProperty("instanceWarmup")
+  })
 })
