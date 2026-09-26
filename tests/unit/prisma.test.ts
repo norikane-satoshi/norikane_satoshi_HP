@@ -66,4 +66,16 @@ describe("Prisma client HMR cache", () => {
     ])
     expect(prismaMocks.disconnect).toHaveBeenCalledOnce()
   })
+
+  it("shares one client between separately bundled modules in production", async () => {
+    // Next.js bundles instrumentation (which warms the database at start-up) apart from the routes,
+    // so each gets its own copy of this module; both must use the same, already-connected client.
+    vi.stubEnv("NODE_ENV", "production")
+    const instrumentationCopy = await import("@/lib/prisma")
+    vi.resetModules()
+    const routeCopy = await import("@/lib/prisma")
+
+    expect(routeCopy.prisma).toBe(instrumentationCopy.prisma)
+    expect(prismaMocks.adapters).toHaveLength(1)
+  })
 })
