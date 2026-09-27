@@ -31,6 +31,14 @@ function heading(id: string, text: string): Block {
   }
 }
 
+function heading3(id: string, text: string): Block {
+  return {
+    id,
+    type: "heading_3",
+    heading_3: { rich_text: richText(text) },
+  }
+}
+
 function paragraph(id: string, text: string, href?: string): Block {
   return {
     id,
@@ -255,7 +263,7 @@ describe("Notion chatbot knowledge sync", () => {
             if (block_id === sourcePageId) {
               return {
                 results: [
-                  heading("duration-heading", "工程別日数テーブル（実測値ベース）"),
+                  heading3("duration-heading", "工程別日数テーブル（実測値ベース）"),
                   tableRow("header", ["案件種別", "コンフォーム", "仕込み", "立ち会い", "最終チェック+納品", "合計"]),
                   tableRow("cm", ["CM 30秒", "0.5日", "立ち会い同日集約", "0.5日", "当日内", "1日"]),
                   tableRow("mv", ["MV 5分", "0.5日", "立ち会い同日集約", "1日", "当日内", "1〜1.5日"]),
@@ -267,6 +275,10 @@ describe("Notion chatbot knowledge sync", () => {
                   tableRow("vertical", ["縦型動画 60秒", "0.5日", "立ち会い同日集約", "0.5日", "当日内", "1日"]),
                   tableRow("live", ["ライブ 60分", "0.5〜1日", "2日程度", "1日", "0.5〜1日", "4日程度"]),
                   tableRow("live-long", ["ライブ 150分 / 2.5時間", "1日程度", "4〜5日程度", "1日", "1日程度", "7〜8日程度"]),
+                  // The next section of the same level cites past jobs; a sentence there naming a kind
+                  // ("本編 3時間") next to other dates must not be read as that kind's line.
+                  heading3("evidence-heading", "工程日数の実績根拠"),
+                  paragraph("evidence", "劇場作品は SDR 13日、HDR は別に2日（10/7〜8予定）。「本編 3時間 8〜10日」から上乗せになる。"),
                 ],
                 has_more: false,
               }
