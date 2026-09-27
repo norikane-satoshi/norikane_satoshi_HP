@@ -1047,4 +1047,19 @@ describe("POST /api/chatbot/message", () => {
     expect(route.warmChatbotDatabase).toHaveBeenCalledOnce()
     expect(route.coordinateChatbotMessageRequest).not.toHaveBeenCalled()
   })
+
+  it("keeps a diagnostic conversation out of Slack and every other conversation in it", async () => {
+    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "worker-secret")
+    const { chatbotDiagnosticHeader, chatbotDiagnosticToken } = await import("@/lib/chatbot/server/diagnostic-request")
+    const diagnostic = await loadPost()
+    await diagnostic.POST(
+      request({ message: "相談したいです" }, undefined, { [chatbotDiagnosticHeader]: chatbotDiagnosticToken()! }),
+    )
+    expect(diagnostic.sendChatbotSlackNotification).not.toHaveBeenCalled()
+
+    const manual = await loadPost()
+    await manual.POST(request({ message: "相談したいです" }, undefined, { [chatbotDiagnosticHeader]: "not-the-token" }))
+    expect(manual.sendChatbotSlackNotification).toHaveBeenCalled()
+    vi.unstubAllEnvs()
+  })
 })
