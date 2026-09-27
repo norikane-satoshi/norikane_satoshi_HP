@@ -60,6 +60,7 @@ import {
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import {
+  buildWorkflowPromptContext,
   resolveWorkflowDurationContext,
   type DurationTraceContext,
 } from "@/lib/chatbot/server/duration-context"
@@ -523,7 +524,10 @@ export async function handleChatbotMessage(
     userContext,
     userContextFormatter,
     knowledgeSnapshot,
-    durationContext.promptContext,
+    buildWorkflowPromptContext(jobContext, {
+      finalMedium: conversationState.hasFinalMedium,
+      workSite: conversationState.hasWorkSite,
+    }),
     noteAccess,
     submittedBooking ? buildSubmittedBookingPromptContext(submittedBooking) : undefined,
     [...conversation.messages, userMessage]

@@ -1,3 +1,4 @@
+import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import type { FinalMedium, JobKind, WorkSite } from "@/lib/chatbot/domain/workflow-estimate"
 
 export const tightDeadlineThresholdDays = 3
@@ -94,3 +95,25 @@ export const workSiteDurationRules = {
     canSkipFinalCheckDayWithLocalHandoff: boolean
   }
 >
+
+const estimateSubjectLabels: Record<JobKind, string> = {
+  "cm-30s": "CM",
+  "mv-5m": "MV",
+  "feature-90m": "長編",
+  "drama-first": "ドラマ初回",
+  "drama-follow-up": "ドラマ2話目以降",
+  "vertical-60s": "縦型動画",
+  "live-60m": "ライブ",
+}
+
+/**
+ * What a duration estimate is for: the length the customer chose, or, while it is still open, the
+ * reference length the estimate assumes stated as a condition rather than as the customer's length.
+ */
+export function describeJobForEstimate(jobKind: JobKind, projectLengthMinutes: number | undefined): string {
+  const subject = estimateSubjectLabels[jobKind]
+  const baselineMinutes = workflowDurationJobKindMap[jobKind].baselineMinutes
+  if (baselineMinutes === undefined) return subject
+  if (projectLengthMinutes !== undefined) return `${subject} ${formatProjectLengthMinutes(projectLengthMinutes)}`
+  return `${subject}（${formatProjectLengthMinutes(baselineMinutes)}の場合）`
+}

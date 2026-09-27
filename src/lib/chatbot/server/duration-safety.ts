@@ -1,5 +1,6 @@
 import type { JobContext, RoutingDecision, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
+import { describeJobForEstimate } from "@/lib/chatbot/knowledge/workflow-duration"
 
 export type ChatbotDurationSafetyReport = {
   workflowEstimate?: {
@@ -371,12 +372,7 @@ function formatProjectLength(value: number | undefined): string {
 }
 
 function formatNonLiveProjectLabel(jobContext: JobContext): string {
-  if (jobContext.jobKind === "cm-30s") return "Web CM 30秒"
-  if (jobContext.jobKind === "mv-5m") return "MV 5分"
-  if (jobContext.jobKind === "drama-first") return "ドラマ初回"
-  if (jobContext.jobKind === "feature-90m") return "本編90分"
-  if (jobContext.jobKind === "vertical-60s") return "縦型動画60秒"
-  if (jobContext.jobKind) return jobContext.jobKind
+  if (jobContext.jobKind) return describeJobForEstimate(jobContext.jobKind, jobContext.projectLengthMinutes)
   if (jobContext.projectLengthMinutes !== undefined) return `今回の${formatProjectLength(jobContext.projectLengthMinutes)}案件`
   return "今回の案件"
 }

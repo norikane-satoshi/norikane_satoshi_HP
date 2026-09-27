@@ -4505,7 +4505,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("Web CM 30秒の基本目安は1〜2日程度")
+    expect(result.assistantMessage.content).toContain("CM 30秒の基本目安は1〜2日程度")
     expect(result.assistantMessage.content).not.toContain("ライブ60分")
     expect(result.assistantMessage.content).not.toContain("4日程度")
   })
