@@ -1248,6 +1248,18 @@ describe("ChatbotBookingCard", () => {
       expect(screen.queryByRole("button", { name: "2026-06-10 選択可" })).not.toBeInTheDocument()
     })
 
+    it("shows the estimate once on the confirmation step, inside the list", () => {
+      renderCard({ confirmationItems })
+
+      expect(screen.getByText("工程目安 2日")).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+
+      expect(screen.queryByText("工程目安 2日")).not.toBeInTheDocument()
+      const summary = screen.getByLabelText("送信する内容")
+      expect(within(summary).getByText("工程の目安")).toBeInTheDocument()
+      expect(within(summary).getByText("2日")).toBeInTheDocument()
+    })
+
     it("goes back to the calendar with the dates still chosen", () => {
       renderCard({ confirmationItems })
 

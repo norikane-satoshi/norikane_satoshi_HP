@@ -15,7 +15,6 @@ import type {
   ChatbotConversation,
   ChatbotMessage,
   ConversationState,
-  DocumentaryAttachmentItem,
   JobContext,
   RoutingDecision,
   SurveyChoiceSet,
@@ -3656,7 +3655,6 @@ function normalizeBookingCardPrefill(
     normalizeBookingSupplementalMemo(stateBookingPrefill.memo, contactEmail),
     normalizeBookingSupplementalMemo(trustedToolPrefill.memo, contactEmail),
     normalizeSupplementalBookingFinalNote(conversationState.bookingFinalConfirmation?.supplementalNote),
-    ...buildChoiceDetailSegments(jobContext, conversationState),
   ]
   const contactName =
     confirmedStateCustomerName ??
@@ -3761,39 +3759,6 @@ function defaultProjectTitleForJob(jobContext: JobContext): string | undefined {
   return undefined
 }
 
-function buildChoiceDetailSegments(jobContext: JobContext, conversationState: ConversationState): string[] {
-  const segments: string[] = []
-  const requestCategory = labelRequestCategory(jobContext, conversationState)
-  const deliveryUse = labelDeliveryUse(jobContext, conversationState)
-
-  if (requestCategory) segments.push(`依頼内容: ${requestCategory}`)
-  if (deliveryUse) segments.push(`納品・使用先: ${deliveryUse}`)
-  if (jobContext.deliveryMedium) segments.push(`納品形式: ${labelDeliveryMedium(jobContext.deliveryMedium)}`)
-  if (jobContext.additionalWork?.length) {
-    segments.push(`追加作業: ${jobContext.additionalWork.map((item) => labelAdditionalWork(item)).join(" / ")}`)
-  }
-  const attachment = buildDocumentaryAttachmentMemo(jobContext.documentaryAttachment)
-  if (attachment) segments.push(attachment)
-  if (conversationState.productionOptions?.length) {
-    segments.push(
-      `制作オプション: ${conversationState.productionOptions
-        .map((item) => labelProductionOption(item, conversationState.otherChoiceComments?.["production-options"]))
-        .join(" / ")}`,
-    )
-  }
-  if (conversationState.materialHandoff?.contents) {
-    segments.push(`受け渡し素材: ${conversationState.materialHandoff.contents}`)
-  }
-  if (conversationState.materialHandoff?.timing) {
-    segments.push(`素材受け渡し時期: ${conversationState.materialHandoff.timing}`)
-  }
-  if (conversationState.materialHandoff?.method) {
-    segments.push(`素材受け渡し方法: ${conversationState.materialHandoff.method}`)
-  }
-
-  return segments
-}
-
 function labelRequestCategory(jobContext: JobContext, conversationState: ConversationState): string | undefined {
   if (jobContext.jobKind === "live-60m") return "ライブ"
   if (jobContext.jobKind === "cm-30s") return "Web CM / CM"
@@ -3802,85 +3767,6 @@ function labelRequestCategory(jobContext: JobContext, conversationState: Convers
   if (jobContext.jobKind === "drama-first" || jobContext.jobKind === "drama-follow-up") return "ドラマ"
   if (jobContext.jobKind === "vertical-60s") return "縦型動画 / SNS動画"
   return normalizeSupplementalMemo(conversationState.otherChoiceComments?.["job-kind"])
-}
-
-function labelDeliveryUse(jobContext: JobContext, conversationState: ConversationState): string | undefined {
-  const labels = (conversationState.finalMedia?.length ? conversationState.finalMedia : [jobContext.finalMedium])
-    .map((medium) => {
-      if (medium === "ott") return "VOD・オンデマンド配信"
-      if (medium === "cinema") return "映画 / 劇場"
-      if (medium === "tv-broadcast") return "テレビ放送"
-      if (medium === "blu-ray") return "Blu-ray / ディスク"
-      if (medium === "youtube") return "YouTube"
-      if (medium === "web") return "Web公開"
-      if (medium === "vertical-sns") return "縦型SNS"
-      if (medium === "other") return normalizeSupplementalMemo(conversationState.otherChoiceComments?.["final-medium"])
-      return undefined
-    })
-    .filter((label): label is string => Boolean(label))
-  return labels.length > 0 ? labels.join(" / ") : undefined
-}
-
-function labelDeliveryMedium(value: NonNullable<JobContext["deliveryMedium"]>): string {
-  switch (value) {
-    case "dvd":
-      return "ディスク納品"
-  }
-}
-
-function labelAdditionalWork(value: NonNullable<JobContext["additionalWork"]>[number]): string {
-  switch (value) {
-    case "retouch":
-      return "消し物/レタッチ"
-    case "skin-retouch":
-      return "肌修正"
-    case "other":
-      return "その他追加作業"
-  }
-}
-
-function labelProductionOption(value: NonNullable<ConversationState["productionOptions"]>[number], otherComment?: string): string {
-  switch (value) {
-    case "captions":
-      return "字幕"
-    case "telops":
-      return "テロップ"
-    case "narration":
-      return "ナレーション"
-    case "music":
-      return "音楽"
-    case "other":
-      return normalizeSupplementalMemo(otherComment) ?? "その他"
-  }
-}
-
-function buildDocumentaryAttachmentMemo(value: JobContext["documentaryAttachment"] | undefined): string | undefined {
-  if (!value || value.kind === "none") return undefined
-  const labels =
-    value.kind === "mixed"
-      ? value.items.map(labelDocumentaryAttachmentItem)
-      : [labelDocumentaryAttachmentItem(value)]
-  const text = labels.filter(Boolean).join(" / ")
-  return text ? `付随素材として、${text}が含まれる可能性があります。` : undefined
-}
-
-function labelDocumentaryAttachmentItem(value: DocumentaryAttachmentItem): string {
-  switch (value.kind) {
-    case "digest":
-      return withCount("ダイジェスト", value.count)
-    case "interview":
-      return withCount("インタビュー", value.count)
-    case "bonus":
-      return withCount("特典映像", value.count)
-    case "making":
-      return withCount("メイキング", value.count)
-    case "other":
-      return normalizeSupplementalMemo(value.note) ?? "その他素材"
-  }
-}
-
-function withCount(label: string, count: number): string {
-  return count > 1 ? `${label}${count}本` : label
 }
 
 function normalizeSupplementalMemo(value: string | undefined): string | undefined {
