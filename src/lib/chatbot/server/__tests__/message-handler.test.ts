@@ -3833,7 +3833,8 @@ describe("handleChatbotMessage user context", () => {
       )
 
       const prompt = harness.generate.mock.calls[0]?.[0].systemPrompt
-      expect(prompt).toContain("2026年9月中旬から稼働し始める予定")
+      expect(prompt).toContain("作業場所の第一候補は「のりかね映像設計室スタジオ」")
+      expect(prompt).toContain("移動は作業日数に数えません")
       expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: workSiteChoices.id } })
       expect(result.assistantMessage.content).not.toContain("スタジオ利用")
       expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.id) : []).not.toContain(
@@ -5998,7 +5999,7 @@ describe("the code's next panel is kept whatever the model writes", () => {
         id: "work-site",
         question: "則兼の作業場所はどちらをご希望されますか？",
         choices: [
-          { id: "satoshi-studio", label: "さとしさんのスタジオ" },
+          { id: "satoshi-studio", label: "のりかね映像設計室スタジオ" },
           { id: "remote-grading", label: "リモートグレーディング" },
         ],
       },

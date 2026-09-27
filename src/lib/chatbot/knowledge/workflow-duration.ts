@@ -160,22 +160,17 @@ export const strictDeliveryQcNote = "納品先の検査に合わせて1日多め
 export const workSiteDurationRules = {
   "satoshi-studio": {
     label: "satoshi-studio = 基準",
-    travelMinDays: 0,
-    travelMaxDays: 0,
     defaultSameDuration: true,
     canSkipFinalCheckDayWithLocalHandoff: false,
   },
   "remote-grading": {
     label: "remote-grading = 同日数デフォルト・案件ごと上乗せ議論",
-    travelMinDays: 0,
-    travelMaxDays: 0,
     defaultSameDuration: true,
     canSkipFinalCheckDayWithLocalHandoff: false,
   },
   "on-site": {
-    label: "on-site = 往復 0.5～1日・現地引き継ぎで最終チェック 1日スキップ可",
-    travelMinDays: 0.5,
-    travelMaxDays: 1,
+    // 2026-09-27 (則兼さん): travel to a room away from the studio is not counted as work days.
+    label: "on-site = 移動日は日数に数えない・現地引き継ぎで最終チェック 1日スキップ可",
     defaultSameDuration: false,
     canSkipFinalCheckDayWithLocalHandoff: true,
   },
@@ -183,8 +178,6 @@ export const workSiteDurationRules = {
   WorkSite,
   {
     label: string
-    travelMinDays: number
-    travelMaxDays: number
     defaultSameDuration: boolean
     canSkipFinalCheckDayWithLocalHandoff: boolean
   }

@@ -6,7 +6,7 @@ import { customerFacingWorkSiteChoices, workSiteChoices } from "@/lib/chatbot/do
 describe("work-site choices", () => {
   it("offers the owner's studio first and the rooms away from it, never the client's facility", () => {
     expect(customerFacingWorkSiteChoices(new Date("2026-10-01T00:00:00+09:00")).choices.map((choice) => choice.label)).toEqual([
-      "さとしさんのスタジオ",
+      "のりかね映像設計室スタジオ",
       "ポスプロの部屋を借りる",
       "依頼元の機材部屋（制作会社など）",
       "依頼元が手配するレンタルスペース",

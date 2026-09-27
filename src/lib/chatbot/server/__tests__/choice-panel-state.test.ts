@@ -155,7 +155,7 @@ describe("choice panel state", () => {
       { documentaryAttachment: { kind: "interview", count: 1 } },
     ],
     [documentaryAttachmentChoices, "なし", { hasDocumentaryAttachments: true }, { documentaryAttachment: { kind: "none" } }],
-    [workSiteChoices, "satoshi-studio", { hasWorkSite: true, workSiteLabel: "さとしさんのスタジオ" }, { workSite: "satoshi-studio" }],
+    [workSiteChoices, "satoshi-studio", { hasWorkSite: true, workSiteLabel: "のりかね映像設計室スタジオ" }, { workSite: "satoshi-studio" }],
     [workSiteChoices, "post-production-room", { hasWorkSite: true, workSiteLabel: "ポスプロの部屋を借りる" }, { workSite: "on-site" }],
     [
       workSiteChoices,
