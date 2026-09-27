@@ -60,6 +60,7 @@ import {
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import { requiresStructuredUi } from "@/lib/chatbot/server/llm-client"
+import { formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import {
   buildWorkflowPromptContext,
   resolveWorkflowDurationContext,
@@ -2326,7 +2327,7 @@ function isCustomerFacingNoteQuestion(message: string): boolean {
 
 function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnapshot, noteKnowledgeContext: string): string {
   const durationLines = getWorkflowDurationPresetsFromSnapshot(snapshot).map(
-    (preset) => `- ${preset.label}: ${preset.minDays}〜${preset.maxDays}日`,
+    (preset) => `- ${preset.label}: ${formatDayRange(preset.minDays, preset.maxDays)}`,
   )
   const noteLines = selectCustomerFacingNoteKnowledge(snapshot, noteKnowledgeContext).flatMap((entry) => [
     `- ${entry.status}${entry.pageTitle ? ` / ${entry.pageTitle}` : ""}${entry.status === "published" && entry.slug ? ` / 公開URL: https://norikane.studio/notes/${entry.slug}` : ""}:`,

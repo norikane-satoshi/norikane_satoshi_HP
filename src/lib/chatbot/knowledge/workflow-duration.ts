@@ -5,6 +5,12 @@ export const tightDeadlineThresholdDays = 3
 export const tightishDeadlineMaxDays = 7
 export const settledConversationTurnThreshold = 8
 
+/** A day range as customers read it: "1〜1.5日", or "1日" when both ends meet. */
+export function formatDayRange(minDays: number, maxDays: number): string {
+  const days = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, ""))
+  return minDays === maxDays ? `${days(minDays)}日` : `${days(minDays)}〜${days(maxDays)}日`
+}
+
 export type WorkflowDurationPreset = {
   id: string
   label: string
@@ -13,19 +19,52 @@ export type WorkflowDurationPreset = {
 }
 
 export const workflowDurationPresets = [
-  { id: "cm-30s", label: "CM 30秒", minDays: 1, maxDays: 2 },
-  { id: "mv-5m", label: "MV 5分", minDays: 2, maxDays: 2.5 },
-  { id: "feature-90m", label: "本編 90分", minDays: 10, maxDays: 11 },
-  { id: "drama-first", label: "ドラマ初回", minDays: 6, maxDays: 7 },
-  { id: "drama-follow-up", label: "ドラマ 2話目以降", minDays: 5, maxDays: 5 },
-  { id: "vertical-60s", label: "縦型 60秒", minDays: 1.5, maxDays: 1.5 },
+  { id: "cm-30s", label: "CM 30秒", minDays: 1, maxDays: 1 },
+  { id: "mv-5m", label: "MV 5分", minDays: 1, maxDays: 1.5 },
+  { id: "feature-90m", label: "本編 90分", minDays: 6, maxDays: 8 },
+  { id: "feature-180m", label: "本編 3時間", minDays: 8, maxDays: 10 },
+  { id: "drama-first", label: "ドラマ初回（1話45〜50分）", minDays: 6, maxDays: 7 },
+  { id: "drama-follow-up", label: "ドラマ 2話目以降（1話45〜50分）", minDays: 5, maxDays: 5 },
+  { id: "drama-short", label: "短尺ドラマ（1話5〜15分）", minDays: 1, maxDays: 2 },
+  { id: "vertical-60s", label: "縦型 60秒", minDays: 1, maxDays: 1 },
   { id: "live-60m", label: "ライブ 60分", minDays: 4, maxDays: 4 },
+  { id: "live-150m", label: "ライブ 150分", minDays: 7, maxDays: 8 },
 ] as const satisfies readonly WorkflowDurationPreset[]
 
-export const liveDurationAnchors = {
-  sixtyMinutes: { minutes: 60, minDays: 4, maxDays: 4 },
-  oneHundredFiftyMinutes: { minutes: 150, minDays: 7, maxDays: 8 },
-} as const
+export type WorkflowDurationPresetId = (typeof workflowDurationPresets)[number]["id"]
+
+/**
+ * Job kinds whose days grow with length: a length between the two anchors eases from one anchor's
+ * days to the other's; outside them the nearer anchor holds, with a note that the length is off-table.
+ */
+export const workflowDurationLengthAnchors = {
+  "live-60m": {
+    short: { presetId: "live-60m", minutes: 60 },
+    long: { presetId: "live-150m", minutes: 150 },
+    belowShortNote: "60分以下は60分ライブ基準",
+    aboveLongNote: "150分超は素材量・カメラ数・チェック体制の確認優先",
+  },
+  "feature-90m": {
+    short: { presetId: "feature-90m", minutes: 90 },
+    long: { presetId: "feature-180m", minutes: 180 },
+    belowShortNote: "尺が基準と異なるため要相談",
+    aboveLongNote: "3時間超は素材量・チェック体制の確認優先",
+  },
+} as const satisfies Partial<
+  Record<
+    JobKind,
+    {
+      short: { presetId: WorkflowDurationPresetId; minutes: number }
+      long: { presetId: WorkflowDurationPresetId; minutes: number }
+      belowShortNote: string
+      aboveLongNote: string
+    }
+  >
+>
+
+/** Dramas are estimated per episode: up to this length an episode follows the short-drama line. */
+export const shortDramaMaxEpisodeMinutes = 20
+export const standardDramaEpisodeMinutes = { min: 45, max: 50 } as const
 
 export const workflowDurationJobKindMap = {
   "cm-30s": { presetId: "cm-30s", baselineMinutes: 0.5 },
@@ -38,7 +77,7 @@ export const workflowDurationJobKindMap = {
 } as const satisfies Record<
   JobKind,
   {
-    presetId: (typeof workflowDurationPresets)[number]["id"]
+    presetId: WorkflowDurationPresetId
     baselineMinutes: number | undefined
   }
 >
@@ -113,7 +152,12 @@ const estimateSubjectLabels: Record<JobKind, string> = {
 export function describeJobForEstimate(jobKind: JobKind, projectLengthMinutes: number | undefined): string {
   const subject = estimateSubjectLabels[jobKind]
   const baselineMinutes = workflowDurationJobKindMap[jobKind].baselineMinutes
-  if (baselineMinutes === undefined) return subject
+  if (baselineMinutes === undefined) {
+    // Drama lengths are per episode, so say so rather than read as the whole series.
+    return projectLengthMinutes === undefined
+      ? subject
+      : `${subject}（1話${formatProjectLengthMinutes(projectLengthMinutes)}）`
+  }
   if (projectLengthMinutes !== undefined) return `${subject} ${formatProjectLengthMinutes(projectLengthMinutes)}`
   return `${subject}（${formatProjectLengthMinutes(baselineMinutes)}の場合）`
 }

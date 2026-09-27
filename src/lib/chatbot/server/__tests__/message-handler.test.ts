@@ -4388,19 +4388,19 @@ describe("handleChatbotMessage user context", () => {
     {
       prompt: "Web CM 30秒、追加作業なしです。所要日数だけ知りたいです。",
       rawText: "Web CM 30秒の所要日数の目安は17〜20日です。",
-      expectedRange: "所要日数の目安は1〜2日",
+      expectedRange: "所要日数の目安は1日",
       expectedJobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 },
     },
     {
       prompt: "MV 5分のカラーグレーディング相談です。",
       rawText: "MV 5分の作業期間は17〜20日です。",
-      expectedRange: "作業期間は2〜2.5日",
+      expectedRange: "作業期間は1〜1.5日",
       expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
     },
     {
       prompt: "OTT向け本編90分です。工程感を知りたいです。",
       rawText: "本編90分の工程目安は17〜20日です。",
-      expectedRange: "工程目安は11〜12日",
+      expectedRange: "工程目安は7〜9日",
       expectedJobContext: { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 },
     },
     {
@@ -4412,7 +4412,7 @@ describe("handleChatbotMessage user context", () => {
     {
       prompt: "縦型動画60秒の相談です。工程だけ知りたいです。",
       rawText: "縦型動画60秒の工程は17〜20日です。",
-      expectedRange: "工程は1.5〜1.5日",
+      expectedRange: "工程は1日",
       expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 },
     },
   ])("infers workflow estimate facts from non-live free text: $prompt", async ({ prompt, rawText, expectedRange, expectedJobContext }) => {
@@ -4505,7 +4505,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("CM 30秒の基本目安は1〜2日程度")
+    expect(result.assistantMessage.content).toContain("CM 30秒の基本目安は1日程度")
     expect(result.assistantMessage.content).not.toContain("ライブ60分")
     expect(result.assistantMessage.content).not.toContain("4日程度")
   })
@@ -4692,7 +4692,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("基本工程は1〜2日")
+    expect(result.assistantMessage.content).toContain("基本工程は1日")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "web",
@@ -4700,7 +4700,7 @@ describe("handleChatbotMessage user context", () => {
       projectLengthMinutes: 0.5,
       workflowEstimate: expect.objectContaining({
         totalMinDays: 1,
-        totalMaxDays: 2,
+        totalMaxDays: 1,
       }),
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
@@ -4719,7 +4719,7 @@ describe("handleChatbotMessage user context", () => {
             }),
             workflowEstimate: expect.objectContaining({
               totalMinDays: 1,
-              totalMaxDays: 2,
+              totalMaxDays: 1,
             }),
             snapshotStatus: "current",
           }),
@@ -4733,28 +4733,28 @@ describe("handleChatbotMessage user context", () => {
       prior: "Web CM 30秒のカラーグレーディング相談です。",
       latest: "素材はオンラインで渡せます。追加作業は今のところありません。",
       rawText: "素材状況を踏まえると、基本工程は17〜20日です。",
-      expectedRange: "基本工程は1〜2日",
+      expectedRange: "基本工程は1日",
       expectedJobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 },
     },
     {
       prior: "MV 5分のカラーグレーディング相談です。",
       latest: "肌修正が少しあります。基本工程はどれくらいですか？",
       rawText: "追加作業込みでも基本工程は17〜20日から考えます。",
-      expectedRange: "基本工程は2〜2.5日",
+      expectedRange: "基本工程は1〜1.5日",
       expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
     },
     {
       prior: "OTT向け本編90分です。",
       latest: "素材は整っています。まず基本工程だけ知りたいです。",
       rawText: "本編90分なら工程目安は17〜20日です。",
-      expectedRange: "工程目安は11〜12日",
+      expectedRange: "工程目安は7〜9日",
       expectedJobContext: { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 },
     },
     {
       prior: "縦型動画60秒の相談です。",
       latest: "テロップだけ追加になるかもしれません。期間感は？",
       rawText: "縦型動画の工程は17〜20日です。",
-      expectedRange: "工程は1.5〜1.5日",
+      expectedRange: "工程は1日",
       expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 },
     },
   ])("reuses prior workflow facts on follow-up turns: $prior", async ({ prior, latest, rawText, expectedRange, expectedJobContext }) => {
@@ -4872,15 +4872,15 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("工程目安は1.5〜1.5日")
+    expect(result.assistantMessage.content).toContain("工程目安は1日")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "vertical-sns",
       jobKind: "vertical-60s",
       projectLengthMinutes: 1,
       workflowEstimate: expect.objectContaining({
-        totalMinDays: 1.5,
-        totalMaxDays: 1.5,
+        totalMinDays: 1,
+        totalMaxDays: 1,
       }),
     })
   })
@@ -4931,8 +4931,8 @@ describe("handleChatbotMessage user context", () => {
       jobKind: "mv-5m",
       projectLengthMinutes: 5,
       workflowEstimate: expect.objectContaining({
-        totalMinDays: 2,
-        totalMaxDays: 2.5,
+        totalMinDays: 1,
+        totalMaxDays: 1.5,
       }),
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(

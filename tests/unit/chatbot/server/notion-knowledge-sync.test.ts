@@ -257,12 +257,14 @@ describe("Notion chatbot knowledge sync", () => {
                 results: [
                   heading("duration-heading", "工程別日数テーブル（実測値ベース）"),
                   tableRow("header", ["案件種別", "コンフォーム", "仕込み", "立ち会い", "最終チェック+納品", "合計"]),
-                  tableRow("cm", ["CM 30秒", "0.5〜1日", "立ち会い同日集約", "1日", "当日内", "1〜2日"]),
-                  tableRow("mv", ["MV 5分", "0.5〜1日", "0.5日", "1日", "当日内", "2〜2.5日"]),
-                  tableRow("feature", ["本編 90分", "1〜2日", "5日", "3日", "1日", "10〜11日"]),
-                  tableRow("drama-first", ["ドラマ 45分（初回）", "1日", "3日", "1〜2日", "1日", "6〜7日"]),
-                  tableRow("drama-next", ["ドラマ 45分（2話以降）", "1日", "2日", "1日", "1日", "5日"]),
-                  tableRow("vertical", ["縦型動画 60秒", "0.5日", "1日集約", "1日集約", "1日集約", "1.5日"]),
+                  tableRow("cm", ["CM 30秒", "0.5日", "立ち会い同日集約", "0.5日", "当日内", "1日"]),
+                  tableRow("mv", ["MV 5分", "0.5日", "立ち会い同日集約", "1日", "当日内", "1〜1.5日"]),
+                  tableRow("feature", ["本編 90分", "1日", "3日", "1〜3日", "1日", "6〜8日"]),
+                  tableRow("feature-long", ["本編 3時間", "1日", "4〜5日", "1〜3日", "1日", "8〜10日"]),
+                  tableRow("drama-first", ["ドラマ 45〜50分（初回）", "1日", "3日", "1〜2日", "1日", "6〜7日"]),
+                  tableRow("drama-next", ["ドラマ 45〜50分（2話目以降）", "1日", "2日", "1日", "1日", "5日/話"]),
+                  tableRow("drama-short", ["短尺ドラマ（1話5〜15分）", "立ち会い同日集約", "1日以内", "0.5〜1日", "当日内", "1〜2日/話"]),
+                  tableRow("vertical", ["縦型動画 60秒", "0.5日", "立ち会い同日集約", "0.5日", "当日内", "1日"]),
                   tableRow("live", ["ライブ 60分", "0.5〜1日", "2日程度", "1日", "0.5〜1日", "4日程度"]),
                   tableRow("live-long", ["ライブ 150分 / 2.5時間", "1日程度", "4〜5日程度", "1日", "1日程度", "7〜8日程度"]),
                 ],
@@ -287,13 +289,16 @@ describe("Notion chatbot knowledge sync", () => {
       result.snapshot.workflowDurations.presets.map((preset) => [preset.id, [preset.minDays, preset.maxDays, preset.source]]),
     )
     expect(days).toEqual({
-      "cm-30s": [1, 2, "notion-sync"],
-      "mv-5m": [2, 2.5, "notion-sync"],
-      "feature-90m": [10, 11, "notion-sync"],
+      "cm-30s": [1, 1, "notion-sync"],
+      "mv-5m": [1, 1.5, "notion-sync"],
+      "feature-90m": [6, 8, "notion-sync"],
+      "feature-180m": [8, 10, "notion-sync"],
       "drama-first": [6, 7, "notion-sync"],
       "drama-follow-up": [5, 5, "notion-sync"],
-      "vertical-60s": [1.5, 1.5, "notion-sync"],
+      "drama-short": [1, 2, "notion-sync"],
+      "vertical-60s": [1, 1, "notion-sync"],
       "live-60m": [4, 4, "notion-sync"],
+      "live-150m": [7, 8, "notion-sync"],
     })
   })
 

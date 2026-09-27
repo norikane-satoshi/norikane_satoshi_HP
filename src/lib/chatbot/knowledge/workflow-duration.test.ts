@@ -14,8 +14,9 @@ describe("describeJobForEstimate", () => {
     expect(describeJobForEstimate("vertical-60s", undefined)).toBe("縦型動画（1分の場合）")
   })
 
-  it("names drama episodes without a length, including follow-up episodes", () => {
+  it("names drama episodes by their per-episode length once it is known", () => {
     expect(describeJobForEstimate("drama-first", undefined)).toBe("ドラマ初回")
-    expect(describeJobForEstimate("drama-follow-up", 45)).toBe("ドラマ2話目以降")
+    expect(describeJobForEstimate("drama-follow-up", 45)).toBe("ドラマ2話目以降（1話45分）")
+    expect(describeJobForEstimate("drama-first", 5)).toBe("ドラマ初回（1話5分）")
   })
 })

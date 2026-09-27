@@ -1,6 +1,6 @@
 import { jobKindLabels } from "@/lib/chatbot/domain/job-kind-label"
 import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import { describeJobForEstimate } from "@/lib/chatbot/knowledge/workflow-duration"
+import { describeJobForEstimate, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import type { ChatbotConversation, ConversationState, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
@@ -171,7 +171,7 @@ export function buildWorkflowPromptContext(
       const referenceMinDays = jobContext.workflowEstimate.referenceMinDays ?? jobContext.workflowEstimate.totalMinDays
       const referenceMaxDays = jobContext.workflowEstimate.referenceMaxDays ?? jobContext.workflowEstimate.totalMaxDays
       lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
-      lines.push(`- 今回尺の暫定上限目安: ${formatDays(referenceMinDays)}〜${formatDays(referenceMaxDays)}日`)
+      lines.push(`- 今回尺の暫定上限目安: ${formatDayRange(referenceMinDays, referenceMaxDays)}`)
       lines.push("- 今回尺の確定日数: 150分超のため確認待ち")
       lines.push("- 禁止: 17〜20日などの正本にない日数レンジ、尺による線形倍率計算")
       lines.push("- 禁止: 顔ぼかし・追加補正・付随作業・ディスク納品を基本工程ラインに最初から込みと断定する表現")
@@ -179,9 +179,10 @@ export function buildWorkflowPromptContext(
       lines.push("150分超は素材量・カメラ数・ぼかし箇所・チェック体制の確認を優先し、断定的な新規日数を発明しません。")
     } else {
       lines.push(
-        `- 基本工程ライン: ${formatDays(jobContext.workflowEstimate.totalMinDays)}〜${formatDays(
+        `- 基本工程ライン: ${formatDayRange(
+          jobContext.workflowEstimate.totalMinDays,
           jobContext.workflowEstimate.totalMaxDays,
-        )}日（${describeJobForEstimate(jobContext.jobKind, jobContext.projectLengthMinutes)}の目安）`,
+        )}（${describeJobForEstimate(jobContext.jobKind, jobContext.projectLengthMinutes)}の目安）`,
       )
       if (jobContext.jobKind === "live-60m") {
         lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
@@ -285,10 +286,6 @@ function hasNewWorkflowContextFact(input: {
     (typeof input.jobContext.projectLengthMinutes === "number" && !hasSource("projectLengthMinutes")) ||
     (input.jobContext.finalMedium !== "other" && !hasSource("finalMedium"))
   )
-}
-
-function formatDays(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
 }
 
 function formatMinutes(value: number): string {
