@@ -18,6 +18,7 @@ import {
   CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
   CHATBOT_CONVERSATION_CONTENT_STYLE,
 } from "./conversationTypography"
+import {useChatbotCopy, useChatbotLocale} from "./i18n"
 
 type ChatMessageProps = {
   id?: string
@@ -29,19 +30,11 @@ type ChatMessageProps = {
   onEdit?: (messageId: string, content: string) => void
 }
 
-const roleLabel: Record<ChatbotMessageRole, string> = {
-  user: "",
-  assistant: "AI アシスタント",
-  system: "システム",
-}
-
 const LONG_PRESS_EDIT_MS = 600
 const LONG_PRESS_MOVE_TOLERANCE_PX = 10
 const LONG_PRESS_STATIONARY_TOLERANCE_PX = 3
 const LONG_PRESS_VIBRATION_MS = 10
 const TOUCH_RELEASE_RIPPLE_MS = 420
-const TOUCH_EDIT_HINT_LABEL = "長押しして編集"
-const EDIT_TRUNCATION_WARNING = "下の会話は削除されます"
 const PENDING_TOUCH_IDENTIFIER = -1
 const CHATBOT_MESSAGE_EDITING_STARTED_EVENT = "chatbot-message-editing-started"
 
@@ -158,6 +151,9 @@ export function ChatMessage({
   editingDisabled = false,
   onEdit,
 }: ChatMessageProps) {
+  const copy = useChatbotCopy()
+  const locale = useChatbotLocale()
+  const roleLabel: Record<ChatbotMessageRole, string> = {user: "", assistant: copy.assistant, system: copy.system}
   const isUser = role === "user"
   const isSystem = role === "system"
   const canEdit = isUser && Boolean(id) && Boolean(onEdit) && !editingDisabled
@@ -563,19 +559,19 @@ export function ChatMessage({
               type="button"
               className="glass-btn inline-flex h-8 w-8 items-center justify-center opacity-0 transition-[transform,box-shadow,opacity,background-color,border-color,color] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)] group-hover:opacity-100 group-focus-within:opacity-100"
               onClick={startEditing}
-              aria-label="メッセージを編集"
+              aria-label={copy.editMessage}
             >
               <Pencil className="h-3 w-3" aria-hidden="true" />
             </button>
           ) : null}
           {!isEditing && showTouchEditAffordance ? (
             <span className="whitespace-nowrap text-[11px] font-medium text-hp-muted" role="status">
-              {TOUCH_EDIT_HINT_LABEL}
+              {copy.touchEdit}
             </span>
           ) : null}
           {createdAt ? (
             <time dateTime={createdAt.toISOString()}>
-              {createdAt.toLocaleTimeString("ja-JP", {
+              {createdAt.toLocaleTimeString(locale === "en" ? "en-US" : "ja-JP", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Tokyo",
@@ -594,7 +590,7 @@ export function ChatMessage({
               setDraft(event.target.value)
               setEditConfirmPending(false)
             }}
-            aria-label="編集内容"
+            aria-label={copy.editContent}
             disabled={editingDisabled}
           />
           {editConfirmPending ? (
@@ -603,7 +599,7 @@ export function ChatMessage({
               data-edit-confirm-pending="true"
             >
               <p className="mr-auto text-xs font-semibold text-hp">
-                {EDIT_TRUNCATION_WARNING}
+                {copy.editWarning}
               </p>
               <button
                 type="button"
@@ -612,7 +608,7 @@ export function ChatMessage({
                 disabled={editingDisabled}
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
-                キャンセル
+                {copy.cancel}
               </button>
               <button
                 type="button"
@@ -633,7 +629,7 @@ export function ChatMessage({
                 disabled={editingDisabled}
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
-                キャンセル
+                {copy.cancel}
               </button>
               <button
                 type="button"
@@ -642,7 +638,7 @@ export function ChatMessage({
                 disabled={editingDisabled || !trimmedDraft || trimmedDraft === content.trim()}
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                保存
+                {copy.save}
               </button>
             </div>
           )}

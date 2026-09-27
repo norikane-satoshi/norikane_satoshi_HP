@@ -11,8 +11,6 @@ import {
 } from "@/lib/chatbot/server/llm-response-normalizer"
 
 export const chatbotLlmTierIds = {
-  /** Server-authored reply for intake turns fully decided by code; no model is called. */
-  tier0DeterministicIntake: "tier-0-deterministic-intake",
   tier1HostedChromeNotionAi: "tier-1-hosted-chrome-notion-ai",
   tier2GeminiFlash: "tier-2-gemini-flash",
   tier3FormFallback: "tier-3-form-fallback",
@@ -47,8 +45,6 @@ export type ChatbotLlmRequest = {
   latestUserMessage?: string
   temperature?: number
   maxOutputTokens?: number
-  /** The server shows its own panel this turn, so a reply without structured UI is expected. */
-  structuredUiFromCode?: boolean
 }
 
 export type ChatbotLlmGenerateOptions = {
@@ -133,7 +129,6 @@ export class ChatbotLlmError extends Error {
 export function assertChatbotLlmResponseContract(
   response: unknown,
   expectedTier?: ChatbotLlmTier,
-  options: { structuredUiFromCode?: boolean } = {},
 ): asserts response is ChatbotLlmResponse {
   const record = asRecord(response)
   if (!record) throw invalidContractError(expectedTier, "response must be an object")
@@ -169,24 +164,13 @@ export function assertChatbotLlmResponseContract(
       reason: uiPayload.reason,
     })
   }
-  if (requiresStructuredUi(record.tier) && uiPayload.kind === "none" && !options.structuredUiFromCode) {
-    const error = outputContractError(record.tier, {
+  if (tierOutputPolicies[record.tier].structuredUi === "required" && uiPayload.kind === "none") {
+    throw outputContractError(record.tier, {
       boundary: "llm-output-contract",
       decision: "reject-and-regenerate-structured-ui",
       reason: "missing-structured-ui",
     })
-    const displayText = typeof envelope.displayText === "string" ? envelope.displayText.trim() : ""
-    if (displayText && envelope.defaultDenied === false) rejectedDisplayTexts.set(error, displayText)
-    throw error
   }
-}
-
-// The reply text of a response rejected only for missing structured UI. Kept outside the error's
-// cause so the rejection log never carries model text.
-const rejectedDisplayTexts = new WeakMap<ChatbotLlmError, string>()
-
-export function getRejectedDisplayText(error: unknown): string | undefined {
-  return error instanceof ChatbotLlmError ? rejectedDisplayTexts.get(error) : undefined
 }
 
 export function isChatbotLlmResponseContractError(error: unknown): error is ChatbotLlmError {
@@ -203,12 +187,7 @@ export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
   chatbotLlmTierIds.tier3FormFallback,
 ] as const
 
-export function requiresStructuredUi(tier: ChatbotLlmTier): boolean {
-  return tierOutputPolicies[tier].structuredUi === "required"
-}
-
 const tierOutputPolicies: Record<ChatbotLlmTier, { structuredUi: "optional" | "required" }> = {
-  [chatbotLlmTierIds.tier0DeterministicIntake]: { structuredUi: "optional" },
   [chatbotLlmTierIds.tier1HostedChromeNotionAi]: { structuredUi: "optional" },
   [chatbotLlmTierIds.tier2GeminiFlash]: { structuredUi: "required" },
   [chatbotLlmTierIds.tier3FormFallback]: { structuredUi: "optional" },

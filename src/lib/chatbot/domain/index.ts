@@ -25,10 +25,6 @@ export {
   finalMediumChoices,
   isSatoshiStudioCustomerFacingAvailable,
   jobKindChoices,
-  materialContentsChoices,
-  materialHandoffMethodChoices,
-  materialTimingChoices,
-  referenceUrlChoices,
   lectureTrainingContentChoices,
   lectureTrainingFormatChoices,
   lectureTrainingSoftwareChoices,
@@ -56,5 +52,3 @@ export type {
   WorkflowStage,
   WorkSite,
 } from "@/lib/chatbot/domain/workflow-estimate"
-export { formatProjectLengthMinutes } from "./project-length"
-export { jobKindLabels } from "./job-kind-label"

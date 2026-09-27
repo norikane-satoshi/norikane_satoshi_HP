@@ -1,5 +1,9 @@
 import path from "node:path";
 
+export function isExemptWorktreePath(worktreePath, mainRoot) {
+  return worktreePath === mainRoot || path.basename(worktreePath) === "grading-verify";
+}
+
 function decodeEnvValue(rawValue) {
   const value = rawValue.trim();
   if (value.length >= 2) {

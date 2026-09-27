@@ -31,11 +31,6 @@ import {
   type ChatbotSlackNotificationInput,
 } from "@/lib/chatbot/server/slack-notifier"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
-import {
-  chatbotSlackAuditErrorCode,
-  isChatbotDiagnosticRequest,
-  skipDiagnosticSlackNotification,
-} from "@/lib/chatbot/server/diagnostic-request"
 import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { prisma } from "@/lib/prisma"
 
@@ -226,7 +221,6 @@ async function notifySlackBookingOrderSubmitted(input: {
   bookingGroupId: string
   selectedSlotCount: number
   ownerNotificationWarning: "skipped" | "send_failed" | null
-  notifier: typeof sendChatbotSlackNotification
 }): Promise<ChatbotMessageAuditEvidence["slack"]> {
   if (!input.request.conversationId) return { result: "failure", errorCode: "slack-no-conversation" }
 
@@ -242,13 +236,13 @@ async function notifySlackBookingOrderSubmitted(input: {
       bookingGroupId: input.bookingGroupId,
       selectedSlotCount: input.selectedSlotCount,
     } as const
-    const result = await input.notifier(notificationInput)
+    const result = await sendChatbotSlackNotification(notificationInput)
     const deliveries = [buildChatbotSlackDeliveryEvidenceItem(notificationInput, result)]
     let auditResult: ChatbotMessageAuditEvidence["slack"] = result.status === "sent"
       ? { result: "success", deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries) }
       : {
           result: "failure",
-          errorCode: chatbotSlackAuditErrorCode(result),
+          errorCode: `slack-${result.status}`,
           deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries),
         }
 
@@ -284,11 +278,11 @@ async function notifySlackBookingOrderSubmitted(input: {
         bookingGroupId: input.bookingGroupId,
         issueReasons: ["booking-owner-email-send-failed"],
       }
-      const issueResult = await input.notifier(issueInput)
+      const issueResult = await sendChatbotSlackNotification(issueInput)
       deliveries.push(buildChatbotSlackDeliveryEvidenceItem(issueInput, issueResult))
       auditResult.deliveryEvidence = buildChatbotSlackDeliveryEvidence(deliveries)
       if (issueResult.status !== "sent") {
-        auditResult = { result: "failure", errorCode: chatbotSlackAuditErrorCode(issueResult) }
+        auditResult = { result: "failure", errorCode: `slack-${issueResult.status}` }
       }
     }
     return auditResult
@@ -417,10 +411,6 @@ export async function POST(request: NextRequest) {
         bookingGroupId,
         selectedSlotCount,
         ownerNotificationWarning: notificationWarning,
-        // Automated checks keep their bookings out of Slack; manual tests and customers still post.
-        notifier: isChatbotDiagnosticRequest(request.headers)
-          ? skipDiagnosticSlackNotification
-          : sendChatbotSlackNotification,
       })
     } else if (idempotentReplay) {
       slackAudit = {

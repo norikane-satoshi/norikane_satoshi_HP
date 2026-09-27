@@ -1,4 +1,8 @@
-import Link from "next/link"
+"use client"
+
+import {useLocale} from "next-intl"
+import {Link} from "@/i18n/navigation"
+import {getLocalizedCopy, type AppMessages} from "@/i18n/copy"
 
 import type { BookingStep } from "@/lib/booking/domain/form-schema"
 
@@ -11,21 +15,22 @@ type BookingFooterProps = {
   onReset: () => void
 }
 
-function nextLabel(step: BookingStep, submitting: boolean): string {
-  if (submitting) return "送信中…"
-  if (step === "confirm") return "日程相談を送信"
-  return "相談内容を確認"
+function nextLabel(step: BookingStep, submitting: boolean, copy: AppMessages["Booking"]): string {
+  if (submitting) return copy.sending
+  if (step === "confirm") return copy.sendRequest
+  return copy.reviewRequest
 }
 
 export function BookingFooter({ step, canGoNext, submitting = false, onBack, onNext, onReset }: BookingFooterProps) {
+  const copy = getLocalizedCopy(useLocale(), "Booking")
   if (step === "done") {
     return (
       <footer className="booking-footer">
         <button className="booking-footer__secondary glass-flat" type="button" onClick={onReset}>
-          カレンダーに戻る
+          {copy.backToCalendar}
         </button>
         <Link className="booking-footer__primary glass-btn" href="/booking/history">
-          マイページで予約一覧を見る
+          {copy.viewHistory}
         </Link>
       </footer>
     )
@@ -37,7 +42,7 @@ export function BookingFooter({ step, canGoNext, submitting = false, onBack, onN
         <span aria-hidden="true" />
       ) : (
         <button className="booking-footer__secondary glass-flat" type="button" onClick={onBack}>
-          戻る
+          {copy.back}
         </button>
       )}
       {step === "calendar" ? null : (
@@ -47,7 +52,7 @@ export function BookingFooter({ step, canGoNext, submitting = false, onBack, onN
           disabled={!canGoNext || submitting}
           onClick={onNext}
         >
-          {nextLabel(step, submitting)}
+          {nextLabel(step, submitting, copy)}
         </button>
       )}
     </footer>

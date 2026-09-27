@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react"
-import Link from "next/link"
+import {Link} from "@/i18n/navigation"
 import { TweetEmbed } from "@/components/notes/tweet-embed"
 import type { RichTextItemResponse } from "@notionhq/client"
 import { NoteDiagram } from "@/components/notes/note-diagram"
@@ -416,12 +416,21 @@ function renderBlock(
 export function RenderBlocks({
   blocks,
   slugIndex,
+  hideDiagrams = false,
 }: {
   blocks: BlockWithChildren[]
   slugIndex: SlugIndex
+  hideDiagrams?: boolean
 }) {
   const out = blocks.map((block, i) => {
     const key = `b-${i}-${block.id.slice(0, 8)}`
+    if (
+      hideDiagrams &&
+      block.type === "paragraph" &&
+      parseDiagramMarker(richToPlain(block.paragraph.rich_text))
+    ) {
+      return null
+    }
     return renderBlock(block, key, slugIndex, 0)
   })
   // Unsupported block types are intentionally skipped.

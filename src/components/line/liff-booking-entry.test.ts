@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+vi.mock("@/i18n/navigation", () => ({
+  Link: () => null,
+}))
+
+vi.mock("next-intl", () => ({ useLocale: () => "ja" }))
 
 import { shouldStartLineProviderSignIn } from "@/components/line/liff-booking-entry"
 

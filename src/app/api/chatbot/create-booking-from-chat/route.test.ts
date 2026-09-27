@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-function request(body: unknown, cookieSessionId = "session_1", headers: Record<string, string> = {}) {
+function request(body: unknown, cookieSessionId = "session_1") {
   return new NextRequest("http://localhost/api/chatbot/create-booking-from-chat", {
     method: "POST",
-    headers: { cookie: `chatbot_session_id=${cookieSessionId}`, ...headers },
+    headers: { cookie: `chatbot_session_id=${cookieSessionId}` },
     body: JSON.stringify(body),
   })
 }
@@ -464,26 +464,4 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       requestId: "11111111-1111-4111-8111-111111111111",
     })
   })
-
-  it("keeps a check conversation's booking out of Slack while a manual or customer booking still posts", async () => {
-    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "worker-secret")
-    const { chatbotDiagnosticHeader, chatbotDiagnosticToken } = await import("@/lib/chatbot/server/diagnostic-request")
-    const diagnostic = await loadPost()
-
-    const response = await diagnostic.POST(
-      request(validChatBooking(), "session_1", { [chatbotDiagnosticHeader]: chatbotDiagnosticToken()! }),
-    )
-
-    expect(response.status).toBe(200)
-    expect(diagnostic.sendChatbotSlackNotification).not.toHaveBeenCalled()
-    const auditEvents = diagnostic.scheduleChatbotAuditPersistence.mock.calls.flatMap(([events]) => events)
-    expect(auditEvents).toContainEqual(
-      expect.objectContaining({ eventName: "slack_notification_completed", errorCode: "slack-skipped-diagnostic" }),
-    )
-
-    const manual = await loadPost()
-    await manual.POST(request(validChatBooking(), "session_1", { [chatbotDiagnosticHeader]: "not-the-token" }))
-    expect(manual.sendChatbotSlackNotification).toHaveBeenCalled()
-  })
 })
-

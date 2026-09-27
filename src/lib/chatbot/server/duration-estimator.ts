@@ -9,14 +9,10 @@ import type {
 } from "@/lib/chatbot/domain"
 import {
   additionalWorkDurationRules,
-  shortDramaMaxEpisodeMinutes,
-  standardDramaEpisodeMinutes,
+  liveDurationAnchors,
   strictDeliveryMediums,
   workflowDurationJobKindMap,
-  workflowDurationLengthAnchors,
-  workflowDurationPresets as builtInWorkflowDurationPresets,
   workSiteDurationRules,
-  type WorkflowDurationPresetId,
 } from "@/lib/chatbot/knowledge/workflow-duration"
 import {
   getWorkflowDurationPresetsFromSnapshot,
@@ -151,78 +147,62 @@ export function estimateBaseDuration(
   lengthMinutes?: number,
   options: DurationEstimatorOptions = {},
 ): BaseDurationRange {
-  const presetDays = (presetId: WorkflowDurationPresetId): DurationRange => {
-    // A snapshot synced before a line existed lacks it; the built-in line stands in until the next sync.
-    const preset =
-      getWorkflowDurationPresetsFromSnapshot(options.knowledgeSnapshot).find((item) => item.id === presetId) ??
-      builtInWorkflowDurationPresets.find((item) => item.id === presetId)
-    if (!preset) throw new Error(`Unknown workflow duration preset: ${presetId}`)
-    return { minDays: preset.minDays, maxDays: preset.maxDays }
-  }
-  const length =
-    typeof lengthMinutes === "number" && Number.isFinite(lengthMinutes) ? Math.max(0, lengthMinutes) : undefined
-
-  if (jobKind === "live-60m" || jobKind === "feature-90m") {
-    return estimateAnchoredDuration(workflowDurationLengthAnchors[jobKind], length, presetDays)
-  }
-
-  if ((jobKind === "drama-first" || jobKind === "drama-follow-up") && length !== undefined) {
-    if (length <= shortDramaMaxEpisodeMinutes) {
-      return { ...presetDays("drama-short"), note: "短尺ドラマ（1話あたり）の目安" }
-    }
-    if (length < standardDramaEpisodeMinutes.min || length > standardDramaEpisodeMinutes.max) {
-      return {
-        ...presetDays(workflowDurationJobKindMap[jobKind].presetId),
-        note: `尺が基準（1話${standardDramaEpisodeMinutes.min}〜${standardDramaEpisodeMinutes.max}分）と異なるため要相談`,
-      }
-    }
+  if (jobKind === "live-60m") {
+    return estimateLiveBaseDuration(lengthMinutes)
   }
 
   const jobKindRule = workflowDurationJobKindMap[jobKind]
+  const workflowDurationPresets = getWorkflowDurationPresetsFromSnapshot(options.knowledgeSnapshot)
+  const preset = workflowDurationPresets.find((item) => item.id === jobKindRule.presetId)
+
+  if (!preset) {
+    throw new Error(`Unknown workflow duration preset: ${jobKindRule.presetId}`)
+  }
+
   return {
-    ...presetDays(jobKindRule.presetId),
-    ...(length !== undefined &&
+    minDays: preset.minDays,
+    maxDays: preset.maxDays,
+    ...(lengthMinutes !== undefined &&
     jobKindRule.baselineMinutes !== undefined &&
-    length !== jobKindRule.baselineMinutes
+    lengthMinutes !== jobKindRule.baselineMinutes
       ? { note: "尺が基準と異なるため要相談" }
       : {}),
   }
 }
 
-function estimateAnchoredDuration(
-  anchors: (typeof workflowDurationLengthAnchors)[keyof typeof workflowDurationLengthAnchors],
-  length: number | undefined,
-  presetDays: (presetId: WorkflowDurationPresetId) => DurationRange,
-): BaseDurationRange {
-  const short = { ...anchors.short, ...presetDays(anchors.short.presetId) }
-  const long = { ...anchors.long, ...presetDays(anchors.long.presetId) }
-  const minutes = length ?? short.minutes
+function estimateLiveBaseDuration(lengthMinutes?: number): BaseDurationRange {
+  const length =
+    typeof lengthMinutes === "number" && Number.isFinite(lengthMinutes)
+      ? Math.max(0, lengthMinutes)
+      : liveDurationAnchors.sixtyMinutes.minutes
+  const shortAnchor = liveDurationAnchors.sixtyMinutes
+  const longAnchor = liveDurationAnchors.oneHundredFiftyMinutes
 
-  if (minutes <= short.minutes) {
+  if (length <= shortAnchor.minutes) {
     return {
-      minDays: short.minDays,
-      maxDays: short.maxDays,
-      ...(minutes !== short.minutes ? { note: anchors.belowShortNote } : {}),
+      minDays: shortAnchor.minDays,
+      maxDays: shortAnchor.maxDays,
+      ...(length !== shortAnchor.minutes ? { note: "60分以下は60分ライブ基準" } : {}),
     }
   }
 
-  if (minutes <= long.minutes) {
-    const ratio = (minutes - short.minutes) / (long.minutes - short.minutes)
+  if (length <= longAnchor.minutes) {
+    const ratio = (length - shortAnchor.minutes) / (longAnchor.minutes - shortAnchor.minutes)
     const eased = 1 - (1 - ratio) ** 2
 
     return {
-      minDays: roundToHalf(short.minDays + (long.minDays - short.minDays) * eased),
-      maxDays: roundToHalf(short.maxDays + (long.maxDays - short.maxDays) * eased),
-      ...(minutes !== long.minutes ? { note: `${short.minutes}分/${long.minutes}分アンカー間の緩やかな目安` } : {}),
+      minDays: roundToHalf(shortAnchor.minDays + (longAnchor.minDays - shortAnchor.minDays) * eased),
+      maxDays: roundToHalf(shortAnchor.maxDays + (longAnchor.maxDays - shortAnchor.maxDays) * eased),
+      ...(length !== longAnchor.minutes ? { note: "60分/150分アンカー間の緩やかな目安" } : {}),
     }
   }
 
-  const extraRatio = Math.min((minutes - long.minutes) / long.minutes, 1)
+  const extraRatio = Math.min((length - longAnchor.minutes) / longAnchor.minutes, 1)
 
   return {
-    minDays: long.minDays,
-    maxDays: roundToHalf(Math.min(long.maxDays + 1, long.maxDays + extraRatio)),
-    note: anchors.aboveLongNote,
+    minDays: longAnchor.minDays,
+    maxDays: roundToHalf(Math.min(9, longAnchor.maxDays + extraRatio)),
+    note: "150分超は素材量・カメラ数・チェック体制の確認優先",
   }
 }
 
@@ -318,7 +298,7 @@ function getEstimateStatus(jobContext: JobContext, base: BaseDurationRange): Par
   if (
     jobContext.jobKind === "live-60m" &&
     typeof jobContext.projectLengthMinutes === "number" &&
-    jobContext.projectLengthMinutes > workflowDurationLengthAnchors["live-60m"].long.minutes
+    jobContext.projectLengthMinutes > liveDurationAnchors.oneHundredFiftyMinutes.minutes
   ) {
     return {
       estimateStatus: "needs-confirmation",

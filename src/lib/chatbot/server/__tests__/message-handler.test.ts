@@ -1769,28 +1769,29 @@ describe("handleChatbotMessage user context", () => {
     )
 
     expect(harness.repository.truncateConversationFromMessage).not.toHaveBeenCalled()
-    // A confirmed panel answer is now answered by Tier 0 without a model call; the preserved
-    // routing state is observed at the persistence boundary instead of the LLM request.
-    expect(harness.generate).not.toHaveBeenCalled()
-    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
-      expect.objectContaining({
-        conversationState: expect.objectContaining({
-          hasFinalMedium: true,
-          hasJobKind: true,
-          hasAdditionalWork: true,
-          hasDocumentaryAttachments: true,
-          otherChoiceComments: { "documentary-attachment": "特典映像だよ" },
-        }),
-        jobContext: expect.objectContaining({
-          jobKind: "live-60m",
-          finalMedium: "live",
-          workSite: "remote-grading",
-          projectLengthMinutes: 150,
-          additionalWork: ["retouch", "skin-retouch"],
-          documentaryAttachment: { kind: "other", count: 1, note: "特典映像だよ" },
-        }),
-      }),
-    )
+    expect(harness.generate.mock.calls[0]?.[0].messages).toEqual([
+      { role: "user", content: "ライブ2.5hの相談です" },
+      { role: "assistant", content: "カラグレ以外の追加作業はありますか？" },
+      { role: "user", content: "選択: 消し物、肌修正" },
+      { role: "assistant", content: "付随する映像はありますか？" },
+      { role: "user", content: "選択: 特典映像だよ" },
+    ])
+    expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
+      hasFinalMedium: true,
+      hasJobKind: true,
+      hasAdditionalWork: true,
+      hasDocumentaryAttachments: true,
+      otherChoiceComments: { "documentary-attachment": "特典映像だよ" },
+      turnCount: 3,
+    })
+    expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
+      jobKind: "live-60m",
+      finalMedium: "live",
+      workSite: "remote-grading",
+      projectLengthMinutes: 150,
+      additionalWork: ["retouch", "skin-retouch"],
+      documentaryAttachment: { kind: "other", count: 1, note: "特典映像だよ" },
+    })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         activeChoices: expect.objectContaining({ id: "work-site" }),
@@ -4388,19 +4389,19 @@ describe("handleChatbotMessage user context", () => {
     {
       prompt: "Web CM 30秒、追加作業なしです。所要日数だけ知りたいです。",
       rawText: "Web CM 30秒の所要日数の目安は17〜20日です。",
-      expectedRange: "所要日数の目安は1日",
+      expectedRange: "所要日数の目安は1〜2日",
       expectedJobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 },
     },
     {
       prompt: "MV 5分のカラーグレーディング相談です。",
       rawText: "MV 5分の作業期間は17〜20日です。",
-      expectedRange: "作業期間は1〜1.5日",
+      expectedRange: "作業期間は2〜2.5日",
       expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
     },
     {
       prompt: "OTT向け本編90分です。工程感を知りたいです。",
       rawText: "本編90分の工程目安は17〜20日です。",
-      expectedRange: "工程目安は7〜9日",
+      expectedRange: "工程目安は11〜12日",
       expectedJobContext: { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 },
     },
     {
@@ -4412,7 +4413,7 @@ describe("handleChatbotMessage user context", () => {
     {
       prompt: "縦型動画60秒の相談です。工程だけ知りたいです。",
       rawText: "縦型動画60秒の工程は17〜20日です。",
-      expectedRange: "工程は1日",
+      expectedRange: "工程は1.5〜1.5日",
       expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 },
     },
   ])("infers workflow estimate facts from non-live free text: $prompt", async ({ prompt, rawText, expectedRange, expectedJobContext }) => {
@@ -4505,7 +4506,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("CM 30秒の基本目安は1日程度")
+    expect(result.assistantMessage.content).toContain("Web CM 30秒の基本目安は1〜2日程度")
     expect(result.assistantMessage.content).not.toContain("ライブ60分")
     expect(result.assistantMessage.content).not.toContain("4日程度")
   })
@@ -4692,7 +4693,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("基本工程は1日")
+    expect(result.assistantMessage.content).toContain("基本工程は1〜2日")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "web",
@@ -4700,7 +4701,7 @@ describe("handleChatbotMessage user context", () => {
       projectLengthMinutes: 0.5,
       workflowEstimate: expect.objectContaining({
         totalMinDays: 1,
-        totalMaxDays: 1,
+        totalMaxDays: 2,
       }),
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
@@ -4719,7 +4720,7 @@ describe("handleChatbotMessage user context", () => {
             }),
             workflowEstimate: expect.objectContaining({
               totalMinDays: 1,
-              totalMaxDays: 1,
+              totalMaxDays: 2,
             }),
             snapshotStatus: "current",
           }),
@@ -4733,28 +4734,28 @@ describe("handleChatbotMessage user context", () => {
       prior: "Web CM 30秒のカラーグレーディング相談です。",
       latest: "素材はオンラインで渡せます。追加作業は今のところありません。",
       rawText: "素材状況を踏まえると、基本工程は17〜20日です。",
-      expectedRange: "基本工程は1日",
+      expectedRange: "基本工程は1〜2日",
       expectedJobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 },
     },
     {
       prior: "MV 5分のカラーグレーディング相談です。",
       latest: "肌修正が少しあります。基本工程はどれくらいですか？",
       rawText: "追加作業込みでも基本工程は17〜20日から考えます。",
-      expectedRange: "基本工程は1〜1.5日",
+      expectedRange: "基本工程は2〜2.5日",
       expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
     },
     {
       prior: "OTT向け本編90分です。",
       latest: "素材は整っています。まず基本工程だけ知りたいです。",
       rawText: "本編90分なら工程目安は17〜20日です。",
-      expectedRange: "工程目安は7〜9日",
+      expectedRange: "工程目安は11〜12日",
       expectedJobContext: { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 },
     },
     {
       prior: "縦型動画60秒の相談です。",
       latest: "テロップだけ追加になるかもしれません。期間感は？",
       rawText: "縦型動画の工程は17〜20日です。",
-      expectedRange: "工程は1日",
+      expectedRange: "工程は1.5〜1.5日",
       expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 },
     },
   ])("reuses prior workflow facts on follow-up turns: $prior", async ({ prior, latest, rawText, expectedRange, expectedJobContext }) => {
@@ -4872,15 +4873,15 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("工程目安は1日")
+    expect(result.assistantMessage.content).toContain("工程目安は1.5〜1.5日")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "vertical-sns",
       jobKind: "vertical-60s",
       projectLengthMinutes: 1,
       workflowEstimate: expect.objectContaining({
-        totalMinDays: 1,
-        totalMaxDays: 1,
+        totalMinDays: 1.5,
+        totalMaxDays: 1.5,
       }),
     })
   })
@@ -4931,8 +4932,8 @@ describe("handleChatbotMessage user context", () => {
       jobKind: "mv-5m",
       projectLengthMinutes: 5,
       workflowEstimate: expect.objectContaining({
-        totalMinDays: 1,
-        totalMaxDays: 1.5,
+        totalMinDays: 2,
+        totalMaxDays: 2.5,
       }),
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
@@ -5935,75 +5936,5 @@ describe("handleChatbotMessage user context", () => {
     expect(JSON.stringify(issueNotification.retryDiagnostics)).not.toContain("raw")
     expect(issueNotification.retryDiagnostics).not.toHaveProperty("token")
     expect(issueNotification.retryDiagnostics).not.toHaveProperty("systemPrompt")
-  })
-})
-
-describe("handleChatbotMessage final confirmation without an estimable job kind", () => {
-  const otherJobContext: JobContext = {
-    finalMedium: "web",
-    workSite: "remote-grading",
-    documentaryAttachment: { kind: "none" },
-  }
-  const confirmedReadyState = (status: "pending" | "confirmed") =>
-    baseProductionConversationState({
-      hasContactEmail: true,
-      contactEmail: "client@example.com",
-      otherChoiceComments: { "job-kind": "カラーグレーディング" },
-      bookingFinalConfirmation: { status, requestedAtTurn: 8 },
-    })
-
-  it("routes the confirming panel answer to the consultation summary form without an LLM call", async () => {
-    const harness = setup({
-      existingConversation: conversation({
-        context: {
-          sessionId: "session_1",
-          userId: "user_a",
-          activeChoices: bookingFinalConfirmationChoices,
-          currentQuestion: bookingFinalConfirmationChoices.question,
-          conversationState: confirmedReadyState("pending"),
-          jobContext: otherJobContext,
-        },
-        messages: [
-          message("user", "client@example.com"),
-          { ...message("assistant", `${bookingFinalConfirmationChoices.question}\n下の選択肢から選んでください。`), id: "assistant_final" },
-        ],
-      }),
-    })
-
-    const result = await handleChatbotMessage(
-      { sessionId: "session_1", userId: "user_a", message: "選択: なし、このまま進める" },
-      harness.options,
-    )
-
-    expect(harness.generate).not.toHaveBeenCalled()
-    expect(result.routingDecision).toMatchObject({ kind: "to-email" })
-    expect(result.ui).toMatchObject({ kind: "consultation-summary-form" })
-    expect(result.assistantMessage.content).toBe("下のフォームで相談内容を確認して送信してください。")
-  })
-
-  it("does not show the final confirmation panel again once it is confirmed", async () => {
-    const harness = setup({
-      existingConversation: conversation({
-        context: {
-          sessionId: "session_1",
-          userId: "user_a",
-          conversationState: confirmedReadyState("confirmed"),
-          jobContext: otherJobContext,
-        },
-        messages: [
-          message("user", "選択: なし、このまま進める"),
-          { ...message("assistant", `${bookingFinalConfirmationChoices.question}\n下の選択肢から選んでください。`), id: "assistant_final" },
-        ],
-      }),
-    })
-
-    const result = await handleChatbotMessage(
-      { sessionId: "session_1", userId: "user_a", message: "このまま進めてください" },
-      harness.options,
-    )
-
-    expect(result.ui).not.toMatchObject({ kind: "choice-panel" })
-    expect(result.routingDecision).toMatchObject({ kind: "to-email" })
-    expect(result.ui).toMatchObject({ kind: "consultation-summary-form" })
   })
 })

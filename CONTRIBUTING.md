@@ -10,7 +10,7 @@
 
 ## Staging Baseline
 
-Before updating or restoring the 41238 staging branch from a known-good staging baseline, run:
+To compare a staging change with a known-good baseline, run:
 
 `corepack pnpm verify:staging-baseline`
 

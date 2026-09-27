@@ -47,14 +47,6 @@ export type ChatbotMessageAuditEvidence = {
     conversationPersist: number
     slackNotification: number
     totalServer: number
-    routeBodyParse: number
-    routeAuth: number
-    requestLoad: number
-    requestClaim: number
-    routePreHandler: number
-    routePostHandler: number
-    routeTotal: number
-    instanceWarmup: number
   }>
   tierAttempts: ChatbotTierAttemptAuditEvidence[]
   slack: {
@@ -116,8 +108,7 @@ export function buildChatbotMessageAuditEvents(input: {
 }): ChatbotStoredAuditEvent[] {
   const uiKind = chatbotAuditUiKindSchema.parse(input.uiKind)
   const stageTimings = chatbotAuditStageTimingsSchema.parse(input.stageTimings)
-  const fallbackUsed =
-    input.finalTier !== "tier-1-hosted-chrome-notion-ai" && input.finalTier !== "tier-0-deterministic-intake"
+  const fallbackUsed = input.finalTier !== "tier-1-hosted-chrome-notion-ai"
   const generateAttempts = input.tierAttempts.filter((attempt) => attempt.phase === "generate")
   const successfulGenerateAttempts = generateAttempts.filter((attempt) => attempt.result === "success")
   const finalTierConsistent = successfulGenerateAttempts.length === 1 &&
@@ -285,7 +276,6 @@ export function buildChatbotBookingAuditEvents(input: {
 }
 
 const tierRanks = {
-  "tier-0-deterministic-intake": 0,
   "tier-1-hosted-chrome-notion-ai": 1,
   "tier-2-gemini-flash": 2,
   "tier-3-form-fallback": 3,

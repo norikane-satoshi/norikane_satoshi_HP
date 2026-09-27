@@ -21,6 +21,8 @@ import {
   CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
   CHATBOT_CONVERSATION_CONTENT_STYLE,
 } from "./conversationTypography"
+import { useChatbotCopy, useChatbotLocale } from "./i18n"
+import { getLocalizedCopy } from "@/i18n/copy"
 
 type BookingResult = BookingCompletionSummary
 
@@ -71,19 +73,21 @@ const CANDIDATES_API_PATH = "/api/chatbot/booking-candidates"
 const MAX_VISIBLE_CANDIDATES = 31
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 
-function estimateText(estimate?: WorkflowEstimate): string | null {
+function estimateText(estimate: WorkflowEstimate | undefined, template: string): string | null {
   if (!estimate) return null
-  return `工程目安 ${estimate.totalMinDays}〜${estimate.totalMaxDays} 日`
+  return template
+    .replace("{min}", String(estimate.totalMinDays))
+    .replace("{max}", String(estimate.totalMaxDays))
 }
 
 function requiredDayCount(estimate?: WorkflowEstimate): number {
   return Math.max(1, Math.ceil(estimate?.totalMaxDays ?? estimate?.totalMinDays ?? 1))
 }
 
-function formatCandidateDate(value: string): string {
+function formatCandidateDate(value: string, locale: "ja" | "en"): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("ja-JP", {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ja-JP", {
     month: "numeric",
     day: "numeric",
     weekday: "short",
@@ -122,10 +126,10 @@ function formatCalendarDayLabel(key: string): string {
   return Number.isFinite(day) ? String(day) : key
 }
 
-function formatCalendarMonthLabel(key: string): string {
+function formatCalendarMonthLabel(key: string, locale: "ja" | "en", fallback: string): string {
   const date = /^\d{4}-\d{2}$/.test(key) ? jstDateFromKey(`${key}-01`) : jstDateFromKey(key)
-  if (Number.isNaN(date.getTime())) return "候補カレンダー"
-  return new Intl.DateTimeFormat("ja-JP", {
+  if (Number.isNaN(date.getTime())) return fallback
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ja-JP", {
     year: "numeric",
     month: "long",
     timeZone: "Asia/Tokyo",
@@ -173,6 +177,8 @@ function buildCandidateCalendar(
   candidates: CandidateWindow[],
   busyDateKeys: string[],
   tentativeDateKeys: string[],
+  locale: "ja" | "en",
+  fallbackLabel: string,
 ) {
   const candidateByStartDate = new Map<string, { candidate: CandidateWindow; index: number }>()
   const busyDateKeySet = new Set(busyDateKeys.filter((key) => key.startsWith(`${monthKey}-`)))
@@ -185,7 +191,7 @@ function buildCandidateCalendar(
   })
 
   return {
-    monthLabel: formatCalendarMonthLabel(monthKey),
+    monthLabel: formatCalendarMonthLabel(monthKey, locale, fallbackLabel),
     dayCells: buildMonthCells(monthKey),
     candidateByStartDate,
     busyDateKeySet,
@@ -197,50 +203,52 @@ function selectedDateKeys(slots: CandidateWindow[]) {
   return new Set(slots.map((slot) => jstDateKey(slot.start)))
 }
 
-function formatSelectedSlots(slots: CandidateWindow[]): string {
-  return slots.map((slot) => formatCandidateDate(slot.start)).join("、")
+function formatSelectedSlots(slots: CandidateWindow[], locale: "ja" | "en"): string {
+  return slots.map((slot) => formatCandidateDate(slot.start, locale)).join(locale === "en" ? ", " : "、")
 }
 
-function displayOptionalValue(value: string | undefined): string {
-  return value?.trim() ? value.trim() : "未入力"
+function displayOptionalValue(value: string | undefined, fallback: string): string {
+  return value?.trim() ? value.trim() : fallback
 }
 
 function BookingCompletionView({ booking }: { booking: BookingCompletionSummary }) {
+  const copy = useChatbotCopy()
+  const locale = useChatbotLocale()
   const needsSchedule = booking.scheduleStatus === "unscheduled"
   return (
-    <section className="glass-card min-w-0 space-y-5 overflow-hidden p-5" aria-label="予約送信完了">
+    <section className="glass-card min-w-0 space-y-5 overflow-hidden p-5" aria-label={copy.bookingCompleteLabel}>
       <div>
-        <h2 className="break-words text-base font-semibold text-hp">仮キープ相談を受け付けました</h2>
+        <h2 className="break-words text-base font-semibold text-hp">{copy.bookingCompleteTitle}</h2>
       </div>
 
       <div className="glass-inset min-w-0 space-y-3 overflow-hidden p-4" role="status">
         <div>
-          <p className="break-all text-sm font-semibold text-hp">予約番号: {booking.bookingGroupId}</p>
+          <p className="break-all text-sm font-semibold text-hp">{copy.bookingNumber.replace("{id}", booking.bookingGroupId)}</p>
         </div>
         <dl className="grid min-w-0 gap-2 text-sm">
           <div>
-            <dt className="text-xs font-medium text-hp-muted">案件名</dt>
+            <dt className="text-xs font-medium text-hp-muted">{copy.project}</dt>
             <dd className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-hp">{booking.projectTitle}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-hp-muted">氏名</dt>
+            <dt className="text-xs font-medium text-hp-muted">{copy.bookingName}</dt>
             <dd className="mt-0.5 min-w-0 break-words text-hp">{booking.contactName}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-hp-muted">メール</dt>
+            <dt className="text-xs font-medium text-hp-muted">{copy.bookingEmail}</dt>
             <dd className="mt-0.5 min-w-0 break-all text-hp">{booking.contactEmail}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-hp-muted">会社名</dt>
-            <dd className="mt-0.5 min-w-0 break-words text-hp">{displayOptionalValue(booking.companyName)}</dd>
+            <dt className="text-xs font-medium text-hp-muted">{copy.company}</dt>
+            <dd className="mt-0.5 min-w-0 break-words text-hp">{displayOptionalValue(booking.companyName, copy.notEntered)}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-hp-muted">希望日</dt>
+            <dt className="text-xs font-medium text-hp-muted">{copy.requestedDates}</dt>
             <dd className="mt-0.5 min-w-0 break-words text-hp">{booking.scheduleLabel}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-hp-muted">補足</dt>
-            <dd className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-hp">{displayOptionalValue(booking.memo)}</dd>
+            <dt className="text-xs font-medium text-hp-muted">{copy.notes}</dt>
+            <dd className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-hp">{displayOptionalValue(booking.memo, copy.notEntered)}</dd>
           </div>
         </dl>
       </div>
@@ -251,14 +259,14 @@ function BookingCompletionView({ booking }: { booking: BookingCompletionSummary 
             className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} text-sm font-medium text-hp`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
           >
-            希望日は未定として受け付けています。日程が決まったら予約カレンダーから候補日を選べます。
+            {copy.unscheduledHelp}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Link className="glass-btn inline-flex min-h-11 items-center px-4 py-2 text-sm font-semibold text-hp" href="/booking">
-              日程を選ぶ
+            <Link className="glass-btn inline-flex min-h-11 items-center px-4 py-2 text-sm font-semibold text-hp" href={locale === "en" ? "/en/booking" : "/booking"}>
+              {copy.chooseDates}
             </Link>
-            <Link className="glass-btn inline-flex min-h-11 items-center px-4 py-2 text-sm font-semibold text-hp" href="/booking/history">
-              予約履歴を確認
+            <Link className="glass-btn inline-flex min-h-11 items-center px-4 py-2 text-sm font-semibold text-hp" href={locale === "en" ? "/en/booking/history" : "/booking/history"}>
+              {copy.viewHistory}
             </Link>
           </div>
         </div>
@@ -268,7 +276,7 @@ function BookingCompletionView({ booking }: { booking: BookingCompletionSummary 
         className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} text-sm font-medium text-hp`}
         style={CHATBOT_CONVERSATION_CONTENT_STYLE}
       >
-        ありがとうございます。則兼が内容を確認してご連絡します。
+        {copy.bookingThanks}
       </p>
     </section>
   )
@@ -302,10 +310,10 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
-function RequiredMark() {
+function RequiredMark({ label }: { label: string }) {
   return (
     <span className="ml-1 font-semibold text-red-500" aria-hidden="true">
-      必須
+      {label}
     </span>
   )
 }
@@ -328,6 +336,9 @@ export function ChatbotBookingCard({
   onBooked,
   auditContext,
 }: ChatbotBookingCardProps) {
+  const copy = useChatbotCopy()
+  const locale = useChatbotLocale()
+  const weekdays = getLocalizedCopy(locale, "Availability").weekdays
   const visibleCandidates = useMemo(() => candidates.slice(0, MAX_VISIBLE_CANDIDATES), [candidates])
   const initialMonthKey = useMemo(
     () => resolveInitialMonthKey({ defaultDueDate, jobContext, firstCandidateStart: visibleCandidates[0]?.start }),
@@ -376,8 +387,15 @@ export function ChatbotBookingCard({
     [displayedMonthKey, displayedMonthRequestKey, monthTentativeDateKeyOverrides, tentativeDateKeys],
   )
   const candidateCalendar = useMemo(
-    () => buildCandidateCalendar(displayedMonthKey, displayedCandidates, displayedBusyDateKeys, displayedTentativeDateKeys),
-    [displayedBusyDateKeys, displayedCandidates, displayedMonthKey, displayedTentativeDateKeys],
+    () => buildCandidateCalendar(
+      displayedMonthKey,
+      displayedCandidates,
+      displayedBusyDateKeys,
+      displayedTentativeDateKeys,
+      locale,
+      copy.candidateCalendar,
+    ),
+    [copy.candidateCalendar, displayedBusyDateKeys, displayedCandidates, displayedMonthKey, displayedTentativeDateKeys, locale],
   )
   const [selectedSlots, setSelectedSlots] = useState<CandidateWindow[]>([])
   const [monthLoadError, setMonthLoadError] = useState<string | null>(null)
@@ -563,13 +581,13 @@ export function ChatbotBookingCard({
         setMonthLoadError(null)
       })
       .catch(() => {
-        if (!cancelled) setMonthLoadError("候補の読み込みに失敗しました")
+        if (!cancelled) setMonthLoadError(copy.candidateLoadError)
       })
 
     return () => {
       cancelled = true
     }
-  }, [displayedMonthRequest, displayedMonthRequestKey, monthCandidateOverrides])
+  }, [copy.candidateLoadError, displayedMonthRequest, displayedMonthRequestKey, monthCandidateOverrides])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -610,7 +628,7 @@ export function ChatbotBookingCard({
       )
 
       if (!payload.bookingGroupId) {
-        setErrorMessage(mapErrorCodeToJa("unknown"))
+        setErrorMessage(locale === "ja" ? mapErrorCodeToJa("unknown") : copy.bookingError)
         return
       }
 
@@ -619,7 +637,7 @@ export function ChatbotBookingCard({
         bookingIds: payload.bookingIds,
         bookingStatus: payload.bookingStatus,
         scheduleStatus: payload.scheduleStatus,
-        scheduleLabel: payload.scheduleLabel ?? (selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "希望日未選択"),
+        scheduleLabel: payload.scheduleLabel ?? (selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots, locale) : copy.noRequestedDates),
         ...submission,
       }
       emitBookingSubmitSuccessRendered()
@@ -627,10 +645,10 @@ export function ChatbotBookingCard({
       onBooked?.(result)
     } catch (error) {
       if (isChatbotOperationError(error) && error.status === 401) {
-        setErrorMessage(mapErrorCodeToJa("unknown"))
+        setErrorMessage(locale === "ja" ? mapErrorCodeToJa("unknown") : copy.bookingError)
         return
       }
-      setErrorMessage(mapErrorCodeToJa(error instanceof Error ? error.message : "unknown"))
+      setErrorMessage(locale === "ja" ? mapErrorCodeToJa(error instanceof Error ? error.message : "unknown") : copy.bookingError)
     } finally {
       setSubmitting(false)
     }
@@ -641,21 +659,21 @@ export function ChatbotBookingCard({
   }
 
   const body = (
-    <section className="glass-card space-y-5 p-5" aria-label="チャット内予約">
+    <section className="glass-card space-y-5 p-5" aria-label={copy.bookingCard}>
       <div>
-        <h2 className="text-base font-semibold text-hp">Booking Order</h2>
+        <h2 className="text-base font-semibold text-hp">{copy.bookingOrder}</h2>
         <p
           className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-2 text-sm text-hp-muted`}
           style={CHATBOT_CONVERSATION_CONTENT_STYLE}
         >
-          日付が決まっている場合は候補を選んでください。まだ決まっていなければ、未定のままでも予約内容を送信できます。
+          {copy.bookingHelp}
         </p>
-        {estimateText(effectiveEstimate) ? (
+        {estimateText(effectiveEstimate, copy.estimate) ? (
           <p
             className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-2 text-xs font-medium text-hp-muted`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
           >
-            {estimateText(effectiveEstimate)}
+            {estimateText(effectiveEstimate, copy.estimate)}
           </p>
         ) : null}
       </div>
@@ -663,14 +681,14 @@ export function ChatbotBookingCard({
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <fieldset className="space-y-2">
           <legend className="text-sm font-semibold text-hp">
-            仮キープ候補
+            {copy.tentativeCandidates}
           </legend>
-          <div className="rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
+          <div className="rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3" aria-label={copy.tentativeCalendar}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <button
                 type="button"
                 className="glass-btn flex h-9 w-9 items-center justify-center disabled:opacity-35"
-                aria-label="前月を表示"
+                aria-label={copy.previousMonth}
                 disabled={displayedMonthOffset <= -1}
                 onClick={() => setDisplayedMonthOffset((value) => Math.max(-1, value - 1))}
               >
@@ -680,7 +698,7 @@ export function ChatbotBookingCard({
               <button
                 type="button"
                 className="glass-btn flex h-9 w-9 items-center justify-center disabled:opacity-35"
-                aria-label="翌月を表示"
+                aria-label={copy.nextMonth}
                 disabled={displayedMonthOffset >= 1}
                 onClick={() => setDisplayedMonthOffset((value) => Math.min(1, value + 1))}
               >
@@ -697,7 +715,7 @@ export function ChatbotBookingCard({
               aria-hidden="true"
               data-testid="chatbot-booking-weekday-header"
             >
-              {["日", "月", "火", "水", "木", "金", "土"].map((day) => (
+              {weekdays.map((day) => (
                 <span key={day}>{day}</span>
               ))}
             </div>
@@ -725,7 +743,7 @@ export function ChatbotBookingCard({
                       ].join(" ")}
                       data-calendar-state="busy"
                       data-selected={selected ? "true" : undefined}
-                      aria-label={`${dateKey} 埋まり`}
+                      aria-label={copy.busyDate.replace("{date}", dateKey)}
                       aria-disabled="true"
                     >
                       <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
@@ -750,7 +768,7 @@ export function ChatbotBookingCard({
                       ].join(" ")}
                       data-calendar-state={past ? "past" : "free-unstartable"}
                       data-selected={selected ? "true" : undefined}
-                      aria-label={`${dateKey} 空き・開始不可`}
+                      aria-label={copy.unstartableDate.replace("{date}", dateKey)}
                       aria-disabled="true"
                     >
                       <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
@@ -770,7 +788,7 @@ export function ChatbotBookingCard({
                     ].join(" ")}
                     data-selected={selected ? "true" : undefined}
                     data-calendar-state={tentative ? "tentative" : "startable"}
-                    aria-label={tentative ? `${dateKey} 選択可・仮キープあり` : `${dateKey} 選択可`}
+                    aria-label={(tentative ? copy.tentativeDate : copy.selectableDate).replace("{date}", dateKey)}
                     aria-pressed={selected}
                     onClick={() => {
                       setSelectedSlots((current) => {
@@ -780,7 +798,7 @@ export function ChatbotBookingCard({
                           return current.filter((selectedSlot) => jstDateKey(selectedSlot.start) !== dateKey)
                         }
                         if (current.length >= requiredDays) {
-                          setCalendarHint(`候補日は最大${requiredDays}日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。`)
+                          setCalendarHint(copy.selectionLimit.replace("{count}", String(requiredDays)))
                           return current
                         }
                         setCalendarHint(null)
@@ -790,7 +808,7 @@ export function ChatbotBookingCard({
                   >
                     <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
                     {tentative ? (
-                      <span className="mt-0.5 block text-[10px] font-semibold leading-none text-hp-muted">仮</span>
+                      <span className="mt-0.5 block text-[10px] font-semibold leading-none text-hp-muted">{copy.tentativeShort}</span>
                     ) : null}
                   </button>
                 )
@@ -803,62 +821,64 @@ export function ChatbotBookingCard({
             ) : null}
             <p className="mt-3 text-xs leading-relaxed text-hp-muted" aria-live="polite">
               <span className="font-semibold text-hp">
-                {selectedSlots.length > 0 ? `${selectedSlots.length}／${requiredDays}` : "希望日未選択"}
+                {selectedSlots.length > 0
+                  ? copy.selectionCount.replace("{selected}", String(selectedSlots.length)).replace("{required}", String(requiredDays))
+                  : copy.noRequestedDates}
               </span>
-              {selectedSlots.length > 0 ? <span className="ml-2">{formatSelectedSlots(selectedSlots)}</span> : null}
+              {selectedSlots.length > 0 ? <span className="ml-2">{formatSelectedSlots(selectedSlots, locale)}</span> : null}
             </p>
           </div>
         </fieldset>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium text-hp">
-            案件名
-            <RequiredMark />
+            {copy.project}
+            <RequiredMark label={copy.required} />
             <AutoResizeTextarea
               value={projectTitle}
               onChange={(event) => setProjectTitle(event.target.value)}
               className="glass-input mt-2 min-h-12 w-full px-4 py-3 text-sm leading-relaxed"
               maxRows={5}
-              placeholder="作品名または案件名（イニシャル表記も可）"
-              aria-label="案件名"
+              placeholder={copy.projectPlaceholder}
+              aria-label={copy.project}
               required
             />
           </label>
           <label className="block text-sm font-medium text-hp">
-            納期
+            {copy.deadline}
             <input
               value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
               placeholder="2026-06-30"
-              aria-label="納期"
+              aria-label={copy.deadline}
             />
           </label>
           <label className="block text-sm font-medium text-hp">
-            会社名
+            {copy.company}
             <input
               value={companyName}
               onChange={(event) => setCompanyName(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
-              placeholder="会社名"
-              aria-label="会社名"
+              placeholder={copy.company}
+              aria-label={copy.company}
             />
           </label>
           <label className="block text-sm font-medium text-hp">
-            氏名
-            <RequiredMark />
+            {copy.bookingName}
+            <RequiredMark label={copy.required} />
             <input
               value={contactName}
               onChange={(event) => setContactName(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
-              placeholder="氏名"
-              aria-label="氏名"
+              placeholder={copy.bookingName}
+              aria-label={copy.bookingName}
               required
             />
           </label>
           <label className="block text-sm font-medium text-hp sm:col-span-2">
-            メール
-            <RequiredMark />
+            {copy.bookingEmail}
+            <RequiredMark label={copy.required} />
             <input
               value={contactEmail}
               onChange={(event) => setContactEmail(event.target.value)}
@@ -866,34 +886,34 @@ export function ChatbotBookingCard({
               type="email"
               placeholder="client@example.jp"
               aria-invalid={contactEmailErrorVisible ? "true" : undefined}
-              aria-label="メール"
+              aria-label={copy.bookingEmail}
               required
             />
           </label>
           {contactEmailErrorVisible ? (
             <p className="text-xs text-red-500 sm:col-span-2" role="alert">
-              メールの形式を確認してください
+              {copy.emailInvalid}
             </p>
           ) : null}
           <label className="block text-sm font-medium text-hp sm:col-span-2">
-            TEL
+            {copy.phone}
             <input
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               className="glass-input mt-2 w-full px-4 py-3 text-sm"
-              placeholder="連絡可能な TEL"
-              aria-label="TEL"
+              placeholder={copy.phonePlaceholder}
+              aria-label={copy.phone}
             />
           </label>
           <label className="block text-sm font-medium text-hp sm:col-span-2">
-            補足
+            {copy.notes}
             <AutoResizeTextarea
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
               className="glass-input mt-2 min-h-24 w-full px-4 py-3 text-sm"
               maxRows={12}
-              placeholder="入力欄に入りきらない共有事項"
-              aria-label="補足"
+              placeholder={copy.notesPlaceholder}
+              aria-label={copy.notes}
             />
           </label>
         </div>
@@ -907,24 +927,24 @@ export function ChatbotBookingCard({
           />
           <span>
             <a
-              href="/terms"
+              href={locale === "en" ? "/en/terms" : "/terms"}
               target="_blank"
               rel="noreferrer"
               className="underline decoration-dotted underline-offset-4 hover:text-hp"
             >
-              利用規約
+              {copy.terms}
             </a>
-            、
+            {locale === "ja" ? "、" : ", "}
             <a
-              href="/privacy"
+              href={locale === "en" ? "/en/privacy" : "/privacy"}
               target="_blank"
               rel="noreferrer"
               className="underline decoration-dotted underline-offset-4 hover:text-hp"
             >
-              プライバシーポリシー
+              {copy.privacy}
             </a>
-            と予約内容に同意します。
-            <RequiredMark />
+            {copy.bookingAgreement}
+            <RequiredMark label={copy.required} />
           </span>
         </label>
 
@@ -935,7 +955,7 @@ export function ChatbotBookingCard({
         ) : null}
 
         <button type="submit" disabled={!canSubmit} className="glass-btn w-full px-4 py-3 text-sm font-medium disabled:opacity-50">
-          {submitting ? "送信中..." : "予約内容を送信"}
+          {submitting ? copy.submitting : copy.sendBooking}
         </button>
       </form>
     </section>
@@ -944,7 +964,7 @@ export function ChatbotBookingCard({
   if (!showDemo) return body
 
   return (
-    <DemoStage script={bookingOnboardingDemoScript} cursorLabel="予約デモ" active autoPlay>
+    <DemoStage script={bookingOnboardingDemoScript} cursorLabel={copy.bookingDemo} active autoPlay>
       {body}
     </DemoStage>
   )

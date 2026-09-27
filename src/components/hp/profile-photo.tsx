@@ -6,8 +6,10 @@ import Image from "next/image"
 import { X } from "lucide-react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
+import {getLocalizedCopy} from "@/i18n/copy"
 
-export function ProfilePhoto() {
+export function ProfilePhoto({locale = "ja"}: {locale?: "ja" | "en"}) {
+  const copy = getLocalizedCopy(locale, "Home")
   const [open, setOpen] = useState(false)
   const shouldReduceMotion = useReducedMotion()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -101,7 +103,7 @@ export function ProfilePhoto() {
                 ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
-                aria-label="プロフィール写真"
+                aria-label={copy.profilePhoto}
                 initial={{ scale: 0.92, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
@@ -129,13 +131,13 @@ export function ProfilePhoto() {
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={() => setOpen(false)}
                   className="absolute right-3 top-3 z-10 rounded-full border border-white/30 p-2 text-white transition-colors hover:bg-white/10 md:right-4 md:top-4"
-                  aria-label="閉じる"
+                  aria-label={copy.close}
                 >
                   <X className="h-6 w-6" />
                 </button>
                 <Image
                   src="/profile-hero.png"
-                  alt="則兼 智志"
+                  alt={copy.profilePhotoAlt}
                   fill
                   sizes="90vmin"
                   className="rounded-2xl object-cover"
@@ -158,11 +160,11 @@ export function ProfilePhoto() {
         type="button"
         onClick={() => setOpen(true)}
         className="relative block aspect-square w-full max-w-[220px] shrink-0 overflow-hidden rounded-2xl transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hp-color-accent-focus-ring)] focus-visible:ring-offset-4"
-        aria-label="プロフィール写真を拡大表示"
+        aria-label={copy.enlargeProfilePhoto}
       >
         <Image
           src="/profile-hero.png"
-          alt="則兼 智志"
+          alt={copy.profilePhotoAlt}
           fill
           sizes="220px"
           className="object-cover"

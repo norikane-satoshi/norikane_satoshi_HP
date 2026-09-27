@@ -2,6 +2,8 @@
 
 import { useState, useSyncExternalStore } from "react"
 import { Lock, Unlock } from "lucide-react"
+import { useLocale } from "next-intl"
+import { getLocalizedCopy } from "@/i18n/copy"
 
 const STORAGE_KEY = "hp_calendar_auth"
 const AUTH_CHANGE_EVENT = "hp-calendar-auth-change"
@@ -21,6 +23,7 @@ function getSnapshot() {
 }
 
 export function PasswordGate({ children }: { children: React.ReactNode }) {
+  const copy = getLocalizedCopy(useLocale(), "Booking")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const authenticated = useSyncExternalStore(subscribe, getSnapshot, () => false)
@@ -33,7 +36,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
       window.dispatchEvent(new Event(AUTH_CHANGE_EVENT))
       setError("")
     } else {
-      setError("パスワードが正しくありません")
+      setError(copy.passwordError)
     }
   }
 
@@ -51,9 +54,9 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
           Schedule
         </h2>
         <p className="text-sm text-hp-muted mb-6">
-          予約カレンダーの閲覧にはパスワードが必要です。
+          {copy.passwordHelp}
           <br />
-          お問い合わせ後にパスワードをお伝えします。
+          {copy.passwordContact}
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -64,7 +67,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
               setPassword(e.target.value)
               setError("")
             }}
-            placeholder="パスワードを入力"
+            placeholder={copy.passwordPlaceholder}
             className="glass-input px-4 py-3 text-center text-sm"
           />
           {error && (
@@ -75,7 +78,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
             className="glass-btn px-6 py-3 text-sm font-medium text-hp flex items-center justify-center gap-2"
           >
             <Unlock className="h-4 w-4" />
-            解除
+            {copy.unlock}
           </button>
         </form>
       </div>

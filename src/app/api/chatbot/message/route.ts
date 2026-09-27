@@ -7,18 +7,10 @@ import {
   buildChatbotMessageAuditEvents,
   buildChatbotOperationFailureAuditEvent,
 } from "@/lib/chatbot/audit/server-evidence"
-import {
-  scheduleChatbotAuditPersistence,
-  scheduleDeferredChatbotAuditPersistence,
-} from "@/lib/chatbot/audit/scheduler"
+import { scheduleChatbotAuditPersistence } from "@/lib/chatbot/audit/scheduler"
 import type { ChatbotConversation } from "@/lib/chatbot/domain"
 import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
-import { warmChatbotDatabase } from "@/lib/chatbot/server/database-warmup"
-import {
-  isChatbotDiagnosticRequest,
-  skipDiagnosticSlackNotification,
-} from "@/lib/chatbot/server/diagnostic-request"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import {
   ChatbotMessageCoordinationError,
@@ -27,7 +19,6 @@ import {
   coordinateChatbotMessageRequest,
   finalizeChatbotMessageRequest,
   hashChatbotMessagePayload,
-  prismaChatbotMessageRequestStore,
   recoverChatbotMessageRequestUserMessage,
   replaceChatbotMessageRequestUserMessage,
 } from "@/lib/chatbot/server/message-request-coordinator"
@@ -43,9 +34,6 @@ import { sendChatbotSlackNotification } from "@/lib/chatbot/server/slack-notifie
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
-
-// Set on the first request this instance handles, so a cold start shows up in the audit timings.
-let instanceFirstRequestPending = true
 
 const sessionCookieName = "chatbot_session_id"
 const sessionMaxAgeSeconds = 7 * 24 * 60 * 60
@@ -69,25 +57,13 @@ type ChatbotFailureTaggedError = Error & {
   chatbotFailureSummary?: Record<string, unknown>
 }
 
-// Sent by the widget when it opens, so the instance that will take the first message has already
-// loaded this route and run its database queries once (a fresh instance otherwise adds 1-2 s).
-export async function GET() {
-  await warmChatbotDatabase()
-  return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } })
-}
-
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID()
   const requestStartedAt = Date.now()
-  const instanceWarmup = instanceFirstRequestPending
-    ? Math.round(performance.now())
-    : undefined
-  instanceFirstRequestPending = false
   const bodyLimit = enforceBodyLimit(request)
   if (bodyLimit) return bodyLimit
 
   let raw: unknown
-  const bodyParseStartedAt = Date.now()
   try {
     raw = await request.json()
   } catch {
@@ -105,32 +81,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const routeBodyParse = Date.now() - bodyParseStartedAt
-  const isDiagnostic = isChatbotDiagnosticRequest(request.headers)
-  const authStartedAt = Date.now()
   const session = await auth()
-  const routeAuth = Date.now() - authStartedAt
-  let handlerStartedAt: number | undefined
-  let handlerEndedAt: number | undefined
-  // Time the request store's database work before the handler starts (claiming the request).
-  const requestStoreTimings = { requestLoad: 0, requestClaim: 0 }
-  const timed = <A extends unknown[], R>(
-    key: keyof typeof requestStoreTimings,
-    call: (...args: A) => Promise<R>,
-  ) => async (...args: A): Promise<R> => {
-    const startedAt = Date.now()
-    try {
-      return await call(...args)
-    } finally {
-      if (handlerStartedAt === undefined) requestStoreTimings[key] += Date.now() - startedAt
-    }
-  }
-  const requestStore = {
-    ...prismaChatbotMessageRequestStore,
-    load: timed("requestLoad", prismaChatbotMessageRequestStore.load),
-    claimNew: timed("requestClaim", prismaChatbotMessageRequestStore.claimNew),
-    reclaim: timed("requestClaim", prismaChatbotMessageRequestStore.reclaim),
-  }
   const existingSessionId = request.cookies.get(sessionCookieName)?.value
   const sessionId = parsed.data.clientSessionId ?? existingSessionId ?? crypto.randomUUID()
   const userAgent = request.headers.get("user-agent") ?? undefined
@@ -151,102 +102,71 @@ export async function POST(request: NextRequest) {
         conversationState: parsed.data.conversationState ?? null,
       }),
       completeDuringExecute: true,
-      store: requestStore,
-      execute: async (ownership) => {
-        handlerStartedAt = Date.now()
-        try {
-          return await handleChatbotMessage(
-            {
-              requestId,
-              sessionId,
-              userAgent,
-              userId: session?.user?.id,
-              message: parsed.data.message,
-              conversationId: parsed.data.conversationId,
-              editTargetMessageId: parsed.data.editTargetMessageId,
-              clientUserMessageId: parsed.data.clientUserMessageId,
-              recoverClientUserMessageId: parsed.data.recoverClientUserMessageId,
-              pendingRequestKind: parsed.data.pendingRequestKind,
-              jobContext: parsed.data.jobContext,
-              conversationState: parsed.data.conversationState,
-            },
-            {
-              deferSlackNotification: true,
-              ...(isDiagnostic ? { slackNotifier: skipDiagnosticSlackNotification } : {}),
-              ...(ownership
-              ? {
-                  assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership),
-                  appendOwnedUserMessage: ({ content }) => appendChatbotMessageRequestUserMessage({
-                    ownership,
-                    content,
-                  }),
-                  recoverPendingUserMessage: ({ content }) => recoverChatbotMessageRequestUserMessage({
-                    ownership,
-                    content,
-                  }),
-                  replaceEditedUserMessage: ({ targetMessageId, content }) =>
-                    replaceChatbotMessageRequestUserMessage({
-                      ownership,
-                      targetMessageId,
-                      content,
-                    }),
-                  finalizeMessage: (finalization) => finalizeChatbotMessageRequest({
-                    ownership,
-                    resultJson: JSON.stringify({
-                      requestId: ownership.owner,
-                      result: finalization.replayResult,
-                    }),
-                    persistBusinessData: (transaction) => persistChatbotMessageFinalization(
-                      transaction,
-                      finalization,
-                    ),
-                  }),
-                }
-              : {}),
-            },
-          )
-        } finally {
-          handlerEndedAt = Date.now()
-        }
-      },
+      execute: (ownership) => handleChatbotMessage(
+        {
+          requestId,
+          sessionId,
+          userAgent,
+          userId: session?.user?.id,
+          message: parsed.data.message,
+          conversationId: parsed.data.conversationId,
+          editTargetMessageId: parsed.data.editTargetMessageId,
+          clientUserMessageId: parsed.data.clientUserMessageId,
+          recoverClientUserMessageId: parsed.data.recoverClientUserMessageId,
+          pendingRequestKind: parsed.data.pendingRequestKind,
+          jobContext: parsed.data.jobContext,
+          conversationState: parsed.data.conversationState,
+        },
+        ownership
+          ? {
+              assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership),
+              appendOwnedUserMessage: ({ content }) => appendChatbotMessageRequestUserMessage({
+                ownership,
+                content,
+              }),
+              recoverPendingUserMessage: ({ content }) => recoverChatbotMessageRequestUserMessage({
+                ownership,
+                content,
+              }),
+              replaceEditedUserMessage: ({ targetMessageId, content }) =>
+                replaceChatbotMessageRequestUserMessage({
+                  ownership,
+                  targetMessageId,
+                  content,
+                }),
+              finalizeMessage: (finalization) => finalizeChatbotMessageRequest({
+                ownership,
+                resultJson: JSON.stringify({
+                  requestId: ownership.owner,
+                  result: finalization.replayResult,
+                }),
+                persistBusinessData: (transaction) => persistChatbotMessageFinalization(
+                  transaction,
+                  finalization,
+                ),
+              }),
+            }
+          : undefined,
+      ),
     })
-    const coordinatedAt = Date.now()
     const result = coordinated.result
     const responseRequestId = coordinated.requestId
     const { auditEvidence, ...publicResult } = result
     if (!coordinated.replayed && !auditEvidence) {
       throw new Error("chatbot_message_audit_evidence_missing")
     }
-    if (auditEvidence) {
-      Object.assign(auditEvidence.stageTimings, {
-        routeBodyParse,
-        routeAuth,
-        ...requestStoreTimings,
-        ...(handlerStartedAt !== undefined ? { routePreHandler: handlerStartedAt - requestStartedAt } : {}),
-        ...(handlerEndedAt !== undefined ? { routePostHandler: coordinatedAt - handlerEndedAt } : {}),
-        routeTotal: Date.now() - requestStartedAt,
-        ...(instanceWarmup !== undefined ? { instanceWarmup } : {}),
-      })
-    }
-    const auditCreatedAt = new Date().toISOString()
-    const buildAuditEvents = (slack: Awaited<NonNullable<typeof auditEvidence>["slack"]>) =>
-      buildChatbotMessageAuditEvents({
-        requestId: responseRequestId,
-        conversationId: result.conversationId,
-        buildSha: getChatbotBuildSha(),
-        createdAt: auditCreatedAt,
-        finalTier: result.tier,
-        uiKind: result.ui.kind,
-        ...auditEvidence!,
-        slack,
-      })
-    const pendingSlack = auditEvidence?.slack instanceof Promise ? auditEvidence.slack : undefined
-    // A threaded Slack post finishes after the response; its audit events are written once it has.
-    const auditEvents = coordinated.replayed || pendingSlack
+    const auditEvents = coordinated.replayed
       ? []
-      : buildAuditEvents(auditEvidence!.slack as Awaited<NonNullable<typeof auditEvidence>["slack"]>)
-    if (pendingSlack) scheduleDeferredChatbotAuditPersistence(async () => buildAuditEvents(await pendingSlack))
-    else if (!coordinated.replayed) scheduleChatbotAuditPersistence(auditEvents)
+      : buildChatbotMessageAuditEvents({
+          requestId: responseRequestId,
+          conversationId: result.conversationId,
+          buildSha: getChatbotBuildSha(),
+          createdAt: new Date().toISOString(),
+          finalTier: result.tier,
+          uiKind: result.ui.kind,
+          ...auditEvidence!,
+        })
+    if (!coordinated.replayed) scheduleChatbotAuditPersistence(auditEvents)
     const response = NextResponse.json({
       ...publicResult,
       requestId: responseRequestId,
@@ -255,7 +175,7 @@ export async function POST(request: NextRequest) {
         ? {
             auditDebug: {
               schemaVersion: "1",
-              persistenceStatus: coordinated.replayed ? "complete" : pendingSlack ? "deferred" : "scheduled",
+              persistenceStatus: coordinated.replayed ? "complete" : "scheduled",
               eventCount: auditEvents.length,
               stageTimings: auditEvidence?.stageTimings ?? {},
             },
@@ -283,7 +203,6 @@ export async function POST(request: NextRequest) {
       conversationId: parsed.data.conversationId,
       sessionId,
       stage: failureStage,
-      skipSlack: isDiagnostic,
     })
     const auditConversationId = failureConversation?.id ?? parsed.data.conversationId
     if (auditConversationId) {
@@ -332,7 +251,6 @@ async function notifySlackMessageFailure(input: {
   conversationId?: string
   sessionId: string
   stage: ReturnType<typeof classifyMessageFailureStage>
-  skipSlack: boolean
 }): Promise<ChatbotConversation | null> {
   let conversation: ChatbotConversation | null = null
   try {
@@ -340,7 +258,6 @@ async function notifySlackMessageFailure(input: {
       conversationId: input.conversationId,
       sessionId: input.sessionId,
     })
-    if (input.skipSlack) return conversation
     const threadTs = conversation?.context.slackThreadTs
     const result = await sendChatbotSlackNotification({
       kind: "issue",

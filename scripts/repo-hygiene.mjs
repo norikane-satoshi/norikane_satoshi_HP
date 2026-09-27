@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { findIntegratedLocalBranches, parseEnvDocument, parseWorktreePorcelain } from "./repo-hygiene-lib.mjs";
+import { findIntegratedLocalBranches, isExemptWorktreePath, parseEnvDocument, parseWorktreePorcelain } from "./repo-hygiene-lib.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
@@ -117,10 +117,9 @@ function checkLocalState() {
   const pruneCandidates = git(["worktree", "prune", "--dry-run", "--verbose"]).stdout.trim();
   if (pruneCandidates) errors.push("stale worktree metadata exists; run git worktree prune after inspection");
 
-  const protectedNames = new Set(["staging-live-41238", "grading-verify"]);
   const attachedBranches = new Set(worktrees.map((worktree) => worktree.branch).filter(Boolean));
   for (const worktree of worktrees) {
-    if (worktree.path === mainRoot || protectedNames.has(path.basename(worktree.path))) continue;
+    if (isExemptWorktreePath(worktree.path, mainRoot)) continue;
     if (!fs.existsSync(worktree.path)) {
       errors.push(`registered worktree is missing: ${worktree.path}`);
       continue;

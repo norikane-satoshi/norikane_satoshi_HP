@@ -9,6 +9,7 @@ import type {
   SurveyChoiceSet,
   WorkSite,
 } from "@/lib/chatbot/domain"
+import { localizeSurveyChoiceSet } from "@/i18n/survey-choices"
 
 type ChoicePanelPatch = {
   choiceSetId: SurveyChoiceSet["id"]
@@ -18,8 +19,8 @@ type ChoicePanelPatch = {
   jobContext: Partial<JobContext>
 }
 
-const choicePrefixPattern = /^\s*選択\s*[:：]\s*/u
-const otherCommentPrefixPattern = /^\s*その他(?:コメント|の内容)?\s*[:：]\s*/u
+const choicePrefixPattern = /^\s*(?:選択|selection)\s*[:：]\s*/iu
+const otherCommentPrefixPattern = /^\s*(?:その他(?:コメント|の内容)?|other comment)\s*[:：]\s*/iu
 const noChoiceIds = new Set(["none"])
 const undecidedChoiceIds = new Set(["undecided"])
 
@@ -42,16 +43,8 @@ export function applyActiveChoiceAnswer(input: {
   if (clarification) return clarification
 
   switch (activeChoices.id) {
-    case "job-kind": {
-      const jobKindPatch = applyJobKindChoice(activeChoices, choice, otherCommentPatch)
-      return {
-        ...jobKindPatch,
-        conversationState: {
-          ...jobKindPatch.conversationState,
-          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
-        },
-      }
-    }
+    case "job-kind":
+      return applyJobKindChoice(activeChoices, choice, otherCommentPatch)
     case "project-length":
       return {
         choiceSetId: activeChoices.id,
@@ -271,49 +264,6 @@ export function applyActiveChoiceAnswer(input: {
             additionalConcernStatus: "has-concern",
             additionalConcernSource: "choice-panel",
           },
-          ...otherCommentPatch,
-          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
-        },
-        jobContext: {},
-      }
-    case "material-contents":
-    case "material-timing":
-    case "material-handoff-method":
-      // The answer text itself is stored by applyMaterialHandoffAnswer, which reads it against the
-      // previous question; the panel only confirms which intake item was answered.
-      return {
-        choiceSetId: activeChoices.id,
-        choiceId: choice.id,
-        choiceIds: choices.map((item) => item.id),
-        conversationState: {
-          ...(activeChoices.id === "material-contents" ? { hasMaterialDetails: true } : {}),
-          ...(activeChoices.id === "material-timing" ? { hasMaterialTiming: true } : {}),
-          ...(activeChoices.id === "material-handoff-method" ? { hasMaterialHandoff: true } : {}),
-          ...otherCommentPatch,
-          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
-        },
-        jobContext: {},
-      }
-    case "reference-urls":
-      if (choices.some((item) => item.id === "none")) {
-        return {
-          choiceSetId: activeChoices.id,
-          choiceId: "none",
-          choiceIds: ["none"],
-          conversationState: {
-            hasReferenceUrls: true,
-            ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
-          },
-          jobContext: {},
-        }
-      }
-      if (!otherCommentPatch.otherChoiceComments?.[activeChoices.id]) return null
-      return {
-        choiceSetId: activeChoices.id,
-        choiceId: choice.id,
-        choiceIds: [choice.id],
-        conversationState: {
-          hasReferenceUrls: true,
           ...otherCommentPatch,
           ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
         },
@@ -630,14 +580,6 @@ export function isSatisfiedChoicePanel(
       return Boolean(conversationState.hasLectureTrainingSoftware)
     case "production-options":
       return Boolean(conversationState.hasProductionOptions)
-    case "material-contents":
-      return Boolean(conversationState.hasMaterialDetails)
-    case "material-timing":
-      return Boolean(conversationState.hasMaterialTiming)
-    case "material-handoff-method":
-      return Boolean(conversationState.hasMaterialHandoff)
-    case "reference-urls":
-      return conversationState.hasReferenceUrls
     default:
       return false
   }
@@ -645,6 +587,7 @@ export function isSatisfiedChoicePanel(
 
 function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: string): SurveyChoice[] {
   if (!activeChoices) return []
+  const englishChoices = localizeSurveyChoiceSet(activeChoices, "en")
   const selectedText = extractSelectedChoiceText(message)
   const normalizedMessages = selectedText
     .replace(choicePrefixPattern, "")
@@ -657,6 +600,10 @@ function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: str
     .map((normalizedMessage) =>
       activeChoices.choices.find((choice) => normalizeChoiceText(choice.id) === normalizedMessage) ??
       activeChoices.choices.find((choice) => normalizeChoiceText(choice.label) === normalizedMessage) ??
+      activeChoices.choices.find((choice) => {
+        const englishLabel = englishChoices.choices.find((candidate) => candidate.id === choice.id)?.label
+        return englishLabel ? normalizeChoiceText(englishLabel) === normalizedMessage : false
+      }) ??
       activeChoices.choices.find((choice) => choiceTextMatches(activeChoices, choice, normalizedMessage)) ??
       null,
     )

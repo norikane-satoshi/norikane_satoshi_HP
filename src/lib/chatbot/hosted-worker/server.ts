@@ -18,13 +18,10 @@ import {
   type HostedWorkerErrorResponse,
   type HostedWorkerGenerateRequest,
 } from "@/lib/chatbot/hosted-worker/types"
-import { primeNotionAiThreadRotationCache, resolveEffectiveNotionAiThreadUrl } from "@/lib/chatbot/hosted-worker/notion-ai-thread-store"
-import { HiddenThreadPool, poolFileStore } from "./notion-ai-thread-pool"
-import { createHostedNotionAiBrowserClient } from "./notion-ai-browser-client"
+import { primeNotionAiThreadRotationCache } from "@/lib/chatbot/hosted-worker/notion-ai-thread-store"
 import { ChatbotLlmError } from "@/lib/chatbot/server/llm-client"
 
 type HostedWorkerHandlerOptions = {
-  threadPool?: HiddenThreadPool
   token?: string
   state?: HostedWorkerRuntimeState
   queue?: HostedWorkerSingleFlightQueue
@@ -66,25 +63,7 @@ export async function startHostedWorkerServer(options: HostedWorkerServerOptions
   // Load the rotated thread once at boot so a restart does not send the worker back to the
   // exhausted thread configuration still names.
   await primeNotionAiThreadRotationCache()
-  const state = options.state ?? createHostedWorkerRuntimeState()
-  const pool = options.threadPool ?? new HiddenThreadPool({
-    ...poolFileStore(),
-    idle: () => !state.queue.inFlight && state.queue.queueLength === 0,
-    create: async () => {
-      const client = createHostedNotionAiBrowserClient({
-        cdpBaseUrl: process.env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL,
-        targetUrlIncludes: resolveEffectiveNotionAiThreadUrl().threadUrl,
-      })
-      const prepared = await client.provisionHiddenInventoryThread()
-      return { threadUrl: prepared.threadUrl, createdAt: Date.now(),
-        deletedAt: prepared.deletedAt, alive: false, hiddenFromChatList: true }
-    },
-  })
-  const server = createHostedWorkerServer({ ...options, state, threadPool: pool })
-  const timer = setInterval(() => { void pool.refill() }, 30000)
-  timer.unref()
-  server.once("close", () => { clearInterval(timer); pool.stop() })
-  server.once("error", () => { clearInterval(timer); pool.stop() })
+  const server = createHostedWorkerServer(options)
   const host = options.host ?? process.env.CHATBOT_HOSTED_WORKER_HOST ?? defaultHost
   const port = options.port ?? parsePositiveInteger(process.env.CHATBOT_HOSTED_WORKER_PORT, defaultPort)
 
@@ -92,7 +71,6 @@ export async function startHostedWorkerServer(options: HostedWorkerServerOptions
     server.once("error", reject)
     server.listen(port, host, () => {
       server.off("error", reject)
-      void pool.refill()
       resolve(server)
     })
   })
@@ -131,15 +109,12 @@ export function createHostedWorkerRequestHandler(options: HostedWorkerHandlerOpt
       const requestAbort = createRequestAbortController(request, response)
       try {
         const body = (await readJsonBody(request, requestAbort.signal)) as HostedWorkerGenerateRequest
-        writeJson(response, 200, await generate(body, state, queue, {
-          signal: requestAbort.signal, threadPool: options.threadPool,
-        }))
+        writeJson(response, 200, await generate(body, state, queue, { signal: requestAbort.signal }))
       } catch (error) {
         const normalized = normalizeServerError(error)
         writeJson(response, normalized.status, normalized.body)
       } finally {
         requestAbort.cleanup()
-        void options.threadPool?.refill()
       }
       return
     }

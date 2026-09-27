@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { Save, Trash2, XCircle } from "lucide-react"
+import {getLocalizedCopy} from "@/i18n/copy"
 
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import type {
@@ -19,6 +20,7 @@ type BookingEditFormProps = {
   scope: BookingAccessScope
   isCalendarAdmin: boolean
   isPast: boolean
+  locale?: "ja" | "en"
 }
 
 type DetailState = {
@@ -36,8 +38,6 @@ type SlotState = {
   startTime: string
   endTime: string
 }
-
-const POLICY_TEXT = "本予約のキャンセルおよび日時変更は、別途締結する業務委託契約書に記載のキャンセルポリシーをご確認ください。"
 
 function toDateTimeLocal(value: string): string {
   const date = new Date(value)
@@ -81,7 +81,9 @@ export function BookingEditForm({
   scope,
   isCalendarAdmin,
   isPast,
+  locale = "ja",
 }: BookingEditFormProps) {
+  const copy = getLocalizedCopy(locale, "BookingEdit")
   const router = useRouter()
   const initialDetailState = useMemo(() => toDetailsState(initialDetails), [initialDetails])
   const initialSlotState = useMemo(() => initialTimeSlots.map(toSlotState), [initialTimeSlots])
@@ -93,9 +95,9 @@ export function BookingEditForm({
   const canOperate = (scope === "owner" || scope === "admin") && (scope === "admin" || !isPast)
   const isReadOnly = !canOperate
   const readOnlyMessage = scope === "team"
-    ? "同じチャンネルのメンバーの予約のため閲覧のみ可能です"
+    ? copy.teamReadOnly
     : isPast && scope !== "admin"
-      ? "過去の予約は管理者のみ編集できます"
+      ? copy.pastReadOnly
       : null
 
   const updateDetail = (key: keyof DetailState, value: string) => {
@@ -188,22 +190,22 @@ export function BookingEditForm({
       ) : null}
 
       <section className="glass-flat rounded-3xl p-5 md:p-6">
-        <h2 className="text-lg font-semibold text-hp">予約情報</h2>
+        <h2 className="text-lg font-semibold text-hp">{copy.information}</h2>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="space-y-2 text-sm font-medium text-hp">
-            <span>案件名</span>
+            <span>{copy.project}</span>
             <input className="glass-input w-full px-4 py-3 text-sm" value={details.projectTitle} disabled={isReadOnly} onChange={(event) => updateDetail("projectTitle", event.target.value)} />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
-            <span>氏名</span>
+            <span>{copy.name}</span>
             <input className="glass-input w-full px-4 py-3 text-sm" value={details.contactName} disabled={isReadOnly} onChange={(event) => updateDetail("contactName", event.target.value)} />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
-            <span>会社名</span>
+            <span>{copy.company}</span>
             <input className="glass-input w-full px-4 py-3 text-sm" value={details.companyName} disabled={isReadOnly} onChange={(event) => updateDetail("companyName", event.target.value)} />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
-            <span>メール</span>
+            <span>{copy.email}</span>
             <input className="glass-input w-full px-4 py-3 text-sm opacity-70" type="email" value={details.customerEmail} readOnly disabled />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
@@ -211,27 +213,27 @@ export function BookingEditForm({
             <input className="glass-input w-full px-4 py-3 text-sm" type="tel" value={details.phone} disabled={isReadOnly} onChange={(event) => updateDetail("phone", event.target.value)} />
           </label>
           <label className="space-y-2 text-sm font-medium text-hp">
-            <span>納期</span>
+            <span>{copy.deadline}</span>
             <input className="glass-input w-full px-4 py-3 text-sm" type="date" value={details.dueDate} disabled={isReadOnly} onChange={(event) => updateDetail("dueDate", event.target.value)} />
           </label>
         </div>
         <label className="mt-4 block space-y-2 text-sm font-medium text-hp">
-          <span>補足</span>
+          <span>{copy.notes}</span>
           <AutoResizeTextarea className="glass-input w-full px-4 py-3 text-sm" rows={5} value={details.memo} disabled={isReadOnly} onChange={(event) => updateDetail("memo", event.target.value)} />
         </label>
       </section>
 
       <section className="glass-flat rounded-3xl p-5 md:p-6">
-        <h2 className="text-lg font-semibold text-hp">日時</h2>
+        <h2 className="text-lg font-semibold text-hp">{copy.dateTime}</h2>
         <div className="mt-5 space-y-4">
           {slots.map((slot, index) => (
             <div key={slot.id} className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2 text-sm font-medium text-hp">
-                <span>{`開始 ${index + 1}`}</span>
+                <span>{copy.start.replace("{index}", String(index + 1))}</span>
                 <input className="glass-input w-full px-4 py-3 text-sm" type="datetime-local" value={slot.startTime} disabled={isReadOnly} onChange={(event) => updateSlot(slot.id, "startTime", event.target.value)} />
               </label>
               <label className="space-y-2 text-sm font-medium text-hp">
-                <span>{`終了 ${index + 1}`}</span>
+                <span>{copy.end.replace("{index}", String(index + 1))}</span>
                 <input className="glass-input w-full px-4 py-3 text-sm" type="datetime-local" value={slot.endTime} disabled={isReadOnly} onChange={(event) => updateSlot(slot.id, "endTime", event.target.value)} />
               </label>
             </div>
@@ -243,20 +245,20 @@ export function BookingEditForm({
         {canOperate ? (
           <button className="glass-btn inline-flex min-h-11 items-center gap-2 px-5 py-3 text-sm font-semibold text-hp disabled:opacity-50" type="submit" disabled={saving}>
             <Save aria-hidden="true" size={18} />
-            <span>{saving ? "保存中" : "保存"}</span>
+            <span>{saving ? copy.saving : copy.save}</span>
           </button>
         ) : null}
         <button className="glass-flat inline-flex min-h-11 items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-hp" type="button" onClick={() => router.push("/booking")}>
-          予約カレンダーへ戻る
+          {copy.back}
         </button>
       </div>
 
       {canOperate ? (
         <section className="glass-flat rounded-3xl p-5 md:p-6">
-          <p className="text-sm leading-7 text-hp-muted">{POLICY_TEXT}</p>
+          <p className="text-sm leading-7 text-hp-muted">{copy.policy}</p>
           <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--hp-color-error)] px-5 py-3 text-sm font-semibold text-[var(--hp-color-error)] disabled:opacity-50" type="button" onClick={cancelBooking} disabled={saving}>
             <XCircle aria-hidden="true" size={18} />
-            <span>予約をキャンセル</span>
+            <span>{copy.cancelBooking}</span>
           </button>
         </section>
       ) : null}
@@ -266,7 +268,7 @@ export function BookingEditForm({
           <p className="text-sm text-hp-muted">{bookingGroupId}</p>
           <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--hp-color-error)] px-5 py-3 text-sm font-semibold text-[var(--hp-color-error)] disabled:opacity-50" type="button" onClick={hardDeleteBooking} disabled={saving}>
             <Trash2 aria-hidden="true" size={18} />
-            <span>DB から完全削除</span>
+            <span>{copy.hardDelete}</span>
           </button>
         </section>
       ) : null}

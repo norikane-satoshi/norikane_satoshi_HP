@@ -18,7 +18,7 @@ type SlackFetch = typeof fetch
 
 export type ChatbotSlackNotificationResult =
   | { status: "sent"; ts: string | null }
-  | { status: "skipped"; reason: "disabled" | "missing-slack-config" | "diagnostic" }
+  | { status: "skipped"; reason: "disabled" | "missing-slack-config" }
   | { status: "failed"; reason: "send-failed" }
 
 export type ChatbotSlackDeliveryEvidenceItem = {
@@ -482,8 +482,6 @@ function formatIssueTitle(reasons: string[] | undefined): string {
 
 function formatTier(tier: ChatbotLlmTier): string {
   switch (tier) {
-    case chatbotLlmTierIds.tier0DeterministicIntake:
-      return `Tier 0（定型の確認質問・LLMなし） [${tier}]`
     case chatbotLlmTierIds.tier1HostedChromeNotionAi:
       return `Tier 1（Hosted Chrome / Notion AI） [${tier}]`
     case chatbotLlmTierIds.tier2GeminiFlash:

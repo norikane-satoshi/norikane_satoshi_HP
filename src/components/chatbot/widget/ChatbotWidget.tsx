@@ -4,10 +4,11 @@ import { type CSSProperties, type PointerEvent as ReactPointerEvent, useCallback
 import { usePathname } from "next/navigation"
 import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
 import { isChatbotEnabled } from "@/lib/feature-flags"
-import { prewarmChatbotMessageRoute } from "./api"
 import { LineBookingBadge } from "./line-booking-badge"
 import { MinimizedBar } from "./MinimizedBar"
 import { WidgetShell } from "./WidgetShell"
+import {ChatbotLocaleProvider} from "./i18n"
+import {getLocalizedCopy} from "@/i18n/copy"
 import { useScrollTrigger } from "./useScrollTrigger"
 import {
   CHATBOT_WIDGET_DESKTOP_BREAKPOINT_PX,
@@ -45,7 +46,7 @@ type DragSession = {
   cleanup: () => void
 }
 
-export function ChatbotWidget() {
+export function ChatbotWidget({locale = "ja"}: {locale?: "ja" | "en"}) {
   const pathname = usePathname()
   const isPublicAvailabilityPage = pathname === PUBLIC_AVAILABILITY_ROUTE
   const chatbotEnabled = isChatbotEnabled()
@@ -75,11 +76,6 @@ export function ChatbotWidget() {
     window.addEventListener("hashchange", openForContactHash)
     return () => window.removeEventListener("hashchange", openForContactHash)
   }, [open, shouldRenderChatbot, widgetState.hasHydrated])
-
-  const isExpanded = shouldRenderChatbot && widgetState.isVisible && !widgetState.isMinimized
-  useEffect(() => {
-    if (isExpanded) void prewarmChatbotMessageRoute()
-  }, [isExpanded])
 
   useScrollTrigger({
     disabled: !shouldRenderChatbot || !widgetState.hasHydrated || widgetState.isVisible,
@@ -324,9 +320,10 @@ export function ChatbotWidget() {
       : undefined
 
   return (
+    <ChatbotLocaleProvider locale={locale}>
     <aside
       role="complementary"
-      aria-label="AI 相談窓口"
+      aria-label={getLocalizedCopy(locale, "Chatbot").windowLabel}
       hidden={!isReady}
       className={asideClassName}
       style={asideStyle}
@@ -351,5 +348,6 @@ export function ChatbotWidget() {
         />
       )}
     </aside>
+    </ChatbotLocaleProvider>
   )
 }

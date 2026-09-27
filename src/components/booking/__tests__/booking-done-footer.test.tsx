@@ -2,10 +2,18 @@
 
 import "@testing-library/jest-dom/vitest"
 import { cleanup, render, screen } from "@testing-library/react"
+import type {ReactNode} from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { BookingDone } from "@/components/booking/booking-done"
 import { BookingFooter } from "@/components/booking/booking-footer"
+
+vi.mock("next-intl", () => ({useLocale: () => "ja"}))
+vi.mock("@/i18n/navigation", () => ({
+  Link: ({href, children, className}: {href: string; children: ReactNode; className?: string}) => (
+    <a href={href} className={className}>{children}</a>
+  ),
+}))
 
 describe("BookingDone", () => {
   afterEach(() => {

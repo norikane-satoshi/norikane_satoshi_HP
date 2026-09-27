@@ -4,9 +4,6 @@ import { fileURLToPath } from "node:url"
 import { config as loadDotenv } from "dotenv"
 import { z } from "zod"
 
-import { chatbotDiagnosticSlackSkipErrorCode } from "@/lib/chatbot/diagnostic-slack-skip"
-import { chatbotDiagnosticHeader, chatbotDiagnosticToken } from "@/lib/chatbot/server/diagnostic-request"
-
 loadDotenv({ path: ".env.local", override: false, quiet: true })
 loadDotenv({ path: ".env", override: false, quiet: true })
 
@@ -60,18 +57,6 @@ export type KnownRegressionInput = {
   auditEvents: KnownRegressionAuditEvent[]
 }
 
-// This check's conversations carry the diagnostic header so they stay out of Slack; the audit then
-// records the Slack boundary as a deliberate skip, which counts as that boundary completing.
-function diagnosticHeaders(): Record<string, string> {
-  const token = chatbotDiagnosticToken()
-  return token ? { [chatbotDiagnosticHeader]: token } : {}
-}
-
-function boundarySucceeded(event: { eventName: string; result: string; errorCode?: string | null }): boolean {
-  return event.result === "success" ||
-    (event.eventName === "slack_notification_completed" && event.errorCode === chatbotDiagnosticSlackSkipErrorCode)
-}
-
 const requiredServerBoundaries = [
   "request_received",
   "response_normalized",
@@ -90,7 +75,7 @@ export function evaluateKnownRegressionRun(input: KnownRegressionInput) {
   const auditBoundaryMissing = [input.first, input.edit].some((run) => {
     const events = eventsByRequest.get(run.requestId) ?? []
     return requiredServerBoundaries.some(
-      (eventName) => events.filter((event) => event.eventName === eventName && boundarySucceeded(event)).length !== 1,
+      (eventName) => events.filter((event) => event.eventName === eventName && event.result === "success").length !== 1,
     ) || events.filter((event) => event.eventName === "tier_attempt_completed").length === 0
   })
   const tierEvidenceInvalid = [input.first, input.edit].some((run) => {
@@ -151,7 +136,7 @@ type MessageAttempt = {
 async function postMessage(baseUrl: string, body: Record<string, unknown>): Promise<MessageAttempt> {
   const response = await fetch(`${baseUrl}/api/chatbot/message`, {
     method: "POST",
-    headers: { "content-type": "application/json", ...diagnosticHeaders() },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   })
   const raw: unknown = await response.json().catch(() => ({}))

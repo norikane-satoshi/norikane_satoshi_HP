@@ -31,14 +31,6 @@ function heading(id: string, text: string): Block {
   }
 }
 
-function heading3(id: string, text: string): Block {
-  return {
-    id,
-    type: "heading_3",
-    heading_3: { rich_text: richText(text) },
-  }
-}
-
 function paragraph(id: string, text: string, href?: string): Block {
   return {
     id,
@@ -236,81 +228,6 @@ describe("Notion chatbot knowledge sync", () => {
       minDays: 8,
       maxDays: 9,
       source: "notion-sync",
-    })
-  })
-
-  it("reads each kind's total from the per-stage duration table, not its first stage", async () => {
-    const repo = repository()
-    const manifestPageId = "eb950c43e1a042199c1bbce74ae616a1"
-    const sourcePageId = "830dd59bc735483fae4feea1d6f4fbc7"
-    const client = {
-      blocks: {
-        children: {
-          list: vi.fn(async ({ block_id }: { block_id: string }) => {
-            if (block_id === manifestPageId) {
-              return {
-                results: [
-                  heading("manifest-heading", "ナレッジ正本リスト"),
-                  paragraph(
-                    "manifest-row",
-                    "ページ=AIチャットボット 相談窓口の設計 / 用途=workflow-duration / 参照範囲=工程別日数テーブル（実測値ベース） / 優先度=1",
-                    `https://www.notion.so/${sourcePageId}`,
-                  ),
-                ],
-                has_more: false,
-              }
-            }
-            if (block_id === sourcePageId) {
-              return {
-                results: [
-                  heading3("duration-heading", "工程別日数テーブル（実測値ベース）"),
-                  tableRow("header", ["案件種別", "コンフォーム", "仕込み", "立ち会い", "最終チェック+納品", "合計"]),
-                  tableRow("cm", ["CM 30秒", "0.5日", "立ち会い同日集約", "0.5日", "当日内", "1日"]),
-                  tableRow("mv", ["MV 5分", "0.5日", "立ち会い同日集約", "1日", "当日内", "1〜1.5日"]),
-                  tableRow("feature", ["本編 90分", "1日", "3日", "1〜3日", "1日", "6〜8日"]),
-                  tableRow("feature-long", ["本編 3時間", "1日", "4〜5日", "1〜3日", "1日", "8〜10日"]),
-                  tableRow("drama-first", ["ドラマ 45〜50分（初回）", "1日", "3日", "1〜2日", "1日", "6〜7日"]),
-                  tableRow("drama-next", ["ドラマ 45〜50分（2話目以降）", "1日", "2日", "1日", "1日", "5日/話"]),
-                  tableRow("drama-short", ["短尺ドラマ（1話5〜15分）", "立ち会い同日集約", "1日以内", "0.5〜1日", "当日内", "1〜2日/話"]),
-                  tableRow("vertical", ["縦型動画 60秒", "0.5日", "立ち会い同日集約", "0.5日", "当日内", "1日"]),
-                  tableRow("live", ["ライブ 60分", "0.5〜1日", "2日程度", "1日", "0.5〜1日", "4日程度"]),
-                  tableRow("live-long", ["ライブ 150分 / 2.5時間", "1日程度", "4〜5日程度", "1日", "1日程度", "7〜8日程度"]),
-                  // The next section of the same level cites past jobs; a sentence there naming a kind
-                  // ("本編 3時間") next to other dates must not be read as that kind's line.
-                  heading3("evidence-heading", "工程日数の実績根拠"),
-                  paragraph("evidence", "劇場作品は SDR 13日、HDR は別に2日（10/7〜8予定）。「本編 3時間 8〜10日」から上乗せになる。"),
-                ],
-                has_more: false,
-              }
-            }
-            return { results: [], has_more: false }
-          }),
-        },
-      },
-    }
-
-    const result = await syncChatbotNotionKnowledge({
-      client,
-      repository: repo,
-      manifestPageId,
-      changedPageId: sourcePageId,
-      now: new Date("2026-09-27T01:00:00.000Z"),
-    })
-
-    const days = Object.fromEntries(
-      result.snapshot.workflowDurations.presets.map((preset) => [preset.id, [preset.minDays, preset.maxDays, preset.source]]),
-    )
-    expect(days).toEqual({
-      "cm-30s": [1, 1, "notion-sync"],
-      "mv-5m": [1, 1.5, "notion-sync"],
-      "feature-90m": [6, 8, "notion-sync"],
-      "feature-180m": [8, 10, "notion-sync"],
-      "drama-first": [6, 7, "notion-sync"],
-      "drama-follow-up": [5, 5, "notion-sync"],
-      "drama-short": [1, 2, "notion-sync"],
-      "vertical-60s": [1, 1, "notion-sync"],
-      "live-60m": [4, 4, "notion-sync"],
-      "live-150m": [7, 8, "notion-sync"],
     })
   })
 

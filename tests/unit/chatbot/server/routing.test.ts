@@ -227,7 +227,7 @@ describe("chatbot fallback router", () => {
     })
     expect(result).toMatchObject({
       kind: "to-direct-contact",
-      suggestedMessage: expect.stringContaining("正本ライン 1日"),
+      suggestedMessage: expect.stringContaining("正本ライン 1〜2日"),
     })
     expect(result).toMatchObject({
       kind: "to-direct-contact",

@@ -2,19 +2,13 @@ import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatb
 import {
   additionalWorkChoices,
   bookingFinalConfirmationChoices,
-  formatConsultationSummary,
   customerFacingWorkSiteChoices,
   documentaryAttachmentChoices,
   finalMediumChoices,
   jobKindChoices,
-  materialContentsChoices,
-  materialHandoffMethodChoices,
-  materialTimingChoices,
   projectLengthChoicesForJobKind,
-  referenceUrlChoices,
 } from "@/lib/chatbot/domain"
 import {
-  formatDayRange,
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
@@ -105,12 +99,15 @@ function directContact(
 function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["workflowEstimate"]): string {
   const baseline =
     workflowEstimate?.estimateStatus === "needs-confirmation"
-      ? `ライブ150分超の暫定上限目安は${formatDayRange(
+      ? `ライブ150分超の暫定上限目安は${formatDays(
           workflowEstimate.referenceMinDays ?? workflowEstimate.totalMinDays,
+        )}〜${formatDays(
           workflowEstimate.referenceMaxDays ?? workflowEstimate.totalMaxDays,
-        )}です。素材量・カメラ数・ぼかし箇所・チェック体制を確認して判断します。`
+        )}日です。素材量・カメラ数・ぼかし箇所・チェック体制を確認して判断します。`
       : workflowEstimate
-        ? `通常は正本ライン ${formatDayRange(workflowEstimate.totalMinDays, workflowEstimate.totalMaxDays)}が目安です。`
+        ? `通常は正本ライン ${formatDays(workflowEstimate.totalMinDays)}〜${formatDays(
+            workflowEstimate.totalMaxDays,
+          )}日が目安です。`
         : "通常の正本ラインを目安にします。"
 
   return [
@@ -119,6 +116,10 @@ function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["wor
     "ただし、この場では確約せず、空き状況・内容確認・本人確認後に判断します。",
     "送信前に整理内容を確認して、ご連絡先のメールアドレスを必ず添えてください。",
   ].join("")
+}
+
+function formatDays(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
 }
 
 function continueDecision(input: {
@@ -179,32 +180,30 @@ function continueDecision(input: {
   if (!conversationState.hasMaterialDetails || !conversationState.materialHandoff?.contents) {
     return {
       kind: "continue",
-      nextQuestion: materialContentsChoices.question,
-      presentChoices: materialContentsChoices,
+      nextQuestion:
+        "何の素材をお送りいただく予定ですか？（例: ProRes書き出し、撮影素材一式、使用するクリップのみ）",
     }
   }
 
   if (!conversationState.hasMaterialTiming || !conversationState.materialHandoff?.timing) {
     return {
       kind: "continue",
-      nextQuestion: materialTimingChoices.question,
-      presentChoices: materialTimingChoices,
+      nextQuestion: "その素材は、いつお送りいただけそうですか？未定の場合は「未定」とお答えください。",
     }
   }
 
   if (!conversationState.hasMaterialHandoff || !conversationState.materialHandoff?.method) {
     return {
       kind: "continue",
-      nextQuestion: materialHandoffMethodChoices.question,
-      presentChoices: materialHandoffMethodChoices,
+      nextQuestion:
+        "素材の受け渡し方法を教えてください。（例: SSD / HDDをバイク便・郵送・手渡し、アップローダーで共有）",
     }
   }
 
   if (!conversationState.hasReferenceUrls) {
     return {
       kind: "continue",
-      nextQuestion: referenceUrlChoices.question,
-      presentChoices: referenceUrlChoices,
+      nextQuestion: "事前に把握しておきたい参考URLがあれば教えてください",
     }
   }
 
@@ -215,38 +214,9 @@ function continueDecision(input: {
     }
   }
 
-  // The booking card needs an estimate, which only an estimable job kind has. Without one the
-  // confirmed intake goes to the consultation summary form; returning the final question again
-  // left those customers answering the same confirmation panel forever.
-  if (!jobContext.jobKind && conversationState.bookingFinalConfirmation?.status === "confirmed") {
-    return consultationEmailDecision(jobContext, conversationState)
-  }
-
   return {
     kind: "continue",
     nextQuestion: buildBookingFinalConfirmationQuestion(jobContext, conversationState),
     presentChoices: bookingFinalConfirmationChoices,
-  }
-}
-
-function consultationEmailDecision(jobContext: JobContext, conversationState: ConversationState): RoutingDecision {
-  const requestLabel = conversationState.otherChoiceComments?.["job-kind"]?.trim()
-  const summaryText = formatConsultationSummary({ jobContext, conversationState })
-    .split("\n")
-    .slice(1)
-    .filter((line) => !line.endsWith(":"))
-    .map((line) => line.replace(/^- /u, ""))
-    .join(" / ")
-  return {
-    kind: "to-email",
-    summary: {
-      subject: requestLabel ? `映像制作のご相談（${requestLabel}）` : "映像制作のご相談",
-      customerEmail: conversationState.contactEmail ?? "",
-      ...(conversationState.customerName ? { customerName: conversationState.customerName } : {}),
-      ...(conversationState.companyName ? { companyName: conversationState.companyName } : {}),
-      jobContext,
-      summaryText,
-      openQuestions: ["定型外の案件種別のため、作業期間と日程は則兼本人が確認"],
-    },
   }
 }

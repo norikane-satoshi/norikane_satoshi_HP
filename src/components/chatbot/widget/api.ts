@@ -51,7 +51,6 @@ export type WidgetUi =
   | { kind: "tier3-inquiry-form"; prefill?: InquiryFormPrefill }
 
 export type ChatbotResponseTier =
-  | "tier-0-deterministic-intake"
   | "tier-1-hosted-chrome-notion-ai"
   | "tier-2-gemini-flash"
   | "tier-3-form-fallback"
@@ -311,20 +310,6 @@ export async function postChatbotJson<T>(
     retryable: true,
     message: latestError instanceof Error ? latestError.message : "chatbot_network_failed",
   })
-}
-
-const prewarmIntervalMs = 60_000
-let lastPrewarmAt = Number.NEGATIVE_INFINITY
-
-// Wakes the server instance that will take the first message; failures are irrelevant to the customer.
-export async function prewarmChatbotMessageRoute(now = Date.now()): Promise<void> {
-  if (now - lastPrewarmAt < prewarmIntervalMs) return
-  lastPrewarmAt = now
-  try {
-    await fetch("/api/chatbot/message", { method: "GET", cache: "no-store" })
-  } catch {
-    // A missed warm-up only costs the first message its usual start-up time.
-  }
 }
 
 export async function submitChatbotMessage(

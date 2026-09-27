@@ -1,6 +1,3 @@
-import { jobKindLabels } from "@/lib/chatbot/domain/job-kind-label"
-import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import { describeJobForEstimate, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import type { ChatbotConversation, ConversationState, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
@@ -143,35 +140,28 @@ export function provideWorkflowEstimate(
   }
 }
 
-// Final medium and work site carry defaults until the customer answers, so they are only stated
-// once confirmed; otherwise the model treats the defaults as the customer's answers.
-export type ConfirmedWorkflowFacts = { finalMedium: boolean; workSite: boolean }
-
-export function buildWorkflowPromptContext(
-  jobContext: JobContext,
-  confirmed: ConfirmedWorkflowFacts = { finalMedium: true, workSite: true },
-): string | undefined {
+export function buildWorkflowPromptContext(jobContext: JobContext): string | undefined {
   if (!jobContext.jobKind) return undefined
 
   const lines = [
     "現在の案件条件（会話からサーバー抽出）:",
-    `- 案件種別: ${jobKindLabels[jobContext.jobKind]}`,
-    `- 最終媒体: ${confirmed.finalMedium ? jobContext.finalMedium : "未確認"}`,
-    `- 作業場所: ${confirmed.workSite ? jobContext.workSite : "未確認"}`,
+    `- 案件種別: ${jobContext.jobKind}`,
+    `- 最終媒体: ${jobContext.finalMedium}`,
+    `- 作業場所: ${jobContext.workSite}`,
   ]
 
   if (jobContext.deliveryMedium !== undefined) {
     lines.push(`- 納品媒体: ${jobContext.deliveryMedium}`)
   }
-  lines.push(
-    `- 尺: ${jobContext.projectLengthMinutes !== undefined ? formatMinutes(jobContext.projectLengthMinutes) : "未確認"}`,
-  )
+  if (jobContext.projectLengthMinutes !== undefined) {
+    lines.push(`- 尺: ${formatMinutes(jobContext.projectLengthMinutes)}`)
+  }
   if (jobContext.workflowEstimate) {
     if (jobContext.workflowEstimate.estimateStatus === "needs-confirmation") {
       const referenceMinDays = jobContext.workflowEstimate.referenceMinDays ?? jobContext.workflowEstimate.totalMinDays
       const referenceMaxDays = jobContext.workflowEstimate.referenceMaxDays ?? jobContext.workflowEstimate.totalMaxDays
       lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
-      lines.push(`- 今回尺の暫定上限目安: ${formatDayRange(referenceMinDays, referenceMaxDays)}`)
+      lines.push(`- 今回尺の暫定上限目安: ${formatDays(referenceMinDays)}〜${formatDays(referenceMaxDays)}日`)
       lines.push("- 今回尺の確定日数: 150分超のため確認待ち")
       lines.push("- 禁止: 17〜20日などの正本にない日数レンジ、尺による線形倍率計算")
       lines.push("- 禁止: 顔ぼかし・追加補正・付随作業・ディスク納品を基本工程ラインに最初から込みと断定する表現")
@@ -179,10 +169,9 @@ export function buildWorkflowPromptContext(
       lines.push("150分超は素材量・カメラ数・ぼかし箇所・チェック体制の確認を優先し、断定的な新規日数を発明しません。")
     } else {
       lines.push(
-        `- 基本工程ライン: ${formatDayRange(
-          jobContext.workflowEstimate.totalMinDays,
+        `- 基本工程ライン: ${formatDays(jobContext.workflowEstimate.totalMinDays)}〜${formatDays(
           jobContext.workflowEstimate.totalMaxDays,
-        )}（${describeJobForEstimate(jobContext.jobKind, jobContext.projectLengthMinutes)}の目安）`,
+        )}日`,
       )
       if (jobContext.jobKind === "live-60m") {
         lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
@@ -288,8 +277,12 @@ function hasNewWorkflowContextFact(input: {
   )
 }
 
+function formatDays(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
+}
+
 function formatMinutes(value: number): string {
   if (value >= 60 && value % 60 === 0) return `${value / 60}時間`
   if (value > 60) return `${Math.floor(value / 60)}時間${value % 60}分`
-  return formatProjectLengthMinutes(value)
+  return `${value}分`
 }

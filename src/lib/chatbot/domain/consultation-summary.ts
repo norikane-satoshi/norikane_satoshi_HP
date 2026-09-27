@@ -1,6 +1,4 @@
 import type { ConversationState, DocumentaryAttachmentItem, JobContext } from "@/lib/chatbot/domain"
-import { formatProjectLengthMinutes } from "./project-length"
-import { jobKindLabels } from "./job-kind-label"
 
 export type ConsultationSummaryInput = {
   jobContext?: Partial<JobContext>
@@ -27,6 +25,16 @@ const finalMediumLabels: Record<NonNullable<JobContext["finalMedium"]>, string> 
   web: "Web",
   "vertical-sns": "縦型SNS",
   other: "その他",
+}
+
+const jobKindLabels: Record<NonNullable<JobContext["jobKind"]>, string> = {
+  "cm-30s": "CM 30秒",
+  "mv-5m": "MV 5分",
+  "feature-90m": "長編 90分",
+  "drama-first": "ドラマ初回",
+  "drama-follow-up": "ドラマ継続回",
+  "vertical-60s": "縦型 60秒",
+  "live-60m": "ライブ 60分",
 }
 
 const workSiteLabels: Record<NonNullable<JobContext["workSite"]>, string> = {
@@ -227,7 +235,7 @@ function documentaryAttachmentKindLabel(kind: DocumentaryAttachmentItem["kind"])
 }
 
 function formatProjectLength(minutes: number | undefined, fallback: string | undefined): string | undefined {
-  if (typeof minutes === "number") return formatProjectLengthMinutes(minutes)
+  if (typeof minutes === "number") return `${minutes}分`
   return fallback
 }
 

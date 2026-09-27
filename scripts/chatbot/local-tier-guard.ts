@@ -85,7 +85,7 @@ async function guardLocal41238Runtime(): Promise<TierResult> {
       action: "inspect-41238-http-required",
       httpStatus: inspection.httpStatus,
       detail: `pid:${inspection.pid};http_status:${inspection.httpStatus};head:${inspection.head.slice(0, 12)};expected:${inspection.expectedHead.slice(0, 12)};dirty:${inspection.dirtyFiles};prisma_client_schema:${inspection.prismaClientSchema};cwd:${inspection.cwd}`,
-      nextAction: "inspect_41238_http_without_restart",
+      nextAction: "inspect_41238_http",
     }
   }
 
@@ -107,7 +107,7 @@ async function guardLocal41238Runtime(): Promise<TierResult> {
       action: "update-41238-worktree-required",
       httpStatus: inspection.httpStatus,
       detail: `pid:${inspection.pid};head_stale:${inspection.head.slice(0, 12)};expected:${inspection.expectedHead.slice(0, 12)};dirty:${inspection.dirtyFiles};prisma_client_schema:${inspection.prismaClientSchema};cwd:${inspection.cwd}`,
-      nextAction: "update_41238_to_origin_staging_without_restart",
+      nextAction: "update_41238_to_origin_staging",
     }
   }
 

@@ -2,6 +2,8 @@
 
 import { Link2Off } from "lucide-react"
 import { useState } from "react"
+import {useLocale} from "next-intl"
+import {getLocalizedCopy} from "@/i18n/copy"
 
 type AdminReconnectBannerProps = {
   isCalendarAdmin: boolean
@@ -20,6 +22,7 @@ export function shouldShowAdminReconnectBanner(
 }
 
 export function AdminReconnectBanner({ isCalendarAdmin, code }: AdminReconnectBannerProps) {
+  const copy = getLocalizedCopy(useLocale(), "Booking")
   const [dismissed, setDismissed] = useState(false)
 
   if (!shouldShowAdminReconnectBanner(isCalendarAdmin, code, dismissed)) return null
@@ -33,11 +36,7 @@ export function AdminReconnectBanner({ isCalendarAdmin, code }: AdminReconnectBa
       />
       <div className="admin-reconnect-banner__body">
         <p className="admin-reconnect-banner__message">
-          予約カレンダー連携が切れています。Google アカウント connections の
-          {" "}
-          <strong>のりかね映像設計室</strong>
-          {" "}
-          から再 consent してください。
+          {copy.reconnectMessage}
         </p>
       </div>
       <div className="admin-reconnect-banner__actions">
@@ -46,14 +45,14 @@ export function AdminReconnectBanner({ isCalendarAdmin, code }: AdminReconnectBa
           target="_blank"
           rel="noopener noreferrer"
           className="glass-btn admin-reconnect-banner__cta"
-          aria-label="Google カレンダー再接続"
+          aria-label={copy.reconnectLabel}
         >
-          再接続する
+          {copy.reconnect}
         </a>
         <button
           type="button"
           className="admin-reconnect-banner__dismiss"
-          aria-label="バナーを閉じる"
+          aria-label={copy.closeBanner}
           onClick={() => setDismissed(true)}
         >
           ×

@@ -66,9 +66,7 @@ export const tier2GeminiFlashDefaults = {
   requestTimeoutMs: 30000,
   healthCheckTimeoutMs: 3000,
   rateLimitMaxRetries: 1,
-  // With Tier 1 down every model turn lands on this tier, so a customer must not wait out a long
-  // per-minute limit; a longer delay is answered from Flash-Lite (separate quota) or falls through.
-  rateLimitMaxDelayMs: 10000,
+  rateLimitMaxDelayMs: 55000,
   enabled: true,
 } as const
 
@@ -84,8 +82,6 @@ const contentTypeJson = "application/json"
 const emptyText = ""
 const firstServerErrorStatus = 500
 const defaultRateLimitRetryDelayMs = 1000
-// A per-minute limit that clears within this delay is cheaper to wait out than to switch models.
-const shortRateLimitWaitMs = 2000
 
 export class Tier2GeminiFlashClient implements ChatbotLlmClient {
   readonly tier = tier
@@ -249,12 +245,10 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
     activeModelName: string,
     fallbackCount: number,
   ): error is GeminiHttpStatusError {
-    // Flash-Lite has its own quota. Use it for a spent daily quota, and for a per-minute limit
-    // whose wait is longer than a short pause.
     return (
       error instanceof GeminiHttpStatusError &&
       error.status === 429 &&
-      (isPerModelDailyQuota(error) || (error.retryDelayMs ?? defaultRateLimitRetryDelayMs) > shortRateLimitWaitMs) &&
+      isPerModelDailyQuota(error) &&
       fallbackCount === 0 &&
       activeModelName !== this.config.dailyQuotaFallbackModelName
     )

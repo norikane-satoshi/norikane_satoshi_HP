@@ -4,8 +4,10 @@
 
 import {
   useCallback,
+  createContext,
   useEffect,
   useId,
+  useContext,
   useRef,
   useState,
   type ReactNode,
@@ -14,8 +16,8 @@ import {
 import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import {
-  FEATURED_PLAYLIST_WORKS,
-  FEATURED_WORKS,
+  getFeaturedPlaylistWorks,
+  getFeaturedWorks,
   calculateClipWindow,
   getNextYouTubeThumbnailVariant,
   getYouTubeThumbnailUrl,
@@ -29,6 +31,13 @@ import {
 } from "@/components/hp/featured-works-data"
 import { MARS_ABSTRACT_COVER_BACKGROUND } from "@/components/hp/hero-deep-surface"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
+import {getLocalizedCopy} from "@/i18n/copy"
+
+const FeaturedWorksLocaleContext = createContext<"ja" | "en">("ja")
+
+function useFeaturedWorksCopy() {
+  return getLocalizedCopy(useContext(FeaturedWorksLocaleContext), "FeaturedWorks")
+}
 
 type YouTubePlayerStateChangeEvent = {
   data: number
@@ -750,6 +759,7 @@ function WorkLinkBadges({
   hideYouTube?: boolean
   layout?: "inline" | "two-row"
 }) {
+  const copy = useFeaturedWorksCopy()
   const visibleLinks = hideYouTube
     ? links.filter((link) => link.label !== "YouTube")
     : links
@@ -762,7 +772,7 @@ function WorkLinkBadges({
       rel="noopener noreferrer"
       tabIndex={clone ? -1 : undefined}
       className="glass-badge px-2.5 py-1 text-[0.64rem] leading-none transition-colors hover:bg-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-      aria-label={clone ? undefined : `${workTitle} ${link.label}を新しいタブで開く`}
+      aria-label={clone ? undefined : copy.openLink.replace("{title}", workTitle).replace("{label}", link.label)}
       data-featured-work-link-badge={link.label}
     >
       {link.label}
@@ -872,6 +882,7 @@ function FeaturedWorkVideoDialog({
   triggerElementRef: RefObject<HTMLElement | null>
   onClose: () => void
 }) {
+  const copy = useFeaturedWorksCopy()
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -966,7 +977,7 @@ function FeaturedWorkVideoDialog({
           ref={closeButtonRef}
           type="button"
           className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-black/35 text-white transition-colors hover:bg-black/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-          aria-label="動画モーダルを閉じる"
+          aria-label={copy.closeModal}
           onClick={onClose}
         >
           <X className="h-5 w-5" aria-hidden="true" />
@@ -1148,6 +1159,7 @@ function VideoSurface({
     triggerElement: HTMLButtonElement,
   ) => void
 }) {
+  const copy = useFeaturedWorksCopy()
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
   const playerReadyRef = useRef(false)
@@ -1405,13 +1417,13 @@ function VideoSurface({
       ) : null}
       <PreviewThumbnail videoId={videoId} isVisible={!isPreviewReady} />
       <VideoOpenButton
-        label={`${title} の動画をモーダルで再生`}
+        label={copy.playModal.replace("{title}", title)}
         clone={clone}
         onOpen={(triggerElement) => {
           onOpenVideo(
             {
               videoId,
-              label: `${title} の動画をモーダルで再生`,
+              label: copy.playModal.replace("{title}", title),
             },
             triggerElement,
           )
@@ -1467,6 +1479,7 @@ function FeaturedWorkCard({
     triggerElement: HTMLButtonElement,
   ) => void
 }) {
+  const copy = useFeaturedWorksCopy()
   const [cardRef, isNearViewport] = useNearMarqueeViewport<HTMLDivElement>(
     shouldStartVideo && !prefersReducedMotion,
   )
@@ -1476,7 +1489,7 @@ function FeaturedWorkCard({
     <div
       ref={cardRef}
       className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
-      aria-label={clone ? undefined : `${work.title} 作品カード`}
+      aria-label={clone ? undefined : copy.workCard.replace("{title}", work.title)}
       data-featured-work-card={work.title}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
       data-featured-work-tilt={prefersReducedMotion ? "disabled" : "enabled"}
@@ -1552,6 +1565,7 @@ function PlaylistWorkCard({
     triggerElement: HTMLButtonElement,
   ) => void
 }) {
+  const copy = useFeaturedWorksCopy()
   const [cardRef, isNearViewport] = useNearMarqueeViewport<HTMLDivElement>(
     shouldStartVideo && !prefersReducedMotion,
   )
@@ -1779,7 +1793,7 @@ function PlaylistWorkCard({
     <div
       ref={cardRef}
       className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
-      aria-label={clone ? undefined : `${work.title}のランダムループ再生カード`}
+      aria-label={clone ? undefined : copy.randomCard.replace("{title}", work.title)}
       data-featured-work-card={work.title}
       data-featured-work-playlist-card={work.title}
       data-featured-work-playlist-video-count={work.videos.length}
@@ -1818,13 +1832,13 @@ function PlaylistWorkCard({
             isVisible={!isPreviewReady}
           />
           <VideoOpenButton
-            label={`${work.title}をモーダルで再生`}
+            label={copy.playlistPlayModal.replace("{title}", work.title)}
             clone={clone}
             onOpen={(triggerElement) => {
               onOpenVideo(
                 {
                   videoId: previewVideo.videoId,
-                  label: `${work.title}をモーダルで再生`,
+                  label: copy.playlistPlayModal.replace("{title}", work.title),
                 },
                 triggerElement,
               )
@@ -1844,7 +1858,10 @@ function PlaylistWorkCard({
   )
 }
 
-export function FeaturedWorks() {
+export function FeaturedWorks({locale = "ja"}: {locale?: "ja" | "en"}) {
+  const copy = getLocalizedCopy(locale, "FeaturedWorks")
+  const featuredWorks = getFeaturedWorks(locale)
+  const featuredPlaylistWorks = getFeaturedPlaylistWorks(locale)
   const prefersReducedMotion = usePrefersReducedMotion()
   const marqueeViewportId = useId()
   const [marqueeRef, hasEnteredViewport] = useHasEnteredViewport<HTMLDivElement>()
@@ -1877,7 +1894,7 @@ export function FeaturedWorks() {
     segmentStart?: "primary" | "clone-before" | "clone-after",
   ) => (
     <>
-      {FEATURED_WORKS.map((work, index) => (
+      {featuredWorks.map((work, index) => (
         <FeaturedWorkCard
           key={`${clone ? "clone" : "primary"}-${work.youtubeId ?? work.officialUrl}`}
           work={work}
@@ -1888,7 +1905,7 @@ export function FeaturedWorks() {
           onOpenVideo={openVideo}
         />
       ))}
-      {FEATURED_PLAYLIST_WORKS.map((work) => (
+      {featuredPlaylistWorks.map((work) => (
         <PlaylistWorkCard
           key={`${clone ? "clone" : "primary"}-${work.title}`}
           work={work}
@@ -1902,6 +1919,7 @@ export function FeaturedWorks() {
   )
 
   return (
+    <FeaturedWorksLocaleContext.Provider value={locale}>
     <div className="hp-featured-works-block">
       <style>{`
         .featured-work-transparent-card {
@@ -1974,7 +1992,7 @@ export function FeaturedWorks() {
       `}</style>
       <div className="hp-grid">
         <p className="hp-section-heading text-xs uppercase tracking-[0.22em] text-hp-muted">
-          Featured Works
+          {copy.sectionLabel}
         </p>
       </div>
 
@@ -1986,7 +2004,7 @@ export function FeaturedWorks() {
           id={marqueeViewportId}
           ref={marqueeRef}
           className="featured-work-content-viewport relative overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-          aria-label="Featured Works"
+          aria-label={copy.sectionLabel}
           tabIndex={0}
           data-featured-work-marquee-viewport="true"
           data-featured-work-native-scrollbar={
@@ -2036,7 +2054,7 @@ export function FeaturedWorks() {
               className="h-full touch-none rounded-full bg-[var(--hp-color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
               role="scrollbar"
               tabIndex={0}
-              aria-label="Featured Works scrollbar"
+              aria-label={copy.scrollbarLabel}
               aria-controls={marqueeViewportId}
               aria-orientation="horizontal"
               aria-valuemin={0}
@@ -2053,5 +2071,6 @@ export function FeaturedWorks() {
         onClose={closeVideo}
       />
     </div>
+    </FeaturedWorksLocaleContext.Provider>
   )
 }

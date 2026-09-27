@@ -1,6 +1,5 @@
 import type { JobContext, RoutingDecision, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
-import { describeJobForEstimate, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 
 export type ChatbotDurationSafetyReport = {
   workflowEstimate?: {
@@ -53,7 +52,7 @@ export function evaluateWorkflowDurationSafety(
   }
 
   const nonLiveAlignedText = alignNonLiveLiveMismatchText(rawText, estimate, report, jobContext)
-  const expected = formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)
+  const expected = `${formatDays(estimate.totalMinDays)}〜${formatDays(estimate.totalMaxDays)}日`
   const alignedText = nonLiveAlignedText.replace(workflowRangePattern, (match, prefix: string, rawRange: string) => {
     if (isLikelyCalendarDateRange(rawRange)) return match
 
@@ -357,6 +356,11 @@ function formatDays(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
 }
 
+function formatDayRange(minDays: number, maxDays: number): string {
+  if (minDays === maxDays) return `${formatDays(minDays)}日`
+  return `${formatDays(minDays)}〜${formatDays(maxDays)}日`
+}
+
 function formatProjectLength(value: number | undefined): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return ""
   if (value > 0 && value < 1) return `${formatDays(value * 60)}秒`
@@ -367,7 +371,12 @@ function formatProjectLength(value: number | undefined): string {
 }
 
 function formatNonLiveProjectLabel(jobContext: JobContext): string {
-  if (jobContext.jobKind) return describeJobForEstimate(jobContext.jobKind, jobContext.projectLengthMinutes)
+  if (jobContext.jobKind === "cm-30s") return "Web CM 30秒"
+  if (jobContext.jobKind === "mv-5m") return "MV 5分"
+  if (jobContext.jobKind === "drama-first") return "ドラマ初回"
+  if (jobContext.jobKind === "feature-90m") return "本編90分"
+  if (jobContext.jobKind === "vertical-60s") return "縦型動画60秒"
+  if (jobContext.jobKind) return jobContext.jobKind
   if (jobContext.projectLengthMinutes !== undefined) return `今回の${formatProjectLength(jobContext.projectLengthMinutes)}案件`
   return "今回の案件"
 }

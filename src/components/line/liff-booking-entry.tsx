@@ -1,9 +1,11 @@
 "use client"
 
 import { History } from "lucide-react"
-import Link from "next/link"
+import {useLocale} from "next-intl"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { signIn } from "next-auth/react"
+import {Link} from "@/i18n/navigation"
+import {getLocalizedCopy} from "@/i18n/copy"
 
 import { BookingClientShell } from "@/components/booking/booking-client-shell"
 import type { CalendarBookingFromApi } from "@/lib/booking/server/calendar-free-busy/bookings-repository"
@@ -62,6 +64,8 @@ export function LiffBookingEntry({
   initialTentativeDateKeys = [],
   initialRange,
 }: LiffBookingEntryProps) {
+  const locale = useLocale() as "ja" | "en"
+  const copy = getLocalizedCopy(locale, "LineBooking")
   const [state, setState] = useState<LiffState>(
     LIFF_ID ? { status: "loading" } : { status: "skipped", reason: "missing_liff_id" },
   )
@@ -147,9 +151,9 @@ export function LiffBookingEntry({
       })
     ) {
       authStartedRef.current = true
-      void signIn("line", { callbackUrl: "/line/booking" })
+      void signIn("line", { callbackUrl: `/${locale}/line/booking` })
     }
-  }, [hpSession?.user?.id, hpSessionLoaded, state])
+  }, [hpSession?.user?.id, hpSessionLoaded, locale, state])
 
   return (
     <section className="mx-auto w-full max-w-[1440px] px-4 py-12 md:px-8 md:py-16 xl:px-12">
@@ -157,10 +161,10 @@ export function LiffBookingEntry({
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1
-              aria-label="LINE予約カレンダー"
+              aria-label={copy.calendarAria}
               className="text-4xl font-bold text-hp md:text-5xl xl:text-6xl"
             >
-              予約カレンダー
+              {copy.calendar}
             </h1>
             {state.status === "ready" && state.profile ? (
               <p className="mt-3 text-sm text-hp-muted">
@@ -173,27 +177,27 @@ export function LiffBookingEntry({
             className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
           >
             <History aria-hidden="true" size={18} />
-            <span>予約履歴</span>
+            <span>{copy.history}</span>
           </Link>
         </div>
 
         {state.status === "loading" ? (
           <div className="glass-inset mb-6 p-4 text-sm text-hp-muted" role="status">
-            LINE 連携を確認しています
+            {copy.checking}
           </div>
         ) : null}
         {state.status === "skipped" ? (
           <div className="glass-inset mb-6 p-4 text-sm text-hp-muted" role="status">
-            LINE LIFF ID が未設定のため、ローカル確認用の表示で開いています。
+            {copy.preview}
           </div>
         ) : null}
         {state.status === "error" ? (
           <div className="glass-inset mb-6 p-4 text-sm text-hp-muted" role="status">
-            LINE 連携を確認できませんでした。予約カレンダーは通常表示で続行できます。
+            {copy.error}
           </div>
         ) : null}
         <BookingClientShell
-          callbackUrl="/line/booking"
+          callbackUrl={`/${locale}/line/booking`}
           entryPoint="line_liff"
           isCalendarAdmin={isCalendarAdmin}
           initialSession={hpSession}

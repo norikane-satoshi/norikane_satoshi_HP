@@ -34,24 +34,13 @@ import {
   type HostedWorkerGenerateResponse,
 } from "@/lib/chatbot/hosted-worker/types"
 import {
-  assertNotionAiQuotaGateOpen,
-  clearNotionAiQuotaExhausted,
-  isNotionAiUsageLimitError,
-  isQuotaGateRefusal,
-  loadNotionAiQuotaState,
-  recordNotionAiQuotaExhausted,
-} from "@/lib/chatbot/hosted-worker/notion-ai-quota-gate"
-import {
   recordHostedWorkerGenerateFailure,
   recordHostedWorkerGenerateSuccess,
   type HostedWorkerRuntimeState,
   type HostedWorkerThreadRotationState,
 } from "@/lib/chatbot/hosted-worker/health"
 
-import type { HiddenThreadPool } from "./notion-ai-thread-pool"
-
 type GenerateOptions = {
-  threadPool?: HiddenThreadPool
   timeoutMs?: number
   now?: () => number
   clientFactory?: () => {
@@ -59,7 +48,6 @@ type GenerateOptions = {
   }
   signal?: AbortSignal
   diagnosticsPath?: string
-  quotaStatePath?: string
 }
 
 const defaultWorkerGenerateTimeoutMs = 72000
@@ -68,7 +56,6 @@ const abortTag = "request_aborted"
 const diagnosticsEventName = "hosted_worker_generate"
 const stateDir = path.join(homedir(), ".local", "state", "norikane_satoshi_hp")
 const defaultDiagnosticsPath = path.join(stateDir, "hosted-worker-generate.jsonl")
-const defaultQuotaStatePath = path.join(stateDir, "hosted-worker-notion-ai-quota.json")
 const stageTimingBoundary = "hosted-notion-ai-stage-timings"
 
 type HostedWorkerStageTimings = HostedNotionAiStageTimings & {
@@ -189,8 +176,6 @@ export async function generateHostedWorkerResponse(
     options.diagnosticsPath ??
     process.env.CHATBOT_HOSTED_WORKER_GENERATE_DIAGNOSTICS_PATH ??
     (process.env.NODE_ENV === "test" ? undefined : defaultDiagnosticsPath)
-  const quotaStatePath =
-    options.quotaStatePath ?? (process.env.NODE_ENV === "test" ? undefined : defaultQuotaStatePath)
   let queueWaitMs = 0
   let generateDurationMs = 0
   let outcome: "success" | "error" = "error"
@@ -248,8 +233,6 @@ export async function generateHostedWorkerResponse(
 
   try {
     throwIfAborted(options.signal)
-    await loadNotionAiQuotaState(state, quotaStatePath)
-    assertNotionAiQuotaGateOpen({ state, conversationId, nowMs: startedAt })
     const response = await queue.run(
       async (queueContext) => {
         queueWaitMs = queueContext.queueWaitMs
@@ -272,7 +255,6 @@ export async function generateHostedWorkerResponse(
                   ? { ok: true, durationMs: outcome.durationMs }
                   : { ok: false, stage: outcome.stage, detail: outcome.detail, durationMs: outcome.durationMs }
               },
-              options.threadPool,
             ),
             timeoutMs,
             timeoutTag,
@@ -294,7 +276,6 @@ export async function generateHostedWorkerResponse(
     )
     const latencyMs = (options.now?.() ?? Date.now()) - startedAt
     outcome = "success"
-    await clearNotionAiQuotaExhausted(state, quotaStatePath)
     recordHostedWorkerGenerateSuccess(state, {
       at: new Date(options.now?.() ?? Date.now()).toISOString(),
       latencyMs,
@@ -332,9 +313,6 @@ export async function generateHostedWorkerResponse(
       at: new Date(failureRecordedAt).toISOString(),
       latencyMs: failureRecordedAt - startedAt,
     })
-    if (isNotionAiUsageLimitError(normalized) && !isQuotaGateRefusal(normalized)) {
-      await recordNotionAiQuotaExhausted(state, new Date(failureRecordedAt).toISOString(), quotaStatePath)
-    }
     throw normalized
   } finally {
     if (diagnosticsPath) {
@@ -383,21 +361,11 @@ async function createHostedNotionAiResponse(
     lifecycle: NotionAiConversationThreadLifecycle
   }) => Promise<void>,
   onThreadRotationOutcome?: (outcome: HostedNotionAiThreadRotationOutcome) => void,
-  threadPool?: HiddenThreadPool,
 ): Promise<ChatbotLlmResponse> {
   const conversationId = requireConversationId(request.conversationId)
   if (clientFactory) return clientFactory().generate(request, { signal })
 
-  let conversationThread = await readNotionAiConversationThread(conversationId)
-  // Only persisted customer CUIDs may consume inventory; probes retain their own lifecycle.
-  if (!conversationThread && /^c[a-z0-9]{24}$/.test(conversationId)) {
-    const ready = await threadPool?.take()
-    if (ready) conversationThread = await writeNotionAiConversationThread({
-      conversationId, threadUrl: ready.threadUrl,
-      lifecycle: { visibilityStatus: "hidden", alive: false, deletedAt: ready.deletedAt,
-        hiddenFromChatList: true, hideVerificationResult: "verified" },
-    })
-  }
+  const conversationThread = await readNotionAiConversationThread(conversationId)
   const client = createHostedNotionAiBrowserClient({
       cdpBaseUrl: process.env.CHATBOT_HOSTED_WORKER_CDP_BASE_URL ?? hostedNotionAiBrowserDefaults.cdpBaseUrl,
       targetUrlIncludes: conversationThread?.threadUrl ?? resolveEffectiveNotionAiThreadUrl().threadUrl,

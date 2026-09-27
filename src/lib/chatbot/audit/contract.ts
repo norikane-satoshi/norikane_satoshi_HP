@@ -50,7 +50,6 @@ const conversationHashSchema = z.string().regex(/^[a-f0-9]{64}$/)
 const buildShaSchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9._-]+$/i)
 
 export const chatbotAuditTierSchema = z.enum([
-  "tier-0-deterministic-intake",
   "tier-1-hosted-chrome-notion-ai",
   "tier-2-gemini-flash",
   "tier-3-form-fallback",
@@ -151,16 +150,6 @@ export const chatbotAuditStageTimingsSchema = z
     networkRoundTrip: durationSchema.optional(),
     reactCommit: durationSchema.optional(),
     totalServer: durationSchema.optional(),
-    // Route-level time outside the message handler, and how long the instance had been up when
-    // it took its first request (present on that first request only, i.e. a cold start).
-    routeBodyParse: durationSchema.optional(),
-    routeAuth: durationSchema.optional(),
-    requestLoad: durationSchema.optional(),
-    requestClaim: durationSchema.optional(),
-    routePreHandler: durationSchema.optional(),
-    routePostHandler: durationSchema.optional(),
-    routeTotal: durationSchema.optional(),
-    instanceWarmup: durationSchema.optional(),
   })
   .strict()
 

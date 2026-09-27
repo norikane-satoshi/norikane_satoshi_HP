@@ -1,5 +1,3 @@
-import { chatbotDiagnosticSlackSkipErrorCode } from "@/lib/chatbot/diagnostic-slack-skip"
-
 const baseRequiredEvents = [
   "request_received",
   "response_normalized",
@@ -19,7 +17,6 @@ export type ChatbotAuditCompleteness = {
 type CompletenessEvent = {
   eventName: string
   result: string
-  errorCode?: string | null
   uiKind?: string | null
   tier?: string | null
   phase?: string | null
@@ -183,9 +180,6 @@ function isExpectedFallbackFailure(
   }
   if (event.eventName === "notion_thread_hidden_verified") {
     return finalTier !== "tier-1-hosted-chrome-notion-ai"
-  }
-  if (event.eventName === "slack_notification_completed") {
-    return event.errorCode === chatbotDiagnosticSlackSkipErrorCode
   }
   return false
 }

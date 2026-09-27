@@ -9,8 +9,8 @@ const featureFlags = vi.hoisted(() => ({
   isBookingEnabled: vi.fn(() => false),
 }))
 
-vi.mock("next/link", () => ({
-  default: ({
+vi.mock("@/i18n/navigation", () => ({
+  Link: ({
     href,
     className,
     onClick,
@@ -25,16 +25,28 @@ vi.mock("next/link", () => ({
       {children}
     </a>
   ),
+  usePathname: () => "/",
+}))
+
+vi.mock("next-intl", () => ({
+  useLocale: () => "ja",
+  useTranslations: () => (key: string) => ({
+    home: "ホーム",
+    notes: "ノート",
+    profile: "プロフィール",
+    booking: "予約カレンダー",
+    openMenu: "メニューを開く",
+    closeMenu: "メニューを閉じる",
+    language: "表示言語",
+    switchToJapanese: "日本語で表示",
+    switchToEnglish: "英語で表示",
+  }[key] ?? key),
 }))
 
 vi.mock("next/image", () => ({
   default: ({ alt, src, className }: { alt: string; src: string; className?: string }) => (
     <span aria-label={alt} className={className} data-src={src} />
   ),
-}))
-
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/",
 }))
 
 vi.mock("@/lib/feature-flags", () => ({
@@ -58,7 +70,7 @@ describe("NavHeader navigation", () => {
 
     const desktopItems = Array.from(
       container.querySelectorAll("ul.hidden.md\\:flex > li"),
-    )
+    ).filter((item) => item.querySelector("a"))
     expect(desktopItems.map((item) => item.textContent?.trim())).toEqual([
       "ホーム",
       "ノート",
@@ -74,7 +86,7 @@ describe("NavHeader navigation", () => {
 
     screen.getByRole("button", { name: "メニューを開く" }).click()
     const mobileMenu = Array.from(container.querySelectorAll("header ul")).at(-1)
-    const mobileItems = Array.from(mobileMenu?.querySelectorAll("li") ?? [])
+    const mobileItems = Array.from(mobileMenu?.querySelectorAll("li") ?? []).filter((item) => item.querySelector("a"))
     expect(mobileItems.map((item) => item.textContent?.trim())).toEqual([
       "ホーム",
       "ノート",
@@ -96,7 +108,7 @@ describe("NavHeader navigation", () => {
 
     const desktopItems = Array.from(
       container.querySelectorAll("ul.hidden.md\\:flex > li"),
-    )
+    ).filter((item) => item.querySelector("a"))
     expect(desktopItems.map((item) => item.textContent?.trim())).toEqual([
       "ホーム",
       "ノート",
@@ -107,7 +119,7 @@ describe("NavHeader navigation", () => {
 
     screen.getByRole("button", { name: "メニューを開く" }).click()
     const mobileMenu = Array.from(container.querySelectorAll("header ul")).at(-1)
-    const mobileItems = Array.from(mobileMenu?.querySelectorAll("li") ?? [])
+    const mobileItems = Array.from(mobileMenu?.querySelectorAll("li") ?? []).filter((item) => item.querySelector("a"))
     expect(mobileItems.map((item) => item.textContent?.trim())).toEqual([
       "ホーム",
       "ノート",

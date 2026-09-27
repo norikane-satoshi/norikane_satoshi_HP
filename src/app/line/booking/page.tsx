@@ -1,4 +1,5 @@
 import { auth } from "@/auth"
+import {getLocale} from "next-intl/server"
 import { BookingMonthSkeleton } from "@/components/booking/booking-month-skeleton"
 import { LiffBookingEntry } from "@/components/line/liff-booking-entry"
 import { isAdmin } from "@/lib/auth/server/is-admin"
@@ -57,6 +58,7 @@ async function loadInitialFreeBusy(input: {
 }
 
 export default async function LineBookingPage() {
+  const locale = await getLocale() as "ja" | "en"
   const now = new Date()
   const initialRange = initialBusyRange(now)
   const session = await auth()
@@ -84,6 +86,7 @@ export default async function LineBookingPage() {
           teamId={null}
           pending={!session?.user?.id}
           showAvailabilityStatusBlocks
+          locale={locale}
         />
       )}
     />

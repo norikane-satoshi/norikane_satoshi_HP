@@ -2,9 +2,7 @@ import {
   additionalWorkChoices,
   finalMediumChoices,
   formatConsultationSummary,
-  formatProjectLengthMinutes,
   hasRequiredEmailConsultationSlots,
-  jobKindChoices,
   projectLengthChoices,
   projectLengthChoicesForJobKind,
   surveyChoiceSets,
@@ -30,7 +28,6 @@ import {
   tier3FormFallbackCustomerText,
   formatUserChatbotContextForPrompt,
   getChatbotLlmOutputContractRejection,
-  getRejectedDisplayText,
   linkConversationToUser,
   loadOrCreateConversationBySessionId,
   loadUserChatbotContext,
@@ -59,11 +56,7 @@ import {
 } from "@/lib/chatbot/server/boundary-event-log"
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
-import { requiresStructuredUi } from "@/lib/chatbot/server/llm-client"
-import { chatbotSlackAuditErrorCode } from "@/lib/chatbot/server/diagnostic-request"
-import { formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import {
-  buildWorkflowPromptContext,
   resolveWorkflowDurationContext,
   type DurationTraceContext,
 } from "@/lib/chatbot/server/duration-context"
@@ -104,7 +97,6 @@ import {
 } from "@/lib/chatbot/server/material-handoff"
 import { redactForChatbotLog } from "@/lib/chatbot/server/log-redaction"
 import { buildSingleUserPromptGuardContent } from "@/lib/chatbot/server/prompt-guard-copy"
-import { interpretChoiceWithJev, type ChatbotChoiceInterpreter } from "@/lib/chatbot/server/choice-interpreter"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
 import {
   buildChatbotSlackDeliveryEvidence,
@@ -173,10 +165,7 @@ export type ChatbotMessageApiResult = {
 }
 
 export type ChatbotMessageHandlerResult = ChatbotMessageApiResult & {
-  auditEvidence: Omit<ChatbotMessageAuditEvidence, "slack"> & {
-    // Still pending when the Slack post was left to finish after the response.
-    slack: ChatbotMessageAuditEvidence["slack"] | Promise<ChatbotMessageAuditEvidence["slack"]>
-  }
+  auditEvidence: ChatbotMessageAuditEvidence
 }
 
 export type ChatbotMessageFinalizationInput = {
@@ -242,11 +231,7 @@ type HandleChatbotMessageOptions = {
     content: string
   }) => Promise<ChatbotMessage>
   finalizeMessage?: (input: ChatbotMessageFinalizationInput) => Promise<void>
-  choiceInterpreter?: ChatbotChoiceInterpreter
   now?: () => number
-  // Post to an existing Slack thread without holding the response; the caller must keep the
-  // returned auditEvidence.slack promise alive (e.g. with next/server after()).
-  deferSlackNotification?: boolean
 }
 
 export class ChatbotMessagePersistenceError extends Error {
@@ -432,45 +417,12 @@ export async function handleChatbotMessage(
       edit: editSlackEvent,
     })
   }
-  // The widget shows the job-kind panel before the first message, so a first message that is a
-  // panel submission answers that panel even though no assistant message was stored yet.
-  const isOpeningPanelAnswer =
-    conversation.messages.length === 0 &&
-    !conversation.context.activeChoices &&
-    isExplicitChoiceSubmission(input.message) &&
-    applyActiveChoiceAnswer({ activeChoices: jobKindChoices, message: input.message }) !== null
-  const activeChoices =
-    contextualizeStoredActiveChoices(conversation) ?? (isOpeningPanelAnswer ? jobKindChoices : undefined)
-  const activeIntakeClarification = conversation.context.conversationState?.activeIntakeClarification
-  let activeChoiceAnswer = applyActiveChoiceAnswer({
+  const activeChoices = contextualizeStoredActiveChoices(conversation)
+  const activeChoiceAnswer = applyActiveChoiceAnswer({
     activeChoices,
     message: input.message,
-    activeIntakeClarification,
+    activeIntakeClarification: conversation.context.conversationState?.activeIntakeClarification,
   })
-  if (
-    activeChoices &&
-    !isConfirmedChoiceAnswer(activeChoiceAnswer) &&
-    !isExplicitChoiceSubmission(input.message) &&
-    !looksLikeCustomerQuestion(input.message)
-  ) {
-    const interpreted = await (options.choiceInterpreter ?? interpretChoiceWithJev)({
-      requestId: input.requestId,
-      choiceSet: activeChoices,
-      message: input.message,
-    })
-    const labels = interpreted?.choiceIds.flatMap((choiceId) => {
-      const label = activeChoices.choices.find((choice) => choice.id === choiceId)?.label
-      return label ? [label] : []
-    })
-    if (labels && labels.length > 0) {
-      const interpretedAnswer = applyActiveChoiceAnswer({
-        activeChoices,
-        message: `選択: ${labels.join("、")}`,
-        activeIntakeClarification,
-      })
-      if (isConfirmedChoiceAnswer(interpretedAnswer)) activeChoiceAnswer = interpretedAnswer
-    }
-  }
   const userContext = input.userId
     ? await userContextLoader({
         userId: input.userId,
@@ -527,10 +479,7 @@ export async function handleChatbotMessage(
     userContext,
     userContextFormatter,
     knowledgeSnapshot,
-    buildWorkflowPromptContext(jobContext, {
-      finalMedium: conversationState.hasFinalMedium,
-      workSite: conversationState.hasWorkSite,
-    }),
+    durationContext.promptContext,
     noteAccess,
     submittedBooking ? buildSubmittedBookingPromptContext(submittedBooking) : undefined,
     [...conversation.messages, userMessage]
@@ -554,27 +503,14 @@ export async function handleChatbotMessage(
       latestUserMessage: input.message,
       userAgent: input.userAgent,
     }, recordTierAttempt)
-  const codeRoutingDecision = decideRoutingFallback({
+  const fallbackRoutingDecision = decideRoutingFallback({
     jobContext,
     conversationState,
     latestUserMessage: input.message,
     knowledgeSnapshot,
   })
   stageTimings.contextPreparation = elapsedMs(contextPreparationStartedAt, now())
-  const deterministicReply = decideDeterministicIntakeReply({
-    fallbackRoutingDecision: codeRoutingDecision,
-    activeChoiceAnswer,
-    previousAssistantMessage: previousAssistantMessage ?? (isOpeningPanelAnswer ? jobKindChoices.question : undefined),
-    latestUserMessage: input.message,
-    noteAccess,
-    hasSubmittedBooking: Boolean(submittedBooking),
-  })
-  const fallbackRoutingDecision = deterministicReply
-    ? codeRoutingDecision
-    : withoutFreeTextIntakePanel(codeRoutingDecision)
-  const llmResponse = deterministicReply
-    ? createDeterministicIntakeResponse(deterministicReply, recordTierAttempt)
-    : await generateContractedLlmResponse({
+  const llmResponse = await generateContractedLlmResponse({
     orchestrator,
     request: {
       requestId: input.requestId,
@@ -586,11 +522,8 @@ export async function handleChatbotMessage(
       latestUserMessage: input.message,
       temperature: 0.2,
       maxOutputTokens: 900,
-      structuredUiFromCode:
-        fallbackRoutingDecision.kind === "continue" && Boolean(fallbackRoutingDecision.presentChoices),
     },
     fallbackRoutingDecision,
-    keepCustomerAnswer: looksLikeCustomerQuestion(input.message),
   })
   recordStructuredUiRepairAuditEvidence(tierAttempts, llmResponse)
   const responseNormalizationStartedAt = now()
@@ -609,17 +542,9 @@ export async function handleChatbotMessage(
         candidateWindowFinder,
         knowledgeSnapshot,
       })
-  // A question typed while a panel is pending keeps that panel on screen under the answer.
-  const isQuestionAtPendingPanel =
-    Boolean(activeChoices) &&
-    looksLikeCustomerQuestion(input.message) &&
-    fallbackRoutingDecision.kind === "continue" &&
-    Boolean(fallbackRoutingDecision.presentChoices)
   const rawRoutingDecision =
     resolvedRoutingDecision ??
-    (deterministicReply ||
-    isQuestionAtPendingPanel ||
-    activeChoiceAnswer ||
+    (activeChoiceAnswer ||
     isLectureTrainingInquiry(conversationState) ||
     shouldUseFallbackRouting({
       fallbackRoutingDecision,
@@ -654,9 +579,7 @@ export async function handleChatbotMessage(
     latestUserMessage: input.message,
     assistantText: llmResponse.rawText,
   })
-  const routingDecision = deterministicReply
-    ? flowPolicy.routingDecision
-    : withoutFreeTextIntakePanel(flowPolicy.routingDecision)
+  const routingDecision = flowPolicy.routingDecision
   const persistedConversationState = flowPolicy.conversationState
   logChatbotBookingReadinessBoundary({
     requestId: input.requestId,
@@ -685,11 +608,6 @@ export async function handleChatbotMessage(
     latestUserMessage: input.message,
     conversationState: persistedConversationState,
     submittedBooking,
-    customerQuestionAnswered:
-      looksLikeCustomerQuestion(input.message) &&
-      llmResponse.tier !== chatbotLlmTierIds.tier0DeterministicIntake &&
-      llmResponse.tier !== chatbotLlmTierIds.tier3FormFallback &&
-      (llmResponse.diagnostics?.contractFallback !== true || llmResponse.diagnostics?.customerAnswerKept === true),
   })
   const assistantContent = assistantDisplay.content
   logChatbotDurationTrace({
@@ -834,7 +752,7 @@ export async function handleChatbotMessage(
   stageTimings.conversationPersist = conversationPersistMs
   const slackNotificationStartedAt = now()
   if (!options.finalizeMessage) await assertRequestOwnership()
-  const slackNotification = notifySlackForChatbotResponse({
+  const slack = await notifySlackForChatbotResponse({
     notifier: slackNotifier,
     repository,
     requestId: input.requestId,
@@ -856,14 +774,8 @@ export async function handleChatbotMessage(
     retryDiagnostics,
     pendingRecovery: isPendingRequestRecovery,
     pendingRequestKind: input.pendingRequestKind,
-  }).then((result) => {
-    stageTimings.slackNotification = elapsedMs(slackNotificationStartedAt, now())
-    return result
   })
-  // The first post opens the thread later posts reply to, so only a threaded post may run on after the response.
-  const slack = options.deferSlackNotification && conversation.context.slackThreadTs
-    ? slackNotification
-    : await slackNotification
+  stageTimings.slackNotification = elapsedMs(slackNotificationStartedAt, now())
   stageTimings.tierHealthCheck = sumAttemptDurations(tierAttempts, "health-check")
   const tier1WorkerTimings = tierAttempts.find(
     (attempt) => attempt.phase === "generate" && attempt.tier === "tier-1-hosted-chrome-notion-ai" && attempt.stageTimings,
@@ -1344,7 +1256,7 @@ async function notifySlackForChatbotResponse(input: {
       ? { result: "success", deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries) }
       : {
           result: "failure",
-          errorCode: chatbotSlackAuditErrorCode(result),
+          errorCode: `slack-${result.status}`,
           deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries),
         }
     const savedThreadTs = threadTs ?? (result.status === "sent" ? result.ts : null)
@@ -1380,7 +1292,7 @@ async function notifySlackForChatbotResponse(input: {
       }, issueResult))
       auditResult.deliveryEvidence = buildChatbotSlackDeliveryEvidence(deliveries)
       if (issueResult.status !== "sent") {
-        auditResult = { result: "failure", errorCode: chatbotSlackAuditErrorCode(issueResult) }
+        auditResult = { result: "failure", errorCode: `slack-${issueResult.status}` }
       }
     }
     return auditResult
@@ -1507,9 +1419,7 @@ function applyEmptyReferenceUrlAnswer(input: {
 }): ConversationState {
   if (input.conversationState.hasReferenceUrls) return input.conversationState
   if (!isReferenceUrlQuestion(input.previousAssistantMessage)) return input.conversationState
-  if (!isNoAdditionalBookingConcern(input.latestUserMessage) && !/https?:\/\/\S+/u.test(input.latestUserMessage)) {
-    return input.conversationState
-  }
+  if (!isNoAdditionalBookingConcern(input.latestUserMessage)) return input.conversationState
 
   return {
     ...input.conversationState,
@@ -2022,50 +1932,10 @@ async function generateContractedLlmResponse(input: {
   orchestrator: ChatbotLlmTierOrchestrator
   request: ChatbotLlmRequest
   fallbackRoutingDecision: RoutingDecision
-  keepCustomerAnswer: boolean
 }): Promise<ChatbotLlmResponse> {
-  // A reply to the customer's question stays; only the missing panel is regenerated by code.
-  const withPanelFromCode = (
-    tier: ChatbotLlmResponse["tier"],
-    replyText: string | undefined,
-    rejection: NonNullable<ReturnType<typeof getChatbotLlmOutputContractRejection>>,
-  ) => {
-    const keptAnswer = input.keepCustomerAnswer ? replyText : undefined
-    const rawText = customerReplyMarkup(
-      keptAnswer ??
-        (input.fallbackRoutingDecision.kind === "continue"
-          ? input.fallbackRoutingDecision.nextQuestion
-          : "内容を確認しました。次に必要な情報を1つずつ確認します。"),
-    )
-    return createChatbotLlmResponse({
-      rawText,
-      tier,
-      diagnostics: {
-        contractFallback: true,
-        outputContractRejection: rejection,
-        ...(keptAnswer ? { customerAnswerKept: true } : {}),
-      },
-    })
-  }
   try {
     const response = await input.orchestrator.generate(input.request)
-    assertChatbotLlmResponseContract(response, undefined, {
-      structuredUiFromCode: input.request.structuredUiFromCode,
-    })
-    // Expected when the server shows its own panel: handled like the rejection below, minus the failure.
-    if (
-      input.request.structuredUiFromCode &&
-      requiresStructuredUi(response.tier) &&
-      response.displayEnvelope.uiPayload.kind === "none"
-    ) {
-      const envelope = response.displayEnvelope
-      const replyText = envelope.defaultDenied ? undefined : envelope.displayText.trim() || undefined
-      return withPanelFromCode(response.tier, replyText, {
-        boundary: "llm-output-contract",
-        decision: "reject-and-regenerate-structured-ui",
-        reason: "missing-structured-ui",
-      })
-    }
+    assertChatbotLlmResponseContract(response)
     return response
   } catch (error) {
     if (!isChatbotLlmResponseContractError(error)) throw error
@@ -2076,7 +1946,19 @@ async function generateContractedLlmResponse(input: {
         tier: error.tier,
         rejection,
       })
-      return withPanelFromCode(error.tier, getRejectedDisplayText(error), rejection)
+      const rawText = customerReplyMarkup(
+        input.fallbackRoutingDecision.kind === "continue"
+          ? input.fallbackRoutingDecision.nextQuestion
+          : "内容を確認しました。次に必要な情報を1つずつ確認します。",
+      )
+      return createChatbotLlmResponse({
+        rawText,
+        tier: error.tier,
+        diagnostics: {
+          contractFallback: true,
+          outputContractRejection: rejection,
+        },
+      })
     }
     // Tier 3 renders the inquiry form, so the reply has to describe the form rather than repeat
     // the routing question, which asked customers to choose from options that never appeared.
@@ -2090,99 +1972,6 @@ async function generateContractedLlmResponse(input: {
       },
     })
   }
-}
-
-const freeTextIntakePanelIds = new Set(["material-contents", "material-timing", "material-handoff-method", "reference-urls"])
-
-/**
- * The material and reference-URL intake items were free-text questions before they became panels.
- * Their panels are shown on Tier 0 replies. When a model answers the turn (the customer asked
- * something or wrote free text), keep the earlier plain-question behavior, because a panel
- * display would replace the model's answer; the item is still read from the next free-text reply.
- */
-function withoutFreeTextIntakePanel<T extends RoutingDecision | undefined>(decision: T): T {
-  if (!decision || decision.kind !== "continue" || !decision.presentChoices) return decision
-  if (!freeTextIntakePanelIds.has(decision.presentChoices.id)) return decision
-  return { kind: "continue", nextQuestion: decision.nextQuestion } as T
-}
-
-type DeterministicIntakeReply = {
-  nextQuestion: string
-  reason: "choice-answer" | "intake-answer" | "choice-clarification"
-}
-
-/**
- * Tier 0: when the customer's message was fully consumed by code (a confirmed choice-panel answer,
- * or a required free-text intake answer that advanced the state) and the next step is a fixed
- * intake question, the reply is authored by code and no model is called. Anything that may need
- * a model's judgment (first message, questions, knowledge lookups, protective branches, booked
- * follow-ups, clarifications) keeps the normal tier path.
- */
-function decideDeterministicIntakeReply(input: {
-  fallbackRoutingDecision: RoutingDecision
-  activeChoiceAnswer: ReturnType<typeof applyActiveChoiceAnswer>
-  previousAssistantMessage: string | undefined
-  latestUserMessage: string
-  noteAccess: CustomerFacingNoteAccess
-  hasSubmittedBooking: boolean
-}): DeterministicIntakeReply | undefined {
-  const fallback = input.fallbackRoutingDecision
-  if (!input.previousAssistantMessage || input.hasSubmittedBooking) return undefined
-  if (input.noteAccess.kind !== "none" || looksLikeCustomerQuestion(input.latestUserMessage)) return undefined
-  if (fallback.kind === "to-email") {
-    // The summary form copy replaces any model text, so a panel answer that lands here needs no model.
-    return isConfirmedChoiceAnswer(input.activeChoiceAnswer)
-      ? { nextQuestion: "下のフォームで相談内容を確認して送信してください。", reason: "choice-answer" }
-      : undefined
-  }
-  if (fallback.kind !== "continue" || !fallback.nextQuestion.trim()) return undefined
-
-  // A panel submission that needs one more detail (for example その他) is answered with the code's
-  // clarification question and panel; a model reply to it was discarded by the display guard.
-  const clarification = input.activeChoiceAnswer?.conversationState.activeIntakeClarification
-  if (clarification?.status === "needs-clarification" && isExplicitChoiceSubmission(input.latestUserMessage)) {
-    return { nextQuestion: clarification.question, reason: "choice-clarification" }
-  }
-
-  if (isConfirmedChoiceAnswer(input.activeChoiceAnswer)) {
-    return { nextQuestion: fallback.nextQuestion, reason: "choice-answer" }
-  }
-  if (
-    isRequiredIntakeQuestion(input.previousAssistantMessage) &&
-    !input.previousAssistantMessage.includes(fallback.nextQuestion)
-  ) {
-    return { nextQuestion: fallback.nextQuestion, reason: "intake-answer" }
-  }
-  return undefined
-}
-
-function createDeterministicIntakeResponse(
-  reply: DeterministicIntakeReply,
-  onTierAttempt: (event: TierAttemptEvent) => void,
-): ChatbotLlmResponse {
-  onTierAttempt({
-    tier: chatbotLlmTierIds.tier0DeterministicIntake,
-    phase: "generate",
-    outcome: "success",
-    latencyMs: 0,
-  })
-  return createChatbotLlmResponse({
-    rawText: customerReplyMarkup(reply.nextQuestion),
-    tier: chatbotLlmTierIds.tier0DeterministicIntake,
-    diagnostics: { deterministicIntakeReason: reply.reason },
-  })
-}
-
-function isConfirmedChoiceAnswer(patch: ReturnType<typeof applyActiveChoiceAnswer>): boolean {
-  return Boolean(patch?.choiceIds.length) && patch?.conversationState.activeIntakeClarification?.status !== "needs-clarification"
-}
-
-function isExplicitChoiceSubmission(message: string): boolean {
-  return /^\s*選択\s*[:：]/u.test(message)
-}
-
-function looksLikeCustomerQuestion(message: string): boolean {
-  return /[?？]/u.test(message) || isDurationAnswerRequest(message)
 }
 
 function shouldRegenerateStructuredUi(response: ChatbotLlmResponse): boolean {
@@ -2256,7 +2045,6 @@ function buildChatbotSystemPrompt(
     "Booking Orderへ進む前に、何の素材を、いつ、どういう方法で受け渡すかを1項目ずつ確認します。SSD / HDDの郵送・バイク便・手渡し、アップローダー、ProRes、撮影素材の使用クリップなど、ユーザーの回答を要約で潰さず保持します。",
     "現在確認している1項目について、会話文脈、選択済み項目、自由入力、未確認項目から次へ進めるほど明確かを判断します。疑問が残る場合は同じ項目について確認を1問だけ返し、十分明確なら過剰確認せず次へ進みます。",
     "明確でないが未定として扱える回答は未定として保持し、後段の相談、最終確認、予約可否判断で扱います。",
-    "選択肢パネルの回答待ちの間に質問された場合は、その質問に答えるだけにし、答えの最後に聞き返しや追加の質問を付けません。次の確認は選択肢パネルが担います。",
     "勝手に予約確定、料金判断、実施可否判断、本人判断が必要な確約はしません。",
     "回答範囲は新規案件の調整、要件整理、予約導線に限定し、技術指導、作品レビュー、標準外要望は担当者確認へ誘導します。",
     "ただし講演会、講習会、セミナー、講師依頼、研修、ワークショップは新規依頼種別として扱い、通常の制作案件に寄せません。",
@@ -2328,7 +2116,7 @@ function isCustomerFacingNoteQuestion(message: string): boolean {
 
 function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnapshot, noteKnowledgeContext: string): string {
   const durationLines = getWorkflowDurationPresetsFromSnapshot(snapshot).map(
-    (preset) => `- ${preset.label}: ${formatDayRange(preset.minDays, preset.maxDays)}`,
+    (preset) => `- ${preset.label}: ${preset.minDays}〜${preset.maxDays}日`,
   )
   const noteLines = selectCustomerFacingNoteKnowledge(snapshot, noteKnowledgeContext).flatMap((entry) => [
     `- ${entry.status}${entry.pageTitle ? ` / ${entry.pageTitle}` : ""}${entry.status === "published" && entry.slug ? ` / 公開URL: https://norikane.studio/notes/${entry.slug}` : ""}:`,
@@ -2350,15 +2138,6 @@ function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnap
   ].join("\n")
 }
 
-const closingRequestPattern =
-  /(?:[？?]|(?:教えて|お聞かせ|お知らせ|ご教示|ご共有)(?:ください|くださいませ|いただけますか|いただけますでしょうか)|でしょうか|ませんか)[。．]?$/
-
-function withoutClosingCounterQuestion(content: string): string {
-  const sentences = content.trim().split(/(?<=[。．！!？?\n])/)
-  while (sentences.length > 0 && closingRequestPattern.test(sentences[sentences.length - 1].trim())) sentences.pop()
-  return sentences.join("").trim()
-}
-
 function buildAssistantDisplayContent(input: {
   requestId?: string
   rawText: string
@@ -2370,7 +2149,6 @@ function buildAssistantDisplayContent(input: {
   latestUserMessage: string
   conversationState: ConversationState
   submittedBooking?: NonNullable<ConversationState["bookingSubmission"]>
-  customerQuestionAnswered?: boolean
 }): {
   content: string
   sanitizationReport: ChatbotLlmSanitizationReport
@@ -2410,29 +2188,6 @@ function buildAssistantDisplayContent(input: {
   ) => ({ ...result, singleUserPromptGuard: report })
 
   if (guardedContent) {
-    const guardReport = {
-      applied: true as const,
-      reason: guardedContent.reason,
-      uiKind: input.uiKind,
-      ...(guardedContent.choiceSetId ? { choiceSetId: guardedContent.choiceSetId } : {}),
-    }
-    // The customer asked something while a panel was pending: show the answer, then the panel prompt.
-    const answerText = (explicitDisplayText ?? toolFreeText).trim()
-    if (guardedContent.reason === "choice-panel" && input.customerQuestionAnswered && answerText) {
-      // The raw text carries the model's own customer-reply boundary, so it is checked like any reply.
-      const answer = sanitize(text)
-      // The panel prompt below is the one ask; a closing question of the model's own would be a second.
-      const answerContent = withoutClosingCounterQuestion(answer.content)
-      const panelPrompt = sanitize(guardedContent.content, true)
-      const pendingQuestion =
-        input.routingDecision?.kind === "continue" ? input.routingDecision.nextQuestion.trim() : ""
-      if (answerContent && (!pendingQuestion || !answerContent.includes(pendingQuestion))) {
-        return withGuardReport(
-          { content: `${answerContent}\n\n${panelPrompt.content}`, sanitizationReport: answer.sanitizationReport },
-          guardReport,
-        )
-      }
-    }
     return withGuardReport(sanitize(guardedContent.content, true), {
       applied: true,
       reason: guardedContent.reason,
@@ -3688,7 +3443,11 @@ function buildInquiryFormPrefill(
 }
 
 function formatInquiryDuration(minutes: number): string {
-  return formatProjectLengthMinutes(minutes)
+  if (minutes >= 60) {
+    const hours = minutes / 60
+    return Number.isInteger(hours) ? `${hours}時間` : `${hours.toFixed(1).replace(/\.0$/u, "")}時間`
+  }
+  return `${minutes}分`
 }
 
 function normalizeBookingProjectTitle(value: string | undefined, jobContext: JobContext): string | undefined {

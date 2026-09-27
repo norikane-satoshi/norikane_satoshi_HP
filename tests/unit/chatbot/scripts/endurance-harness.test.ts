@@ -150,23 +150,4 @@ describe("chatbot endurance harness", () => {
     expect(serialized).not.toContain("messageId")
     expect(serialized).not.toContain("messageContent")
   })
-
-  it("accepts a check run whose Slack posts were deliberately skipped, and nothing else in their place", () => {
-    const skipped = passingInput()
-    skipped.auditEvents = skipped.auditEvents.map((event) =>
-      event.eventName === "slack_notification_completed"
-        ? { ...event, result: "failure", errorCode: "slack-skipped-diagnostic" }
-        : event,
-    )
-    expect(evaluateEnduranceRun(skipped).ok).toBe(true)
-
-    const outage = passingInput()
-    outage.auditEvents = outage.auditEvents.map((event) =>
-      event.eventName === "slack_notification_completed"
-        ? { ...event, result: "failure", errorCode: "slack-failed" }
-        : event,
-    )
-    expect(evaluateEnduranceRun(outage).ok).toBe(false)
-  })
 })
-

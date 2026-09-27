@@ -4,9 +4,11 @@ import "@testing-library/jest-dom/vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { PRESS_CATEGORIES, PressDialog } from "@/components/hp/press-section"
+
+vi.mock("next-intl", () => ({useLocale: () => "ja"}))
 
 describe("PressSection", () => {
   afterEach(() => {
