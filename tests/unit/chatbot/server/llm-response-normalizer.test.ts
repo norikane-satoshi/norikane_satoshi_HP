@@ -530,7 +530,7 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(normalized.content).toContain("費用は17〜20万円")
     expect(normalized.content).toContain("日程は7/17〜7/20")
     expect(normalized.content).toContain("2〜3名体制")
-    expect(normalized.content).toContain("工程目安は1〜2日")
+    expect(normalized.content).toContain("工程目安は1日")
     expect(normalized.content).not.toContain("工程目安は17〜20日")
   })
 })

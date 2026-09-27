@@ -49,7 +49,7 @@ describe("chatbot duration estimator", () => {
     const result = estimateWorkflow(jobContext({ projectLengthMinutes: 0.5 }))
 
     expect(result.totalMinDays).toBe(1)
-    expect(result.totalMaxDays).toBe(2)
+    expect(result.totalMaxDays).toBe(1)
     expect(result.riskFlags).toEqual([])
   })
 
@@ -64,8 +64,8 @@ describe("chatbot duration estimator", () => {
       }),
     )
 
-    expect(result.totalMinDays).toBeCloseTo(3.428571428571429)
-    expect(result.totalMaxDays).toBeCloseTo(3.928571428571429)
+    expect(result.totalMinDays).toBeCloseTo(2.428571428571429)
+    expect(result.totalMaxDays).toBeCloseTo(2.928571428571429)
     expect(result.stages[0]?.note).toBe("案件ごと上乗せ議論")
   })
 
@@ -80,8 +80,8 @@ describe("chatbot duration estimator", () => {
       }),
     )
 
-    expect(result.totalMinDays).toBeCloseTo(13.857142857142858)
-    expect(result.totalMaxDays).toBeCloseTo(14.857142857142858)
+    expect(result.totalMinDays).toBeCloseTo(9.857142857142858)
+    expect(result.totalMaxDays).toBeCloseTo(11.857142857142858)
     expect(result.riskFlags).toContain("strict-delivery")
   })
 
@@ -144,5 +144,53 @@ describe("chatbot duration estimator", () => {
 
     expect(result.totalMinDays).toBe(6.5)
     expect(result.totalMaxDays).toBe(7.5)
+  })
+
+  it.each([
+    [90, 6, 8, undefined],
+    [135, 7.5, 9.5, "90分/180分アンカー間の緩やかな目安"],
+    [180, 8, 10, undefined],
+    [240, 8, 10.5, "3時間超は素材量・チェック体制の確認優先"],
+    [60, 6, 8, "尺が基準と異なるため要相談"],
+  ])("grows a feature's days with its length from the 90-minute and 3-hour lines: %s min", (minutes, min, max, note) => {
+    const result = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: minutes }))
+
+    expect([result.totalMinDays, result.totalMaxDays]).toEqual([min, max])
+    expect(result.stages[0]?.note).toBe(note)
+    expect(result.estimateStatus).toBe("authoritative")
+  })
+
+  it.each([
+    ["drama-first", 5, 1, 2, "短尺ドラマ（1話あたり）の目安"],
+    ["drama-follow-up", 14, 1, 2, "短尺ドラマ（1話あたり）の目安"],
+    ["drama-first", 45, 6, 7, undefined],
+    ["drama-follow-up", 50, 5, 5, undefined],
+    ["drama-first", undefined, 6, 7, undefined],
+    ["drama-first", 30, 6, 7, "尺が基準（1話45〜50分）と異なるため要相談"],
+  ] as const)("estimates a %s episode of %s min from its length", (jobKind, minutes, min, max, note) => {
+    const result = estimateWorkflow(jobContext({ jobKind, projectLengthMinutes: minutes }))
+
+    expect([result.totalMinDays, result.totalMaxDays]).toEqual([min, max])
+    expect(result.stages[0]?.note).toBe(note)
+  })
+
+  it("uses the synced lines, and the built-in line for one an older snapshot lacks", () => {
+    const presets = [
+      { id: "feature-90m", label: "本編 90分", minDays: 7, maxDays: 9, source: "notion-sync" as const },
+    ]
+    const knowledgeSnapshot = {
+      version: 1 as const,
+      manifestPageId: "manifest",
+      syncedAt: "2026-09-27T00:00:00.000Z",
+      entries: [],
+      workflowDurations: { presets },
+      noteKnowledge: [],
+    }
+
+    const at90 = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90 }), { knowledgeSnapshot })
+    const at180 = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: 180 }), { knowledgeSnapshot })
+
+    expect([at90.totalMinDays, at90.totalMaxDays]).toEqual([7, 9])
+    expect([at180.totalMinDays, at180.totalMaxDays]).toEqual([8, 10])
   })
 })

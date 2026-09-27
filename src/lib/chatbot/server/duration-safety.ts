@@ -1,6 +1,6 @@
 import type { JobContext, RoutingDecision, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
-import { describeJobForEstimate } from "@/lib/chatbot/knowledge/workflow-duration"
+import { describeJobForEstimate, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 
 export type ChatbotDurationSafetyReport = {
   workflowEstimate?: {
@@ -53,7 +53,7 @@ export function evaluateWorkflowDurationSafety(
   }
 
   const nonLiveAlignedText = alignNonLiveLiveMismatchText(rawText, estimate, report, jobContext)
-  const expected = `${formatDays(estimate.totalMinDays)}〜${formatDays(estimate.totalMaxDays)}日`
+  const expected = formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)
   const alignedText = nonLiveAlignedText.replace(workflowRangePattern, (match, prefix: string, rawRange: string) => {
     if (isLikelyCalendarDateRange(rawRange)) return match
 
@@ -355,11 +355,6 @@ function resolveWorkflowEstimateJobContext(
 
 function formatDays(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
-}
-
-function formatDayRange(minDays: number, maxDays: number): string {
-  if (minDays === maxDays) return `${formatDays(minDays)}日`
-  return `${formatDays(minDays)}〜${formatDays(maxDays)}日`
 }
 
 function formatProjectLength(value: number | undefined): string {

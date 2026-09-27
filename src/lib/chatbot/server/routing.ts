@@ -14,6 +14,7 @@ import {
   referenceUrlChoices,
 } from "@/lib/chatbot/domain"
 import {
+  formatDayRange,
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
@@ -104,15 +105,12 @@ function directContact(
 function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["workflowEstimate"]): string {
   const baseline =
     workflowEstimate?.estimateStatus === "needs-confirmation"
-      ? `ライブ150分超の暫定上限目安は${formatDays(
+      ? `ライブ150分超の暫定上限目安は${formatDayRange(
           workflowEstimate.referenceMinDays ?? workflowEstimate.totalMinDays,
-        )}〜${formatDays(
           workflowEstimate.referenceMaxDays ?? workflowEstimate.totalMaxDays,
-        )}日です。素材量・カメラ数・ぼかし箇所・チェック体制を確認して判断します。`
+        )}です。素材量・カメラ数・ぼかし箇所・チェック体制を確認して判断します。`
       : workflowEstimate
-        ? `通常は正本ライン ${formatDays(workflowEstimate.totalMinDays)}〜${formatDays(
-            workflowEstimate.totalMaxDays,
-          )}日が目安です。`
+        ? `通常は正本ライン ${formatDayRange(workflowEstimate.totalMinDays, workflowEstimate.totalMaxDays)}が目安です。`
         : "通常の正本ラインを目安にします。"
 
   return [
@@ -121,10 +119,6 @@ function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["wor
     "ただし、この場では確約せず、空き状況・内容確認・本人確認後に判断します。",
     "送信前に整理内容を確認して、ご連絡先のメールアドレスを必ず添えてください。",
   ].join("")
-}
-
-function formatDays(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
 }
 
 function continueDecision(input: {

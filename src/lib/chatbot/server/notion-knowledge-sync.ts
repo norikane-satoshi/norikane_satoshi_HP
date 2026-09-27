@@ -521,10 +521,13 @@ const workflowDurationRowNames: ReadonlyArray<[WorkflowDurationPreset["id"], Reg
   ["cm-30s", /CM\s*30秒/],
   ["mv-5m", /MV\s*5分/],
   ["feature-90m", /本編\s*90分/],
+  ["feature-180m", /本編\s*(?:3時間|180分)/],
+  ["drama-short", /短尺ドラマ|ドラマ.*短尺/],
   ["drama-first", /ドラマ.*初回/],
   ["drama-follow-up", /ドラマ.*2話/],
   ["vertical-60s", /縦型.*60秒/],
   ["live-60m", /ライブ\s*60分/],
+  ["live-150m", /ライブ\s*150分/],
 ]
 
 function matchWorkflowDurationPresetId(kindText: string): WorkflowDurationPreset["id"] | undefined {
