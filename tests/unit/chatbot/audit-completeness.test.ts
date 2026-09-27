@@ -392,4 +392,22 @@ describe("chatbot audit completeness", () => {
     expect(result.status).toBe("failed")
     expect(result.integrityViolations).toContain("booking-slack-evidence-missing")
   })
+
+  it("does not count a check conversation's deliberately skipped Slack post as a failure", () => {
+    const events = (errorCode: string) => [
+      event("request_received"),
+      event("tier_attempt_completed", "success", { tier: "tier-2-gemini-flash", phase: "generate" }),
+      event("response_normalized", "success", {
+        tier: "tier-2-gemini-flash",
+        uiKind: "none",
+        finalTierConsistent: true,
+        tierSequenceValid: true,
+      }),
+      event("conversation_persisted"),
+      event("slack_notification_completed", "failure", { errorCode }),
+    ]
+
+    expect(evaluateChatbotAuditCompleteness(events("slack-skipped-diagnostic")).failedEvents).toEqual([])
+    expect(evaluateChatbotAuditCompleteness(events("slack-skipped")).failedEvents).toEqual(["slack_notification_completed"])
+  })
 })

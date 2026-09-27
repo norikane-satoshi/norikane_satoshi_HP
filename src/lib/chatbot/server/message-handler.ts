@@ -60,6 +60,7 @@ import {
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import { requiresStructuredUi } from "@/lib/chatbot/server/llm-client"
+import { chatbotSlackAuditErrorCode } from "@/lib/chatbot/server/diagnostic-request"
 import { formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import {
   buildWorkflowPromptContext,
@@ -1343,7 +1344,7 @@ async function notifySlackForChatbotResponse(input: {
       ? { result: "success", deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries) }
       : {
           result: "failure",
-          errorCode: `slack-${result.status}`,
+          errorCode: chatbotSlackAuditErrorCode(result),
           deliveryEvidence: buildChatbotSlackDeliveryEvidence(deliveries),
         }
     const savedThreadTs = threadTs ?? (result.status === "sent" ? result.ts : null)
@@ -1379,7 +1380,7 @@ async function notifySlackForChatbotResponse(input: {
       }, issueResult))
       auditResult.deliveryEvidence = buildChatbotSlackDeliveryEvidence(deliveries)
       if (issueResult.status !== "sent") {
-        auditResult = { result: "failure", errorCode: `slack-${issueResult.status}` }
+        auditResult = { result: "failure", errorCode: chatbotSlackAuditErrorCode(issueResult) }
       }
     }
     return auditResult
