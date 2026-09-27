@@ -166,4 +166,23 @@ describe("known chatbot regression harness", () => {
     expect(serialized).not.toContain("messageId")
     expect(serialized).not.toContain("errorMessage")
   })
+
+  it("accepts a check run whose Slack posts were deliberately skipped, and nothing else in their place", () => {
+    const skipped = successfulRun()
+    skipped.auditEvents = skipped.auditEvents.map((event) =>
+      event.eventName === "slack_notification_completed"
+        ? { ...event, result: "failure", errorCode: "slack-skipped-diagnostic" }
+        : event,
+    )
+    expect(evaluateKnownRegressionRun(skipped).ok).toBe(true)
+
+    const outage = successfulRun()
+    outage.auditEvents = outage.auditEvents.map((event) =>
+      event.eventName === "slack_notification_completed"
+        ? { ...event, result: "failure", errorCode: "slack-failed" }
+        : event,
+    )
+    expect(evaluateKnownRegressionRun(outage).ok).toBe(false)
+  })
 })
+

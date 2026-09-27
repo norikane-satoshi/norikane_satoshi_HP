@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   chatbotDiagnosticHeader,
   chatbotDiagnosticToken,
+  chatbotSlackAuditErrorCode,
   isChatbotDiagnosticRequest,
 } from "@/lib/chatbot/server/diagnostic-request"
 
@@ -28,5 +29,13 @@ describe("isChatbotDiagnosticRequest", () => {
 
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "")
     expect(isChatbotDiagnosticRequest(headersWith(""))).toBe(false)
+  })
+})
+
+describe("chatbotSlackAuditErrorCode", () => {
+  it("records a check conversation's deliberately skipped post apart from a Slack outage or missing config", () => {
+    expect(chatbotSlackAuditErrorCode({ status: "skipped", reason: "diagnostic" })).toBe("slack-skipped-diagnostic")
+    expect(chatbotSlackAuditErrorCode({ status: "skipped", reason: "disabled" })).toBe("slack-skipped")
+    expect(chatbotSlackAuditErrorCode({ status: "failed", reason: "http-500" } as never)).toBe("slack-failed")
   })
 })
