@@ -231,6 +231,72 @@ describe("Notion chatbot knowledge sync", () => {
     })
   })
 
+  it("reads each kind's total from the per-stage duration table, not its first stage", async () => {
+    const repo = repository()
+    const manifestPageId = "eb950c43e1a042199c1bbce74ae616a1"
+    const sourcePageId = "830dd59bc735483fae4feea1d6f4fbc7"
+    const client = {
+      blocks: {
+        children: {
+          list: vi.fn(async ({ block_id }: { block_id: string }) => {
+            if (block_id === manifestPageId) {
+              return {
+                results: [
+                  heading("manifest-heading", "ナレッジ正本リスト"),
+                  paragraph(
+                    "manifest-row",
+                    "ページ=AIチャットボット 相談窓口の設計 / 用途=workflow-duration / 参照範囲=工程別日数テーブル（実測値ベース） / 優先度=1",
+                    `https://www.notion.so/${sourcePageId}`,
+                  ),
+                ],
+                has_more: false,
+              }
+            }
+            if (block_id === sourcePageId) {
+              return {
+                results: [
+                  heading("duration-heading", "工程別日数テーブル（実測値ベース）"),
+                  tableRow("header", ["案件種別", "コンフォーム", "仕込み", "立ち会い", "最終チェック+納品", "合計"]),
+                  tableRow("cm", ["CM 30秒", "0.5〜1日", "立ち会い同日集約", "1日", "当日内", "1〜2日"]),
+                  tableRow("mv", ["MV 5分", "0.5〜1日", "0.5日", "1日", "当日内", "2〜2.5日"]),
+                  tableRow("feature", ["本編 90分", "1〜2日", "5日", "3日", "1日", "10〜11日"]),
+                  tableRow("drama-first", ["ドラマ 45分（初回）", "1日", "3日", "1〜2日", "1日", "6〜7日"]),
+                  tableRow("drama-next", ["ドラマ 45分（2話以降）", "1日", "2日", "1日", "1日", "5日"]),
+                  tableRow("vertical", ["縦型動画 60秒", "0.5日", "1日集約", "1日集約", "1日集約", "1.5日"]),
+                  tableRow("live", ["ライブ 60分", "0.5〜1日", "2日程度", "1日", "0.5〜1日", "4日程度"]),
+                  tableRow("live-long", ["ライブ 150分 / 2.5時間", "1日程度", "4〜5日程度", "1日", "1日程度", "7〜8日程度"]),
+                ],
+                has_more: false,
+              }
+            }
+            return { results: [], has_more: false }
+          }),
+        },
+      },
+    }
+
+    const result = await syncChatbotNotionKnowledge({
+      client,
+      repository: repo,
+      manifestPageId,
+      changedPageId: sourcePageId,
+      now: new Date("2026-09-27T01:00:00.000Z"),
+    })
+
+    const days = Object.fromEntries(
+      result.snapshot.workflowDurations.presets.map((preset) => [preset.id, [preset.minDays, preset.maxDays, preset.source]]),
+    )
+    expect(days).toEqual({
+      "cm-30s": [1, 2, "notion-sync"],
+      "mv-5m": [2, 2.5, "notion-sync"],
+      "feature-90m": [10, 11, "notion-sync"],
+      "drama-first": [6, 7, "notion-sync"],
+      "drama-follow-up": [5, 5, "notion-sync"],
+      "vertical-60s": [1.5, 1.5, "notion-sync"],
+      "live-60m": [4, 4, "notion-sync"],
+    })
+  })
+
   it("syncs the manifest page's own current values and future rules as snapshot knowledge", async () => {
     const repo = repository()
     const manifestPageId = "3088971f957b481baff8499ff911051b"

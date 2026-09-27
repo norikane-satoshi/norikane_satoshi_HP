@@ -230,19 +230,7 @@ export async function syncChatbotNotionKnowledge(input: {
 export function getWorkflowDurationPresetsFromSnapshot(
   snapshot: ChatbotKnowledgeSnapshot | null | undefined,
 ): readonly WorkflowDurationPreset[] {
-  const presets = snapshot?.workflowDurations.presets ?? workflowDurationPresets
-  const staticLivePreset = workflowDurationPresets.find((preset) => preset.id === "live-60m")
-  if (!staticLivePreset) return presets
-
-  return presets.map((preset) =>
-    preset.id === "live-60m"
-      ? {
-          ...preset,
-          minDays: staticLivePreset.minDays,
-          maxDays: staticLivePreset.maxDays,
-        }
-      : preset,
-  )
+  return snapshot?.workflowDurations.presets ?? workflowDurationPresets
 }
 
 function createPrismaChatbotKnowledgeRepository(): ChatbotKnowledgeRepository {
@@ -508,20 +496,50 @@ function extractWorkflowDurationPresets(
 ): Partial<Record<WorkflowDurationPreset["id"], Pick<WorkflowDurationPreset, "minDays" | "maxDays">>> {
   const rows = collectSectionRows(blocks, referenceRange)
   const next: Partial<Record<WorkflowDurationPreset["id"], Pick<WorkflowDurationPreset, "minDays" | "maxDays">>> = {}
+  // The table lists each stage's days (conform, preparation, session, delivery) before the total,
+  // so the first day range in a row is a single stage; read the total column instead.
+  const header = rows.find((row) => row.cells.some((cell) => cell.trim() === "合計"))
+  const totalIndex = header ? header.cells.findIndex((cell) => cell.trim() === "合計") : -1
 
   for (const row of rows) {
+    if (row === header) continue
     const cells = row.cells.length > 0 ? row.cells : [row.text]
-    const rowText = cells.join(" / ")
-    const preset = workflowDurationPresets.find((candidate) =>
-      rowText.includes(candidate.id) || rowText.includes(candidate.label)
-    )
-    if (!preset) continue
-    const range = parseDayRange(rowText)
+    const presetId = matchWorkflowDurationPresetId(cells[0])
+    if (!presetId) continue
+    const totalCell = totalIndex > 0 ? cells[totalIndex] : undefined
+    const range = totalCell ? parseDayRange(totalCell) : lastDayRange(cells.slice(1).length > 0 ? cells.slice(1) : cells)
     if (!range) continue
-    next[preset.id] = range
+    next[presetId] = range
   }
 
   return next
+}
+
+// Row names as the Notion table writes them ("ドラマ 45分（初回）", "縦型動画 60秒"), matched against the
+// kind column only so a stage value can never be mistaken for a kind.
+const workflowDurationRowNames: ReadonlyArray<[WorkflowDurationPreset["id"], RegExp]> = [
+  ["cm-30s", /CM\s*30秒/],
+  ["mv-5m", /MV\s*5分/],
+  ["feature-90m", /本編\s*90分/],
+  ["drama-first", /ドラマ.*初回/],
+  ["drama-follow-up", /ドラマ.*2話/],
+  ["vertical-60s", /縦型.*60秒/],
+  ["live-60m", /ライブ\s*60分/],
+]
+
+function matchWorkflowDurationPresetId(kindText: string): WorkflowDurationPreset["id"] | undefined {
+  const text = kindText.trim()
+  const byId = workflowDurationPresets.find((preset) => text.includes(preset.id))
+  if (byId) return byId.id
+  return workflowDurationRowNames.find(([, pattern]) => pattern.test(text))?.[0]
+}
+
+function lastDayRange(cells: readonly string[]): Pick<WorkflowDurationPreset, "minDays" | "maxDays"> | null {
+  for (let index = cells.length - 1; index >= 0; index -= 1) {
+    const range = parseDayRange(cells[index])
+    if (range) return range
+  }
+  return null
 }
 
 function extractPublicNoteKnowledge(blocks: unknown[], referenceRange: string): string {
