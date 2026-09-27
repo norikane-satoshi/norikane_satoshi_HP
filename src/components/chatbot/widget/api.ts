@@ -37,6 +37,8 @@ export type WidgetUi =
       tentativeDateKeys?: Extract<RoutingDecision, { kind: "to-booking-inline" }>["tentativeDateKeys"]
       jobContext: JobContext
       bookingPrefill?: BookingCardPrefill
+      /** What the chat settled; the card lists it on its confirmation step. */
+      confirmationItems?: Array<{ label: string; value: string }>
       completedBooking?: BookingCompletionSummary
     }
   | {

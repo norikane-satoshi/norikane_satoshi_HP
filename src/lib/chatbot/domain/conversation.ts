@@ -123,7 +123,7 @@ export type ConversationState = {
     finalQuestionOffered?: boolean
     finalQuestionOfferedAtTurn?: number
     additionalConcernStatus?: "none" | "has-concern" | "unknown"
-    additionalConcernSource?: "choice-panel" | "llm-booking-card" | "fallback-pattern"
+    additionalConcernSource?: "choice-panel" | "llm-booking-card" | "fallback-pattern" | "booking-card-first"
     additionalConcernUpdatedAtTurn?: number
   }
   bookingSubmission?: {

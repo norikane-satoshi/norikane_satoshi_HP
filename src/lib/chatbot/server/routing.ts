@@ -234,6 +234,10 @@ function continueDecision(input: {
   if (!jobContext.jobKind && conversationState.bookingFinalConfirmation?.status === "confirmed") {
     return consultationEmailDecision(jobContext, conversationState)
   }
+  // Confirmed: the handler shows the booking card (it needs the calendar lookup the routing lacks).
+  if (conversationState.bookingFinalConfirmation?.status === "confirmed") {
+    return { kind: "continue", nextQuestion: "候補日を確認しました。下の予約カードから日程を選んでください。" }
+  }
 
   return {
     kind: "continue",

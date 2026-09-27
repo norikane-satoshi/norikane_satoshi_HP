@@ -1914,7 +1914,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.ui.bookingPrefill?.projectTitle).toBeUndefined()
   })
 
-  it("inserts a final confirmation turn before showing a booking card", async () => {
+  it("shows the booking card right after the last answer, with the prefill the model gathered", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
@@ -1950,37 +1950,27 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.routingDecision).toMatchObject({
-      kind: "continue",
-      nextQuestion: expect.stringContaining("ほかに確認したいこと"),
-      presentChoices: { id: bookingFinalConfirmationChoices.id },
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.assistantMessage.content).not.toContain("ほかに確認したいこと")
+    expect(result.ui).toMatchObject({
+      kind: "booking-card",
+      bookingPrefill: expect.objectContaining({ contactEmail: "client@example.com" }),
     })
-    expect(result.assistantMessage.content).toContain("ほかに確認したいこと")
-    expect(result.assistantMessage.content).toContain("なし")
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: bookingFinalConfirmationChoices.id } })
-    expect(result.ui).not.toMatchObject({ kind: "booking-card" })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        routingDecision: "continue",
-        currentQuestion: expect.stringContaining("ほかに確認したいこと"),
-        activeChoices: expect.objectContaining({ id: bookingFinalConfirmationChoices.id }),
+        routingDecision: "to-booking-inline",
         conversationState: expect.objectContaining({
-          bookingFinalConfirmation: expect.objectContaining({
-            status: "pending",
-            bookingPrefill: expect.objectContaining({
-              contactEmail: "client@example.com",
-            }),
-          }),
+          bookingReadiness: expect.objectContaining({ additionalConcernSource: "booking-card-first" }),
+          bookingFinalConfirmation: expect.objectContaining({ status: "confirmed" }),
         }),
       }),
     )
     expect(harness.slackNotifier).toHaveBeenCalledWith(
       expect.objectContaining({
         tier: "tier-1-hosted-chrome-notion-ai",
-        uiKind: "choice-panel",
-        choiceSetId: bookingFinalConfirmationChoices.id,
-        flowStep: "booking-final-confirmation",
-        bookingProgress: false,
+        uiKind: "booking-card",
+        flowStep: "booking-card",
+        bookingProgress: true,
       }),
     )
   })
@@ -2538,7 +2528,7 @@ describe("handleChatbotMessage user context", () => {
       hasCustomerIdentity: true,
       hasContactEmail: true,
     })
-    expect(harness.generate.mock.calls[0]?.[0].conversationState.bookingFinalConfirmation).toBeUndefined()
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.bookingFinalConfirmation?.status).not.toBe("pending")
   })
 
   it("displays the canonical material contents question after work site selection", async () => {
@@ -2818,7 +2808,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("keeps a complete long intake on Booking Order confirmation instead of direct contact", async () => {
+  it("keeps a complete long intake on the Booking Order instead of direct contact", async () => {
     const longHistory = Array.from({ length: 18 }, (_, index): ChatbotMessage => {
       return message(index % 2 === 0 ? "user" : "assistant", `過去の相談 ${index + 1}`)
     })
@@ -2852,14 +2842,8 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.routingDecision).toMatchObject({
-      kind: "continue",
-      presentChoices: { id: bookingFinalConfirmationChoices.id },
-    })
-    expect(result.ui).toMatchObject({
-      kind: "choice-panel",
-      choiceSet: { id: bookingFinalConfirmationChoices.id },
-    })
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({ kind: "booking-card" })
   })
 
   it("does not reissue a booking card after the booking submission terminal state is persisted", async () => {
@@ -3316,7 +3300,7 @@ describe("handleChatbotMessage user context", () => {
     })
   })
 
-  it("persists a natural-language final confirmation prompt even without a booking tool call", async () => {
+  it("does not bring back the final confirmation question when the model writes one", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
@@ -3352,18 +3336,9 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.routingDecision).toMatchObject({ kind: "continue" })
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: bookingFinalConfirmationChoices.id } })
-    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
-      expect.objectContaining({
-        activeChoices: expect.objectContaining({ id: bookingFinalConfirmationChoices.id }),
-        conversationState: expect.objectContaining({
-          bookingFinalConfirmation: expect.objectContaining({
-            status: "pending",
-          }),
-        }),
-      }),
-    )
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({ kind: "booking-card" })
+    expect(result.assistantMessage.content).not.toContain("不安な点")
   })
 
   it("treats no-additional-concern as confirmed when the previous assistant asked a natural final check", async () => {
@@ -4256,7 +4231,7 @@ describe("handleChatbotMessage user context", () => {
     })
 
     const result = await handleChatbotMessage(
-      { sessionId: "session_1", userId: "user_a", message: "ライブ2時間半です" },
+      { sessionId: "session_1", userId: "user_a", message: "ライブ2時間半です。何日くらいかかりますか？" },
       harness.options,
     )
 
@@ -4948,7 +4923,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("moves a settled no-schedule consultation to final booking confirmation instead of email fallback", async () => {
+  it("moves a settled no-schedule consultation to the booking card instead of email fallback", async () => {
     const harness = setup({
       existingConversation: conversation({
         messages: Array.from({ length: 7 }, (_, index) =>
@@ -4993,11 +4968,8 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.routingDecision).toMatchObject({
-      kind: "continue",
-      presentChoices: { id: bookingFinalConfirmationChoices.id },
-    })
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: bookingFinalConfirmationChoices.id } })
+    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
+    expect(result.ui).toMatchObject({ kind: "booking-card" })
   })
 
   it("consumes stored final medium choice and advances to the next slot", async () => {
@@ -6005,5 +5977,93 @@ describe("handleChatbotMessage final confirmation without an estimable job kind"
     expect(result.ui).not.toMatchObject({ kind: "choice-panel" })
     expect(result.routingDecision).toMatchObject({ kind: "to-email" })
     expect(result.ui).toMatchObject({ kind: "consultation-summary-form" })
+  })
+})
+
+// Production 2026-09-27: on the first free-text turn Gemini volunteered the duration ("6〜8日の目安")
+// and asked its own work-site question. A pattern over the model's reply (目安/工程/期間) then took the
+// code's next panel away, leaving the customer a panel-less question the flow does not read.
+describe("the code's next panel is kept whatever the model writes", () => {
+  const firstMessage =
+    "映画長編 90分のカラーグレーディングをお願いしたいです。劇場公開予定で、リモートグレーディング希望です。素材はもう揃っています。"
+  const volunteeredReply =
+    "映画長編90分のカラーグレーディングですね。まず、作業期間の目安についてお伝えします。通常6〜8日ほどです。" +
+    "次に、則兼の作業場所はどちらをご希望されますか？"
+
+  it("shows the next panel, not the model's own question, after a statement", async () => {
+    const harness = setup({ existingConversation: conversation({ messages: [], context: { sessionId: "session_1" } }) })
+    const ownPanel = JSON.stringify({
+      tool: "show_choice_panel",
+      args: {
+        id: "work-site",
+        question: "則兼の作業場所はどちらをご希望されますか？",
+        choices: [
+          { id: "satoshi-studio", label: "さとしさんのスタジオ" },
+          { id: "remote-grading", label: "リモートグレーディング" },
+        ],
+      },
+    })
+    harness.generate.mockResolvedValue({
+      rawText: `${customerReply(volunteeredReply)}\n${ownPanel}`,
+      tier: "tier-2-gemini-flash",
+    })
+
+    const result = await handleChatbotMessage({ sessionId: "session_1", message: firstMessage }, harness.options)
+
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "additional-work" } })
+    expect(result.assistantMessage.content).not.toContain("作業場所はどちら")
+  })
+
+  it("answers a duration question above the next panel", async () => {
+    const harness = setup({ existingConversation: conversation({ messages: [], context: { sessionId: "session_1" } }) })
+    harness.generate.mockResolvedValue({
+      rawText: customerReply("長編90分の目安は6〜8日です。"),
+      tier: "tier-2-gemini-flash",
+    })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", message: `${firstMessage}何日くらいかかりますか？` },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "additional-work" } })
+    expect(result.assistantMessage.content).toContain("6〜8日")
+  })
+})
+
+// 2026-09-27 (則兼さん): once the questions are answered, the Booking Order comes straight away;
+// the "anything else?" panel is gone and its note moves to the card's final confirmation step.
+describe("booking card right after the last question", () => {
+  const readyContext = {
+    sessionId: "session_1",
+    conversationState: baseProductionConversationState({ turnCount: 9 }),
+    jobContext: {
+      jobKind: "cm-30s" as const,
+      finalMedium: "web" as const,
+      projectLengthMinutes: 0.5,
+      workSite: "remote-grading" as const,
+      documentaryAttachment: { kind: "none" as const },
+    },
+  }
+
+  it("shows the booking card when the contact email completes the questions", async () => {
+    const harness = setup({ existingConversation: conversation({ context: readyContext }) })
+
+    const result = await handleChatbotMessage({ sessionId: "session_1", message: "client@example.com" }, harness.options)
+
+    expect(result.ui).toMatchObject({ kind: "booking-card", bookingPrefill: { contactEmail: "client@example.com" } })
+    expect(JSON.stringify(result.ui)).not.toContain("booking-final-confirmation")
+  })
+
+  it("shows the booking card when the customer types a question at the last step", async () => {
+    const harness = setup({ existingConversation: conversation({ context: readyContext }) })
+    harness.generate.mockResolvedValue({ rawText: customerReply("CM 30秒は1日が目安です。"), tier: "tier-2-gemini-flash" })
+
+    const result = await handleChatbotMessage(
+      { sessionId: "session_1", message: "client@example.com です。何日くらいかかりますか？" },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({ kind: "booking-card" })
   })
 })

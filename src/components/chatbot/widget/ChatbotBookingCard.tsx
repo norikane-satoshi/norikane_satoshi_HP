@@ -39,6 +39,8 @@ type ChatbotBookingCardProps = {
   defaultCompanyName?: string
   defaultDueDate?: string
   defaultMemo?: string
+  /** What the chat settled, listed on the confirmation step and sent with the booking. */
+  confirmationItems?: ReadonlyArray<{ label: string; value: string }>
   completedBooking?: BookingCompletionSummary
   showDemo?: boolean
   onBooked?: (result: BookingResult) => void
@@ -344,6 +346,7 @@ export function ChatbotBookingCard({
   defaultCompanyName = "",
   defaultDueDate = "",
   defaultMemo = "",
+  confirmationItems = [],
   completedBooking,
   showDemo = false,
   onBooked,
@@ -428,7 +431,11 @@ export function ChatbotBookingCard({
   const trimmedContactEmail = contactEmail.trim()
   const contactEmailValid = isValidEmail(trimmedContactEmail)
   const contactEmailErrorVisible = trimmedContactEmail.length > 0 && !contactEmailValid
+  // The card is two steps: the calendar alone, then everything decided with the contact fields.
+  const [step, setStep] = useState<"schedule" | "confirm">("schedule")
+  const scheduleChosen = attendanceLimits ? attendanceReady : selectedSlots.length > 0
   const canSubmit = Boolean(
+    step === "confirm" &&
     projectTitle.trim() &&
       contactName.trim() &&
       contactEmailValid &&
@@ -666,7 +673,10 @@ export function ChatbotBookingCard({
           companyName: submission.companyName,
           phone: phone.trim(),
           dueDate,
-          memo: submission.memo,
+          memo: [submission.memo, ...confirmationItems.map((item) => `${item.label}: ${item.value}`)]
+            .filter(Boolean)
+            .join("\n")
+            .slice(0, 2000),
           agreed,
           ...(attendanceLimits
             ? { attendanceDates }
@@ -724,9 +734,11 @@ export function ChatbotBookingCard({
           className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-2 text-sm text-hp-muted`}
           style={CHATBOT_CONVERSATION_CONTENT_STYLE}
         >
-          {attendanceLimits
-            ? "立ち会いの日を選んでください。コンフォーム・仕込み・QC は則兼の空いている日に自動で入れて、まとめて仮キープします。まだ決まっていなければ、未定のままでも予約内容を送信できます。"
-            : "日付が決まっている場合は候補を選んでください。まだ決まっていなければ、未定のままでも予約内容を送信できます。"}
+          {step === "confirm"
+            ? "チャットで決まった内容です。これで送信してよいか確認してください。"
+            : attendanceLimits
+              ? "立ち会いの日を選んでください。コンフォーム・仕込み・QC は則兼の空いている日に自動で入れて、まとめて仮キープします。まだ決まっていなければ、そのまま次へ進めます。"
+              : `作業する日を選んでください。想定の日数（${requiredDays}日）まで仮キープで押さえます。まだ決まっていなければ、そのまま次へ進めます。`}
         </p>
         {estimateText(effectiveEstimate) ? (
           <p
@@ -740,6 +752,8 @@ export function ChatbotBookingCard({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {step === "schedule" ? (
+        <>
         <fieldset className="space-y-2">
           <legend className="text-sm font-semibold text-hp">
             {attendanceLimits ? "立ち会い日" : "仮キープ候補"}
@@ -914,6 +928,60 @@ export function ChatbotBookingCard({
             ) : null}
           </div>
         </fieldset>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            className="glass-btn flex-1 px-4 py-3 text-sm font-medium disabled:opacity-50"
+            disabled={!scheduleChosen}
+            onClick={() => setStep("confirm")}
+          >
+            この日程で次へ
+          </button>
+          <button
+            type="button"
+            className="glass-btn flex-1 px-4 py-3 text-sm"
+            onClick={() => {
+              setSelectedSlots([])
+              setCalendarHint(null)
+              setStep("confirm")
+            }}
+          >
+            日程はまだ決まっていない
+          </button>
+        </div>
+        </>
+        ) : (
+        <>
+        <dl className="space-y-2 rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3 text-sm" aria-label="送信する内容">
+          <div>
+            <dt className="text-xs font-semibold text-hp-muted">仮キープする日程</dt>
+            <dd className="mt-0.5 whitespace-pre-line text-hp">
+              {schedulePlan.status === "ready" && schedulePlan.lines.length > 0
+                ? schedulePlan.lines.join("\n")
+                : selectedSlots.length > 0
+                  ? formatSelectedSlots(selectedSlots)
+                  : "未定（日程は則兼と相談）"}
+            </dd>
+          </div>
+          {estimateText(effectiveEstimate) ? (
+            <div>
+              <dt className="text-xs font-semibold text-hp-muted">工程の目安</dt>
+              <dd className="mt-0.5 text-hp">
+                {estimateText(effectiveEstimate)?.replace(/^工程目安\s*/u, "")}
+                {stageBreakdown ? `（${stageBreakdown}）` : ""}
+              </dd>
+            </div>
+          ) : null}
+          {confirmationItems.map((item) => (
+            <div key={item.label}>
+              <dt className="text-xs font-semibold text-hp-muted">{item.label}</dt>
+              <dd className="mt-0.5 break-words text-hp">{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+        <button type="button" className="text-xs text-hp-muted underline underline-offset-4" onClick={() => setStep("schedule")}>
+          日程を選び直す
+        </button>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium text-hp">
@@ -997,7 +1065,7 @@ export function ChatbotBookingCard({
               onChange={(event) => setMemo(event.target.value)}
               className="glass-input mt-2 min-h-24 w-full px-4 py-3 text-sm"
               maxRows={12}
-              placeholder="入力欄に入りきらない共有事項"
+              placeholder="伝えておきたいこと、不安な点など"
               aria-label="補足"
             />
           </label>
@@ -1042,6 +1110,8 @@ export function ChatbotBookingCard({
         <button type="submit" disabled={!canSubmit} className="glass-btn w-full px-4 py-3 text-sm font-medium disabled:opacity-50">
           {submitting ? "送信中..." : "予約内容を送信"}
         </button>
+        </>
+        )}
       </form>
     </section>
   )
