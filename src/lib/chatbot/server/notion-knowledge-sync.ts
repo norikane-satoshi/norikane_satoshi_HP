@@ -628,6 +628,9 @@ function mergeWorkflowDurationPresets(
 function collectSectionRows(blocks: unknown[], headingText: string): SectionRow[] {
   const rows: SectionRow[] = []
   let inside = false
+  // A section ends at the next heading of its own level or above, so a "###" table does not run on
+  // into the "###" sections after it; "##" and "#" sections end at the next "##" as before.
+  let endRank = 2
   const headingRank = (block: unknown) => {
     const type = readType(block)
     if (type === "heading_1") return 1
@@ -642,9 +645,10 @@ function collectSectionRows(blocks: unknown[], headingText: string): SectionRow[
     if (rank > 0) {
       if (text.includes(headingText)) {
         inside = true
+        endRank = Math.max(rank, 2)
         continue
       }
-      if (inside && rank <= 2) break
+      if (inside && rank <= endRank) break
     }
     if (!inside) continue
 
