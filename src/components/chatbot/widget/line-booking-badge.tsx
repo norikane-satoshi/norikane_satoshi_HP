@@ -6,7 +6,6 @@ import Image from "next/image"
 import { SiLine } from "react-icons/si"
 import { ExternalLink, X } from "lucide-react"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
-import {useChatbotCopy} from "./i18n"
 
 const LINE_FRIEND_URL = "https://line.me/R/ti/p/%40044ucnym"
 
@@ -17,7 +16,6 @@ const focusableSelector = [
 ].join(",")
 
 export function LineBookingBadge() {
-  const copy = useChatbotCopy()
   const [open, setOpen] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -94,14 +92,14 @@ export function LineBookingBadge() {
               <div className="min-w-0 text-left">
                 <p className="text-xs font-semibold tracking-[0.16em] text-hp-muted">LINE</p>
                 <h2 id="line-qr-dialog-title" className="hp-heading mt-2 text-xl font-semibold text-hp">
-                  {copy.lineAdd}
+                  公式LINEを友だち追加
                 </h2>
               </div>
               <button
                 ref={closeButtonRef}
                 type="button"
                 className="glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-hp"
-                aria-label={copy.lineCloseQr}
+                aria-label="LINE QRコードを閉じる"
                 onClick={close}
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -109,14 +107,14 @@ export function LineBookingBadge() {
             </div>
             <Image
               src="/line-friend-qr.png"
-              alt={copy.lineQrAlt}
+              alt="公式LINEを友だち追加するQRコード"
               width={280}
               height={280}
               loading="eager"
               className="mx-auto mt-6 w-full max-w-[280px] rounded-[var(--hp-radius-sm)] bg-white p-3"
             />
             <p className="hp-body mt-5 text-sm text-hp-muted">
-              {copy.lineQrHelp}
+              QRコードを読み取るか、LINEアプリから公式アカウントを開いてください。
             </p>
             <a
               href={LINE_FRIEND_URL}
@@ -124,7 +122,7 @@ export function LineBookingBadge() {
               rel="noopener noreferrer"
               className="glass-btn mt-5 inline-flex min-h-11 items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
             >
-              {copy.lineOpen}
+              LINEを開く
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
             </a>
           </div>
@@ -139,7 +137,7 @@ export function LineBookingBadge() {
         ref={triggerRef}
         type="button"
         className="glass-badge glass-badge--profile-tool pointer-events-auto inline-flex h-12 w-12 items-center justify-center p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-        aria-label={copy.lineAdd}
+        aria-label="公式LINEを友だち追加"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}

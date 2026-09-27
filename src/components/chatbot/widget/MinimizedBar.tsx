@@ -1,7 +1,6 @@
 "use client"
 
 import { MessageCircle } from "lucide-react"
-import {useChatbotCopy} from "./i18n"
 
 type MinimizedBarProps = {
   onOpen: () => void
@@ -9,7 +8,6 @@ type MinimizedBarProps = {
 }
 
 export function MinimizedBar({ onOpen, shouldShowAttention = false }: MinimizedBarProps) {
-  const copy = useChatbotCopy()
   return (
     <button
       type="button"
@@ -19,10 +17,10 @@ export function MinimizedBar({ onOpen, shouldShowAttention = false }: MinimizedB
         shouldShowAttention ? "chatbot-minimized-attention" : "",
       ].filter(Boolean).join(" ")}
       data-attention={shouldShowAttention ? "true" : "false"}
-      aria-label={copy.open}
+      aria-label="AI 相談窓口を開く"
     >
       <MessageCircle className="h-5 w-5" aria-hidden="true" />
-      <span>{copy.launcher}</span>
+      <span>ご相談窓口</span>
     </button>
   )
 }

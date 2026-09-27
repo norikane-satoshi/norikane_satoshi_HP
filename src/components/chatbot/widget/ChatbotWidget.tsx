@@ -8,8 +8,6 @@ import { prewarmChatbotMessageRoute } from "./api"
 import { LineBookingBadge } from "./line-booking-badge"
 import { MinimizedBar } from "./MinimizedBar"
 import { WidgetShell } from "./WidgetShell"
-import {ChatbotLocaleProvider} from "./i18n"
-import {getLocalizedCopy} from "@/i18n/copy"
 import { useScrollTrigger } from "./useScrollTrigger"
 import {
   CHATBOT_WIDGET_DESKTOP_BREAKPOINT_PX,
@@ -47,7 +45,7 @@ type DragSession = {
   cleanup: () => void
 }
 
-export function ChatbotWidget({locale = "ja"}: {locale?: "ja" | "en"}) {
+export function ChatbotWidget() {
   const pathname = usePathname()
   const isPublicAvailabilityPage = pathname === PUBLIC_AVAILABILITY_ROUTE
   const chatbotEnabled = isChatbotEnabled()
@@ -326,10 +324,9 @@ export function ChatbotWidget({locale = "ja"}: {locale?: "ja" | "en"}) {
       : undefined
 
   return (
-    <ChatbotLocaleProvider locale={locale}>
     <aside
       role="complementary"
-      aria-label={getLocalizedCopy(locale, "Chatbot").windowLabel}
+      aria-label="AI 相談窓口"
       hidden={!isReady}
       className={asideClassName}
       style={asideStyle}
@@ -354,6 +351,5 @@ export function ChatbotWidget({locale = "ja"}: {locale?: "ja" | "en"}) {
         />
       )}
     </aside>
-    </ChatbotLocaleProvider>
   )
 }

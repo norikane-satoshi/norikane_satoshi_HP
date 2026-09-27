@@ -3,8 +3,6 @@
 import { Copy, Link2, Trash2, UserMinus } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import {useLocale} from "next-intl"
-import {getLocalizedCopy} from "@/i18n/copy"
 
 type TeamMember = {
   userId: string
@@ -24,16 +22,20 @@ type TeamsPayload = {
   teams?: Team[]
 }
 
+const INVITE_MESSAGES: Record<string, string> = {
+  accepted: "招待リンクからチャンネルに参加しました。",
+  used: "この招待リンクは既に使用済みです。",
+  invalid: "招待リンクが無効です。",
+}
+
 export function BookingSettings() {
-  const copy = getLocalizedCopy(useLocale(), "BookingSettings")
-  const inviteMessages: Record<string, string> = {accepted: copy.inviteAccepted, used: copy.inviteUsed, invalid: copy.inviteInvalid}
   const searchParams = useSearchParams()
   const inviteStatus = searchParams.get("invite")
   const [teams, setTeams] = useState<Team[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState("")
   const [newTeamName, setNewTeamName] = useState("")
   const [invitationUrl, setInvitationUrl] = useState("")
-  const [message, setMessage] = useState<string | null>(inviteStatus ? inviteMessages[inviteStatus] ?? null : null)
+  const [message, setMessage] = useState<string | null>(inviteStatus ? INVITE_MESSAGES[inviteStatus] ?? null : null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -50,16 +52,16 @@ export function BookingSettings() {
     try {
       const response = await fetch("/api/teams", { cache: "no-store" })
       const payload = (await response.json().catch(() => ({}))) as TeamsPayload
-      if (!response.ok) throw new Error(copy.loadError)
+      if (!response.ok) throw new Error("所属チャンネルを取得できませんでした。")
       const nextTeams = payload.teams ?? []
       setTeams(nextTeams)
       setSelectedTeamId((current) => current && nextTeams.some((team) => team.id === current) ? current : nextTeams[0]?.id ?? "")
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : copy.loadError)
+      setError(loadError instanceof Error ? loadError.message : "所属チャンネルを取得できませんでした。")
     } finally {
       setLoading(false)
     }
-  }, [copy.loadError])
+  }, [])
 
   useEffect(() => {
     // Initial settings data is loaded from the authenticated API after hydration.
@@ -79,14 +81,14 @@ export function BookingSettings() {
         body: JSON.stringify({ name: newTeamName }),
       })
       const payload = (await response.json().catch(() => ({}))) as TeamsPayload & { teamId?: string }
-      if (!response.ok) throw new Error(copy.createError)
+      if (!response.ok) throw new Error("チャンネルを作成できませんでした。")
       setTeams(payload.teams ?? [])
       setSelectedTeamId(payload.teamId ?? "")
       setNewTeamName("")
       setInvitationUrl("")
-      setMessage(copy.created)
+      setMessage("チャンネルを作成しました。")
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : copy.createError)
+      setError(createError instanceof Error ? createError.message : "チャンネルを作成できませんでした。")
     } finally {
       setSaving(false)
     }
@@ -104,11 +106,11 @@ export function BookingSettings() {
         body: JSON.stringify({ teamId: selectedTeam.id }),
       })
       const payload = (await response.json().catch(() => ({}))) as { url?: string }
-      if (!response.ok || !payload.url) throw new Error(copy.inviteError)
+      if (!response.ok || !payload.url) throw new Error("招待リンクを発行できませんでした。")
       setInvitationUrl(payload.url)
-      setMessage(copy.inviteCreated)
+      setMessage("招待リンクを発行しました。")
     } catch (inviteError) {
-      setError(inviteError instanceof Error ? inviteError.message : copy.inviteError)
+      setError(inviteError instanceof Error ? inviteError.message : "招待リンクを発行できませんでした。")
     } finally {
       setSaving(false)
     }
@@ -117,7 +119,7 @@ export function BookingSettings() {
   const copyInvitation = async () => {
     if (!invitationUrl) return
     await navigator.clipboard.writeText(invitationUrl)
-    setMessage(copy.inviteCopied)
+    setMessage("招待リンクをコピーしました。")
   }
 
   const leaveTeam = async () => {
@@ -127,12 +129,12 @@ export function BookingSettings() {
     setMessage(null)
     try {
       const response = await fetch(`/api/teams/${selectedTeam.id}/membership`, { method: "DELETE" })
-      if (!response.ok) throw new Error(copy.leaveError)
+      if (!response.ok) throw new Error("チャンネルから退出できませんでした。")
       setInvitationUrl("")
-      setMessage(copy.left)
+      setMessage("チャンネルから退出しました。")
       await loadTeams()
     } catch (leaveError) {
-      setError(leaveError instanceof Error ? leaveError.message : copy.leaveError)
+      setError(leaveError instanceof Error ? leaveError.message : "チャンネルから退出できませんでした。")
     } finally {
       setSaving(false)
     }
@@ -145,13 +147,13 @@ export function BookingSettings() {
     setMessage(null)
     try {
       const response = await fetch(`/api/teams/${teamToDelete.id}`, { method: "DELETE" })
-      if (!response.ok) throw new Error(copy.deleteError)
+      if (!response.ok) throw new Error("チャンネルを削除できませんでした。")
       setTeamToDelete(null)
       setInvitationUrl("")
-      setMessage(copy.deleted)
+      setMessage("チャンネルを削除しました。")
       await loadTeams()
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : copy.deleteError)
+      setError(deleteError instanceof Error ? deleteError.message : "チャンネルを削除できませんでした。")
     } finally {
       setSaving(false)
     }
@@ -161,7 +163,7 @@ export function BookingSettings() {
     <div className="booking-settings">
       <div className="booking-settings__create glass-inset">
         <label className="booking-settings__label" htmlFor="team-name">
-          {copy.newChannel}
+          新規チャンネル
         </label>
         <div className="booking-settings__create-row">
           <input
@@ -169,10 +171,10 @@ export function BookingSettings() {
             className="glass-input booking-settings__input"
             value={newTeamName}
             onChange={(event) => setNewTeamName(event.target.value)}
-            placeholder={copy.channelName}
+            placeholder="チャンネル名"
           />
           <button className="glass-btn booking-settings__button" type="button" onClick={createTeam} disabled={saving || !newTeamName.trim()}>
-            {copy.create}
+            作成
           </button>
         </div>
       </div>
@@ -183,7 +185,7 @@ export function BookingSettings() {
       <div className="booking-settings__grid">
         <div className="booking-settings__panel glass-inset">
           <label className="booking-settings__label" htmlFor="team-select">
-            {copy.memberships}
+            所属チャンネル
           </label>
           <select
             id="team-select"
@@ -195,7 +197,7 @@ export function BookingSettings() {
             }}
             disabled={loading || teams.length === 0}
           >
-            {teams.length === 0 ? <option value="">{copy.noMembership}</option> : null}
+            {teams.length === 0 ? <option value="">所属チャンネルなし</option> : null}
             {teams.map((team) => (
               <option key={team.id} value={team.id}>
                 {team.name}
@@ -207,11 +209,11 @@ export function BookingSettings() {
             <div className="booking-settings__team-actions">
               <button className="glass-btn booking-settings__button" type="button" onClick={leaveTeam} disabled={saving}>
                 <UserMinus aria-hidden="true" size={16} />
-                <span>{copy.leave}</span>
+                <span>抜ける</span>
               </button>
               <button className="glass-btn booking-settings__button" type="button" onClick={() => setTeamToDelete(selectedTeam)} disabled={saving}>
                 <Trash2 aria-hidden="true" size={16} />
-                <span>{copy.delete}</span>
+                <span>削除</span>
               </button>
             </div>
           ) : null}
@@ -219,8 +221,8 @@ export function BookingSettings() {
 
         <div className="booking-settings__panel glass-inset">
           <div className="booking-settings__panel-head">
-            <p className="booking-settings__label">{copy.details}</p>
-            {selectedTeam ? <span className="glass-badge booking-settings__member-count">{copy.memberCount.replace("{count}", String(selectedTeam.members.length))}</span> : null}
+            <p className="booking-settings__label">チャンネル詳細</p>
+            {selectedTeam ? <span className="glass-badge booking-settings__member-count">{selectedTeam.members.length} 名</span> : null}
           </div>
 
           {selectedTeam ? (
@@ -229,7 +231,7 @@ export function BookingSettings() {
               <div className="booking-settings__members">
                 {selectedTeam.members.map((member) => (
                   <div className="booking-settings__member glass-flat" key={member.userId}>
-                    <span>{member.name || member.email || copy.member}</span>
+                    <span>{member.name || member.email || "メンバー"}</span>
                     {member.email ? <small>{member.email}</small> : null}
                   </div>
                 ))}
@@ -237,12 +239,12 @@ export function BookingSettings() {
               <div className="booking-settings__invite">
                 <button className="glass-btn booking-settings__button" type="button" onClick={createInvitation} disabled={saving}>
                   <Link2 aria-hidden="true" size={16} />
-                  <span>{copy.createInvite}</span>
+                  <span>招待リンク発行</span>
                 </button>
                 {invitationUrl ? (
                   <div className="booking-settings__copy-row">
                     <input className="glass-input booking-settings__input" value={invitationUrl} readOnly />
-                    <button className="glass-btn booking-settings__icon-button" type="button" onClick={copyInvitation} aria-label={copy.copyInvite}>
+                    <button className="glass-btn booking-settings__icon-button" type="button" onClick={copyInvitation} aria-label="招待リンクをコピー">
                       <Copy aria-hidden="true" size={16} />
                     </button>
                   </div>
@@ -250,7 +252,7 @@ export function BookingSettings() {
               </div>
             </>
           ) : (
-            <p className="booking-settings__empty">{copy.empty}</p>
+            <p className="booking-settings__empty">チャンネルはまだありません。</p>
           )}
         </div>
       </div>
@@ -259,17 +261,17 @@ export function BookingSettings() {
         <div className="booking-calendar__modal-backdrop" role="presentation">
           <div className="booking-calendar__modal-card glass-card" role="dialog" aria-modal="true" aria-labelledby="delete-team-title">
             <h2 id="delete-team-title" className="booking-calendar__modal-title">
-              {copy.deleteTitle}
+              チャンネルを削除しますか
             </h2>
             <p className="booking-calendar__modal-message">
-              {copy.deleteBody}
+              削除すると(1) チャンネルは消える(2) チャンネル表示からメンバーの案件は消える(3) ただし各自の個人履歴には案件が残る
             </p>
             <div className="booking-calendar__modal-actions">
               <button className="booking-calendar__action-button booking-calendar__action-button--ghost" type="button" onClick={() => setTeamToDelete(null)} disabled={saving}>
-                {copy.cancel}
+                キャンセル
               </button>
               <button className="booking-calendar__action-button booking-calendar__action-button--primary" type="button" onClick={deleteTeam} disabled={saving}>
-                {copy.deleteAction}
+                削除する
               </button>
             </div>
           </div>

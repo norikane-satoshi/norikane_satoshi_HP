@@ -1,10 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
-
-vi.mock("@/i18n/navigation", () => ({
-  Link: () => null,
-}))
-
-vi.mock("next-intl", () => ({ useLocale: () => "ja" }))
+import { describe, expect, it } from "vitest"
 
 import { shouldRedirectUnauthenticated } from "@/components/booking/booking-client-shell"
 

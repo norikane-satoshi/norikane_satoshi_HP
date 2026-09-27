@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
   revalidatePath(`/notes/${payload.slug}`, "page")
   revalidateTag("notes", "max")
   revalidatePath("/", "page")
+  revalidatePath("/sitemap.xml")
 
   return NextResponse.json({
     ok: true,
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
       path: `/notes/${payload.slug}`,
       tag: "notes",
       home: true,
+      sitemap: true,
     },
     reason: payload.reason ?? null,
   })

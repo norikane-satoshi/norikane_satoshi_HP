@@ -80,4 +80,25 @@ describe("formatConsultationSummary", () => {
       }),
     ).toBe(true)
   })
+
+  it("names the job kind without a length, so it cannot contradict the chosen length", () => {
+    const summary = formatConsultationSummary({
+      jobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.25, workSite: "remote-grading" },
+      conversationState: {
+        hasFinalMedium: true,
+        hasJobKind: true,
+        hasProjectLength: true,
+        hasAdditionalWork: false,
+        hasDocumentaryAttachments: false,
+        hasWorkSite: true,
+        hasReferenceUrls: false,
+        hasContactEmail: false,
+        hasDesiredSchedule: false,
+      },
+    })
+
+    expect(summary).toContain("- 案件種別: Web CM / CM")
+    expect(summary).toContain("- 尺: 15秒")
+    expect(summary).not.toContain("30秒")
+  })
 })

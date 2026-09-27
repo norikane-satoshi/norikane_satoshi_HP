@@ -373,4 +373,25 @@ describe("createChatbotLlmTierOrchestrator", () => {
     expect(fetchSpy).not.toHaveBeenCalled()
     fetchSpy.mockRestore()
   })
+
+  it("accepts a Gemini reply without a panel when the server supplies the panel this turn", async () => {
+    const bodyOnly = llmResponse("tier-2-gemini-flash", "<customer_reply>作業期間は尺で変わります。</customer_reply>")
+    const tier2 = fakeClient("tier-2-gemini-flash", { generateResult: bodyOnly })
+    const attempts: TierAttemptEvent[] = []
+    const orchestrator = createChatbotLlmTierOrchestrator({
+      clients: [tier2],
+      onTierAttempt: (event) => attempts.push(event),
+    })
+
+    await expect(orchestrator.generate(llmRequest({ structuredUiFromCode: true }))).resolves.toEqual(bodyOnly)
+    expect(attempts.filter((attempt) => attempt.phase === "generate").map((attempt) => attempt.outcome)).toEqual(["success"])
+  })
+
+  it("still rejects a Gemini reply without a panel when the server has none to show", async () => {
+    const bodyOnly = llmResponse("tier-2-gemini-flash", "<customer_reply>作業期間は尺で変わります。</customer_reply>")
+    const tier2 = fakeClient("tier-2-gemini-flash", { generateResult: bodyOnly })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2] })
+
+    await expect(orchestrator.generate(llmRequest())).rejects.toMatchObject({ code: "invalid-output" })
+  })
 })

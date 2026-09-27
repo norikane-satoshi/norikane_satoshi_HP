@@ -162,4 +162,29 @@ describe("a question typed while a panel is shown", () => {
     const request = (h.generate.mock.calls[0] as unknown as [{ systemPrompt: string }])[0]
     expect(request.systemPrompt).toContain("選択肢パネルの回答待ちの間に質問された場合")
   })
+
+  it("tells the model only what the customer has chosen, with the job kind named without a length", async () => {
+    const h = harness(projectLengthPanelConversation(), { raw: answer, tier: chatbotLlmTierIds.tier2GeminiFlash })
+    await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
+
+    const { systemPrompt } = (h.generate.mock.calls[0] as unknown as [{ systemPrompt: string }])[0]
+    expect(systemPrompt).toContain("- 案件種別: Web CM / CM")
+    expect(systemPrompt).not.toContain("案件種別: cm-30s")
+    expect(systemPrompt).toContain("- 尺: 未確認")
+    expect(systemPrompt).toContain("CM（30秒の場合）")
+    expect(systemPrompt).not.toContain("- 最終媒体: other")
+    expect(systemPrompt).not.toContain("- 作業場所: remote-grading")
+  })
+
+  it("tells the model tier that the server supplies the pending panel", async () => {
+    const h = harness(projectLengthPanelConversation(), { raw: answer, tier: chatbotLlmTierIds.tier2GeminiFlash })
+    const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
+
+    const request = (h.generate.mock.calls[0] as unknown as [{ structuredUiFromCode?: boolean }])[0]
+    expect(request.structuredUiFromCode).toBe(true)
+    // Nothing is logged as a failed attempt: the reply without a panel was expected.
+    expect(result.auditEvidence.tierAttempts.filter((attempt) => attempt.result === "failure")).toEqual([])
+    expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります")
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: cmProjectLengthChoices.id } })
+  })
 })

@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
-import {hasLocale} from "next-intl"
-import {getLocale, getTranslations} from "next-intl/server"
+import Link from "next/link"
 import { notFound } from "next/navigation"
 import {
   getNotePublicationStatusBySlug,
@@ -8,20 +7,15 @@ import {
   listPublishedNotes,
 } from "@/lib/notion/server/fetch-note"
 import { buildSlugIndex, RenderBlocks } from "@/lib/notion/server/render-blocks"
-import {localeAlternates} from "@/i18n/metadata"
-import {Link} from "@/i18n/navigation"
-import {routing} from "@/i18n/routing"
+import { SITE_BRAND_NAME } from "@/lib/site-brand"
 
 export const revalidate = 3600
 
 const SITE_URL = "https://norikane.studio"
 
 export async function generateStaticParams(): Promise<{ slug: string }[]> {
-  const notes = (await Promise.all([
-    listPublishedNotes("ja"),
-    listPublishedNotes("en"),
-  ])).flat()
-  return [...new Set(notes.map((note) => note.slug))].map((slug) => ({slug}))
+  const notes = await listPublishedNotes()
+  return notes.map((n) => ({ slug: n.slug }))
 }
 
 type PageProps = {
@@ -32,34 +26,23 @@ export async function generateMetadata(
   { params }: PageProps
 ): Promise<Metadata> {
   const { slug } = await params
-  const requestedLocale = await getLocale()
-  const locale = hasLocale(routing.locales, requestedLocale)
-    ? requestedLocale
-    : routing.defaultLocale
-  const t = await getTranslations({locale, namespace: "Notes"})
-  const metadata = await getTranslations({locale, namespace: "Metadata"})
-  const note = await getPublishedNoteBySlug(slug, locale)
+  const note = await getPublishedNoteBySlug(slug)
   if (note) {
     return {
-      title: `${note.title} | ${metadata("brandName")}`,
+      title: `${note.title} | ${SITE_BRAND_NAME}`,
       description: note.title,
       alternates: {
-        ...localeAlternates(`/notes/${note.slug}`, locale),
+        canonical: new URL(`/notes/${note.slug}`, SITE_URL).toString(),
       },
-      openGraph: {
-        title: note.title,
-        type: "article",
-        url: new URL(`/${locale}/notes/${note.slug}`, SITE_URL).toString(),
-        locale: locale === "ja" ? "ja_JP" : "en_US",
-      },
+      openGraph: { title: note.title, type: "article" },
       twitter: { card: "summary_large_image" },
     }
   }
 
-  const publicationStatus = await getNotePublicationStatusBySlug(slug, locale)
+  const publicationStatus = await getNotePublicationStatusBySlug(slug)
   if (publicationStatus === "unpublished") {
     return {
-      title: `${t("unpublishedMetadata")} | ${metadata("brandName")}`,
+      title: `公開停止中のノート | ${SITE_BRAND_NAME}`,
       robots: {
         index: false,
         follow: false,
@@ -71,15 +54,10 @@ export async function generateMetadata(
     }
   }
 
-  return { title: metadata("brandName") }
+  return { title: SITE_BRAND_NAME }
 }
 
-function UnpublishedNotePage({back, eyebrow, title, description}: {
-  back: string
-  eyebrow: string
-  title: string
-  description: string
-}) {
+function UnpublishedNotePage() {
   return (
     <div className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 space-y-6">
       <nav>
@@ -88,18 +66,19 @@ function UnpublishedNotePage({back, eyebrow, title, description}: {
           className="inline-flex items-center gap-2 text-sm text-hp-muted transition-colors hover:text-hp"
         >
           <span aria-hidden="true">←</span>
-          {back}
+          公開中のノート一覧に戻る
         </Link>
       </nav>
       <article className="glass-card p-8 md:p-10 xl:p-14">
         <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-          {eyebrow}
+          Note
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-hp md:text-4xl xl:text-5xl">
-          {title}
+          このノートは現在公開していません
         </h1>
         <p className="mt-6 max-w-2xl text-sm leading-relaxed text-hp-muted md:text-base">
-          {description}
+          公開状態が切り替わったため、このURLのノート本文は表示していません。
+          現在公開中のノートは一覧から確認できます。
         </p>
       </article>
     </div>
@@ -108,34 +87,21 @@ function UnpublishedNotePage({back, eyebrow, title, description}: {
 
 export default async function NotePage({ params }: PageProps) {
   const { slug } = await params
-  const requestedLocale = await getLocale()
-  const locale = hasLocale(routing.locales, requestedLocale)
-    ? requestedLocale
-    : routing.defaultLocale
-  const t = await getTranslations({locale, namespace: "Notes"})
   const [note, allNotes] = await Promise.all([
-    getPublishedNoteBySlug(slug, locale),
-    listPublishedNotes(locale),
+    getPublishedNoteBySlug(slug),
+    listPublishedNotes(),
   ])
 
   if (!note) {
-    const publicationStatus = await getNotePublicationStatusBySlug(slug, locale)
-    if (publicationStatus === "unpublished") {
-      return <UnpublishedNotePage
-        back={t("back")}
-        eyebrow={t("eyebrow")}
-        title={t("unpublishedTitle")}
-        description={t("unpublishedDescription")}
-      />
-    }
+    const publicationStatus = await getNotePublicationStatusBySlug(slug)
+    if (publicationStatus === "unpublished") return <UnpublishedNotePage />
     notFound()
   }
 
   const slugIndex = buildSlugIndex(allNotes)
   const index = allNotes.findIndex((n) => n.slug === note.slug)
-  const label = index >= 0
-    ? t("numberedEyebrow", {number: String(index + 1).padStart(2, "0")})
-    : t("eyebrow")
+  const label =
+    index >= 0 ? `Note ${String(index + 1).padStart(2, "0")}` : "Note"
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 space-y-6">
@@ -145,7 +111,7 @@ export default async function NotePage({ params }: PageProps) {
           className="hp-nav-link inline-flex items-center gap-2 rounded-[12px] px-1 py-1 text-sm transition-colors hover:text-hp"
         >
           <span aria-hidden="true">←</span>
-          {t("back")}
+          ノート一覧に戻る
         </Link>
       </nav>
       <article className="glass-card glass-card--hp-note-page p-8 md:p-10 xl:p-14">
@@ -156,7 +122,7 @@ export default async function NotePage({ params }: PageProps) {
           {note.title}
         </h1>
         <div className="mt-8">
-          <RenderBlocks blocks={note.blocks} slugIndex={slugIndex} hideDiagrams={locale === "en"} />
+          <RenderBlocks blocks={note.blocks} slugIndex={slugIndex} />
         </div>
       </article>
     </div>

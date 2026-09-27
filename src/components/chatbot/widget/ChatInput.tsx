@@ -8,7 +8,6 @@ import {
   CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
   CHATBOT_CONVERSATION_CONTENT_STYLE,
 } from "./conversationTypography"
-import {useChatbotCopy} from "./i18n"
 
 type ChatInputProps = {
   onSubmit: (text: string) => void
@@ -19,6 +18,7 @@ type ChatInputProps = {
   inputRef?: RefObject<HTMLTextAreaElement | null>
 }
 
+const DEFAULT_PLACEHOLDER = "案件内容やその他質問"
 const MOBILE_HINT_MEDIA_QUERY = "(pointer: coarse), (max-width: 767px)"
 
 function isMacPlatform() {
@@ -49,7 +49,6 @@ export function ChatInput({
   placeholder,
   inputRef,
 }: ChatInputProps) {
-  const copy = useChatbotCopy()
   const [text, setText] = useState("")
   const [usesMobilePlaceholder, setUsesMobilePlaceholder] = useState(() =>
     placeholder === undefined ? matchesMobileHintMedia() : false,
@@ -68,7 +67,7 @@ export function ChatInput({
     return () => mediaQuery.removeEventListener?.("change", syncPlaceholder)
   }, [placeholder])
 
-  const textareaPlaceholder = placeholder ?? copy.inputPlaceholder
+  const textareaPlaceholder = placeholder ?? DEFAULT_PLACEHOLDER
   const showsDefaultShortcutHint = placeholder === undefined && !usesMobilePlaceholder
   const showsShortcutOverlay = showsDefaultShortcutHint && text.length === 0
 
@@ -102,12 +101,12 @@ export function ChatInput({
               style={CHATBOT_CONVERSATION_CONTENT_STYLE}
               aria-hidden="true"
             >
-              <span className="opacity-60">{copy.inputPlaceholder}</span>
+              <span className="opacity-60">案件内容やその他質問</span>
               <span className="inline-flex items-center gap-1">
                 <ShortcutKeycap>
                   <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" data-chat-input-key="newline" />
                 </ShortcutKeycap>
-                <span className="opacity-60">{copy.newlineHint}</span>
+                <span className="opacity-60">で改行</span>
               </span>
               <span className="inline-flex items-center gap-1">
                 <span className="inline-flex items-center gap-px">
@@ -123,7 +122,7 @@ export function ChatInput({
                     <CornerDownLeft className="h-3.5 w-3.5" aria-hidden="true" data-chat-input-key="submit-enter" />
                   </ShortcutKeycap>
                 </span>
-                <span className="opacity-60">{copy.sendHint}</span>
+                <span className="opacity-60">で送信</span>
               </span>
             </div>
           ) : null}
@@ -132,7 +131,7 @@ export function ChatInput({
             className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} relative z-10 w-full min-w-0 bg-transparent py-2 text-sm leading-5 text-hp outline-none ${showsShortcutOverlay ? "min-h-[4.75rem] placeholder:text-transparent" : "chatbot-input-placeholder-muted min-h-9"}`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
             placeholder={textareaPlaceholder}
-            aria-label={copy.inputLabel}
+            aria-label="相談内容"
             value={text}
             disabled={disabled}
             onChange={(event) => setText(event.target.value)}
@@ -144,7 +143,7 @@ export function ChatInput({
           <button
             type="button"
             className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-            aria-label={copy.stop}
+            aria-label="停止"
             onClick={onStop}
           >
             <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
@@ -153,7 +152,7 @@ export function ChatInput({
           <button
             type="submit"
             className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)] disabled:opacity-50"
-            aria-label={copy.send}
+            aria-label="送信"
             disabled={disabled}
           >
             <Send className="h-4 w-4" aria-hidden="true" />

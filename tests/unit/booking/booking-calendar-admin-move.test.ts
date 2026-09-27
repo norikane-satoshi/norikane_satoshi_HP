@@ -36,7 +36,6 @@ vi.mock("@fullcalendar/interaction", () => ({ default: {} }))
 vi.mock("@fullcalendar/timegrid", () => ({ default: {} }))
 vi.mock("@fullcalendar/core/locales/ja", () => ({ default: {} }))
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }))
-vi.mock("next-intl", () => ({ useLocale: () => "ja" }))
 
 import {
   BookingCalendar,

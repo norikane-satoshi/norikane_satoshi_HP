@@ -1,15 +1,13 @@
 "use client"
 
 import { FormEvent, Suspense, useState } from "react"
-import {useTranslations} from "next-intl"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
-import {Link} from "@/i18n/navigation"
 
 const FALLBACK_CALLBACK_URL = "/booking"
 
 function SignupCard() {
-  const t = useTranslations("Auth")
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || FALLBACK_CALLBACK_URL
 
@@ -39,14 +37,14 @@ function SignupCard() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        setErrorMessage(typeof data?.error === "string" ? data.error : t("registrationFailed"))
+        setErrorMessage(typeof data?.error === "string" ? data.error : "登録に失敗しました")
         setSubmitting(false)
         return
       }
 
       setSentTo(email.trim())
     } catch {
-      setErrorMessage(t("networkError"))
+      setErrorMessage("通信エラーが発生しました")
       setSubmitting(false)
     }
   }
@@ -63,17 +61,17 @@ function SignupCard() {
   if (sentTo) {
     return (
       <div className="glass-card p-8 md:p-10 text-center">
-        <h1 className="text-3xl font-bold text-hp md:text-4xl">{t("confirmationSent")}</h1>
+        <h1 className="text-3xl font-bold text-hp md:text-4xl">確認メールを送信しました</h1>
         <p className="mt-6 text-sm text-hp-muted">
           <span className="text-hp font-medium">{sentTo}</span>{" "}
-          {t("sentTo")}
+          に確認メールを送信しました。
         </p>
         <p className="mt-3 text-sm text-hp-muted">
-          {t("verifyInbox")}
+          受信メール内のリンクから認証してください。
         </p>
         <p className="mt-8 text-center text-sm text-hp-muted">
           <Link href={loginHref} className="text-hp font-medium underline decoration-dotted underline-offset-4">
-            {t("backToLogin")}
+            ログイン画面に戻る
           </Link>
         </p>
       </div>
@@ -82,15 +80,15 @@ function SignupCard() {
 
   return (
     <div className="glass-card p-8 md:p-10">
-      <h1 className="text-3xl font-bold text-hp md:text-4xl">{t("signup")}</h1>
+      <h1 className="text-3xl font-bold text-hp md:text-4xl">新規登録</h1>
       <p className="mt-3 text-sm text-hp-muted">
-        {t("signupIntro")}
+        メールアドレスとパスワードでアカウントを作成するか、ソーシャルログインから始められます。
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-hp mb-2">
-            {t("name")} <span className="text-hp-muted">({t("optional")})</span>
+            お名前 <span className="text-hp-muted">(任意)</span>
           </label>
           <input
             id="name"
@@ -101,13 +99,13 @@ function SignupCard() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             className="glass-input w-full px-4 py-3 text-sm"
-            placeholder={t("namePlaceholder")}
+            placeholder="山田 太郎"
           />
         </div>
 
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-hp mb-2">
-            {t("email")} <span className="text-red-400">*</span>
+            メールアドレス <span className="text-red-400">*</span>
           </label>
           <input
             id="email"
@@ -124,7 +122,7 @@ function SignupCard() {
 
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-hp mb-2">
-            {t("password")} <span className="text-red-400">*</span>
+            パスワード <span className="text-red-400">*</span>
           </label>
           <input
             id="password"
@@ -137,7 +135,7 @@ function SignupCard() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="glass-input w-full px-4 py-3 text-sm"
-            placeholder={t("passwordPlaceholder")}
+            placeholder="8文字以上"
           />
         </div>
 
@@ -152,13 +150,13 @@ function SignupCard() {
           disabled={submitting}
           className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          {submitting ? t("registering") : t("register")}
+          {submitting ? "送信中..." : "登録する"}
         </button>
       </form>
 
       <div className="mt-8 flex items-center gap-3">
         <span className="h-px flex-1 bg-[var(--glass-border)]" />
-        <span className="text-xs uppercase tracking-[0.18em] text-hp-muted">{t("or")}</span>
+        <span className="text-xs uppercase tracking-[0.18em] text-hp-muted">または</span>
         <span className="h-px flex-1 bg-[var(--glass-border)]" />
       </div>
 
@@ -168,28 +166,28 @@ function SignupCard() {
           onClick={() => socialSignIn("google")}
           className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2"
         >
-          {t("googleSignup")}
+          Google で登録
         </button>
         <button
           type="button"
           onClick={() => socialSignIn("twitter")}
           className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2"
         >
-          {t("twitterSignup")}
+          X (Twitter) で登録
         </button>
         <button
           type="button"
           onClick={() => socialSignIn("line")}
           className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2"
         >
-          {t("lineSignup")}
+          LINE で登録
         </button>
       </div>
 
       <p className="mt-8 text-center text-sm text-hp-muted">
-        {t("hasAccount")}{" "}
+        すでにアカウントをお持ちですか？{" "}
         <Link href={loginHref} className="text-hp font-medium underline decoration-dotted underline-offset-4">
-          {t("login")}
+          ログイン
         </Link>
       </p>
     </div>

@@ -57,3 +57,4 @@ export type {
   WorkSite,
 } from "@/lib/chatbot/domain/workflow-estimate"
 export { formatProjectLengthMinutes } from "./project-length"
+export { jobKindLabels } from "./job-kind-label"

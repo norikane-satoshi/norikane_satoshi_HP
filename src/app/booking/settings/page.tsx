@@ -1,16 +1,12 @@
 import { auth } from "@/auth"
 import { BookingSettings } from "@/components/booking/booking-settings"
 import { ArrowLeft } from "lucide-react"
-import {getLocale} from "next-intl/server"
+import Link from "next/link"
 import { redirect } from "next/navigation"
-import {Link} from "@/i18n/navigation"
-import {getLocalizedCopy} from "@/i18n/copy"
 
 export default async function BookingSettingsPage() {
-  const locale = await getLocale() as "ja" | "en"
-  const copy = getLocalizedCopy(locale, "Booking")
   const session = await auth()
-  if (!session?.user) redirect(`/${locale}/login?callbackUrl=/${locale}/booking/settings`)
+  if (!session?.user) redirect("/login?callbackUrl=/booking/settings")
 
   return (
     <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">
@@ -18,7 +14,7 @@ export default async function BookingSettingsPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-4xl font-bold text-hp md:text-5xl xl:text-6xl">
-              {copy.settingsLabel}
+              予約カレンダー設定
             </h1>
           </div>
           <Link
@@ -26,7 +22,7 @@ export default async function BookingSettingsPage() {
             className="glass-btn inline-flex min-h-11 items-center gap-2 px-4 py-3 text-sm font-semibold text-hp"
           >
             <ArrowLeft aria-hidden="true" size={18} />
-            <span>{copy.back}</span>
+            <span>戻る</span>
           </Link>
         </div>
         <div className="mt-8">

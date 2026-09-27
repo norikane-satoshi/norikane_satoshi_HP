@@ -15,6 +15,10 @@ import type { ChatbotConversation } from "@/lib/chatbot/domain"
 import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import { warmChatbotDatabase } from "@/lib/chatbot/server/database-warmup"
+import {
+  isChatbotDiagnosticRequest,
+  skipDiagnosticSlackNotification,
+} from "@/lib/chatbot/server/diagnostic-request"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import {
   ChatbotMessageCoordinationError,
@@ -102,6 +106,7 @@ export async function POST(request: NextRequest) {
   }
 
   const routeBodyParse = Date.now() - bodyParseStartedAt
+  const isDiagnostic = isChatbotDiagnosticRequest(request.headers)
   const authStartedAt = Date.now()
   const session = await auth()
   const routeAuth = Date.now() - authStartedAt
@@ -167,6 +172,7 @@ export async function POST(request: NextRequest) {
             },
             {
               deferSlackNotification: true,
+              ...(isDiagnostic ? { slackNotifier: skipDiagnosticSlackNotification } : {}),
               ...(ownership
               ? {
                   assertRequestOwnership: () => assertChatbotMessageRequestOwnership(ownership),
@@ -277,6 +283,7 @@ export async function POST(request: NextRequest) {
       conversationId: parsed.data.conversationId,
       sessionId,
       stage: failureStage,
+      skipSlack: isDiagnostic,
     })
     const auditConversationId = failureConversation?.id ?? parsed.data.conversationId
     if (auditConversationId) {
@@ -325,6 +332,7 @@ async function notifySlackMessageFailure(input: {
   conversationId?: string
   sessionId: string
   stage: ReturnType<typeof classifyMessageFailureStage>
+  skipSlack: boolean
 }): Promise<ChatbotConversation | null> {
   let conversation: ChatbotConversation | null = null
   try {
@@ -332,6 +340,7 @@ async function notifySlackMessageFailure(input: {
       conversationId: input.conversationId,
       sessionId: input.sessionId,
     })
+    if (input.skipSlack) return conversation
     const threadTs = conversation?.context.slackThreadTs
     const result = await sendChatbotSlackNotification({
       kind: "issue",

@@ -1,8 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, type AnimationEvent, type ReactNode } from "react"
-import {useLocale} from "next-intl"
-import {getLocalizedCopy} from "@/i18n/copy"
 
 import { AdminReconnectBanner } from "@/components/booking/admin-reconnect-banner"
 import { BookingCalendar } from "@/components/booking/booking-calendar"
@@ -109,7 +107,6 @@ export function BookingSection({
   entryPoint = "web",
   lineUserId,
 }: BookingSectionProps) {
-  const copy = getLocalizedCopy(useLocale(), "Booking")
   const defaultFormData = useMemo(() => createDefaultBookingFormData(userEmail), [userEmail])
   const [step, setStep] = useState<BookingStep>("calendar")
   const [outgoingStep, setOutgoingStep] = useState<BookingStep | null>(null)
@@ -413,13 +410,13 @@ export function BookingSection({
       <AdminReconnectBanner isCalendarAdmin={isCalendarAdmin} code={calendarCode} />
       {localDraftAvailable && step !== "done" ? (
         <div className="booking-section__draft-banner glass-inset">
-          <span>{copy.draftNotice}</span>
+          <span>入力途中の予約申込があります（24 時間以内）</span>
           <div className="booking-section__draft-actions">
             <button className="booking-section__text-button" type="button" onClick={handleContinueDraft}>
-              {copy.continueDraft}
+              続きから入力する
             </button>
             <button className="booking-section__text-button" type="button" onClick={handleDiscardDraft}>
-              {copy.discardDraft}
+              破棄する
             </button>
           </div>
         </div>

@@ -129,6 +129,8 @@ Start a verification dev server only when the current task needs it; no dev serv
 
 AI チャットボットと予約カレンダーの実装は、検証済み変更を `localhost:41238` だけで止めず、`master` / Vercel Production まで反映し、Production URL と顧客導線で確認できる状態を既定の完了条件にする。破壊的変更、secret / env 更新、DB migration、外部サービス設定変更、不可逆または高コストな操作は、master / Production 反映前にさとしさんの明示確認を取る。
 
+ユーザーに見える HP の文章（Hero の一言コピー、見出し、本文、キャッチコピー等）は、さとしさんの明示指示なしに追加・削除・書き換えない。
+
 ## 41238 最新化ルール
 
 今後この HP の修正が lint・typecheck・対象 unit test を通過し、専用作業ブランチへ commit されたら、staging 統合について次の 1〜2 を実行する。41238 の起動・更新と 3〜4 の確認は、そのタスクでローカルプレビューが必要な場合に限る。41238 の常時 LISTEN は完了条件にしない。

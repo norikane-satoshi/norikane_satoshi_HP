@@ -1,26 +1,24 @@
 "use client"
 
 import { FormEvent, Suspense, useState } from "react"
-import {useTranslations} from "next-intl"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
-import {Link} from "@/i18n/navigation"
 import { MAGIC_LINK_PROVIDER_ID } from "@/lib/auth/provider-ids"
 
 const FALLBACK_CALLBACK_URL = "/booking"
 
-function messageForCode(code: string | null | undefined, t: (key: "emailNotVerified" | "invalidCredentials" | "loginFailed") => string): string {
+function messageForCode(code: string | null | undefined): string {
   if (code === "email_not_verified") {
-    return t("emailNotVerified")
+    return "メール認証が未完了です。受信メールのリンクから認証してください"
   }
   if (code === "invalid_credentials") {
-    return t("invalidCredentials")
+    return "メールかパスワードが違います"
   }
-  return t("loginFailed")
+  return "ログインに失敗しました"
 }
 
 function LoginCard() {
-  const t = useTranslations("Auth")
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || FALLBACK_CALLBACK_URL
 
@@ -49,7 +47,7 @@ function LoginCard() {
     })
 
     if (result?.error) {
-      setErrorMessage(messageForCode(result.code, t))
+      setErrorMessage(messageForCode(result.code))
       setSubmitting(false)
       return
     }
@@ -77,12 +75,12 @@ function LoginCard() {
         callbackUrl,
       })
       if (result?.error) {
-        setMagicLinkErrorMessage(t("magicFailed"))
+        setMagicLinkErrorMessage("ログインリンクを送信できませんでした")
         return
       }
       setMagicLinkSent(true)
     } catch {
-      setMagicLinkErrorMessage(t("magicFailed"))
+      setMagicLinkErrorMessage("ログインリンクを送信できませんでした")
     } finally {
       setMagicLinkSubmitting(false)
     }
@@ -95,26 +93,26 @@ function LoginCard() {
 
   return (
     <div className="glass-card p-8 md:p-10">
-      <h1 className="text-3xl font-bold text-hp md:text-4xl">{t("login")}</h1>
+      <h1 className="text-3xl font-bold text-hp md:text-4xl">ログイン</h1>
       <p className="mt-3 text-sm text-hp-muted">
-        {t("loginIntro")}
+        ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。
       </p>
 
       {verified === "1" && (
         <p className="mt-6 text-sm text-emerald-500" role="status">
-          {t("verified")}
+          メールアドレスの認証が完了しました。ログインしてください
         </p>
       )}
       {verifyError === "invalid_or_expired" && (
         <p className="mt-6 text-sm text-red-500" role="alert">
-          {t("verifyError")}
+          認証リンクが無効か期限切れです。お手数ですがもう一度サインアップから登録メールを送信してください
         </p>
       )}
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-hp mb-2">
-            {t("email")} <span className="text-red-400">*</span>
+            メールアドレス <span className="text-red-400">*</span>
           </label>
           <input
             id="email"
@@ -131,7 +129,7 @@ function LoginCard() {
 
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-hp mb-2">
-            {t("password")} <span className="text-red-400">*</span>
+            パスワード <span className="text-red-400">*</span>
           </label>
           <input
             id="password"
@@ -142,7 +140,7 @@ function LoginCard() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="glass-input w-full px-4 py-3 text-sm"
-            placeholder={t("passwordPlaceholder")}
+            placeholder="8文字以上"
           />
         </div>
 
@@ -157,7 +155,7 @@ function LoginCard() {
           disabled={submitting}
           className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          {submitting ? t("signingIn") : t("login")}
+          {submitting ? "サインイン中..." : "ログイン"}
         </button>
 
         <p className="text-center text-sm text-hp-muted">
@@ -165,19 +163,19 @@ function LoginCard() {
             href="/forgot-password"
             className="underline decoration-dotted underline-offset-4 hover:text-hp"
           >
-            {t("forgotPassword")}
+            パスワードをお忘れですか？
           </Link>
         </p>
       </form>
 
       <div className="mt-8 rounded-[20px] border border-[var(--glass-border)] p-4">
-        <h2 className="text-sm font-semibold text-hp">{t("magicTitle")}</h2>
+        <h2 className="text-sm font-semibold text-hp">メールリンクでログイン</h2>
         <p className="mt-2 text-sm text-hp-muted">
-          {t("magicIntro")}
+          パスワードを使わず、メールに届くリンクからログインできます。
         </p>
         <form onSubmit={handleMagicLinkSubmit} className="mt-4 space-y-3" noValidate>
           <label htmlFor="magic-link-email" className="block text-sm font-medium text-hp">
-            {t("magicEmail")}
+            ログインリンク送信用メールアドレス
           </label>
           <input
             id="magic-link-email"
@@ -191,7 +189,7 @@ function LoginCard() {
           />
           {magicLinkSent && (
             <p className="text-sm text-hp-muted" role="status">
-              {t("magicSent")}
+              ログインリンクを送信しました。メールをご確認ください。
             </p>
           )}
           {magicLinkErrorMessage && (
@@ -204,14 +202,14 @@ function LoginCard() {
             disabled={magicLinkSubmitting}
             className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {magicLinkSubmitting ? t("sending") : t("sendMagic")}
+            {magicLinkSubmitting ? "送信中..." : "ログインリンクを送信"}
           </button>
         </form>
       </div>
 
       <div className="mt-8 flex items-center gap-3">
         <span className="h-px flex-1 bg-[var(--glass-border)]" />
-        <span className="text-xs uppercase tracking-[0.18em] text-hp-muted">{t("or")}</span>
+        <span className="text-xs uppercase tracking-[0.18em] text-hp-muted">または</span>
         <span className="h-px flex-1 bg-[var(--glass-border)]" />
       </div>
 
@@ -221,28 +219,28 @@ function LoginCard() {
           onClick={() => socialSignIn("google")}
           className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2"
         >
-          {t("googleLogin")}
+          Google でログイン
         </button>
         <button
           type="button"
           onClick={() => socialSignIn("twitter")}
           className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2"
         >
-          {t("twitterLogin")}
+          X (Twitter) でログイン
         </button>
         <button
           type="button"
           onClick={() => socialSignIn("line")}
           className="glass-btn w-full px-6 py-3 text-sm font-medium flex items-center justify-center gap-2"
         >
-          {t("lineLogin")}
+          LINE でログイン
         </button>
       </div>
 
       <p className="mt-8 text-center text-sm text-hp-muted">
-        {t("noAccount")}{" "}
+        アカウントをお持ちでないですか？{" "}
         <Link href={signupHref} className="text-hp font-medium underline decoration-dotted underline-offset-4">
-          {t("signup")}
+          新規登録
         </Link>
       </p>
     </div>

@@ -16,6 +16,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { InquiryFormPrefill } from "@/lib/chatbot/domain"
 import { jobKindChoices } from "@/lib/chatbot/domain/survey-choice"
+import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
@@ -49,8 +50,6 @@ import {
   type ChatbotRenderAuditContext,
 } from "./browser-audit"
 import { useConversationScroll } from "./useConversationScroll"
-import {useChatbotCopy, useChatbotLocale} from "./i18n"
-import type {AppMessages} from "@/i18n/copy"
 
 type WidgetShellProps = {
   onMinimize: () => void
@@ -74,14 +73,23 @@ type WidgetMessage = {
   embeddedUi?: WidgetUi
 }
 
-function createInitialMessage(copy: AppMessages["Chatbot"]): WidgetMessage {
-  return {role: "assistant", content: copy.initialMessage, createdAt: new Date()}
-}
+const initialMessage = {
+  role: "assistant",
+  content: "ご相談や案件依頼はこちらです。最終媒体、公開時期、作業時期などを会話で整理します。",
+  createdAt: new Date(),
+} satisfies WidgetMessage
 
 const noUi = { kind: "none" } satisfies WidgetUi
 // The job-kind panel is shown before the first message so a customer can start with one click;
 // the server treats a first panel submission as the answer to this panel (Tier 0, no model call).
 const openingUi = { kind: "choice-panel", choiceSet: jobKindChoices } satisfies WidgetUi
+const communicationFallbackMessage =
+  "応答が中断しました。入力内容は残っています。もう一度送信できます。復旧できない場合だけフォームに切り替えます。"
+const formFallbackMessage =
+  "自動再試行でも応答できませんでした。入力内容は残したまま、必要なら下のフォームから連絡できます。"
+const inquirySentMessage = "送信しました。担当者からの返信をお待ちください。"
+const inquiryUndeliveredMessage =
+  "申し訳ありません、送信処理は完了しましたが、担当者への通知が届きませんでした。入力内容はそのまま残していますので、もう一度送信をお試しください。お急ぎの場合は norikane.satoshi@gmail.com へ直接ご連絡ください。"
 const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v2"
 const CHATBOT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const CHATBOT_PENDING_REQUEST_TTL_MS = 15 * 60 * 1000
@@ -113,6 +121,18 @@ const hiddenScrollIndicatorState: ScrollIndicatorState = {
   thumbTop: 0,
 }
 
+const additionalWorkMemoLabels: Record<NonNullable<JobContext["additionalWork"]>[number], string> = {
+  retouch: "消し物/レタッチ",
+  "skin-retouch": "肌修正",
+  other: "その他追加作業",
+}
+
+const workSiteMemoLabels: Record<JobContext["workSite"], string> = {
+  "satoshi-studio": "のりかね映像設計室",
+  "remote-grading": "リモート",
+  "on-site": "現地/ポスプロ常駐",
+}
+
 type StoredWidgetSession = {
   messages: Array<Omit<WidgetMessage, "createdAt"> & { createdAt: string }>
   clientSessionId?: string
@@ -134,9 +154,9 @@ type StoredPendingRequest = {
   editTargetMessageId?: string
 }
 
-function getInitialWidgetSession(copy: AppMessages["Chatbot"]) {
+function getInitialWidgetSession() {
   return {
-    messages: [createInitialMessage(copy)],
+    messages: [initialMessage],
     activeUi: openingUi,
   }
 }
@@ -315,7 +335,7 @@ function serializeWidgetMessages(messages: WidgetMessage[]): StoredWidgetSession
   }))
 }
 
-function loadStoredWidgetSession(copy: AppMessages["Chatbot"]): {
+function loadStoredWidgetSession(): {
   messages: WidgetMessage[]
   clientSessionId?: string
   conversationId?: string
@@ -325,16 +345,16 @@ function loadStoredWidgetSession(copy: AppMessages["Chatbot"]): {
   pendingRequest?: StoredPendingRequest
   recoverableRequest?: StoredPendingRequest
 } {
-  if (typeof window === "undefined") return getInitialWidgetSession(copy)
+  if (typeof window === "undefined") return getInitialWidgetSession()
 
   try {
     const raw = window.localStorage.getItem(CHATBOT_SESSION_STORAGE_KEY)
-    if (!raw) return getInitialWidgetSession(copy)
+    if (!raw) return getInitialWidgetSession()
 
     const parsed = JSON.parse(raw) as Partial<StoredWidgetSession>
     if (!parsed.expiresAt || new Date(parsed.expiresAt).getTime() <= Date.now()) {
       removeStoredWidgetSession()
-      return getInitialWidgetSession(copy)
+      return getInitialWidgetSession()
     }
 
     const pendingRequest = isFreshStoredPendingRequest(parsed.pendingRequest) ? parsed.pendingRequest : undefined
@@ -365,10 +385,10 @@ function loadStoredWidgetSession(copy: AppMessages["Chatbot"]): {
         ? isCompletedBookingUi(restoredActiveUi)
           ? appendCompletedBookingMessage(messages, restoredActiveUi)
           : messages
-        : [createInitialMessage(copy)]
+        : [initialMessage]
     const messagesWithRecoveryNotice =
       recoverableRequest && !pendingRequest && restoredMessages[restoredMessages.length - 1]?.role !== "system"
-        ? [...restoredMessages, { role: "system" as const, content: copy.communicationFallback, createdAt: new Date() }]
+        ? [...restoredMessages, { role: "system" as const, content: communicationFallbackMessage, createdAt: new Date() }]
         : restoredMessages
 
     return {
@@ -385,7 +405,7 @@ function loadStoredWidgetSession(copy: AppMessages["Chatbot"]): {
     }
   } catch {
     removeStoredWidgetSession()
-    return getInitialWidgetSession(copy)
+    return getInitialWidgetSession()
   }
 }
 
@@ -409,54 +429,35 @@ function createClientSessionId() {
   return `00000000-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`
 }
 
-type ChatbotCopy = ReturnType<typeof useChatbotCopy>
-
-function buildBookingSupplementalNote(jobContext: JobContext, copy: ChatbotCopy, prefillMemo?: string): string {
+function buildBookingSupplementalNote(jobContext: JobContext, prefillMemo?: string): string {
   return [
     prefillMemo,
-    formatProjectLengthMemo(jobContext.projectLengthMinutes, copy),
-    formatAdditionalWorkMemo(jobContext.additionalWork, copy),
-    formatWorkSiteMemo(jobContext.workSite, copy),
-    jobContext.preferredStartDate ? `${copy.materialTiming}: ${jobContext.preferredStartDate}` : undefined,
-    jobContext.publicReleaseDate ? `${copy.deliveryDate}: ${jobContext.publicReleaseDate}` : undefined,
+    formatProjectLengthMemo(jobContext.projectLengthMinutes),
+    formatAdditionalWorkMemo(jobContext.additionalWork),
+    formatWorkSiteMemo(jobContext.workSite),
+    jobContext.preferredStartDate ? `素材搬入/受け取り時期: ${jobContext.preferredStartDate}` : undefined,
+    jobContext.publicReleaseDate ? `納品希望日: ${jobContext.publicReleaseDate}` : undefined,
     ...(jobContext.referenceUrls ?? []),
   ].filter((item): item is string => Boolean(item)).join("\n")
 }
 
-function formatProjectLengthValue(minutes: number | undefined, copy: ChatbotCopy): string | undefined {
+function formatProjectLengthMemo(minutes: number | undefined): string | undefined {
   if (minutes === undefined) return undefined
   if (minutes >= 60) {
     const hours = minutes / 60
-    return copy.durationHours.replace("{value}", String(Number.isInteger(hours) ? hours : hours.toFixed(1)))
+    return `尺: ${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`
   }
-  // Short CMs are stored as fractional minutes (15 seconds is 0.25); show them in seconds.
-  if (minutes > 0 && minutes < 1) return copy.durationSeconds.replace("{value}", String(Math.round(minutes * 60)))
-  return copy.durationMinutes.replace("{value}", String(minutes))
+  return `尺: ${formatProjectLengthMinutes(minutes)}`
 }
 
-function formatProjectLengthMemo(minutes: number | undefined, copy: ChatbotCopy): string | undefined {
-  const value = formatProjectLengthValue(minutes, copy)
-  return value ? `${copy.durationLabel}: ${value}` : undefined
-}
-
-function formatAdditionalWorkMemo(additionalWork: JobContext["additionalWork"], copy: ChatbotCopy): string | undefined {
+function formatAdditionalWorkMemo(additionalWork: JobContext["additionalWork"]): string | undefined {
   if (!additionalWork?.length) return undefined
-  const labels: Record<NonNullable<JobContext["additionalWork"]>[number], string> = {
-    retouch: copy.retouch,
-    "skin-retouch": copy.skinRetouch,
-    other: copy.otherWork,
-  }
-  return `${copy.additionalWorkLabel}: ${additionalWork.map((item) => labels[item]).join(" / ")}`
+  return `追加作業: ${additionalWork.map((item) => additionalWorkMemoLabels[item]).join(" / ")}`
 }
 
-function formatWorkSiteMemo(workSite: JobContext["workSite"], copy: ChatbotCopy): string | undefined {
+function formatWorkSiteMemo(workSite: JobContext["workSite"]): string | undefined {
   if (!workSite) return undefined
-  const labels: Record<NonNullable<JobContext["workSite"]>, string> = {
-    "satoshi-studio": copy.satoshiStudio,
-    "remote-grading": copy.remoteGrading,
-    "on-site": copy.onSite,
-  }
-  return `${copy.workSiteLabel}: ${labels[workSite]}`
+  return `作業場所: ${workSiteMemoLabels[workSite]}`
 }
 
 export function WidgetShell({
@@ -471,7 +472,6 @@ export function WidgetShell({
   onToggleDisplayMode,
   focusInputOnOpen = false,
 }: WidgetShellProps) {
-  const copy = useChatbotCopy()
   const shouldReduceMotion = useReducedMotion()
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -483,7 +483,7 @@ export function WidgetShell({
     chatInputRef.current?.focus({ preventScroll: true })
   }, [focusInputOnOpen])
   const [isPanelVisible, setIsPanelVisible] = useState(true)
-  const [messages, setMessages] = useState<WidgetMessage[]>(() => getInitialWidgetSession(copy).messages)
+  const [messages, setMessages] = useState<WidgetMessage[]>(() => getInitialWidgetSession().messages)
   const [conversationId, setConversationId] = useState<string | undefined>(undefined)
   const [clientSessionId, setClientSessionId] = useState<string>(() => createClientSessionId())
   const [activeUi, setActiveUi] = useState<WidgetUi>(openingUi)
@@ -711,7 +711,7 @@ export function WidgetShell({
   }, [submitting])
 
   useEffect(() => {
-    const storedSession = loadStoredWidgetSession(copy)
+    const storedSession = loadStoredWidgetSession()
     /* eslint-disable react-hooks/set-state-in-effect -- localStorage restore must run after hydration before the first save. */
     setMessages(storedSession.messages)
     if (storedSession.clientSessionId) {
@@ -727,7 +727,7 @@ export function WidgetShell({
     setRecoverableRequest(storedSession.recoverableRequest)
     setHasRestoredSession(true)
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [copy])
+  }, [])
 
   useEffect(() => {
     const available = isLocalChatbotDebugHost(window.location.hostname)
@@ -876,7 +876,7 @@ export function WidgetShell({
       }
       appendMessage({
         role: "system",
-        content: copy.communicationFallback,
+        content: communicationFallbackMessage,
         createdAt: new Date(),
       })
       setActiveUi(noUi)
@@ -1074,7 +1074,7 @@ export function WidgetShell({
       }
       appendMessage({
         role: "system",
-        content: copy.communicationFallback,
+        content: communicationFallbackMessage,
         createdAt: new Date(),
       })
       setActiveUi(noUi)
@@ -1219,7 +1219,7 @@ export function WidgetShell({
       }
       appendMessage({
         role: "system",
-        content: copy.communicationFallback,
+        content: communicationFallbackMessage,
         createdAt: new Date(),
       })
       setActiveUi(noUi)
@@ -1265,7 +1265,7 @@ export function WidgetShell({
     const nextActiveUi: WidgetUi = { kind: "tier3-inquiry-form", prefill: inquiryPrefill }
     const nextMessages = [
       ...messages,
-      { role: "system" as const, content: copy.formFallback, createdAt: new Date() },
+      { role: "system" as const, content: formFallbackMessage, createdAt: new Date() },
     ]
     activePendingRequestRef.current = undefined
     setPendingRequest(undefined)
@@ -1296,7 +1296,7 @@ export function WidgetShell({
         // wait for a reply would leave the inquiry silently lost.
         appendMessage({
           role: "system",
-          content: copy.inquiryUndelivered,
+          content: inquiryUndeliveredMessage,
           createdAt: new Date(),
         })
         setActiveUi({ kind: "tier3-inquiry-form", prefill: inquiryPrefill })
@@ -1312,7 +1312,7 @@ export function WidgetShell({
       }
       appendMessage({
         role: "assistant",
-        content: copy.inquirySent,
+        content: inquirySentMessage,
         createdAt: new Date(),
       })
       setActiveUi(noUi)
@@ -1325,7 +1325,7 @@ export function WidgetShell({
     } catch {
       appendMessage({
         role: "system",
-        content: copy.communicationFallback,
+        content: communicationFallbackMessage,
         createdAt: new Date(),
       })
       setActiveUi({ kind: "tier3-inquiry-form", prefill: inquiryPrefill })
@@ -1369,13 +1369,13 @@ export function WidgetShell({
   const isSidePeek = isDesktopLayout && displayMode === "side-peek"
   const isFloating = isDesktopLayout && displayMode === "floating"
   const isFullScreen = !isDesktopLayout && displayMode === "full-screen"
-  const assistantDisplayName = isAssistantNameIntroduced(messages) ? copy.assistantNickname : copy.assistant
+  const assistantDisplayName = isAssistantNameIntroduced(messages) ? "のーちゃん" : "AI アシスタント"
 
   useEffect(() => {
     if (!activeAuditContext || !conversationId) return
     const eventNames = [
       ...(customerDisplayName ? ["customer_display_name_applied" as const] : []),
-      ...(assistantDisplayName === copy.assistantNickname ? ["assistant_display_name_applied" as const] : []),
+      ...(assistantDisplayName === "のーちゃん" ? ["assistant_display_name_applied" as const] : []),
     ]
     const durationMs = Math.max(
       0,
@@ -1406,7 +1406,7 @@ export function WidgetShell({
         })
       })
     })
-  }, [activeAuditContext, activeUi.kind, assistantDisplayName, conversationId, copy.assistantNickname, customerDisplayName])
+  }, [activeAuditContext, activeUi.kind, assistantDisplayName, conversationId, customerDisplayName])
   const shellSizeClassName = isDesktopLayout
     ? "h-full w-full max-w-none rounded-[var(--hp-radius)]"
     : isFullScreen
@@ -1534,7 +1534,7 @@ export function WidgetShell({
         backdropFilter: "blur(32px) saturate(130%)",
         WebkitBackdropFilter: "blur(32px) saturate(130%)",
       }}
-      aria-label={copy.windowLabel}
+      aria-label="AI 相談窓口"
     >
       {isSidePeek ? (
         <button
@@ -1542,7 +1542,7 @@ export function WidgetShell({
           onPointerDown={onSidePeekResizePointerDown}
           onKeyDown={handleSidePeekResizeKeyDown}
           className="absolute inset-y-0 left-0 z-20 flex w-4 cursor-ew-resize items-center justify-center text-hp-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-          aria-label={copy.resizeSidePeek}
+          aria-label="サイドピーク幅を変更"
         >
           <GripHorizontal className="h-5 w-5 rotate-90" aria-hidden="true" />
         </button>
@@ -1558,7 +1558,7 @@ export function WidgetShell({
           <div className="min-w-0">
             <p className="text-sm font-semibold text-hp">{assistantDisplayName}</p>
             <p className="mt-0.5 truncate text-xs text-hp-muted">
-              {copy.deskSubtitle}
+              のりかね映像設計室のご相談窓口
             </p>
           </div>
         </div>
@@ -1568,7 +1568,7 @@ export function WidgetShell({
               type="button"
               onClick={() => setIsDebugOpen((current) => !current)}
               className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-              aria-label={isDebugOpen ? copy.closeDebug : copy.openDebug}
+              aria-label={isDebugOpen ? "診断情報を閉じる" : "診断情報を表示"}
               aria-pressed={isDebugOpen}
               data-chatbot-debug="toggle"
             >
@@ -1580,7 +1580,7 @@ export function WidgetShell({
               type="button"
               onClick={onToggleDisplayMode}
               className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-              aria-label={displayMode === "side-peek" ? copy.switchFloating : copy.switchSidePeek}
+              aria-label={displayMode === "side-peek" ? "フローティング表示に切り替え" : "サイドピーク表示に切り替え"}
             >
               <PanelRightOpen className={`h-4 w-4 ${displayMode === "side-peek" ? "rotate-180" : ""}`} aria-hidden="true" />
             </button>
@@ -1589,7 +1589,7 @@ export function WidgetShell({
               type="button"
               onClick={onToggleDisplayMode}
               className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-              aria-label={isFullScreen ? copy.restoreNormal : copy.switchFullscreen}
+              aria-label={isFullScreen ? "通常表示に戻す" : "全画面表示に切り替え"}
             >
               {isFullScreen ? (
                 <Minimize2 className="h-4 w-4" aria-hidden="true" />
@@ -1602,7 +1602,7 @@ export function WidgetShell({
             type="button"
             onClick={handleMinimize}
             className="glass-btn flex h-9 w-9 shrink-0 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-            aria-label={copy.minimize}
+            aria-label="最小化"
           >
             <Minus className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -1642,7 +1642,7 @@ export function WidgetShell({
               touchAction: "pan-y",
             } as CSSProperties
           }
-          aria-label={copy.conversation}
+          aria-label="チャット本文"
         >
           <SecurityNote defaultOpen={false} />
           <div className="space-y-3" role="log" aria-live="polite">
@@ -1681,21 +1681,21 @@ export function WidgetShell({
           </div>
           {recoverableRequest && !submitting ? (
             <div className="glass-card-sm space-y-3 px-4 py-3 text-xs leading-relaxed text-hp-muted" role="status">
-              <p>{copy.recoveryNotice}</p>
+              <p>直前の送信が完了していません。入力内容は保持しています。</p>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={handleRecoverableRetry}
                   className="glass-btn px-3 py-2 text-xs font-semibold text-hp"
                 >
-                  {copy.retry}
+                  再送する
                 </button>
                 <button
                   type="button"
                   onClick={handleRecoverableFormFallback}
                   className="glass-btn px-3 py-2 text-xs font-semibold text-hp-muted"
                 >
-                  {copy.switchForm}
+                  フォームに切り替える
                 </button>
               </div>
             </div>
@@ -1744,7 +1744,7 @@ export function WidgetShell({
               backdropFilter: "blur(18px) saturate(140%)",
               WebkitBackdropFilter: "blur(18px) saturate(140%)",
             }}
-            aria-label={copy.scrollLatest}
+            aria-label="一番下へ移動"
           >
             <ChevronDown className="h-5 w-5" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true" />
           </button>
@@ -1764,7 +1764,7 @@ export function WidgetShell({
           onPointerDown={onFloatingResizePointerDown}
           onKeyDown={handleFloatingResizeKeyDown}
           className="absolute bottom-0 right-0 z-20 h-8 w-8 cursor-nwse-resize bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-          aria-label={copy.resizePanel}
+          aria-label="パネルを拡大・縮小"
         />
       ) : null}
     </motion.section>
@@ -1820,8 +1820,6 @@ function ActiveWidgetUi({
   onInquirySubmit: (input: Omit<SubmitInquiryInput, "conversationId">) => void
   onBookingCompleted: (booking: BookingCompletionSummary) => void
 }) {
-  const copy = useChatbotCopy()
-  const locale = useChatbotLocale()
   const auditEventIdsRef = useRef(new Map<string, string>())
   const sentAuditKeysRef = useRef(new Set<string>())
 
@@ -1865,7 +1863,7 @@ function ActiveWidgetUi({
       <ChoicePanel
         choiceSet={ui.choiceSet}
         allowMultiple={ui.choiceSet.selectionMode === "multiple"}
-        onSelect={(selection) => onSubmit(formatChoicePanelSubmission(selection, copy, locale))}
+        onSelect={(selection) => onSubmit(formatChoicePanelSubmission(selection))}
       />
     )
   }
@@ -1885,7 +1883,7 @@ function ActiveWidgetUi({
         defaultContactEmail={ui.bookingPrefill?.contactEmail}
         defaultCompanyName={ui.bookingPrefill?.companyName}
         defaultDueDate={ui.bookingPrefill?.dueDate ?? ui.jobContext.publicReleaseDate}
-        defaultMemo={buildBookingSupplementalNote(ui.jobContext, copy, ui.bookingPrefill?.memo)}
+        defaultMemo={buildBookingSupplementalNote(ui.jobContext, ui.bookingPrefill?.memo)}
         completedBooking={ui.completedBooking}
         auditContext={auditContext}
         onBooked={onBookingCompleted}
@@ -1926,7 +1924,7 @@ function ActiveWidgetUi({
           jobType: ui.summary.subject,
           duration:
             typeof ui.summary.jobContext.projectLengthMinutes === "number"
-              ? formatProjectLengthValue(ui.summary.jobContext.projectLengthMinutes, copy)
+              ? formatProjectLengthMemo(ui.summary.jobContext.projectLengthMinutes)?.replace(/^尺:\s*/u, "")
               : undefined,
           desiredDeadline: ui.summary.jobContext.publicReleaseDate,
           freeText: ui.summary.summaryText,
@@ -1958,12 +1956,9 @@ function formatChoicePanelSubmission(selection: {
   selectedLabels: string[]
   selectedIds: string[]
   otherComment?: string
-}, copy: ChatbotCopy, locale: "ja" | "en"): string {
-  const selectedText = selection.selectedLabels.length > 0 ? selection.selectedLabels.join(locale === "en" ? ", " : "、") : selection.selectedIds.join(", ")
-  return [
-    copy.selection.replace("{value}", selectedText),
-    selection.otherComment ? copy.otherComment.replace("{value}", selection.otherComment) : undefined,
-  ]
+}): string {
+  const selectedText = selection.selectedLabels.length > 0 ? selection.selectedLabels.join("、") : selection.selectedIds.join(", ")
+  return [`選択: ${selectedText}`, selection.otherComment ? `その他コメント: ${selection.otherComment}` : undefined]
     .filter((line): line is string => Boolean(line))
     .join("\n")
 }

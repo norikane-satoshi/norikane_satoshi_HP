@@ -92,11 +92,13 @@ describe("POST /api/revalidate replay defense", () => {
         path: "/notes/look-decomposition",
         tag: "notes",
         home: true,
+        sitemap: true,
       },
       reason: "test",
     })
     expect(cacheMocks.revalidatePath).toHaveBeenCalledWith("/notes/look-decomposition", "page")
     expect(cacheMocks.revalidateTag).toHaveBeenCalledWith("notes", "max")
     expect(cacheMocks.revalidatePath).toHaveBeenCalledWith("/", "page")
+    expect(cacheMocks.revalidatePath).toHaveBeenCalledWith("/sitemap.xml")
   })
 })

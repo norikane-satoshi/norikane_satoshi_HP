@@ -7,51 +7,33 @@ const SITE_URL = "https://norikane.studio";
 
 const LEGAL_PAGES = ["/privacy", "/terms"] as const;
 
-function localizedEntry(path: string, locale: "ja" | "en") {
-  const localizedPath = `/${locale}${path === "/" ? "" : path}`
-  return {
-    url: new URL(localizedPath, SITE_URL).toString(),
-    alternates: {
-      languages: {
-        ja: new URL(`/ja${path === "/" ? "" : path}`, SITE_URL).toString(),
-        en: new URL(`/en${path === "/" ? "" : path}`, SITE_URL).toString(),
-      },
-    },
-  }
-}
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const roots = (["ja", "en"] as const).map((locale) => ({
-    ...localizedEntry("/", locale),
+  const root: MetadataRoute.Sitemap[number] = {
+    url: new URL("/", SITE_URL).toString(),
     lastModified: new Date(),
-    changeFrequency: "weekly" as const,
+    changeFrequency: "weekly",
     priority: 1.0,
-  }))
-  const legalPages = LEGAL_PAGES.flatMap((path) =>
-    (["ja", "en"] as const).map((locale) => ({
-      ...localizedEntry(path, locale),
-      lastModified: new Date(),
-      changeFrequency: "yearly" as const,
-      priority: 0.4,
-    })),
-  )
+  };
+  const legalPages = LEGAL_PAGES.map((path) => ({
+    url: new URL(path, SITE_URL).toString(),
+    lastModified: new Date(),
+    changeFrequency: "yearly" as const,
+    priority: 0.4,
+  }));
 
   try {
-    const notes = (await Promise.all([
-      listPublishedNotes("ja"),
-      listPublishedNotes("en"),
-    ])).flat()
+    const notes = await listPublishedNotes();
     return [
-      ...roots,
+      root,
       ...legalPages,
       ...notes.map((note) => ({
-        ...localizedEntry(`/notes/${note.slug}`, note.locale),
+        url: new URL(`/notes/${note.slug}`, SITE_URL).toString(),
         lastModified: new Date(note.lastEditedTime),
         changeFrequency: "monthly" as const,
         priority: 0.7,
       })),
     ];
   } catch {
-    return [...roots, ...legalPages];
+    return [root, ...legalPages];
   }
 }

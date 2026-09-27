@@ -28,10 +28,12 @@ function page({
   id,
   slug,
   title,
+  language,
 }: {
   id: string
   slug?: string
   title?: string
+  language?: string
 }) {
   return {
     id,
@@ -42,6 +44,7 @@ function page({
         type: "title",
         title: title === undefined ? [] : [{ plain_text: title }],
       },
+      Language: language ? { type: "select", select: { name: language } } : undefined,
       Slug:
         slug === undefined
           ? { type: "rich_text", rich_text: [] }
@@ -103,7 +106,6 @@ describe("notion note fetching", () => {
         title: "First",
         createdTime: "2026-05-01T00:00:00.000Z",
         lastEditedTime: "2026-05-02T00:00:00.000Z",
-        locale: "ja",
       },
       {
         id: "p3",
@@ -111,7 +113,6 @@ describe("notion note fetching", () => {
         title: "Third",
         createdTime: "2026-05-01T00:00:00.000Z",
         lastEditedTime: "2026-05-02T00:00:00.000Z",
-        locale: "ja",
       },
     ])
     expect(mocks.query.mock.calls[0]?.[0]).toMatchObject({
@@ -176,6 +177,30 @@ describe("notion note fetching", () => {
         },
       })
     )
+  })
+
+  it("does not expose an English translation on the Japanese note route", async () => {
+    mocks.getNotionClient.mockReturnValue({
+      dataSources: { query: mocks.query },
+      blocks: { children: { list: mocks.listChildren } },
+    })
+    mocks.query.mockResolvedValue({
+      results: [
+        page({ id: "english", slug: "correction", title: "English title", language: "en" }),
+        page({ id: "japanese", slug: "correction", title: "日本語タイトル", language: "ja" }),
+      ],
+      has_more: false,
+      next_cursor: null,
+    })
+    mocks.listChildren.mockResolvedValue({ results: [], has_more: false, next_cursor: null })
+
+    await expect(listPublishedNotes()).resolves.toEqual([
+      expect.objectContaining({ id: "japanese", slug: "correction", title: "日本語タイトル" }),
+    ])
+    await expect(getPublishedNoteBySlug("correction")).resolves.toMatchObject({
+      id: "japanese",
+      title: "日本語タイトル",
+    })
   })
 
   it("returns null when no page or no usable summary is found", async () => {

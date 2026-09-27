@@ -1,6 +1,5 @@
 import type { CalendarBookingFromApi } from "@/lib/booking/server/calendar-free-busy/bookings-repository"
 import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar/server"
-import {getLocalizedCopy, type AppMessages} from "@/i18n/copy"
 
 type MonthSkeletonItem = {
   id: string
@@ -27,9 +26,9 @@ type BookingMonthSkeletonProps = {
   teamId: string | null
   pending?: boolean
   showAvailabilityStatusBlocks?: boolean
-  locale?: "ja" | "en"
 }
 
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"]
 const BOOKING_BUFFER_HOURS = 1
 function toDate(value: Date | string): Date {
   return value instanceof Date ? new Date(value.getTime()) : new Date(value)
@@ -54,8 +53,8 @@ function toDateKey(value: Date): string {
   return `${year}-${month}-${day}`
 }
 
-function formatMonthTitle(value: Date, copy: AppMessages["Booking"]): string {
-  return copy.monthTitle.replace("{year}", String(value.getFullYear())).replace("{month}", String(value.getMonth() + 1))
+function formatMonthTitle(value: Date): string {
+  return `${value.getFullYear()}年${value.getMonth() + 1}月`
 }
 
 function rangeOverlaps(startMs: number, endMs: number, dayStartMs: number, dayEndMs: number): boolean {
@@ -79,7 +78,6 @@ function bufferItemsForDay(
   dayEndMs: number,
   busy: CalendarBusyEventWithBuffer[],
   bookings: CalendarBookingFromApi[],
-  copy: AppMessages["Booking"],
 ): MonthSkeletonItem[] {
   const items: MonthSkeletonItem[] = []
 
@@ -95,7 +93,7 @@ function bufferItemsForDay(
       items.push({
         id: `busy-buffer-before-${slot.start}-${slot.end}`,
         kind: "lock",
-        label: copy.protected,
+        label: "保護",
         startsAt: startMs - bufferMs,
       })
     }
@@ -103,7 +101,7 @@ function bufferItemsForDay(
       items.push({
         id: `busy-buffer-after-${slot.start}-${slot.end}`,
         kind: "lock",
-        label: copy.protected,
+        label: "保護",
         startsAt: endMs,
       })
     }
@@ -119,7 +117,7 @@ function bufferItemsForDay(
       items.push({
         id: `booking-buffer-before-${booking.id}`,
         kind: "lock",
-        label: copy.protected,
+        label: "保護",
         startsAt: startMs - bufferMs,
       })
     }
@@ -127,7 +125,7 @@ function bufferItemsForDay(
       items.push({
         id: `booking-buffer-after-${booking.id}`,
         kind: "lock",
-        label: copy.protected,
+        label: "保護",
         startsAt: endMs,
       })
     }
@@ -140,9 +138,7 @@ export function buildBookingMonthSkeletonDays(input: {
   initialBusy: CalendarBusyEventWithBuffer[]
   initialBookings: CalendarBookingFromApi[]
   now: Date | string
-  locale?: "ja" | "en"
 }): MonthSkeletonDay[] {
-  const copy = getLocalizedCopy(input.locale ?? "ja", "Booking")
   const current = toDate(input.now)
   const firstOfMonth = new Date(current.getFullYear(), current.getMonth(), 1)
   const gridStart = addDays(firstOfMonth, -firstOfMonth.getDay())
@@ -156,14 +152,14 @@ export function buildBookingMonthSkeletonDays(input: {
     const dayStartMs = dayStart.getTime()
     const dayEndMs = dayEnd.getTime()
     const dayItems = [
-      ...bufferItemsForDay(dayStartMs, dayEndMs, input.initialBusy, input.initialBookings, copy),
+      ...bufferItemsForDay(dayStartMs, dayEndMs, input.initialBusy, input.initialBookings),
       ...input.initialBusy
         .filter(isTimedBusySlot)
         .filter((slot) => rangeOverlaps(new Date(slot.start).getTime(), new Date(slot.end).getTime(), dayStartMs, dayEndMs))
         .map((slot) => ({
           id: `busy-${slot.start}-${slot.end}`,
           kind: "lock" as const,
-          label: copy.unavailable,
+          label: "予約不可",
           startsAt: new Date(slot.start).getTime(),
         })),
       ...input.initialBookings
@@ -172,7 +168,7 @@ export function buildBookingMonthSkeletonDays(input: {
         .map((booking) => ({
           id: `booking-${booking.id}`,
           kind: "lock" as const,
-          label: copy.unavailable,
+          label: "予約不可",
           startsAt: new Date(booking.start).getTime(),
         })),
     ].sort((a, b) => a.startsAt - b.startsAt)
@@ -180,7 +176,7 @@ export function buildBookingMonthSkeletonDays(input: {
       ? [{
           id: `date-lock-${toDateKey(date)}`,
           kind: "lock",
-          label: copy.unavailable,
+          label: "予約不可",
           startsAt: dayItems[0]?.startsAt ?? dayStartMs,
         }]
       : []
@@ -207,12 +203,9 @@ export function BookingMonthSkeleton({
   teamId,
   pending = false,
   showAvailabilityStatusBlocks = false,
-  locale = "ja",
 }: BookingMonthSkeletonProps) {
-  const copy = getLocalizedCopy(locale, "Booking")
-  const weekdays = getLocalizedCopy(locale, "Availability").weekdays
   const current = toDate(now)
-  const days = buildBookingMonthSkeletonDays({ initialBusy, initialBookings, now, locale })
+  const days = buildBookingMonthSkeletonDays({ initialBusy, initialBookings, now })
 
   return (
     <div
@@ -230,13 +223,13 @@ export function BookingMonthSkeleton({
         <div className="booking-month-skeleton__controls">
           <span className="booking-month-skeleton__control">‹</span>
           <span className="booking-month-skeleton__control">›</span>
-          <span className="booking-month-skeleton__control booking-month-skeleton__control--today">{getLocalizedCopy(locale, "Availability").today}</span>
+          <span className="booking-month-skeleton__control booking-month-skeleton__control--today">今日</span>
         </div>
-        <div className="booking-month-skeleton__title">{formatMonthTitle(current, copy)}</div>
+        <div className="booking-month-skeleton__title">{formatMonthTitle(current)}</div>
         <div className="booking-month-skeleton__spacer" />
       </div>
       <div className="booking-month-skeleton__weekdays">
-        {weekdays.map((label) => (
+        {WEEKDAY_LABELS.map((label) => (
           <div key={label} className="booking-month-skeleton__weekday">
             {label}
           </div>

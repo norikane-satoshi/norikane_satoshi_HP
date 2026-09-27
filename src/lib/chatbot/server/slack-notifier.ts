@@ -18,7 +18,7 @@ type SlackFetch = typeof fetch
 
 export type ChatbotSlackNotificationResult =
   | { status: "sent"; ts: string | null }
-  | { status: "skipped"; reason: "disabled" | "missing-slack-config" }
+  | { status: "skipped"; reason: "disabled" | "missing-slack-config" | "diagnostic" }
   | { status: "failed"; reason: "send-failed" }
 
 export type ChatbotSlackDeliveryEvidenceItem = {

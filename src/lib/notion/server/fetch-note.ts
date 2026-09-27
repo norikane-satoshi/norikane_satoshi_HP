@@ -7,7 +7,6 @@ import {
   SLUG_PROPERTY,
   TITLE_PROPERTY,
 } from "./client"
-import type {AppLocale} from "@/i18n/routing"
 
 import type {
   BlockObjectResponse,
@@ -24,7 +23,6 @@ export type NoteSummary = {
   title: string
   createdTime: string
   lastEditedTime: string
-  locale: AppLocale
 }
 
 export type NoteFull = NoteSummary & {
@@ -63,10 +61,9 @@ function extractPublished(page: PageObjectResponse): boolean {
   return prop.checkbox
 }
 
-export function extractNoteLocale(page: Pick<PageObjectResponse, "properties">): AppLocale {
-  const prop = page.properties[LANGUAGE_PROPERTY]
-  if (prop?.type === "select" && prop.select?.name === "en") return "en"
-  return "ja"
+function isJapaneseNote(page: PageObjectResponse): boolean {
+  const language = page.properties[LANGUAGE_PROPERTY]
+  return language?.type !== "select" || language.select?.name === "ja"
 }
 
 function toSummary(page: PageObjectResponse): NoteSummary | null {
@@ -79,29 +76,32 @@ function toSummary(page: PageObjectResponse): NoteSummary | null {
     title,
     createdTime: page.created_time,
     lastEditedTime: page.last_edited_time,
-    locale: extractNoteLocale(page),
   }
 }
 
 type QueryFilter = QueryDataSourceParameters["filter"]
 
 async function _queryPublishedImpl(
-  locale: AppLocale,
-  slugEquals?: string,
+  slugEquals?: string
 ): Promise<PageObjectResponse[]> {
   const notion = getNotionClient()
   if (!notion) return []
   const results: PageObjectResponse[] = []
   let cursor: string | undefined = undefined
 
-  const filter: QueryFilter = {
-    and: [
-      {property: PUBLISHED_PROPERTY, checkbox: {equals: true}},
-      slugEquals
-        ? {property: SLUG_PROPERTY, rich_text: {equals: slugEquals}}
-        : {property: SLUG_PROPERTY, rich_text: {is_not_empty: true}},
-    ],
-  }
+  const filter: QueryFilter = slugEquals
+    ? {
+        and: [
+          { property: PUBLISHED_PROPERTY, checkbox: { equals: true } },
+          { property: SLUG_PROPERTY, rich_text: { equals: slugEquals } },
+        ],
+      }
+    : {
+        and: [
+          { property: PUBLISHED_PROPERTY, checkbox: { equals: true } },
+          { property: SLUG_PROPERTY, rich_text: { is_not_empty: true } },
+        ],
+      }
 
   // Paginate defensively.
   for (let i = 0; i < 10; i += 1) {
@@ -113,13 +113,13 @@ async function _queryPublishedImpl(
       start_cursor: cursor,
     })
     for (const row of resp.results) {
-      if (isFullPage(row)) results.push(row)
+      if (isFullPage(row) && isJapaneseNote(row)) results.push(row)
     }
     if (!resp.has_more || !resp.next_cursor) break
     cursor = resp.next_cursor
   }
 
-  return results.filter((page) => extractNoteLocale(page) === locale)
+  return results
 }
 
 async function _queryBySlugImpl(slugEquals: string): Promise<PageObjectResponse[]> {
@@ -164,8 +164,8 @@ const queryBySlug = unstable_cache(
   { tags: ["notes"] }
 )
 
-export async function listPublishedNotes(locale: AppLocale = "ja"): Promise<NoteSummary[]> {
-  const pages = await queryPublished(locale)
+export async function listPublishedNotes(): Promise<NoteSummary[]> {
+  const pages = await queryPublished()
   const out: NoteSummary[] = []
   for (const p of pages) {
     const s = toSummary(p)
@@ -175,11 +175,10 @@ export async function listPublishedNotes(locale: AppLocale = "ja"): Promise<Note
 }
 
 export async function getNotePublicationStatusBySlug(
-  slug: string,
-  locale: AppLocale = "ja",
+  slug: string
 ): Promise<NotePublicationStatus> {
   const pages = await queryBySlug(slug)
-  const page = pages.find((candidate) => extractNoteLocale(candidate) === locale)
+  const page = pages.find(isJapaneseNote)
   if (!page) return "missing"
   return extractPublished(page) ? "published" : "unpublished"
 }
@@ -236,10 +235,9 @@ const listAllBlocks = unstable_cache(
 )
 
 export async function getPublishedNoteBySlug(
-  slug: string,
-  locale: AppLocale = "ja",
+  slug: string
 ): Promise<NoteFull | null> {
-  const pages = await queryPublished(locale, slug)
+  const pages = await queryPublished(slug)
   const page = pages[0]
   if (!page) return null
   const summary = toSummary(page)

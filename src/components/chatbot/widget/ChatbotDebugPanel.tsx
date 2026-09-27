@@ -4,7 +4,6 @@ import { Check, Copy, RefreshCw, X } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
 import type { ChatbotAuditDebug, ChatbotLifecycleDebug, ChatbotResponseTier, WidgetUi } from "./api"
-import { useChatbotCopy } from "./i18n"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
 export type ChatbotDebugRequest = {
@@ -107,7 +106,6 @@ function copyWithTemporaryTextarea(text: string): boolean {
 }
 
 export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps) {
-  const copy = useChatbotCopy()
   const [buildInfo, setBuildInfo] = useState<ChatbotBuildInfo | null>(null)
   const [buildInfoError, setBuildInfoError] = useState<string | null>(null)
   const [isLoadingBuildInfo, setIsLoadingBuildInfo] = useState(false)
@@ -130,11 +128,11 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
       setBuildInfo((await response.json()) as ChatbotBuildInfo)
     } catch (error) {
       setBuildInfo(null)
-      setBuildInfoError(error instanceof Error ? error.message : copy.debugLoadError)
+      setBuildInfoError(error instanceof Error ? error.message : "取得失敗")
     } finally {
       setIsLoadingBuildInfo(false)
     }
-  }, [copy.debugLoadError])
+  }, [])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the panel synchronizes browser state with the build-info endpoint on mount.
@@ -242,20 +240,20 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
   return (
     <section
       className="max-h-[240px] overflow-y-auto border-b border-[var(--glass-border)] bg-white/35 px-5 py-3"
-      aria-label={copy.debugLabel}
+      aria-label="チャットボット診断情報"
       data-chatbot-debug="open"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-hp">{copy.debugTitle}</p>
-          <p className="mt-0.5 text-[10px] leading-relaxed text-hp-muted">{copy.debugHelp}</p>
+          <p className="text-xs font-semibold text-hp">ローカル診断</p>
+          <p className="mt-0.5 text-[10px] leading-relaxed text-hp-muted">ループバック環境でのみ有効。顧客情報は表示しません。</p>
         </div>
         <div className="flex shrink-0 gap-2">
           <button
             type="button"
             onClick={() => void refreshBuildInfo()}
             className="glass-btn flex h-8 w-8 items-center justify-center"
-            aria-label={copy.debugRefresh}
+            aria-label="ビルド情報を再取得"
             disabled={isLoadingBuildInfo}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoadingBuildInfo ? "animate-spin" : ""}`} aria-hidden="true" />
@@ -266,10 +264,10 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
             className="glass-btn flex h-8 w-8 items-center justify-center"
             aria-label={
               copyState === "copied"
-                ? copy.debugCopied
+                ? "診断JSONをコピーしました"
                 : copyState === "failed"
-                  ? copy.debugCopyFailed
-                  : copy.debugCopy
+                  ? "診断JSONをコピーできませんでした"
+                  : "診断JSONをコピー"
             }
           >
             {copyState === "copied" ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -278,7 +276,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
             type="button"
             onClick={onClose}
             className="glass-btn flex h-8 w-8 items-center justify-center"
-            aria-label={copy.debugClose}
+            aria-label="診断情報を閉じる"
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -294,7 +292,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
           className={`mt-2 text-[10px] ${copyState === "copied" ? "text-hp-muted" : "text-[var(--hp-color-error)]"}`}
           role="status"
         >
-          {copyState === "copied" ? copy.debugCopiedStatus : copy.debugCopyFailedStatus}
+          {copyState === "copied" ? "診断JSONをコピーしました。" : "診断JSONをコピーできませんでした。"}
         </p>
       ) : null}
       <dl className="mt-3 grid grid-cols-[max-content,minmax(0,1fr)] gap-x-3 gap-y-1 rounded-[12px] border border-white/55 bg-white/40 p-3 font-[var(--font-geist-mono)] text-[10px] leading-relaxed">
@@ -306,7 +304,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
         ))}
       </dl>
       <span className="sr-only" aria-live="polite">
-        {copyState === "copied" ? copy.debugCopied : copyState === "failed" ? copy.debugCopyFailed : ""}
+        {copyState === "copied" ? "診断JSONをコピーしました" : copyState === "failed" ? "診断JSONをコピーできませんでした" : ""}
       </span>
     </section>
   )

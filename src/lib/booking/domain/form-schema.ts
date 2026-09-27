@@ -1,5 +1,4 @@
 import { z } from "zod"
-import { getLocalizedCopy } from "@/i18n/copy"
 
 export type BookingStep = "calendar" | "form" | "confirm" | "done"
 
@@ -80,13 +79,10 @@ function toDateKey(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-export function formatBookingDateSelection(selection: BookingDateSelection, locale: "ja" | "en" = "ja"): string {
-  const copy = getLocalizedCopy(locale, "Booking")
+export function formatBookingDateSelection(selection: BookingDateSelection): string {
   const dates = normalizeBookingDateKeys(selection.dates)
   const dateLabel = dates.map((date) => formatDateKey(date)).join(", ")
-  return dates.length > 0
-    ? copy.dayCount.replace("{dates}", dateLabel).replace("{count}", String(dates.length))
-    : copy.notSelectedValue
+  return dates.length > 0 ? `${dateLabel}、${dates.length}日間` : "未選択"
 }
 
 export function formatBookingDateRange(range: BookingDateRange): string {
@@ -97,27 +93,21 @@ export function formatBookingDateRange(range: BookingDateRange): string {
   return dayCount > 0 ? `${dateLabel}、${dayCount}日間` : dateLabel
 }
 
-export function createBookingFormSchema(locale: "ja" | "en" = "ja") {
-  const copy = getLocalizedCopy(locale, "Booking")
-  const maxCharacters = (count: number) => copy.maxCharacters.replace("{count}", String(count))
-  return z.object({
-  projectTitle: z.string().trim().min(1, copy.projectRequired).max(200, maxCharacters(200)),
+export const bookingFormSchema = z.object({
+  projectTitle: z.string().trim().min(1, "案件名を入力してください").max(200, "200 字以内で入力してください"),
   dueDate: z.string(),
-  companyName: z.string().trim().max(120, maxCharacters(120)),
-  contactName: z.string().trim().min(1, copy.nameRequired).max(80, maxCharacters(80)),
-  sessionEmail: z.string().trim().max(254, maxCharacters(254)).refine(
+  companyName: z.string().trim().max(120, "120 字以内で入力してください"),
+  contactName: z.string().trim().min(1, "氏名を入力してください").max(80, "80 字以内で入力してください"),
+  sessionEmail: z.string().trim().max(254, "254 字以内で入力してください").refine(
     (value) => value === "" || z.string().email().safeParse(value).success,
-    copy.emailUnavailable,
+    "認証済みメールを確認できません",
   ),
-  phone: z.string().trim().max(32, maxCharacters(32)),
-  memo: z.string().trim().max(2000, maxCharacters(2000)),
+  phone: z.string().trim().max(32, "32 字以内で入力してください"),
+  memo: z.string().trim().max(2000, "2000 字以内で入力してください"),
   agreed: z.boolean().refine((value) => value, {
-    message: copy.agreementRequired,
+    message: "規約への同意が必要です",
   }),
-  })
-}
-
-export const bookingFormSchema = createBookingFormSchema()
+})
 
 export type BookingFormData = z.infer<typeof bookingFormSchema>
 
@@ -157,14 +147,11 @@ export function getTotalDurationMinutes(slots: BookingSlot[]): number {
   return slots.reduce((total, slot) => total + getSlotDurationMinutes(slot), 0)
 }
 
-export function formatDurationMinutes(minutes: number, locale: "ja" | "en" = "ja"): string {
-  const copy = getLocalizedCopy(locale, "Booking")
-  if (minutes <= 0) return copy.hours.replace("{value}", "0")
+export function formatDurationMinutes(minutes: number): string {
+  if (minutes <= 0) return "0 時間"
   const hours = Math.floor(minutes / 60)
   const restMinutes = minutes % 60
-  if (hours === 0) return copy.minutes.replace("{value}", String(restMinutes))
-  if (restMinutes === 0) return copy.hours.replace("{value}", String(hours))
-  return copy.durationHoursMinutes
-    .replace("{hours}", String(hours))
-    .replace("{minutes}", String(restMinutes))
+  if (hours === 0) return `${restMinutes} 分`
+  if (restMinutes === 0) return `${hours} 時間`
+  return `${hours} 時間 ${restMinutes} 分`
 }
