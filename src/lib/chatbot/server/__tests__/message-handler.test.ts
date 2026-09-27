@@ -6067,3 +6067,52 @@ describe("booking card right after the last question", () => {
     expect(result.ui).toMatchObject({ kind: "booking-card" })
   })
 })
+
+// Production 2026-09-27 (after the fix above): "劇場公開" in a first message read as a question about
+// the published notes (the word 公開), and the note route let the model's own panel replace the code's.
+describe("a release date is not a question about the notes", () => {
+  it("keeps the code's panel for a first message that mentions a theatrical release", async () => {
+    const harness = setup({ existingConversation: conversation({ messages: [], context: { sessionId: "session_1" } }) })
+    const ownPanel = JSON.stringify({
+      tool: "show_choice_panel",
+      args: {
+        id: "job-kind",
+        question: "案件の種別を選んでください",
+        choices: [
+          { id: "feature-90m", label: "長編" },
+          { id: "cm-30s", label: "CM" },
+        ],
+      },
+    })
+    harness.generate.mockResolvedValue({
+      rawText: `${customerReply("映画長編90分のカラーグレーディングですね。まず、案件の種別について確認させてください。")}\n${ownPanel}`,
+      tier: "tier-2-gemini-flash",
+    })
+
+    const snapshot = createStaticChatbotKnowledgeSnapshot("2026-09-27T00:00:00.000Z")
+    snapshot.noteKnowledge = [
+      {
+        usage: "color-grading",
+        pageId: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        pageTitle: "カラーグレーディングの因数分解",
+        referenceRange: "公開本文",
+        content: "カラーグレーディングは作品の意図を観客の印象へ翻訳する工程です。",
+        source: "notion-sync",
+        status: "published",
+        statusReason: "hp-public-true-with-slug",
+        slug: "grading",
+        includedInPrompt: true,
+      },
+    ]
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        message: "映画長編 90分のカラーグレーディングをお願いしたいです。劇場公開予定で、リモートグレーディング希望です。",
+      },
+      { ...harness.options, knowledgeSnapshotLoader: async () => snapshot },
+    )
+
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "additional-work" } })
+  })
+})

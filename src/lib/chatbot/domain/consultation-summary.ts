@@ -215,8 +215,9 @@ function labelWorkSite(value: JobContext["workSite"] | undefined): string {
   return value ? workSiteLabels[value] : missing
 }
 
+// Only called once the additional-work question is answered, so an empty list is the answer "なし".
 function labelAdditionalWork(value: JobContext["additionalWork"] | undefined, otherComment?: string): string {
-  if (!value || value.length === 0) return missing
+  if (!value || value.length === 0) return "なし"
   return value.map((item) => labelOther(item, additionalWorkLabels[item], otherComment)).join(" / ")
 }
 

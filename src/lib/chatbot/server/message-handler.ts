@@ -2336,8 +2336,10 @@ function evaluateCustomerFacingNoteAccess(message: string, snapshot: ChatbotKnow
   return { kind: "none" }
 }
 
+// "公開" alone is not about the notes: "劇場公開予定" is a release date, and treating it as a note
+// question let the model's reply replace the code's next panel.
 function isCustomerFacingNoteQuestion(message: string): boolean {
-  return /(note|ノート|記事|公開|本文|書いて|リンク|URL)/i.test(message)
+  return /(note|ノート|記事|書いて|リンク|URL)/i.test(message)
 }
 
 function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnapshot, noteKnowledgeContext: string): string {
