@@ -130,7 +130,7 @@ describe("chatbot duration estimator", () => {
     expect(result.requiresDirectContact).toBe(true)
   })
 
-  it("adds on-site travel range for live 60m and marks final check skip", () => {
+  it("does not count travel to a room away from the studio, and marks final check skip", () => {
     const result = estimateWorkflow(
       jobContext({
         jobKind: "live-60m",
@@ -140,8 +140,9 @@ describe("chatbot duration estimator", () => {
       }),
     )
 
-    expect(result.totalMinDays).toBe(4.5)
-    expect(result.totalMaxDays).toBe(5)
+    expect(result.totalMinDays).toBe(4)
+    expect(result.totalMaxDays).toBe(4)
+    expect(result.stages.find((stage) => stage.stage === "prep")).toMatchObject({ minDays: 2, maxDays: 2 })
     expect(result.estimateStatus).toBe("authoritative")
     expect(result.riskFlags).toContain("on-site-transfer")
   })

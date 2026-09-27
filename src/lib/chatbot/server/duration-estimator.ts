@@ -309,8 +309,8 @@ export function applyWorkSiteAdjustment(
   const rule = workSiteDurationRules[workSite]
 
   return {
-    minDays: adjusted.minDays + rule.travelMinDays,
-    maxDays: adjusted.maxDays + rule.travelMaxDays,
+    minDays: adjusted.minDays,
+    maxDays: adjusted.maxDays,
     ...(workSite === "remote-grading" ? { note: "案件ごと上乗せ議論" } : {}),
     ...(rule.canSkipFinalCheckDayWithLocalHandoff ? { canSkipFinalCheck: true } : {}),
   }
@@ -380,12 +380,11 @@ export function estimateWorkflow(
 
 function adjustStages(stages: WorkflowStageDays, jobContext: JobContext): WorkflowStageDays {
   const added = additionalWorkDays(jobContext)
-  const travel = workSiteDurationRules[jobContext.workSite]
   return {
     ...stages,
     prep: {
-      minDays: stages.prep.minDays + added.prepDays + travel.travelMinDays,
-      maxDays: stages.prep.maxDays + added.prepDays + travel.travelMaxDays,
+      minDays: stages.prep.minDays + added.prepDays,
+      maxDays: stages.prep.maxDays + added.prepDays,
     },
     finish: {
       minDays: stages.finish.minDays + added.finishDays,

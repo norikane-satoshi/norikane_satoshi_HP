@@ -201,7 +201,7 @@ export const workSiteChoices = {
   // The owner's studio is the first choice. Away from it, grading happens in a rented post-production
   // room, the client's own equipment room, or a space the client rents; never at the client's facility.
   choices: [
-    { id: "satoshi-studio", label: "さとしさんのスタジオ" },
+    { id: "satoshi-studio", label: "のりかね映像設計室スタジオ" },
     { id: "post-production-room", label: "ポスプロの部屋を借りる" },
     { id: "client-equipment-room", label: "依頼元の機材部屋（制作会社など）" },
     { id: "client-rental-space", label: "依頼元が手配するレンタルスペース" },
