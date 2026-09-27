@@ -74,7 +74,7 @@ Run the permanent live verifier once against the release target:
 pnpm chatbot:verify-fallback-customer-experience-live -- --base-url https://norikane.studio
 ```
 
-The command uses controlled failure injection and does not stop the hosted Tier 1 worker or the protected `41238` server. It must prove all of the following in one pass:
+The command uses controlled failure injection and does not stop the hosted Tier 1 worker or the local preview server. It must prove all of the following in one pass:
 
 1. A Tier 1 health failure selects the real `tier-2-gemini-flash` client.
 2. The real Gemini response contains the canary and satisfies the customer display contract with structured UI.

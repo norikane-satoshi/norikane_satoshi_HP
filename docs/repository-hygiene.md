@@ -12,7 +12,7 @@
 
 Claude Code は Stop hook で同じ検査を行う。CI は静的ポリシーと検査ロジックの回帰テストを行う。
 
-`staging-live-41238` と `grading-verify` は用途を持つ保護 worktree なので、自動削除の対象外とする。dirty な task worktree は別セッションの作業中か中断状態かを人が判断し、検査は警告だけを出す。自動 cleanup はファイルを削除しない。
+`grading-verify` は用途を持つ保護 worktree なので、自動削除の対象外とする。dirty な task worktree は別セッションの作業中か中断状態かを人が判断し、検査は警告だけを出す。自動 cleanup はファイルを削除しない。
 
 ## Task branch の終了
 

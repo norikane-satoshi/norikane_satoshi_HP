@@ -7,12 +7,19 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   findIntegratedLocalBranches,
+  isExemptWorktreePath,
   mergeEnvText,
   parseWorktreePorcelain,
 } from "../../scripts/repo-hygiene-lib.mjs";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testDir, "../..");
+
+test("only the main checkout and grading verification worktree are exempt", () => {
+  assert.equal(isExemptWorktreePath("/repo", "/repo"), true);
+  assert.equal(isExemptWorktreePath("/repo/.codex-worktrees/grading-verify", "/repo"), true);
+  assert.equal(isExemptWorktreePath("/repo/.codex-worktrees/staging-live-41238", "/repo"), false);
+});
 
 test("preserves a non-empty local value when Vercel returns an empty encrypted value", () => {
   const result = mergeEnvText(
