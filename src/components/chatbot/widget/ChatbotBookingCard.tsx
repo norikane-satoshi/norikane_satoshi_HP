@@ -740,7 +740,7 @@ export function ChatbotBookingCard({
               ? "立ち会いの日を選んでください。コンフォーム・仕込み・QC は則兼の空いている日に自動で入れて、まとめて仮キープします。まだ決まっていなければ、そのまま次へ進めます。"
               : `作業する日を選んでください。想定の日数（${requiredDays}日）まで仮キープで押さえます。まだ決まっていなければ、そのまま次へ進めます。`}
         </p>
-        {estimateText(effectiveEstimate) ? (
+        {step === "schedule" && estimateText(effectiveEstimate) ? (
           <p
             className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-2 text-xs font-medium text-hp-muted`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
@@ -928,10 +928,10 @@ export function ChatbotBookingCard({
             ) : null}
           </div>
         </fieldset>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2">
           <button
             type="button"
-            className="glass-btn flex-1 px-4 py-3 text-sm font-medium disabled:opacity-50"
+            className="glass-btn w-full px-4 py-3 text-sm font-medium disabled:opacity-50"
             disabled={!scheduleChosen}
             onClick={() => setStep("confirm")}
           >
@@ -939,7 +939,7 @@ export function ChatbotBookingCard({
           </button>
           <button
             type="button"
-            className="glass-btn flex-1 px-4 py-3 text-sm"
+            className="glass-btn w-full px-4 py-3 text-sm"
             onClick={() => {
               setSelectedSlots([])
               setCalendarHint(null)
@@ -983,7 +983,7 @@ export function ChatbotBookingCard({
           日程を選び直す
         </button>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3">
           <label className="block text-sm font-medium text-hp">
             案件名
             <RequiredMark />
@@ -1029,7 +1029,7 @@ export function ChatbotBookingCard({
               required
             />
           </label>
-          <label className="block text-sm font-medium text-hp sm:col-span-2">
+          <label className="block text-sm font-medium text-hp">
             メール
             <RequiredMark />
             <input
@@ -1044,11 +1044,11 @@ export function ChatbotBookingCard({
             />
           </label>
           {contactEmailErrorVisible ? (
-            <p className="text-xs text-red-500 sm:col-span-2" role="alert">
+            <p className="text-xs text-red-500" role="alert">
               メールの形式を確認してください
             </p>
           ) : null}
-          <label className="block text-sm font-medium text-hp sm:col-span-2">
+          <label className="block text-sm font-medium text-hp">
             TEL
             <input
               value={phone}
@@ -1058,7 +1058,7 @@ export function ChatbotBookingCard({
               aria-label="TEL"
             />
           </label>
-          <label className="block text-sm font-medium text-hp sm:col-span-2">
+          <label className="block text-sm font-medium text-hp">
             補足
             <AutoResizeTextarea
               value={memo}

@@ -2412,18 +2412,23 @@ describe("handleChatbotMessage user context", () => {
         projectTitle: "案件T",
         contactName: "テスト ユーザー",
         contactEmail: "qj9n9not6bov@yahoo.co.jp",
-        memo: expect.stringContaining("依頼内容: ライブ"),
       },
     })
+    // What the chat settled is listed on the card's confirmation step, not repeated in the note.
     expect(result.ui).toMatchObject({
       kind: "booking-card",
-      bookingPrefill: {
-        memo: expect.stringContaining("受け渡し素材: ProResと使用クリップ"),
-      },
+      confirmationItems: expect.arrayContaining([
+        { label: "案件種別", value: expect.stringContaining("ライブ") },
+        { label: "受け渡し素材", value: "ProResと使用クリップ" },
+      ]),
     })
-    expect(JSON.stringify(result.ui)).toContain("付随素材として、特典映像が含まれる可能性があります。")
+    expect(result.ui?.kind === "booking-card" ? result.ui.confirmationItems : undefined).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: "付随素材", value: expect.stringContaining("特典映像") })]),
+    )
     expect(JSON.stringify(result.ui)).not.toContain("なし、このまま進める")
     const memo = result.ui.kind === "booking-card" ? result.ui.bookingPrefill?.memo ?? "" : ""
+    expect(memo).not.toContain("依頼内容:")
+    expect(memo).not.toContain("受け渡し素材:")
     expect(memo).not.toContain("案件種別:")
     expect(memo).not.toContain("最終媒体:")
     expect(memo).not.toContain("live-60m")
