@@ -246,6 +246,8 @@ describe("invalid choice-set contract", () => {
         decision: "reject-and-regenerate-structured-ui",
         reason: regressionCase.expectedBoundaryReason,
       })
+      // The code shows its own panel here, so the model's improvised panel is set aside, not a failure.
+      expect(result.auditEvidence?.tierAttempts.filter((attempt) => attempt.result === "failure")).toEqual([])
     },
   )
 })
