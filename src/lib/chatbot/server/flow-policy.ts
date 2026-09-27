@@ -461,6 +461,28 @@ function markFinalQuestionOffered(conversationState: ConversationState): Convers
   }
 }
 
+/**
+ * The Booking Order follows the last question directly: the calendar first, then a confirmation
+ * step with everything decided and a note field, so the chat no longer asks "anything else?".
+ * Only a job with an estimate has a booking card; the others keep the summary route.
+ */
+export function confirmBookingWithoutFinalQuestion(input: {
+  conversationState: ConversationState
+  jobContext: JobContext
+  nextDecision: RoutingDecision
+}): ConversationState {
+  const { conversationState } = input
+  if (!input.jobContext.jobKind) return conversationState
+  if (conversationState.bookingSubmission?.status === "submitted") return conversationState
+  // A conversation already at the old "anything else?" step finishes that step as before.
+  if (conversationState.bookingFinalConfirmation) return conversationState
+  if (isLectureTrainingInquiry(conversationState)) return conversationState
+  if (input.nextDecision.kind !== "continue" || input.nextDecision.presentChoices?.id !== bookingFinalConfirmationChoices.id) {
+    return conversationState
+  }
+  return markBookingFinalConfirmationConfirmed(conversationState, "booking-card-first")
+}
+
 function markBookingFinalConfirmationConfirmed(
   conversationState: ConversationState,
   source: NonNullable<ConversationState["bookingReadiness"]>["additionalConcernSource"],

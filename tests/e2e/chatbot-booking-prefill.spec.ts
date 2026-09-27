@@ -68,6 +68,8 @@ test("renders Booking Order prefill fields without cross-field leakage", async (
   await chatbot.getByRole("button", { name: "送信" }).click()
 
   await expect(chatbot.getByText("候補日時から予約できます")).toBeVisible()
+  // The card shows the calendar first; the fields come on the confirmation step.
+  await chatbot.getByRole("button", { name: "日程はまだ決まっていない" }).click()
   await expect(chatbot.getByLabel("案件名")).toHaveValue("")
   await expect(chatbot.getByLabel("氏名")).toHaveValue("田中 太郎")
   await expect(chatbot.getByLabel("会社名")).toHaveValue("株式会社サンプル")

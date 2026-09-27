@@ -116,6 +116,25 @@ export function formatConsultationSummary(input: ConsultationSummaryInput): stri
   ].join("\n")
 }
 
+/** The customer's own contact and note fields are edited on the booking card, so they are left out. */
+const bookingCardEditableSummaryLabels = new Set(["案件名", "その他の補足", "氏名", "会社", "メール"])
+
+/**
+ * What the chat has settled, as the booking card's confirmation step lists it: the consultation
+ * summary's answered lines, without the fields the card lets the customer edit.
+ */
+export function buildBookingConfirmationItems(input: ConsultationSummaryInput): Array<{ label: string; value: string }> {
+  return formatConsultationSummary(input)
+    .split("\n")
+    .flatMap((line) => {
+      const match = /^(?:- )?([^:]+): (.+)$/u.exec(line)
+      if (!match) return []
+      const [, label, value] = match
+      if (value === missing || bookingCardEditableSummaryLabels.has(label)) return []
+      return [{ label, value }]
+    })
+}
+
 export function hasRequiredConsultationNotificationSlots(input: {
   conversationState?: Partial<ConversationState>
 }): boolean {

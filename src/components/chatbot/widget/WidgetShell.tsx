@@ -1883,7 +1883,13 @@ function ActiveWidgetUi({
         defaultContactEmail={ui.bookingPrefill?.contactEmail}
         defaultCompanyName={ui.bookingPrefill?.companyName}
         defaultDueDate={ui.bookingPrefill?.dueDate ?? ui.jobContext.publicReleaseDate}
-        defaultMemo={buildBookingSupplementalNote(ui.jobContext, ui.bookingPrefill?.memo)}
+        // A card listing what was decided keeps the note field for the customer's own words.
+        defaultMemo={
+          ui.confirmationItems
+            ? (ui.bookingPrefill?.memo ?? "")
+            : buildBookingSupplementalNote(ui.jobContext, ui.bookingPrefill?.memo)
+        }
+        confirmationItems={ui.confirmationItems}
         completedBooking={ui.completedBooking}
         auditContext={auditContext}
         onBooked={onBookingCompleted}

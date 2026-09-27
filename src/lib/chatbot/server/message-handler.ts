@@ -1,6 +1,7 @@
 import {
   additionalWorkChoices,
   finalMediumChoices,
+  buildBookingConfirmationItems,
   formatConsultationSummary,
   formatProjectLengthMinutes,
   hasRequiredEmailConsultationSlots,
@@ -88,9 +89,9 @@ import {
 import {
   applyBookingFinalConfirmationAnswer,
   applyBookingFinalConfirmationPolicy,
+  confirmBookingWithoutFinalQuestion,
   getMissingBookingReadinessSlots,
   inferChatbotFlowStep,
-  isBookingFinalConfirmationPrompt,
   isLlmNoAdditionalBookingConcernSignal,
   isNoAdditionalBookingConcern,
   wasBookingFinalQuestionOffered,
@@ -131,6 +132,7 @@ type ChatbotMessageUi =
       tentativeDateKeys?: Extract<RoutingDecision, { kind: "to-booking-inline" }>["tentativeDateKeys"]
       jobContext: JobContext
       bookingPrefill?: BookingCardPrefill
+      confirmationItems?: Array<{ label: string; value: string }>
     }
   | {
       kind: "direct-contact-card"
@@ -512,10 +514,20 @@ export async function handleChatbotMessage(
       }),
     }),
   })
-  const conversationState = mergeRecoveredBookingContext(
+  const intakeConversationState = mergeRecoveredBookingContext(
     baseConversationState,
     recoverBookingContextFromHistory([...conversation.messages, userMessage]),
   ) as ConversationState
+  const conversationState = confirmBookingWithoutFinalQuestion({
+    conversationState: intakeConversationState,
+    jobContext,
+    nextDecision: decideRoutingFallback({
+      jobContext,
+      conversationState: intakeConversationState,
+      latestUserMessage: input.message,
+      knowledgeSnapshot,
+    }),
+  })
   const submittedBooking = getSubmittedBooking(conversationState)
   logChatbotBookingOrderSubmittedContextBoundary({
     requestId: input.requestId,
@@ -572,6 +584,13 @@ export async function handleChatbotMessage(
   const fallbackRoutingDecision = deterministicReply
     ? codeRoutingDecision
     : withoutFreeTextIntakePanel(codeRoutingDecision)
+  // The questions are done and the booking card comes next; the code shows it, not the model.
+  const bookingCardIsNext =
+    fallbackRoutingDecision.kind === "continue" &&
+    !fallbackRoutingDecision.presentChoices &&
+    conversationState.bookingFinalConfirmation?.status === "confirmed" &&
+    Boolean(jobContext.jobKind) &&
+    !submittedBooking
   const llmResponse = deterministicReply
     ? createDeterministicIntakeResponse(deterministicReply, recordTierAttempt)
     : await generateContractedLlmResponse({
@@ -587,7 +606,8 @@ export async function handleChatbotMessage(
       temperature: 0.2,
       maxOutputTokens: 900,
       structuredUiFromCode:
-        fallbackRoutingDecision.kind === "continue" && Boolean(fallbackRoutingDecision.presentChoices),
+        (fallbackRoutingDecision.kind === "continue" && Boolean(fallbackRoutingDecision.presentChoices)) ||
+        bookingCardIsNext,
     },
     fallbackRoutingDecision,
     keepCustomerAnswer: looksLikeCustomerQuestion(input.message),
@@ -596,7 +616,7 @@ export async function handleChatbotMessage(
   const responseNormalizationStartedAt = now()
   const retryDiagnostics = summarizeChatbotRetryDiagnostics(llmResponse.diagnostics)
   const isPendingRequestRecovery = input.pendingRequestKind === "message" || input.pendingRequestKind === "edit"
-  const resolvedRoutingDecision = shouldRegenerateStructuredUi(llmResponse)
+  const resolvedRoutingDecision = shouldRegenerateStructuredUi(llmResponse) && !bookingCardIsNext
     ? fallbackRoutingDecision
     : await resolveRoutingDecision({
         requestId: input.requestId,
@@ -975,14 +995,8 @@ function shouldUseFallbackRouting(input: {
     )
   }
   if (input.noteAccess.kind !== "none") return false
-  if (isBookingFinalConfirmationPrompt(input.rawAssistantText)) return false
-  if (isDurationAnswerRequest(input.latestUserMessage)) return false
-  if (
-    input.fallbackRoutingDecision.presentChoices.id !== "project-length" &&
-    isDurationAnswerRequest(input.rawAssistantText)
-  ) {
-    return false
-  }
+  // The code has already chosen the next panel. Words in the model's own reply (目安, 工程, 期間 ...)
+  // must not take it away: the reply to a customer's question is shown above the panel instead.
 
   switch (input.fallbackRoutingDecision.presentChoices.id) {
     case "job-kind":
@@ -2276,8 +2290,7 @@ function buildChatbotSystemPrompt(
     "お客様向け本文では、UI制御理由や内部状態説明としての「カードを再表示しない」「予約候補カードは作成済み」「受付済み」「UI」などを説明しません。予約送信後は、直近ユーザー入力に合わせてその場で自然に返し、送信済み・本人確認・則兼からの連絡に触れる必要がある時だけ短く添えます。",
     "show_choice_panel / show_booking_card の JSON を出す場合も、表示してよい短い本文と同じ <customer_reply> 内に1個だけ置きます。タグ外には何も書きません。",
     '予約候補カードを出すべきと判断した時だけ、本文に {"tool":"show_booking_card","args":{"projectTitle":"...","contactName":"...","contactEmail":"...","companyName":"...","dueDate":"YYYY-MM-DD","memo":"..."}} を 1 個だけ含めます。',
-    "予約候補カードを出す直前には、これまでの文脈を短く踏まえて、ほかに確認したいこと、伝えておきたいこと、不安な点がないかを1回だけ確認します。その最終確認ターンでは show_booking_card を同時に出さず、1ターン1問いかけにします。",
-    "ユーザーが最終確認に「なし」「大丈夫」「ありません」などと答えた次のターンで、必要情報が揃っていれば show_booking_card に進めます。追加情報や質問が来た場合は補足として取り込み、必要な確認をしてから進めます。",
+    "質問が揃ったら、予約カードはサーバーが出します。カードは日程の選択から始まり、最後に決まったことの一覧と補足欄で送信を確認するので、チャットで「ほかに確認したいことはありますか」と別に聞きません。",
     "show_booking_card の projectTitle は作品名または短い案件名だけにし、ライブ内容、作業内容、顔ぼかしカット数、素材状況、立ち会い方法、希望条件は memo に分離します。",
     "Booking Order の自動入力では、メール、氏名、会社名、案件名、補足を必ず対応する専用フィールドに一対一で入れ、別フィールドや memo へ混ぜません。example.com などのプレースホルダーは実データとして扱いません。",
     "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。案件名が未確定なら projectTitle を空にし、ライブ案件 / CM案件などの種別名で推測補完しません。",
@@ -3006,6 +3019,10 @@ function toMessageUi(input: {
       tentativeDateKeys: routingDecision.tentativeDateKeys,
       jobContext: routingDecision.jobContext,
       bookingPrefill: routingDecision.bookingPrefill,
+      confirmationItems: buildBookingConfirmationItems({
+        jobContext: routingDecision.jobContext,
+        conversationState: input.conversationState,
+      }),
     }
   }
 

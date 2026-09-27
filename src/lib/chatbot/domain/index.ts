@@ -7,6 +7,7 @@ export type {
   InquiryFormPrefill,
 } from "@/lib/chatbot/domain/conversation"
 export {
+  buildBookingConfirmationItems,
   formatConsultationSummary,
   hasRequiredConsultationNotificationSlots,
   hasRequiredEmailConsultationSlots,

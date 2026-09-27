@@ -121,7 +121,7 @@ describe("ChatbotBookingCard", () => {
     expect(JSON.stringify(prefill)).not.toContain("ProRes")
   })
 
-  it("states that the Booking Order can be submitted even when dates are not decided", () => {
+  it("lets the customer go on without dates, listing what the chat decided before sending", () => {
     render(
       <ChatbotBookingCard
         candidates={[]}
@@ -133,8 +133,15 @@ describe("ChatbotBookingCard", () => {
       />,
     )
 
-    expect(screen.getByText(/日付が決まっている場合/u)).toBeInTheDocument()
-    expect(screen.getByText(/未定のままでも/u)).toBeInTheDocument()
+    expect(screen.getByText(/作業する日を選んでください/u)).toBeInTheDocument()
+    expect(screen.getByText(/そのまま次へ進めます/u)).toBeInTheDocument()
+    expect(screen.queryByLabelText("メール")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+
+    expect(screen.getByText("チャットで決まった内容です。これで送信してよいか確認してください。")).toBeInTheDocument()
+    expect(screen.getByText("未定（日程は則兼と相談）")).toBeInTheDocument()
+    expect(screen.getByLabelText("メール")).toBeInTheDocument()
   })
 
   beforeEach(() => {
@@ -156,6 +163,7 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByLabelText("仮キープ候補のカレンダー選択")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-06-10 選択可" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "2026-06-11 選択可" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     expect(screen.getByLabelText("会社名")).toHaveValue("株式会社サンプル")
     expect(screen.getByLabelText("氏名")).toHaveValue("田中")
     expect(screen.getByLabelText("メール")).toHaveValue("")
@@ -185,6 +193,9 @@ describe("ChatbotBookingCard", () => {
     renderCard()
 
     const bookingOrder = screen.getByLabelText("チャット内予約")
+    expect(within(bookingOrder).getByText("仮キープ候補")).toBeInTheDocument()
+    expect(within(bookingOrder).getByText("仮キープ候補").parentElement).not.toHaveTextContent("必須")
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     expect(bookingOrder).not.toHaveTextContent("（任意）")
     expect(bookingOrder).not.toHaveTextContent("任意")
     expect(bookingOrder).not.toHaveTextContent("（必須）")
@@ -194,8 +205,6 @@ describe("ChatbotBookingCard", () => {
     requiredMarks.forEach((mark) => {
       expect(mark).toHaveClass("text-red-500")
     })
-    expect(within(bookingOrder).getByText("仮キープ候補")).toBeInTheDocument()
-    expect(within(bookingOrder).getByText("仮キープ候補").parentElement).not.toHaveTextContent("必須")
     expect(screen.getByLabelText("案件名")).toBeRequired()
     expect(screen.getByLabelText("氏名")).toBeRequired()
     expect(screen.getByLabelText("メール")).toBeRequired()
@@ -296,11 +305,12 @@ describe("ChatbotBookingCard", () => {
   it("keeps chat copy in the conversation typography without changing booking controls", () => {
     renderCard()
 
-    expect(screen.getByText("日付が決まっている場合は候補を選んでください。まだ決まっていなければ、未定のままでも予約内容を送信できます。")).toHaveClass(
+    expect(screen.getByText("作業する日を選んでください。想定の日数（2日）まで仮キープで押さえます。まだ決まっていなければ、そのまま次へ進めます。")).toHaveClass(
       ...conversationContentClasses,
     )
     expect(screen.getByText("工程目安 2日")).toHaveClass(...conversationContentClasses)
     expect(screen.getByText("Booking Order")).not.toHaveClass(...conversationContentClasses)
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     expect(screen.getByLabelText("案件名")).not.toHaveClass(...conversationContentClasses)
   })
 
@@ -782,6 +792,7 @@ describe("ChatbotBookingCard", () => {
       defaultMemo: "ライブ2.5h\nプロンプター消し物・顔アップ肌修正",
     })
 
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     const memoField = screen.getByLabelText("補足")
     expect(memoField).toHaveValue("ライブ2.5h\nプロンプター消し物・顔アップ肌修正")
     expect(memoField).toHaveClass("auto-resize-textarea")
@@ -794,10 +805,10 @@ describe("ChatbotBookingCard", () => {
     const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: ["slot_1"] })
     renderCard({ defaultContactEmail: "client@example.jp" })
 
-    expect(screen.getByLabelText("メール")).toHaveValue("client@example.jp")
-
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
+    expect(screen.getByLabelText("メール")).toHaveValue("client@example.jp")
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -813,6 +824,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -826,6 +838,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -859,6 +872,7 @@ describe("ChatbotBookingCard", () => {
     const longTitle = "ライブ収録素材のカラーグレーディングと納品確認を含む長い案件名"
     renderCard({ defaultProjectTitle: longTitle })
 
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     const field = screen.getByLabelText("案件名")
     expect(field.tagName).toBe("TEXTAREA")
     expect(field).toHaveValue(longTitle)
@@ -870,6 +884,7 @@ describe("ChatbotBookingCard", () => {
   it("caps supplemental notes so wheel scrolling remains available after autogrow stops", () => {
     renderCard({ defaultMemo: "補足メモ\n".repeat(30) })
 
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     const field = screen.getByLabelText("補足")
     Object.defineProperty(field, "scrollHeight", { configurable: true, value: 520 })
     fireEvent.change(field, { target: { value: "補足メモ\n".repeat(31) } })
@@ -884,6 +899,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
     fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
@@ -920,6 +936,7 @@ describe("ChatbotBookingCard", () => {
     renderCard()
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
     fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
@@ -944,6 +961,7 @@ describe("ChatbotBookingCard", () => {
     })
     renderCard()
 
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
@@ -970,11 +988,13 @@ describe("ChatbotBookingCard", () => {
     const fetchMock = mockFetch(200, { bookingGroupId: "group_1" })
 
     renderCard({ candidates: [{ ...candidates[0], start: "2026-06-12T01:00:00.000Z" }, candidates[1]] })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
     expect(fetchMock).not.toHaveBeenCalled()
 
     cleanup()
     renderCard({ candidates: [] })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -986,6 +1006,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
     fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
@@ -1017,6 +1038,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
     fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
@@ -1032,6 +1054,7 @@ describe("ChatbotBookingCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
     fireEvent.change(screen.getByLabelText("メール"), { target: { value: "client@example.jp" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
@@ -1169,6 +1192,7 @@ describe("ChatbotBookingCard", () => {
       const planCallCount = fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/chatbot/booking-plan").length
       expect(planCallCount).toBe(1)
 
+      fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
       fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
       fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -1198,6 +1222,55 @@ describe("ChatbotBookingCard", () => {
       fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
 
       expect(await screen.findByText(/作業日を自動で入れられませんでした/u)).toBeInTheDocument()
+    })
+  })
+
+  describe("two steps: the calendar, then what will be sent", () => {
+    const confirmationItems = [
+      { label: "最終媒体", value: "Web" },
+      { label: "作業場所/立ち会い", value: "リモートグレーディング" },
+    ]
+
+    it("moves on with the chosen dates only once a date is picked", () => {
+      renderCard({ confirmationItems })
+
+      const next = screen.getByRole("button", { name: "この日程で次へ" })
+      expect(next).toBeDisabled()
+      fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+      expect(next).toBeEnabled()
+      fireEvent.click(next)
+
+      const summary = screen.getByLabelText("送信する内容")
+      expect(within(summary).getByText("仮キープする日程")).toBeInTheDocument()
+      expect(within(summary).getByText(/6\/10/u)).toBeInTheDocument()
+      expect(within(summary).getByText("最終媒体")).toBeInTheDocument()
+      expect(within(summary).getByText("リモートグレーディング")).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "2026-06-10 選択可" })).not.toBeInTheDocument()
+    })
+
+    it("goes back to the calendar with the dates still chosen", () => {
+      renderCard({ confirmationItems })
+
+      fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+      fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
+      fireEvent.click(screen.getByRole("button", { name: "日程を選び直す" }))
+
+      expect(screen.getByRole("button", { name: "2026-06-10 選択可" })).toHaveAttribute("aria-pressed", "true")
+    })
+
+    it("sends the customer's note together with what the chat decided", async () => {
+      const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: ["slot_1"] })
+      renderCard({ confirmationItems, defaultContactEmail: "client@example.jp" })
+
+      fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+      fireEvent.change(screen.getByLabelText("補足"), { target: { value: "HDR 版も相談したい" } })
+      fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+      fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+      expect(body.memo).toBe("HDR 版も相談したい\n最終媒体: Web\n作業場所/立ち会い: リモートグレーディング")
+      expect(body).not.toHaveProperty("selectedSlots.0")
     })
   })
 })

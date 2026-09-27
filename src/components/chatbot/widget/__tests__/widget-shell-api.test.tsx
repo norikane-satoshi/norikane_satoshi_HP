@@ -382,6 +382,7 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
 
     const conversation = setConversationScrollGeometry({ scrollTop: 900, clientHeight: 300, scrollHeight: 1200 })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     const memo = screen.getByLabelText("補足")
     Object.defineProperty(memo, "clientHeight", { configurable: true, value: 120 })
     Object.defineProperty(memo, "scrollHeight", { configurable: true, value: 520 })
@@ -1685,6 +1686,7 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("Booking Order")).toBeInTheDocument()
     expect(screen.getByLabelText("仮キープ候補のカレンダー選択")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: `${slot.start.slice(0, 10)} 選択可` })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     expect(screen.getByLabelText("案件名")).toHaveValue("ライブ案件")
     expect(screen.getByLabelText("メール")).toHaveValue("client@example.jp")
     expect(screen.getByLabelText("補足")).toHaveValue("観客の顔ぼかし30カット以上\n作業場所: リモート")
@@ -1750,6 +1752,7 @@ describe("WidgetShell API wiring", () => {
     submitMessage()
 
     expect(await screen.findByText("Booking Order")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -1868,6 +1871,7 @@ describe("WidgetShell API wiring", () => {
     submitMessage("予約したいです")
 
     expect(await screen.findByText("Booking Order")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -2015,6 +2019,7 @@ describe("WidgetShell API wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "OK" }))
 
     expect(await screen.findByText("Booking Order")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     expect(screen.getByLabelText("案件名")).toHaveValue("新ライブ案件")
     expect(screen.queryByLabelText("予約送信完了")).not.toBeInTheDocument()
     expect(screen.queryByText("予約番号: group_old")).not.toBeInTheDocument()
