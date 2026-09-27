@@ -42,5 +42,39 @@ describe("work-site choices", () => {
     })
 
     expect(summary).toContain("- 作業場所/立ち会い: 依頼元の機材部屋（制作会社など）")
+    expect(summary).toContain("- 追加作業: 未取得")
+  })
+})
+
+describe("booking confirmation items", () => {
+  it("lists the answered items, with no additional work as なし, and leaves the editable fields out", async () => {
+    const { buildBookingConfirmationItems } = await import("@/lib/chatbot/domain/consultation-summary")
+    const items = buildBookingConfirmationItems({
+      jobContext: {
+        finalMedium: "web",
+        jobKind: "cm-30s",
+        projectLengthMinutes: 0.5,
+        documentaryAttachment: { kind: "none" },
+        workSite: "remote-grading",
+      },
+      conversationState: {
+        hasFinalMedium: true,
+        hasJobKind: true,
+        hasProjectLength: true,
+        hasAdditionalWork: true,
+        hasDocumentaryAttachments: true,
+        hasWorkSite: true,
+        hasReferenceUrls: true,
+        hasContactEmail: true,
+        hasDesiredSchedule: false,
+        contactEmail: "client@example.com",
+        turnCount: 8,
+      },
+    })
+
+    expect(items).toContainEqual({ label: "追加作業", value: "なし" })
+    expect(items).toContainEqual({ label: "参考URL", value: "なし" })
+    expect(items.map((item) => item.label)).not.toContain("メール")
+    expect(items.map((item) => item.label)).not.toContain("納品希望日")
   })
 })
