@@ -64,25 +64,54 @@ describe("chatbot duration estimator", () => {
       }),
     )
 
-    expect(result.totalMinDays).toBeCloseTo(2.428571428571429)
+    expect(result.totalMinDays).toBeCloseTo(2.928571428571429)
     expect(result.totalMaxDays).toBeCloseTo(2.928571428571429)
     expect(result.note).toBe("案件ごと上乗せ議論")
   })
 
-  it("adds strict medium and skin retouch days for feature OTT", () => {
-    const result = estimateWorkflow(
-      jobContext({
-        jobKind: "feature-90m",
-        finalMedium: "ott",
-        projectLengthMinutes: 90,
-        additionalWork: ["skin-retouch"],
-        retouchCutCount: 200,
-      }),
-    )
+  it("adds skin retouch days, and one QC day once the customer names an NHK or OTT delivery", () => {
+    const base = {
+      jobKind: "feature-90m" as const,
+      finalMedium: "ott" as const,
+      projectLengthMinutes: 90,
+      additionalWork: ["skin-retouch" as const],
+      retouchCutCount: 200,
+    }
+    const unnamed = estimateWorkflow(jobContext(base))
+    const named = estimateWorkflow(jobContext({ ...base, strictDeliveryClient: true }))
 
-    expect(result.totalMinDays).toBeCloseTo(9.857142857142858)
-    expect(result.totalMaxDays).toBeCloseTo(11.857142857142858)
-    expect(result.riskFlags).toContain("strict-delivery")
+    expect([unnamed.totalMinDays, unnamed.totalMaxDays].map((value) => Number(value.toFixed(3)))).toEqual([8.857, 10.857])
+    expect(unnamed.riskFlags).not.toContain("strict-delivery")
+    expect([named.totalMinDays, named.totalMaxDays].map((value) => Number(value.toFixed(3)))).toEqual([9.857, 11.857])
+    expect(named.riskFlags).toContain("strict-delivery")
+  })
+
+  it.each(["cinema", "tv-broadcast", "ott"] as const)(
+    "keeps one QC day for a %s delivery until the customer names a strict one",
+    (finalMedium) => {
+      const result = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90, finalMedium }))
+
+      expect(result.stages.find((stage) => stage.stage === "final-check")).toEqual({
+        stage: "final-check",
+        minDays: 1,
+        maxDays: 1,
+      })
+      expect([result.totalMinDays, result.totalMaxDays]).toEqual([6, 8])
+    },
+  )
+
+  it.each([
+    ["NHKの特集ドラマです", true],
+    ["Netflix で配信予定です", true],
+    ["ディズニープラスのオリジナル作品です", true],
+    ["Amazon Prime Video 向けです", true],
+    ["OTT 案件です", true],
+    ["YouTube で配信します", false],
+    ["劇場公開予定です", false],
+  ])("notices a strict delivery only when the customer names one: %s", (message, strict) => {
+    const inferred = inferWorkflowJobContextFromText(message, jobContext({ jobKind: "feature-90m" }))
+
+    expect(Boolean(inferred.strictDeliveryClient)).toBe(strict)
   })
 
   it("flags heavy retouch for drama first episode without adding days", () => {
@@ -142,15 +171,16 @@ describe("chatbot duration estimator", () => {
       }),
     )
 
-    expect(result.totalMinDays).toBe(6.5)
+    // The total is the sum of the eased stages (conform 1, prep 4〜4.5, attendance 1, QC 1).
+    expect(result.totalMinDays).toBe(7)
     expect(result.totalMaxDays).toBe(7.5)
   })
 
   it.each([
     [90, 6, 8, undefined],
-    [135, 7.5, 9.5, "90分/180分アンカー間の緩やかな目安"],
-    [180, 8, 10, undefined],
-    [240, 8, 10.5, "3時間超は素材量・チェック体制の確認優先"],
+    [135, 7, 9.5, "90分/180分アンカー間の緩やかな目安"],
+    [180, 7, 10, undefined],
+    [240, 7, 10.5, "3時間超は素材量・チェック体制の確認優先"],
     [60, 6, 8, "尺が基準と異なるため要相談"],
   ])("grows a feature's days with its length from the 90-minute and 3-hour lines: %s min", (minutes, min, max, note) => {
     const result = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: minutes }))
@@ -176,7 +206,19 @@ describe("chatbot duration estimator", () => {
 
   it("uses the synced lines, and the built-in line for one an older snapshot lacks", () => {
     const presets = [
-      { id: "feature-90m", label: "本編 90分", minDays: 7, maxDays: 9, source: "notion-sync" as const },
+      {
+        id: "feature-90m",
+        label: "本編 90分",
+        minDays: 7,
+        maxDays: 9,
+        stages: {
+          conform: { minDays: 1, maxDays: 1 },
+          prep: { minDays: 4, maxDays: 4 },
+          attendance: { minDays: 1, maxDays: 3 },
+          finish: { minDays: 1, maxDays: 1 },
+        },
+        source: "notion-sync" as const,
+      },
     ]
     const knowledgeSnapshot = {
       version: 1 as const,
@@ -191,7 +233,7 @@ describe("chatbot duration estimator", () => {
     const at180 = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: 180 }), { knowledgeSnapshot })
 
     expect([at90.totalMinDays, at90.totalMaxDays]).toEqual([7, 9])
-    expect([at180.totalMinDays, at180.totalMaxDays]).toEqual([8, 10])
+    expect([at180.totalMinDays, at180.totalMaxDays]).toEqual([7, 10])
   })
 
   it("splits a job into the stages the owner quotes, leaving the attendance range open", () => {
@@ -223,12 +265,13 @@ describe("chatbot duration estimator", () => {
     })
   })
 
-  it("puts added work on its stage: attached videos in preparation, a strict medium's buffer in the check", () => {
+  it("puts added work on its stage: attached videos in preparation, a strict delivery's extra day in the check", () => {
     const result = estimateWorkflow(
       jobContext({
         jobKind: "feature-90m",
         projectLengthMinutes: 90,
         finalMedium: "ott",
+        strictDeliveryClient: true,
         documentaryAttachment: { kind: "making", count: 2 },
         attendanceDays: 2,
       }),
@@ -238,7 +281,7 @@ describe("chatbot duration estimator", () => {
       { stage: "conform", minDays: 1, maxDays: 1 },
       { stage: "prep", minDays: 3.5, maxDays: 3.5 },
       { stage: "attended", minDays: 2, maxDays: 2 },
-      { stage: "final-check", minDays: 2, maxDays: 2 },
+      { stage: "final-check", minDays: 2, maxDays: 2, note: "納品先の検査に合わせて1日多め" },
     ])
     expect([result.totalMinDays, result.totalMaxDays]).toEqual([8.5, 8.5])
   })

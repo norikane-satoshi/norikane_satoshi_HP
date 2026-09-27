@@ -4394,7 +4394,7 @@ describe("handleChatbotMessage user context", () => {
     {
       prompt: "MV 5分のカラーグレーディング相談です。",
       rawText: "MV 5分の作業期間は17〜20日です。",
-      expectedRange: "作業期間は1〜1.5日",
+      expectedRange: "作業期間は1.5日",
       expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
     },
     {
@@ -4740,7 +4740,7 @@ describe("handleChatbotMessage user context", () => {
       prior: "MV 5分のカラーグレーディング相談です。",
       latest: "肌修正が少しあります。基本工程はどれくらいですか？",
       rawText: "追加作業込みでも基本工程は17〜20日から考えます。",
-      expectedRange: "基本工程は1〜1.5日",
+      expectedRange: "基本工程は1.5日",
       expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
     },
     {
@@ -4931,7 +4931,7 @@ describe("handleChatbotMessage user context", () => {
       jobKind: "mv-5m",
       projectLengthMinutes: 5,
       workflowEstimate: expect.objectContaining({
-        totalMinDays: 1,
+        totalMinDays: 1.5,
         totalMaxDays: 1.5,
       }),
     })

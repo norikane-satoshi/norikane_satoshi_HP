@@ -79,6 +79,8 @@ export type JobContext = {
   preferredAttendanceDates?: string[]
   /** Attendance days the customer chose in the chat. */
   attendanceDays?: number
+  /** The customer said the delivery is NHK or an OTT platform (Netflix, Disney+, ...): one more QC day. */
+  strictDeliveryClient?: boolean
   referenceUrls?: string[]
   additionalWork?: Array<"retouch" | "skin-retouch" | "other">
   workflowEstimate?: WorkflowEstimate

@@ -15,13 +15,19 @@ function jobContext(overrides: Partial<JobContext>): JobContext {
 }
 
 describe("chatbot duration estimator synced knowledge", () => {
-  it("follows the synced live lines now that the sync reads each row's total", () => {
+  it("follows the synced live lines, totalling each line's stage breakdown", () => {
     const snapshot = createStaticChatbotKnowledgeSnapshot("2026-09-27T00:00:00.000Z")
+    const stages = (prepMin: number, prepMax: number, edge: number) => ({
+      conform: { minDays: edge, maxDays: edge },
+      prep: { minDays: prepMin, maxDays: prepMax },
+      attendance: { minDays: 1, maxDays: 1 },
+      finish: { minDays: edge, maxDays: edge },
+    })
     snapshot.workflowDurations.presets = snapshot.workflowDurations.presets.map((preset) =>
       preset.id === "live-60m"
-        ? { ...preset, minDays: 5, maxDays: 5, source: "notion-sync" as const }
+        ? { ...preset, minDays: 5, maxDays: 5, stages: stages(3, 3, 0.5), source: "notion-sync" as const }
         : preset.id === "live-150m"
-          ? { ...preset, minDays: 8, maxDays: 9, source: "notion-sync" as const }
+          ? { ...preset, minDays: 8, maxDays: 9, stages: stages(5, 6, 1), source: "notion-sync" as const }
           : preset,
     )
 

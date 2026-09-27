@@ -239,7 +239,9 @@ describe("Notion chatbot knowledge sync", () => {
     })
   })
 
-  it("reads each kind's total from the per-stage duration table, not its first stage", async () => {
+  // The total column may lag behind its stages (here MV and the 3-hour feature still show old
+  // totals); a readable breakdown is what a kind's days add up to.
+  it("totals each kind's stage breakdown from the per-stage duration table", async () => {
     const repo = repository()
     const manifestPageId = "eb950c43e1a042199c1bbce74ae616a1"
     const sourcePageId = "830dd59bc735483fae4feea1d6f4fbc7"
@@ -302,9 +304,9 @@ describe("Notion chatbot knowledge sync", () => {
     )
     expect(days).toEqual({
       "cm-30s": [1, 1, "notion-sync"],
-      "mv-5m": [1, 1.5, "notion-sync"],
+      "mv-5m": [1.5, 1.5, "notion-sync"],
       "feature-90m": [6, 8, "notion-sync"],
-      "feature-180m": [8, 10, "notion-sync"],
+      "feature-180m": [7, 10, "notion-sync"],
       "drama-first": [6, 7, "notion-sync"],
       "drama-follow-up": [5, 5, "notion-sync"],
       "drama-short": [1, 2, "notion-sync"],

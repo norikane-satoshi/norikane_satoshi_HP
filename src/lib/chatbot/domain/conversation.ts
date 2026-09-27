@@ -102,6 +102,8 @@ export type ConversationState = {
   customerName?: string
   companyName?: string
   finalMedia?: JobContext["finalMedium"][]
+  /** The work-site choice as the customer picked it (the room kind behind "on-site"). */
+  workSiteLabel?: string
   materialHandoff?: {
     contents?: string
     timing?: string

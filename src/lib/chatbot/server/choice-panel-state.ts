@@ -141,6 +141,7 @@ export function applyActiveChoiceAnswer(input: {
         choiceIds: [choice.id],
         conversationState: {
           hasWorkSite: true,
+          workSiteLabel: choice.label,
           ...otherCommentPatch,
           ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
           ...toUnknownChoicePatch(activeChoices, choices, input.message),
@@ -826,7 +827,9 @@ function toDocumentaryAttachmentItem(choiceId: string, otherComment?: string): D
 
 function toWorkSite(choiceId: string): WorkSite {
   if (choiceId === "satoshi-studio" || choiceId === "remote-grading") return choiceId
-  if (choiceId === "client-facility-attended" || choiceId === "on-site-post-production") return "on-site"
+  if (choiceId === "post-production-room" || choiceId === "client-equipment-room" || choiceId === "client-rental-space") {
+    return "on-site"
+  }
   return "remote-grading"
 }
 

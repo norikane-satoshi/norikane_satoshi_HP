@@ -42,6 +42,7 @@ export const jobContextSchema = z.object({
   retouchCutCount: z.number().optional(),
   heavyRetouch: z.boolean().optional(),
   attendanceDays: z.number().positive().optional(),
+  strictDeliveryClient: z.boolean().optional(),
   projectLengthMinutes: z.number().optional(),
   publicReleaseDate: z.string().optional(),
   preferredStartDate: z.string().optional(),

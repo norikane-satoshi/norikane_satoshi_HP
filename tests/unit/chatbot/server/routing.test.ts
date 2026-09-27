@@ -367,6 +367,25 @@ describe("chatbot fallback router", () => {
     })
   })
 
+  it("recommends one more QC day only once the customer has named an NHK or OTT delivery", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90, finalMedium: "ott", strictDeliveryClient: true }),
+      conversationState: conversationState(),
+    })
+
+    expect(result.kind).toBe("continue")
+    if (result.kind !== "continue") return
+    expect(result.nextQuestion).toBe(
+      "長編 1.5時間は、コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 2日（納品先の検査に合わせて1日多め）が目安です。立ち会いは何日にしますか？",
+    )
+    expect(result.presentChoices?.choices.map((choice) => choice.label)).toEqual([
+      "1日（全体で7日）",
+      "2日（全体で8日）",
+      "3日（全体で9日）",
+      "未定・相談して決めたい",
+    ])
+  })
+
   it("shows the stage split and asks how many days the customer attends before the contact and final check", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90 }),
