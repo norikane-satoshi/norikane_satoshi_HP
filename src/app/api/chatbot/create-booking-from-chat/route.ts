@@ -6,6 +6,7 @@ import { respondInternalError } from "@/lib/api/server/error-response"
 import {
   buildChatbotBookingAuditEvents,
   buildChatbotOperationFailureAuditEvent,
+  describeFailureForAudit,
   type ChatbotMessageAuditEvidence,
 } from "@/lib/chatbot/audit/server-evidence"
 import { scheduleChatbotAuditPersistence } from "@/lib/chatbot/audit/scheduler"
@@ -512,6 +513,7 @@ export async function POST(request: NextRequest) {
         buildSha: getChatbotBuildSha(),
         createdAt: new Date().toISOString(),
         errorCode: "booking-save-failed",
+        errorReason: describeFailureForAudit(error),
         durationMs: Date.now() - bookingStartedAt,
       })])
     }

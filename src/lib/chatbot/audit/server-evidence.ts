@@ -320,6 +320,8 @@ export function buildChatbotOperationFailureAuditEvent(input: {
   createdAt: string
   errorCode: string
   durationMs: number
+  /** What failed, as code identifiers only (see describeFailureForAudit); never message text. */
+  errorReason?: string
 }): ChatbotStoredAuditEvent {
   const event = chatbotServerAuditEventSchema.parse({
     schemaVersion: "1",
@@ -329,6 +331,7 @@ export function buildChatbotOperationFailureAuditEvent(input: {
     eventName: "operation_failed",
     result: "failure",
     errorCode: safeCode(input.errorCode),
+    ...(input.errorReason ? { errorReason: safeCode(input.errorReason) } : {}),
     durationMs: toDuration(input.durationMs),
   })
   return toStoredChatbotServerAuditEvent(event, {
@@ -368,6 +371,22 @@ function safeErrorReason(error: TierAttemptEvent["error"]): string | undefined {
   if (!(error instanceof ChatbotLlmError)) return undefined
   const cause = asRecord(error.cause)
   return cause?.invalidOutputReason === "empty-response" ? "empty-response" : undefined
+}
+
+/**
+ * Runtime logs are kept only briefly, so a failed operation records where it failed in the audit
+ * row: the error's own code when the message is one ("chatbot_message_audit_evidence_missing"),
+ * else its type, plus the innermost named function on the stack. No message text, so no customer data.
+ */
+export function describeFailureForAudit(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined
+  const code = /^[a-z0-9][a-z0-9_.:-]{0,79}$/i.test(error.message) ? error.message : error.name
+  const frame = error.stack
+    ?.split("\n")
+    .slice(1)
+    .map((line) => /at (?:async )?([A-Za-z0-9_$.]+) \(/u.exec(line)?.[1])
+    .find(Boolean)
+  return [code, frame].filter(Boolean).join(":").replace(/[^a-z0-9_.:-]/giu, "-").slice(0, 120)
 }
 
 function safeCode(value: string): string {

@@ -6,6 +6,7 @@ import { enforceBodyLimit } from "@/lib/api/server/body-limit"
 import {
   buildChatbotMessageAuditEvents,
   buildChatbotOperationFailureAuditEvent,
+  describeFailureForAudit,
 } from "@/lib/chatbot/audit/server-evidence"
 import {
   scheduleChatbotAuditPersistence,
@@ -293,6 +294,7 @@ export async function POST(request: NextRequest) {
         buildSha: getChatbotBuildSha(),
         createdAt: new Date().toISOString(),
         errorCode: `message-${failureStage}-failed`,
+        errorReason: describeFailureForAudit(error),
         durationMs: Date.now() - requestStartedAt,
       })])
     }
