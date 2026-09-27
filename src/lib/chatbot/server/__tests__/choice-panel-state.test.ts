@@ -155,8 +155,20 @@ describe("choice panel state", () => {
       { documentaryAttachment: { kind: "interview", count: 1 } },
     ],
     [documentaryAttachmentChoices, "なし", { hasDocumentaryAttachments: true }, { documentaryAttachment: { kind: "none" } }],
-    [workSiteChoices, "satoshi-studio", { hasWorkSite: true }, { workSite: "satoshi-studio" }],
-    [workSiteChoices, "client-facility-attended", { hasWorkSite: true }, { workSite: "on-site" }],
+    [workSiteChoices, "satoshi-studio", { hasWorkSite: true, workSiteLabel: "さとしさんのスタジオ" }, { workSite: "satoshi-studio" }],
+    [workSiteChoices, "post-production-room", { hasWorkSite: true, workSiteLabel: "ポスプロの部屋を借りる" }, { workSite: "on-site" }],
+    [
+      workSiteChoices,
+      "client-equipment-room",
+      { hasWorkSite: true, workSiteLabel: "依頼元の機材部屋（制作会社など）" },
+      { workSite: "on-site" },
+    ],
+    [
+      workSiteChoices,
+      "選択: 依頼元が手配するレンタルスペース",
+      { hasWorkSite: true, workSiteLabel: "依頼元が手配するレンタルスペース" },
+      { workSite: "on-site" },
+    ],
     [
       lectureTrainingContentChoices,
       "選択: カラーグレーディング、DaVinci Resolve 基礎",

@@ -195,6 +195,11 @@ export function buildWorkflowPromptContext(
           }）`,
         )
       }
+      lines.push(
+        jobContext.strictDeliveryClient
+          ? "- 納品先: お客さまが NHK や OTT（Netflix・Disney+ など）への納品と伝えているため、QC を1日多めに勧めている"
+          : "- 納品先の検査: NHK や OTT（Netflix・Disney+ など）の案件かどうかはこちらから尋ねない。お客さまがそう伝えた場合だけ QC を1日多めに勧める",
+      )
       if (jobContext.jobKind === "live-60m") {
         lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
         lines.push("- 禁止: 17〜20日などの過大見積もり、60分の単純2.5倍で10日とする線形倍率計算")

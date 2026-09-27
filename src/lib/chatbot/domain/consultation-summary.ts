@@ -91,7 +91,9 @@ export function formatConsultationSummary(input: ConsultationSummaryInput): stri
         : missing
     }`,
     "作業場所・立ち会い:",
-    `- 作業場所/立ち会い: ${conversationState.hasWorkSite ? labelWorkSite(jobContext.workSite) : missing}`,
+    `- 作業場所/立ち会い: ${
+      conversationState.hasWorkSite ? conversationState.workSiteLabel ?? labelWorkSite(jobContext.workSite) : missing
+    }`,
     "素材搬入〜納品:",
     `- 受け渡し素材: ${conversationState.hasMaterialDetails ? formatValue(conversationState.materialHandoff?.contents) : missing}`,
     `- 素材搬入/受け取り時期: ${conversationState.hasMaterialTiming ? formatValue(conversationState.materialHandoff?.timing) : missing}`,

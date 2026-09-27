@@ -1,5 +1,5 @@
 import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import type { FinalMedium, JobKind, WorkSite } from "@/lib/chatbot/domain/workflow-estimate"
+import type { JobKind, WorkSite } from "@/lib/chatbot/domain/workflow-estimate"
 
 export const tightDeadlineThresholdDays = 3
 export const tightishDeadlineMaxDays = 7
@@ -25,12 +25,13 @@ export function formatStageDays(range: DayRange): string {
 
 /** "コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 1日"; stages with no days are left out. */
 export function describeWorkflowStages(
-  stages: ReadonlyArray<{ stage: keyof typeof workflowStageLabels | string; minDays: number; maxDays: number }>,
+  stages: ReadonlyArray<{ stage: keyof typeof workflowStageLabels | string; minDays: number; maxDays: number; note?: string }>,
 ): string | undefined {
   const parts = stages.flatMap((item) => {
     const label = workflowStageLabels[item.stage as keyof typeof workflowStageLabels]
     if (!label || item.maxDays <= 0) return []
-    return [`${label}${/[A-Za-z]$/u.test(label) ? " " : ""}${formatStageDays(item)}`]
+    const note = item.note ? `（${item.note}）` : ""
+    return [`${label}${/[A-Za-z]$/u.test(label) ? " " : ""}${formatStageDays(item)}${note}`]
   })
   return parts.length > 0 ? parts.join("・") : undefined
 }
@@ -72,9 +73,9 @@ const stageDays = (conform: DayRange, prep: DayRange, attendance: DayRange, fini
 
 export const workflowDurationPresets = [
   { id: "cm-30s", label: "CM 30秒", minDays: 1, maxDays: 1, stages: stageDays(days(0.5), days(0), days(0.5), days(0)) },
-  { id: "mv-5m", label: "MV 5分", minDays: 1, maxDays: 1.5, stages: stageDays(days(0.5), days(0), days(1), days(0)) },
+  { id: "mv-5m", label: "MV 5分", minDays: 1.5, maxDays: 1.5, stages: stageDays(days(0.5), days(0), days(1), days(0)) },
   { id: "feature-90m", label: "本編 90分", minDays: 6, maxDays: 8, stages: stageDays(days(1), days(3), days(1, 3), days(1)) },
-  { id: "feature-180m", label: "本編 3時間", minDays: 8, maxDays: 10, stages: stageDays(days(1), days(4, 5), days(1, 3), days(1)) },
+  { id: "feature-180m", label: "本編 3時間", minDays: 7, maxDays: 10, stages: stageDays(days(1), days(4, 5), days(1, 3), days(1)) },
   { id: "drama-first", label: "ドラマ初回（1話45〜50分）", minDays: 6, maxDays: 7, stages: stageDays(days(1), days(3), days(1, 2), days(1)) },
   { id: "drama-follow-up", label: "ドラマ 2話目以降（1話45〜50分）", minDays: 5, maxDays: 5, stages: stageDays(days(1), days(2), days(1), days(1)) },
   { id: "drama-short", label: "短尺ドラマ（1話5〜15分）", minDays: 1, maxDays: 2, stages: stageDays(days(0), days(0.5, 1), days(0.5, 1), days(0)) },
@@ -143,16 +144,18 @@ export const additionalWorkDurationRules = {
   heavyRetouchFlag: "heavy-retouch",
 } as const
 
-export const strictDeliveryMediums = ["ott", "cinema", "tv-broadcast"] as const satisfies readonly FinalMedium[]
+/**
+ * Deliveries with strict checks (NHK and the OTT platforms such as Netflix and Disney+) get one more
+ * QC day. It is never asked about; it applies only once the customer names such a delivery.
+ */
+export const strictDeliveryClientPattern =
+  /(?:nhk|netflix|ネットフリックス|ネトフリ|disney\s*\+|disney\s*plus|ディズニー\s*(?:\+|プラス)|prime\s*video|amazon\s*prime|プライム\s*・?\s*ビデオ|アマプラ|hulu|フールー|u-?next|ユーネクスト|apple\s*tv|(?:^|[^a-z])ott(?:$|[^a-z]))/u
 
-export const mediumStrictnessRank = [
-  "ott",
-  "cinema",
-  "tv-broadcast",
-  "live",
-  "web",
-  "vertical-sns",
-] as const satisfies readonly FinalMedium[]
+export function mentionsStrictDeliveryClient(text: string): boolean {
+  return strictDeliveryClientPattern.test(text.normalize("NFKC").toLowerCase())
+}
+
+export const strictDeliveryQcNote = "納品先の検査に合わせて1日多め"
 
 export const workSiteDurationRules = {
   "satoshi-studio": {

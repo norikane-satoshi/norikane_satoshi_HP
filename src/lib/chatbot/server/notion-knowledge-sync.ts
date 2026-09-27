@@ -515,14 +515,27 @@ function extractWorkflowDurationPresets(
     const cells = row.cells.length > 0 ? row.cells : [row.text]
     const presetId = matchWorkflowDurationPresetId(cells[0])
     if (!presetId) continue
-    const totalCell = totalIndex > 0 ? cells[totalIndex] : undefined
-    const range = totalCell ? parseDayRange(totalCell) : lastDayRange(cells.slice(1).length > 0 ? cells.slice(1) : cells)
-    if (!range) continue
     const stages = readStageDays(cells, stageIndexes)
+    // A row with a readable breakdown totals its stages; the total column is only a fallback.
+    const totalCell = totalIndex > 0 ? cells[totalIndex] : undefined
+    const range = stages
+      ? sumStageDays(stages)
+      : totalCell
+        ? parseDayRange(totalCell)
+        : lastDayRange(cells.slice(1).length > 0 ? cells.slice(1) : cells)
+    if (!range) continue
     next[presetId] = { ...range, ...(stages ? { stages } : {}) }
   }
 
   return next
+}
+
+function sumStageDays(stages: WorkflowStageDays): Pick<WorkflowDurationPreset, "minDays" | "maxDays"> {
+  const parts = [stages.conform, stages.prep, stages.attendance, stages.finish]
+  return {
+    minDays: parts.reduce((total, part) => total + part.minDays, 0),
+    maxDays: parts.reduce((total, part) => total + part.maxDays, 0),
+  }
 }
 
 // A stage cell reads as days, or as none when the work shares another stage's day ("当日内",

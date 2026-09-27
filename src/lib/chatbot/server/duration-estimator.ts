@@ -11,7 +11,8 @@ import {
   additionalWorkDurationRules,
   shortDramaMaxEpisodeMinutes,
   standardDramaEpisodeMinutes,
-  strictDeliveryMediums,
+  mentionsStrictDeliveryClient,
+  strictDeliveryQcNote,
   workflowDurationJobKindMap,
   workflowDurationLengthAnchors,
   workflowDurationPresets as builtInWorkflowDurationPresets,
@@ -77,6 +78,8 @@ export function inferWorkflowJobContextFromText(
       : undefined
   const deliveryMedium = current.deliveryMedium === undefined ? inferDeliveryMedium(normalized) : undefined
   const inferred: Partial<JobContext> = {}
+
+  if (!current.strictDeliveryClient && mentionsStrictDeliveryClient(normalized)) inferred.strictDeliveryClient = true
 
   if (!current.jobKind && safeExplicitJobKind) inferred.jobKind = safeExplicitJobKind
   if (current.projectLengthMinutes === undefined && projectLengthMinutes !== undefined) {
@@ -284,7 +287,7 @@ export function applyAdditionalWorkAdjustment(
   }
 }
 
-/** Added work lands on a stage: retouch and attached videos are preparation, a strict medium's buffer is the check. */
+/** Added work lands on a stage: retouch and attached videos are preparation, a strict delivery's extra day is QC. */
 function additionalWorkDays(jobContext: JobContext): { prepDays: number; finishDays: number } {
   const retouchDays = hasRetouchWork(jobContext)
     ? (jobContext.retouchCutCount ?? additionalWorkDurationRules.noAdditionalDays) /
@@ -293,7 +296,7 @@ function additionalWorkDays(jobContext: JobContext): { prepDays: number; finishD
   const documentaryDays =
     getDocumentaryAttachmentCount(jobContext.documentaryAttachment) *
     additionalWorkDurationRules.documentaryAttachmentDaysPerVideo
-  const strictDeliveryDays = isStrictDeliveryMedium(jobContext.finalMedium)
+  const strictDeliveryDays = jobContext.strictDeliveryClient
     ? additionalWorkDurationRules.strictMediumAdditionalDays
     : additionalWorkDurationRules.noAdditionalDays
   return { prepDays: retouchDays + documentaryDays, finishDays: strictDeliveryDays }
@@ -329,7 +332,7 @@ export function estimateWorkflow(
   if (adjusted.heavyRetouch) {
     riskFlags.push(additionalWorkDurationRules.heavyRetouchFlag)
   }
-  if (isStrictDeliveryMedium(jobContext.finalMedium)) {
+  if (jobContext.strictDeliveryClient) {
     riskFlags.push("strict-delivery")
   }
   if (workSiteAdjusted.canSkipFinalCheck) {
@@ -341,10 +344,12 @@ export function estimateWorkflow(
     : undefined
   const attendanceDays = stages ? resolveAttendanceDays(stages.attendance, jobContext.attendanceDays) : undefined
   const note = [base.note, workSiteAdjusted.note].filter(Boolean).join(" / ") || undefined
-  const totals = stages && attendanceDays !== undefined
+  // With a breakdown the total is always its sum (with the chosen attendance days once picked).
+  const attendanceRange = attendanceDays !== undefined ? { minDays: attendanceDays, maxDays: attendanceDays } : stages?.attendance
+  const totals = stages && attendanceRange
     ? {
-        totalMinDays: stages.conform.minDays + stages.prep.minDays + attendanceDays + stages.finish.minDays,
-        totalMaxDays: stages.conform.maxDays + stages.prep.maxDays + attendanceDays + stages.finish.maxDays,
+        totalMinDays: stages.conform.minDays + stages.prep.minDays + attendanceRange.minDays + stages.finish.minDays,
+        totalMaxDays: stages.conform.maxDays + stages.prep.maxDays + attendanceRange.maxDays + stages.finish.maxDays,
       }
     : { totalMinDays: workSiteAdjusted.minDays, totalMaxDays: workSiteAdjusted.maxDays }
 
@@ -357,7 +362,11 @@ export function estimateWorkflow(
             stage: "attended",
             ...(attendanceDays !== undefined ? { minDays: attendanceDays, maxDays: attendanceDays } : stages.attendance),
           },
-          { stage: "final-check", ...stages.finish },
+          {
+            stage: "final-check",
+            ...stages.finish,
+            ...(jobContext.strictDeliveryClient ? { note: strictDeliveryQcNote } : {}),
+          },
         ]
       : [],
     ...totals,
@@ -426,8 +435,4 @@ function getDocumentaryAttachmentCount(attachment: DocumentaryAttachment): numbe
     )
   }
   return attachment.count ?? additionalWorkDurationRules.defaultDocumentaryAttachmentCount
-}
-
-function isStrictDeliveryMedium(finalMedium: FinalMedium): boolean {
-  return (strictDeliveryMediums as readonly FinalMedium[]).includes(finalMedium)
 }

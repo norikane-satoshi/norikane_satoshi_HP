@@ -130,7 +130,7 @@ const additionalWorkMemoLabels: Record<NonNullable<JobContext["additionalWork"]>
 const workSiteMemoLabels: Record<JobContext["workSite"], string> = {
   "satoshi-studio": "のりかね映像設計室",
   "remote-grading": "リモート",
-  "on-site": "現地/ポスプロ常駐",
+  "on-site": "スタジオ外の部屋（ポスプロ・依頼元の部屋など）",
 }
 
 type StoredWidgetSession = {
