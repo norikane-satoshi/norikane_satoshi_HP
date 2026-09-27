@@ -394,4 +394,25 @@ describe("createChatbotLlmTierOrchestrator", () => {
 
     await expect(orchestrator.generate(llmRequest())).rejects.toMatchObject({ code: "invalid-output" })
   })
+
+  it("sets aside a panel the model improvised when the server supplies its own, without a failed attempt", async () => {
+    const elevenChoices = Array.from({ length: 11 }, (_, index) => ({ id: `choice-${index}`, label: `候補${index}` }))
+    const improvised = llmResponse(
+      "tier-2-gemini-flash",
+      `<customer_reply>承知しました。\n${JSON.stringify({
+        tool: "show_choice_panel",
+        args: { id: "work-site", question: "作業場所はどちらですか", choices: elevenChoices },
+      })}</customer_reply>`,
+    )
+    const tier2 = fakeClient("tier-2-gemini-flash", { generateResult: improvised })
+    const attempts: TierAttemptEvent[] = []
+    const orchestrator = createChatbotLlmTierOrchestrator({
+      clients: [tier2],
+      onTierAttempt: (event) => attempts.push(event),
+    })
+
+    await expect(orchestrator.generate(llmRequest({ structuredUiFromCode: true }))).resolves.toEqual(improvised)
+    expect(attempts.filter((attempt) => attempt.phase === "generate").map((attempt) => attempt.outcome)).toEqual(["success"])
+    await expect(orchestrator.generate(llmRequest())).rejects.toMatchObject({ code: "invalid-output" })
+  })
 })

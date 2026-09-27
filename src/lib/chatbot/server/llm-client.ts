@@ -162,7 +162,9 @@ export function assertChatbotLlmResponseContract(
   }
 
   const uiPayload = validateDisplayEnvelopeUiPayload(envelope.uiPayload, expectedTier)
-  if (uiPayload.kind === "invalid") {
+  // When the code shows its own panel, a panel the model improvised is simply set aside: its reply
+  // still counts, so an off-contract panel is not a failed attempt.
+  if (uiPayload.kind === "invalid" && !options.structuredUiFromCode) {
     throw outputContractError(record.tier, {
       boundary: "llm-output-contract",
       decision: "reject-and-regenerate-structured-ui",

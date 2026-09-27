@@ -2068,18 +2068,23 @@ async function generateContractedLlmResponse(input: {
       structuredUiFromCode: input.request.structuredUiFromCode,
     })
     // Expected when the server shows its own panel: handled like the rejection below, minus the failure.
+    const modelPanel = response.displayEnvelope.uiPayload
     if (
       input.request.structuredUiFromCode &&
-      requiresStructuredUi(response.tier) &&
-      response.displayEnvelope.uiPayload.kind === "none"
+      (modelPanel.kind === "invalid" || (requiresStructuredUi(response.tier) && modelPanel.kind === "none"))
     ) {
       const envelope = response.displayEnvelope
       const replyText = envelope.defaultDenied ? undefined : envelope.displayText.trim() || undefined
-      return withPanelFromCode(response.tier, replyText, {
+      const rejection = {
         boundary: "llm-output-contract",
         decision: "reject-and-regenerate-structured-ui",
-        reason: "missing-structured-ui",
-      })
+        reason: modelPanel.kind === "invalid" ? modelPanel.reason : "missing-structured-ui",
+      } as const
+      // Logged for monitoring only; the attempt itself succeeded.
+      if (modelPanel.kind === "invalid") {
+        logChatbotLlmOutputContractRejection({ requestId: input.request.requestId, tier: response.tier, rejection })
+      }
+      return withPanelFromCode(response.tier, replyText, rejection)
     }
     return response
   } catch (error) {
