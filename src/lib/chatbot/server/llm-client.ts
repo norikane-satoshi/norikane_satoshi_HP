@@ -47,6 +47,8 @@ export type ChatbotLlmRequest = {
   latestUserMessage?: string
   temperature?: number
   maxOutputTokens?: number
+  /** The server shows its own panel this turn, so a reply without structured UI is expected. */
+  structuredUiFromCode?: boolean
 }
 
 export type ChatbotLlmGenerateOptions = {
@@ -131,6 +133,7 @@ export class ChatbotLlmError extends Error {
 export function assertChatbotLlmResponseContract(
   response: unknown,
   expectedTier?: ChatbotLlmTier,
+  options: { structuredUiFromCode?: boolean } = {},
 ): asserts response is ChatbotLlmResponse {
   const record = asRecord(response)
   if (!record) throw invalidContractError(expectedTier, "response must be an object")
@@ -166,7 +169,7 @@ export function assertChatbotLlmResponseContract(
       reason: uiPayload.reason,
     })
   }
-  if (tierOutputPolicies[record.tier].structuredUi === "required" && uiPayload.kind === "none") {
+  if (requiresStructuredUi(record.tier) && uiPayload.kind === "none" && !options.structuredUiFromCode) {
     const error = outputContractError(record.tier, {
       boundary: "llm-output-contract",
       decision: "reject-and-regenerate-structured-ui",
@@ -199,6 +202,10 @@ export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
   chatbotLlmTierIds.tier2GeminiFlash,
   chatbotLlmTierIds.tier3FormFallback,
 ] as const
+
+export function requiresStructuredUi(tier: ChatbotLlmTier): boolean {
+  return tierOutputPolicies[tier].structuredUi === "required"
+}
 
 const tierOutputPolicies: Record<ChatbotLlmTier, { structuredUi: "optional" | "required" }> = {
   [chatbotLlmTierIds.tier0DeterministicIntake]: { structuredUi: "optional" },

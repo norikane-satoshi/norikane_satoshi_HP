@@ -106,7 +106,9 @@ export function createChatbotLlmTierOrchestrator(
 
         try {
           const response = await client.generate(request)
-          assertChatbotLlmResponseContract(response, tier)
+          assertChatbotLlmResponseContract(response, tier, {
+            structuredUiFromCode: request.structuredUiFromCode,
+          })
           emitAttempt(options.onTierAttempt, {
             tier,
             phase: "generate",
