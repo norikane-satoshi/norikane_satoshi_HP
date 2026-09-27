@@ -264,17 +264,17 @@ describe("Notion chatbot knowledge sync", () => {
               return {
                 results: [
                   heading3("duration-heading", "工程別日数テーブル（実測値ベース）"),
-                  tableRow("header", ["案件種別", "コンフォーム", "仕込み", "立ち会い", "最終チェック+納品", "合計"]),
-                  tableRow("cm", ["CM 30秒", "0.5日", "立ち会い同日集約", "0.5日", "当日内", "1日"]),
-                  tableRow("mv", ["MV 5分", "0.5日", "立ち会い同日集約", "1日", "当日内", "1〜1.5日"]),
+                  tableRow("header", ["案件種別", "コンフォーム", "仕込み", "立ち会い", "QC（最終チェック・納品）", "合計"]),
+                  tableRow("cm", ["CM 30秒", "0.5日", "0日（立ち会い日に含む）", "0.5日", "0日（当日内）", "1日"]),
+                  tableRow("mv", ["MV 5分", "0.5日", "0日（立ち会い日に含む）", "1日", "0日（当日内）", "1〜1.5日"]),
                   tableRow("feature", ["本編 90分", "1日", "3日", "1〜3日", "1日", "6〜8日"]),
                   tableRow("feature-long", ["本編 3時間", "1日", "4〜5日", "1〜3日", "1日", "8〜10日"]),
                   tableRow("drama-first", ["ドラマ 45〜50分（初回）", "1日", "3日", "1〜2日", "1日", "6〜7日"]),
                   tableRow("drama-next", ["ドラマ 45〜50分（2話目以降）", "1日", "2日", "1日", "1日", "5日/話"]),
-                  tableRow("drama-short", ["短尺ドラマ（1話5〜15分）", "立ち会い同日集約", "1日以内", "0.5〜1日", "当日内", "1〜2日/話"]),
-                  tableRow("vertical", ["縦型動画 60秒", "0.5日", "立ち会い同日集約", "0.5日", "当日内", "1日"]),
-                  tableRow("live", ["ライブ 60分", "0.5〜1日", "2日程度", "1日", "0.5〜1日", "4日程度"]),
-                  tableRow("live-long", ["ライブ 150分 / 2.5時間", "1日程度", "4〜5日程度", "1日", "1日程度", "7〜8日程度"]),
+                  tableRow("drama-short", ["短尺ドラマ（1話5〜15分）", "0日（当日内）", "0.5〜1日", "0.5〜1日", "0日（当日内）", "1〜2日/話"]),
+                  tableRow("vertical", ["縦型動画 60秒", "0.5日", "0日（立ち会い日に含む）", "0.5日", "0日（当日内）", "1日"]),
+                  tableRow("live", ["ライブ 60分", "0.5日", "2日", "1日", "0.5日", "4日程度"]),
+                  tableRow("live-long", ["ライブ 150分 / 2.5時間", "1日", "4〜5日", "1日", "1日", "7〜8日程度"]),
                   // The next section of the same level cites past jobs; a sentence there naming a kind
                   // ("本編 3時間") next to other dates must not be read as that kind's line.
                   heading3("evidence-heading", "工程日数の実績根拠"),
@@ -311,6 +311,19 @@ describe("Notion chatbot knowledge sync", () => {
       "vertical-60s": [1, 1, "notion-sync"],
       "live-60m": [4, 4, "notion-sync"],
       "live-150m": [7, 8, "notion-sync"],
+    })
+    const stagesOf = (id: string) => result.snapshot.workflowDurations.presets.find((preset) => preset.id === id)?.stages
+    expect(stagesOf("feature-180m")).toEqual({
+      conform: { minDays: 1, maxDays: 1 },
+      prep: { minDays: 4, maxDays: 5 },
+      attendance: { minDays: 1, maxDays: 3 },
+      finish: { minDays: 1, maxDays: 1 },
+    })
+    expect(stagesOf("cm-30s")).toEqual({
+      conform: { minDays: 0.5, maxDays: 0.5 },
+      prep: { minDays: 0, maxDays: 0 },
+      attendance: { minDays: 0.5, maxDays: 0.5 },
+      finish: { minDays: 0, maxDays: 0 },
     })
   })
 

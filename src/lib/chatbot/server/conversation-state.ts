@@ -107,6 +107,7 @@ const booleanConversationStateKeys = [
   "hasDocumentaryAttachments",
   "hasWorkSite",
   "hasReferenceUrls",
+  "hasAttendanceDays",
   "hasDeliveryFormat",
   "hasProductionOptions",
   "hasBudgetRange",

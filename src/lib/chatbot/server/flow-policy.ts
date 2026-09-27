@@ -8,6 +8,8 @@ import {
   projectLengthChoicesForJobKind,
   surveyChoiceSets,
 } from "@/lib/chatbot/domain"
+import { describeWorkflowStages, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
+import { needsAttendanceDaysChoice } from "@/lib/chatbot/server/attendance-days"
 import { isLectureTrainingInquiry } from "@/lib/chatbot/server/lecture-training"
 
 export type ChatbotFlowStep =
@@ -319,6 +321,9 @@ export function getMissingBookingReadinessSlots(
     conversationState.hasMaterialHandoff && conversationState.materialHandoff?.method
       ? undefined
       : "material-method",
+    conversationState.hasAttendanceDays || !needsAttendanceDaysChoice(jobContext?.workflowEstimate)
+      ? undefined
+      : "attendance-days",
     conversationState.hasContactEmail && conversationState.contactEmail ? undefined
       : options.bookingPrefill?.contactEmail ? undefined
         : "contact-email",
@@ -333,6 +338,7 @@ type BookingReadinessSlot =
   | "material-contents"
   | "material-timing"
   | "material-method"
+  | "attendance-days"
   | "contact-email"
 
 function isMaterialReadinessSlot(slot: BookingReadinessSlot): slot is Extract<
@@ -526,6 +532,8 @@ function buildMissingBookingReadinessQuestion(slot: ReturnType<typeof getMissing
     case "material-timing":
     case "material-method":
       return materialReadinessChoiceSets[slot].question
+    case "attendance-days":
+      return "立ち会いは何日にしますか？"
     case "contact-email":
       return "ご連絡先メールを教えてください"
   }
@@ -557,8 +565,13 @@ export function buildBookingFinalConfirmationQuestion(
     typeof jobContext.projectLengthMinutes === "number" ? `尺は${formatMinutes(jobContext.projectLengthMinutes)}` : undefined,
   ].filter((item): item is string => Boolean(item))
   const prefix = summary.length > 0 ? `${summary.join("、")}として整理しています。` : "ここまでの内容で整理しています。"
+  const estimate = jobContext.workflowEstimate
+  const breakdown = estimate ? describeWorkflowStages(estimate.stages) : undefined
+  const schedule = estimate && breakdown && estimate.attendanceDays !== undefined
+    ? `工程は${breakdown}の全体${formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)}です。`
+    : ""
 
-  return `${prefix}ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？なければ「なし」で進めます。`
+  return `${prefix}${schedule}ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？なければ「なし」で進めます。`
 }
 
 function labelRequestCategory(jobContext: JobContext): string | undefined {

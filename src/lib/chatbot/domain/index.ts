@@ -58,3 +58,12 @@ export type {
 } from "@/lib/chatbot/domain/workflow-estimate"
 export { formatProjectLengthMinutes } from "./project-length"
 export { jobKindLabels } from "./job-kind-label"
+export {
+  describeWorkSchedule,
+  planWorkSchedule,
+  workScheduleDayCounts,
+  workScheduleRoleLabels,
+  type WorkScheduleDay,
+  type WorkSchedulePlan,
+  type WorkScheduleRole,
+} from "./work-schedule"

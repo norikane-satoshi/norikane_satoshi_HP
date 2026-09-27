@@ -69,19 +69,33 @@ export function buildRequestedDateCalendarEventIntents(input: {
   summary: string
   description: string
   notionTaskType?: "仮押さえ" | "本予約"
+  /** What each date holds (立ち会い, 仕込み…); consecutive dates holding the same part share an event. */
+  dateLabels?: Record<string, string>
 }): BookingCalendarEventIntent[] {
   const baseEventId = input.bookingGroupId.toLowerCase().replace(/[^a-v0-9]/g, "")
-  return requestedDateRanges(input.dates).map((range, index) => ({
+  return labeledDateRanges(input.dates, input.dateLabels).map((range, index) => ({
     eventId: index === 0 ? baseEventId : `${baseEventId}${range.start.replaceAll("-", "")}`,
     startValue: range.start,
     endValue: range.end,
     dateOnly: true,
-    summary: input.summary,
+    summary: range.label ? `${input.summary}（${range.label}）` : input.summary,
     description: input.description,
     colorId: "4",
     notionTaskType: input.notionTaskType ?? "仮押さえ",
     transparency: "transparent",
   }))
+}
+
+function labeledDateRanges(dates: string[], labels?: Record<string, string>): Array<RequestedDateRange & { label?: string }> {
+  if (!labels) return requestedDateRanges(dates)
+  const byLabel = new Map<string, string[]>()
+  for (const date of normalizeBookingDateKeys(dates)) {
+    const label = labels[date] ?? ""
+    byLabel.set(label, [...(byLabel.get(label) ?? []), date])
+  }
+  return [...byLabel.entries()]
+    .flatMap(([label, labelDates]) => requestedDateRanges(labelDates).map((range) => ({ ...range, ...(label ? { label } : {}) })))
+    .sort((a, b) => a.start.localeCompare(b.start))
 }
 
 export type CalendarEventSyncResult = {

@@ -41,6 +41,10 @@ type CreateBookingFromApiInputArgs = {
   idempotencyKey?: string
   userId: string
   userEmail: string | null
+  /** What each requested date holds, for a chat booking whose owner work days were placed around the attendance. */
+  requestedDateLabels?: Record<string, string>
+  /** The job's schedule as lines ("立ち会い: 10/13(火)、10/14(水)"), shown in the hold and the customer's email. */
+  scheduleLines?: string[]
 }
 
 function nullable(value: string): string | null {
@@ -48,8 +52,8 @@ function nullable(value: string): string | null {
   return trimmed === "" ? null : trimmed
 }
 
-function createDescription(input: BookingApiInput): string {
-  return [
+function createDescription(input: BookingApiInput, scheduleLines: string[] = []): string {
+  const fields = [
     ["候補日", getScheduleLabel(input)],
     ["案件名", input.projectTitle],
     ["納期", input.dueDate],
@@ -58,18 +62,23 @@ function createDescription(input: BookingApiInput): string {
     ["メール", input.sessionEmail],
     ["TEL", input.phone],
     ["補足", input.memo],
-  ]
-    .map(([label, value]) => `${label}: ${value.trim() || "-"}`)
-    .join("\n")
+  ].map(([label, value]) => `${label}: ${value.trim() || "-"}`)
+  return [...(scheduleLines.length > 0 ? [`工程:\n${scheduleLines.join("\n")}`] : []), ...fields].join("\n")
 }
 
 function createSummary(input: BookingApiInput): string {
   return `【仮キープ】${input.projectTitle} / ${input.contactName}`
 }
 
-function createBookingEmailArgs(input: BookingApiInput, to: string, bookingGroupId: string): BookingEmailArgs {
+function createBookingEmailArgs(
+  input: BookingApiInput,
+  to: string,
+  bookingGroupId: string,
+  scheduleLines?: string[],
+): BookingEmailArgs {
   return {
     to,
+    ...(scheduleLines?.length ? { scheduleLines } : {}),
     projectTitle: input.projectTitle,
     selectedSlots: input.selectedSlots,
     requestedDates: getRequestedDateSelection(input)?.dates,
@@ -106,15 +115,26 @@ async function warnOnEmailFailure(task: Promise<unknown>, tag: string) {
   }
 }
 
-async function sendTentativeHoldEmail(input: BookingApiInput, to: string | null, bookingGroupId: string) {
+async function sendTentativeHoldEmail(
+  input: BookingApiInput,
+  to: string | null,
+  bookingGroupId: string,
+  scheduleLines?: string[],
+) {
   if (!to) return
   await warnOnEmailFailure(
-    sendBookingConfirmedEmail(createBookingEmailArgs(input, to, bookingGroupId)),
+    sendBookingConfirmedEmail(createBookingEmailArgs(input, to, bookingGroupId, scheduleLines)),
     "tentative_hold",
   )
 }
 
-async function sendCustomerReceipt(input: BookingApiInput, to: string | null, bookingGroupId: string, scheduleLabel: string) {
+async function sendCustomerReceipt(
+  input: BookingApiInput,
+  to: string | null,
+  bookingGroupId: string,
+  scheduleLabel: string,
+  scheduleLines?: string[],
+) {
   if (input.entryPoint === "line_liff" && input.lineUserId) {
     const result = await sendLineBookingReceipt({
       bookingGroupId,
@@ -134,7 +154,7 @@ async function sendCustomerReceipt(input: BookingApiInput, to: string | null, bo
     return
   }
 
-  await sendTentativeHoldEmail(input, to, bookingGroupId)
+  await sendTentativeHoldEmail(input, to, bookingGroupId, scheduleLines)
 }
 
 async function refreshStoredCalendarToken() {
@@ -179,6 +199,8 @@ export async function createBookingFromApiInput({
   idempotencyKey,
   userId,
   userEmail,
+  requestedDateLabels,
+  scheduleLines,
 }: CreateBookingFromApiInputArgs): Promise<CreateBookingResult> {
   const slots = input.selectedSlots
   const primarySlot = slots[0]
@@ -264,7 +286,7 @@ export async function createBookingFromApiInput({
             endValue: primarySlot.end,
             dateOnly: false,
             summary: createSummary(input),
-            description: createDescription(input),
+            description: createDescription(input, scheduleLines),
             colorId: "9",
             notionTaskType: notionTaskType ?? "仮押さえ",
           }]
@@ -273,8 +295,9 @@ export async function createBookingFromApiInput({
                 bookingGroupId: created.id,
                 dates: requestedDateSelection.dates,
                 summary: createSummary(input),
-                description: createDescription(input),
+                description: createDescription(input, scheduleLines),
                 notionTaskType: notionTaskType ?? "仮押さえ",
+                ...(requestedDateLabels ? { dateLabels: requestedDateLabels } : {}),
               })
             : [])
       await persistCalendarEventIntents(tx, created.id, calendarEventIntents)
@@ -309,7 +332,7 @@ export async function createBookingFromApiInput({
 
   if (!hasSelectedSlots) {
     if (!calendarId || !requestedDateSelection?.dates.length) {
-      await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+      await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, scheduleLines)
       return {
         body: {
           status: "schedule_unselected",
@@ -336,7 +359,7 @@ export async function createBookingFromApiInput({
         },
       })
       if (!allCalendarEventSyncsSucceeded(results)) {
-        await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+        await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, scheduleLines)
         return {
           body: {
             status: "pending_reconcile",
@@ -375,7 +398,7 @@ export async function createBookingFromApiInput({
       }
     }
 
-    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, scheduleLines)
     return {
       body: {
         status: "schedule_unselected",
@@ -392,7 +415,7 @@ export async function createBookingFromApiInput({
   if (!calendarId) {
     await confirmBooking(null)
     invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, scheduleLines)
     logPrivacySafeChatbotEvent({
       event: "booking_calendar_write_skipped",
       reason: "missing_calendar_id",
@@ -469,7 +492,7 @@ export async function createBookingFromApiInput({
   }
 
   invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-  await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+  await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, scheduleLines)
 
   return {
     body: {

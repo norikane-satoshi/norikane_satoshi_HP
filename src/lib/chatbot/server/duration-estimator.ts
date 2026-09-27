@@ -16,7 +16,9 @@ import {
   workflowDurationLengthAnchors,
   workflowDurationPresets as builtInWorkflowDurationPresets,
   workSiteDurationRules,
+  type DayRange,
   type WorkflowDurationPresetId,
+  type WorkflowStageDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
 import {
   getWorkflowDurationPresetsFromSnapshot,
@@ -30,7 +32,10 @@ type DurationRange = {
 
 type BaseDurationRange = DurationRange & {
   note?: string
+  stages?: WorkflowStageDays
 }
+
+type PresetDays = DurationRange & { stages?: WorkflowStageDays }
 
 type AdditionalWorkDurationRange = DurationRange & {
   heavyRetouch: boolean
@@ -151,13 +156,15 @@ export function estimateBaseDuration(
   lengthMinutes?: number,
   options: DurationEstimatorOptions = {},
 ): BaseDurationRange {
-  const presetDays = (presetId: WorkflowDurationPresetId): DurationRange => {
-    // A snapshot synced before a line existed lacks it; the built-in line stands in until the next sync.
+  const presetDays = (presetId: WorkflowDurationPresetId): PresetDays => {
+    // A snapshot synced before a line (or its stage columns) existed lacks it; the built-in line
+    // stands in until the next sync.
+    const builtIn = builtInWorkflowDurationPresets.find((item) => item.id === presetId)
     const preset =
-      getWorkflowDurationPresetsFromSnapshot(options.knowledgeSnapshot).find((item) => item.id === presetId) ??
-      builtInWorkflowDurationPresets.find((item) => item.id === presetId)
+      getWorkflowDurationPresetsFromSnapshot(options.knowledgeSnapshot).find((item) => item.id === presetId) ?? builtIn
     if (!preset) throw new Error(`Unknown workflow duration preset: ${presetId}`)
-    return { minDays: preset.minDays, maxDays: preset.maxDays }
+    const stages = ("stages" in preset && preset.stages) || builtIn?.stages
+    return { minDays: preset.minDays, maxDays: preset.maxDays, ...(stages ? { stages } : {}) }
   }
   const length =
     typeof lengthMinutes === "number" && Number.isFinite(lengthMinutes) ? Math.max(0, lengthMinutes) : undefined
@@ -192,7 +199,7 @@ export function estimateBaseDuration(
 function estimateAnchoredDuration(
   anchors: (typeof workflowDurationLengthAnchors)[keyof typeof workflowDurationLengthAnchors],
   length: number | undefined,
-  presetDays: (presetId: WorkflowDurationPresetId) => DurationRange,
+  presetDays: (presetId: WorkflowDurationPresetId) => PresetDays,
 ): BaseDurationRange {
   const short = { ...anchors.short, ...presetDays(anchors.short.presetId) }
   const long = { ...anchors.long, ...presetDays(anchors.long.presetId) }
@@ -202,6 +209,7 @@ function estimateAnchoredDuration(
     return {
       minDays: short.minDays,
       maxDays: short.maxDays,
+      ...(short.stages ? { stages: short.stages } : {}),
       ...(minutes !== short.minutes ? { note: anchors.belowShortNote } : {}),
     }
   }
@@ -210,19 +218,44 @@ function estimateAnchoredDuration(
     const ratio = (minutes - short.minutes) / (long.minutes - short.minutes)
     const eased = 1 - (1 - ratio) ** 2
 
+    const stages = short.stages && long.stages ? interpolateStages(short.stages, long.stages, eased) : undefined
     return {
       minDays: roundToHalf(short.minDays + (long.minDays - short.minDays) * eased),
       maxDays: roundToHalf(short.maxDays + (long.maxDays - short.maxDays) * eased),
+      ...(stages ? { stages } : {}),
       ...(minutes !== long.minutes ? { note: `${short.minutes}分/${long.minutes}分アンカー間の緩やかな目安` } : {}),
     }
   }
 
   const extraRatio = Math.min((minutes - long.minutes) / long.minutes, 1)
+  const maxDays = roundToHalf(Math.min(long.maxDays + 1, long.maxDays + extraRatio))
 
   return {
     minDays: long.minDays,
-    maxDays: roundToHalf(Math.min(long.maxDays + 1, long.maxDays + extraRatio)),
+    maxDays,
+    // The extra length is more preparation; the other stages stay as on the longer line.
+    ...(long.stages
+      ? {
+          stages: {
+            ...long.stages,
+            prep: { ...long.stages.prep, maxDays: long.stages.prep.maxDays + (maxDays - long.maxDays) },
+          },
+        }
+      : {}),
     note: anchors.aboveLongNote,
+  }
+}
+
+function interpolateStages(short: WorkflowStageDays, long: WorkflowStageDays, eased: number): WorkflowStageDays {
+  const between = (a: DayRange, b: DayRange): DayRange => ({
+    minDays: roundToHalf(a.minDays + (b.minDays - a.minDays) * eased),
+    maxDays: roundToHalf(a.maxDays + (b.maxDays - a.maxDays) * eased),
+  })
+  return {
+    conform: between(short.conform, long.conform),
+    prep: between(short.prep, long.prep),
+    attendance: between(short.attendance, long.attendance),
+    finish: between(short.finish, long.finish),
   }
 }
 
@@ -241,6 +274,18 @@ export function applyAdditionalWorkAdjustment(
     }
   }
 
+  const added = additionalWorkDays(jobContext)
+  const addedDays = added.prepDays + added.finishDays
+
+  return {
+    minDays: base.minDays + addedDays,
+    maxDays: base.maxDays + addedDays,
+    heavyRetouch: false,
+  }
+}
+
+/** Added work lands on a stage: retouch and attached videos are preparation, a strict medium's buffer is the check. */
+function additionalWorkDays(jobContext: JobContext): { prepDays: number; finishDays: number } {
   const retouchDays = hasRetouchWork(jobContext)
     ? (jobContext.retouchCutCount ?? additionalWorkDurationRules.noAdditionalDays) /
       additionalWorkDurationRules.retouchCutsPerDay
@@ -251,13 +296,7 @@ export function applyAdditionalWorkAdjustment(
   const strictDeliveryDays = isStrictDeliveryMedium(jobContext.finalMedium)
     ? additionalWorkDurationRules.strictMediumAdditionalDays
     : additionalWorkDurationRules.noAdditionalDays
-  const addedDays = retouchDays + documentaryDays + strictDeliveryDays
-
-  return {
-    minDays: base.minDays + addedDays,
-    maxDays: base.maxDays + addedDays,
-    heavyRetouch: false,
-  }
+  return { prepDays: retouchDays + documentaryDays, finishDays: strictDeliveryDays }
 }
 
 export function applyWorkSiteAdjustment(
@@ -297,21 +336,61 @@ export function estimateWorkflow(
     riskFlags.push("on-site-transfer")
   }
 
+  const stages = base.stages && !adjusted.heavyRetouch
+    ? adjustStages(base.stages, jobContext)
+    : undefined
+  const attendanceDays = stages ? resolveAttendanceDays(stages.attendance, jobContext.attendanceDays) : undefined
+  const note = [base.note, workSiteAdjusted.note].filter(Boolean).join(" / ") || undefined
+  const totals = stages && attendanceDays !== undefined
+    ? {
+        totalMinDays: stages.conform.minDays + stages.prep.minDays + attendanceDays + stages.finish.minDays,
+        totalMaxDays: stages.conform.maxDays + stages.prep.maxDays + attendanceDays + stages.finish.maxDays,
+      }
+    : { totalMinDays: workSiteAdjusted.minDays, totalMaxDays: workSiteAdjusted.maxDays }
+
   return {
-    stages: [
-      {
-        stage: "attended",
-        minDays: workSiteAdjusted.minDays,
-        maxDays: workSiteAdjusted.maxDays,
-        note: [base.note, workSiteAdjusted.note].filter(Boolean).join(" / ") || undefined,
-      },
-    ],
-    totalMinDays: workSiteAdjusted.minDays,
-    totalMaxDays: workSiteAdjusted.maxDays,
+    stages: stages
+      ? [
+          { stage: "conform", ...stages.conform },
+          { stage: "prep", ...stages.prep },
+          {
+            stage: "attended",
+            ...(attendanceDays !== undefined ? { minDays: attendanceDays, maxDays: attendanceDays } : stages.attendance),
+          },
+          { stage: "final-check", ...stages.finish },
+        ]
+      : [],
+    ...totals,
+    ...(attendanceDays !== undefined ? { attendanceDays } : {}),
+    ...(note ? { note } : {}),
     riskFlags,
     ...getEstimateStatus(jobContext, base),
     ...(adjusted.heavyRetouch ? { requiresDirectContact: true } : {}),
   }
+}
+
+function adjustStages(stages: WorkflowStageDays, jobContext: JobContext): WorkflowStageDays {
+  const added = additionalWorkDays(jobContext)
+  const travel = workSiteDurationRules[jobContext.workSite]
+  return {
+    ...stages,
+    prep: {
+      minDays: stages.prep.minDays + added.prepDays + travel.travelMinDays,
+      maxDays: stages.prep.maxDays + added.prepDays + travel.travelMaxDays,
+    },
+    finish: {
+      minDays: stages.finish.minDays + added.finishDays,
+      maxDays: stages.finish.maxDays + added.finishDays,
+    },
+  }
+}
+
+/** A chosen count within the job's attendance range; a job with one possible count has it fixed. */
+function resolveAttendanceDays(range: DayRange, chosen: number | undefined): number | undefined {
+  if (typeof chosen === "number" && Number.isFinite(chosen) && chosen >= range.minDays && chosen <= range.maxDays) {
+    return chosen
+  }
+  return undefined
 }
 
 function getEstimateStatus(jobContext: JobContext, base: BaseDurationRange): Partial<WorkflowEstimate> {

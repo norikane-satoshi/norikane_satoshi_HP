@@ -294,6 +294,21 @@ export function applyActiveChoiceAnswer(input: {
         },
         jobContext: {},
       }
+    case "attendance-days": {
+      // A count sets the attendance days; "undecided" answers the question and leaves the count open.
+      const days = Number(choice.id)
+      return {
+        choiceSetId: activeChoices.id,
+        choiceId: choice.id,
+        choiceIds: [choice.id],
+        conversationState: {
+          hasAttendanceDays: true,
+          ...otherCommentPatch,
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+        },
+        jobContext: Number.isInteger(days) && days > 0 ? { attendanceDays: days } : {},
+      }
+    }
     case "reference-urls":
       if (choices.some((item) => item.id === "none")) {
         return {
@@ -638,6 +653,8 @@ export function isSatisfiedChoicePanel(
       return Boolean(conversationState.hasMaterialHandoff)
     case "reference-urls":
       return conversationState.hasReferenceUrls
+    case "attendance-days":
+      return Boolean(conversationState.hasAttendanceDays)
     default:
       return false
   }

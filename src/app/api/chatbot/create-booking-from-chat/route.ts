@@ -31,6 +31,8 @@ import {
   type ChatbotSlackNotificationInput,
 } from "@/lib/chatbot/server/slack-notifier"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
+import { jobContextSchema, workflowEstimateSchema } from "@/lib/chatbot/server/booking-request-schemas"
+import { planChatbotWorkSchedule, type ChatbotWorkSchedule } from "@/lib/chatbot/server/work-schedule-plan"
 import {
   chatbotSlackAuditErrorCode,
   isChatbotDiagnosticRequest,
@@ -74,6 +76,8 @@ const chatbotBookingRequestSchema = z
     agreed: z.literal(true),
     selectedSlot: selectedSlotSchema.optional(),
     selectedSlots: z.array(selectedSlotSchema).optional(),
+    // The attendance days the customer picked; the owner's work days are placed around them.
+    attendanceDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(10).optional(),
     jobContext: z.unknown().optional(),
     workflowEstimate: z.unknown().optional(),
     correlationId: z.string().uuid().optional(),
@@ -99,7 +103,10 @@ function normalizeSelectedSlots(input: z.infer<typeof chatbotBookingRequestSchem
   return input.selectedSlots?.length ? input.selectedSlots : input.selectedSlot ? [input.selectedSlot] : []
 }
 
-function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>): BookingApiInput {
+function toBookingApiInput(
+  input: z.infer<typeof chatbotBookingRequestSchema>,
+  requestedDates: string[] = [],
+): BookingApiInput {
   const selectedSlots = normalizeSelectedSlots(input)
   const baseInput = {
     projectTitle: input.projectTitle,
@@ -122,8 +129,22 @@ function toBookingApiInput(input: z.infer<typeof chatbotBookingRequestSchema>): 
   return {
     ...bookingFormSchema.parse(baseInput),
     selectedSlots: [],
-    requestedDates: [],
+    requestedDates,
   }
+}
+
+async function planRequestedSchedule(
+  input: z.infer<typeof chatbotBookingRequestSchema>,
+): Promise<ChatbotWorkSchedule | null> {
+  if (!input.attendanceDates?.length || normalizeSelectedSlots(input).length > 0) return null
+  const jobContext = jobContextSchema.safeParse(input.jobContext)
+  const workflowEstimate = workflowEstimateSchema.safeParse(input.workflowEstimate)
+  if (!jobContext.success || !workflowEstimate.success) return null
+  return planChatbotWorkSchedule({
+    jobContext: jobContext.data,
+    workflowEstimate: workflowEstimate.data,
+    attendanceDates: input.attendanceDates,
+  })
 }
 
 function bookingGroupIdFromBody(body: unknown): string | null {
@@ -174,10 +195,17 @@ function bodyWithWarning(body: unknown, key: string, value: string): unknown {
   }
 }
 
-async function notifyOwner(input: z.infer<typeof chatbotBookingRequestSchema>, bookingGroupId: string) {
+async function notifyOwner(
+  input: z.infer<typeof chatbotBookingRequestSchema>,
+  bookingGroupId: string,
+  schedule: ChatbotWorkSchedule | null,
+) {
   const selectedSlots = normalizeSelectedSlots(input)
   try {
     const result = await sendChatbotBookingOwnerNotification({
+      ...(schedule
+        ? { requestedDates: schedule.days.map((day) => day.date), scheduleLines: schedule.lines }
+        : {}),
       bookingGroupId,
       projectTitle: input.projectTitle,
       contactName: input.contactName,
@@ -346,9 +374,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  let schedule: ChatbotWorkSchedule | null = null
+  try {
+    schedule = await planRequestedSchedule(parsed.data)
+  } catch (error) {
+    // Without a placed schedule the booking still goes through, with the attendance days alone.
+    logPrivacySafeChatbotEvent({
+      event: "chatbot_booking_schedule_plan_failed",
+      requestId,
+      errorKind: error instanceof Error ? error.name : typeof error,
+    })
+  }
+  const requestedDates = schedule
+    ? schedule.days.map((day) => day.date)
+    : normalizeSelectedSlots(parsed.data).length === 0 ? parsed.data.attendanceDates ?? [] : []
+
   let input: BookingApiInput
   try {
-    input = toBookingApiInput(parsed.data)
+    input = toBookingApiInput(parsed.data, requestedDates)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -373,6 +416,7 @@ export async function POST(request: NextRequest) {
       idempotencyKey: requestId,
       userId,
       userEmail,
+      ...(schedule ? { requestedDateLabels: schedule.dateLabels, scheduleLines: schedule.lines } : {}),
     })
     const bookingGroupId = bookingGroupIdFromBody(result.body)
     const idempotentReplay = isIdempotentReplayBody(result.body)
@@ -385,7 +429,7 @@ export async function POST(request: NextRequest) {
       errorCode: "slack-not-attempted",
     }
     if (result.status >= 200 && result.status < 300 && bookingGroupId && !idempotentReplay) {
-      const ownerNotification = await notifyOwner(parsed.data, bookingGroupId)
+      const ownerNotification = await notifyOwner(parsed.data, bookingGroupId, schedule)
       notificationWarning = ownerNotification.warning
       responseBody = bodyWithEmailDebug(responseBody, "chatbotOwnerNotificationId", ownerNotification.id)
       if (notificationWarning) {

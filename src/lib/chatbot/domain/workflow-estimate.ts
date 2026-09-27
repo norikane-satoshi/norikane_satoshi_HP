@@ -45,6 +45,9 @@ export type WorkflowEstimate = {
   }>
   totalMinDays: number
   totalMaxDays: number
+  /** Attendance days the customer chose; when set, the totals are the stage days with it. */
+  attendanceDays?: number
+  note?: string
   riskFlags: Array<"tight-deadline" | "heavy-retouch" | "strict-delivery" | "on-site-transfer">
   estimateStatus?: "authoritative" | "needs-confirmation"
   referencePresetId?: JobKind
@@ -74,6 +77,8 @@ export type JobContext = {
   publicReleaseDate?: string
   preferredStartDate?: string
   preferredAttendanceDates?: string[]
+  /** Attendance days the customer chose in the chat. */
+  attendanceDays?: number
   referenceUrls?: string[]
   additionalWork?: Array<"retouch" | "skin-retouch" | "other">
   workflowEstimate?: WorkflowEstimate

@@ -1878,6 +1878,7 @@ const booleanConversationSlots = [
   "hasDocumentaryAttachments",
   "hasWorkSite",
   "hasReferenceUrls",
+  "hasAttendanceDays",
   "hasDeliveryFormat",
   "hasProductionOptions",
   "hasBudgetRange",

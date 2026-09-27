@@ -9,6 +9,8 @@ import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import { mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 import { bookingOnboardingDemoScript } from "@/lib/chatbot/demo"
 import type { CandidateWindow, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
+import { workScheduleDayCounts, type WorkScheduleDay } from "@/lib/chatbot/domain/work-schedule"
+import { describeWorkflowStages, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import { type BookingCompletionSummary, isChatbotOperationError, postChatbotJson } from "./api"
 import {
   buildBrowserBookingPrefillAudit,
@@ -68,12 +70,31 @@ type CandidateRequestPayload = {
 
 const API_PATH = "/api/chatbot/create-booking-from-chat"
 const CANDIDATES_API_PATH = "/api/chatbot/booking-candidates"
+const PLAN_API_PATH = "/api/chatbot/booking-plan"
+
+type SchedulePlanResponse = {
+  days?: WorkScheduleDay[]
+  shortfall?: { prep: number; finish: number } | null
+  lines?: string[]
+}
+
+type SchedulePlanResult =
+  | { status: "ready"; key: string; lines: string[]; days: WorkScheduleDay[]; shortfall: boolean }
+  | { status: "failed"; key: string }
+type SchedulePlanState = { status: "idle" } | { status: "loading" } | SchedulePlanResult
 const MAX_VISIBLE_CANDIDATES = 31
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 
 function estimateText(estimate?: WorkflowEstimate): string | null {
   if (!estimate) return null
-  return `工程目安 ${estimate.totalMinDays}〜${estimate.totalMaxDays} 日`
+  return `工程目安 ${formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)}`
+}
+
+// With the job split into stages the customer picks only the attendance days; the owner's days are
+// placed around them by the server.
+function attendanceDayLimits(estimate?: WorkflowEstimate): { min: number; max: number } | null {
+  if (!estimate?.stages.some((stage) => stage.stage === "attended") || estimate.stages.length < 2) return null
+  return workScheduleDayCounts(estimate).attendanceDays
 }
 
 function requiredDayCount(estimate?: WorkflowEstimate): number {
@@ -235,8 +256,8 @@ function BookingCompletionView({ booking }: { booking: BookingCompletionSummary 
             <dd className="mt-0.5 min-w-0 break-words text-hp">{displayOptionalValue(booking.companyName)}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-hp-muted">希望日</dt>
-            <dd className="mt-0.5 min-w-0 break-words text-hp">{booking.scheduleLabel}</dd>
+            <dt className="text-xs font-medium text-hp-muted">日程</dt>
+            <dd className="mt-0.5 min-w-0 whitespace-pre-line break-words text-hp">{booking.scheduleLabel}</dd>
           </div>
           <div>
             <dt className="text-xs font-medium text-hp-muted">補足</dt>
@@ -335,7 +356,9 @@ export function ChatbotBookingCard({
   )
   const [displayedMonthOffset, setDisplayedMonthOffset] = useState(0)
   const effectiveEstimate = estimate ?? jobContext?.workflowEstimate
-  const requiredDays = requiredDayCount(effectiveEstimate)
+  const attendanceLimits = attendanceDayLimits(effectiveEstimate)
+  const requiredDays = attendanceLimits?.max ?? requiredDayCount(effectiveEstimate)
+  const stageBreakdown = effectiveEstimate ? describeWorkflowStages(effectiveEstimate.stages) : undefined
   const displayedMonthKey = useMemo(
     () => addJstMonths(initialMonthKey, displayedMonthOffset),
     [displayedMonthOffset, initialMonthKey],
@@ -393,11 +416,15 @@ export function ChatbotBookingCard({
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [booked, setBooked] = useState<BookingResult | null>(completedBooking ?? null)
+  const [schedulePlanResult, setSchedulePlanResult] = useState<SchedulePlanResult | null>(null)
   const auditEventIdsRef = useRef(new Map<string, string>())
   const sentAuditKeysRef = useRef(new Set<string>())
 
   const currentJstDateKey = todayJstDateKey()
   const selectedKeys = useMemo(() => selectedDateKeys(selectedSlots), [selectedSlots])
+  const attendanceDates = useMemo(() => [...selectedKeys].sort(), [selectedKeys])
+  const attendanceReady = Boolean(attendanceLimits && attendanceDates.length >= attendanceLimits.min)
+  const planKey = attendanceReady ? attendanceDates.join(",") : null
   const trimmedContactEmail = contactEmail.trim()
   const contactEmailValid = isValidEmail(trimmedContactEmail)
   const contactEmailErrorVisible = trimmedContactEmail.length > 0 && !contactEmailValid
@@ -531,6 +558,48 @@ export function ChatbotBookingCard({
     })
   }
 
+  // Serialized so a parent re-render with an equal jobContext does not refetch the plan.
+  const planRequestBody =
+    planKey && jobContext && effectiveEstimate
+      ? JSON.stringify({ jobContext, workflowEstimate: effectiveEstimate, attendanceDates: planKey.split(",") })
+      : null
+
+  const schedulePlan: SchedulePlanState = !planRequestBody
+    ? { status: "idle" }
+    : schedulePlanResult?.key === planRequestBody
+      ? schedulePlanResult
+      : { status: "loading" }
+
+  useEffect(() => {
+    if (!planRequestBody) return
+    let cancelled = false
+    fetch(PLAN_API_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: planRequestBody,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("booking_plan_failed")
+        return (await response.json()) as SchedulePlanResponse
+      })
+      .then((payload) => {
+        if (cancelled) return
+        setSchedulePlanResult({
+          status: "ready",
+          key: planRequestBody,
+          lines: Array.isArray(payload.lines) ? payload.lines : [],
+          days: Array.isArray(payload.days) ? payload.days : [],
+          shortfall: Boolean(payload.shortfall),
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setSchedulePlanResult({ status: "failed", key: planRequestBody })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [planRequestBody])
+
   useEffect(() => {
     if (!displayedMonthRequest || !displayedMonthRequestKey) return
     if (monthCandidateOverrides[displayedMonthRequestKey]) return
@@ -599,10 +668,14 @@ export function ChatbotBookingCard({
           dueDate,
           memo: submission.memo,
           agreed,
-          selectedSlots: selectedSlots.map((slot) => ({
-            start: slot.start,
-            end: slot.end,
-          })),
+          ...(attendanceLimits
+            ? { attendanceDates }
+            : {
+                selectedSlots: selectedSlots.map((slot) => ({
+                  start: slot.start,
+                  end: slot.end,
+                })),
+              }),
           jobContext,
           workflowEstimate: effectiveEstimate,
           correlationId: auditContext?.correlationId,
@@ -619,7 +692,10 @@ export function ChatbotBookingCard({
         bookingIds: payload.bookingIds,
         bookingStatus: payload.bookingStatus,
         scheduleStatus: payload.scheduleStatus,
-        scheduleLabel: payload.scheduleLabel ?? (selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "希望日未選択"),
+        scheduleLabel:
+          schedulePlan.status === "ready" && schedulePlan.lines.length > 0
+            ? schedulePlan.lines.join("\n")
+            : payload.scheduleLabel ?? (selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "希望日未選択"),
         ...submission,
       }
       emitBookingSubmitSuccessRendered()
@@ -648,7 +724,9 @@ export function ChatbotBookingCard({
           className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-2 text-sm text-hp-muted`}
           style={CHATBOT_CONVERSATION_CONTENT_STYLE}
         >
-          日付が決まっている場合は候補を選んでください。まだ決まっていなければ、未定のままでも予約内容を送信できます。
+          {attendanceLimits
+            ? "立ち会いの日を選んでください。コンフォーム・仕込み・QC は則兼の空いている日に自動で入れて、まとめて仮キープします。まだ決まっていなければ、未定のままでも予約内容を送信できます。"
+            : "日付が決まっている場合は候補を選んでください。まだ決まっていなければ、未定のままでも予約内容を送信できます。"}
         </p>
         {estimateText(effectiveEstimate) ? (
           <p
@@ -656,6 +734,7 @@ export function ChatbotBookingCard({
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
           >
             {estimateText(effectiveEstimate)}
+            {stageBreakdown ? <span className="block">{stageBreakdown}</span> : null}
           </p>
         ) : null}
       </div>
@@ -663,7 +742,7 @@ export function ChatbotBookingCard({
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <fieldset className="space-y-2">
           <legend className="text-sm font-semibold text-hp">
-            仮キープ候補
+            {attendanceLimits ? "立ち会い日" : "仮キープ候補"}
           </legend>
           <div className="rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -780,7 +859,11 @@ export function ChatbotBookingCard({
                           return current.filter((selectedSlot) => jstDateKey(selectedSlot.start) !== dateKey)
                         }
                         if (current.length >= requiredDays) {
-                          setCalendarHint(`候補日は最大${requiredDays}日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。`)
+                          setCalendarHint(
+                            attendanceLimits
+                              ? `立ち会いは${requiredDays}日までです。別の日にする場合は、選択済みの日を外してください。`
+                              : `候補日は最大${requiredDays}日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。`,
+                          )
                           return current
                         }
                         setCalendarHint(null)
@@ -807,6 +890,28 @@ export function ChatbotBookingCard({
               </span>
               {selectedSlots.length > 0 ? <span className="ml-2">{formatSelectedSlots(selectedSlots)}</span> : null}
             </p>
+            {attendanceLimits && selectedSlots.length > 0 && !attendanceReady ? (
+              <p className="mt-2 text-xs leading-relaxed text-hp-muted" role="status">
+                立ち会いは{attendanceLimits.min}日選んでください。
+              </p>
+            ) : null}
+            {attendanceLimits && schedulePlan.status !== "idle" ? (
+              <div className="mt-3 rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/45 p-3" aria-live="polite" data-testid="chatbot-booking-schedule-plan">
+                <p className="text-xs font-semibold text-hp">仮キープする日程</p>
+                {schedulePlan.status === "loading" ? (
+                  <p className="mt-1 text-xs text-hp-muted">則兼の作業日を空きから探しています…</p>
+                ) : null}
+                {schedulePlan.status === "ready" ? (
+                  <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-hp">{schedulePlan.lines.join("\n")}</p>
+                ) : null}
+                {schedulePlan.status === "ready" && schedulePlan.shortfall ? (
+                  <p className="mt-1 text-xs leading-relaxed text-hp-muted">空きが足りない分は、則兼が日程を相談します。立ち会い日を後ろにずらすと入ることがあります。</p>
+                ) : null}
+                {schedulePlan.status === "failed" ? (
+                  <p className="mt-1 text-xs leading-relaxed text-hp-muted">作業日を自動で入れられませんでした。このまま送信すると、立ち会い日だけを仮キープします。</p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </fieldset>
 

@@ -1,4 +1,4 @@
-import type { WorkflowDurationPreset } from "@/lib/chatbot/knowledge/workflow-duration"
+import type { WorkflowDurationPreset, WorkflowStageDays } from "@/lib/chatbot/knowledge/workflow-duration"
 import { workflowDurationPresets } from "@/lib/chatbot/knowledge/workflow-duration"
 import {
   getNotionClient,
@@ -490,16 +490,25 @@ function parseManifestTableRow(cells: string[]): {
   }
 }
 
+type SyncedDurationLine = Pick<WorkflowDurationPreset, "minDays" | "maxDays" | "stages">
+
 function extractWorkflowDurationPresets(
   blocks: unknown[],
   referenceRange: string,
-): Partial<Record<WorkflowDurationPreset["id"], Pick<WorkflowDurationPreset, "minDays" | "maxDays">>> {
+): Partial<Record<WorkflowDurationPreset["id"], SyncedDurationLine>> {
   const rows = collectSectionRows(blocks, referenceRange)
-  const next: Partial<Record<WorkflowDurationPreset["id"], Pick<WorkflowDurationPreset, "minDays" | "maxDays">>> = {}
-  // The table lists each stage's days (conform, preparation, session, delivery) before the total,
+  const next: Partial<Record<WorkflowDurationPreset["id"], SyncedDurationLine>> = {}
+  // The table lists each stage's days (conform, preparation, session, check) before the total,
   // so the first day range in a row is a single stage; read the total column instead.
   const header = rows.find((row) => row.cells.some((cell) => cell.trim() === "合計"))
+  const columnIndex = (pattern: RegExp) => (header ? header.cells.findIndex((cell) => pattern.test(cell)) : -1)
   const totalIndex = header ? header.cells.findIndex((cell) => cell.trim() === "合計") : -1
+  const stageIndexes = {
+    conform: columnIndex(/コンフォーム/u),
+    prep: columnIndex(/仕込み/u),
+    attendance: columnIndex(/立ち会い/u),
+    finish: columnIndex(/最終チェック|QC/u),
+  }
 
   for (const row of rows) {
     if (row === header) continue
@@ -509,10 +518,30 @@ function extractWorkflowDurationPresets(
     const totalCell = totalIndex > 0 ? cells[totalIndex] : undefined
     const range = totalCell ? parseDayRange(totalCell) : lastDayRange(cells.slice(1).length > 0 ? cells.slice(1) : cells)
     if (!range) continue
-    next[presetId] = range
+    const stages = readStageDays(cells, stageIndexes)
+    next[presetId] = { ...range, ...(stages ? { stages } : {}) }
   }
 
   return next
+}
+
+// A stage cell reads as days, or as none when the work shares another stage's day ("当日内",
+// "立ち会い同日集約"). A row whose stages cannot all be read keeps the built-in split.
+function readStageDays(
+  cells: readonly string[],
+  indexes: Record<keyof WorkflowStageDays, number>,
+): WorkflowStageDays | undefined {
+  const read = (index: number) => {
+    const cell = index > 0 ? cells[index] : undefined
+    if (cell === undefined) return null
+    return parseDayRange(cell) ?? (/(同日|当日|集約|含む|なし)/u.test(cell) ? { minDays: 0, maxDays: 0 } : null)
+  }
+  const conform = read(indexes.conform)
+  const prep = read(indexes.prep)
+  const attendance = read(indexes.attendance)
+  const finish = read(indexes.finish)
+  if (!conform || !prep || !attendance || !finish) return undefined
+  return { conform, prep, attendance, finish }
 }
 
 // Row names as the Notion table writes them ("ドラマ 45分（初回）", "縦型動画 60秒"), matched against the
@@ -611,7 +640,7 @@ function isInternalNoteHeading(text: string): boolean {
 
 function mergeWorkflowDurationPresets(
   current: readonly SyncedWorkflowDurationPreset[],
-  updates: Partial<Record<WorkflowDurationPreset["id"], Pick<WorkflowDurationPreset, "minDays" | "maxDays">>>,
+  updates: Partial<Record<WorkflowDurationPreset["id"], SyncedDurationLine>>,
 ): SyncedWorkflowDurationPreset[] {
   return current.map((preset) => {
     const update = updates[preset.id as WorkflowDurationPreset["id"]]
@@ -620,6 +649,7 @@ function mergeWorkflowDurationPresets(
       ...preset,
       minDays: update.minDays,
       maxDays: update.maxDays,
+      ...(update.stages ? { stages: update.stages } : {}),
       source: "notion-sync",
     }
   })
