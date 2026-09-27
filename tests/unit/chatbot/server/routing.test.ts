@@ -366,4 +366,45 @@ describe("chatbot fallback router", () => {
       presentChoices: bookingFinalConfirmationChoices,
     })
   })
+
+  it("shows the stage split and asks how many days the customer attends before the contact and final check", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90 }),
+      conversationState: conversationState(),
+    })
+
+    expect(result.kind).toBe("continue")
+    if (result.kind !== "continue") return
+    expect(result.presentChoices?.id).toBe("attendance-days")
+    expect(result.nextQuestion).toBe(
+      "長編 1.5時間は、コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 1日が目安です。立ち会いは何日にしますか？",
+    )
+    expect(result.presentChoices?.choices).toEqual([
+      { id: "1", label: "1日（全体で6日）" },
+      { id: "2", label: "2日（全体で7日）" },
+      { id: "3", label: "3日（全体で8日）" },
+      { id: "undecided", label: "未定・相談して決めたい" },
+    ])
+  })
+
+  it("does not ask for a job whose attendance is a fixed length, and closes with the fixed split", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ projectLengthMinutes: 0.5 }),
+      conversationState: conversationState(),
+    })
+
+    expect(result).toMatchObject({ kind: "continue", presentChoices: bookingFinalConfirmationChoices })
+  })
+
+  it("states the chosen split in the final check once the attendance days are chosen", () => {
+    const result = decideRoutingFallback({
+      jobContext: jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90, attendanceDays: 2 }),
+      conversationState: conversationState({ hasAttendanceDays: true }),
+    })
+
+    expect(result).toMatchObject({ kind: "continue", presentChoices: bookingFinalConfirmationChoices })
+    if (result.kind !== "continue") return
+    expect(result.nextQuestion).toContain("工程はコンフォーム1日・仕込み3日・立ち会い2日・QC 1日の全体7日です。")
+  })
 })
+

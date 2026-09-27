@@ -55,6 +55,8 @@ export type ConversationState = {
   hasDocumentaryAttachments: boolean
   hasWorkSite: boolean
   hasReferenceUrls: boolean
+  /** The customer chose how many attendance days, or left it open ("未定"). */
+  hasAttendanceDays?: boolean
   hasDeliveryFormat?: boolean
   hasProductionOptions?: boolean
   hasBudgetRange?: boolean
@@ -147,7 +149,7 @@ export type ConversationState = {
   >
   durationContext?: {
     workflowFacts?: Partial<
-      Pick<JobContext, "jobKind" | "finalMedium" | "deliveryMedium" | "workSite" | "projectLengthMinutes" | "additionalWork">
+      Pick<JobContext, "jobKind" | "finalMedium" | "deliveryMedium" | "workSite" | "projectLengthMinutes" | "additionalWork" | "attendanceDays">
     >
     workflowEstimate?: Pick<
       WorkflowEstimate,

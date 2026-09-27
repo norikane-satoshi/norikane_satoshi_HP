@@ -299,7 +299,7 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByText("日付が決まっている場合は候補を選んでください。まだ決まっていなければ、未定のままでも予約内容を送信できます。")).toHaveClass(
       ...conversationContentClasses,
     )
-    expect(screen.getByText("工程目安 2〜2 日")).toHaveClass(...conversationContentClasses)
+    expect(screen.getByText("工程目安 2日")).toHaveClass(...conversationContentClasses)
     expect(screen.getByText("Booking Order")).not.toHaveClass(...conversationContentClasses)
     expect(screen.getByLabelText("案件名")).not.toHaveClass(...conversationContentClasses)
   })
@@ -1077,5 +1077,127 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByText("株式会社復元")).toBeInTheDocument()
     expect(screen.getByText("復元メモ")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "予約内容を送信" })).not.toBeInTheDocument()
+  })
+
+  describe("attendance mode", () => {
+    const stagedEstimate: WorkflowEstimate = {
+      stages: [
+        { stage: "conform", minDays: 1, maxDays: 1 },
+        { stage: "prep", minDays: 3, maxDays: 3 },
+        { stage: "attended", minDays: 1, maxDays: 2 },
+        { stage: "final-check", minDays: 1, maxDays: 1 },
+      ],
+      totalMinDays: 6,
+      totalMaxDays: 7,
+      riskFlags: [],
+    }
+    const stagedJobContext = { ...jobContext, jobKind: "feature-90m" as const, workflowEstimate: stagedEstimate }
+    const attendanceCandidates: CandidateWindow[] = ["2026-06-10", "2026-06-11", "2026-06-12"].map((day) => ({
+      start: `${day}T01:00:00.000Z`,
+      end: `${day}T10:00:00.000Z`,
+      label: `${day} 単日`,
+    }))
+    const planLines = [
+      "コンフォーム・仕込み（則兼の作業日）: 6/5(金)、6/6(土)、6/8(月)、6/9(火)",
+      "立ち会い: 6/10(水)",
+      "QC（則兼の作業日）: 6/11(木)",
+    ]
+
+    function mockRoutedFetch() {
+      const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        const url = String(input)
+        const body =
+          url === "/api/chatbot/booking-candidates"
+            ? { candidates: attendanceCandidates, busyDateKeys: [] }
+            : url === "/api/chatbot/booking-plan"
+              ? { days: [], shortfall: null, lines: planLines }
+              : { bookingGroupId: "group_1", bookingIds: ["slot_1"] }
+        return Promise.resolve({ ok: true, status: 200, json: vi.fn().mockResolvedValue(body) })
+      })
+      vi.stubGlobal("fetch", fetchMock)
+      return fetchMock
+    }
+
+    function renderStagedCard() {
+      return renderCard({
+        candidates: attendanceCandidates,
+        estimate: stagedEstimate,
+        jobContext: stagedJobContext,
+        defaultContactEmail: "client@example.jp",
+      })
+    }
+
+    beforeEach(() => {
+      vi.setSystemTime(new Date("2026-06-01T09:00:00+09:00"))
+    })
+
+    it("shows the stage breakdown and asks only for attendance days", () => {
+      mockRoutedFetch()
+      renderStagedCard()
+
+      expect(screen.getByText("コンフォーム1日・仕込み3日・立ち会い1〜2日・QC 1日")).toBeInTheDocument()
+      expect(screen.getByText("立ち会い日")).toBeInTheDocument()
+      expect(screen.getByText(/コンフォーム・仕込み・QC は則兼の空いている日に自動で入れて/u)).toBeInTheDocument()
+    })
+
+    it("limits the selection to the attendance maximum", () => {
+      mockRoutedFetch()
+      renderStagedCard()
+
+      fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+      fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
+      fireEvent.click(screen.getByRole("button", { name: "2026-06-12 選択可" }))
+
+      expect(screen.getByText("立ち会いは2日までです。別の日にする場合は、選択済みの日を外してください。")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "false")
+    })
+
+    it("plans the owner's work days around the chosen attendance day and submits attendance dates", async () => {
+      const fetchMock = mockRoutedFetch()
+      renderStagedCard()
+
+      fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+
+      const plan = await screen.findByTestId("chatbot-booking-schedule-plan")
+      await waitFor(() => expect(within(plan).getByText(/立ち会い: 6\/10\(水\)/u)).toBeInTheDocument())
+      const planCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/chatbot/booking-plan")
+      expect(JSON.parse(String(planCall?.[1]?.body))).toMatchObject({
+        attendanceDates: ["2026-06-10"],
+        workflowEstimate: expect.objectContaining({ totalMaxDays: 7 }),
+        jobContext: expect.objectContaining({ jobKind: "feature-90m" }),
+      })
+      const planCallCount = fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/chatbot/booking-plan").length
+      expect(planCallCount).toBe(1)
+
+      fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+      fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+
+      await screen.findByLabelText("予約送信完了")
+      const submitCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/chatbot/create-booking-from-chat")
+      const submitted = JSON.parse(String(submitCall?.[1]?.body))
+      expect(submitted).toMatchObject({ attendanceDates: ["2026-06-10"] })
+      expect(submitted).not.toHaveProperty("selectedSlots")
+      expect(screen.getByText(/QC（則兼の作業日）: 6\/11\(木\)/u)).toBeInTheDocument()
+    })
+
+    it("tells the customer when the owner's work days could not be planned", async () => {
+      const fetchMock = mockRoutedFetch()
+      fetchMock.mockImplementation((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === "/api/chatbot/booking-plan") {
+          return Promise.resolve({ ok: false, status: 500, json: vi.fn().mockResolvedValue({ error: "x" }) })
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: vi.fn().mockResolvedValue(url === "/api/chatbot/booking-candidates" ? { candidates: attendanceCandidates, busyDateKeys: [] } : {}),
+        })
+      })
+      renderStagedCard()
+
+      fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+
+      expect(await screen.findByText(/作業日を自動で入れられませんでした/u)).toBeInTheDocument()
+    })
   })
 })

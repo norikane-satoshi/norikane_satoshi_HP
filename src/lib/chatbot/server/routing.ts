@@ -1,4 +1,4 @@
-import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatbot/domain"
+import type { ConversationState, JobContext, RoutingDecision, WorkflowEstimate } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
   bookingFinalConfirmationChoices,
@@ -26,6 +26,7 @@ import {
   isLectureTrainingInquiry,
 } from "@/lib/chatbot/server/lecture-training"
 import { buildBookingFinalConfirmationQuestion } from "@/lib/chatbot/server/flow-policy"
+import { buildAttendanceDaysChoices, needsAttendanceDaysChoice } from "@/lib/chatbot/server/attendance-days"
 import type { ChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
 
 export type RoutingDecisionInput = {
@@ -84,7 +85,7 @@ export function decideRoutingFallback(input: RoutingDecisionInput): RoutingDecis
   const protectiveTopic = detectProtectiveTopic(input.latestUserMessage)
   if (protectiveTopic) return directContact(protectiveTopic, jobContext)
 
-  return continueDecision({ conversationState, jobContext, now: input.now })
+  return continueDecision({ conversationState, jobContext, estimate, now: input.now })
 }
 
 function directContact(
@@ -124,9 +125,10 @@ function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["wor
 function continueDecision(input: {
   conversationState: ConversationState
   jobContext: JobContext
+  estimate?: WorkflowEstimate
   now?: Date
 }): RoutingDecision {
-  const { conversationState, jobContext, now } = input
+  const { conversationState, jobContext, estimate, now } = input
   if (!conversationState.hasJobKind) {
     return {
       kind: "continue",
@@ -208,6 +210,17 @@ function continueDecision(input: {
     }
   }
 
+  // The owner's own days are fixed by the job; how many days the customer attends is theirs to
+  // choose, and it fixes the total the booking card holds.
+  if (!conversationState.hasAttendanceDays && estimate && needsAttendanceDaysChoice(estimate)) {
+    const presentChoices = buildAttendanceDaysChoices(jobContext, estimate)
+    return {
+      kind: "continue",
+      nextQuestion: presentChoices.question,
+      presentChoices,
+    }
+  }
+
   if (!conversationState.hasContactEmail || !conversationState.contactEmail) {
     return {
       kind: "continue",
@@ -224,7 +237,7 @@ function continueDecision(input: {
 
   return {
     kind: "continue",
-    nextQuestion: buildBookingFinalConfirmationQuestion(jobContext, conversationState),
+    nextQuestion: buildBookingFinalConfirmationQuestion(estimate ? { ...jobContext, workflowEstimate: estimate } : jobContext, conversationState),
     presentChoices: bookingFinalConfirmationChoices,
   }
 }

@@ -5,10 +5,53 @@ export const tightDeadlineThresholdDays = 3
 export const tightishDeadlineMaxDays = 7
 export const settledConversationTurnThreshold = 8
 
+export const workflowStageLabels = {
+  conform: "コンフォーム",
+  prep: "仕込み",
+  attended: "立ち会い",
+  "final-check": "QC",
+} as const
+
+const formatDayCount = (value: number) =>
+  Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, "")
+
+/** Stage days as the owner says them: "半日", "3日", "1〜3日", "半日〜1日". */
+export function formatStageDays(range: DayRange): string {
+  const whole = (value: number) => (value === 0.5 ? "半日" : `${formatDayCount(value)}日`)
+  if (range.minDays === range.maxDays) return whole(range.minDays)
+  const from = range.minDays === 0.5 ? "半日" : formatDayCount(range.minDays)
+  return `${from}〜${whole(range.maxDays)}`
+}
+
+/** "コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 1日"; stages with no days are left out. */
+export function describeWorkflowStages(
+  stages: ReadonlyArray<{ stage: keyof typeof workflowStageLabels | string; minDays: number; maxDays: number }>,
+): string | undefined {
+  const parts = stages.flatMap((item) => {
+    const label = workflowStageLabels[item.stage as keyof typeof workflowStageLabels]
+    if (!label || item.maxDays <= 0) return []
+    return [`${label}${/[A-Za-z]$/u.test(label) ? " " : ""}${formatStageDays(item)}`]
+  })
+  return parts.length > 0 ? parts.join("・") : undefined
+}
+
 /** A day range as customers read it: "1〜1.5日", or "1日" when both ends meet. */
 export function formatDayRange(minDays: number, maxDays: number): string {
   const days = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/u, ""))
   return minDays === maxDays ? `${days(minDays)}日` : `${days(minDays)}〜${days(maxDays)}日`
+}
+
+export type DayRange = { minDays: number; maxDays: number }
+
+/**
+ * A job's days split the way the owner quotes them: conform, his own preparation, the customer's
+ * attendance, and the final check (QC). Only the attendance days are the customer's to choose.
+ */
+export type WorkflowStageDays = {
+  conform: DayRange
+  prep: DayRange
+  attendance: DayRange
+  finish: DayRange
 }
 
 export type WorkflowDurationPreset = {
@@ -16,19 +59,28 @@ export type WorkflowDurationPreset = {
   label: string
   minDays: number
   maxDays: number
+  stages?: WorkflowStageDays
 }
 
+const days = (minDays: number, maxDays = minDays): DayRange => ({ minDays, maxDays })
+const stageDays = (conform: DayRange, prep: DayRange, attendance: DayRange, finish: DayRange): WorkflowStageDays => ({
+  conform,
+  prep,
+  attendance,
+  finish,
+})
+
 export const workflowDurationPresets = [
-  { id: "cm-30s", label: "CM 30秒", minDays: 1, maxDays: 1 },
-  { id: "mv-5m", label: "MV 5分", minDays: 1, maxDays: 1.5 },
-  { id: "feature-90m", label: "本編 90分", minDays: 6, maxDays: 8 },
-  { id: "feature-180m", label: "本編 3時間", minDays: 8, maxDays: 10 },
-  { id: "drama-first", label: "ドラマ初回（1話45〜50分）", minDays: 6, maxDays: 7 },
-  { id: "drama-follow-up", label: "ドラマ 2話目以降（1話45〜50分）", minDays: 5, maxDays: 5 },
-  { id: "drama-short", label: "短尺ドラマ（1話5〜15分）", minDays: 1, maxDays: 2 },
-  { id: "vertical-60s", label: "縦型 60秒", minDays: 1, maxDays: 1 },
-  { id: "live-60m", label: "ライブ 60分", minDays: 4, maxDays: 4 },
-  { id: "live-150m", label: "ライブ 150分", minDays: 7, maxDays: 8 },
+  { id: "cm-30s", label: "CM 30秒", minDays: 1, maxDays: 1, stages: stageDays(days(0.5), days(0), days(0.5), days(0)) },
+  { id: "mv-5m", label: "MV 5分", minDays: 1, maxDays: 1.5, stages: stageDays(days(0.5), days(0), days(1), days(0)) },
+  { id: "feature-90m", label: "本編 90分", minDays: 6, maxDays: 8, stages: stageDays(days(1), days(3), days(1, 3), days(1)) },
+  { id: "feature-180m", label: "本編 3時間", minDays: 8, maxDays: 10, stages: stageDays(days(1), days(4, 5), days(1, 3), days(1)) },
+  { id: "drama-first", label: "ドラマ初回（1話45〜50分）", minDays: 6, maxDays: 7, stages: stageDays(days(1), days(3), days(1, 2), days(1)) },
+  { id: "drama-follow-up", label: "ドラマ 2話目以降（1話45〜50分）", minDays: 5, maxDays: 5, stages: stageDays(days(1), days(2), days(1), days(1)) },
+  { id: "drama-short", label: "短尺ドラマ（1話5〜15分）", minDays: 1, maxDays: 2, stages: stageDays(days(0), days(0.5, 1), days(0.5, 1), days(0)) },
+  { id: "vertical-60s", label: "縦型 60秒", minDays: 1, maxDays: 1, stages: stageDays(days(0.5), days(0), days(0.5), days(0)) },
+  { id: "live-60m", label: "ライブ 60分", minDays: 4, maxDays: 4, stages: stageDays(days(0.5), days(2), days(1), days(0.5)) },
+  { id: "live-150m", label: "ライブ 150分", minDays: 7, maxDays: 8, stages: stageDays(days(1), days(4, 5), days(1), days(1)) },
 ] as const satisfies readonly WorkflowDurationPreset[]
 
 export type WorkflowDurationPresetId = (typeof workflowDurationPresets)[number]["id"]

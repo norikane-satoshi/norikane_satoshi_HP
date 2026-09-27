@@ -1,6 +1,6 @@
 import { jobKindLabels } from "@/lib/chatbot/domain/job-kind-label"
 import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import { describeJobForEstimate, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
+import { describeJobForEstimate, describeWorkflowStages, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import type { ChatbotConversation, ConversationState, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
@@ -10,7 +10,7 @@ import {
 
 type WorkflowFactSnapshot = Pick<
   JobContext,
-  "jobKind" | "finalMedium" | "deliveryMedium" | "workSite" | "projectLengthMinutes" | "additionalWork"
+  "jobKind" | "finalMedium" | "deliveryMedium" | "workSite" | "projectLengthMinutes" | "additionalWork" | "attendanceDays"
 >
 
 export type DurationConversationState = {
@@ -184,6 +184,17 @@ export function buildWorkflowPromptContext(
           jobContext.workflowEstimate.totalMaxDays,
         )}（${describeJobForEstimate(jobContext.jobKind, jobContext.projectLengthMinutes)}の目安）`,
       )
+      const breakdown = describeWorkflowStages(jobContext.workflowEstimate.stages)
+      if (breakdown) {
+        const attendance = jobContext.workflowEstimate.attendanceDays
+        lines.push(
+          `- 工程の内訳: ${breakdown}（${
+            attendance !== undefined
+              ? `立ち会いはお客さまが${attendance}日を選択済み`
+              : "立ち会い日数だけはお客さまが選ぶ。コンフォーム・仕込み・QC は則兼の作業日"
+          }）`,
+        )
+      }
       if (jobContext.jobKind === "live-60m") {
         lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
         lines.push("- 禁止: 17〜20日などの過大見積もり、60分の単純2.5倍で10日とする線形倍率計算")
@@ -209,6 +220,7 @@ export function buildDurationConversationState(
       workSite: jobContext.workSite,
       projectLengthMinutes: jobContext.projectLengthMinutes,
       additionalWork: jobContext.additionalWork,
+      ...(jobContext.attendanceDays !== undefined ? { attendanceDays: jobContext.attendanceDays } : {}),
     },
     ...(jobContext.workflowEstimate
       ? {

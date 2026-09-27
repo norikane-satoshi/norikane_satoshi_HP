@@ -66,7 +66,7 @@ describe("chatbot duration estimator", () => {
 
     expect(result.totalMinDays).toBeCloseTo(2.428571428571429)
     expect(result.totalMaxDays).toBeCloseTo(2.928571428571429)
-    expect(result.stages[0]?.note).toBe("案件ごと上乗せ議論")
+    expect(result.note).toBe("案件ごと上乗せ議論")
   })
 
   it("adds strict medium and skin retouch days for feature OTT", () => {
@@ -156,7 +156,7 @@ describe("chatbot duration estimator", () => {
     const result = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: minutes }))
 
     expect([result.totalMinDays, result.totalMaxDays]).toEqual([min, max])
-    expect(result.stages[0]?.note).toBe(note)
+    expect(result.note).toBe(note)
     expect(result.estimateStatus).toBe("authoritative")
   })
 
@@ -171,7 +171,7 @@ describe("chatbot duration estimator", () => {
     const result = estimateWorkflow(jobContext({ jobKind, projectLengthMinutes: minutes }))
 
     expect([result.totalMinDays, result.totalMaxDays]).toEqual([min, max])
-    expect(result.stages[0]?.note).toBe(note)
+    expect(result.note).toBe(note)
   })
 
   it("uses the synced lines, and the built-in line for one an older snapshot lacks", () => {
@@ -193,4 +193,79 @@ describe("chatbot duration estimator", () => {
     expect([at90.totalMinDays, at90.totalMaxDays]).toEqual([7, 9])
     expect([at180.totalMinDays, at180.totalMaxDays]).toEqual([8, 10])
   })
+
+  it("splits a job into the stages the owner quotes, leaving the attendance range open", () => {
+    const result = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90 }))
+
+    expect(result.stages).toEqual([
+      { stage: "conform", minDays: 1, maxDays: 1 },
+      { stage: "prep", minDays: 3, maxDays: 3 },
+      { stage: "attended", minDays: 1, maxDays: 3 },
+      { stage: "final-check", minDays: 1, maxDays: 1 },
+    ])
+    expect([result.totalMinDays, result.totalMaxDays]).toEqual([6, 8])
+    expect(result.attendanceDays).toBeUndefined()
+  })
+
+  it.each([
+    [1, 6],
+    [2, 7],
+    [3, 8],
+  ])("fixes the total once the customer chooses %s attendance days", (attendanceDays, total) => {
+    const result = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90, attendanceDays }))
+
+    expect([result.totalMinDays, result.totalMaxDays]).toEqual([total, total])
+    expect(result.attendanceDays).toBe(attendanceDays)
+    expect(result.stages.find((stage) => stage.stage === "attended")).toEqual({
+      stage: "attended",
+      minDays: attendanceDays,
+      maxDays: attendanceDays,
+    })
+  })
+
+  it("puts added work on its stage: attached videos in preparation, a strict medium's buffer in the check", () => {
+    const result = estimateWorkflow(
+      jobContext({
+        jobKind: "feature-90m",
+        projectLengthMinutes: 90,
+        finalMedium: "ott",
+        documentaryAttachment: { kind: "making", count: 2 },
+        attendanceDays: 2,
+      }),
+    )
+
+    expect(result.stages).toEqual([
+      { stage: "conform", minDays: 1, maxDays: 1 },
+      { stage: "prep", minDays: 3.5, maxDays: 3.5 },
+      { stage: "attended", minDays: 2, maxDays: 2 },
+      { stage: "final-check", minDays: 2, maxDays: 2 },
+    ])
+    expect([result.totalMinDays, result.totalMaxDays]).toEqual([8.5, 8.5])
+  })
+
+  it("ignores an attendance count outside the job's range", () => {
+    const result = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90, attendanceDays: 5 }))
+
+    expect(result.attendanceDays).toBeUndefined()
+    expect([result.totalMinDays, result.totalMaxDays]).toEqual([6, 8])
+  })
+
+  it("keeps half-day stages for a CM", () => {
+    const result = estimateWorkflow(jobContext({ projectLengthMinutes: 0.5 }))
+
+    expect(result.stages).toEqual([
+      { stage: "conform", minDays: 0.5, maxDays: 0.5 },
+      { stage: "prep", minDays: 0, maxDays: 0 },
+      { stage: "attended", minDays: 0.5, maxDays: 0.5 },
+      { stage: "final-check", minDays: 0, maxDays: 0 },
+    ])
+  })
+
+  it("eases each stage between the 90-minute and 3-hour lines", () => {
+    const result = estimateWorkflow(jobContext({ jobKind: "feature-90m", projectLengthMinutes: 135, attendanceDays: 1 }))
+
+    expect(result.stages.find((stage) => stage.stage === "prep")).toEqual({ stage: "prep", minDays: 4, maxDays: 4.5 })
+    expect([result.totalMinDays, result.totalMaxDays]).toEqual([7, 7.5])
+  })
 })
+

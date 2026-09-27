@@ -429,4 +429,26 @@ describe("job kind answer after an other-choice clarification", () => {
     expect(patch?.conversationState).toHaveProperty("activeIntakeClarification", undefined)
     expect(patch?.conversationState.intakeClarifications?.["job-kind"]?.status).toBe("clear")
   })
+
+  it("sets the attendance days from the chosen count and answers the question for an open count", () => {
+    const attendanceChoices: SurveyChoiceSet = {
+      id: "attendance-days",
+      question: "立ち会いは何日にしますか？",
+      choices: [
+        { id: "1", label: "1日（全体で6日）" },
+        { id: "2", label: "2日（全体で7日）" },
+        { id: "3", label: "3日（全体で8日）" },
+        { id: "undecided", label: "未定・相談して決めたい" },
+      ],
+    }
+
+    const chosen = applyActiveChoiceAnswer({ activeChoices: attendanceChoices, message: "選択: 2日（全体で7日）" })
+    expect(chosen?.jobContext).toEqual({ attendanceDays: 2 })
+    expect(chosen?.conversationState.hasAttendanceDays).toBe(true)
+
+    const open = applyActiveChoiceAnswer({ activeChoices: attendanceChoices, message: "選択: 未定・相談して決めたい" })
+    expect(open?.jobContext).toEqual({})
+    expect(open?.conversationState.hasAttendanceDays).toBe(true)
+  })
 })
+

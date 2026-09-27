@@ -19,6 +19,8 @@ export type BookingEmailArgs = {
   workScopes: string[]
   otherWorkDetail?: string
   estimatedDuration?: string
+  /** The job's schedule by part, when the owner's days were placed around the chosen attendance. */
+  scheduleLines?: string[]
 }
 
 export type BookingTimeChangedEmailArgs = {
@@ -41,6 +43,7 @@ export type ChatbotBookingOwnerNotificationArgs = {
   requestedDates?: string[]
   requestedDateRange?: BookingDateRange
   submittedAt?: string | Date
+  scheduleLines?: string[]
 }
 
 const SITE_URL = "https://norikane.studio"
@@ -226,6 +229,7 @@ export async function sendChatbotBookingOwnerNotification(
       `メール: ${args.contactEmail}`,
       `会社名: ${formatOptional(args.companyName)}`,
       `希望日: ${schedule}`,
+      ...(args.scheduleLines?.length ? [`工程:\n${args.scheduleLines.join("\n")}`] : []),
       `補足: ${formatOptional(args.memo)}`,
       `予約番号: ${args.bookingGroupId}`,
       `送信日時: ${formatDateTime(submittedAt)}`,
@@ -262,6 +266,7 @@ export async function sendBookingConfirmedEmail(args: BookingEmailArgs): Promise
       `案件名: ${args.projectTitle}`,
       ...bookingGroupLine,
       scheduleLine,
+      ...(args.scheduleLines?.length ? [`工程（仮キープ）:\n${args.scheduleLines.join("\n")}`] : []),
       `作業内容:\n${formatBookingWork(args)}`,
       "",
       "このメールは受付内容の控えです。変更や追加のご相談がある場合は、このメールへの返信でお知らせください。",

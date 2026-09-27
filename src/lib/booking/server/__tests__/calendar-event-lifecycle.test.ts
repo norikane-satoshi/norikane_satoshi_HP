@@ -373,4 +373,30 @@ describe("booking calendar event lifecycle", () => {
     })
     expect(mocks.deleteCalendarEventWithAccessToken).not.toHaveBeenCalled()
   })
+
+  it("names each hold for its part of the job, one event per run of the same part", () => {
+    const intents = buildRequestedDateCalendarEventIntents({
+      bookingGroupId: "group1",
+      dates: ["2026-10-09", "2026-10-10", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"],
+      summary: "【仮キープ】案件 / 氏名",
+      description: "工程",
+      dateLabels: {
+        "2026-10-09": "仕込み",
+        "2026-10-10": "仕込み",
+        "2026-10-12": "仕込み",
+        "2026-10-13": "立ち会い",
+        "2026-10-14": "立ち会い",
+        "2026-10-15": "QC",
+      },
+    })
+
+    expect(intents.map((intent) => [intent.startValue, intent.endValue, intent.summary])).toEqual([
+      ["2026-10-09", "2026-10-11", "【仮キープ】案件 / 氏名（仕込み）"],
+      ["2026-10-12", "2026-10-13", "【仮キープ】案件 / 氏名（仕込み）"],
+      ["2026-10-13", "2026-10-15", "【仮キープ】案件 / 氏名（立ち会い）"],
+      ["2026-10-15", "2026-10-16", "【仮キープ】案件 / 氏名（QC）"],
+    ])
+    expect(new Set(intents.map((intent) => intent.eventId)).size).toBe(4)
+  })
 })
+
