@@ -6,7 +6,7 @@ import "@/components/booking/booking-calendar.css";
 import "@/components/booking/booking-section.css";
 import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
 import { NavHeader } from "@/components/hp/nav-header";
-import { SITE_BRAND_NAME, SITE_OWNER_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand";
+import { SITE_BRAND_NAME, SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand";
 
 const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
@@ -68,7 +68,7 @@ export default function RootLayout({
           style={{ background: "rgba(248, 246, 255, 0.85)", borderTop: "1px solid rgba(255,255,255,0.6)" }}
         >
           <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-center gap-3 md:flex-row md:gap-6">
-            <p>&copy; 2026 {SITE_BRAND_NAME} / {SITE_OWNER_NAME}. All rights reserved.</p>
+            <p>&copy; 2026 {SITE_COMPANY_NAME}. All rights reserved.</p>
             <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2" aria-label="法務">
               <Link className="underline decoration-dotted underline-offset-4 hover:text-hp" href="/privacy">
                 プライバシーポリシー

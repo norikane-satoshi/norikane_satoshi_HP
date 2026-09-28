@@ -19,7 +19,7 @@ The old neumorphism direction is retired. Do not reintroduce `neu-*` classes or 
 
 ## 1. Visual theme and mood
 
-The site is a personal portfolio for Satoshi Norikane / NCS Grading, a freelance colorist.
+The site is a personal portfolio for Satoshi Norikane / NCS Grading, a colorist; the operating entity is 合同会社のりかね映像設計室 (founded 2026-09-03).
 The tone should be:
 
 - light, calm, professional, editorial
