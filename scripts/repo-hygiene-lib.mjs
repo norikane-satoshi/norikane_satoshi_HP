@@ -1,4 +1,81 @@
 import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
+import { spawnSync } from "node:child_process";
+
+// Keep host inspection injectable: tests must not depend on live processes/jobs.
+export function readServingWorktreeState({
+  run = spawnSync,
+  platform = process.platform,
+  home = os.homedir(),
+  readDirectory = fs.readdirSync,
+} = {}) {
+  const query = (command, args) => run(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 5000,
+  });
+  const cwdResult = query("lsof", ["-a", "-d", "cwd", "-Fn"]);
+  const cwdPaths = (cwdResult.stdout || "").split(/\r?\n/)
+    .filter((line) => line.startsWith("n/")).map((line) => line.slice(1));
+  const jobs = [];
+  if (platform === "darwin") {
+    const directory = path.join(home, "Library", "LaunchAgents");
+    let entries = [];
+    try {
+      entries = readDirectory(directory);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    for (const entry of entries.filter((name) => name.endsWith(".plist"))) {
+      const result = query("plutil", ["-convert", "json", "-o", "-", path.join(directory, entry)]);
+      if (result.status !== 0) continue;
+      let job;
+      try {
+        job = JSON.parse(result.stdout);
+      } catch {
+        continue;
+      }
+      // A plist on disk alone does not establish that its job is loaded.
+      if (typeof job.Label === "string" && query("launchctl", ["list", job.Label]).status === 0) {
+        jobs.push(job);
+      }
+    }
+  }
+  return { cwdPaths, jobs };
+}
+
+export function isServingWorktree(worktreePath, { cwdPaths = [], jobs = [] } = {}) {
+  const canonical = (value) => {
+    try { return fs.realpathSync(value); } catch { return path.resolve(value); }
+  };
+  const root = canonical(worktreePath);
+  const within = (value) => {
+    if (typeof value !== "string" || !path.isAbsolute(value)) return false;
+    const relative = path.relative(root, canonical(value));
+    return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+  };
+  // Also recognize paths embedded in shell command arguments, with path boundaries.
+  const roots = [...new Set([root, path.resolve(worktreePath)])];
+  const argumentPointsHere = (argument) => typeof argument === "string" && (
+    within(argument) || roots.some((value) => {
+      const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(?:^|[\\s"'=])${escaped}(?=$|[/\\s"';])`).test(argument);
+    })
+  );
+  return cwdPaths.some(within) || jobs.some((job) =>
+    within(job.WorkingDirectory) || (Array.isArray(job.ProgramArguments) && job.ProgramArguments.some(argumentPointsHere)),
+  );
+}
+
+export function classifyCleanWorktree(worktree, { integrated, servingState }) {
+  if (isServingWorktree(worktree.path, servingState)) {
+    return { level: "info", message: `active serving worktree retained: ${worktree.path}` };
+  }
+  return integrated
+    ? { level: "errors", message: `clean integrated task worktree should be removed: ${worktree.path}` }
+    : { level: "info", message: `clean unmerged task worktree retained: ${worktree.path}` };
+}
 
 export function isExemptWorktreePath(worktreePath, mainRoot) {
   return worktreePath === mainRoot || path.basename(worktreePath) === "grading-verify";
