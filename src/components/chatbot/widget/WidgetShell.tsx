@@ -89,7 +89,7 @@ const formFallbackMessage =
   "自動再試行でも応答できませんでした。入力内容は残したまま、必要なら下のフォームから連絡できます。"
 const inquirySentMessage = "送信しました。担当者からの返信をお待ちください。"
 const inquiryUndeliveredMessage =
-  "申し訳ありません、送信処理は完了しましたが、担当者への通知が届きませんでした。入力内容はそのまま残していますので、もう一度送信をお試しください。お急ぎの場合は norikane.satoshi@gmail.com へ直接ご連絡ください。"
+  "申し訳ありません、送信処理は完了しましたが、担当者への通知が届きませんでした。入力内容はそのまま残していますので、もう一度送信をお試しください。お急ぎの場合は satoshi@norikane.studio へ直接ご連絡ください。"
 const CHATBOT_SESSION_STORAGE_KEY = "hp-chatbot-session-v2"
 const CHATBOT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const CHATBOT_PENDING_REQUEST_TTL_MS = 15 * 60 * 1000

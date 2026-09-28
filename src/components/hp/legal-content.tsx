@@ -1,5 +1,12 @@
 import type { ReactNode } from "react"
 
+import {
+  SITE_COMPANY_LOCATION,
+  SITE_COMPANY_NAME,
+  SITE_CONTACT_EMAIL,
+  SITE_OWNER_NAME,
+} from "@/lib/site-brand"
+
 type LegalHeadingLevel = "h1" | "h2"
 
 type LegalContentProps = {
@@ -22,7 +29,7 @@ export function PrivacyPolicyContent({ headingLevel = "h1" }: LegalContentProps)
       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-hp-muted">Privacy Policy</p>
       <LegalHeading as={headingLevel}>プライバシーポリシー</LegalHeading>
       <p className="mt-4 text-sm leading-7 text-hp-muted">
-        のりかね映像設計室は、norikane.studio および AI 相談窓口、予約導線で取り扱う情報を、
+        {SITE_COMPANY_NAME}（以下「当社」）は、norikane.studio および AI 相談窓口、予約導線で取り扱う情報を、
         案件対応と安全な運用に必要な範囲で取得し、利用目的を明確にしたうえで管理します。
       </p>
 
@@ -89,12 +96,25 @@ export function PrivacyPolicyContent({ headingLevel = "h1" }: LegalContentProps)
         <section>
           <h2 className="text-lg font-semibold text-hp">問い合わせ窓口</h2>
           <p className="mt-3 text-hp-muted">
-            本ポリシーに関する問い合わせは、norikane.satoshi@gmail.com までご連絡ください。
+            本ポリシーに関する問い合わせは、{SITE_CONTACT_EMAIL} までご連絡ください。
           </p>
+        </section>
+        <section>
+          <h2 className="text-lg font-semibold text-hp">事業者</h2>
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-hp-muted">
+            <dt>名称</dt>
+            <dd>{SITE_COMPANY_NAME}</dd>
+            <dt>代表社員</dt>
+            <dd>{SITE_OWNER_NAME}</dd>
+            <dt>所在地</dt>
+            <dd>{SITE_COMPANY_LOCATION}</dd>
+            <dt>連絡先</dt>
+            <dd>{SITE_CONTACT_EMAIL}</dd>
+          </dl>
         </section>
       </div>
 
-      <p className="mt-10 text-xs text-hp-muted">改定日：2026年8月29日</p>
+      <p className="mt-10 text-xs text-hp-muted">改定日：2026年9月28日</p>
     </>
   )
 }
@@ -112,7 +132,7 @@ export function TermsContent({ headingLevel = "h1" }: LegalContentProps) {
         <section>
           <h2 className="text-lg font-semibold text-hp">対象サービス</h2>
           <p className="mt-3 text-hp-muted">
-            本規約は、のりかね映像設計室が運営する norikane.studio、AI 相談窓口、予約フォーム、
+            本規約は、{SITE_COMPANY_NAME}（以下「当社」）が運営する norikane.studio、AI 相談窓口、予約フォーム、
             予約変更・キャンセル導線、関連するメール連絡に適用されます。
           </p>
         </section>
@@ -121,7 +141,7 @@ export function TermsContent({ headingLevel = "h1" }: LegalContentProps) {
           <h2 className="text-lg font-semibold text-hp">AI 相談窓口の位置づけ</h2>
           <p className="mt-3 text-hp-muted">
             AI 相談窓口は、案件整理と予約補助を目的とした相談補助機能です。チャット内の回答や候補提示は、
-            正式見積、契約成立、納期保証、業務受託の確約ではありません。正式な条件は則兼本人の確認後に確定します。
+            正式見積、契約成立、納期保証、業務受託の確約ではありません。正式な条件は当社代表・則兼本人の確認後に確定します。
           </p>
         </section>
 
@@ -144,7 +164,7 @@ export function TermsContent({ headingLevel = "h1" }: LegalContentProps) {
         <section>
           <h2 className="text-lg font-semibold text-hp">知的財産と送信資料</h2>
           <p className="mt-3 text-hp-muted">
-            サイト上の文章、画像、UI、その他コンテンツの権利は、当方または正当な権利者に帰属します。
+            サイト上の文章、画像、UI、その他コンテンツの権利は、当社または正当な権利者に帰属します。
             利用者は、チャットで送る資料、参考 URL、案件情報について、必要な権利または利用許諾を有することを表明します。
             送信資料は案件対応、確認、見積検討、予約管理のために取り扱います。
           </p>
@@ -162,8 +182,8 @@ export function TermsContent({ headingLevel = "h1" }: LegalContentProps) {
           <h2 className="text-lg font-semibold text-hp">免責</h2>
           <p className="mt-3 text-hp-muted">
             AI 応答、候補提示、空き状況表示の正確性、完全性、可用性を保証しません。外部サービス障害、
-            通信環境、認証・カレンダー連携の不具合により利用できない場合があります。事業者の故意または重過失による責任、
-            法令上制限できない責任を免除するものではありません。最終判断は則兼本人の確認に基づきます。
+            通信環境、認証・カレンダー連携の不具合により利用できない場合があります。当社の故意または重過失による責任、
+            法令上制限できない責任を免除するものではありません。最終判断は当社代表・則兼本人の確認に基づきます。
           </p>
         </section>
 
@@ -186,12 +206,25 @@ export function TermsContent({ headingLevel = "h1" }: LegalContentProps) {
         <section>
           <h2 className="text-lg font-semibold text-hp">問い合わせ窓口</h2>
           <p className="mt-3 text-hp-muted">
-            本規約に関する問い合わせは、norikane.satoshi@gmail.com までご連絡ください。
+            本規約に関する問い合わせは、{SITE_CONTACT_EMAIL} までご連絡ください。
           </p>
+        </section>
+        <section>
+          <h2 className="text-lg font-semibold text-hp">事業者</h2>
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-hp-muted">
+            <dt>名称</dt>
+            <dd>{SITE_COMPANY_NAME}</dd>
+            <dt>代表社員</dt>
+            <dd>{SITE_OWNER_NAME}</dd>
+            <dt>所在地</dt>
+            <dd>{SITE_COMPANY_LOCATION}</dd>
+            <dt>連絡先</dt>
+            <dd>{SITE_CONTACT_EMAIL}</dd>
+          </dl>
         </section>
       </div>
 
-      <p className="mt-10 text-xs text-hp-muted">改定日：2026年5月26日</p>
+      <p className="mt-10 text-xs text-hp-muted">改定日：2026年9月28日</p>
     </>
   )
 }

@@ -48,6 +48,7 @@ export type ChatbotBookingOwnerNotificationArgs = {
 
 const SITE_URL = "https://norikane.studio"
 const SHOP_NAME = "のりかね映像設計室"
+const COMPANY_NAME = "合同会社のりかね映像設計室"
 const DEFAULT_FROM_EMAIL = "noreply@norikane.studio"
 export const DEFAULT_CHATBOT_BOOKING_OWNER_EMAIL = "norikane.satoshi@gmail.com"
 
@@ -171,7 +172,7 @@ async function sendBookingEmail(args: {
 }
 
 function signatureLines(): string[] {
-  return ["", SHOP_NAME, SITE_URL]
+  return ["", COMPANY_NAME, SITE_URL]
 }
 
 function getChatbotBookingOwnerEmail(): string {
