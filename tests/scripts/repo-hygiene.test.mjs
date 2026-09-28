@@ -6,14 +6,91 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
+  classifyCleanWorktree,
   findIntegratedLocalBranches,
   isExemptWorktreePath,
   mergeEnvText,
   parseWorktreePorcelain,
+  readServingWorktreeState,
 } from "../../scripts/repo-hygiene-lib.mjs";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testDir, "../..");
+
+function servingFixture({ cwd = "", job, loaded = false } = {}) {
+  return readServingWorktreeState({
+    platform: "darwin",
+    home: "/fake-home",
+    readDirectory: () => ["preview.plist"],
+    run: (command, args) => {
+      if (command === "lsof") {
+        assert.deepEqual(args, ["-a", "-d", "cwd", "-Fn"]);
+        return { status: cwd ? 0 : 1, stdout: cwd ? `p123\nfcwd\nn${cwd}\n` : "" };
+      }
+      if (command === "plutil") {
+        assert.deepEqual(args, ["-convert", "json", "-o", "-", "/fake-home/Library/LaunchAgents/preview.plist"]);
+        return { status: 0, stdout: JSON.stringify(job || {}) };
+      }
+      assert.equal(command, "launchctl");
+      assert.deepEqual(args, ["list", job.Label]);
+      return { status: loaded ? 0 : 1, stdout: "" };
+    },
+  });
+}
+
+test("integrated worktrees with a process cwd at or below any tree are INFO, not ERROR", () => {
+  const worktree = { path: "/repo/.codex-worktrees/arbitrary-preview" };
+  for (const cwd of [worktree.path, `${worktree.path}/nested directory`]) {
+    const result = classifyCleanWorktree(worktree, {
+      integrated: true, servingState: servingFixture({ cwd }),
+    });
+    assert.equal(result.level, "info");
+    assert.match(result.message, /active serving worktree retained/);
+  }
+});
+
+test("inactive integrated worktrees still produce the original removal ERROR", () => {
+  const worktree = { path: "/repo/.codex-worktrees/arbitrary-preview" };
+  for (const cwd of ["", `${worktree.path}-other`, "/repo"]) {
+    assert.deepEqual(classifyCleanWorktree(worktree, {
+      integrated: true, servingState: servingFixture({ cwd }),
+    }), {
+      level: "errors", message: `clean integrated task worktree should be removed: ${worktree.path}`,
+    });
+  }
+});
+
+test("only loaded launchd jobs protect trees referenced by directory or arguments", () => {
+  const worktree = { path: "/repo/.codex-worktrees/another preview" };
+  for (const reference of [
+    { WorkingDirectory: worktree.path },
+    { ProgramArguments: ["node", `${worktree.path}/server.mjs`] },
+    { ProgramArguments: ["/bin/sh", "-c", `cd '${worktree.path}' && pnpm start`] },
+  ]) {
+    for (const loaded of [true, false]) {
+      const result = classifyCleanWorktree(worktree, {
+        integrated: true,
+        servingState: servingFixture({ job: { Label: "local.preview", ...reference }, loaded }),
+      });
+      assert.equal(result.level, loaded ? "info" : "errors");
+    }
+  }
+  const result = classifyCleanWorktree(worktree, {
+    integrated: true,
+    servingState: servingFixture({
+      job: { Label: "local.preview", ProgramArguments: [`${worktree.path}-other/server.mjs`] }, loaded: true,
+    }),
+  });
+  assert.equal(result.level, "errors");
+});
+
+test("missing inspection commands do not permanently exempt inactive trees", () => {
+  const servingState = readServingWorktreeState({
+    platform: "linux",
+    run: () => ({ status: null, error: new Error("ENOENT") }),
+  });
+  assert.equal(classifyCleanWorktree({ path: "/repo/task" }, { integrated: true, servingState }).level, "errors");
+});
 
 test("only the main checkout and grading verification worktree are exempt", () => {
   assert.equal(isExemptWorktreePath("/repo", "/repo"), true);
