@@ -293,6 +293,8 @@ export function inferChatbotFlowStep(input: {
   }
 }
 
+export const desiredScheduleQuestion = "納期はいつごろをご希望ですか？ カレンダーで日付を選ぶか、未定・相談したいを選んでください。"
+
 export function getMissingBookingReadinessSlots(
   conversationState: ConversationState,
   options: {
@@ -327,6 +329,9 @@ export function getMissingBookingReadinessSlots(
     conversationState.hasContactEmail && conversationState.contactEmail ? undefined
       : options.bookingPrefill?.contactEmail ? undefined
         : "contact-email",
+    conversationState.hasDesiredSchedule || conversationState.bookingFinalConfirmation?.status === "confirmed"
+      ? undefined
+      : "desired-schedule",
   ].filter((item): item is BookingReadinessSlot => Boolean(item))
 }
 
@@ -340,6 +345,7 @@ type BookingReadinessSlot =
   | "material-method"
   | "attendance-days"
   | "contact-email"
+  | "desired-schedule"
 
 function isMaterialReadinessSlot(slot: BookingReadinessSlot): slot is Extract<
   BookingReadinessSlot,
@@ -558,6 +564,8 @@ function buildMissingBookingReadinessQuestion(slot: ReturnType<typeof getMissing
       return "立ち会いは何日にしますか？"
     case "contact-email":
       return "ご連絡先メールを教えてください"
+    case "desired-schedule":
+      return desiredScheduleQuestion
   }
 }
 

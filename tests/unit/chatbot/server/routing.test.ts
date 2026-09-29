@@ -18,6 +18,7 @@ import {
   tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
 import { decideRoutingFallback } from "@/lib/chatbot/server/routing"
+import { getMissingBookingReadinessSlots } from "@/lib/chatbot/server/flow-policy"
 
 function jobContext(overrides: Partial<JobContext> = {}): JobContext {
   return {
@@ -178,7 +179,7 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("does not require a desired schedule before final booking confirmation", () => {
+  it("asks for a deadline before final booking confirmation when none was provided", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
@@ -188,7 +189,22 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      presentChoices: bookingFinalConfirmationChoices,
+      nextQuestion: "納期はいつごろをご希望ですか？ カレンダーで日付を選ぶか、未定・相談したいを選んでください。",
+    })
+    if (result.kind === "continue") expect(result.presentChoices).toBeUndefined()
+    expect(getMissingBookingReadinessSlots(conversationState({ hasDesiredSchedule: false }), { jobContext: jobContext() }))
+      .toContain("desired-schedule")
+  })
+
+  it("does not reopen the deadline step for a previously confirmed booking", () => {
+    const state = conversationState({
+      hasDesiredSchedule: false,
+      bookingFinalConfirmation: { status: "confirmed", confirmedAtTurn: 8 },
+    })
+    expect(getMissingBookingReadinessSlots(state, { jobContext: jobContext() })).not.toContain("desired-schedule")
+    expect(decideRoutingFallback({ jobContext: jobContext(), conversationState: state })).toMatchObject({
+      kind: "continue",
+      nextQuestion: expect.stringContaining("予約カード"),
     })
   })
 
@@ -426,4 +442,3 @@ describe("chatbot fallback router", () => {
     expect(result.nextQuestion).toContain("工程はコンフォーム1日・仕込み3日・立ち会い2日・QC 1日の全体7日です。")
   })
 })
-

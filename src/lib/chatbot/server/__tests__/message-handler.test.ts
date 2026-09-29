@@ -2044,7 +2044,7 @@ describe("handleChatbotMessage user context", () => {
           sessionId: "session_1",
           userId: "user_a",
           conversationState: {
-            ...baseProductionConversationState({ hasDesiredSchedule: false }),
+            ...baseProductionConversationState({ hasDesiredSchedule: true }),
             hasContactEmail: true,
             contactEmail: "client@example.com",
             bookingReadiness: {
@@ -2255,7 +2255,7 @@ describe("handleChatbotMessage user context", () => {
           sessionId: "session_1",
           userId: "user_a",
           conversationState: {
-            ...baseProductionConversationState({ hasDesiredSchedule: false }),
+            ...baseProductionConversationState({ hasDesiredSchedule: true }),
             hasContactEmail: true,
             contactEmail: "client@example.com",
           },
@@ -4929,7 +4929,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("moves a settled no-schedule consultation to the booking card instead of email fallback", async () => {
+  it("asks for a deadline in a settled no-schedule consultation instead of showing the booking card", async () => {
     const harness = setup({
       existingConversation: conversation({
         messages: Array.from({ length: 7 }, (_, index) =>
@@ -4974,8 +4974,52 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.routingDecision).toMatchObject({ kind: "to-booking-inline" })
-    expect(result.ui).toMatchObject({ kind: "booking-card" })
+    expect(result.routingDecision).toMatchObject({ kind: "continue", nextQuestion: expect.stringContaining("納期") })
+    expect(result.ui).toMatchObject({ kind: "none" })
+    expect(result.assistantMessage.content).toContain("納期")
+  })
+
+  it("advances to the booking card with a selected deadline after the deadline question", async () => {
+    const harness = setup({
+      existingConversation: conversation({
+        messages: [message("assistant", "納期はいつごろをご希望ですか？ カレンダーで日付を選んでください。")],
+      }),
+    })
+    harness.generate.mockResolvedValueOnce({
+      rawText: customerReply("候補日を確認しました。"),
+      tier: "tier-1-hosted-chrome-notion-ai",
+    })
+
+    const result = await handleChatbotMessage(
+      {
+        sessionId: "session_1",
+        userId: "user_a",
+        message: "納期: 2026-10-15",
+        jobContext: {
+          jobKind: "cm-30s",
+          finalMedium: "web",
+          workSite: "remote-grading",
+          documentaryAttachment: { kind: "none" },
+        },
+        conversationState: {
+          ...readyMaterialHandoff,
+          hasFinalMedium: true,
+          hasJobKind: true,
+          hasProjectLength: true,
+          hasAdditionalWork: true,
+          hasDocumentaryAttachments: true,
+          hasWorkSite: true,
+          hasReferenceUrls: true,
+          hasContactEmail: true,
+          hasDesiredSchedule: false,
+          contactEmail: "client@example.com",
+          turnCount: 8,
+        },
+      },
+      harness.options,
+    )
+
+    expect(result.ui).toMatchObject({ kind: "booking-card", bookingPrefill: { dueDate: "2026-10-15" } })
   })
 
   it("consumes stored final medium choice and advances to the next slot", async () => {
