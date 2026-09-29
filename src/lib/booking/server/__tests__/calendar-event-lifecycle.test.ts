@@ -106,17 +106,19 @@ describe("booking calendar event lifecycle", () => {
     ])
   })
 
-  it("builds stable deterministic ids for every requested-date range", () => {
+  it("builds one all-day event with a stable id per requested date", () => {
     const intents = buildRequestedDateCalendarEventIntents({
       bookingGroupId: "group_1",
-      dates: ["2026-11-01", "2026-11-03", "2026-11-04"],
+      dates: ["2026-11-04", "2026-11-01", "2026-11-03", "2026-11-03"],
       summary: "summary",
       description: "description",
     })
     expect(intents.map((intent) => ({ id: intent.eventId, start: intent.startValue, end: intent.endValue }))).toEqual([
       { id: "group1", start: "2026-11-01", end: "2026-11-02" },
-      { id: "group120261103", start: "2026-11-03", end: "2026-11-05" },
+      { id: "group120261103", start: "2026-11-03", end: "2026-11-04" },
+      { id: "group120261104", start: "2026-11-04", end: "2026-11-05" },
     ])
+    expect(intents.every((intent) => intent.dateOnly)).toBe(true)
   })
 
   it("recreates a confirmed event that disappeared from Google Calendar", async () => {
@@ -374,7 +376,7 @@ describe("booking calendar event lifecycle", () => {
     expect(mocks.deleteCalendarEventWithAccessToken).not.toHaveBeenCalled()
   })
 
-  it("names each hold for its part of the job, one event per run of the same part", () => {
+  it("names each hold for its part of the job, one event per day", () => {
     const intents = buildRequestedDateCalendarEventIntents({
       bookingGroupId: "group1",
       dates: ["2026-10-09", "2026-10-10", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"],
@@ -391,12 +393,14 @@ describe("booking calendar event lifecycle", () => {
     })
 
     expect(intents.map((intent) => [intent.startValue, intent.endValue, intent.summary])).toEqual([
-      ["2026-10-09", "2026-10-11", "【仮キープ】案件 / 氏名（仕込み）"],
+      ["2026-10-09", "2026-10-10", "【仮キープ】案件 / 氏名（仕込み）"],
+      ["2026-10-10", "2026-10-11", "【仮キープ】案件 / 氏名（仕込み）"],
       ["2026-10-12", "2026-10-13", "【仮キープ】案件 / 氏名（仕込み）"],
-      ["2026-10-13", "2026-10-15", "【仮キープ】案件 / 氏名（立ち会い）"],
+      ["2026-10-13", "2026-10-14", "【仮キープ】案件 / 氏名（立ち会い）"],
+      ["2026-10-14", "2026-10-15", "【仮キープ】案件 / 氏名（立ち会い）"],
       ["2026-10-15", "2026-10-16", "【仮キープ】案件 / 氏名（QC）"],
     ])
-    expect(new Set(intents.map((intent) => intent.eventId)).size).toBe(4)
+    expect(new Set(intents.map((intent) => intent.eventId)).size).toBe(6)
   })
 })
 

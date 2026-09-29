@@ -336,11 +336,9 @@ describe("createBookingFromApiInput", () => {
     }))
   })
 
-  it("coalesces consecutive requested dates without holding unrequested gap days", async () => {
+  it("creates one all-day event per requested date without holding unrequested gap days", async () => {
     const service = await loadCreateBooking()
-    service.createCalendarEvent
-      .mockResolvedValueOnce({ id: "gcal_primary" })
-      .mockResolvedValueOnce({ id: "gcal_secondary" })
+    service.createCalendarEvent.mockImplementation(async ({ eventId }: { eventId: string }) => ({ id: eventId }))
 
     await service.createBookingFromApiInput({
       input: bookingInput({
@@ -357,17 +355,18 @@ describe("createBookingFromApiInput", () => {
       userEmail: "satoshi@example.com",
     })
 
-    expect(service.createCalendarEvent).toHaveBeenCalledTimes(2)
-    expect(service.createCalendarEvent).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      start: "2026-11-01",
-      end: "2026-11-02",
-      eventId: "group1",
-    }))
-    expect(service.createCalendarEvent).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      start: "2026-11-03",
-      end: "2026-11-07",
-      eventId: "group120261103",
-    }))
+    expect(service.createCalendarEvent).toHaveBeenCalledTimes(5)
+    expect(service.createCalendarEvent.mock.calls.map(([arg]) => ({
+      start: arg.start,
+      end: arg.end,
+      eventId: arg.eventId,
+    }))).toEqual([
+      { start: "2026-11-01", end: "2026-11-02", eventId: "group1" },
+      { start: "2026-11-03", end: "2026-11-04", eventId: "group120261103" },
+      { start: "2026-11-04", end: "2026-11-05", eventId: "group120261104" },
+      { start: "2026-11-05", end: "2026-11-06", eventId: "group120261105" },
+      { start: "2026-11-06", end: "2026-11-07", eventId: "group120261106" },
+    ])
     expect(service.prisma.bookingGroup.update).toHaveBeenCalledWith({
       where: { id: "group_1" },
       data: { gcalEventId: "group1", pendingExpiresAt: null },

@@ -109,7 +109,8 @@ describe("/api/booking-groups/[id]", () => {
       end: intent.endValue,
     }))).toEqual([
       { id: "group1", start: "2026-11-01", end: "2026-11-02" },
-      { id: "group120261103", start: "2026-11-03", end: "2026-11-05" },
+      { id: "group120261103", start: "2026-11-03", end: "2026-11-04" },
+      { id: "group120261104", start: "2026-11-04", end: "2026-11-05" },
     ])
   })
 
