@@ -6122,3 +6122,43 @@ describe("a release date is not a question about the notes", () => {
     expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "additional-work" } })
   })
 })
+
+it("restores the exact dynamic choice definition when editing, then validates through the existing choice handler", async () => {
+  const choiceSet = { id: "attendance-days", question: "立ち会いは何日にしますか？", choices: [
+    { id: "2", label: "2日（全体で3〜4日）" }, { id: "3", label: "3日（全体で4〜5日）" },
+  ] }
+  const harness = setup({ existingConversation: conversation({
+    context: { sessionId: "session_1", userId: "user_a", conversationState: { choiceAnswers: {
+      user_1: { choiceSet, selectedIds: ["2"], selectedLabels: [choiceSet.choices[0].label] },
+    } } },
+    messages: [message("assistant", choiceSet.question), message("user", `選択: ${choiceSet.choices[0].label}`)],
+  }) })
+  await handleChatbotMessage({ sessionId: "session_1", userId: "user_a", editTargetMessageId: "user_1", message: `選択: ${choiceSet.choices[1].label}` }, harness.options)
+  expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
+    conversationState: expect.objectContaining({ hasAttendanceDays: true, choiceAnswers: {
+      user_1: expect.objectContaining({ choiceSet, selectedIds: ["3"] }),
+    } }),
+    jobContext: expect.objectContaining({ attendanceDays: 3 }),
+  }))
+})
+
+it("persists a selected deadline as the summary and booking prefill source", async () => {
+  const harness = setup()
+  await handleChatbotMessage({ sessionId: "session_1", userId: "user_a", message: "納期: 2026-10-15" }, harness.options)
+  expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
+    conversationState: expect.objectContaining({ hasDesiredSchedule: true, bookingPrefill: expect.objectContaining({ dueDate: "2026-10-15" }) }),
+    jobContext: expect.objectContaining({ publicReleaseDate: "2026-10-15" }),
+  }))
+})
+
+it("replays a legacy selection before editing and applies the normal selection handler", async () => {
+  const harness = setup({ existingConversation: conversation({
+    context: { sessionId: "session_1", userId: "user_a" },
+    messages: [message("assistant", finalMediumChoices.question), message("user", "選択: Web公開")],
+  }) })
+  await handleChatbotMessage({ sessionId: "session_1", userId: "user_a", editTargetMessageId: "user_1", message: "選択: 劇場公開" }, harness.options)
+  expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
+    conversationState: expect.objectContaining({ choiceAnswers: { user_1: expect.objectContaining({ choiceSet: finalMediumChoices, selectedIds: ["cinema"] }) } }),
+    jobContext: expect.objectContaining({ finalMedium: "cinema" }),
+  }))
+})

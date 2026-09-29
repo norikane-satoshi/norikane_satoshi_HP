@@ -1,3 +1,5 @@
+import { PUBLIC_CHATBOT_BOOKING_USER_EMAIL } from "@/lib/booking/server/claim-chat-bookings"
+import { isCalendarDate, isValidDeadlineInput, todayInJapan } from "@/lib/chatbot/domain/deadline"
 import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 
@@ -72,7 +74,7 @@ const chatbotBookingRequestSchema = z
     contactEmail: z.string().trim().email().max(254),
     companyName: z.string().trim().max(120).optional(),
     phone: z.string().trim().max(32).optional(),
-    dueDate: z.string().optional(),
+    dueDate: z.string().refine((value) => isValidDeadlineInput(value)).optional(),
     memo: z.string().trim().max(2000).optional(),
     agreed: z.literal(true),
     selectedSlot: selectedSlotSchema.optional(),
@@ -84,7 +86,7 @@ const chatbotBookingRequestSchema = z
     correlationId: z.string().uuid().optional(),
   })
 
-const PUBLIC_CHATBOT_BOOKING_USER_EMAIL = "chatbot-booking@norikane.studio"
+
 
 async function getPublicChatbotBookingUserId(): Promise<string> {
   const user = await prisma.user.upsert({
@@ -145,6 +147,7 @@ async function planRequestedSchedule(
     jobContext: jobContext.data,
     workflowEstimate: workflowEstimate.data,
     attendanceDates: input.attendanceDates,
+    dueDate: input.dueDate,
   })
 }
 
@@ -354,6 +357,13 @@ export async function POST(request: NextRequest) {
       },
       { status: 400 },
     )
+  }
+  const deadline = parsed.data.dueDate
+  if (deadline && isCalendarDate(deadline) && (
+    parsed.data.attendanceDates?.some((date) => date > deadline) ||
+    normalizeSelectedSlots(parsed.data).some((slot) => todayInJapan(new Date(new Date(slot.end).getTime() - 1)) > deadline)
+  )) {
+    return NextResponse.json({ error: "attendance_after_deadline" }, { status: 400 })
   }
   const requestId = parsed.data.correlationId ?? crypto.randomUUID()
   const bookingStartedAt = Date.now()

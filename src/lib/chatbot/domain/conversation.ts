@@ -14,6 +14,13 @@ export type InquiryFormPrefill = {
   freeText?: string
 }
 
+export type ChoiceAnswer = {
+  choiceSet: SurveyChoiceSet
+  selectedIds: string[]
+  selectedLabels: string[]
+  otherComment?: string
+}
+
 export type ChatbotMessage = {
   id: string
   role: ChatbotMessageRole
@@ -44,6 +51,7 @@ export type ChatbotConversation = {
 }
 
 export type ConversationState = {
+  choiceAnswers?: Record<string, ChoiceAnswer>
   requestKind?: "production" | "lecture-training"
   hasFinalMedium: boolean
   hasJobKind: boolean

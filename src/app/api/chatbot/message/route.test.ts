@@ -1063,3 +1063,25 @@ describe("POST /api/chatbot/message", () => {
     vi.unstubAllEnvs()
   })
 })
+
+it("rejects a past calendar deadline before processing the message", async () => {
+  const route = await loadPost()
+  const response = await route.POST(request({ message: "納期: 2000-01-01" }))
+  expect(response.status).toBe(400)
+})
+
+it("uses stored panel choices for an edited API submission", async () => {
+  const choiceSet = { id: "final-medium", question: "最終媒体は？", selectionMode: "multiple" as const,
+    choices: [{ id: "web", label: "Web公開" }, { id: "cinema", label: "劇場公開" }] }
+  const route = await loadPost({ existingConversation: conversation({
+    context: { sessionId: "session_1", conversationState: { choiceAnswers: {
+      user_1: { choiceSet, selectedIds: ["web"], selectedLabels: ["Web公開"] },
+    } } },
+    messages: [message("assistant", choiceSet.question), message("user", "選択: Web公開")],
+  }) })
+  const response = await route.POST(request({ message: "選択: 劇場公開", editTargetMessageId: "user_1" }, "chatbot_session_id=session_1"))
+  expect(response.status).toBe(200)
+  expect(route.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
+    jobContext: expect.objectContaining({ finalMedium: "cinema" }),
+  }))
+})

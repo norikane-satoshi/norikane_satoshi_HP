@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest"
+
+beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-05-26T00:00:00Z")) })
+afterEach(() => vi.useRealTimers())
 
 function request(body: unknown, cookieSessionId = "session_1", headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/chatbot/create-booking-from-chat", {
@@ -515,6 +518,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     const response = await route.POST(request(validChatBooking({
       selectedSlot: undefined,
       attendanceDates: ["2026-10-13"],
+      dueDate: "2026-10-30",
       jobContext: { jobKind: "mv-5m", finalMedium: "web", workSite: "remote-grading", documentaryAttachment: { kind: "none" } },
       workflowEstimate: estimate,
     })))

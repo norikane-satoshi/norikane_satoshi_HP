@@ -13,6 +13,7 @@ import { sendMagicLinkEmail } from "@/lib/auth/server/email"
 import { getLineLoginChannelId, getLineLoginChannelSecret } from "@/lib/line/env"
 import { prisma } from "@/lib/prisma"
 import { getTokenVersion } from "@/lib/auth/server/token-version-cache"
+import { markVerifiedGoogleEmail } from "@/lib/auth/server/verified-google-email"
 
 class InvalidCredentialsError extends CredentialsSignin {
   code = "invalid_credentials"
@@ -98,6 +99,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  events: {
+    signIn: markVerifiedGoogleEmail,
+  },
   callbacks: {
     ...authConfig.callbacks,
     async jwt({ token, user, trigger }) {

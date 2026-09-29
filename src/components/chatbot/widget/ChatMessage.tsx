@@ -12,6 +12,8 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from "react"
 
+import type { ChoiceAnswer } from "@/lib/chatbot/domain/conversation"
+import { ChoicePanel } from "./ChoicePanel"
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import {
@@ -26,7 +28,9 @@ type ChatMessageProps = {
   createdAt?: Date
   displayName?: string | null
   editingDisabled?: boolean
-  onEdit?: (messageId: string, content: string) => void
+  resolveChoiceAnswer?: () => Promise<ChoiceAnswer | undefined>
+  choiceAnswer?: ChoiceAnswer
+  onEdit?: (messageId: string, content: string, choiceAnswer?: ChoiceAnswer) => void
 }
 
 const roleLabel: Record<ChatbotMessageRole, string> = {
@@ -157,6 +161,8 @@ export function ChatMessage({
   displayName,
   editingDisabled = false,
   onEdit,
+  choiceAnswer,
+  resolveChoiceAnswer,
 }: ChatMessageProps) {
   const isUser = role === "user"
   const isSystem = role === "system"
@@ -165,6 +171,9 @@ export function ChatMessage({
   const [editConfirmPending, setEditConfirmPending] = useState(false)
   const [showTouchEditAffordance, setShowTouchEditAffordance] = useState(false)
   const [touchFeedbackState, setTouchFeedbackState] = useState<TouchFeedbackState>("idle")
+  const editResolutionRef = useRef(0)
+  const [resolvingChoice, setResolvingChoice] = useState(false)
+  const [draftChoice, setDraftChoice] = useState(choiceAnswer)
   const [draft, setDraft] = useState(content)
   const longPressStateRef = useRef<LongPressState | null>(null)
   const activeTouchIdentifierRef = useRef<number | null>(null)
@@ -230,13 +239,23 @@ export function ChatMessage({
     setTouchFeedbackState("idle")
     setEditConfirmPending(false)
     setDraft(content)
+    setDraftChoice(choiceAnswer)
     setIsEditing(true)
+    const attempt = ++editResolutionRef.current
+    setResolvingChoice(!choiceAnswer && Boolean(resolveChoiceAnswer))
+    if (!choiceAnswer && resolveChoiceAnswer) {
+      void resolveChoiceAnswer().then((answer) => {
+        if (editResolutionRef.current === attempt) setDraftChoice(answer)
+      }).catch(() => { /* A failed lookup preserves the existing text editor. */ }).finally(() => {
+        if (editResolutionRef.current === attempt) setResolvingChoice(false)
+      })
+    }
     window.dispatchEvent(
       new CustomEvent<ChatbotMessageEditingStartedEventDetail>(CHATBOT_MESSAGE_EDITING_STARTED_EVENT, {
         detail: { messageId: id },
       }),
     )
-  }, [clearTextSelection, clearTouchReleaseTimer, content, id])
+  }, [clearTextSelection, clearTouchReleaseTimer, content, id, choiceAnswer, resolveChoiceAnswer])
 
   const armLongPressTimer = useCallback((longPressState: LongPressState, startX: number, startY: number) => {
     window.clearTimeout(longPressState.timerId)
@@ -321,6 +340,7 @@ export function ChatMessage({
   const cancelEdit = useCallback(() => {
     setDraft(content)
     setEditConfirmPending(false)
+    editResolutionRef.current += 1
     setIsEditing(false)
   }, [content])
 
@@ -434,8 +454,10 @@ export function ChatMessage({
       cancelEdit()
       return
     }
-    onEdit?.(id, trimmedDraft)
+    if (draftChoice) onEdit?.(id, trimmedDraft, draftChoice)
+    else onEdit?.(id, trimmedDraft)
     setEditConfirmPending(false)
+    editResolutionRef.current += 1
     setIsEditing(false)
   }
 
@@ -461,6 +483,7 @@ export function ChatMessage({
       setTouchFeedbackState("idle")
       setEditConfirmPending(false)
       setDraft(content)
+      editResolutionRef.current += 1
       setIsEditing(false)
     }
 
@@ -586,7 +609,18 @@ export function ChatMessage({
       </div>
       {isEditing ? (
         <div className="space-y-2">
-          <AutoResizeTextarea
+          {resolvingChoice ? <p role="status" className="text-xs text-hp-muted">選択肢を確認しています</p> : draftChoice ? (
+            <ChoicePanel
+              choiceSet={draftChoice.choiceSet}
+              initialSelection={draftChoice}
+              allowMultiple={draftChoice.choiceSet.selectionMode === "multiple"}
+              onSelect={(selection) => {
+                setDraftChoice({ choiceSet: draftChoice.choiceSet, ...selection })
+                setDraft([`選択: ${selection.selectedLabels.join("、")}`, selection.otherComment ? `その他コメント: ${selection.otherComment}` : undefined].filter(Boolean).join("\n"))
+                setEditConfirmPending(false)
+              }}
+            />
+          ) : <AutoResizeTextarea
             className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} glass-input min-h-24 w-full px-3 py-2 text-sm text-hp`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
             value={draft}
@@ -596,7 +630,7 @@ export function ChatMessage({
             }}
             aria-label="編集内容"
             disabled={editingDisabled}
-          />
+          />}
           {editConfirmPending ? (
             <div
               className="flex flex-wrap items-center justify-end gap-2 rounded-2xl bg-[color-mix(in_srgb,var(--hp-color-error)_10%,transparent)] px-3 py-2"
@@ -618,7 +652,7 @@ export function ChatMessage({
                 type="button"
                 className="glass-btn inline-flex h-8 items-center gap-1 border-red-300 px-3 text-xs font-semibold text-red-700 focus-visible:outline-red-400"
                 onClick={confirmSaveEdit}
-                disabled={editingDisabled || !trimmedDraft || trimmedDraft === content.trim()}
+                disabled={editingDisabled || resolvingChoice || !trimmedDraft || trimmedDraft === content.trim()}
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
                 OK
@@ -639,7 +673,7 @@ export function ChatMessage({
                 type="button"
                 className="glass-btn inline-flex h-8 items-center gap-1 px-3 text-xs"
                 onClick={requestSaveEdit}
-                disabled={editingDisabled || !trimmedDraft || trimmedDraft === content.trim()}
+                disabled={editingDisabled || resolvingChoice || !trimmedDraft || trimmedDraft === content.trim()}
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
                 保存

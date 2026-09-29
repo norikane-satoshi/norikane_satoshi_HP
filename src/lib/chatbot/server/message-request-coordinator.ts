@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 
 import type { Prisma } from "@prisma/client"
 
+import type { ConversationState } from "@/lib/chatbot/domain/conversation"
 import { prisma } from "@/lib/prisma"
 
 export type ChatbotMessageRequestStatus = "processing" | "completed" | "failed"
@@ -437,7 +438,7 @@ export async function replaceChatbotMessageRequestUserMessage(input: {
 
     const target = await tx.chatbotMessage.findUnique({
       where: { id: input.targetMessageId },
-      select: { conversationId: true, role: true, createdAt: true },
+      select: { conversationId: true, role: true, createdAt: true, conversation: { select: { conversationState: true } } },
     })
     if (!target || target.conversationId !== input.ownership.conversationId || target.role !== "user") {
       throw new CoordinationCasError()
@@ -451,6 +452,18 @@ export async function replaceChatbotMessageRequestUserMessage(input: {
         ],
       },
     })
+
+    // Keep only panel provenance, never later answers/business state, across interrupted edits.
+    const state = target.conversation.conversationState
+      ? JSON.parse(target.conversation.conversationState) as Partial<ConversationState>
+      : undefined
+    const remaining = await tx.chatbotMessage.findMany({
+      where: { conversationId: input.ownership.conversationId }, select: { id: true },
+    })
+    const choiceAnswers = Object.fromEntries(Object.entries(state?.choiceAnswers ?? {})
+      .filter(([id]) => remaining.some((message) => message.id === id)))
+    const editedAnswer = state?.choiceAnswers?.[input.targetMessageId]
+    if (editedAnswer) choiceAnswers[input.ownership.requestKey] = editedAnswer
 
     createdAt = new Date()
     await tx.chatbotConversation.update({
@@ -468,7 +481,7 @@ export async function replaceChatbotMessageRequestUserMessage(input: {
         referenceUrls: null,
         currentQuestion: null,
         activeChoices: null,
-        conversationState: null,
+        conversationState: Object.keys(choiceAnswers).length ? JSON.stringify({ choiceAnswers }) : null,
         messages: {
           create: {
             id: input.ownership.requestKey,

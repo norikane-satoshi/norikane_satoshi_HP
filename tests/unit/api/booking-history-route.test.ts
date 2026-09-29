@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   prisma: {
+    $transaction: vi.fn(),
+    user: { findUnique: vi.fn() },
+    customer: { findFirst: vi.fn(), upsert: vi.fn() },
     bookingGroup: {
       findMany: vi.fn(),
+      updateMany: vi.fn(),
     },
   },
 }))
@@ -17,6 +21,8 @@ import { GET } from "@/app/api/booking/history/route"
 describe("GET /api/booking/history", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.prisma.$transaction.mockImplementation((fn) => fn(mocks.prisma))
+    mocks.prisma.user.findUnique.mockResolvedValue({ email: "satoshi@example.com", emailVerified: null })
   })
 
   it("returns 401 when unauthenticated", async () => {
@@ -107,4 +113,33 @@ describe("GET /api/booking/history", () => {
     ])
     expect(body.bookings.slice(2).every((booking: { requestedDates: string[] }) => booking.requestedDates.length === 0)).toBe(true)
   })
+})
+
+  it("ignores unverified session email and never searches anonymous bookings", async () => {
+    mocks.auth.mockResolvedValue({ user: { id: "unverified", email: "victim@example.com" } })
+    mocks.prisma.$transaction.mockImplementation((fn) => fn(mocks.prisma))
+    mocks.prisma.user.findUnique.mockResolvedValue({ email: "victim@example.com", emailVerified: null })
+    mocks.prisma.bookingGroup.findMany.mockResolvedValue([])
+    const response = await GET()
+    expect(response.status).toBe(200)
+    expect(mocks.prisma.customer.findFirst).not.toHaveBeenCalled()
+    expect(mocks.prisma.bookingGroup.updateMany).not.toHaveBeenCalled()
+  })
+
+it("claims by database-verified email before listing only the authenticated customer's rows", async () => {
+  vi.clearAllMocks()
+  mocks.auth.mockResolvedValue({ user: { id: "owner", email: "ignored-session@example.com" } })
+  mocks.prisma.$transaction.mockImplementation((fn) => fn(mocks.prisma))
+  mocks.prisma.user.findUnique.mockResolvedValue({ email: "owner@example.com", emailVerified: new Date(), name: "Owner" })
+  mocks.prisma.customer.findFirst.mockResolvedValue({ id: "anonymous" })
+  mocks.prisma.customer.upsert.mockResolvedValue({ id: "customer-owner" })
+  mocks.prisma.bookingGroup.findMany.mockResolvedValueOnce([
+    { id: "mine", customerEmail: "owner@example.com" }, { id: "other", customerEmail: "someone@example.com" },
+  ]).mockResolvedValueOnce([])
+  expect((await GET()).status).toBe(200)
+  expect(mocks.prisma.bookingGroup.updateMany).toHaveBeenCalledWith({
+    where: { id: { in: ["mine"] }, customerId: "anonymous", originatedFrom: "chatbot", teamId: null },
+    data: { customerId: "customer-owner" },
+  })
+  expect(mocks.prisma.bookingGroup.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { customer: { userId: "owner" } } }))
 })

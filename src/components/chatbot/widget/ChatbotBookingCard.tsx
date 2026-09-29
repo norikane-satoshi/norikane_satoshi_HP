@@ -1,5 +1,8 @@
 "use client"
 
+import { isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
+import { DeadlineInput } from "./DeadlineInput"
+
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
@@ -439,6 +442,7 @@ export function ChatbotBookingCard({
     projectTitle.trim() &&
       contactName.trim() &&
       contactEmailValid &&
+      isValidDeadlineInput(dueDate) &&
       agreed &&
       !submitting,
   )
@@ -568,7 +572,7 @@ export function ChatbotBookingCard({
   // Serialized so a parent re-render with an equal jobContext does not refetch the plan.
   const planRequestBody =
     planKey && jobContext && effectiveEstimate
-      ? JSON.stringify({ jobContext, workflowEstimate: effectiveEstimate, attendanceDates: planKey.split(",") })
+      ? JSON.stringify({ jobContext, dueDate, workflowEstimate: effectiveEstimate, attendanceDates: planKey.split(",") })
       : null
 
   const schedulePlan: SchedulePlanState = !planRequestBody
@@ -673,7 +677,7 @@ export function ChatbotBookingCard({
           companyName: submission.companyName,
           phone: phone.trim(),
           dueDate,
-          memo: [submission.memo, ...confirmationItems.map((item) => `${item.label}: ${item.value}`)]
+          memo: [submission.memo, ...(dueDate.trim() ? [`納品希望日: ${dueDate.trim()}`] : []), ...confirmationItems.filter((item) => item.label !== "納品希望日").map((item) => `${item.label}: ${item.value}`)]
             .filter(Boolean)
             .join("\n")
             .slice(0, 2000),
@@ -972,7 +976,7 @@ export function ChatbotBookingCard({
               </dd>
             </div>
           ) : null}
-          {confirmationItems.map((item) => (
+          {[...confirmationItems.filter((item) => item.label !== "納品希望日"), ...(dueDate.trim() ? [{ label: "納品希望日", value: dueDate.trim() }] : [])].map((item) => (
             <div key={item.label}>
               <dt className="text-xs font-semibold text-hp-muted">{item.label}</dt>
               <dd className="mt-0.5 break-words text-hp">{item.value}</dd>
@@ -999,13 +1003,7 @@ export function ChatbotBookingCard({
           </label>
           <label className="block text-sm font-medium text-hp">
             納期
-            <input
-              value={dueDate}
-              onChange={(event) => setDueDate(event.target.value)}
-              className="glass-input mt-2 w-full px-4 py-3 text-sm"
-              placeholder="2026-06-30"
-              aria-label="納期"
-            />
+            <DeadlineInput value={dueDate} onChange={setDueDate} />
           </label>
           <label className="block text-sm font-medium text-hp">
             会社名
