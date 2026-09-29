@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ChatbotBookingCard } from "@/components/chatbot/widget/ChatbotBookingCard"
@@ -60,5 +60,31 @@ describe("ChatbotBookingCard 仮キープ表示", () => {
 
     expect(screen.queryByLabelText("2026-12-01 選択可・仮キープあり")).toBeNull()
     expect(screen.getByLabelText("2026-12-01 選択可")).toHaveAttribute("data-calendar-state", "startable")
+  })
+
+  it("does not offer attendance dates after a calendar deadline", () => {
+    renderCard({ defaultDueDate: "2026-11-30" })
+    fireEvent.click(screen.getByRole("button", { name: "翌月を表示" }))
+
+    const cell = screen.getByLabelText("2026-12-01 納期後・選択不可")
+    expect(cell).toBeDisabled()
+    expect(cell).toHaveAttribute("data-calendar-state", "after-deadline")
+  })
+
+  it("keeps approximate deadlines as notes rather than calendar limits", () => {
+    renderCard({ defaultDueDate: "11月末ごろ" })
+
+    expect(screen.getByLabelText("2026-12-01 選択可・仮キープあり")).toBeEnabled()
+  })
+
+  it("drops a selected day when the customer moves the deadline before it", () => {
+    renderCard({ defaultDueDate: "2026-12-31" })
+    fireEvent.click(screen.getByLabelText("2026-12-01 選択可・仮キープあり"))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
+    fireEvent.change(screen.getByLabelText("納期をカレンダーで選ぶ"), { target: { value: "2026-11-30" } })
+    fireEvent.click(screen.getByRole("button", { name: "日程を選び直す" }))
+
+    expect(screen.getByLabelText("2026-12-01 納期後・選択不可")).toBeDisabled()
+    expect(screen.getByText("希望日未選択")).toBeInTheDocument()
   })
 })

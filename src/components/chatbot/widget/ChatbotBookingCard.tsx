@@ -1,6 +1,6 @@
 "use client"
 
-import { isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
+import { isCalendarDate, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import { DeadlineInput } from "./DeadlineInput"
 
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -413,6 +413,7 @@ export function ChatbotBookingCard({
   const [calendarHint, setCalendarHint] = useState<string | null>(null)
   const [projectTitle, setProjectTitle] = useState(defaultProjectTitle ?? "")
   const [dueDate, setDueDate] = useState(defaultDueDate ?? "")
+  const deadlineDateKey = isCalendarDate(dueDate) ? dueDate : undefined
   const [companyName, setCompanyName] = useState(defaultCompanyName ?? "")
   const [contactName, setContactName] = useState(defaultContactName ?? "")
   const [contactEmail, setContactEmail] = useState(defaultContactEmail ?? "")
@@ -809,6 +810,7 @@ export function ChatbotBookingCard({
                 const tentative = !busy && candidateCalendar.tentativeDateKeySet.has(dateKey)
                 const selected = selectedKeys.has(dateKey)
                 const past = dateKey < currentJstDateKey
+                const afterDeadline = Boolean(deadlineDateKey && dateKey > deadlineDateKey)
 
                 if (busy) {
                   return (
@@ -831,7 +833,7 @@ export function ChatbotBookingCard({
                   )
                 }
 
-                if (past || !slot) {
+                if (past || !slot || afterDeadline) {
                   return (
                     <button
                       key={dateKey}
@@ -845,9 +847,9 @@ export function ChatbotBookingCard({
                             ? "border-white/45 bg-white/30 text-hp-muted opacity-45"
                             : "border-white/55 bg-white/35 text-hp-muted opacity-70",
                       ].join(" ")}
-                      data-calendar-state={past ? "past" : "free-unstartable"}
+                      data-calendar-state={past ? "past" : afterDeadline ? "after-deadline" : "free-unstartable"}
                       data-selected={selected ? "true" : undefined}
-                      aria-label={`${dateKey} 空き・開始不可`}
+                      aria-label={afterDeadline ? `${dateKey} 納期後・選択不可` : `${dateKey} 空き・開始不可`}
                       aria-disabled="true"
                     >
                       <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
@@ -1003,7 +1005,12 @@ export function ChatbotBookingCard({
           </label>
           <label className="block text-sm font-medium text-hp">
             納期
-            <DeadlineInput value={dueDate} onChange={setDueDate} />
+            <DeadlineInput value={dueDate} onChange={(value) => {
+              setDueDate(value)
+              if (isCalendarDate(value)) {
+                setSelectedSlots((current) => current.filter((slot) => jstDateKey(slot.start) <= value))
+              }
+            }} />
           </label>
           <label className="block text-sm font-medium text-hp">
             会社名
