@@ -25,7 +25,7 @@ import {
   decideLectureTrainingRouting,
   isLectureTrainingInquiry,
 } from "@/lib/chatbot/server/lecture-training"
-import { buildBookingFinalConfirmationQuestion } from "@/lib/chatbot/server/flow-policy"
+import { buildBookingFinalConfirmationQuestion, desiredScheduleQuestion } from "@/lib/chatbot/server/flow-policy"
 import { buildAttendanceDaysChoices, needsAttendanceDaysChoice } from "@/lib/chatbot/server/attendance-days"
 import type { ChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
 
@@ -225,6 +225,13 @@ function continueDecision(input: {
     return {
       kind: "continue",
       nextQuestion: "ご連絡先メールを教えてください",
+    }
+  }
+
+  if (!conversationState.hasDesiredSchedule && conversationState.bookingFinalConfirmation?.status !== "confirmed") {
+    return {
+      kind: "continue",
+      nextQuestion: desiredScheduleQuestion,
     }
   }
 

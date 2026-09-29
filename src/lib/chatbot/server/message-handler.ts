@@ -3060,12 +3060,12 @@ function isFinalMediumRejudgmentQuestion(message: string): boolean {
 
 function isRequiredIntakeQuestion(message: string | undefined): boolean {
   if (!message) return false
-  return isMaterialHandoffQuestion(message) || /参考URL|連絡先メール/u.test(message)
+  return isMaterialHandoffQuestion(message) || /参考URL|連絡先メール|納期はいつごろ/u.test(message)
 }
 
 function isPrematureIntakeCompletionText(message: string): boolean {
   const normalized = message.normalize("NFKC")
-  return /この内容で.{0,20}(?:進め|確認)|(?:内容を)?整理でき|則兼に確認|受付(?:として|を)?進/u.test(normalized)
+  return /この内容で.{0,20}(?:進め|確認)|(?:内容を)?整理(?:して送信)?でき|則兼に確認|受付(?:として|を)?進/u.test(normalized)
 }
 
 function isBackendIdentityOnlyResponse(text: string): boolean {
