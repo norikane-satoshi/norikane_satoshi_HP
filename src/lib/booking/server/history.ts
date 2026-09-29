@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { claimChatBookingsForVerifiedUser } from "./claim-chat-bookings"
 
 export type BookingHistoryItem = {
   id: string
@@ -45,6 +46,7 @@ function expandDateOnlyRange(start: string, endExclusive: string): string[] {
 }
 
 export async function listBookingHistoryForUser(userId: string): Promise<BookingHistoryItem[]> {
+  await claimChatBookingsForVerifiedUser(userId)
   const rows = await prisma.bookingGroup.findMany({
     where: {
       customer: { userId },

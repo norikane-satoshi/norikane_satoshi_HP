@@ -1,3 +1,4 @@
+import { isCalendarDate } from "@/lib/chatbot/domain/deadline"
 import {
   describeWorkSchedule,
   planWorkSchedule,
@@ -25,11 +26,17 @@ export type ChatbotWorkSchedule = WorkSchedulePlan & {
 export async function planChatbotWorkSchedule(input: {
   jobContext: JobContext
   workflowEstimate: WorkflowEstimate
+  dueDate?: string
   attendanceDates: string[]
   now?: Date
   candidateCalendarFinder?: typeof findCandidateCalendar
 }): Promise<ChatbotWorkSchedule> {
   const now = input.now ?? new Date()
+  const dueDate = input.dueDate ?? input.jobContext.publicReleaseDate
+  const deadline = dueDate && isCalendarDate(dueDate) ? dueDate : undefined
+  if (deadline && input.attendanceDates.some((date) => date > deadline)) {
+    throw new Error("attendance_after_deadline")
+  }
   const today = jstDateKey(now)
   const lastAttendance = [...input.attendanceDates].sort().at(-1) ?? today
   const reachDays = Math.max(0, (Date.parse(`${lastAttendance}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY_MS)
@@ -46,7 +53,7 @@ export async function planChatbotWorkSchedule(input: {
   const plan = planWorkSchedule({
     attendanceDates: input.attendanceDates,
     estimate: input.workflowEstimate,
-    isFree: (date) => free.has(date),
+    isFree: (date) => (!deadline || date <= deadline) && free.has(date),
     today,
   })
   return {

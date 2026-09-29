@@ -19,12 +19,13 @@ export type ChoicePanelSelection = {
 type ChoicePanelProps = {
   choiceSet: SurveyChoiceSet
   onSelect: (selection: ChoicePanelSelection) => void
+  initialSelection?: ChoicePanelSelection
   allowMultiple?: boolean
 }
 
-export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false }: ChoicePanelProps) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [otherComment, setOtherComment] = useState("")
+export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false, initialSelection }: ChoicePanelProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>(initialSelection?.selectedIds ?? [])
+  const [otherComment, setOtherComment] = useState(initialSelection?.otherComment ?? "")
   const hasOtherSelected = selectedIds.includes("other")
   const needsConfirm = allowMultiple || hasOtherSelected
 

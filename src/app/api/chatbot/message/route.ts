@@ -1,3 +1,4 @@
+import { deadlineFromMessage, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 
@@ -54,7 +55,7 @@ const clientUserMessageIdPattern =
   /^client_msg_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 const chatbotMessageRequestSchema = z.object({
-  message: z.string().trim().min(1).max(4000),
+  message: z.string().trim().min(1).max(4000).refine((message) => isValidDeadlineInput(deadlineFromMessage(message) ?? "")),
   conversationId: z.string().trim().min(1).optional(),
   editTargetMessageId: z.string().trim().min(1).optional(),
   clientUserMessageId: z.string().regex(clientUserMessageIdPattern),

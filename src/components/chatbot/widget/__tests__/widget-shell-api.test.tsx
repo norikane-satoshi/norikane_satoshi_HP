@@ -2007,14 +2007,14 @@ describe("WidgetShell API wiring", () => {
       }
       return Promise.resolve(mockJsonResponse({}))
     })
-    vi.stubGlobal("fetch", fetchMock)
+    vi.stubGlobal("fetch", (url: RequestInfo | URL, init?: RequestInit) => String(url) === "/api/chatbot/edit-choice" ? Promise.resolve(mockJsonResponse({ choiceAnswer: null })) : fetchMock(url, init))
 
     render(<WidgetShell onMinimize={vi.fn()} />)
     expect(await screen.findByLabelText("予約送信完了")).toBeInTheDocument()
     expect(screen.getByText("予約番号: group_old")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
-    fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "了解です" } })
+    fireEvent.change(await screen.findByLabelText("編集内容"), { target: { value: "了解です" } })
     fireEvent.click(screen.getByRole("button", { name: "保存" }))
     fireEvent.click(screen.getByRole("button", { name: "OK" }))
 
@@ -2228,7 +2228,7 @@ describe("WidgetShell API wiring", () => {
           ui: { kind: "none" },
         }),
       )
-    vi.stubGlobal("fetch", fetchMock)
+    vi.stubGlobal("fetch", (url: RequestInfo | URL, init?: RequestInit) => String(url) === "/api/chatbot/edit-choice" ? Promise.resolve(mockJsonResponse({ choiceAnswer: null })) : fetchMock(url, init))
 
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage("初回相談です")
@@ -2237,7 +2237,7 @@ describe("WidgetShell API wiring", () => {
     expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
-    fireEvent.change(screen.getByLabelText("編集内容"), { target: { value: "編集後の相談です" } })
+    fireEvent.change(await screen.findByLabelText("編集内容"), { target: { value: "編集後の相談です" } })
     fireEvent.click(screen.getByRole("button", { name: "保存" }))
     expect(screen.getByText("下の会話は削除されます")).toBeInTheDocument()
     expect(screen.queryByText("保存すると、これより後のやり取りは削除されます。")).not.toBeInTheDocument()
@@ -2296,4 +2296,34 @@ describe("WidgetShell opening job-kind panel", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ message: "選択: Web CM / CM" })
   })
+})
+
+it.each([false, true])("restores a saved choice answer or legacy assistant panel (%s) and resends an edit", async (legacy) => {
+  window.localStorage.clear()
+  const choiceSet = { id: "final-medium", question: "媒体を選択", choices: [{ id: "web", label: "Web公開" }, { id: "cinema", label: "劇場公開" }] }
+  window.localStorage.setItem(chatbotSessionStorageKey, JSON.stringify({
+    messages: [...(legacy ? [{ id: "old_assistant", role: "assistant", content: choiceSet.question, createdAt: new Date().toISOString(), embeddedUi: { kind: "choice-panel", choiceSet } }] : []), { id: "user_choice", role: "user", content: "選択: Web公開", createdAt: new Date().toISOString(),
+      ...(legacy ? {} : { choiceAnswer: { choiceSet, selectedIds: ["web"], selectedLabels: ["Web公開"] } }) }],
+    activeUi: { kind: "none" }, conversationId: "conv_1", expiresAt: new Date(Date.now() + 60000).toISOString(),
+  }))
+  const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse({
+    conversationId: "conv_1", userMessage: { id: "edited_choice", role: "user", content: "選択: 劇場公開", createdAt: new Date().toISOString() },
+    assistantMessage: { ...assistantMessage, content: "編集を受け付けました" }, ui: { kind: "none" },
+  }))
+  vi.stubGlobal("fetch", fetchMock)
+  render(<WidgetShell onMinimize={vi.fn()} />)
+  fireEvent.click(await screen.findByRole("button", { name: "メッセージを編集" }))
+  expect(screen.queryByRole("textbox", { name: "編集内容" })).not.toBeInTheDocument()
+  const editor = within(screen.getByRole("button", { name: "保存" }).closest("article")!)
+  await waitFor(() => expect(editor.getByRole("button", { name: "Web公開" })).toHaveAttribute("aria-pressed", "true"))
+  fireEvent.click(editor.getByRole("button", { name: "劇場公開" }))
+  fireEvent.click(screen.getByRole("button", { name: "保存" }))
+  fireEvent.click(screen.getByRole("button", { name: "OK" }))
+  await screen.findByText("編集を受け付けました")
+  expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ message: "選択: 劇場公開", editTargetMessageId: "user_choice" })
+  const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
+  expect(stored.messages.find((message: { role: string }) => message.role === "user").choiceAnswer.selectedIds).toEqual(["cinema"])
+  cleanup()
+  vi.unstubAllGlobals()
+  window.localStorage.clear()
 })

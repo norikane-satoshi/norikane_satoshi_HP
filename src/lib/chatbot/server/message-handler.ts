@@ -1,3 +1,6 @@
+import { matchChoiceAnswer } from "@/lib/chatbot/domain/choice-answer"
+import type { ChoiceAnswer } from "@/lib/chatbot/domain/conversation"
+import { deadlineFromMessage, deadlineForScheduling } from "@/lib/chatbot/domain/deadline"
 import {
   additionalWorkChoices,
   finalMediumChoices,
@@ -324,6 +327,17 @@ export async function handleChatbotMessage(
   }
   stageTimings.conversationLoad = elapsedMs(conversationLoadStartedAt, now())
 
+  const editKnowledgeSnapshot = input.editTargetMessageId ? await knowledgeSnapshotLoader() : undefined
+  const legacyTargetId = conversation.messages.some((message) => message.id === input.editTargetMessageId)
+    ? input.editTargetMessageId : input.recoverClientUserMessageId
+  if (legacyTargetId) {
+    const recoveredChoices = recoverHistoricalChoiceContext(conversation, legacyTargetId, editKnowledgeSnapshot)
+    conversation.context.conversationState = { ...conversation.context.conversationState, choiceAnswers: recoveredChoices.answers }
+  }
+  const storedChoiceAnswers = conversation.context.conversationState?.choiceAnswers
+  const editedChoiceAnswer = (input.editTargetMessageId ? storedChoiceAnswers?.[input.editTargetMessageId] : undefined)
+    ?? (input.recoverClientUserMessageId ? storedChoiceAnswers?.[input.recoverClientUserMessageId] : undefined)
+
   let didTruncateForEdit = false
   let editSlackEvent: ChatbotEditSlackEvent | undefined
   let replacedUserMessage: ChatbotMessage | undefined
@@ -410,6 +424,10 @@ export async function handleChatbotMessage(
   }
 
   conversation = reconcileConversationContextFromHistory(conversation)
+  if (editedChoiceAnswer) {
+    conversation.context.activeChoices = editedChoiceAnswer.choiceSet
+    conversation.context.currentQuestion = editedChoiceAnswer.choiceSet.question
+  }
 
   const userMessagePersistStartedAt = now()
   const userMessage = recoveredUserMessage ?? replacedUserMessage ?? await (async () => {
@@ -478,7 +496,7 @@ export async function handleChatbotMessage(
         currentConversationId: conversation.id,
       })
     : null
-  const knowledgeSnapshot = await knowledgeSnapshotLoader()
+  const knowledgeSnapshot = editKnowledgeSnapshot ?? await knowledgeSnapshotLoader()
   const noteAccess = evaluateCustomerFacingNoteAccess(input.message, knowledgeSnapshot)
   const durationContext = resolveWorkflowDurationContext({
     inputJobContext: didTruncateForEdit ? undefined : input.jobContext,
@@ -488,6 +506,8 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   const jobContext = durationContext.jobContext
+  const explicitDeadline = deadlineFromMessage(input.message)
+  if (explicitDeadline) jobContext.publicReleaseDate = explicitDeadline
   const previousAssistantMessage = findLastAssistantMessageContent(conversation.messages)
   const baseConversationState = applyMaterialHandoffAnswer({
     latestUserMessage: input.message,
@@ -517,6 +537,10 @@ export async function handleChatbotMessage(
     baseConversationState,
     recoverBookingContextFromHistory([...conversation.messages, userMessage]),
   ) as ConversationState
+  if (explicitDeadline) {
+    intakeConversationState.hasDesiredSchedule = true
+    intakeConversationState.bookingPrefill = { ...intakeConversationState.bookingPrefill, dueDate: explicitDeadline }
+  }
   const conversationState = confirmBookingWithoutFinalQuestion({
     conversationState: intakeConversationState,
     jobContext,
@@ -677,6 +701,17 @@ export async function handleChatbotMessage(
     ? flowPolicy.routingDecision
     : withoutFreeTextIntakePanel(flowPolicy.routingDecision)
   const persistedConversationState = flowPolicy.conversationState
+  persistedConversationState.choiceAnswers = {
+    ...conversation.context.conversationState?.choiceAnswers,
+    ...(activeChoices && activeChoiceAnswer && isExplicitChoiceSubmission(input.message) ? {
+      [userMessage.id]: {
+        choiceSet: activeChoices,
+        selectedIds: activeChoiceAnswer.choiceIds,
+        selectedLabels: activeChoices.choices.filter((choice) => activeChoiceAnswer.choiceIds.includes(choice.id)).map((choice) => choice.label),
+        ...(input.message.match(/その他コメント:\s*(.*)/u)?.[1] ? { otherComment: input.message.match(/その他コメント:\s*(.*)/u)![1] } : {}),
+      },
+    } : {}),
+  }
   logChatbotBookingReadinessBoundary({
     requestId: input.requestId,
     conversation,
@@ -785,7 +820,7 @@ export async function handleChatbotMessage(
     persistedConversationState.hasCustomerIdentity !== storedConversationState.hasCustomerIdentity ||
     persistedConversationState.hasContactEmail !== storedConversationState.hasContactEmail
   const routingUpdate: UpdateConversationRoutingInput | undefined =
-    routingDecision || submittedBooking || customerIdentityChanged
+    routingDecision || submittedBooking || customerIdentityChanged || explicitDeadline || activeChoiceAnswer
       ? {
           conversationId: conversation.id,
           routingDecision: routingDecision?.kind ?? conversation.context.routingDecision?.kind ?? "continue",
@@ -1536,10 +1571,45 @@ function isReferenceUrlQuestion(message: string | undefined): boolean {
   return /参考\s*(?:URL|リンク)|事前に把握しておきたい参考/u.test(normalized)
 }
 
+/** Replays only the prefix before each answer; never imports later business state. */
+function recoverHistoricalChoiceContext(
+  source: ChatbotConversation,
+  messageId: string,
+  knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null,
+): { answer?: ChoiceAnswer; answers: Record<string, ChoiceAnswer> } {
+  const target = source.messages.findIndex((message) => message.id === messageId && message.role === "user")
+  if (target < 0) return { answers: {} }
+  const answers = { ...source.context.conversationState?.choiceAnswers }
+  for (let index = 0; index <= target; index += 1) {
+    const message = source.messages[index]
+    if (message.role !== "user") continue
+    const replaySource = { ...source, context: { ...source.context, conversationState: { choiceAnswers: answers } } }
+    const prefix = reconcileConversationContextFromHistory(resetEditedConversationContext(replaySource, source.messages.slice(0, index)))
+    const { jobContext } = resolveWorkflowDurationContext({ conversation: prefix, knowledgeSnapshot })
+    const state = buildConversationState({ conversation: prefix, userMessage: { ...message, content: "" }, jobContext })
+    const decision = decideRoutingFallback({ jobContext, conversationState: state, knowledgeSnapshot, now: new Date(message.createdAt) })
+    const previous = source.messages[index - 1]
+    // Exact stored question is evidence; keyword-based panel guesses are deliberately excluded.
+    const storedQuestionPanel = previous?.role === "assistant"
+      ? surveyChoiceSets.find((panel) => previous.content.trim() === panel.question)
+      : undefined
+    const panel = answers[message.id]?.choiceSet ?? storedQuestionPanel
+      ?? (decision.kind === "continue" ? decision.presentChoices : undefined)
+    const answer = panel ? matchChoiceAnswer(panel, message.content) : undefined
+    if (answer) answers[message.id] = answer
+    if (index === target) return { answer, answers }
+  }
+  return { answers }
+}
+
+export function recoverHistoricalChoiceAnswer(source: ChatbotConversation, messageId: string, knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null): ChoiceAnswer | undefined {
+  return recoverHistoricalChoiceContext(source, messageId, knowledgeSnapshot).answer
+}
+
 function reconcileConversationContextFromHistory(conversation: ChatbotConversation): ChatbotConversation {
   if (conversation.messages.length === 0) return conversation
 
-  const recovered = recoverChoicePanelContextFromHistory(conversation.messages)
+  const recovered = recoverChoicePanelContextFromHistory(conversation.messages, conversation.context.conversationState?.choiceAnswers)
   const recoveredBooking = recoverBookingContextFromHistory(conversation.messages)
   const conversationState = recoverMaterialHandoffFromHistory(conversation.messages, mergeRecoveredBookingContext(
     mergeRecoveredConversationState(conversation.context.conversationState ?? {}, recovered.conversationState),
@@ -1548,6 +1618,12 @@ function reconcileConversationContextFromHistory(conversation: ChatbotConversati
   const jobContext = {
     ...(conversation.context.jobContext ?? {}),
     ...recovered.jobContext,
+  }
+  const deadline = conversation.messages.filter((message) => message.role === "user").map((message) => deadlineFromMessage(message.content)).filter(Boolean).at(-1)
+  if (deadline) {
+    jobContext.publicReleaseDate = deadline
+    conversationState.hasDesiredSchedule = true
+    conversationState.bookingPrefill = { ...conversationState.bookingPrefill, dueDate: deadline }
   }
   const activeChoices = selectRecoveredActiveChoices({
     recovered: recovered.activeChoices,
@@ -1574,7 +1650,7 @@ function reconcileConversationContextFromHistory(conversation: ChatbotConversati
   }
 }
 
-function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[]): {
+function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[], answers?: ConversationState["choiceAnswers"]): {
   activeChoices?: SurveyChoiceSet
   conversationState: Partial<ConversationState>
   jobContext: Partial<JobContext>
@@ -1592,6 +1668,7 @@ function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[]): {
       continue
     }
 
+    if (message.role === "user" && answers?.[message.id]) activeChoices = answers[message.id].choiceSet
     if (message.role !== "user" || !activeChoices) continue
 
     const patch = applyActiveChoiceAnswer({
@@ -1997,6 +2074,7 @@ function resetEditedConversationContext(
     ...conversation,
     status: "open",
     context: {
+      conversationState: { choiceAnswers: Object.fromEntries(Object.entries(conversation.context.conversationState?.choiceAnswers ?? {}).filter(([id]) => messages.some((message) => message.id === id))) },
       sessionId: conversation.context.sessionId,
       ...(conversation.context.userId ? { userId: conversation.context.userId } : {}),
       ...(conversation.context.customerEmail ? { customerEmail: conversation.context.customerEmail } : {}),
@@ -3325,7 +3403,7 @@ async function buildBookingInlineRoutingDecision(input: {
     const calendar = normalizeCandidateCalendarResult(await input.candidateWindowFinder({
       jobContext,
       workflowEstimate,
-      desiredDeadline: input.bookingPrefill.dueDate,
+      desiredDeadline: deadlineForScheduling(input.bookingPrefill.dueDate),
       notBefore: input.jobContext.preferredStartDate,
       candidateLimit: 31,
       busyMode: "block",
@@ -3668,7 +3746,7 @@ function normalizeBookingCardPrefill(
     normalizeBookingIdentityField(stateBookingPrefill.companyName, 100) ??
     normalizeBookingIdentityField(trustedToolPrefill.companyName, 100) ??
     fallbackStateCompanyName
-  const dueDate = statePrefill.dueDate ?? stateBookingPrefill.dueDate ?? trustedToolPrefill.dueDate
+  const dueDate = statePrefill.dueDate ?? stateBookingPrefill.dueDate ?? trustedToolPrefill.dueDate ?? jobContext.publicReleaseDate
 
   if (
     trustedToolPrefill.projectTitle &&

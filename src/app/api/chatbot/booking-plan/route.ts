@@ -1,3 +1,4 @@
+import { isCalendarDate, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic"
 const requestSchema = z.object({
   jobContext: jobContextSchema,
   workflowEstimate: workflowEstimateSchema,
+  dueDate: z.string().refine((value) => isValidDeadlineInput(value)).optional(),
   attendanceDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(10),
 })
 
@@ -26,6 +28,11 @@ export async function POST(request: NextRequest) {
   const parsed = requestSchema.safeParse(raw)
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_request", issues: parsed.error.issues }, { status: 400 })
+  }
+
+  const deadline = parsed.data.dueDate ?? parsed.data.jobContext.publicReleaseDate
+  if (deadline && isCalendarDate(deadline) && parsed.data.attendanceDates.some((date) => date > deadline)) {
+    return NextResponse.json({ error: "attendance_after_deadline" }, { status: 400 })
   }
 
   try {

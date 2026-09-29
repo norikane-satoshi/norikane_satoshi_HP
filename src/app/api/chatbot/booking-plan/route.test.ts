@@ -75,3 +75,15 @@ describe("POST /api/chatbot/booking-plan", () => {
     expect(planChatbotWorkSchedule).not.toHaveBeenCalled()
   })
 })
+
+it("passes a selected deadline and rejects past dates before planning", async () => {
+  vi.useFakeTimers().setSystemTime(new Date("2026-09-29T00:00:00Z"))
+  try {
+    const { POST, planChatbotWorkSchedule } = await loadPost()
+    expect((await POST(request(validRequest({ dueDate: "2026-10-15" })))).status).toBe(200)
+    expect(planChatbotWorkSchedule).toHaveBeenCalledWith(expect.objectContaining({ dueDate: "2026-10-15" }))
+    planChatbotWorkSchedule.mockClear()
+    expect((await POST(request(validRequest({ dueDate: "2026-09-28" })))).status).toBe(400)
+    expect(planChatbotWorkSchedule).not.toHaveBeenCalled()
+  } finally { vi.useRealTimers() }
+})

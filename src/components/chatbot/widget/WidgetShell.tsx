@@ -1,5 +1,8 @@
 "use client"
 
+import { matchChoiceAnswer } from "@/lib/chatbot/domain/choice-answer"
+import type { ChoiceAnswer } from "@/lib/chatbot/domain/conversation"
+
 import {
   Fragment,
   type CSSProperties,
@@ -39,6 +42,7 @@ import {
   shouldAutoOpenChatbotDebug,
   type ChatbotDebugRequest,
 } from "./ChatbotDebugPanel"
+import { DeadlinePanel } from "./DeadlineInput"
 import { ChoicePanel } from "./ChoicePanel"
 import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
@@ -66,6 +70,7 @@ type WidgetShellProps = {
 }
 
 type WidgetMessage = {
+  choiceAnswer?: ChoiceAnswer
   id?: string
   role: ChatbotMessageRole
   content: string
@@ -146,6 +151,7 @@ type StoredWidgetSession = {
 }
 
 type StoredPendingRequest = {
+  choiceAnswer?: ChoiceAnswer
   kind: "message" | "edit"
   message: string
   clientUserMessageId: string
@@ -331,6 +337,7 @@ function serializeWidgetMessages(messages: WidgetMessage[]): StoredWidgetSession
     role: message.role,
     content: message.content,
     createdAt: message.createdAt.toISOString(),
+    ...(message.choiceAnswer ? { choiceAnswer: message.choiceAnswer } : {}),
     ...(message.embeddedUi ? { embeddedUi: message.embeddedUi } : {}),
   }))
 }
@@ -371,6 +378,7 @@ function loadStoredWidgetSession(): {
             role: message.role,
             content: message.content,
             createdAt: new Date(message.createdAt),
+            ...(message.choiceAnswer ? { choiceAnswer: message.choiceAnswer } : {}),
             ...(message.embeddedUi ? { embeddedUi: message.embeddedUi } : {}),
           }))
       : []
@@ -810,6 +818,7 @@ export function WidgetShell({
           (message) => message.role === "user" && targetIds.includes(message.id ?? ""),
         )
         const userMessage: WidgetMessage = {
+          choiceAnswer: pending.choiceAnswer,
           id: submittedUserMessage.id,
           role: submittedUserMessage.role,
           content: submittedUserMessage.content,
@@ -956,7 +965,7 @@ export function WidgetShell({
     setSubmitting(false)
   }
 
-  const handleSubmit = async (text: string) => {
+  const handleSubmit = async (text: string, choiceAnswer?: ChoiceAnswer) => {
     if (submitting || activeRequestControllerRef.current || recoverableRequest) return
     const debugStartedAt = Date.now()
     const controller = new AbortController()
@@ -965,6 +974,7 @@ export function WidgetShell({
     const clientUserMessageId = createClientUserMessageId()
     const nextPendingRequest: StoredPendingRequest = {
       kind: "message",
+      choiceAnswer,
       message: text,
       clientUserMessageId,
       submittedAt: createdAt.toISOString(),
@@ -976,7 +986,7 @@ export function WidgetShell({
     setMessages((currentMessages) => {
       const nextMessages = [
         ...currentMessages,
-        { id: clientUserMessageId, role: "user" as const, content: text, createdAt },
+        { id: clientUserMessageId, role: "user" as const, content: text, createdAt, choiceAnswer },
       ]
       persistWidgetSession({
         messages: serializeWidgetMessages(nextMessages),
@@ -1004,6 +1014,7 @@ export function WidgetShell({
           currentMessages.map((message) =>
             message.id === clientUserMessageId
               ? {
+                  choiceAnswer,
                   id: submittedUserMessage.id,
                   role: submittedUserMessage.role,
                   content: submittedUserMessage.content,
@@ -1093,7 +1104,25 @@ export function WidgetShell({
     }
   }
 
-  const handleEditMessage = async (messageId: string, newText: string) => {
+  const resolveLegacyChoiceAnswer = async (index: number): Promise<ChoiceAnswer | undefined> => {
+    const message = messages[index]
+    const previous = messages[index - 1]
+    const panel = previous?.role === "assistant" && previous.embeddedUi?.kind === "choice-panel"
+      ? previous.embeddedUi.choiceSet
+      : !messages.slice(0, index).some((item) => item.role === "user") ? openingUi.choiceSet : undefined
+    const localAnswer = panel ? matchChoiceAnswer(panel, message.content) : undefined
+    if (localAnswer) return localAnswer
+    if (!conversationId || !message.id) return undefined
+    const response = await fetch("/api/chatbot/edit-choice", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId, messageId: message.id }),
+    })
+    if (!response.ok) return undefined
+    const payload = await response.json() as { choiceAnswer?: ChoiceAnswer | null }
+    return payload.choiceAnswer ? matchChoiceAnswer(payload.choiceAnswer.choiceSet, message.content) : undefined
+  }
+
+  const handleEditMessage = async (messageId: string, newText: string, choiceAnswer?: ChoiceAnswer) => {
     const targetIndex = messages.findIndex((message) => message.id === messageId && message.role === "user")
     const trimmedText = newText.trim()
     if (targetIndex === -1 || !trimmedText || submitting || activeRequestControllerRef.current || recoverableRequest) return
@@ -1104,6 +1133,7 @@ export function WidgetShell({
     const clientUserMessageId = createClientUserMessageId()
     const nextPendingRequest: StoredPendingRequest = {
       kind: "edit",
+      choiceAnswer,
       message: trimmedText,
       clientUserMessageId,
       editTargetMessageId: messageId,
@@ -1121,7 +1151,7 @@ export function WidgetShell({
       const truncateIndex = currentTargetIndex === -1 ? Math.min(targetIndex, currentMessages.length) : currentTargetIndex
       const nextMessages = [
         ...currentMessages.slice(0, truncateIndex),
-        { id: messageId, role: "user" as const, content: trimmedText, createdAt: optimisticCreatedAt },
+        { id: messageId, role: "user" as const, content: trimmedText, createdAt: optimisticCreatedAt, choiceAnswer },
       ]
       persistWidgetSession({
         messages: serializeWidgetMessages(nextMessages),
@@ -1159,6 +1189,7 @@ export function WidgetShell({
         const nextMessages = [
           ...currentMessages.slice(0, truncateIndex),
           {
+            choiceAnswer,
             id: userMessage.id,
             role: userMessage.role,
             content: userMessage.content,
@@ -1662,6 +1693,8 @@ export function WidgetShell({
                           : undefined
                     }
                     editingDisabled={submitting || Boolean(recoverableRequest)}
+                    choiceAnswer={message.choiceAnswer}
+                    resolveChoiceAnswer={() => resolveLegacyChoiceAnswer(index)}
                     onEdit={handleEditMessage}
                   />
                 ) : null}
@@ -1700,6 +1733,7 @@ export function WidgetShell({
               </div>
             </div>
           ) : null}
+          {!submitting && !recoverableRequest && activeUi.kind === "none" && /(?:納期|納品.*期限|仕上がり).*(?:[？?]|教えて|選んで)/u.test(messages.filter((message) => message.role === "assistant").at(-1)?.content ?? "") ? <DeadlinePanel onSubmit={handleSubmit} /> : null}
           <ActiveWidgetUi
             ui={activeUi}
             conversationId={conversationId}
@@ -1816,7 +1850,7 @@ function ActiveWidgetUi({
   ui: WidgetUi
   conversationId?: string
   auditContext?: ChatbotRenderAuditContext
-  onSubmit: (text: string) => void
+  onSubmit: (text: string, choiceAnswer?: ChoiceAnswer) => void
   onInquirySubmit: (input: Omit<SubmitInquiryInput, "conversationId">) => void
   onBookingCompleted: (booking: BookingCompletionSummary) => void
 }) {
@@ -1863,7 +1897,7 @@ function ActiveWidgetUi({
       <ChoicePanel
         choiceSet={ui.choiceSet}
         allowMultiple={ui.choiceSet.selectionMode === "multiple"}
-        onSelect={(selection) => onSubmit(formatChoicePanelSubmission(selection))}
+        onSelect={(selection) => onSubmit(formatChoicePanelSubmission(selection), { choiceSet: ui.choiceSet, ...selection })}
       />
     )
   }

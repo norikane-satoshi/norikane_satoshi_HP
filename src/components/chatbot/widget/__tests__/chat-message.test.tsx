@@ -835,3 +835,44 @@ describe("ChatMessage", () => {
     expect(screen.queryByRole("button", { name: "メッセージを編集" })).not.toBeInTheDocument()
   })
 })
+
+it("restores multiple selections and edits using the original panel", () => {
+  const onEdit = vi.fn()
+  const choiceAnswer = {
+    choiceSet: { id: "final-medium", question: "媒体", selectionMode: "multiple" as const,
+      choices: [{ id: "web", label: "Web" }, { id: "cinema", label: "劇場" }] },
+    selectedIds: ["web"], selectedLabels: ["Web"],
+  }
+  render(<ChatMessage id="selected" role="user" content="選択: Web" choiceAnswer={choiceAnswer} onEdit={onEdit} />)
+  fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
+  expect(screen.queryByRole("textbox", { name: "編集内容" })).not.toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Web" })).toHaveAttribute("aria-pressed", "true")
+  fireEvent.click(screen.getByRole("button", { name: "劇場" }))
+  fireEvent.click(screen.getByRole("button", { name: "選択を送信" }))
+  fireEvent.click(screen.getByRole("button", { name: "保存" }))
+  fireEvent.click(screen.getByRole("button", { name: "OK" }))
+  expect(onEdit).toHaveBeenCalledWith("selected", "選択: Web、劇場", expect.objectContaining({ selectedIds: ["web", "cinema"] }))
+  cleanup()
+})
+
+it("restores a legacy panel asynchronously and submits its selected value", async () => {
+  const onEdit = vi.fn()
+  const answer = { choiceSet: { id: "legacy", question: "媒体", selectionMode: "single" as const, choices: [{ id: "web", label: "Web" }, { id: "cinema", label: "劇場" }] }, selectedIds: ["web"], selectedLabels: ["Web"] }
+  render(<ChatMessage id="old" role="user" content="Web" onEdit={onEdit} resolveChoiceAnswer={async () => answer} />)
+  fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
+  expect(screen.getByRole("status")).toHaveTextContent("選択肢を確認しています")
+  expect(await screen.findByRole("button", { name: "Web" })).toHaveAttribute("aria-pressed", "true")
+  expect(screen.queryByLabelText("編集内容")).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "劇場" }))
+  fireEvent.click(screen.getByRole("button", { name: "保存" }))
+  fireEvent.click(screen.getByRole("button", { name: "OK" }))
+  expect(onEdit).toHaveBeenCalledWith("old", "選択: 劇場", expect.objectContaining({ selectedIds: ["cinema"] }))
+  cleanup()
+})
+
+it.each(["unmatched", "unavailable"])("keeps legacy %s messages in the text editor", async reason => {
+  render(<ChatMessage id="old" role="user" content="自由記述です" onEdit={vi.fn()} resolveChoiceAnswer={async () => { if (reason === "unavailable") throw new Error("offline"); return undefined }} />)
+  fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
+  expect(await screen.findByLabelText("編集内容")).toHaveValue("自由記述です")
+  cleanup()
+})
