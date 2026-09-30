@@ -1,3 +1,4 @@
+import { parseChatbotAuditSchema } from "@/lib/chatbot/audit/schema-validation"
 import { chatbotStoredAuditEventSchema, type ChatbotStoredAuditEvent } from "@/lib/chatbot/audit/contract"
 
 type ChatbotAuditEventCreateData = {
@@ -38,7 +39,7 @@ export async function recordChatbotAuditEvent(
   rawEvent: ChatbotStoredAuditEvent,
   options: { client?: ChatbotAuditStoreClient } = {},
 ): Promise<{ status: "created" | "duplicate" }> {
-  const event = chatbotStoredAuditEventSchema.parse(rawEvent)
+  const event = parseChatbotAuditSchema("chatbotStoredAuditEventSchema", chatbotStoredAuditEventSchema, rawEvent)
   const client = options.client ?? await loadDefaultAuditStoreClient()
 
   try {

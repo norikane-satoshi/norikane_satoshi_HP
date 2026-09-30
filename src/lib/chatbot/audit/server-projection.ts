@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 
+import { parseChatbotAuditSchema } from "@/lib/chatbot/audit/schema-validation"
 import {
   chatbotStoredAuditEventSchema,
   type ChatbotBrowserAuditEvent,
@@ -22,7 +23,7 @@ export function toStoredChatbotAuditEvent(
   metadata: { buildSha: string; createdAt: string },
 ): ChatbotStoredAuditEvent {
   const { conversationId, ...safeEvent } = event
-  return chatbotStoredAuditEventSchema.parse({
+  return parseChatbotAuditSchema("chatbotStoredAuditEventSchema", chatbotStoredAuditEventSchema, {
     ...safeEvent,
     source: "browser",
     sequence: chatbotAuditEventSequence(event),
@@ -41,7 +42,7 @@ export function toStoredChatbotServerAuditEvent(
   },
 ): ChatbotStoredAuditEvent {
   const { conversationId, ...safeEvent } = event
-  return chatbotStoredAuditEventSchema.parse({
+  return parseChatbotAuditSchema("chatbotStoredAuditEventSchema", chatbotStoredAuditEventSchema, {
     ...safeEvent,
     source: metadata.source,
     sequence: chatbotAuditEventSequence(event),

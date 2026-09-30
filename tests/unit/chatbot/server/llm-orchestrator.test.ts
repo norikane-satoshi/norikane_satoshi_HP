@@ -1,3 +1,4 @@
+import { z } from "zod"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
@@ -105,6 +106,21 @@ function fakeClient(
 }
 
 describe("createChatbotLlmTierOrchestrator", () => {
+  it("falls through model validation errors to Tier 3 without escaping as a server error", async () => {
+    const result = z.object({ customer_reply: z.string() }).safeParse({ customer_reply: null })
+    if (result.success) throw new Error("expected rejection")
+    const attempts: TierAttemptEvent[] = []
+    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { generateError: result.error })
+    const tier2 = fakeClient("tier-2-gemini-flash", { generateError: result.error })
+    const tier3 = fakeClient("tier-3-form-fallback")
+    const orchestrator = createChatbotLlmTierOrchestrator({
+      clients: [tier1, tier2, tier3], onTierAttempt: (attempt) => attempts.push(attempt),
+    })
+    await expect(orchestrator.generate(llmRequest())).resolves.toMatchObject({ tier: "tier-3-form-fallback" })
+    expect(attempts.filter((attempt) => attempt.phase === "generate").map((attempt) => attempt.outcome))
+      .toEqual(["error", "error", "success"])
+  })
+
   it("returns the new tier 1 hosted response when it succeeds", async () => {
     const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai")
     const tier2 = fakeClient("tier-2-gemini-flash")

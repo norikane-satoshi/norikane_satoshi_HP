@@ -160,7 +160,9 @@ export const chatbotAuditStageTimingsSchema = z
     routePreHandler: durationSchema.optional(),
     routePostHandler: durationSchema.optional(),
     routeTotal: durationSchema.optional(),
-    instanceWarmup: durationSchema.optional(),
+    // Process uptime at the first request is not a request duration. A reused
+    // process may have been running for hours before this route is called.
+    instanceWarmup: z.number().int().nonnegative().optional(),
   })
   .strict()
 

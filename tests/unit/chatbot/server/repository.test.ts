@@ -35,6 +35,10 @@ function conversationRow(overrides = {}) {
     currentQuestion: null,
     activeChoices: null,
     conversationState: null,
+    activeMessageRequestKey: null,
+    activeMessageRequestOwner: null,
+    messageRequestLeaseExpiresAt: null,
+    messageRequestVersion: 0,
     messages: [
       {
         id: "msg_1",

@@ -1,3 +1,4 @@
+import { describeChatbotSchemaFailure } from "@/lib/chatbot/audit/schema-validation"
 import { after } from "next/server"
 
 import type { ChatbotStoredAuditEvent } from "@/lib/chatbot/audit/contract"
@@ -18,6 +19,7 @@ export function scheduleDeferredChatbotAuditPersistence(
       console.error("[chatbot audit persistence failed]", {
         stage: "build",
         errorName: error instanceof Error ? error.name : typeof error,
+        ...(describeChatbotSchemaFailure(error) ? { errorReason: describeChatbotSchemaFailure(error) } : {}),
       })
     }
   })
@@ -31,6 +33,11 @@ async function persistChatbotAuditEvents(events: ChatbotStoredAuditEvent[]): Pro
   if (failedEventIds.length > 0) {
     console.error("[chatbot audit persistence failed]", {
       failedEventIds,
+      validationFailures: results.flatMap((result) => {
+        if (result.status !== "rejected") return []
+        const reason = describeChatbotSchemaFailure(result.reason)
+        return reason ? [reason] : []
+      }),
       eventCount: events.length,
       schemaVersion: events[0]?.schemaVersion ?? "unknown",
     })

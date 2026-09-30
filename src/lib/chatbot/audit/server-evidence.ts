@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 
+import { parseChatbotAuditSchema, describeChatbotSchemaFailure } from "@/lib/chatbot/audit/schema-validation"
 import {
   chatbotAuditStageTimingsSchema,
   chatbotAuditUiKindSchema,
@@ -114,8 +115,8 @@ export function buildChatbotMessageAuditEvents(input: {
   slack: ChatbotMessageAuditEvidence["slack"]
   messageIntegrity: ChatbotMessageAuditEvidence["messageIntegrity"]
 }): ChatbotStoredAuditEvent[] {
-  const uiKind = chatbotAuditUiKindSchema.parse(input.uiKind)
-  const stageTimings = chatbotAuditStageTimingsSchema.parse(input.stageTimings)
+  const uiKind = parseChatbotAuditSchema("chatbotAuditUiKindSchema", chatbotAuditUiKindSchema, input.uiKind)
+  const stageTimings = parseChatbotAuditSchema("chatbotAuditStageTimingsSchema", chatbotAuditStageTimingsSchema, input.stageTimings)
   const fallbackUsed =
     input.finalTier !== "tier-1-hosted-chrome-notion-ai" && input.finalTier !== "tier-0-deterministic-intake"
   const generateAttempts = input.tierAttempts.filter((attempt) => attempt.phase === "generate")
@@ -204,7 +205,7 @@ export function buildChatbotMessageAuditEvents(input: {
   )
 
   return drafts.map((draft, index) => {
-    const event = chatbotServerAuditEventSchema.parse({
+    const event = parseChatbotAuditSchema("chatbotServerAuditEventSchema", chatbotServerAuditEventSchema, {
       schemaVersion: "1",
       eventId: deterministicAuditEventId(input.requestId, String(draft.eventName), index),
       correlationId: input.requestId,
@@ -269,7 +270,7 @@ export function buildChatbotBookingAuditEvents(input: {
   ]
 
   return drafts.map((draft, index) => {
-    const event = chatbotServerAuditEventSchema.parse({
+    const event = parseChatbotAuditSchema("chatbotServerAuditEventSchema", chatbotServerAuditEventSchema, {
       schemaVersion: "1",
       eventId: deterministicAuditEventId(input.requestId, `booking:${String(draft.eventName)}`, index),
       correlationId: input.requestId,
@@ -323,7 +324,7 @@ export function buildChatbotOperationFailureAuditEvent(input: {
   /** What failed, as code identifiers only (see describeFailureForAudit); never message text. */
   errorReason?: string
 }): ChatbotStoredAuditEvent {
-  const event = chatbotServerAuditEventSchema.parse({
+  const event = parseChatbotAuditSchema("chatbotServerAuditEventSchema", chatbotServerAuditEventSchema, {
     schemaVersion: "1",
     eventId: deterministicAuditEventId(input.requestId, "operation:operation_failed", 0),
     correlationId: input.requestId,
@@ -366,6 +367,8 @@ function safeErrorCode(error: TierAttemptEvent["error"]): string {
 }
 
 function safeErrorReason(error: TierAttemptEvent["error"]): string | undefined {
+  const schemaFailure = describeChatbotSchemaFailure(error)
+  if (schemaFailure) return schemaFailure
   const contractRejection = getChatbotLlmOutputContractRejection(error)
   if (contractRejection) return contractRejection.reason
   if (!(error instanceof ChatbotLlmError)) return undefined
@@ -379,6 +382,8 @@ function safeErrorReason(error: TierAttemptEvent["error"]): string | undefined {
  * else its type, plus the innermost named function on the stack. No message text, so no customer data.
  */
 export function describeFailureForAudit(error: unknown): string | undefined {
+  const schemaFailure = describeChatbotSchemaFailure(error)
+  if (schemaFailure) return schemaFailure
   if (!(error instanceof Error)) return undefined
   const code = /^[a-z0-9][a-z0-9_.:-]{0,79}$/i.test(error.message) ? error.message : error.name
   const frame = error.stack
