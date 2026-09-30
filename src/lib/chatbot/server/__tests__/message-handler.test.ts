@@ -4979,22 +4979,17 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).toContain("納期")
   })
 
-  it("advances to the booking card with a selected deadline after the deadline question", async () => {
+  it.each(["2026-10-15", "10月末ごろ"])("advances to the booking card for a deadline answer %s without the LLM", async (deadline) => {
     const harness = setup({
       existingConversation: conversation({
         messages: [message("assistant", "納期はいつごろをご希望ですか？ カレンダーで日付を選んでください。")],
       }),
     })
-    harness.generate.mockResolvedValueOnce({
-      rawText: customerReply("候補日を確認しました。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
-    })
-
     const result = await handleChatbotMessage(
       {
         sessionId: "session_1",
         userId: "user_a",
-        message: "納期: 2026-10-15",
+        message: `納期: ${deadline}`,
         jobContext: {
           jobKind: "cm-30s",
           finalMedium: "web",
@@ -5019,7 +5014,9 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.ui).toMatchObject({ kind: "booking-card", bookingPrefill: { dueDate: "2026-10-15" } })
+    expect(harness.generate).not.toHaveBeenCalled()
+    expect(result.tier).toBe("tier-0-deterministic-intake")
+    expect(result.ui).toMatchObject({ kind: "booking-card", bookingPrefill: { dueDate: deadline } })
   })
 
   it("consumes stored final medium choice and advances to the next slot", async () => {
