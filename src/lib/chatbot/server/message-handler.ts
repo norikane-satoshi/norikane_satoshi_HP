@@ -596,6 +596,12 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   stageTimings.contextPreparation = elapsedMs(contextPreparationStartedAt, now())
+  const bookingCardIsNext =
+    codeRoutingDecision.kind === "continue" &&
+    !codeRoutingDecision.presentChoices &&
+    conversationState.bookingFinalConfirmation?.status === "confirmed" &&
+    Boolean(jobContext.jobKind) &&
+    !submittedBooking
   const deterministicReply = decideDeterministicIntakeReply({
     fallbackRoutingDecision: codeRoutingDecision,
     activeChoiceAnswer,
@@ -603,17 +609,12 @@ export async function handleChatbotMessage(
     latestUserMessage: input.message,
     noteAccess,
     hasSubmittedBooking: Boolean(submittedBooking),
+    bookingCardIsNext,
   })
   const fallbackRoutingDecision = deterministicReply
     ? codeRoutingDecision
     : withoutFreeTextIntakePanel(codeRoutingDecision)
   // The questions are done and the booking card comes next; the code shows it, not the model.
-  const bookingCardIsNext =
-    fallbackRoutingDecision.kind === "continue" &&
-    !fallbackRoutingDecision.presentChoices &&
-    conversationState.bookingFinalConfirmation?.status === "confirmed" &&
-    Boolean(jobContext.jobKind) &&
-    !submittedBooking
   const llmResponse = deterministicReply
     ? createDeterministicIntakeResponse(deterministicReply, recordTierAttempt)
     : await generateContractedLlmResponse({
@@ -2222,9 +2223,21 @@ function decideDeterministicIntakeReply(input: {
   latestUserMessage: string
   noteAccess: CustomerFacingNoteAccess
   hasSubmittedBooking: boolean
+  bookingCardIsNext: boolean
 }): DeterministicIntakeReply | undefined {
   const fallback = input.fallbackRoutingDecision
   if (!input.previousAssistantMessage || input.hasSubmittedBooking) return undefined
+  const deadlineAnswer = deadlineFromMessage(input.latestUserMessage)
+  if (
+    input.bookingCardIsNext &&
+    fallback.kind === "continue" &&
+    /納期はいつごろ/u.test(input.previousAssistantMessage) &&
+    deadlineAnswer &&
+    input.noteAccess.kind === "none" &&
+    !looksLikeCustomerQuestion(deadlineAnswer)
+  ) {
+    return { nextQuestion: fallback.nextQuestion, reason: "intake-answer" }
+  }
   if (input.noteAccess.kind !== "none" || looksLikeCustomerQuestion(input.latestUserMessage)) return undefined
   if (fallback.kind === "to-email") {
     // The summary form copy replaces any model text, so a panel answer that lands here needs no model.
