@@ -231,17 +231,33 @@ export async function POST(request: NextRequest) {
       })
     }
     const auditCreatedAt = new Date().toISOString()
-    const buildAuditEvents = (slack: Awaited<NonNullable<typeof auditEvidence>["slack"]>) =>
-      buildChatbotMessageAuditEvents({
-        requestId: responseRequestId,
-        conversationId: result.conversationId,
-        buildSha: getChatbotBuildSha(),
-        createdAt: auditCreatedAt,
-        finalTier: result.tier,
-        uiKind: result.ui.kind,
-        ...auditEvidence!,
-        slack,
-      })
+    const buildAuditEvents = (slack: Awaited<NonNullable<typeof auditEvidence>["slack"]>) => {
+      try {
+        return buildChatbotMessageAuditEvents({
+          requestId: responseRequestId,
+          conversationId: result.conversationId,
+          buildSha: getChatbotBuildSha(),
+          createdAt: auditCreatedAt,
+          finalTier: result.tier,
+          uiKind: result.ui.kind,
+          ...auditEvidence!,
+          slack,
+        })
+      } catch (error) {
+        // The answer is already finalized. An audit contract failure must be
+        // recorded without turning a saved answer into a failed customer turn.
+        if (!(error instanceof z.ZodError)) throw error
+        return [buildChatbotOperationFailureAuditEvent({
+          requestId: responseRequestId,
+          conversationId: result.conversationId,
+          buildSha: getChatbotBuildSha(),
+          createdAt: auditCreatedAt,
+          errorCode: "message-audit-contract-failed",
+          errorReason: describeFailureForAudit(error),
+          durationMs: Date.now() - requestStartedAt,
+        })]
+      }
+    }
     const pendingSlack = auditEvidence?.slack instanceof Promise ? auditEvidence.slack : undefined
     // A threaded Slack post finishes after the response; its audit events are written once it has.
     const auditEvents = coordinated.replayed || pendingSlack

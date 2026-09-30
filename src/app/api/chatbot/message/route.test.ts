@@ -238,6 +238,7 @@ async function loadPost({
 afterEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  vi.restoreAllMocks()
 })
 
 describe("POST /api/chatbot/message", () => {
@@ -1035,6 +1036,53 @@ describe("POST /api/chatbot/message", () => {
     }))
     expect(timingsOf(0)).toHaveProperty("instanceWarmup", expect.any(Number))
     expect(timingsOf(1)).not.toHaveProperty("instanceWarmup")
+  })
+
+  it("accepts the first message when the process has already been running for more than three minutes", async () => {
+    const route = await loadPost()
+    vi.spyOn(performance, "now").mockReturnValue(600_000)
+
+    const response = await route.POST(request({ message: "相談したいです" }))
+
+    expect(response.status).toBe(200)
+    expect(route.scheduleChatbotAuditPersistence).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        eventName: "response_normalized",
+        stageTimings: expect.objectContaining({ instanceWarmup: 600_000 }),
+      }),
+    ]))
+  })
+
+  it.each([false, true])("records invalid audit evidence without failing a saved reply (deferred=%s)", async (deferred) => {
+    const route = await loadPost({
+      ...(deferred ? { existingConversation: conversation({
+        context: { sessionId: "session_1", slackThreadTs: "1700000000.000100" },
+      }) } : {}),
+    })
+    const original = route.coordinateChatbotMessageRequest.getMockImplementation()!
+    route.coordinateChatbotMessageRequest.mockImplementation(async (input) => {
+      const coordinated = await original(input)
+      const result = coordinated.result as { auditEvidence: { stageTimings: Record<string, unknown> } }
+      result.auditEvidence.stageTimings.contextPreparation = -1
+      return coordinated
+    })
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+    const response = await route.POST(request({ message: "相談したいです" }))
+
+    expect(response.status).toBe(200)
+    const events = deferred
+      ? await route.scheduleDeferredChatbotAuditPersistence.mock.calls[0][0]()
+      : route.scheduleChatbotAuditPersistence.mock.calls[0][0]
+    expect(events).toEqual([expect.objectContaining({
+      eventName: "operation_failed",
+      errorCode: "message-audit-contract-failed",
+      errorReason: "ZodError:chatbotAuditStageTimingsSchema:contextPreparation:too_small",
+    })])
+    expect(log).toHaveBeenCalledWith("[chatbot audit schema validation failed]", {
+      schema: "chatbotAuditStageTimingsSchema",
+      issues: [{ path: "contextPreparation", code: "too_small" }],
+    })
   })
 
   it("answers a warm-up GET without a body after running the first message's database queries", async () => {
