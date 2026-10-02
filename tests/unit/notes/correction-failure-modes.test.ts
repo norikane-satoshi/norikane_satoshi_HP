@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   FLIP_HUE_DEG,
   LED_SENSOR,
+  WB_GAINS,
   YELLOW_SENSOR,
   hueDeg,
   hueDistance,
@@ -20,6 +21,10 @@ import {
 } from "@/components/notes/visuals/correction-failure-modes"
 
 const hueOf = (v: Vec3) => hueDeg(v)
+const probeStateGrey = (): Vec3 => {
+  const raw: Vec3 = [0.3 / WB_GAINS[0], 0.3 / WB_GAINS[1], 0.3 / WB_GAINS[2]]
+  return [raw[0] * WB_GAINS[0], raw[1] * WB_GAINS[1], raw[2] * WB_GAINS[2]]
+}
 
 function firstStep(panel: "led" | "yellow" | "black", pred: (u: number) => boolean) {
   for (let step = 0; step <= 200; step++) {
@@ -33,6 +38,20 @@ describe("correction-failure-modes (1 つのチャンネルが先に端で止ま
   it("keeps grey grey through the colour conversion", () => {
     const w = sensorToWorking([0.2 / 2, 0.2, 0.2 / 1.5])
     for (const v of w) expect(v).toBeCloseTo(0.2, 6)
+  })
+
+  it("shows white-balanced values, so the ceiling differs per channel and full clipping is not white", () => {
+    const end = probeState("yellow", 1)
+    expect(end.limited).toEqual(["R", "G", "B"])
+    const recorded = end.values.map((v, i) => Math.min(v, WB_GAINS[i]))
+    expect(recorded).toEqual([...WB_GAINS])
+    // 上限の高さが違う（G が一番低い）ので、全部止まっても R:G:B は揃わない
+    expect(WB_GAINS[1]).toBeLessThan(WB_GAINS[0])
+    expect(WB_GAINS[1]).toBeLessThan(WB_GAINS[2])
+    // 無彩色ならホワイトバランス後の 3 本は同じ長さ
+    const grey = probeStateGrey()
+    expect(grey[0]).toBeCloseTo(grey[1], 6)
+    expect(grey[2]).toBeCloseTo(grey[1], 6)
   })
 
   it("LED: starts blue, B stops at the ceiling first, then only the centre flips to the magenta side", () => {

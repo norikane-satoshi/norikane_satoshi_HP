@@ -266,13 +266,20 @@ export function blackSensorAt(ix: number, iy: number, u: number): Vec3 {
 export type PanelId = "led" | "yellow" | "black"
 
 export type ProbeState = {
-  /** バーに出す値。センサーの値（上限や 0 で止まる前）。 */
+  /**
+   * バーに出す値。センサーの値（上限や 0 で止まる前）にホワイトバランスを掛けたもの。
+   * この単位では無彩色が 3 本同じ長さになり、上限は色ごとに WB_GAINS の位置になる。
+   */
   values: Vec3
   display: Vec3
   baseDisplay: Vec3
   /** 端で止まった / 0 を下回ったチャンネル */
   limited: Chan[]
   flipped: boolean
+}
+
+function withWb(raw: Vec3): Vec3 {
+  return [raw[0] * WB_GAINS[0], raw[1] * WB_GAINS[1], raw[2] * WB_GAINS[2]]
 }
 
 export function probeState(panel: PanelId, u: number): ProbeState {
@@ -285,7 +292,7 @@ export function probeState(panel: PanelId, u: number): ProbeState {
     const limited = CHANS.filter((_, i) => cur[i] < 0)
     // 黒は起点が無彩色に近いので、色相ではなく「0 で切られて鮮やかになったか」で見る
     const flipped = limited.length > 0 && saturation(display) >= BLACK_FLIP_SATURATION
-    return { values: cur, display, baseDisplay, limited, flipped }
+    return { values: withWb(cur), display, baseDisplay, limited, flipped }
   }
   const color = panel === "led" ? LED_SENSOR : YELLOW_SENSOR
   const strength = panel === "led" ? ledStrength : yellowStrength
@@ -296,7 +303,7 @@ export function probeState(panel: PanelId, u: number): ProbeState {
   const baseDisplay = toDisplay(sensorToWorking(raw0))
   const limited = CHANS.filter((_, i) => raw[i] >= SENSOR_CEILING)
   const flipped = hueDistance(hueDeg(display), hueDeg(baseDisplay)) >= FLIP_HUE_DEG
-  return { values: raw, display, baseDisplay, limited, flipped }
+  return { values: withWb(raw), display, baseDisplay, limited, flipped }
 }
 
 // ---- canvas 描画 ---------------------------------------------------------------
@@ -476,7 +483,7 @@ function mobileLayout(): Layout {
       barGap: 14,
       captionY: y0 + 156,
       badgeX: 456 + 254,
-      badgeY: y0 + 352,
+      badgeY: y0 + 396,
     }
   })
   return {
@@ -520,14 +527,14 @@ const PANEL_TEXT: Record<
   led: {
     label: "LED の点とグロー",
     op: "光が強くなる",
-    caption: "中心のセンサーの値",
+    caption: "中心の値（ホワイトバランス後）",
     flipLabel: "中心だけ飛ぶ",
     limitLabel: (c) => `${c.join("・")} が上限で止まる`,
   },
   yellow: {
     label: "黄色のグラデーション",
     op: "光が強くなる",
-    caption: "一番明るいところのセンサーの値",
+    caption: "一番明るいところの値（ホワイトバランス後）",
     flipLabel: "マゼンタに飛ぶ",
     limitLabel: (c) => `${c.join("・")} が上限で止まる`,
   },
@@ -535,7 +542,7 @@ const PANEL_TEXT: Record<
     label: "黒とグレイン",
     op: "光が弱くなる",
     opNote: "（暗部を持ち上げて表示）",
-    caption: "丸で囲んだ点のセンサーの値",
+    caption: "丸で囲んだ点の値（ホワイトバランス後）",
     flipLabel: "マゼンタの点が出る",
     limitLabel: (c) => `${c.join("・")} が 0 で切られる`,
   },
@@ -577,11 +584,11 @@ function probePoint(panel: PanelId): { px: number; py: number } {
 
 function Bars({ layout, p, panel, state }: { layout: Layout; p: PanelLayout; panel: PanelId; state: ProbeState }) {
   const signed = panel === "black"
-  // LED / 黄色: 0〜1.6（上限 1 の線）。黒: -0.006〜0.03（0 の線）。
-  const lo = signed ? -0.006 : 0
-  const hi = signed ? 0.03 : 1.6
+  // ホワイトバランス後の値。LED / 黄色: 0〜2.4（上限は色ごとに WB_GAINS）。黒: -0.012〜0.06（0 の線）。
+  const lo = signed ? -0.012 : 0
+  const hi = signed ? 0.06 : 2.4
   const xOf = (v: number) => p.barsX + ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * p.barW
-  const markX = signed ? xOf(0) : xOf(SENSOR_CEILING)
+  const zeroX = xOf(0)
   const top = p.barsY - 6
   const bottom = p.barsY + 3 * p.barH + 2 * p.barGap + 6
   return (
@@ -591,12 +598,13 @@ function Bars({ layout, p, panel, state }: { layout: Layout; p: PanelLayout; pan
       </text>
       {CHANS.map((ch, i) => {
         const v = state.values[i]
+        const ceil = SENSOR_CEILING * WB_GAINS[i]
         const y = p.barsY + i * (p.barH + p.barGap)
         const limited = state.limited.includes(ch)
-        const zeroX = xOf(0)
-        // 記録される値（上限と 0 で止まる）
-        const shown = Math.max(0, Math.min(v, SENSOR_CEILING))
+        // 記録される値（0 と上限で止まる）
+        const shown = Math.max(0, Math.min(v, ceil))
         const endX = xOf(shown)
+        const ceilX = xOf(ceil)
         return (
           <g key={ch}>
             <text
@@ -619,12 +627,12 @@ function Bars({ layout, p, panel, state }: { layout: Layout; p: PanelLayout; pan
               fill="rgba(255,255,255,0.7)"
               stroke="rgba(28,15,110,0.16)"
             />
-            {!signed && v > SENSOR_CEILING ? (
+            {!signed && v > ceil ? (
               // 上限を超えて入ってきた光（記録されない分）
               <rect
-                x={markX}
+                x={ceilX}
                 y={y + p.barH * 0.3}
-                width={xOf(v) - markX}
+                width={xOf(v) - ceilX}
                 height={p.barH * 0.4}
                 fill={CHAN_COLORS[ch]}
                 fillOpacity={0.18}
@@ -649,19 +657,42 @@ function Bars({ layout, p, panel, state }: { layout: Layout; p: PanelLayout; pan
               fill={CHAN_COLORS[ch]}
               fillOpacity={limited ? 0.95 : 0.7}
             />
+            {!signed ? (
+              // この色の上限（ホワイトバランスで R と B は G より高い位置になる）
+              <line
+                x1={ceilX}
+                y1={y - 3}
+                x2={ceilX}
+                y2={y + p.barH + 3}
+                stroke={ALERT}
+                strokeOpacity={0.85}
+                strokeWidth={2}
+              />
+            ) : null}
           </g>
         )
       })}
-      <line x1={markX} y1={top} x2={markX} y2={bottom} stroke={ALERT} strokeOpacity={0.8} strokeWidth={2} />
-      <text
-        x={markX}
-        y={bottom + layout.captionFont * 1.2}
-        textAnchor="middle"
-        fontSize={layout.captionFont}
-        fill={ALERT}
-      >
-        {signed ? "0" : "上限"}
-      </text>
+      {signed ? (
+        <>
+          <line x1={zeroX} y1={top} x2={zeroX} y2={bottom} stroke={ALERT} strokeOpacity={0.8} strokeWidth={2} />
+          <text
+            x={zeroX}
+            y={bottom + layout.captionFont * 1.2}
+            textAnchor="middle"
+            fontSize={layout.captionFont}
+            fill={ALERT}
+          >
+            0
+          </text>
+        </>
+      ) : (
+        <text x={p.barsX - 22} y={bottom + layout.captionFont * 1.3} fontSize={layout.captionFont} fill={ALERT}>
+          <tspan x={p.barsX - 22}>赤い線は各色の上限。高さが色ごとに違うので、</tspan>
+          <tspan x={p.barsX - 22} dy={layout.captionFont * 1.3}>
+            3 色とも止まっても白にならない
+          </tspan>
+        </text>
+      )}
     </g>
   )
 }
