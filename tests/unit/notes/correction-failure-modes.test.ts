@@ -1,65 +1,98 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  FAILURE_MODES_CHIPS,
-  FAILURE_MODES_OFFSET_MAX,
-  chipCurrent,
-  crossedChannels,
-  isFlipped,
-  ratioColor,
+  FLIP_HUE_DEG,
+  LED_SENSOR,
+  YELLOW_SENSOR,
+  hueDeg,
+  hueDistance,
+  ledProfile,
+  ledStrength,
+  lightSensor,
+  probeState,
+  sensorToWorking,
+  toDisplay,
+  yellowProfile,
+  yellowStrength,
+  type Vec3,
 } from "@/components/notes/visuals/correction-failure-modes"
 
-const byLabel = (label: string) => {
-  const chip = FAILURE_MODES_CHIPS.find((c) => c.label === label)
-  if (!chip) throw new Error(`missing chip ${label}`)
-  return chip
+const hueOf = (v: Vec3) => hueDeg(v)
+
+function firstStep(panel: "led" | "yellow" | "black", pred: (u: number) => boolean) {
+  for (let step = 0; step <= 200; step++) {
+    const u = step / 200
+    if (pred(u)) return u
+  }
+  return -1
 }
 
-describe("correction-failure-modes (本文: 3ch 同量の加算 → 小さい ch が先に 0 をまたぐ → 比率が崩れて色が飛ぶ)", () => {
-  it("adds the same amount to all three channels", () => {
-    for (const chip of FAILURE_MODES_CHIPS) {
-      const cur = chipCurrent(chip, 1)
-      const deltas = cur.map((v, i) => v - chip.base[i])
-      for (const d of deltas) {
-        expect(d).toBeCloseTo(-FAILURE_MODES_OFFSET_MAX, 10)
-      }
-    }
+describe("correction-failure-modes (1 つのチャンネルが先に端で止まる → 比率が崩れて色が飛ぶ)", () => {
+  it("keeps grey grey through the colour conversion", () => {
+    const w = sensorToWorking([0.2 / 2, 0.2, 0.2 / 1.5])
+    for (const v of w) expect(v).toBeCloseTo(0.2, 6)
   })
 
-  it("starts from a base whose ratio color matches the sample", () => {
-    expect(ratioColor(byLabel("高彩度の赤").base)[0]).toBe(1)
-    expect(ratioColor(byLabel("高彩度の緑").base)[1]).toBe(1)
-    expect(ratioColor(byLabel("青い LED（色域外）").base)[2]).toBe(1)
+  it("LED: starts blue, B stops at the ceiling first, then only the centre flips to the magenta side", () => {
+    const start = probeState("led", 0)
+    expect(start.limited).toEqual([])
+    expect(hueOf(start.display)).toBeGreaterThan(200)
+    expect(hueOf(start.display)).toBeLessThan(250)
+
+    const firstLimit = firstStep("led", (u) => probeState("led", u).limited.length > 0)
+    expect(probeState("led", firstLimit).limited).toEqual(["B"])
+    const firstFlip = firstStep("led", (u) => probeState("led", u).flipped)
+    expect(firstFlip).toBeGreaterThan(firstLimit)
+
+    const end = probeState("led", 1)
+    expect(end.flipped).toBe(true)
+    const endHue = hueOf(end.display) ?? 0
+    expect(endHue).toBeGreaterThan(280)
+
+    // 周りのグローは青のまま
+    const glow = toDisplay(sensorToWorking(lightSensor(LED_SENSOR, ledStrength(1), ledProfile(0.5, 0))))
+    expect(hueOf(glow)).toBeGreaterThan(200)
+    expect(hueOf(glow)).toBeLessThan(250)
   })
 
-  it("lets the small channel cross 0 before the colour flips", () => {
-    for (const label of ["高彩度の赤", "高彩度の緑", "青い LED（色域外）"]) {
-      const chip = byLabel(label)
-      let firstCross = -1
-      let firstFlip = -1
-      for (let step = 0; step <= 100; step++) {
-        const u = step / 100
-        const cur = chipCurrent(chip, u)
-        if (firstCross < 0 && crossedChannels(chip.base, cur).length > 0) firstCross = u
-        if (firstFlip < 0 && isFlipped(chip.base, cur)) firstFlip = u
-      }
-      expect(firstCross).toBeGreaterThanOrEqual(0)
-      expect(firstFlip).toBeGreaterThan(firstCross)
-    }
+  it("yellow: G stops at the ceiling before R, and the brightest part turns vivid magenta", () => {
+    const start = probeState("yellow", 0)
+    expect(start.limited).toEqual([])
+    const startHue = hueOf(start.display) ?? 0
+    expect(startHue).toBeGreaterThan(45)
+    expect(startHue).toBeLessThan(65)
+
+    const firstLimit = firstStep("yellow", (u) => probeState("yellow", u).limited.length > 0)
+    expect(probeState("yellow", firstLimit).limited).toEqual(["G"])
+
+    const end = probeState("yellow", 1)
+    expect(end.flipped).toBe(true)
+    const [r, g, b] = end.display
+    expect(r).toBeGreaterThan(g)
+    expect(b).toBeGreaterThan(g)
+    expect(hueDistance(hueOf(end.display), 330)).toBeLessThan(25)
+
+    // 外側は黄色のまま
+    const edge = toDisplay(
+      sensorToWorking(lightSensor(YELLOW_SENSOR, yellowStrength(1), yellowProfile(0.95, 0.1)))
+    )
+    expect(hueDistance(hueOf(edge), startHue)).toBeLessThan(FLIP_HUE_DEG)
   })
 
-  it("flips the high-saturation colours to another hue at full offset", () => {
-    const red = chipCurrent(byLabel("高彩度の赤"), 1)
-    expect(isFlipped(byLabel("高彩度の赤").base, red)).toBe(true)
-    expect(ratioColor(red)[0]).toBe(0)
-  })
+  it("black: the offset makes G cross 0 first and the remaining R and B show as a pink dot", () => {
+    const start = probeState("black", 0)
+    for (const v of start.values) expect(v).toBeGreaterThan(0)
 
-  it("keeps the low-saturation skin comparison from flipping", () => {
-    const skin = byLabel("肌（比較）")
-    for (let step = 0; step <= 100; step++) {
-      const cur = chipCurrent(skin, step / 100)
-      expect(isFlipped(skin.base, cur)).toBe(false)
-      expect(crossedChannels(skin.base, cur)).toEqual([])
-    }
+    const firstCross = firstStep("black", (u) => probeState("black", u).limited.length > 0)
+    expect(probeState("black", firstCross).limited).toEqual(["G"])
+
+    const end = probeState("black", 1)
+    expect(end.values[1]).toBeLessThan(0)
+    expect(end.values[0]).toBeGreaterThan(0)
+    expect(end.values[2]).toBeGreaterThan(0)
+    expect(end.flipped).toBe(true)
+    expect(end.display[1]).toBe(0)
+    expect(end.display[0]).toBeGreaterThan(0.2)
+    expect(hueDistance(hueOf(end.display), 320)).toBeLessThan(30)
   })
 })

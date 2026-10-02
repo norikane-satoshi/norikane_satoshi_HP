@@ -3,46 +3,38 @@
 import { useEffect, useRef, useState } from "react"
 
 /**
- * v5 動画モジュール: 破綻の代表型 — 色のひっくり返り
+ * v6 動画モジュール: 破綻の代表型 — 色のひっくり返り（実際の絵で起きる 3 例）
  *
- * viewBox 1600×900 (16:9)、モバイル 1000×900。LOOP = 8s。
+ * viewBox 1600×900 (16:9)、モバイル 1000×1490。LOOP = 8s。
  *
- * 本文（カラーコレクションの因数分解「破綻を管理する」）の説明に合わせる:
- *   彩度の高い色は、RGB のうち 1 つか 2 つの値が 0 に近いところにある。
- *   LED の照明のように作業色域の外にある色では、すでに 0 を下回っている。
- *   ここにオフセットなどの加算を重ねると、3 チャンネルが同じ量だけ動くので、
- *   小さいチャンネルが先に 0 をまたぐ。色相は RGB の比率で決まるため、
- *   比率が崩れて別の色に飛ぶ。
+ * 本文（カラーコレクションの因数分解「破綻を管理する」）の
+ * 「1 つのチャンネルが先に端をまたぐと、比率が崩れて別の色に飛ぶ」を、
+ * 現場でよく見る 3 つの絵で見せる。
  *
- * 表現:
- *   - 3 チャンネルすべてに同じ量のオフセット（0 → −OFFSET_MAX → 0、OFFSET_MAX = 0.45）を加える。
- *   - RGB バーは 0 の位置に基準線を持ち、マイナス側にも伸びる。
- *     薄いバーが起点値、濃いバーが現在値で、3 本とも同じ長さだけずれる。
- *   - 大きい swatch は「比率で決まる色」。各値を合計で割った比率
- *     (R:G:B の取り分) を、最大の取り分が 1 になるよう正規化して描く。
- *     合計が 0 をまたぐと比率の符号がそろって反転し、補色側へ飛ぶ。
- *   - 小さいチャンネルが 0 をまたいだ時点で「0 をまたいだ」、比率が崩れて
- *     色が飛んだ時点で「ひっくり返り」のバッジを出す。
- *   - 4 列目の肌色は比較用。彩度が低く、同じ量を動かしても飛ばない。
+ *   1. LED の点とグロー: 光が強くなると、中心だけセンサーの B が先に上限で止まる。
+ *      R と G だけが増え続け、色を作る足し引き（変換）の比率が崩れて、
+ *      中心だけがマゼンタ側へ飛ぶ。周りのグローは青のまま。
+ *   2. 黄色のグラデーション: 一番明るいところで G が先に上限で止まり、
+ *      R と B だけが増えて鮮やかなピンク（マゼンタ）に飛ぶ。
+ *   3. 黒とグレイン: オフセットで黒を沈めると、グレインで 0 の前後に散った値のうち
+ *      G が先に 0 を下回る。ホワイトバランスで持ち上がった R と B が残り、
+ *      黒の中にピンクの点が出る。
  *
- * SSR 設計: render は t=0 / isPlaying=false の純関数。
- * IntersectionObserver / matchMedia / requestAnimationFrame は useEffect 内のみ。
- * reducedMotion 時は u を 0.85 で固定して静止画化（反転後の状態を見せる）。
+ * 信号の流れ（3 例共通）:
+ *   センサーの値（0〜1 で止まる）→ ホワイトバランス → 色を作る足し引き（3×3）
+ *   → 表示（比率を保って明るさだけ圧縮）
+ *   黒の例だけ、変換のあとにオフセットを加える（カラコレの操作）。
  *
- * 配色: 既存マーカー群と AW (space-choice) で使用済みの TINT を全て除外。
- * 破綻テーマなので muted ・ warning 寄り (faded crimson 系)。
+ * SSR 設計: SVG は t=0 の純関数。canvas の描画は useEffect 内のみ。
+ * reducedMotion 時は u を REDUCED_MOTION_U で固定して静止画化する。
  */
 
 const LOOP = 8.0
-const OFFSET_MAX = 0.45
 const REDUCED_MOTION_U = 0.85
-
-// バーの値域。マイナス側も見せる。
-const BAR_MIN = -0.6
-const BAR_MAX = 1.0
+const N = 128
 
 const TEXT_PRIMARY = "rgba(28,15,110,0.95)"
-const TEXT_MUTED = "rgba(28,15,110,0.55)"
+const TEXT_MUTED = "rgba(28,15,110,0.58)"
 const ALERT = "rgb(180,60,80)"
 
 const TINT_FLIP = {
@@ -51,249 +43,509 @@ const TINT_FLIP = {
   curve: "rgb(160,70,70)",
 }
 
-// RGB 3 chan 表示色 (信号比較用、TINT とは別系統で意味は固定の R/G/B)
-const CHAN_COLORS: Record<"R" | "G" | "B", string> = {
+const CHAN_COLORS = {
   R: "rgb(214,80,80)",
   G: "rgb(60,150,90)",
   B: "rgb(80,100,200)",
+} as const
+
+export type Vec3 = [number, number, number]
+type Chan = "R" | "G" | "B"
+const CHANS: Chan[] = ["R", "G", "B"]
+
+// ---- 信号の流れ ---------------------------------------------------------------
+
+/** ホワイトバランスのゲイン（センサーの値に掛ける）。 */
+export const WB_GAINS: Vec3 = [2.0, 1.0, 1.5]
+
+/** 色を作る足し引き（行の和は 1。グレーはグレーのまま）。 */
+export const COLOR_MATRIX: [Vec3, Vec3, Vec3] = [
+  [1.95, -0.83, -0.12],
+  [-0.18, 1.53, -0.35],
+  [0.03, -0.53, 1.5],
+]
+
+export const SENSOR_CEILING = 1
+
+function clampSensor(v: number) {
+  return v < 0 ? 0 : v > SENSOR_CEILING ? SENSOR_CEILING : v
 }
 
-function umphase(t: number) {
-  // 0 → 1 → 0 を 1 ループで走る対称ランプ
-  return 0.5 - 0.5 * Math.cos((2 * Math.PI * t) / LOOP)
-}
-
-function clamp01(v: number) {
-  return v < 0 ? 0 : v > 1 ? 1 : v
-}
-
-type RGB = [number, number, number]
-
-function rgbCss(rgb: RGB) {
-  const r = Math.round(clamp01(rgb[0]) * 255)
-  const g = Math.round(clamp01(rgb[1]) * 255)
-  const b = Math.round(clamp01(rgb[2]) * 255)
-  return `rgb(${r}, ${g}, ${b})`
-}
-
-const SUM_EPSILON = 1e-3
-
-/** 各値を合計で割った取り分（比率）。合計が 0 付近では符号だけ保って小さい値で割る。 */
-export function ratioShares(rgb: RGB): RGB {
-  const raw = rgb[0] + rgb[1] + rgb[2]
-  const sum =
-    Math.abs(raw) < SUM_EPSILON ? (raw < 0 ? -SUM_EPSILON : SUM_EPSILON) : raw
-  return [rgb[0] / sum, rgb[1] / sum, rgb[2] / sum]
-}
-
-/** 比率で決まる色。最大の取り分を 1 に正規化し、0〜1 に収めて描く。 */
-export function ratioColor(rgb: RGB): RGB {
-  const shares = ratioShares(rgb)
-  const peak = Math.max(shares[0], shares[1], shares[2])
-  if (peak <= 0) return [0, 0, 0]
+function mix(v: Vec3): Vec3 {
+  const a = v[0] * WB_GAINS[0]
+  const b = v[1] * WB_GAINS[1]
+  const c = v[2] * WB_GAINS[2]
+  const m = COLOR_MATRIX
   return [
-    clamp01(shares[0] / peak),
-    clamp01(shares[1] / peak),
-    clamp01(shares[2] / peak),
+    m[0][0] * a + m[0][1] * b + m[0][2] * c,
+    m[1][0] * a + m[1][1] * b + m[1][2] * c,
+    m[2][0] * a + m[2][1] * b + m[2][2] * c,
   ]
 }
 
-/** 比率が崩れて別の色に飛んだか（合計の符号が起点と逆になったか）。 */
-export function isFlipped(base: RGB, cur: RGB) {
-  const baseSum = base[0] + base[1] + base[2]
-  const curSum = cur[0] + cur[1] + cur[2]
-  return Math.sign(baseSum) !== Math.sign(curSum) && Math.abs(curSum) >= SUM_EPSILON
+/** センサーの値（上限と 0 で止まる）→ ホワイトバランス → 足し引き。 */
+export function sensorToWorking(raw: Vec3): Vec3 {
+  return mix([clampSensor(raw[0]), clampSensor(raw[1]), clampSensor(raw[2])])
 }
 
-/** 起点から符号が変わった（0 をまたいだ）チャンネル。 */
-export function crossedChannels(base: RGB, cur: RGB): Array<"R" | "G" | "B"> {
-  const names = ["R", "G", "B"] as const
-  return names.filter((_, i) => (base[i] < 0) !== (cur[i] < 0))
+/** 表示: 一番大きいチャンネルで割った比率を保ち、明るさだけを圧縮する。0 未満は 0。 */
+export function toDisplay(lin: Vec3, lift = 1): Vec3 {
+  const r = lin[0] * lift
+  const g = lin[1] * lift
+  const b = lin[2] * lift
+  const n = Math.max(r, g, b)
+  if (n <= 0) return [0, 0, 0]
+  const t = 1 - Math.exp(-1.6 * n)
+  const c = (v: number) => (v <= 0 ? 0 : v >= n ? 1 : v / n)
+  return [c(r) * t, c(g) * t, c(b) * t]
 }
 
-function formatShare(v: number) {
-  if (v > 9.99) return "+大"
-  if (v < -9.99) return "−大"
-  const s = Math.abs(v).toFixed(2)
-  return v < 0 ? `−${s}` : s
+/** 色相（度）。無彩色に近いときは null。 */
+export function hueDeg(rgb: Vec3): number | null {
+  const [r, g, b] = rgb
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  if (max <= 0 || max - min < 0.04 * max) return null
+  return ((Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * 180) / Math.PI + 360) % 360
 }
 
-function formatSigned(v: number) {
-  const s = Math.abs(v).toFixed(2)
-  return v < -0.004 ? `−${s}` : s
+export function hueDistance(a: number | null, b: number | null) {
+  if (a == null || b == null) return 0
+  const d = Math.abs(a - b) % 360
+  return d > 180 ? 360 - d : d
 }
 
-function shareLabel(rgb: RGB) {
-  const shares = ratioShares(rgb)
-  return shares.map(formatShare).join(" : ")
+/** 起点から色相が 60° 以上ずれたら「ひっくり返り」。 */
+export const FLIP_HUE_DEG = 60
+/** 黒の点は、0 を下回ったうえで彩度がここを超えたら「飛んだ」とみなす。 */
+export const BLACK_FLIP_SATURATION = 0.85
+
+export function saturation(rgb: Vec3) {
+  const max = Math.max(rgb[0], rgb[1], rgb[2])
+  if (max <= 0) return 0
+  return (max - Math.min(rgb[0], rgb[1], rgb[2])) / max
 }
 
-type ChipSpec = {
-  base: RGB
-  label: string
+// ---- 3 つの絵 -----------------------------------------------------------------
+
+/** 光の色ごとのセンサーの値（変換後に狙いの色になるよう逆算し、最大を 1 にしたもの）。 */
+export const LED_SENSOR: Vec3 = [0.1921, 0.592, 1.0] // → 青い LED
+export const YELLOW_SENSOR: Vec3 = [0.586, 1.0, 0.2199] // → 黄色
+/** 周りの暗いグレー（変換後に 0.045 の無彩色）。 */
+const AMBIENT_SENSOR: Vec3 = [0.045 / 2.0, 0.045, 0.045 / 1.5]
+
+export function ledStrength(u: number) {
+  return 0.6 + 3.9 * u
+}
+export function yellowStrength(u: number) {
+  return 0.7 + 4.3 * u
+}
+export const BLACK_OFFSET_MAX = 0.017
+export function blackOffset(u: number) {
+  return -BLACK_OFFSET_MAX * u
+}
+/** 黒の絵は暗いので、表示のときだけ持ち上げる。 */
+export const BLACK_VIEW_LIFT = 10
+
+/** 座標は -1..1。 */
+export function ledProfile(x: number, y: number) {
+  const r2 = x * x + y * y
+  return Math.exp(-r2 / (0.16 * 0.16)) + 0.35 * Math.exp(-r2 / (0.55 * 0.55))
+}
+export function yellowProfile(x: number, y: number) {
+  const dy = y - 0.1
+  const r2 = x * x + dy * dy
+  return 0.8 * Math.exp(-r2 / (0.35 * 0.35)) + 0.45 * Math.exp(-r2 / (0.8 * 0.8))
 }
 
-const CHIPS: ChipSpec[] = [
-  { base: [0.95, 0.08, 0.04], label: "高彩度の赤" },
-  { base: [0.06, 0.9, 0.05], label: "高彩度の緑" },
-  { base: [-0.15, 0.1, 0.95], label: "青い LED（色域外）" },
-  { base: [0.85, 0.62, 0.48], label: "肌（比較）" },
-]
-
-export function chipCurrent(spec: ChipSpec, u: number): RGB {
-  // 3 チャンネルすべてに同じ量を加える（ここでは下げる方向）
-  const offset = -OFFSET_MAX * u
-  return [spec.base[0] + offset, spec.base[1] + offset, spec.base[2] + offset]
+export function lightSensor(color: Vec3, strength: number, profile: number): Vec3 {
+  return [
+    AMBIENT_SENSOR[0] + strength * profile * color[0],
+    AMBIENT_SENSOR[1] + strength * profile * color[1],
+    AMBIENT_SENSOR[2] + strength * profile * color[2],
+  ]
 }
 
-export const FAILURE_MODES_CHIPS = CHIPS
-export const FAILURE_MODES_OFFSET_MAX = OFFSET_MAX
+// 再現性のある乱数（mulberry32）
+function rng(seed: number) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+function gauss(next: () => number) {
+  const u1 = Math.max(next(), 1e-12)
+  const u2 = next()
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
+}
 
-type FlipLayout = {
-  w: number
-  h: number
-  rectInset: number
-  headerX: number
-  headerY: number
-  titleFont: number
-  descriptionX: number
-  descriptionFont: number
-  strengthFont: number
-  colW: number
-  colGap: number
+type BlackField = {
+  /** 変換後（オフセット前）の値。N*N*3 */
+  working: Float32Array
+  probe: { ix: number; iy: number }
+}
+
+let blackFieldCache: BlackField | null = null
+
+/**
+ * 黒とグレイン: 暗いグレーにセンサー側のグレインを足して変換する。
+ * センサーのノイズは各色同じくらいだが、ホワイトバランスで R と B が持ち上がる。
+ */
+export function blackField(): BlackField {
+  if (blackFieldCache) return blackFieldCache
+  const next = rng(20261002)
+  const G = N / 2
+  const grain = new Float32Array(G * G)
+  for (let i = 0; i < grain.length; i++) {
+    const z = gauss(next)
+    const chi = (gauss(next) ** 2 + gauss(next) ** 2) / 2
+    grain[i] = (0.0011 * z) / Math.sqrt(Math.max(chi, 1e-6))
+  }
+  // 変換後の明るさだけのグレイン（無彩色）
+  const neutral = new Float32Array(G * G)
+  for (let i = 0; i < neutral.length; i++) neutral[i] = 0.0045 * gauss(next)
+  const working = new Float32Array(N * N * 3)
+  for (let iy = 0; iy < N; iy++) {
+    for (let ix = 0; ix < N; ix++) {
+      const x = (ix / (N - 1)) * 2 - 1
+      const y = (iy / (N - 1)) * 2 - 1
+      const level =
+        0.008 + 0.003 * Math.exp(-((x + 0.1) ** 2) / 0.35 - (y - 0.15) ** 2 / 0.25)
+      const gi = (iy >> 1) * G + (ix >> 1)
+      const s = grain[gi]
+      const fine = neutral[gi]
+      const raw: Vec3 = [level / WB_GAINS[0] + s, level / WB_GAINS[1] + s, level / WB_GAINS[2] + s]
+      const w = mix(raw)
+      const o = (iy * N + ix) * 3
+      working[o] = w[0] + fine
+      working[o + 1] = w[1] + fine
+      working[o + 2] = w[2] + fine
+    }
+  }
+  // 中央付近で、沈めたときに G だけが 0 を下回ってピンクに残る点を 1 つ選ぶ
+  let best = { ix: N / 2, iy: N / 2 }
+  let bestScore = -Infinity
+  const off = blackOffset(1)
+  for (let iy = Math.floor(N * 0.3); iy < N * 0.7; iy++) {
+    for (let ix = Math.floor(N * 0.3); ix < N * 0.7; ix++) {
+      const o = (iy * N + ix) * 3
+      const r = working[o] + off
+      const g = working[o + 1] + off
+      const b = working[o + 2] + off
+      if (working[o + 1] <= 0 || g >= -0.004 || r <= 0 || b <= 0) continue
+      const score = Math.min(r, b * 1.4) - Math.abs(ix - N / 2) * 1e-4 - Math.abs(iy - N / 2) * 1e-4
+      if (score > bestScore) {
+        bestScore = score
+        best = { ix, iy }
+      }
+    }
+  }
+  blackFieldCache = { working, probe: best }
+  return blackFieldCache
+}
+
+export function blackWorkingAt(ix: number, iy: number, u: number): Vec3 {
+  const f = blackField()
+  const o = (iy * N + ix) * 3
+  const off = blackOffset(u)
+  return [f.working[o] + off, f.working[o + 1] + off, f.working[o + 2] + off]
+}
+
+// ---- 調べる 1 点（プローブ） --------------------------------------------------
+
+export type PanelId = "led" | "yellow" | "black"
+
+export type ProbeState = {
+  /** バーに出す値。LED / 黄色はセンサーの値（止まる前）、黒は変換後の値。 */
+  values: Vec3
+  display: Vec3
+  baseDisplay: Vec3
+  /** 端で止まった / 0 を下回ったチャンネル */
+  limited: Chan[]
+  flipped: boolean
+}
+
+export function probeState(panel: PanelId, u: number): ProbeState {
+  if (panel === "black") {
+    const { probe } = blackField()
+    const cur = blackWorkingAt(probe.ix, probe.iy, u)
+    const base = blackWorkingAt(probe.ix, probe.iy, 0)
+    const display = toDisplay(cur, BLACK_VIEW_LIFT)
+    const baseDisplay = toDisplay(base, BLACK_VIEW_LIFT)
+    const limited = CHANS.filter((_, i) => cur[i] < 0)
+    // 黒は起点が無彩色に近いので、色相ではなく「0 を下回って鮮やかになったか」で見る
+    const flipped = limited.length > 0 && saturation(display) >= BLACK_FLIP_SATURATION
+    return { values: cur, display, baseDisplay, limited, flipped }
+  }
+  const color = panel === "led" ? LED_SENSOR : YELLOW_SENSOR
+  const strength = panel === "led" ? ledStrength : yellowStrength
+  const prof = panel === "led" ? ledProfile(0, 0) : yellowProfile(0, 0.1)
+  const raw = lightSensor(color, strength(u), prof)
+  const raw0 = lightSensor(color, strength(0), prof)
+  const display = toDisplay(sensorToWorking(raw))
+  const baseDisplay = toDisplay(sensorToWorking(raw0))
+  const limited = CHANS.filter((_, i) => raw[i] >= SENSOR_CEILING)
+  const flipped = hueDistance(hueDeg(display), hueDeg(baseDisplay)) >= FLIP_HUE_DEG
+  return { values: raw, display, baseDisplay, limited, flipped }
+}
+
+// ---- canvas 描画 ---------------------------------------------------------------
+
+const SRGB_LUT = (() => {
+  const lut = new Uint8ClampedArray(4096)
+  for (let i = 0; i < 4096; i++) {
+    const v = i / 4095
+    const e = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055
+    lut[i] = Math.round(e * 255)
+  }
+  return lut
+})()
+
+function encode(v: number) {
+  return SRGB_LUT[Math.max(0, Math.min(4095, Math.round(v * 4095)))]
+}
+
+let profileCache: { led: Float32Array; yellow: Float32Array } | null = null
+function profiles() {
+  if (profileCache) return profileCache
+  const led = new Float32Array(N * N)
+  const yellow = new Float32Array(N * N)
+  for (let iy = 0; iy < N; iy++) {
+    for (let ix = 0; ix < N; ix++) {
+      const x = (ix / (N - 1)) * 2 - 1
+      const y = (iy / (N - 1)) * 2 - 1
+      led[iy * N + ix] = ledProfile(x, y)
+      yellow[iy * N + ix] = yellowProfile(x, y)
+    }
+  }
+  profileCache = { led, yellow }
+  return profileCache
+}
+
+function paintPanel(ctx: CanvasRenderingContext2D, img: ImageData, panel: PanelId, u: number) {
+  const data = img.data
+  if (panel === "black") {
+    const f = blackField()
+    const off = blackOffset(u)
+    for (let p = 0; p < N * N; p++) {
+      const o = p * 3
+      const d = toDisplay(
+        [f.working[o] + off, f.working[o + 1] + off, f.working[o + 2] + off],
+        BLACK_VIEW_LIFT
+      )
+      data[p * 4] = encode(d[0])
+      data[p * 4 + 1] = encode(d[1])
+      data[p * 4 + 2] = encode(d[2])
+      data[p * 4 + 3] = 255
+    }
+  } else {
+    const prof = profiles()[panel]
+    const color = panel === "led" ? LED_SENSOR : YELLOW_SENSOR
+    const k = panel === "led" ? ledStrength(u) : yellowStrength(u)
+    for (let p = 0; p < N * N; p++) {
+      const d = toDisplay(sensorToWorking(lightSensor(color, k, prof[p])))
+      data[p * 4] = encode(d[0])
+      data[p * 4 + 1] = encode(d[1])
+      data[p * 4 + 2] = encode(d[2])
+      data[p * 4 + 3] = 255
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+}
+
+// ---- レイアウト ---------------------------------------------------------------
+
+type Rect = { x: number; y: number; size: number }
+
+type PanelLayout = {
+  image: Rect
+  labelX: number
   labelY: number
-  labelFont: number
-  swatchY: number
-  swatchSize: number
-  insetSize: number
-  insetLabelOffset: number
-  insetLabelFont: number
-  barY0: number
+  labelAnchor: "start" | "middle"
+  opY: number
+  barsX: number
+  barsY: number
   barW: number
   barH: number
   barGap: number
-  channelFont: number
-  valueFont: number
-  rankBaseY: number
-  rankNowY: number
-  rankBaseFont: number
-  rankNowFont: number
+  captionY: number
+  badgeX: number
   badgeY: number
+}
+
+type Layout = {
+  w: number
+  h: number
+  inset: number
+  titleX: number
+  titleY: number
+  titleFont: number
+  subX: number
+  subY: number
+  subFont: number
+  labelFont: number
+  opFont: number
+  opNoteOwnLine: boolean
+  captionFont: number
+  chanFont: number
   badgeW: number
   badgeH: number
   badgeFont: number
+  panels: Record<PanelId, PanelLayout>
 }
 
-const FLIP_COLS = 4
+const PANEL_ORDER: PanelId[] = ["led", "yellow", "black"]
 
-const DESKTOP_LAYOUT: FlipLayout = {
-  w: 1600,
-  h: 900,
-  rectInset: 12,
-  headerX: 56,
-  headerY: 78,
-  titleFont: 38,
-  descriptionX: 392,
-  descriptionFont: 19,
-  strengthFont: 22,
-  colW: 330,
-  colGap: 48,
-  labelY: 158,
-  labelFont: 20,
-  swatchY: 180,
-  swatchSize: 210,
-  insetSize: 56,
-  insetLabelOffset: 8,
-  insetLabelFont: 14,
-  barY0: 520,
-  barW: 250,
-  barH: 26,
-  barGap: 12,
-  channelFont: 17,
-  valueFont: 15,
-  rankBaseY: 720,
-  rankNowY: 756,
-  rankBaseFont: 16,
-  rankNowFont: 18,
-  badgeY: 824,
-  badgeW: 144,
-  badgeH: 38,
-  badgeFont: 17,
+function desktopLayout(): Layout {
+  const colW = 460
+  const gap = 50
+  const x0 = (1600 - (colW * 3 + gap * 2)) / 2
+  const size = 380
+  const panels = {} as Record<PanelId, PanelLayout>
+  PANEL_ORDER.forEach((id, i) => {
+    const cx = x0 + i * (colW + gap)
+    const imgX = cx + (colW - size) / 2
+    panels[id] = {
+      image: { x: imgX, y: 196, size },
+      labelX: cx + colW / 2,
+      labelY: 150,
+      labelAnchor: "middle",
+      opY: 180,
+      barsX: imgX + 30,
+      barsY: 628,
+      barW: size - 60,
+      barH: 20,
+      barGap: 9,
+      captionY: 614,
+      badgeX: cx + colW / 2,
+      badgeY: 784,
+    }
+  })
+  return {
+    w: 1600,
+    h: 900,
+    inset: 12,
+    titleX: 56,
+    titleY: 84,
+    titleFont: 38,
+    subX: 392,
+    subY: 84,
+    subFont: 20,
+    labelFont: 23,
+    opFont: 17,
+    opNoteOwnLine: false,
+    captionFont: 15,
+    chanFont: 16,
+    badgeW: 170,
+    badgeH: 38,
+    badgeFont: 17,
+    panels,
+  }
 }
 
-const MOBILE_LAYOUT: FlipLayout = {
-  w: 1000,
-  h: 900,
-  rectInset: 10,
-  headerX: 28,
-  headerY: 76,
-  titleFont: 34,
-  descriptionX: 28,
-  descriptionFont: 17,
-  strengthFont: 19,
-  colW: 235,
-  colGap: 15,
-  labelY: 150,
-  labelFont: 17,
-  swatchY: 176,
-  swatchSize: 160,
-  insetSize: 42,
-  insetLabelOffset: 7,
-  insetLabelFont: 13,
-  barY0: 482,
-  barW: 150,
-  barH: 22,
-  barGap: 10,
-  channelFont: 17,
-  valueFont: 13,
-  rankBaseY: 666,
-  rankNowY: 698,
-  rankBaseFont: 14,
-  rankNowFont: 15,
-  badgeY: 765,
-  badgeW: 128,
-  badgeH: 34,
-  badgeFont: 15,
+function mobileLayout(): Layout {
+  const size = 380
+  const panels = {} as Record<PanelId, PanelLayout>
+  PANEL_ORDER.forEach((id, i) => {
+    const y0 = 170 + i * 440
+    panels[id] = {
+      image: { x: 36, y: y0, size },
+      labelX: 456,
+      labelY: y0 + 40,
+      labelAnchor: "start",
+      opY: y0 + 82,
+      barsX: 490,
+      barsY: y0 + 172,
+      barW: 440,
+      barH: 28,
+      barGap: 14,
+      captionY: y0 + 156,
+      badgeX: 456 + 254,
+      badgeY: y0 + 352,
+    }
+  })
+  return {
+    w: 1000,
+    h: 1490,
+    inset: 10,
+    titleX: 36,
+    titleY: 82,
+    titleFont: 44,
+    subX: 36,
+    subY: 130,
+    subFont: 24,
+    labelFont: 32,
+    opFont: 24,
+    opNoteOwnLine: true,
+    captionFont: 22,
+    chanFont: 24,
+    badgeW: 230,
+    badgeH: 50,
+    badgeFont: 24,
+    panels,
+  }
 }
 
-function gridX0(layout: FlipLayout) {
+const DESKTOP = desktopLayout()
+const MOBILE = mobileLayout()
+
+export const FAILURE_MODES_MOBILE_ASPECT = `${MOBILE.w} / ${MOBILE.h}`
+
+const PANEL_TEXT: Record<
+  PanelId,
+  {
+    label: string
+    op: string
+    opNote?: string
+    caption: string
+    flipLabel: string
+    limitLabel: (c: Chan[]) => string
+  }
+> = {
+  led: {
+    label: "LED の点とグロー",
+    op: "光が強くなる",
+    caption: "中心のセンサーの値",
+    flipLabel: "中心だけ飛ぶ",
+    limitLabel: (c) => `${c.join("・")} が上限で止まる`,
+  },
+  yellow: {
+    label: "黄色のグラデーション",
+    op: "光が強くなる",
+    caption: "一番明るいところのセンサーの値",
+    flipLabel: "マゼンタに飛ぶ",
+    limitLabel: (c) => `${c.join("・")} が上限で止まる`,
+  },
+  black: {
+    label: "黒とグレイン",
+    op: "オフセットで黒を沈める",
+    opNote: "（暗部を持ち上げて表示）",
+    caption: "丸で囲んだ点の値",
+    flipLabel: "ピンクの点が出る",
+    limitLabel: (c) => `${c.join("・")} が 0 を下回る`,
+  },
+}
+
+function Badge({ x, y, layout, label }: { x: number; y: number; layout: Layout; label: string }) {
   return (
-    (layout.w -
-      (layout.colW * FLIP_COLS + layout.colGap * (FLIP_COLS - 1))) /
-    2
-  )
-}
-
-function barXOf(layout: FlipLayout, v: number) {
-  const clamped = v < BAR_MIN ? BAR_MIN : v > BAR_MAX ? BAR_MAX : v
-  return ((clamped - BAR_MIN) / (BAR_MAX - BAR_MIN)) * layout.barW
-}
-
-function Badge({
-  layout,
-  y,
-  label,
-}: {
-  layout: FlipLayout
-  y: number
-  label: string
-}) {
-  return (
-    <g transform={`translate(${layout.colW / 2}, ${y})`}>
+    <g transform={`translate(${x}, ${y})`}>
       <rect
         x={-layout.badgeW / 2}
-        y={-layout.badgeH / 2 - 3}
+        y={-layout.badgeH / 2}
         width={layout.badgeW}
         height={layout.badgeH}
         rx={layout.badgeH / 2}
-        ry={layout.badgeH / 2}
-        fill="rgba(180,60,80,0.18)"
+        fill="rgba(180,60,80,0.16)"
         stroke="rgba(180,60,80,0.65)"
         strokeWidth={1.4}
       />
       <text
         x={0}
-        y={5}
+        y={layout.badgeFont * 0.36}
         textAnchor="middle"
         fontSize={layout.badgeFont}
         fontWeight={700}
@@ -305,91 +557,41 @@ function Badge({
   )
 }
 
-function FlipColumn({
-  layout,
-  col,
-  spec,
-  u,
-}: {
-  layout: FlipLayout
-  col: number
-  spec: ChipSpec
-  u: number
-}) {
-  const colX = gridX0(layout) + col * (layout.colW + layout.colGap)
-  const cur = chipCurrent(spec, u)
-  const flipped = isFlipped(spec.base, cur)
-  const crossed = crossedChannels(spec.base, cur)
-  const swatchX = (layout.colW - layout.swatchSize) / 2
-  const insetX = swatchX + layout.swatchSize - layout.insetSize - 8
-  const insetY = layout.swatchY + layout.swatchSize - layout.insetSize - 8
-  const barX = (layout.colW - layout.barW) / 2
-  const zeroX = barX + barXOf(layout, 0)
-  const barsTop = layout.barY0 - 6
-  const barsBottom = layout.barY0 + 3 * layout.barH + 2 * layout.barGap + 6
+function probePoint(panel: PanelId): { px: number; py: number } {
+  if (panel === "led") return { px: 0.5, py: 0.5 }
+  if (panel === "yellow") return { px: 0.5, py: 0.55 }
+  const { probe } = blackField()
+  return { px: (probe.ix + 0.5) / N, py: (probe.iy + 0.5) / N }
+}
+
+function Bars({ layout, p, panel, state }: { layout: Layout; p: PanelLayout; panel: PanelId; state: ProbeState }) {
+  const signed = panel === "black"
+  // LED / 黄色: 0〜1.6（上限 1 の線）。黒: -0.015〜0.035（0 の線）。
+  const lo = signed ? -0.015 : 0
+  const hi = signed ? 0.035 : 1.6
+  const xOf = (v: number) => p.barsX + ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * p.barW
+  const markX = signed ? xOf(0) : xOf(SENSOR_CEILING)
+  const top = p.barsY - 6
+  const bottom = p.barsY + 3 * p.barH + 2 * p.barGap + 6
   return (
-    <g transform={`translate(${colX}, 0)`}>
-      {/* Chip ラベル */}
-      <text
-        x={layout.colW / 2}
-        y={layout.labelY}
-        textAnchor="middle"
-        fontSize={layout.labelFont}
-        fontWeight={600}
-        fill={TEXT_MUTED}
-      >
-        {spec.label}
+    <g>
+      <text x={p.barsX - 22} y={p.captionY} fontSize={layout.captionFont} fill={TEXT_MUTED}>
+        {PANEL_TEXT[panel].caption}
       </text>
-      {/* 比率で決まる色 (大) */}
-      <rect
-        x={swatchX}
-        y={layout.swatchY}
-        width={layout.swatchSize}
-        height={layout.swatchSize}
-        rx={14}
-        ry={14}
-        fill={rgbCss(ratioColor(cur))}
-        stroke={flipped ? "rgba(180,60,80,0.75)" : "rgba(28,15,110,0.18)"}
-        strokeWidth={flipped ? 3 : 1.6}
-      />
-      {/* 起点 inset (右下、白縁付き) */}
-      <text
-        x={insetX + layout.insetSize / 2}
-        y={insetY - layout.insetLabelOffset}
-        textAnchor="middle"
-        fontSize={layout.insetLabelFont}
-        fill="rgba(255,255,255,0.95)"
-        fontWeight={700}
-      >
-        起点
-      </text>
-      <rect
-        x={insetX}
-        y={insetY}
-        width={layout.insetSize}
-        height={layout.insetSize}
-        rx={8}
-        ry={8}
-        fill={rgbCss(ratioColor(spec.base))}
-        stroke="rgba(255,255,255,0.95)"
-        strokeWidth={2}
-      />
-      {/* RGB bars (0 の基準線つき、マイナス側にも伸びる) */}
-      {(["R", "G", "B"] as const).map((ch, i) => {
-        const v = cur[i]
-        const baseV = spec.base[i]
-        const barY = layout.barY0 + i * (layout.barH + layout.barGap)
-        const curX = barX + barXOf(layout, v)
-        const baseXPos = barX + barXOf(layout, baseV)
-        const isNegative = v < 0
-        const didCross = crossed.includes(ch)
+      {CHANS.map((ch, i) => {
+        const v = state.values[i]
+        const y = p.barsY + i * (p.barH + p.barGap)
+        const limited = state.limited.includes(ch)
+        const zeroX = xOf(0)
+        const shown = signed ? v : Math.min(v, SENSOR_CEILING)
+        const endX = xOf(shown)
         return (
           <g key={ch}>
             <text
-              x={barX - 10}
-              y={barY + layout.barH - 7}
+              x={p.barsX - 10}
+              y={y + p.barH * 0.78}
               textAnchor="end"
-              fontSize={layout.channelFont}
+              fontSize={layout.chanFont}
               fontWeight={700}
               fill={CHAN_COLORS[ch]}
               fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -397,193 +599,103 @@ function FlipColumn({
               {ch}
             </text>
             <rect
-              x={barX}
-              y={barY}
-              width={layout.barW}
-              height={layout.barH}
+              x={p.barsX}
+              y={y}
+              width={p.barW}
+              height={p.barH}
               rx={4}
-              ry={4}
               fill="rgba(255,255,255,0.7)"
               stroke="rgba(28,15,110,0.16)"
-              strokeWidth={1}
             />
-            {/* 起点値 (薄め) */}
+            {!signed && v > SENSOR_CEILING ? (
+              // 上限を超えて入ってきた光（記録されない分）
+              <rect
+                x={markX}
+                y={y + p.barH * 0.3}
+                width={xOf(v) - markX}
+                height={p.barH * 0.4}
+                fill={CHAN_COLORS[ch]}
+                fillOpacity={0.18}
+              />
+            ) : null}
             <rect
-              x={Math.min(zeroX, baseXPos)}
-              y={barY}
-              width={Math.abs(baseXPos - zeroX)}
-              height={layout.barH}
+              x={Math.min(zeroX, endX)}
+              y={y}
+              width={Math.abs(endX - zeroX)}
+              height={p.barH}
               fill={CHAN_COLORS[ch]}
-              fillOpacity={0.22}
+              fillOpacity={limited ? 0.95 : 0.7}
             />
-            {/* 現在値 */}
-            <rect
-              x={Math.min(zeroX, curX)}
-              y={barY}
-              width={Math.abs(curX - zeroX)}
-              height={layout.barH}
-              fill={CHAN_COLORS[ch]}
-              fillOpacity={isNegative ? 0.55 : 0.85}
-            />
-            <text
-              x={barX + layout.barW + 10}
-              y={barY + layout.barH - 7}
-              fontSize={layout.valueFont}
-              fontWeight={didCross ? 700 : 400}
-              fill={didCross ? ALERT : TEXT_MUTED}
-              fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-            >
-              {formatSigned(v)}
-            </text>
           </g>
         )
       })}
-      {/* 0 の基準線 */}
-      <line
-        x1={zeroX}
-        y1={barsTop}
-        x2={zeroX}
-        y2={barsBottom}
-        stroke="rgba(28,15,110,0.55)"
-        strokeWidth={1.6}
-      />
+      <line x1={markX} y1={top} x2={markX} y2={bottom} stroke={ALERT} strokeOpacity={0.8} strokeWidth={2} />
       <text
-        x={zeroX}
-        y={barsTop - 6}
+        x={markX}
+        y={bottom + layout.captionFont * 1.2}
         textAnchor="middle"
-        fontSize={layout.valueFont}
-        fill={TEXT_MUTED}
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        fontSize={layout.captionFont}
+        fill={ALERT}
       >
-        0
+        {signed ? "0" : "上限"}
       </text>
-      {/* 比率の見出し */}
+    </g>
+  )
+}
+
+function Panel({ layout, panel, u }: { layout: Layout; panel: PanelId; u: number }) {
+  const p = layout.panels[panel]
+  const state = probeState(panel, u)
+  const text = PANEL_TEXT[panel]
+  return (
+    <g>
       <text
-        x={layout.colW / 2}
-        y={layout.rankBaseY - layout.rankNowFont * 1.9}
-        textAnchor="middle"
-        fontSize={layout.rankBaseFont}
-        fill={TEXT_MUTED}
-      >
-        比率（合計に対する R : G : B）
-      </text>
-      {/* 比率 (起点) */}
-      <text
-        x={layout.colW / 2}
-        y={layout.rankBaseY}
-        textAnchor="middle"
-        fontSize={layout.rankBaseFont}
-        fill={TEXT_MUTED}
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-      >
-        起点 {shareLabel(spec.base)}
-      </text>
-      {/* 比率 (現在) */}
-      <text
-        x={layout.colW / 2}
-        y={layout.rankNowY}
-        textAnchor="middle"
-        fontSize={layout.rankNowFont}
+        x={p.labelX}
+        y={p.labelY}
+        textAnchor={p.labelAnchor}
+        fontSize={layout.labelFont}
         fontWeight={700}
-        fill={flipped ? ALERT : TEXT_PRIMARY}
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        fill={TEXT_PRIMARY}
       >
-        現在 {shareLabel(cur)}
+        {text.label}
       </text>
-      {/* バッジ: 0 をまたいだ → ひっくり返り */}
-      {flipped ? (
-        <Badge layout={layout} y={layout.badgeY} label="ひっくり返り" />
-      ) : crossed.length > 0 ? (
-        <Badge layout={layout} y={layout.badgeY} label="0 をまたいだ" />
+      <text x={p.labelX} y={p.opY} textAnchor={p.labelAnchor} fontSize={layout.opFont} fill={TEXT_MUTED}>
+        {text.op}
+        {text.opNote && !layout.opNoteOwnLine ? text.opNote : null}
+      </text>
+      {text.opNote && layout.opNoteOwnLine ? (
+        <text
+          x={p.labelX}
+          y={p.opY + layout.opFont * 1.3}
+          textAnchor={p.labelAnchor}
+          fontSize={layout.opFont * 0.85}
+          fill={TEXT_MUTED}
+        >
+          {text.opNote}
+        </text>
+      ) : null}
+      <rect
+        x={p.image.x - 1}
+        y={p.image.y - 1}
+        width={p.image.size + 2}
+        height={p.image.size + 2}
+        rx={10}
+        fill="none"
+        stroke={state.flipped ? "rgba(180,60,80,0.8)" : "rgba(28,15,110,0.2)"}
+        strokeWidth={state.flipped ? 3 : 1.5}
+      />
+      <Bars layout={layout} p={p} panel={panel} state={state} />
+      {state.flipped ? (
+        <Badge x={p.badgeX} y={p.badgeY} layout={layout} label={text.flipLabel} />
+      ) : state.limited.length > 0 ? (
+        <Badge x={p.badgeX} y={p.badgeY} layout={layout} label={text.limitLabel(state.limited)} />
       ) : null}
     </g>
   )
 }
 
-function FlipCell({
-  layout,
-  t,
-  reducedMotion,
-  isMobile,
-}: {
-  layout: FlipLayout
-  t: number
-  reducedMotion: boolean
-  isMobile: boolean
-}) {
-  const u = reducedMotion ? REDUCED_MOTION_U : umphase(t)
-  const descriptionY = isMobile
-    ? layout.headerY + layout.descriptionFont * 2.1
-    : layout.headerY
-  return (
-    <g>
-      <rect
-        x={layout.rectInset}
-        y={layout.rectInset}
-        width={layout.w - layout.rectInset * 2}
-        height={layout.h - layout.rectInset * 2}
-        rx={24}
-        ry={24}
-        fill={TINT_FLIP.bg}
-        stroke={TINT_FLIP.border}
-        strokeOpacity={0.55}
-        strokeWidth={1.4}
-      />
-      <rect
-        x={layout.rectInset}
-        y={layout.rectInset}
-        width={layout.w - layout.rectInset * 2}
-        height={layout.h - layout.rectInset * 2}
-        rx={24}
-        ry={24}
-        fill="rgba(255,255,255,0.55)"
-      />
-      <text
-        x={layout.headerX}
-        y={layout.headerY}
-        fontSize={layout.titleFont}
-        fontWeight={700}
-        fill={TINT_FLIP.curve}
-      >
-        色のひっくり返り
-      </text>
-      {isMobile ? (
-        <text
-          x={layout.descriptionX}
-          y={descriptionY}
-          fontSize={layout.descriptionFont}
-          fontWeight={500}
-          fill={TEXT_MUTED}
-        >
-          3ch に同じ量を加えると、小さい値が先に 0 をまたぎ、比率が崩れて色が飛ぶ
-        </text>
-      ) : (
-        <text
-          x={layout.descriptionX}
-          y={layout.headerY}
-          fontSize={layout.descriptionFont}
-          fontWeight={500}
-          fill={TEXT_MUTED}
-        >
-          3ch に同じ量を加えると、小さい値が先に 0 をまたぎ、比率が崩れて色が飛ぶ
-        </text>
-      )}
-      <text
-        x={layout.w - layout.headerX}
-        y={layout.headerY}
-        textAnchor="end"
-        fill={TEXT_PRIMARY}
-        fontSize={layout.strengthFont}
-        fontWeight={600}
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-      >
-        オフセット {formatSigned(-OFFSET_MAX * u)}
-      </text>
-      {CHIPS.map((spec, col) => (
-        <FlipColumn key={col} layout={layout} col={col} spec={spec} u={u} />
-      ))}
-    </g>
-  )
+function umphase(t: number) {
+  return 0.5 - 0.5 * Math.cos((2 * Math.PI * t) / LOOP)
 }
 
 export default function CorrectionFailureModes({
@@ -598,6 +710,12 @@ export default function CorrectionFailureModes({
   const [animT, setAnimT] = useState(0)
   const lastRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
+  const canvasRefs = useRef<Record<PanelId, HTMLCanvasElement | null>>({
+    led: null,
+    yellow: null,
+    black: null,
+  })
+  const imageRefs = useRef<Partial<Record<PanelId, ImageData>>>({})
 
   useEffect(() => {
     if (reducedMotion || !isPlaying) {
@@ -622,21 +740,109 @@ export default function CorrectionFailureModes({
     }
   }, [isPlaying, reducedMotion])
 
-  const t = animT
-  const layout = isMobile ? MOBILE_LAYOUT : DESKTOP_LAYOUT
+  const u = reducedMotion ? REDUCED_MOTION_U : umphase(animT)
+  const layout = isMobile ? MOBILE : DESKTOP
+
+  useEffect(() => {
+    for (const id of PANEL_ORDER) {
+      const canvas = canvasRefs.current[id]
+      if (!canvas) continue
+      const ctx = canvas.getContext("2d")
+      if (!ctx) continue
+      let img = imageRefs.current[id]
+      if (!img) {
+        img = ctx.createImageData(N, N)
+        imageRefs.current[id] = img
+      }
+      paintPanel(ctx, img, id, u)
+    }
+  }, [u, isMobile])
 
   return (
-    <svg
-      viewBox={`0 0 ${layout.w} ${layout.h}`}
-      className="absolute inset-0 h-full w-full"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <FlipCell
-        layout={layout}
-        t={t}
-        reducedMotion={reducedMotion}
-        isMobile={Boolean(isMobile)}
-      />
-    </svg>
+    <div className="absolute inset-0">
+      <svg
+        viewBox={`0 0 ${layout.w} ${layout.h}`}
+        className="absolute inset-0 h-full w-full"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <rect
+          x={layout.inset}
+          y={layout.inset}
+          width={layout.w - layout.inset * 2}
+          height={layout.h - layout.inset * 2}
+          rx={24}
+          fill={TINT_FLIP.bg}
+          stroke={TINT_FLIP.border}
+          strokeOpacity={0.55}
+          strokeWidth={1.4}
+        />
+        <rect
+          x={layout.inset}
+          y={layout.inset}
+          width={layout.w - layout.inset * 2}
+          height={layout.h - layout.inset * 2}
+          rx={24}
+          fill="rgba(255,255,255,0.55)"
+        />
+        <text x={layout.titleX} y={layout.titleY} fontSize={layout.titleFont} fontWeight={700} fill={TINT_FLIP.curve}>
+          色のひっくり返り
+        </text>
+        <text x={layout.subX} y={layout.subY} fontSize={layout.subFont} fontWeight={500} fill={TEXT_MUTED}>
+          1 つのチャンネルが先に端（上限や 0）で止まると、比率が崩れて色が飛ぶ
+        </text>
+        {PANEL_ORDER.map((id) => (
+          <Panel key={id} layout={layout} panel={id} u={u} />
+        ))}
+      </svg>
+      {PANEL_ORDER.map((id) => {
+        const r = layout.panels[id].image
+        return (
+          <canvas
+            key={`${id}-${isMobile ? "m" : "d"}`}
+            ref={(el) => {
+              canvasRefs.current[id] = el
+              if (!el) delete imageRefs.current[id]
+            }}
+            width={N}
+            height={N}
+            aria-hidden="true"
+            className="absolute rounded-[8px]"
+            style={{
+              position: "absolute",
+              left: `${(r.x / layout.w) * 100}%`,
+              top: `${(r.y / layout.h) * 100}%`,
+              width: `${(r.size / layout.w) * 100}%`,
+              height: `${(r.size / layout.h) * 100}%`,
+              imageRendering: id === "black" ? "pixelated" : "auto",
+            }}
+          />
+        )
+      })}
+      {/* プローブの丸は canvas の上に重ねる */}
+      <svg
+        viewBox={`0 0 ${layout.w} ${layout.h}`}
+        className="pointer-events-none absolute inset-0 h-full w-full"
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden="true"
+      >
+        {PANEL_ORDER.map((id) => {
+          const p = layout.panels[id]
+          const { px, py } = probePoint(id)
+          const ringR = id === "black" ? p.image.size * 0.05 : p.image.size * 0.12
+          return (
+            <circle
+              key={id}
+              cx={p.image.x + px * p.image.size}
+              cy={p.image.y + py * p.image.size}
+              r={ringR}
+              fill="none"
+              stroke="rgba(255,255,255,0.9)"
+              strokeWidth={2}
+              strokeDasharray="6 5"
+            />
+          )
+        })}
+      </svg>
+    </div>
   )
 }
