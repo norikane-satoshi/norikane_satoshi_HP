@@ -44,11 +44,6 @@ const TINT_FLIP = {
   curve: "rgb(160,70,70)",
 }
 
-const CHAN_COLORS = {
-  R: "rgb(214,80,80)",
-  G: "rgb(60,150,90)",
-  B: "rgb(80,100,200)",
-} as const
 
 export type Vec3 = [number, number, number]
 type Chan = "R" | "G" | "B"
@@ -376,23 +371,16 @@ function paintPanel(ctx: CanvasRenderingContext2D, img: ImageData, panel: PanelI
 }
 
 // ---- レイアウト ---------------------------------------------------------------
+// 図は「絵」と「一行の説明」だけにする。仕組みの数値（バー）は出さず、説明は本文に任せる。
 
 type Rect = { x: number; y: number; size: number }
 
 type PanelLayout = {
   image: Rect
-  labelX: number
+  textX: number
+  textAnchor: "start" | "middle"
   labelY: number
-  labelAnchor: "start" | "middle"
-  opY: number
-  barsX: number
-  barsY: number
-  barW: number
-  barH: number
-  barGap: number
   captionY: number
-  badgeX: number
-  badgeY: number
 }
 
 type Layout = {
@@ -406,41 +394,27 @@ type Layout = {
   subY: number
   subFont: number
   labelFont: number
-  opFont: number
-  opNoteOwnLine: boolean
   captionFont: number
-  chanFont: number
-  badgeW: number
-  badgeH: number
-  badgeFont: number
+  noteFont: number
+  lineGap: number
   panels: Record<PanelId, PanelLayout>
 }
 
 const PANEL_ORDER: PanelId[] = ["led", "yellow", "black"]
 
 function desktopLayout(): Layout {
-  const colW = 460
-  const gap = 50
-  const x0 = (1600 - (colW * 3 + gap * 2)) / 2
-  const size = 380
+  const size = 480
+  const gap = 40
+  const x0 = (1600 - (size * 3 + gap * 2)) / 2
   const panels = {} as Record<PanelId, PanelLayout>
   PANEL_ORDER.forEach((id, i) => {
-    const cx = x0 + i * (colW + gap)
-    const imgX = cx + (colW - size) / 2
+    const x = x0 + i * (size + gap)
     panels[id] = {
-      image: { x: imgX, y: 196, size },
-      labelX: cx + colW / 2,
-      labelY: 150,
-      labelAnchor: "middle",
-      opY: 180,
-      barsX: imgX + 30,
-      barsY: 628,
-      barW: size - 60,
-      barH: 20,
-      barGap: 9,
-      captionY: 614,
-      badgeX: cx + colW / 2,
-      badgeY: 784,
+      image: { x, y: 190, size },
+      textX: x + size / 2,
+      textAnchor: "middle",
+      labelY: 170,
+      captionY: 724,
     }
   })
   return {
@@ -452,58 +426,42 @@ function desktopLayout(): Layout {
     titleFont: 38,
     subX: 392,
     subY: 84,
-    subFont: 20,
-    labelFont: 23,
-    opFont: 17,
-    opNoteOwnLine: false,
-    captionFont: 15,
-    chanFont: 16,
-    badgeW: 170,
-    badgeH: 38,
-    badgeFont: 17,
+    subFont: 21,
+    labelFont: 24,
+    captionFont: 22,
+    noteFont: 17,
+    lineGap: 32,
     panels,
   }
 }
 
 function mobileLayout(): Layout {
-  const size = 380
+  const size = 400
   const panels = {} as Record<PanelId, PanelLayout>
   PANEL_ORDER.forEach((id, i) => {
-    const y0 = 170 + i * 440
+    const y0 = 172 + i * 430
     panels[id] = {
       image: { x: 36, y: y0, size },
-      labelX: 456,
-      labelY: y0 + 40,
-      labelAnchor: "start",
-      opY: y0 + 82,
-      barsX: 490,
-      barsY: y0 + 172,
-      barW: 440,
-      barH: 28,
-      barGap: 14,
-      captionY: y0 + 156,
-      badgeX: 456 + 254,
-      badgeY: y0 + 396,
+      textX: 470,
+      textAnchor: "start",
+      labelY: y0 + 150,
+      captionY: y0 + 205,
     }
   })
   return {
     w: 1000,
-    h: 1490,
+    h: 1460,
     inset: 10,
     titleX: 36,
     titleY: 82,
     titleFont: 44,
     subX: 36,
-    subY: 130,
-    subFont: 24,
-    labelFont: 32,
-    opFont: 24,
-    opNoteOwnLine: true,
-    captionFont: 22,
-    chanFont: 24,
-    badgeW: 230,
-    badgeH: 50,
-    badgeFont: 24,
+    subY: 132,
+    subFont: 25,
+    labelFont: 34,
+    captionFont: 28,
+    noteFont: 22,
+    lineGap: 40,
     panels,
   }
 }
@@ -513,236 +471,72 @@ const MOBILE = mobileLayout()
 
 export const FAILURE_MODES_MOBILE_ASPECT = `${MOBILE.w} / ${MOBILE.h}`
 
-const PANEL_TEXT: Record<
-  PanelId,
-  {
-    label: string
-    op: string
-    opNote?: string
-    caption: string
-    flipLabel: string
-    limitLabel: (c: Chan[]) => string
-  }
-> = {
+/** 一行の説明。モバイルでは lines で折り返す。 */
+const PANEL_TEXT: Record<PanelId, { label: string; caption: string; lines: string[]; note?: string }> = {
   led: {
     label: "LED の点とグロー",
-    op: "光が強くなる",
-    caption: "中心の値（ホワイトバランス後）",
-    flipLabel: "中心だけ飛ぶ",
-    limitLabel: (c) => `${c.join("・")} が上限で止まる`,
+    caption: "光が強くなると、中心だけが飛ぶ",
+    lines: ["光が強くなると、", "中心だけが飛ぶ"],
   },
   yellow: {
     label: "黄色のグラデーション",
-    op: "光が強くなる",
-    caption: "一番明るいところの値（ホワイトバランス後）",
-    flipLabel: "マゼンタに飛ぶ",
-    limitLabel: (c) => `${c.join("・")} が上限で止まる`,
+    caption: "一番明るいところがマゼンタに飛ぶ",
+    lines: ["一番明るいところが", "マゼンタに飛ぶ"],
   },
   black: {
     label: "黒とグレイン",
-    op: "光が弱くなる",
-    opNote: "（暗部を持ち上げて表示）",
-    caption: "丸で囲んだ点の値（ホワイトバランス後）",
-    flipLabel: "マゼンタの点が出る",
-    limitLabel: (c) => `${c.join("・")} が 0 で切られる`,
+    caption: "暗くなると、黒に色の点が出る",
+    lines: ["暗くなると、", "黒に色の点が出る"],
+    note: "（暗部を持ち上げて表示）",
   },
 }
 
-function Badge({ x, y, layout, label }: { x: number; y: number; layout: Layout; label: string }) {
-  return (
-    <g transform={`translate(${x}, ${y})`}>
-      <rect
-        x={-layout.badgeW / 2}
-        y={-layout.badgeH / 2}
-        width={layout.badgeW}
-        height={layout.badgeH}
-        rx={layout.badgeH / 2}
-        fill="rgba(180,60,80,0.16)"
-        stroke="rgba(180,60,80,0.65)"
-        strokeWidth={1.4}
-      />
-      <text
-        x={0}
-        y={layout.badgeFont * 0.36}
-        textAnchor="middle"
-        fontSize={layout.badgeFont}
-        fontWeight={700}
-        fill={ALERT}
-      >
-        {label}
-      </text>
-    </g>
-  )
-}
-
-function probePoint(panel: PanelId): { px: number; py: number } {
-  if (panel === "led") return { px: 0.5, py: 0.5 }
-  if (panel === "yellow") return { px: 0.5, py: 0.55 }
-  const { probe } = blackField()
-  return { px: (probe.ix + 0.5) / N, py: (probe.iy + 0.5) / N }
-}
-
-function Bars({ layout, p, panel, state }: { layout: Layout; p: PanelLayout; panel: PanelId; state: ProbeState }) {
-  const signed = panel === "black"
-  // ホワイトバランス後の値。LED / 黄色: 0〜2.4（上限は色ごとに WB_GAINS）。黒: -0.012〜0.06（0 の線）。
-  const lo = signed ? -0.012 : 0
-  const hi = signed ? 0.06 : 2.4
-  const xOf = (v: number) => p.barsX + ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * p.barW
-  const zeroX = xOf(0)
-  const top = p.barsY - 6
-  const bottom = p.barsY + 3 * p.barH + 2 * p.barGap + 6
-  return (
-    <g>
-      <text x={p.barsX - 22} y={p.captionY} fontSize={layout.captionFont} fill={TEXT_MUTED}>
-        {PANEL_TEXT[panel].caption}
-      </text>
-      {CHANS.map((ch, i) => {
-        const v = state.values[i]
-        const ceil = SENSOR_CEILING * WB_GAINS[i]
-        const y = p.barsY + i * (p.barH + p.barGap)
-        const limited = state.limited.includes(ch)
-        // 記録される値（0 と上限で止まる）
-        const shown = Math.max(0, Math.min(v, ceil))
-        const endX = xOf(shown)
-        const ceilX = xOf(ceil)
-        return (
-          <g key={ch}>
-            <text
-              x={p.barsX - 10}
-              y={y + p.barH * 0.78}
-              textAnchor="end"
-              fontSize={layout.chanFont}
-              fontWeight={700}
-              fill={CHAN_COLORS[ch]}
-              fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-            >
-              {ch}
-            </text>
-            <rect
-              x={p.barsX}
-              y={y}
-              width={p.barW}
-              height={p.barH}
-              rx={4}
-              fill="rgba(255,255,255,0.7)"
-              stroke="rgba(28,15,110,0.16)"
-            />
-            {!signed && v > ceil ? (
-              // 上限を超えて入ってきた光（記録されない分）
-              <rect
-                x={ceilX}
-                y={y + p.barH * 0.3}
-                width={xOf(v) - ceilX}
-                height={p.barH * 0.4}
-                fill={CHAN_COLORS[ch]}
-                fillOpacity={0.18}
-              />
-            ) : null}
-            {signed && v < 0 ? (
-              // 0 を下回って切り捨てられる分
-              <rect
-                x={xOf(v)}
-                y={y + p.barH * 0.3}
-                width={zeroX - xOf(v)}
-                height={p.barH * 0.4}
-                fill={CHAN_COLORS[ch]}
-                fillOpacity={0.3}
-              />
-            ) : null}
-            <rect
-              x={Math.min(zeroX, endX)}
-              y={y}
-              width={Math.abs(endX - zeroX)}
-              height={p.barH}
-              fill={CHAN_COLORS[ch]}
-              fillOpacity={limited ? 0.95 : 0.7}
-            />
-            {!signed ? (
-              // この色の上限（ホワイトバランスで R と B は G より高い位置になる）
-              <line
-                x1={ceilX}
-                y1={y - 3}
-                x2={ceilX}
-                y2={y + p.barH + 3}
-                stroke={ALERT}
-                strokeOpacity={0.85}
-                strokeWidth={2}
-              />
-            ) : null}
-          </g>
-        )
-      })}
-      {signed ? (
-        <>
-          <line x1={zeroX} y1={top} x2={zeroX} y2={bottom} stroke={ALERT} strokeOpacity={0.8} strokeWidth={2} />
-          <text
-            x={zeroX}
-            y={bottom + layout.captionFont * 1.2}
-            textAnchor="middle"
-            fontSize={layout.captionFont}
-            fill={ALERT}
-          >
-            0
-          </text>
-        </>
-      ) : (
-        <text x={p.barsX - 22} y={bottom + layout.captionFont * 1.3} fontSize={layout.captionFont} fill={ALERT}>
-          <tspan x={p.barsX - 22}>赤い線は各色の上限。高さが色ごとに違うので、</tspan>
-          <tspan x={p.barsX - 22} dy={layout.captionFont * 1.3}>
-            3 色とも止まっても白にならない
-          </tspan>
-        </text>
-      )}
-    </g>
-  )
-}
-
-function Panel({ layout, panel, u }: { layout: Layout; panel: PanelId; u: number }) {
+function Panel({ layout, panel, u, isMobile }: { layout: Layout; panel: PanelId; u: number; isMobile: boolean }) {
   const p = layout.panels[panel]
-  const state = probeState(panel, u)
+  const flipped = probeState(panel, u).flipped
   const text = PANEL_TEXT[panel]
+  const captionLines = isMobile ? text.lines : [text.caption]
+  const noteY = p.captionY + captionLines.length * layout.lineGap - layout.lineGap * 0.15
   return (
     <g>
       <text
-        x={p.labelX}
+        x={p.textX}
         y={p.labelY}
-        textAnchor={p.labelAnchor}
+        textAnchor={p.textAnchor}
         fontSize={layout.labelFont}
         fontWeight={700}
         fill={TEXT_PRIMARY}
       >
         {text.label}
       </text>
-      <text x={p.labelX} y={p.opY} textAnchor={p.labelAnchor} fontSize={layout.opFont} fill={TEXT_MUTED}>
-        {text.op}
-        {text.opNote && !layout.opNoteOwnLine ? text.opNote : null}
-      </text>
-      {text.opNote && layout.opNoteOwnLine ? (
-        <text
-          x={p.labelX}
-          y={p.opY + layout.opFont * 1.3}
-          textAnchor={p.labelAnchor}
-          fontSize={layout.opFont * 0.85}
-          fill={TEXT_MUTED}
-        >
-          {text.opNote}
-        </text>
-      ) : null}
       <rect
-        x={p.image.x - 1}
-        y={p.image.y - 1}
-        width={p.image.size + 2}
-        height={p.image.size + 2}
+        x={p.image.x - 2}
+        y={p.image.y - 2}
+        width={p.image.size + 4}
+        height={p.image.size + 4}
         rx={10}
         fill="none"
-        stroke={state.flipped ? "rgba(180,60,80,0.8)" : "rgba(28,15,110,0.2)"}
-        strokeWidth={state.flipped ? 3 : 1.5}
+        stroke={flipped ? "rgba(180,60,80,0.85)" : "rgba(28,15,110,0.2)"}
+        strokeWidth={flipped ? 3 : 1.5}
       />
-      <Bars layout={layout} p={p} panel={panel} state={state} />
-      {state.flipped ? (
-        <Badge x={p.badgeX} y={p.badgeY} layout={layout} label={text.flipLabel} />
-      ) : state.limited.length > 0 ? (
-        <Badge x={p.badgeX} y={p.badgeY} layout={layout} label={text.limitLabel(state.limited)} />
+      <text
+        x={p.textX}
+        y={p.captionY}
+        textAnchor={p.textAnchor}
+        fontSize={layout.captionFont}
+        fontWeight={600}
+        fill={flipped ? ALERT : TEXT_MUTED}
+      >
+        {captionLines.map((line, k) => (
+          <tspan key={k} x={p.textX} dy={k === 0 ? 0 : layout.lineGap}>
+            {line}
+          </tspan>
+        ))}
+      </text>
+      {text.note ? (
+        <text x={p.textX} y={noteY} textAnchor={p.textAnchor} fontSize={layout.noteFont} fill={TEXT_MUTED}>
+          {text.note}
+        </text>
       ) : null}
     </g>
   )
@@ -842,10 +636,10 @@ export default function CorrectionFailureModes({
           色のひっくり返り
         </text>
         <text x={layout.subX} y={layout.subY} fontSize={layout.subFont} fontWeight={500} fill={TEXT_MUTED}>
-          センサーの 1 チャンネルが先に上限や 0 で止まると、比率が崩れて色が飛ぶ
+          1 つのチャンネルが先に上限や 0 で止まると、比率が崩れて色が飛ぶ
         </text>
         {PANEL_ORDER.map((id) => (
-          <Panel key={id} layout={layout} panel={id} u={u} />
+          <Panel key={id} layout={layout} panel={id} u={u} isMobile={Boolean(isMobile)} />
         ))}
       </svg>
       {PANEL_ORDER.map((id) => {
@@ -872,31 +666,6 @@ export default function CorrectionFailureModes({
           />
         )
       })}
-      {/* プローブの丸は canvas の上に重ねる */}
-      <svg
-        viewBox={`0 0 ${layout.w} ${layout.h}`}
-        className="pointer-events-none absolute inset-0 h-full w-full"
-        preserveAspectRatio="xMidYMid meet"
-        aria-hidden="true"
-      >
-        {PANEL_ORDER.map((id) => {
-          const p = layout.panels[id]
-          const { px, py } = probePoint(id)
-          const ringR = id === "black" ? p.image.size * 0.05 : p.image.size * 0.12
-          return (
-            <circle
-              key={id}
-              cx={p.image.x + px * p.image.size}
-              cy={p.image.y + py * p.image.size}
-              r={ringR}
-              fill="none"
-              stroke="rgba(255,255,255,0.9)"
-              strokeWidth={2}
-              strokeDasharray="6 5"
-            />
-          )
-        })}
-      </svg>
     </div>
   )
 }
