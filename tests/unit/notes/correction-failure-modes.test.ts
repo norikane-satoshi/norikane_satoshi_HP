@@ -7,6 +7,8 @@ import {
   hueDeg,
   hueDistance,
   ledProfile,
+  blackField,
+  blackSensorAt,
   ledStrength,
   lightSensor,
   probeState,
@@ -79,12 +81,12 @@ describe("correction-failure-modes (1 つのチャンネルが先に端で止ま
     expect(hueDistance(hueOf(edge), startHue)).toBeLessThan(FLIP_HUE_DEG)
   })
 
-  it("black: the offset makes G cross 0 first and the remaining R and B show as a pink dot", () => {
+  it("black: as the light fades, G is clipped at 0 first and the white balance turns the rest magenta", () => {
     const start = probeState("black", 0)
     for (const v of start.values) expect(v).toBeGreaterThan(0)
 
-    const firstCross = firstStep("black", (u) => probeState("black", u).limited.length > 0)
-    expect(probeState("black", firstCross).limited).toEqual(["G"])
+    const firstCut = firstStep("black", (u) => probeState("black", u).limited.length > 0)
+    expect(probeState("black", firstCut).limited).toEqual(["G"])
 
     const end = probeState("black", 1)
     expect(end.values[1]).toBeLessThan(0)
@@ -92,7 +94,33 @@ describe("correction-failure-modes (1 つのチャンネルが先に端で止ま
     expect(end.values[2]).toBeGreaterThan(0)
     expect(end.flipped).toBe(true)
     expect(end.display[1]).toBe(0)
-    expect(end.display[0]).toBeGreaterThan(0.2)
-    expect(hueDistance(hueOf(end.display), 320)).toBeLessThan(30)
+    const endHue = hueOf(end.display) ?? 0
+    expect(endHue).toBeGreaterThan(280)
+  })
+
+  it("black: clipping at 0 before the white balance gives the whole shadow a magenta cast", () => {
+    const field = blackField()
+    const meanAt = (u: number) => {
+      const sum: Vec3 = [0, 0, 0]
+      let n = 0
+      for (let iy = 0; iy < 128; iy += 2) {
+        for (let ix = 0; ix < 128; ix += 2) {
+          const w = sensorToWorking(blackSensorAt(ix, iy, u))
+          sum[0] += w[0]
+          sum[1] += w[1]
+          sum[2] += w[2]
+          n++
+        }
+      }
+      return sum.map((v) => v / n) as Vec3
+    }
+    expect(field.noise.length).toBe(128 * 128 * 3)
+    const lit = meanAt(0)
+    // 光があるうちはほぼ無彩色
+    expect(Math.max(...lit) - Math.min(...lit)).toBeLessThan(0.1 * Math.max(...lit))
+    const dark = meanAt(1)
+    // 0 で切られた分の持ち上がりに WB がかかり、R と B が G より大きくなる
+    expect(dark[0]).toBeGreaterThan(dark[1] * 2)
+    expect(dark[2]).toBeGreaterThan(dark[1] * 1.5)
   })
 })

@@ -16,14 +16,15 @@ import { useEffect, useRef, useState } from "react"
  *      中心だけがマゼンタ側へ飛ぶ。周りのグローは青のまま。
  *   2. 黄色のグラデーション: 一番明るいところで G が先に上限で止まり、
  *      R と B だけが増えて鮮やかなピンク（マゼンタ）に飛ぶ。
- *   3. 黒とグレイン: オフセットで黒を沈めると、グレインで 0 の前後に散った値のうち
- *      G が先に 0 を下回る。ホワイトバランスで持ち上がった R と B が残り、
- *      黒の中にピンクの点が出る。
+ *   3. 黒とグレイン: 光が弱くなると、ノイズで 0 の前後に散ったセンサーの値のうち
+ *      0 未満が 0 で切られる。G が切られて R と B だけが残った点は、ホワイトバランスで
+ *      R と B が持ち上がるため、マゼンタ寄りの点になる（暗部のマゼンタかぶり）。
  *
- * 信号の流れ（3 例共通）:
- *   センサーの値（0〜1 で止まる）→ ホワイトバランス → 色を作る足し引き（3×3）
- *   → 表示（比率を保って明るさだけ圧縮）
- *   黒の例だけ、変換のあとにオフセットを加える（カラコレの操作）。
+ * 信号の流れ（3 例共通、RAW 現像の簡略モデル）:
+ *   センサーの値（黒レベルを引いた後、0〜1 で止まる）→ ホワイトバランス
+ *   → 色を作る足し引き（3×3）→ 表示（比率を保って明るさだけ圧縮）
+ * ノイズは画素ごと・色ごとに独立。G は 2 画素分あるので R・B より 1/√2 小さくする。
+ * 係数は一般的なカメラに近い例で、特定の機種の値ではない。
  *
  * SSR 設計: SVG は t=0 の純関数。canvas の描画は useEffect 内のみ。
  * reducedMotion 時は u を REDUCED_MOTION_U で固定して静止画化する。
@@ -140,12 +141,15 @@ export function ledStrength(u: number) {
 export function yellowStrength(u: number) {
   return 0.7 + 4.3 * u
 }
-export const BLACK_OFFSET_MAX = 0.017
-export function blackOffset(u: number) {
-  return -BLACK_OFFSET_MAX * u
+/** 黒の絵の明るさ（変換後の無彩色の値）。光が弱くなって 0 に近づく。 */
+export const BLACK_LEVEL_MAX = 0.02
+export function blackLevel(u: number) {
+  return BLACK_LEVEL_MAX * (1 - u)
 }
+/** センサーのノイズ（R・B）。G は 2 画素分あるので 1/√2。 */
+export const BLACK_NOISE = 0.0015
 /** 黒の絵は暗いので、表示のときだけ持ち上げる。 */
-export const BLACK_VIEW_LIFT = 10
+export const BLACK_VIEW_LIFT = 14
 
 /** 座標は -1..1。 */
 export function ledProfile(x: number, y: number) {
@@ -184,75 +188,77 @@ function gauss(next: () => number) {
 }
 
 type BlackField = {
-  /** 変換後（オフセット前）の値。N*N*3 */
-  working: Float32Array
+  /** 画素ごと・色ごとのセンサーのノイズ。N*N*3 */
+  noise: Float32Array
+  /** 場所ごとの明るさの比（中央が少し明るい）。N*N */
+  shade: Float32Array
   probe: { ix: number; iy: number }
 }
 
 let blackFieldCache: BlackField | null = null
 
 /**
- * 黒とグレイン: 暗いグレーにセンサー側のグレインを足して変換する。
- * センサーのノイズは各色同じくらいだが、ホワイトバランスで R と B が持ち上がる。
+ * 黒とグレイン: 暗いグレーにセンサーのノイズを足す。ノイズは 2×2 画素単位で、
+ * 色ごとに独立。黒レベルを引いた後の値は 0 で切られてからホワイトバランスがかかる。
  */
 export function blackField(): BlackField {
   if (blackFieldCache) return blackFieldCache
   const next = rng(20261002)
   const G = N / 2
-  const grain = new Float32Array(G * G)
-  for (let i = 0; i < grain.length; i++) {
-    const z = gauss(next)
-    const chi = (gauss(next) ** 2 + gauss(next) ** 2) / 2
-    grain[i] = (0.0011 * z) / Math.sqrt(Math.max(chi, 1e-6))
+  const coarse = new Float32Array(G * G * 3)
+  for (let i = 0; i < G * G; i++) {
+    coarse[i * 3] = BLACK_NOISE * gauss(next)
+    coarse[i * 3 + 1] = (BLACK_NOISE / Math.SQRT2) * gauss(next)
+    coarse[i * 3 + 2] = BLACK_NOISE * gauss(next)
   }
-  // 変換後の明るさだけのグレイン（無彩色）
-  const neutral = new Float32Array(G * G)
-  for (let i = 0; i < neutral.length; i++) neutral[i] = 0.0045 * gauss(next)
-  const working = new Float32Array(N * N * 3)
+  const noise = new Float32Array(N * N * 3)
+  const shade = new Float32Array(N * N)
   for (let iy = 0; iy < N; iy++) {
     for (let ix = 0; ix < N; ix++) {
       const x = (ix / (N - 1)) * 2 - 1
       const y = (iy / (N - 1)) * 2 - 1
-      const level =
-        0.008 + 0.003 * Math.exp(-((x + 0.1) ** 2) / 0.35 - (y - 0.15) ** 2 / 0.25)
-      const gi = (iy >> 1) * G + (ix >> 1)
-      const s = grain[gi]
-      const fine = neutral[gi]
-      const raw: Vec3 = [level / WB_GAINS[0] + s, level / WB_GAINS[1] + s, level / WB_GAINS[2] + s]
-      const w = mix(raw)
-      const o = (iy * N + ix) * 3
-      working[o] = w[0] + fine
-      working[o + 1] = w[1] + fine
-      working[o + 2] = w[2] + fine
+      const p = iy * N + ix
+      shade[p] = 1 + 0.5 * Math.exp(-((x + 0.1) ** 2) / 0.35 - (y - 0.15) ** 2 / 0.25)
+      const c = ((iy >> 1) * G + (ix >> 1)) * 3
+      noise[p * 3] = coarse[c]
+      noise[p * 3 + 1] = coarse[c + 1]
+      noise[p * 3 + 2] = coarse[c + 2]
     }
   }
-  // 中央付近で、沈めたときに G だけが 0 を下回ってピンクに残る点を 1 つ選ぶ
+  // 中央付近で、光が 0 になったときに G だけが 0 で切られ、R と B が残る点を 1 つ選ぶ
   let best = { ix: N / 2, iy: N / 2 }
   let bestScore = -Infinity
-  const off = blackOffset(1)
   for (let iy = Math.floor(N * 0.3); iy < N * 0.7; iy++) {
     for (let ix = Math.floor(N * 0.3); ix < N * 0.7; ix++) {
       const o = (iy * N + ix) * 3
-      const r = working[o] + off
-      const g = working[o + 1] + off
-      const b = working[o + 2] + off
-      if (working[o + 1] <= 0 || g >= -0.004 || r <= 0 || b <= 0) continue
-      const score = Math.min(r, b * 1.4) - Math.abs(ix - N / 2) * 1e-4 - Math.abs(iy - N / 2) * 1e-4
+      const r = noise[o]
+      const g = noise[o + 1]
+      const b = noise[o + 2]
+      if (g >= -0.0004 || r <= 0 || b <= 0) continue
+      const score =
+        Math.min(r * WB_GAINS[0], b * WB_GAINS[2]) -
+        Math.abs(ix - N / 2) * 1e-6 -
+        Math.abs(iy - N / 2) * 1e-6
       if (score > bestScore) {
         bestScore = score
         best = { ix, iy }
       }
     }
   }
-  blackFieldCache = { working, probe: best }
+  blackFieldCache = { noise, shade, probe: best }
   return blackFieldCache
 }
 
-export function blackWorkingAt(ix: number, iy: number, u: number): Vec3 {
+/** 黒の絵の 1 画素のセンサーの値（0 で切る前）。 */
+export function blackSensorAt(ix: number, iy: number, u: number): Vec3 {
   const f = blackField()
-  const o = (iy * N + ix) * 3
-  const off = blackOffset(u)
-  return [f.working[o] + off, f.working[o + 1] + off, f.working[o + 2] + off]
+  const p = iy * N + ix
+  const level = blackLevel(u) * f.shade[p]
+  return [
+    level / WB_GAINS[0] + f.noise[p * 3],
+    level / WB_GAINS[1] + f.noise[p * 3 + 1],
+    level / WB_GAINS[2] + f.noise[p * 3 + 2],
+  ]
 }
 
 // ---- 調べる 1 点（プローブ） --------------------------------------------------
@@ -260,7 +266,7 @@ export function blackWorkingAt(ix: number, iy: number, u: number): Vec3 {
 export type PanelId = "led" | "yellow" | "black"
 
 export type ProbeState = {
-  /** バーに出す値。LED / 黄色はセンサーの値（止まる前）、黒は変換後の値。 */
+  /** バーに出す値。センサーの値（上限や 0 で止まる前）。 */
   values: Vec3
   display: Vec3
   baseDisplay: Vec3
@@ -272,12 +278,12 @@ export type ProbeState = {
 export function probeState(panel: PanelId, u: number): ProbeState {
   if (panel === "black") {
     const { probe } = blackField()
-    const cur = blackWorkingAt(probe.ix, probe.iy, u)
-    const base = blackWorkingAt(probe.ix, probe.iy, 0)
-    const display = toDisplay(cur, BLACK_VIEW_LIFT)
-    const baseDisplay = toDisplay(base, BLACK_VIEW_LIFT)
+    const cur = blackSensorAt(probe.ix, probe.iy, u)
+    const base = blackSensorAt(probe.ix, probe.iy, 0)
+    const display = toDisplay(sensorToWorking(cur), BLACK_VIEW_LIFT)
+    const baseDisplay = toDisplay(sensorToWorking(base), BLACK_VIEW_LIFT)
     const limited = CHANS.filter((_, i) => cur[i] < 0)
-    // 黒は起点が無彩色に近いので、色相ではなく「0 を下回って鮮やかになったか」で見る
+    // 黒は起点が無彩色に近いので、色相ではなく「0 で切られて鮮やかになったか」で見る
     const flipped = limited.length > 0 && saturation(display) >= BLACK_FLIP_SATURATION
     return { values: cur, display, baseDisplay, limited, flipped }
   }
@@ -330,11 +336,16 @@ function paintPanel(ctx: CanvasRenderingContext2D, img: ImageData, panel: PanelI
   const data = img.data
   if (panel === "black") {
     const f = blackField()
-    const off = blackOffset(u)
+    const level = blackLevel(u)
     for (let p = 0; p < N * N; p++) {
       const o = p * 3
+      const l = level * f.shade[p]
       const d = toDisplay(
-        [f.working[o] + off, f.working[o + 1] + off, f.working[o + 2] + off],
+        sensorToWorking([
+          l / WB_GAINS[0] + f.noise[o],
+          l / WB_GAINS[1] + f.noise[o + 1],
+          l / WB_GAINS[2] + f.noise[o + 2],
+        ]),
         BLACK_VIEW_LIFT
       )
       data[p * 4] = encode(d[0])
@@ -522,11 +533,11 @@ const PANEL_TEXT: Record<
   },
   black: {
     label: "黒とグレイン",
-    op: "オフセットで黒を沈める",
+    op: "光が弱くなる",
     opNote: "（暗部を持ち上げて表示）",
-    caption: "丸で囲んだ点の値",
-    flipLabel: "ピンクの点が出る",
-    limitLabel: (c) => `${c.join("・")} が 0 を下回る`,
+    caption: "丸で囲んだ点のセンサーの値",
+    flipLabel: "マゼンタの点が出る",
+    limitLabel: (c) => `${c.join("・")} が 0 で切られる`,
   },
 }
 
@@ -566,9 +577,9 @@ function probePoint(panel: PanelId): { px: number; py: number } {
 
 function Bars({ layout, p, panel, state }: { layout: Layout; p: PanelLayout; panel: PanelId; state: ProbeState }) {
   const signed = panel === "black"
-  // LED / 黄色: 0〜1.6（上限 1 の線）。黒: -0.015〜0.035（0 の線）。
-  const lo = signed ? -0.015 : 0
-  const hi = signed ? 0.035 : 1.6
+  // LED / 黄色: 0〜1.6（上限 1 の線）。黒: -0.006〜0.03（0 の線）。
+  const lo = signed ? -0.006 : 0
+  const hi = signed ? 0.03 : 1.6
   const xOf = (v: number) => p.barsX + ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * p.barW
   const markX = signed ? xOf(0) : xOf(SENSOR_CEILING)
   const top = p.barsY - 6
@@ -583,7 +594,8 @@ function Bars({ layout, p, panel, state }: { layout: Layout; p: PanelLayout; pan
         const y = p.barsY + i * (p.barH + p.barGap)
         const limited = state.limited.includes(ch)
         const zeroX = xOf(0)
-        const shown = signed ? v : Math.min(v, SENSOR_CEILING)
+        // 記録される値（上限と 0 で止まる）
+        const shown = Math.max(0, Math.min(v, SENSOR_CEILING))
         const endX = xOf(shown)
         return (
           <g key={ch}>
@@ -616,6 +628,17 @@ function Bars({ layout, p, panel, state }: { layout: Layout; p: PanelLayout; pan
                 height={p.barH * 0.4}
                 fill={CHAN_COLORS[ch]}
                 fillOpacity={0.18}
+              />
+            ) : null}
+            {signed && v < 0 ? (
+              // 0 を下回って切り捨てられる分
+              <rect
+                x={xOf(v)}
+                y={y + p.barH * 0.3}
+                width={zeroX - xOf(v)}
+                height={p.barH * 0.4}
+                fill={CHAN_COLORS[ch]}
+                fillOpacity={0.3}
               />
             ) : null}
             <rect
@@ -788,7 +811,7 @@ export default function CorrectionFailureModes({
           色のひっくり返り
         </text>
         <text x={layout.subX} y={layout.subY} fontSize={layout.subFont} fontWeight={500} fill={TEXT_MUTED}>
-          1 つのチャンネルが先に端（上限や 0）で止まると、比率が崩れて色が飛ぶ
+          センサーの 1 チャンネルが先に上限や 0 で止まると、比率が崩れて色が飛ぶ
         </text>
         {PANEL_ORDER.map((id) => (
           <Panel key={id} layout={layout} panel={id} u={u} />
