@@ -163,7 +163,7 @@ function VisualBody({ config }: { config: VisualConfig }) {
       return <PlaceholderBox aspect={aspect} label={config.slug} />
     }
     const mobileAspect =
-      config.slug === "correction-failure-modes" ? "1000 / 900" : undefined
+      config.slug === "correction-failure-modes" ? "1000 / 1490" : undefined
     return (
       <VideoStage aspect={aspect} mobileAspect={mobileAspect} alt={config.alt}>
         {(state) => <Module {...state} />}
