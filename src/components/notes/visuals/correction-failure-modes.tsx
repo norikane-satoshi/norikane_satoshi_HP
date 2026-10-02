@@ -3,27 +3,17 @@
 import { useEffect, useRef, useState } from "react"
 
 /**
- * v6 動画モジュール: 破綻の代表型 — 色のひっくり返り（実際の絵で起きる 3 例）
+ * v7 動画モジュール: 破綻の代表型 — 色のひっくり返り（現場でよく見る 2 例）
  *
- * viewBox 1600×900 (16:9)、モバイル 1000×1490。LOOP = 8s。
+ * viewBox 1600×900 (16:9)、モバイル 1000×1060。LOOP = 8s。
  *
- * 本文（カラーコレクションの因数分解「破綻を管理する」）の
- * 「1 つのチャンネルが先に端をまたぐと、比率が崩れて別の色に飛ぶ」を、
- * 現場でよく見る 3 つの絵で見せる。
+ * 図は現象だけを見せ、仕組みの説明は本文（「破綻を管理する」）に任せる。
+ *   1. LED の点とグロー: 一番鮮やかな中心から先に色がひっくり返る。周りのグローは青のまま。
+ *   2. 黄色のグラデーション: 一番明るいところがマゼンタにひっくり返る。
  *
- *   1. LED の点とグロー: 光が強くなると、中心だけセンサーの B が先に上限で止まる。
- *      R と G だけが増え続け、色を作る足し引き（変換）の比率が崩れて、
- *      中心だけがマゼンタ側へ飛ぶ。周りのグローは青のまま。
- *   2. 黄色のグラデーション: 一番明るいところで G が先に上限で止まり、
- *      R と B だけが増えて鮮やかなピンク（マゼンタ）に飛ぶ。
- *   3. 黒とグレイン: 光が弱くなると、ノイズで 0 の前後に散ったセンサーの値のうち
- *      0 未満が 0 で切られる。G が切られて R と B だけが残った点は、ホワイトバランスで
- *      R と B が持ち上がるため、マゼンタ寄りの点になる（暗部のマゼンタかぶり）。
- *
- * 信号の流れ（3 例共通、RAW 現像の簡略モデル）:
- *   センサーの値（黒レベルを引いた後、0〜1 で止まる）→ ホワイトバランス
- *   → 色を作る足し引き（3×3）→ 表示（比率を保って明るさだけ圧縮）
- * ノイズは画素ごと・色ごとに独立。G は 2 画素分あるので R・B より 1/√2 小さくする。
+ * 絵の計算（RAW 現像の簡略モデル）:
+ *   センサーの値（0〜1 で止まる）→ ホワイトバランス → 色を作る足し引き（3×3）
+ *   → 表示（比率を保って明るさだけ圧縮）
  * 係数は一般的なカメラに近い例で、特定の機種の値ではない。
  *
  * SSR 設計: SVG は t=0 の純関数。canvas の描画は useEffect 内のみ。
@@ -113,16 +103,8 @@ export function hueDistance(a: number | null, b: number | null) {
 
 /** 起点から色相が 60° 以上ずれたら「ひっくり返り」。 */
 export const FLIP_HUE_DEG = 60
-/** 黒の点は、0 を下回ったうえで彩度がここを超えたら「飛んだ」とみなす。 */
-export const BLACK_FLIP_SATURATION = 0.85
 
-export function saturation(rgb: Vec3) {
-  const max = Math.max(rgb[0], rgb[1], rgb[2])
-  if (max <= 0) return 0
-  return (max - Math.min(rgb[0], rgb[1], rgb[2])) / max
-}
-
-// ---- 3 つの絵 -----------------------------------------------------------------
+// ---- 2 つの絵 -----------------------------------------------------------------
 
 /** 光の色ごとのセンサーの値（変換後に狙いの色になるよう逆算し、最大を 1 にしたもの）。 */
 export const LED_SENSOR: Vec3 = [0.1921, 0.592, 1.0] // → 青い LED
@@ -136,16 +118,6 @@ export function ledStrength(u: number) {
 export function yellowStrength(u: number) {
   return 0.7 + 4.3 * u
 }
-/** 黒の絵の明るさ（変換後の無彩色の値）。光が弱くなって 0 に近づく。 */
-export const BLACK_LEVEL_MAX = 0.02
-export function blackLevel(u: number) {
-  return BLACK_LEVEL_MAX * (1 - u)
-}
-/** センサーのノイズ（R・B）。G は 2 画素分あるので 1/√2。 */
-export const BLACK_NOISE = 0.0015
-/** 黒の絵は暗いので、表示のときだけ持ち上げる。 */
-export const BLACK_VIEW_LIFT = 14
-
 /** 座標は -1..1。 */
 export function ledProfile(x: number, y: number) {
   const r2 = x * x + y * y
@@ -165,100 +137,9 @@ export function lightSensor(color: Vec3, strength: number, profile: number): Vec
   ]
 }
 
-// 再現性のある乱数（mulberry32）
-function rng(seed: number) {
-  let a = seed >>> 0
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0
-    let t = a
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-function gauss(next: () => number) {
-  const u1 = Math.max(next(), 1e-12)
-  const u2 = next()
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
-}
-
-type BlackField = {
-  /** 画素ごと・色ごとのセンサーのノイズ。N*N*3 */
-  noise: Float32Array
-  /** 場所ごとの明るさの比（中央が少し明るい）。N*N */
-  shade: Float32Array
-  probe: { ix: number; iy: number }
-}
-
-let blackFieldCache: BlackField | null = null
-
-/**
- * 黒とグレイン: 暗いグレーにセンサーのノイズを足す。ノイズは 2×2 画素単位で、
- * 色ごとに独立。黒レベルを引いた後の値は 0 で切られてからホワイトバランスがかかる。
- */
-export function blackField(): BlackField {
-  if (blackFieldCache) return blackFieldCache
-  const next = rng(20261002)
-  const G = N / 2
-  const coarse = new Float32Array(G * G * 3)
-  for (let i = 0; i < G * G; i++) {
-    coarse[i * 3] = BLACK_NOISE * gauss(next)
-    coarse[i * 3 + 1] = (BLACK_NOISE / Math.SQRT2) * gauss(next)
-    coarse[i * 3 + 2] = BLACK_NOISE * gauss(next)
-  }
-  const noise = new Float32Array(N * N * 3)
-  const shade = new Float32Array(N * N)
-  for (let iy = 0; iy < N; iy++) {
-    for (let ix = 0; ix < N; ix++) {
-      const x = (ix / (N - 1)) * 2 - 1
-      const y = (iy / (N - 1)) * 2 - 1
-      const p = iy * N + ix
-      shade[p] = 1 + 0.5 * Math.exp(-((x + 0.1) ** 2) / 0.35 - (y - 0.15) ** 2 / 0.25)
-      const c = ((iy >> 1) * G + (ix >> 1)) * 3
-      noise[p * 3] = coarse[c]
-      noise[p * 3 + 1] = coarse[c + 1]
-      noise[p * 3 + 2] = coarse[c + 2]
-    }
-  }
-  // 中央付近で、光が 0 になったときに G だけが 0 で切られ、R と B が残る点を 1 つ選ぶ
-  let best = { ix: N / 2, iy: N / 2 }
-  let bestScore = -Infinity
-  for (let iy = Math.floor(N * 0.3); iy < N * 0.7; iy++) {
-    for (let ix = Math.floor(N * 0.3); ix < N * 0.7; ix++) {
-      const o = (iy * N + ix) * 3
-      const r = noise[o]
-      const g = noise[o + 1]
-      const b = noise[o + 2]
-      if (g >= -0.0004 || r <= 0 || b <= 0) continue
-      const score =
-        Math.min(r * WB_GAINS[0], b * WB_GAINS[2]) -
-        Math.abs(ix - N / 2) * 1e-6 -
-        Math.abs(iy - N / 2) * 1e-6
-      if (score > bestScore) {
-        bestScore = score
-        best = { ix, iy }
-      }
-    }
-  }
-  blackFieldCache = { noise, shade, probe: best }
-  return blackFieldCache
-}
-
-/** 黒の絵の 1 画素のセンサーの値（0 で切る前）。 */
-export function blackSensorAt(ix: number, iy: number, u: number): Vec3 {
-  const f = blackField()
-  const p = iy * N + ix
-  const level = blackLevel(u) * f.shade[p]
-  return [
-    level / WB_GAINS[0] + f.noise[p * 3],
-    level / WB_GAINS[1] + f.noise[p * 3 + 1],
-    level / WB_GAINS[2] + f.noise[p * 3 + 2],
-  ]
-}
-
 // ---- 調べる 1 点（プローブ） --------------------------------------------------
 
-export type PanelId = "led" | "yellow" | "black"
+export type PanelId = "led" | "yellow"
 
 export type ProbeState = {
   /**
@@ -278,17 +159,6 @@ function withWb(raw: Vec3): Vec3 {
 }
 
 export function probeState(panel: PanelId, u: number): ProbeState {
-  if (panel === "black") {
-    const { probe } = blackField()
-    const cur = blackSensorAt(probe.ix, probe.iy, u)
-    const base = blackSensorAt(probe.ix, probe.iy, 0)
-    const display = toDisplay(sensorToWorking(cur), BLACK_VIEW_LIFT)
-    const baseDisplay = toDisplay(sensorToWorking(base), BLACK_VIEW_LIFT)
-    const limited = CHANS.filter((_, i) => cur[i] < 0)
-    // 黒は起点が無彩色に近いので、色相ではなく「0 で切られて鮮やかになったか」で見る
-    const flipped = limited.length > 0 && saturation(display) >= BLACK_FLIP_SATURATION
-    return { values: withWb(cur), display, baseDisplay, limited, flipped }
-  }
   const color = panel === "led" ? LED_SENSOR : YELLOW_SENSOR
   const strength = panel === "led" ? ledStrength : yellowStrength
   const prof = panel === "led" ? ledProfile(0, 0) : yellowProfile(0, 0.1)
@@ -336,36 +206,15 @@ function profiles() {
 
 function paintPanel(ctx: CanvasRenderingContext2D, img: ImageData, panel: PanelId, u: number) {
   const data = img.data
-  if (panel === "black") {
-    const f = blackField()
-    const level = blackLevel(u)
-    for (let p = 0; p < N * N; p++) {
-      const o = p * 3
-      const l = level * f.shade[p]
-      const d = toDisplay(
-        sensorToWorking([
-          l / WB_GAINS[0] + f.noise[o],
-          l / WB_GAINS[1] + f.noise[o + 1],
-          l / WB_GAINS[2] + f.noise[o + 2],
-        ]),
-        BLACK_VIEW_LIFT
-      )
-      data[p * 4] = encode(d[0])
-      data[p * 4 + 1] = encode(d[1])
-      data[p * 4 + 2] = encode(d[2])
-      data[p * 4 + 3] = 255
-    }
-  } else {
-    const prof = profiles()[panel]
-    const color = panel === "led" ? LED_SENSOR : YELLOW_SENSOR
-    const k = panel === "led" ? ledStrength(u) : yellowStrength(u)
-    for (let p = 0; p < N * N; p++) {
-      const d = toDisplay(sensorToWorking(lightSensor(color, k, prof[p])))
-      data[p * 4] = encode(d[0])
-      data[p * 4 + 1] = encode(d[1])
-      data[p * 4 + 2] = encode(d[2])
-      data[p * 4 + 3] = 255
-    }
+  const prof = profiles()[panel]
+  const color = panel === "led" ? LED_SENSOR : YELLOW_SENSOR
+  const k = panel === "led" ? ledStrength(u) : yellowStrength(u)
+  for (let p = 0; p < N * N; p++) {
+    const d = toDisplay(sensorToWorking(lightSensor(color, k, prof[p])))
+    data[p * 4] = encode(d[0])
+    data[p * 4 + 1] = encode(d[1])
+    data[p * 4 + 2] = encode(d[2])
+    data[p * 4 + 3] = 255
   }
   ctx.putImageData(img, 0, 0)
 }
@@ -395,26 +244,25 @@ type Layout = {
   subFont: number
   labelFont: number
   captionFont: number
-  noteFont: number
   lineGap: number
   panels: Record<PanelId, PanelLayout>
 }
 
-const PANEL_ORDER: PanelId[] = ["led", "yellow", "black"]
+const PANEL_ORDER: PanelId[] = ["led", "yellow"]
 
 function desktopLayout(): Layout {
-  const size = 480
-  const gap = 40
-  const x0 = (1600 - (size * 3 + gap * 2)) / 2
+  const size = 540
+  const gap = 100
+  const x0 = (1600 - (size * 2 + gap)) / 2
   const panels = {} as Record<PanelId, PanelLayout>
   PANEL_ORDER.forEach((id, i) => {
     const x = x0 + i * (size + gap)
     panels[id] = {
-      image: { x, y: 190, size },
+      image: { x, y: 176, size },
       textX: x + size / 2,
       textAnchor: "middle",
-      labelY: 170,
-      captionY: 724,
+      labelY: 156,
+      captionY: 772,
     }
   })
   return {
@@ -429,7 +277,6 @@ function desktopLayout(): Layout {
     subFont: 21,
     labelFont: 24,
     captionFont: 22,
-    noteFont: 17,
     lineGap: 32,
     panels,
   }
@@ -450,7 +297,7 @@ function mobileLayout(): Layout {
   })
   return {
     w: 1000,
-    h: 1460,
+    h: 1060,
     inset: 10,
     titleX: 36,
     titleY: 82,
@@ -460,7 +307,6 @@ function mobileLayout(): Layout {
     subFont: 25,
     labelFont: 34,
     captionFont: 28,
-    noteFont: 22,
     lineGap: 40,
     panels,
   }
@@ -472,22 +318,16 @@ const MOBILE = mobileLayout()
 export const FAILURE_MODES_MOBILE_ASPECT = `${MOBILE.w} / ${MOBILE.h}`
 
 /** 一行の説明。モバイルでは lines で折り返す。 */
-const PANEL_TEXT: Record<PanelId, { label: string; caption: string; lines: string[]; note?: string }> = {
+const PANEL_TEXT: Record<PanelId, { label: string; caption: string; lines: string[] }> = {
   led: {
     label: "LED の点とグロー",
-    caption: "光が強くなると、中心だけが飛ぶ",
-    lines: ["光が強くなると、", "中心だけが飛ぶ"],
+    caption: "中心から先に、色がひっくり返る",
+    lines: ["中心から先に、", "色がひっくり返る"],
   },
   yellow: {
     label: "黄色のグラデーション",
-    caption: "一番明るいところがマゼンタに飛ぶ",
-    lines: ["一番明るいところが", "マゼンタに飛ぶ"],
-  },
-  black: {
-    label: "黒とグレイン",
-    caption: "暗くなると、黒に色の点が出る",
-    lines: ["暗くなると、", "黒に色の点が出る"],
-    note: "（暗部を持ち上げて表示）",
+    caption: "一番明るいところが、マゼンタにひっくり返る",
+    lines: ["一番明るいところが、", "マゼンタにひっくり返る"],
   },
 }
 
@@ -496,7 +336,6 @@ function Panel({ layout, panel, u, isMobile }: { layout: Layout; panel: PanelId;
   const flipped = probeState(panel, u).flipped
   const text = PANEL_TEXT[panel]
   const captionLines = isMobile ? text.lines : [text.caption]
-  const noteY = p.captionY + captionLines.length * layout.lineGap - layout.lineGap * 0.15
   return (
     <g>
       <text
@@ -533,11 +372,6 @@ function Panel({ layout, panel, u, isMobile }: { layout: Layout; panel: PanelId;
           </tspan>
         ))}
       </text>
-      {text.note ? (
-        <text x={p.textX} y={noteY} textAnchor={p.textAnchor} fontSize={layout.noteFont} fill={TEXT_MUTED}>
-          {text.note}
-        </text>
-      ) : null}
     </g>
   )
 }
@@ -561,7 +395,6 @@ export default function CorrectionFailureModes({
   const canvasRefs = useRef<Record<PanelId, HTMLCanvasElement | null>>({
     led: null,
     yellow: null,
-    black: null,
   })
   const imageRefs = useRef<Partial<Record<PanelId, ImageData>>>({})
 
@@ -636,7 +469,7 @@ export default function CorrectionFailureModes({
           色のひっくり返り
         </text>
         <text x={layout.subX} y={layout.subY} fontSize={layout.subFont} fontWeight={500} fill={TEXT_MUTED}>
-          1 つのチャンネルが先に上限や 0 で止まると、比率が崩れて色が飛ぶ
+          鮮やかなところから先に、色がひっくり返る
         </text>
         {PANEL_ORDER.map((id) => (
           <Panel key={id} layout={layout} panel={id} u={u} isMobile={Boolean(isMobile)} />
@@ -661,7 +494,6 @@ export default function CorrectionFailureModes({
               top: `${(r.y / layout.h) * 100}%`,
               width: `${(r.size / layout.w) * 100}%`,
               height: `${(r.size / layout.h) * 100}%`,
-              imageRendering: id === "black" ? "pixelated" : "auto",
             }}
           />
         )
