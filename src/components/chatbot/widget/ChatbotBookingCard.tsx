@@ -2,6 +2,8 @@
 
 import { isCalendarDate, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import { DeadlineInput } from "./DeadlineInput"
+import { ProjectDurationInput } from "./ProjectDurationInput"
+import { formatProjectLengthMinutes, parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import { bookingDetailLabels, unconfirmedBookingValue, type BookingDetail } from "@/lib/chatbot/domain/booking-details"
 
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -424,7 +426,12 @@ export function ChatbotBookingCard({
   const [memo, setMemo] = useState(defaultMemo ?? "")
   const [reviewDetails, setReviewDetails] = useState<BookingDetail[]>(() => bookingDetailLabels.map((label) => ({
     label,
-    value: confirmationItems.find((item) => item.label === label)?.value ?? unconfirmedBookingValue,
+    value: label === "尺"
+      ? (() => {
+          const minutes = parseProjectLengthMinutes(confirmationItems.find((item) => item.label === label)?.value ?? "")
+          return minutes === undefined || !Number.isInteger(minutes) ? unconfirmedBookingValue : formatProjectLengthMinutes(minutes)
+        })()
+      : confirmationItems.find((item) => item.label === label)?.value ?? unconfirmedBookingValue,
   })))
   const [agreed, setAgreed] = useState(false)
   const detailsEdited = reviewDetails.some((item) => item.value !== (confirmationItems.find((initial) => initial.label === item.label)?.value ?? unconfirmedBookingValue))
@@ -999,6 +1006,19 @@ export function ChatbotBookingCard({
         <div className="grid gap-3">
           <p className="text-sm text-hp-muted">案件の条件を確認し、違う項目は修正してください。分からない項目は空欄のままで送信できます（未確認として届きます）。</p>
           {reviewDetails.filter((item) => item.label !== "納品希望日").map((item) => (
+            item.label === "尺" ? (
+              <div key={item.label} className="space-y-2">
+                <p className="text-sm font-medium text-hp">尺</p>
+                <ProjectDurationInput
+                  initialMinutes={parseProjectLengthMinutes(item.value)}
+                  onChange={(minutes) => {
+                    const value = minutes === undefined ? unconfirmedBookingValue : formatProjectLengthMinutes(minutes)
+                    setReviewDetails((current) => current.map((detail) => detail.label === "尺" ? { ...detail, value } : detail))
+                    setAgreed(false)
+                  }}
+                />
+              </div>
+            ) :
             <label key={item.label} className="block text-sm font-medium text-hp">
               {item.label}
               <input

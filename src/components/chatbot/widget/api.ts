@@ -29,6 +29,7 @@ export type BookingCompletionSummary = {
 
 export type WidgetUi =
   | { kind: "none" }
+  | { kind: "duration-input"; question: string }
   | { kind: "choice-panel"; choiceSet: NonNullable<Extract<RoutingDecision, { kind: "continue" }>["presentChoices"]> }
   | {
       kind: "booking-card"

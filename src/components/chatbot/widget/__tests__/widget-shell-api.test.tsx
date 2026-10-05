@@ -122,6 +122,39 @@ describe("WidgetShell API wiring", () => {
     window.history.replaceState({}, "", "/")
   })
 
+  it("restores the duration card and records exact minutes as the customer's chat answer", async () => {
+    writeStoredWidgetSession({
+      conversationId: "conv_duration",
+      messages: [{ ...assistantMessage, content: "作品の尺を入力してください" }],
+      activeUi: { kind: "duration-input", question: "作品の尺を入力してください" },
+    })
+    const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse({
+      conversationId: "conv_duration", tier: "tier-0-deterministic-intake",
+      assistantMessage: { ...assistantMessage, id: "assistant_2", content: "最終媒体を選んでください" },
+      ui: { kind: "choice-panel", choiceSet: finalMediumChoices },
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText("尺の分"), { target: { value: "18" } })
+    fireEvent.click(screen.getByRole("button", { name: "この尺で回答する" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const call = fetchMock.mock.calls.find(([url]) => String(url) === "/api/chatbot/message")
+    expect(JSON.parse(call![1].body).message).toBe("尺: 0時間18分")
+    expect(screen.getByText("尺: 0時間18分")).toBeInTheDocument()
+  })
+
+  it("replaces a restored legacy duration bucket panel with the precise input card", () => {
+    writeStoredWidgetSession({
+      conversationId: "conv_duration",
+      messages: [{ ...assistantMessage, content: "作品の尺を入力してください" }],
+      activeUi: { kind: "choice-panel", choiceSet: { id: "project-length", question: "作品の尺は？", choices: [{ id: "under-60", label: "60分未満", value: "60分未満" }] } },
+    })
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockJsonResponse({})))
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    expect(screen.getByLabelText("尺の分")).toHaveValue(null)
+    expect(screen.queryByRole("button", { name: "60分未満" })).not.toBeInTheDocument()
+  })
+
   it("limits the diagnostic display to explicit loopback environments", () => {
     expect(isLocalChatbotDebugHost("localhost")).toBe(true)
     expect(isLocalChatbotDebugHost("127.0.0.1")).toBe(true)

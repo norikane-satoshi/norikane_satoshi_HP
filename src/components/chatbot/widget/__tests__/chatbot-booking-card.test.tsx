@@ -71,7 +71,7 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
       defaultCompanyName="株式会社サンプル"
       conversationId="conv_1"
       confirmationItems={[
-        { label: "案件種別", value: "CM" }, { label: "尺", value: "30秒" },
+        { label: "案件種別", value: "CM" }, { label: "尺", value: "18分" },
         { label: "最終媒体", value: "Web公開" }, { label: "作業場所/立ち会い", value: "お任せ" },
       ]}
       {...props}
@@ -85,7 +85,7 @@ describe("ChatbotBookingCard", () => {
     renderCard({ confirmationItems: [], defaultContactEmail: "client@example.jp" })
     expect(screen.queryByText("工程目安 2日")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
-    expect(screen.getByLabelText("尺")).toHaveValue("")
+    expect(screen.getByLabelText("尺の分")).toHaveValue(null)
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -99,9 +99,9 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     expect(screen.getByLabelText("案件種別")).toHaveValue("")
     expect(screen.getByLabelText("最終媒体")).toHaveValue("")
-    expect(screen.getByLabelText("尺")).toHaveValue("60分未満")
+    expect(screen.getByLabelText("尺の分")).toHaveValue(null)
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
-    fireEvent.change(screen.getByLabelText("尺"), { target: { value: "約18分（クレジット込み）" } })
+    fireEvent.change(screen.getByLabelText("尺の分"), { target: { value: "18" } })
     expect(screen.getByRole("button", { name: "予約内容を送信" })).toBeDisabled()
     fireEvent.change(screen.getByLabelText("案件種別"), { target: { value: "短編ドキュメンタリー" } })
     fireEvent.change(screen.getByLabelText("最終媒体"), { target: { value: "映画祭応募" } })
@@ -111,11 +111,41 @@ describe("ChatbotBookingCard", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
     expect(body.confirmedDetails).toEqual(expect.arrayContaining([
-      { label: "尺", value: "約18分（クレジット込み）" }, { label: "案件種別", value: "短編ドキュメンタリー" },
+      { label: "尺", value: "18分" }, { label: "案件種別", value: "短編ドキュメンタリー" },
       { label: "最終媒体", value: "映画祭応募" }, { label: "作業場所/立ち会い", value: "未確認" },
     ]))
     expect(body.workflowEstimate).toBeUndefined()
   })
+  it("submits the exact hours and minutes corrected in the final review", async () => {
+    const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
+    renderCard({ defaultContactEmail: "client@example.jp" })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+    expect(screen.getByLabelText("尺の分")).toHaveValue(18)
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.change(screen.getByLabelText("尺の時間"), { target: { value: "1" } })
+    expect(screen.getByRole("button", { name: "予約内容を送信" })).toBeDisabled()
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.confirmedDetails).toContainEqual({ label: "尺", value: "1時間18分" })
+    expect(body.workflowEstimate).toBeUndefined()
+  })
+
+  it("replaces a previously answered duration with unconfirmed when the customer selects undecided", async () => {
+    const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
+    renderCard({ defaultContactEmail: "client@example.jp" })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+    fireEvent.click(screen.getByLabelText("未定"))
+    expect(screen.getByLabelText("尺の分")).toBeDisabled()
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.confirmedDetails).toContainEqual({ label: "尺", value: "未確認" })
+    expect(body.workflowEstimate).toBeUndefined()
+  })
+
   it("acknowledges the committed Booking Order and every rendered prefill field without values", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       void init
@@ -657,7 +687,7 @@ describe("ChatbotBookingCard", () => {
         conversationId="conv_1"
         jobContext={{ ...jobContext, workflowEstimate: updatedEstimate }}
         confirmationItems={[
-          { label: "案件種別", value: "CM" }, { label: "尺", value: "30秒" },
+          { label: "案件種別", value: "CM" }, { label: "尺", value: "18分" },
           { label: "最終媒体", value: "Web公開" }, { label: "作業場所/立ち会い", value: "お任せ" },
         ]}
       />,
@@ -1272,7 +1302,7 @@ describe("ChatbotBookingCard", () => {
   describe("two steps: the calendar, then what will be sent", () => {
     const confirmationItems = [
       { label: "案件種別", value: "CM" },
-      { label: "尺", value: "30秒" },
+      { label: "尺", value: "18分" },
       { label: "最終媒体", value: "Web" },
       { label: "作業場所/立ち会い", value: "リモートグレーディング" },
     ]

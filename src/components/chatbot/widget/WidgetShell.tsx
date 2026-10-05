@@ -35,6 +35,7 @@ import {
 import { ChatInput } from "./ChatInput"
 import { ChatMessage } from "./ChatMessage"
 import { ChatbotBookingCard } from "./ChatbotBookingCard"
+import { DurationInputCard } from "./ProjectDurationInput"
 import {
   ChatbotDebugPanel,
   isLocalChatbotDebugHost,
@@ -1857,7 +1858,14 @@ function ActiveWidgetUi({
     })
   }, [auditContext, conversationId, ui.kind])
 
+  if (ui.kind === "duration-input") {
+    return <DurationInputCard question={ui.question} onSubmit={onSubmit} />
+  }
+
   if (ui.kind === "choice-panel") {
+    if (ui.choiceSet.id === "project-length") {
+      return <DurationInputCard question="作品の尺を時間・分で入力してください。未定の場合は未定を選んでください。" onSubmit={onSubmit} />
+    }
     return (
       <ChoicePanel
         choiceSet={ui.choiceSet}
