@@ -14,6 +14,12 @@ describe("describeJobForEstimate", () => {
     expect(describeJobForEstimate("vertical-60s", undefined)).toBe("縦型動画（尺未確認）")
   })
 
+  it("describes canonical categories without assuming representative length or episode order", () => {
+    expect(describeJobForEstimate("cm", undefined)).toBe("Web CM / CM（尺未確認）")
+    expect(describeJobForEstimate("documentary", 5)).toBe("ドキュメンタリー 5分")
+    expect(describeJobForEstimate("drama", 45)).toBe("ドラマ / シリーズ 45分")
+  })
+
   it("names drama episodes by their per-episode length once it is known", () => {
     expect(describeJobForEstimate("drama-first", undefined)).toBe("ドラマ初回")
     expect(describeJobForEstimate("drama-follow-up", 45)).toBe("ドラマ2話目以降（1話45分）")

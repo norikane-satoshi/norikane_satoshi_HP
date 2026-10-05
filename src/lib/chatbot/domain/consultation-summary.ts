@@ -1,5 +1,5 @@
 import type { ChatbotMessage, ConversationState, JobContext } from "@/lib/chatbot/domain"
-import { confirmedBookingDetails, confirmedBookingNote } from "./booking-details"
+import { confirmedBookingDetails, confirmedBookingNote, displayBookingDetails } from "./booking-details"
 
 export type ConsultationSummaryInput = {
   messages?: ReadonlyArray<ChatbotMessage>
@@ -23,7 +23,7 @@ export function formatConsultationSummary(input: ConsultationSummaryInput): stri
   return [
     "相談サマリ",
     `案件名: ${explicitProjectName ?? "未確認"}`,
-    ...confirmedBookingDetails(input).map(({ label, value }) => `${label}: ${value}`),
+    ...displayBookingDetails(confirmedBookingDetails(input)).map(({ label, value }) => `${label}: ${value}`),
     ...(note ? [`その他の補足: ${note}`] : []),
     "連絡先:",
     `- 氏名: ${state.customerName ?? fallback.customerName ?? "未確認"}`,

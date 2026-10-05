@@ -1,3 +1,4 @@
+import { workflowPresetJobKind, type LegacyJobKind, jobKindLabel } from "@/lib/booking/domain/job-kind"
 import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import type { JobKind, WorkSite } from "@/lib/chatbot/domain/workflow-estimate"
 
@@ -128,7 +129,7 @@ export const workflowDurationJobKindMap = {
   "vertical-60s": { presetId: "vertical-60s", baselineMinutes: 1 },
   "live-60m": { presetId: "live-60m", baselineMinutes: 60 },
 } as const satisfies Record<
-  JobKind,
+  LegacyJobKind,
   {
     presetId: WorkflowDurationPresetId
     baselineMinutes: number | undefined
@@ -183,7 +184,7 @@ export const workSiteDurationRules = {
   }
 >
 
-const estimateSubjectLabels: Record<JobKind, string> = {
+const estimateSubjectLabels: Record<LegacyJobKind, string> = {
   "cm-30s": "CM",
   "mv-5m": "MV",
   "feature-90m": "長編",
@@ -197,9 +198,14 @@ const estimateSubjectLabels: Record<JobKind, string> = {
  * Describe the exact customer duration, leaving an unanswered length unconfirmed.
  */
 export function describeJobForEstimate(jobKind: JobKind, projectLengthMinutes: number | undefined): string {
-  const subject = estimateSubjectLabels[jobKind]
-  const baselineMinutes = workflowDurationJobKindMap[jobKind].baselineMinutes
-  if (baselineMinutes === undefined) {
+  if (!Object.hasOwn(estimateSubjectLabels, jobKind)) {
+    const subject = jobKindLabel(jobKind)
+    return projectLengthMinutes === undefined ? `${subject}（尺未確認）` : `${subject} ${formatProjectLengthMinutes(projectLengthMinutes)}`
+  }
+  const presetKind = workflowPresetJobKind(jobKind)
+  const subject = presetKind ? estimateSubjectLabels[presetKind] : jobKindLabel(jobKind)
+  const baselineMinutes = presetKind ? workflowDurationJobKindMap[presetKind].baselineMinutes : undefined
+  if (presetKind && baselineMinutes === undefined) {
     // Drama lengths are per episode, so say so rather than read as the whole series.
     return projectLengthMinutes === undefined
       ? subject
