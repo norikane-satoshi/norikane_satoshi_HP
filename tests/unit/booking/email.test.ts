@@ -77,7 +77,7 @@ describe("booking email sender", () => {
     const message = mocks.send.mock.calls[0][0]
     expect(message.text).toEqual(expect.stringContaining("仮キープ受付として内容をお預かりしました"))
     expect(message.text).toEqual(expect.stringContaining("後ほど則兼本人から直接ご連絡します"))
-    expect(message.text).toEqual(expect.stringContaining("仮キープ候補日:"))
+    expect(message.text).toEqual(expect.stringContaining("希望日:"))
     expect(message.text).toEqual(expect.stringContaining("予約番号: group_1"))
     expect(message.subject).not.toMatch(/予約確定|本予約として確定|確定しました/)
     expect(message.text).not.toMatch(/予約確定|本予約として確定|確定しました/)
@@ -99,7 +99,7 @@ describe("booking email sender", () => {
     })
 
     const message = mocks.send.mock.calls[0][0]
-    expect(message.subject).toContain("【仮キープ受付】Schedule later")
+    expect(message.subject).toContain("【ご相談受付】Schedule later")
     expect(message.subject).toContain("未定（日程は則兼と相談）")
     expect(message.text).toContain("希望日: 未定（日程は則兼と相談）")
     expect(message.text).toContain("日程は後ほど相談させてください")
@@ -188,7 +188,7 @@ describe("booking email sender", () => {
 
     const message = mocks.send.mock.calls[0][0]
     expect(message.subject).toContain("3件の仮キープ候補")
-    expect(message.text).toContain("仮キープ候補日:")
+    expect(message.text).toContain("希望日:")
     expect(message.text).toContain("2026/06/10")
     expect(message.text).toContain("2026/06/17")
     expect(message.text).toContain("2026/06/25")
@@ -302,6 +302,49 @@ describe("booking email sender", () => {
     expect(mocks.send.mock.calls[0][0].text).toContain("2026/07/12")
     expect(mocks.send.mock.calls[0][0].text).toContain("2026/07/15")
     delete process.env.CHATBOT_BOOKING_OWNER_EMAIL
+  })
+
+  it("gives customer and owner identical complete conditions without inferred schedule phases", async () => {
+    process.env.RESEND_API_KEY = "resend_key"
+    mocks.send.mockResolvedValue({ data: { id: "receipt" }, error: null })
+    const { sendBookingConfirmedEmail, sendChatbotBookingOwnerNotification } = await import("@/lib/booking/server/email")
+    const memo = bookingDetailsMemo("都合の悪い日: 10月20日\n補足: 確認用 <test>", [
+      { label: "尺", value: "0時間18分" }, { label: "案件種別", value: "短編ドキュメンタリー" },
+      { label: "最終媒体", value: "劇場" }, { label: "DCP必要性", value: "不要" },
+      { label: "納品形式", value: "ProRes 422 HQ、Rec.709" },
+      { label: "納品希望日", value: "2026-10-25" }, { label: "納品希望日の理由", value: "映画祭応募" },
+    ])
+    const schedule = { selectedSlots: [], requestedDates: ["2026-10-19", "2026-10-21"] }
+    const customer = { to: "client@example.com", projectTitle: "確認用短編", bookingGroupId: "test_receipt", workScopes: [], memo, ...schedule }
+    // A stale caller cannot reintroduce the retired estimate-based schedule.
+    await sendBookingConfirmedEmail({ ...customer, ...{ scheduleLines: ["仕込み: 2026-10-18"] } })
+    await sendChatbotBookingOwnerNotification({ ...schedule, bookingGroupId: "test_receipt", projectTitle: "確認用短編", contactName: "テスト", contactEmail: "client@example.com", memo, ...{ scheduleLines: ["仕込み: 2026-10-18"] } })
+    const [receipt, owner] = mocks.send.mock.calls.map(([message]) => message)
+    expect(receipt.replyTo).toBe("norikane.satoshi@gmail.com")
+    const customerConditions = receipt.text.slice(receipt.text.indexOf("希望日:"), receipt.text.indexOf("\n\nこのメールは"))
+    const ownerConditions = owner.text.slice(owner.text.indexOf("希望日:"), owner.text.indexOf("\n予約番号:"))
+    expect(customerConditions).toBe(ownerConditions)
+    expect(receipt.text).toContain("尺: 18分")
+    expect(receipt.text).toContain("素材が揃う日: 未確認")
+    expect(receipt.text).toContain("DCP作成担当: 未確認")
+    expect(receipt.text).toContain("作業場所/立ち会い: 未確認")
+    expect(receipt.text).toContain("内容に誤りがあれば、このメールへの返信でお知らせください\n希望日:")
+    expect(receipt.text.indexOf("納品希望日:")).toBeLessThan(receipt.text.indexOf("納品希望日の理由:"))
+    for (const mail of [receipt, owner]) {
+      expect(mail.text).not.toMatch(/工程|仕込み|2026-10-18/)
+      expect(mail.html).toContain("&lt;test&gt;")
+      expect(mail.text).not.toContain("2026/10/20")
+    }
+  })
+
+  it("shows every unanswered condition as unconfirmed without inventing a hold", async () => {
+    const { buildBookingConfirmedEmail } = await import("@/lib/booking/server/email")
+    const mail = buildBookingConfirmedEmail({ to: "client@example.com", projectTitle: "未定", selectedSlots: [], workScopes: [] })
+    expect(mail.subject).toContain("【ご相談受付】")
+    expect(mail.text).not.toContain("仮キープ受付")
+    const { bookingDetailLabels } = await import("@/lib/chatbot/domain/booking-details")
+    for (const label of bookingDetailLabels) expect(mail.text).toContain(`${label}: 未確認`)
+    expect(mail.text).toContain("都合の悪い日: 未確認")
   })
 
   it("raises Resend errors", async () => {

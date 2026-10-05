@@ -1,3 +1,4 @@
+import { bookingDetailLabels, canonicalBookingDetails, type BookingDetail, type BookingDetailLabel } from "@/lib/chatbot/domain/booking-details"
 import { Resend } from "resend"
 
 let cached: Resend | null = null
@@ -19,8 +20,7 @@ export type BookingEmailArgs = {
   workScopes: string[]
   otherWorkDetail?: string
   estimatedDuration?: string
-  /** The job's schedule by part, when the owner's days were placed around the chosen attendance. */
-  scheduleLines?: string[]
+  memo?: string
 }
 
 export type BookingTimeChangedEmailArgs = {
@@ -43,7 +43,6 @@ export type ChatbotBookingOwnerNotificationArgs = {
   requestedDates?: string[]
   requestedDateRange?: BookingDateRange
   submittedAt?: string | Date
-  scheduleLines?: string[]
 }
 
 const SITE_URL = "https://norikane.studio"
@@ -210,6 +209,26 @@ function getBookingEmailSubjectSchedule(slots: BookingScheduleSlot[], requestedD
   return `${slots.length}件の仮キープ候補`
 }
 
+function bookingConditionLines(schedule: string, memo = ""): string[] {
+  const values = new Map<string, string>()
+  const notes: string[] = []
+  for (const line of memo.split("\n")) {
+    const match = /^\s*([^:：]+)[:：]\s*(.*)$/u.exec(line)
+    if (match && (bookingDetailLabels.includes(match[1] as BookingDetailLabel) || match[1] === "都合の悪い日")) {
+      values.set(match[1], match[2])
+    } else if (line.trim() && !/^\s*(?:希望日|作業日数|立ち会い日数|基本工程目安|工程目安|工程)(?:[:：]|（)/u.test(line)) {
+      notes.push(line.replace(/^\s*(?:補足|備考)[:：]\s*/u, ""))
+    }
+  }
+  const details: BookingDetail[] = bookingDetailLabels.map((label) => ({ label, value: values.get(label) ?? "未確認" }))
+  return [
+    `希望日: ${schedule}`,
+    `都合の悪い日: ${values.get("都合の悪い日")?.trim() || "未確認"}`,
+    ...canonicalBookingDetails(details).map(({ label, value }) => `${label}: ${value}`),
+    `補足: ${notes.join("\n").trim() || "未確認"}`,
+  ]
+}
+
 export async function sendChatbotBookingOwnerNotification(
   args: ChatbotBookingOwnerNotificationArgs,
 ): Promise<BookingEmailResult> {
@@ -229,9 +248,7 @@ export async function sendChatbotBookingOwnerNotification(
       `氏名: ${args.contactName}`,
       `メール: ${args.contactEmail}`,
       `会社名: ${formatOptional(args.companyName)}`,
-      `希望日: ${schedule}`,
-      ...(args.scheduleLines?.length ? [`工程:\n${args.scheduleLines.join("\n")}`] : []),
-      `補足: ${formatOptional(args.memo)}`,
+      ...bookingConditionLines(schedule, args.memo),
       `予約番号: ${args.bookingGroupId}`,
       `送信日時: ${formatDateTime(submittedAt)}`,
       "経由: HPチャットボット Booking Order",
@@ -240,39 +257,41 @@ export async function sendChatbotBookingOwnerNotification(
   })
 }
 
-export async function sendBookingConfirmedEmail(args: BookingEmailArgs): Promise<BookingEmailResult> {
+export function buildBookingConfirmedEmail(args: BookingEmailArgs) {
   const slots = getBookingEmailSlots(args)
   const schedule = formatSelectedSlots(slots, args.requestedDates, args.requestedDateRange)
-  const subject = `【仮キープ受付】${args.projectTitle} のご相談を受け付けました（${getBookingEmailSubjectSchedule(slots, args.requestedDates, args.requestedDateRange)}）`
-  const scheduleLine = slots.length > 0
-    ? `仮キープ候補日:\n${schedule}`
-    : args.requestedDates?.length || args.requestedDateRange
-      ? `希望日: ${schedule}`
-      : "希望日: 未定（日程は則兼と相談）"
+  const hasRequestedDates = slots.length > 0 || Boolean(args.requestedDates?.length || args.requestedDateRange)
+  const receiptLabel = hasRequestedDates ? "仮キープ受付" : "ご相談受付"
+  const subject = `【${receiptLabel}】${args.projectTitle} のご相談を受け付けました（${getBookingEmailSubjectSchedule(slots, args.requestedDates, args.requestedDateRange)}）`
   const scheduleNote = slots.length > 0
     ? "選択された日程は実施日ではなく、仮キープ候補としてお預かりしています。"
     : args.requestedDates?.length || args.requestedDateRange
       ? "選択された日程は確定予約ではなく、希望日としてお預かりしています。"
       : "候補日は未選択のため、日程は後ほど相談させてください。"
   const bookingGroupLine = args.bookingGroupId ? [`予約番号: ${args.bookingGroupId}`] : []
+  const lines = [
+    `このたびはご相談いただきありがとうございます。${receiptLabel}として内容をお預かりしました。`,
+    scheduleNote,
+    "内容を確認のうえ、後ほど則兼本人から直接ご連絡します。",
+    "",
+    `案件名: ${args.projectTitle}`,
+    ...bookingGroupLine,
+    "内容に誤りがあれば、このメールへの返信でお知らせください",
+    ...bookingConditionLines(schedule, args.memo),
+    ...(formatWork(args) ? [`作業内容:\n${formatBookingWork(args)}`] : []),
+    "",
+    "このメールは受付内容の控えです。",
+    ...signatureLines(),
+  ]
+  return { subject, lines, text: lines.join("\n"), html: paragraphsToHtml(lines) }
+}
+
+export async function sendBookingConfirmedEmail(args: BookingEmailArgs): Promise<BookingEmailResult> {
   return sendBookingEmail({
     tag: "tentative_hold",
     to: args.to,
-    subject,
-    lines: [
-      "このたびはご相談いただきありがとうございます。仮キープ受付として内容をお預かりしました。",
-      scheduleNote,
-      "内容を確認のうえ、後ほど則兼本人から直接ご連絡します。",
-      "",
-      `案件名: ${args.projectTitle}`,
-      ...bookingGroupLine,
-      scheduleLine,
-      ...(args.scheduleLines?.length ? [`工程（仮キープ）:\n${args.scheduleLines.join("\n")}`] : []),
-      `作業内容:\n${formatBookingWork(args)}`,
-      "",
-      "このメールは受付内容の控えです。変更や追加のご相談がある場合は、このメールへの返信でお知らせください。",
-      ...signatureLines(),
-    ],
+    replyTo: getChatbotBookingOwnerEmail(),
+    ...buildBookingConfirmedEmail(args),
   })
 }
 

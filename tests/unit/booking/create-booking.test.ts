@@ -139,7 +139,7 @@ describe("createBookingFromApiInput", () => {
       data: expect.objectContaining({ memo: expect.stringContaining(memo) }),
     }))
     expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining(memo) }))
-    expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ otherWorkDetail: memo }))
+    expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ memo }))
   })
   it("carries confirmed and unconfirmed chatbot facts unchanged into storage, calendar descriptions and booking mail", async () => {
     const service = await loadCreateBooking()
@@ -152,7 +152,7 @@ describe("createBookingFromApiInput", () => {
       data: expect.objectContaining({ memo: expect.stringContaining(memo) }),
     }))
     expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining(memo) }))
-    expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ otherWorkDetail: memo }))
+    expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ memo }))
   })
   it("returns the existing chatbot booking for the same idempotency key without repeating side effects", async () => {
     const service = await loadCreateBooking()
@@ -185,6 +185,16 @@ describe("createBookingFromApiInput", () => {
     expect(service.prisma.$transaction).not.toHaveBeenCalled()
     expect(service.createCalendarEvent).not.toHaveBeenCalled()
     expect(service.sendBookingConfirmedEmail).not.toHaveBeenCalled()
+  })
+
+  it("passes confirmed condition memo to the customer receipt without estimates", async () => {
+    const service = await loadCreateBooking()
+    const memo = "尺: 18分\n納品形式: ProRes 422 HQ、Rec.709\n納品希望日: 2026-10-25"
+    await service.createBookingFromApiInput({ input: bookingInput({ memo }), originatedFrom: "chatbot", userId: "public_user", userEmail: "client@example.com" })
+    expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ memo }))
+    const args = service.sendBookingConfirmedEmail.mock.calls[0][0]
+    expect(args).not.toHaveProperty("scheduleLines")
+    expect(args).not.toHaveProperty("otherWorkDetail")
   })
 
   it("recovers an idempotency race from the unique database constraint", async () => {
