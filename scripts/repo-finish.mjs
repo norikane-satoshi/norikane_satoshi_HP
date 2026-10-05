@@ -102,7 +102,10 @@ function buildPreflight(options) {
 
   const taskWorktree = taskWorktrees[0];
   lifecycle(["adapter-attest", "--adapter-id", "codex-app", "--capability", "disposal"]);
-  const registry = lifecycle(["list"]);
+  const registry = lifecycle([
+    "lookup", "--repository", mainRoot, "--branch", options.branch,
+    ...(taskWorktree ? ["--worktree", fs.realpathSync(taskWorktree.path)] : []),
+  ]);
   const branches = registry.branches.filter((record) =>
     path.resolve(record.repository) === path.resolve(mainRoot) && record.branch === options.branch &&
     !["removed", "disposed", "tombstoned", "superseded"].includes(record.state),

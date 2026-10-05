@@ -51,7 +51,14 @@ const workspace = { workspace_id: "test-workspace", path: config.worktreePath, r
 const branch = { branch_id: "test-branch", repository: config.repository, branch: config.branch, state: "active", workspace_id: workspace.workspace_id };
 const git = (args) => { const result = spawnSync("git", args, { cwd: config.repository, encoding: "utf8" }); if (result.status !== 0) { console.error(result.stderr); process.exit(2); } };
 let result = { ok: true };
-if (operation === "list") result = { workspaces: [workspace], branches: [branch] };
+if (operation === "list") { console.error("Global registry enumeration is not allowed"); process.exit(2); }
+if (operation === "lookup") {
+ const value = (flag) => args[args.indexOf(flag) + 1];
+ if (value("--repository") !== config.repository || value("--branch") !== config.branch ||
+     (args.includes("--worktree") && value("--worktree") !== config.worktreePath)) process.exit(2);
+ fs.writeFileSync(process.env.REPO_FINISH_FIXTURE + ".lookup.json", JSON.stringify(args));
+ result = { workspaces: [{ workspace_id: workspace.workspace_id, path: workspace.path }], branches: [branch] };
+}
 if (operation === "show") result = workspace;
 if (operation === "audit") result = { reasons: config.openHandles ? ["open_handles"] : ["artifact_state_unresolved"], processes: [], listeners: [], runtime: {} };
 if (operation === "artifact-update") {
@@ -134,6 +141,18 @@ test("dry-run leaves an integrated branch lifecycle untouched", (t) => {
   assert.equal(fs.existsSync(fixture.worktreePath), true);
   assert.equal(refExists(fixture.repository, `refs/heads/${fixture.branch}`), true);
   assert.notEqual(git(fixture.repository, ["ls-remote", "--heads", "origin", fixture.branch]).stdout.trim(), "");
+});
+
+test("looks up only the exact task instead of enumerating the growing registry", (t) => {
+  const fixture = createFixture(t);
+  run(process.execPath, [finishScript, fixture.branch, "--target=origin/master"], {
+    cwd: fixture.repository, env: fixture.env,
+  });
+  const args = JSON.parse(fs.readFileSync(fixture.env.REPO_FINISH_FIXTURE + ".lookup.json"));
+  assert.deepEqual(args, [
+    "lookup", "--repository", fixture.repository, "--branch", fixture.branch,
+    "--worktree", fixture.worktreePath, "--json",
+  ]);
 });
 
 test("apply removes only the clean integrated worktree and exact local/origin branch", (t) => {
