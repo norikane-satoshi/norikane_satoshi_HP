@@ -2,7 +2,7 @@
 
 import { isCalendarDate, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import { ProjectConditionInput } from "./ProjectConditionInput"
-import { projectConditionDefinitions, isConditionVisible, projectConditionDetails, formatConditionAnswer, type ProjectConditionDefinition, type ConditionAnswers, type ConditionAnswer } from "@/lib/booking/domain/project-conditions"
+import { projectConditionDefinitions, getProjectConditionDefinition, isConditionVisible, projectConditionDetails, formatConditionAnswer, type ProjectConditionDefinition, type ConditionAnswers, type ConditionAnswer } from "@/lib/booking/domain/project-conditions"
 import { parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import { unconfirmedBookingValue } from "@/lib/chatbot/domain/booking-details"
 import { formatRequestedBookingDates } from "@/lib/booking/domain/booking-display"
@@ -687,7 +687,7 @@ export function ChatbotBookingCard({
         >
           {step === "confirm"
             ? "チャットで決まった内容です。これで送信してよいか確認してください。"
-            : "希望日や都合の悪い日があれば教えてください。希望日を選ぶと、その日だけ仮キープします。日程は未定のままでも次へ進めます。"}
+            : getProjectConditionDefinition("preferred-dates")?.question}
         </p>
       </div>
 
@@ -696,7 +696,7 @@ export function ChatbotBookingCard({
         <>
         <fieldset className="space-y-2">
           <legend className="text-sm font-semibold text-hp">
-            希望日（任意）
+            {getProjectConditionDefinition("preferred-dates")?.label}（任意）
           </legend>
           <div className="rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -840,8 +840,8 @@ export function ChatbotBookingCard({
           </div>
         </fieldset>
         <label className="block text-sm font-medium text-hp">
-          都合の悪い日（任意）
-          <input aria-label="都合の悪い日（任意）" className="glass-input mt-2 w-full px-4 py-3 text-sm" value={unavailableDates} maxLength={160} placeholder="例: 10月20日は不可" onChange={(event) => { setUnavailableDates(event.target.value); setAgreed(false) }} />
+          {getProjectConditionDefinition("unavailable-dates")?.label}（任意）
+          <input aria-label={`${getProjectConditionDefinition("unavailable-dates")?.label}（任意）`} className="glass-input mt-2 w-full px-4 py-3 text-sm" value={unavailableDates} maxLength={160} placeholder="例: 10月20日は不可" onChange={(event) => { setUnavailableDates(event.target.value); setAgreed(false) }} />
         </label>
         <div className="flex flex-col gap-2">
           <button

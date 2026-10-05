@@ -247,7 +247,7 @@ const retouchCutCount = {
 } as const satisfies ProjectConditionDefinition
 const desiredDeliveryDate = { id: "desired-delivery-date", label: "納品希望日", question: "納品希望日を教えてください", input: "date", options: [] } as const satisfies ProjectConditionDefinition
 const deliveryDateReason = { id: "delivery-date-reason", label: "納品希望日の理由", question: "納品希望日の理由を教えてください", input: "text", options: [], visibility: { any: [{ questionId: "desired-delivery-date", hasDate: true }, { questionId: "delivery-date-reason", hasText: true }] } } as const satisfies ProjectConditionDefinition
-const preferredDates = { id: "preferred-dates", label: "希望日", question: "作業希望日を教えてください", input: "dates", options: [], unknownValue: "未定（日程は則兼と相談）" } as const satisfies ProjectConditionDefinition
+const preferredDates = { id: "preferred-dates", label: "希望日", question: "希望日や都合の悪い日があれば教えてください。希望日を選ぶと、その日だけ仮キープします。日程は未定のままでも次へ進めます。", input: "dates", options: [], unknownValue: "未定（日程は則兼と相談）" } as const satisfies ProjectConditionDefinition
 const unavailableDates = { id: "unavailable-dates", label: "都合の悪い日", question: "都合の悪い日を教えてください", input: "dates", options: [] } as const satisfies ProjectConditionDefinition
 
 export const projectConditionDefinitions = [
