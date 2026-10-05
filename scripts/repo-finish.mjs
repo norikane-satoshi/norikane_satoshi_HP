@@ -111,6 +111,9 @@ function buildPreflight(options) {
     if (!fs.existsSync(taskWorktree.path)) throw new Error(`Registered task worktree is missing: ${taskWorktree.path}`);
     const realWorktreePath = fs.realpathSync(taskWorktree.path);
     workspace = registeredTaskWorkspace(registry.workspaces, fs.realpathSync(mainRoot), realWorktreePath, options.branch);
+    if (branches[0]?.workspace_id !== workspace.workspace_id) {
+      throw new Error("Branch registration must bind to the exact task workspace");
+    }
     const taskStatus = git(["status", "--porcelain", "--untracked-files=normal"], { cwd: taskWorktree.path }).stdout.trim();
     if (taskStatus) throw new Error(`Task worktree is dirty: ${taskWorktree.path}`);
     const audit = lifecycle(["audit", "--workspace-id", workspace.workspace_id]);
@@ -140,9 +143,10 @@ function buildPreflight(options) {
 
 function applyFinish(preflight) {
   if (preflight.worktreePath) {
-    const workspace = preflight.workspace;
+    const workspace = lifecycle(["show", "--workspace-id", preflight.workspace.workspace_id]);
     const owner = ["--owner-agent", workspace.effective_owner_agent, "--owner-task", workspace.effective_owner_task, "--adapter-id", "codex-app"];
-    if (workspace.state === "retained") {
+    const metadata = JSON.parse(workspace.metadata_json || "{}");
+    if (["retained", "quarantined"].includes(workspace.state) || metadata.cleanup_requested || metadata.resume_retention?.status === "retained") {
       lifecycle(["restore-for-mutation", "--workspace-id", workspace.workspace_id, ...owner, "--reason", "Authorized exact integrated branch cleanup"]);
     }
     lifecycle(["finalize", "--workspace-id", workspace.workspace_id, ...owner]);

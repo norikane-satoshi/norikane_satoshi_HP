@@ -52,6 +52,7 @@ const branch = { branch_id: "test-branch", repository: config.repository, branch
 const git = (args) => { const result = spawnSync("git", args, { cwd: config.repository, encoding: "utf8" }); if (result.status !== 0) { console.error(result.stderr); process.exit(2); } };
 let result = { ok: true };
 if (operation === "list") result = { workspaces: [workspace], branches: [branch] };
+if (operation === "show") result = workspace;
 if (operation === "audit") result = { reasons: config.openHandles ? ["open_handles"] : [], processes: [], listeners: [], runtime: {} };
 if (operation === "dispose") git(["worktree", "remove", config.worktreePath]);
 if (operation === "branch-dispose") git(["branch", "-d", config.branch]);
