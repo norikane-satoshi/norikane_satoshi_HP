@@ -10,7 +10,7 @@ import { registeredTaskWorkspace, parseFinishArgs } from "./repo-finish-lib.mjs"
 const lifecycleCli = path.join(os.homedir(), "clawd/tools/workspace_lifecycle/cli.py");
 
 function lifecycle(args) {
-  return JSON.parse(run("python3", [lifecycleCli, ...args, "--json"], { timeout: 300_000 }).stdout);
+  return JSON.parse(run("python3", [lifecycleCli, ...args, "--json"], { timeout: 0 }).stdout);
 }
 
 function run(command, args, { cwd, allowFailure = false, timeout = 30_000 } = {}) {
