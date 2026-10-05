@@ -115,7 +115,7 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     const summary = screen.getByLabelText("送信する内容")
     expect(Array.from(summary.querySelectorAll("dt"), (element) => element.textContent)).toEqual([
-      "希望日", "都合の悪い日", "案件種別", "尺", "最終媒体", "納品形式", "DCP必要性", "DCP作成担当",
+      "希望日", "都合の悪い日", "案件種別", "作品構成", "尺", "最終媒体", "納品形式", "DCP必要性", "DCP作成担当",
       "納品希望日", "納品希望日の理由", "素材が揃う日", "作業場所/立ち会い", "追加作業", "付随素材", "字幕・テロップ等", "参考URL",
     ])
     expect(within(summary).getByText("2026/10/25(日)")).toBeInTheDocument()
@@ -172,7 +172,8 @@ describe("ChatbotBookingCard", () => {
     const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
     renderCard({ defaultContactEmail: "client@example.jp", confirmationItems: [{ label: "最終媒体", value: "劇場" }, { label: "DCP必要性", value: "必要" }, { label: "DCP作成担当", value: "ポスプロ" }] })
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
-    fireEvent.change(screen.getByLabelText("最終媒体"), { target: { value: "Web" } })
+    fireEvent.click(screen.getByLabelText("劇場公開"))
+    fireEvent.click(screen.getByLabelText("Web公開"))
     expect(screen.queryByLabelText("DCP必要性")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("DCP作成担当")).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
@@ -201,21 +202,21 @@ describe("ChatbotBookingCard", () => {
     renderCard({ defaultContactEmail: "client@example.jp", confirmationItems: [{ label: "尺", value: "60分未満" }] })
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     expect(screen.getByLabelText("案件種別")).toHaveValue("")
-    expect(screen.getByLabelText("最終媒体")).toHaveValue("")
+    expect(screen.getByLabelText("劇場公開")).not.toBeChecked()
     expect(screen.getByLabelText("尺の分")).toHaveValue(null)
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.change(screen.getByLabelText("尺の分"), { target: { value: "18" } })
     expect(screen.getByRole("button", { name: "予約内容を送信" })).toBeDisabled()
-    fireEvent.change(screen.getByLabelText("案件種別"), { target: { value: "短編ドキュメンタリー" } })
-    fireEvent.change(screen.getByLabelText("最終媒体"), { target: { value: "映画祭応募" } })
+    fireEvent.change(screen.getByLabelText("案件種別"), { target: { value: "documentary" } })
+    fireEvent.click(screen.getByLabelText("劇場公開"))
     fireEvent.change(screen.getByLabelText("納品形式"), { target: { value: "ProRes 422 HQ（Rec.709）、DCP不要" } })
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
     expect(body.confirmedDetails).toEqual(expect.arrayContaining([
-      { label: "尺", value: "18分" }, { label: "案件種別", value: "短編ドキュメンタリー" },
-      { label: "最終媒体", value: "映画祭応募" }, { label: "作業場所/立ち会い", value: "未確認" },
+      { label: "尺", value: "18分" }, { label: "案件種別", value: "ドキュメンタリー" },
+      { label: "最終媒体", value: "劇場公開" }, { label: "作業場所/立ち会い", value: "未確認" },
     ]))
     expect(body.workflowEstimate).toBeUndefined()
   })
@@ -247,6 +248,32 @@ describe("ChatbotBookingCard", () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
     expect(body.confirmedDetails).toContainEqual({ label: "尺", value: "未確認" })
     expect(body.workflowEstimate).toBeUndefined()
+  })
+
+  it("edits work rows and cut count before sending stable IDs with the human summary", async () => {
+    const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
+    renderCard({ defaultContactEmail: "client@example.jp", conditionAnswers: {
+      "project-length": { status: "answered", composition: [{ name: "ライブ", count: 1, durationSeconds: 7200 }, { name: "メイキング", count: 1, durationSeconds: 1200 }] },
+      "additional-work": { status: "answered", selectedIds: ["retouch"] },
+      "retouch-cut-count": { status: "answered", number: 10 },
+      "work-site": { status: "answered", selectedIds: ["remote-grading"] },
+    } })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.change(screen.getByLabelText("作品2の本数"), { target: { value: "2" } })
+    fireEvent.change(within(screen.getByRole("group", { name: "作品2" })).getByLabelText("尺の秒"), { target: { value: "30" } })
+    fireEvent.change(screen.getByLabelText("修正カット数"), { target: { value: "12" } })
+    fireEvent.change(screen.getByLabelText("作業場所/立ち会い"), { target: { value: "on-site" } })
+    expect(screen.getByRole("button", { name: "予約内容を送信" })).toBeDisabled()
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.conditionAnswers["project-length"].composition).toEqual([{ name: "ライブ", count: 1, durationSeconds: 7200 }, { name: "メイキング", count: 2, durationSeconds: 1230 }])
+    expect(body.conditionAnswers["retouch-cut-count"]).toEqual({ status: "answered", number: 12 })
+    expect(body.conditionAnswers["work-site"].selectedIds).toEqual(["on-site"])
+    expect(body.confirmedDetails).toContainEqual({ label: "尺", value: "2時間41分" })
+    expect(body.confirmedDetails).toContainEqual({ label: "作業場所/立ち会い", value: "先方の場所で" })
   })
 
   it("acknowledges the committed Booking Order and every rendered prefill field without values", async () => {

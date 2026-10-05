@@ -3,10 +3,9 @@
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
-import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-
 type DurationInputProps = {
   initialMinutes?: number
+  initialSeconds?: number
   initialUnknown?: boolean
   onChange: (minutes: number | undefined, unknown: boolean) => void
 }
@@ -64,18 +63,21 @@ function NumberWheel({ label, value, max, disabled, onChange }: {
   )
 }
 
-export function ProjectDurationInput({ initialMinutes, initialUnknown = false, onChange }: DurationInputProps) {
+export function ProjectDurationInput({ initialMinutes, initialSeconds, initialUnknown = false, onChange }: DurationInputProps) {
   const id = useId()
-  const validInitial = Number.isInteger(initialMinutes) && initialMinutes! > 0 ? initialMinutes : undefined
-  const [hours, setHours] = useState(validInitial === undefined ? "" : String(Math.floor(validInitial / 60)))
-  const [minutes, setMinutes] = useState(validInitial === undefined ? "" : String(validInitial % 60))
+  const initialTotal = initialSeconds ?? (initialMinutes === undefined ? undefined : Math.round(initialMinutes * 60))
+  const validInitial = Number.isInteger(initialTotal) && initialTotal! > 0 ? initialTotal : undefined
+  const [hours, setHours] = useState(validInitial === undefined ? "" : String(Math.floor(validInitial / 3600)))
+  const [minutes, setMinutes] = useState(validInitial === undefined ? "" : String(Math.floor(validInitial / 60) % 60))
+  const [seconds, setSeconds] = useState(validInitial === undefined ? "" : String(validInitial % 60))
   const [unknown, setUnknown] = useState(initialUnknown)
 
-  function update(nextHours: string, nextMinutes: string, nextUnknown = unknown) {
+  function update(nextHours: string, nextMinutes: string, nextSeconds = seconds, nextUnknown = unknown) {
     setHours(nextHours)
     setMinutes(nextMinutes)
+    setSeconds(nextSeconds)
     setUnknown(nextUnknown)
-    const total = Number(nextHours || 0) * 60 + Number(nextMinutes || 0)
+    const total = Number(nextHours || 0) * 60 + Number(nextMinutes || 0) + Number(nextSeconds || 0) / 60
     onChange(!nextUnknown && total > 0 ? total : undefined, nextUnknown)
   }
 
@@ -115,28 +117,12 @@ export function ProjectDurationInput({ initialMinutes, initialUnknown = false, o
       <div className="flex items-center gap-2">
         {field("時間", hours, Math.max(99, Number(hours)), (value) => update(value, minutes))}
         {field("分", minutes, 59, (value) => update(hours, value))}
-        <label htmlFor={`${id}-unknown`} className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 text-sm text-hp">
-          <input id={`${id}-unknown`} type="checkbox" checked={unknown} className="h-4 w-4 accent-[var(--hp-color-accent)]" onChange={(event) => update(hours, minutes, event.target.checked)} />
-          未定
-        </label>
+        {field("秒", seconds, 59, (value) => update(hours, minutes, value))}
       </div>
+      <label htmlFor={`${id}-unknown`} className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 text-sm text-hp">
+        <input id={`${id}-unknown`} type="checkbox" checked={unknown} className="h-4 w-4 accent-[var(--hp-color-accent)]" onChange={(event) => update(hours, minutes, seconds, event.target.checked)} />
+        未定
+      </label>
     </fieldset>
-  )
-}
-
-export function DurationInputCard({ onSubmit }: { question: string; onSubmit: (message: string) => void }) {
-  const [minutes, setMinutes] = useState<number>()
-  const [unknown, setUnknown] = useState(false)
-  return (
-    <section className="glass-card space-y-3 p-4" aria-label="尺の入力">
-      <p className="text-sm font-medium text-hp">尺</p>
-      <ProjectDurationInput onChange={(value, undecided) => { setMinutes(value); setUnknown(undecided) }} />
-      <p className="text-sm text-hp-muted" aria-live="polite">
-        {unknown ? "尺: 未確認" : minutes ? `尺: ${formatProjectLengthMinutes(minutes)}` : "時間と分を合わせてください"}
-      </p>
-      <button type="button" className="glass-btn min-h-11 w-full px-4 py-3 text-sm disabled:opacity-50" disabled={!unknown && !minutes} onClick={() => onSubmit(unknown ? "尺: 未定" : `尺: ${Math.floor(minutes! / 60)}時間${minutes! % 60}分`)}>
-        この尺で回答する
-      </button>
-    </section>
   )
 }

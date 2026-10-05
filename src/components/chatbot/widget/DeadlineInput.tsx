@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { isCalendarDate, isSelectableDeadline, todayInJapan } from "@/lib/chatbot/domain/deadline"
 
 export function DeadlineInput({ value, onChange, label = "納期" }: { value: string; onChange: (value: string) => void; label?: string }) {
@@ -14,23 +13,4 @@ export function DeadlineInput({ value, onChange, label = "納期" }: { value: st
       </label>
     </div>
   )
-}
-
-export function DateAnswerPanel({ label, onSubmit }: { label: string; onSubmit: (text: string) => void }) {
-  const [value, setValue] = useState("")
-  const [reason, setReason] = useState("")
-  const deadline = label === "納期"
-  const valid = value === "未定" || isSelectableDeadline(value)
-  return (
-    <section className="space-y-3 rounded-[12px] border border-white/55 bg-white/35 p-3" aria-label={`${label}の日付選択`}>
-      <p className="text-sm font-medium text-hp">{label}</p>
-      <DeadlineInput label={label} value={value} onChange={setValue} />
-      {deadline && isCalendarDate(value) ? <label className="block text-sm text-hp">動かせない理由があれば（任意）<input aria-label="納品希望日の理由" value={reason} onChange={(event) => setReason(event.target.value)} className="glass-input mt-2 w-full px-3 py-2" placeholder="映画祭・公開日など" maxLength={160} /></label> : null}
-      <button type="button" className="glass-btn min-h-11 w-full px-3 py-2 text-sm" disabled={!valid} onClick={() => onSubmit(`${label}: ${value}${deadline && isCalendarDate(value) && reason.trim() ? `\n納品希望日の理由: ${reason.trim()}` : ""}`)}>{label}を回答する</button>
-    </section>
-  )
-}
-
-export function DeadlinePanel({ onSubmit }: { onSubmit: (text: string) => void }) {
-  return <DateAnswerPanel label="納期" onSubmit={onSubmit} />
 }
