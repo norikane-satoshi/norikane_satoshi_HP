@@ -28,6 +28,8 @@ pnpm repo:finish -- codex/example-task --target=origin/master
 pnpm repo:finish -- codex/example-task --target=origin/master --apply
 ```
 
+staging のみに新しい cleanup script が統合され、main checkout の `master` に未反映の場合は、main の旧 `pnpm repo:finish` を使わない。main checkout を cwd とする共通 `guarded_run.py` 内で、検証済み `origin/staging` の `scripts/repo-finish.mjs`、`scripts/repo-finish-lib.mjs`、`scripts/repo-hygiene-lib.mjs` を `git show` で取得し、`WORKSPACE_LIFECYCLE_BUILD_ROOT` の同じディレクトリへ保存する。その snapshot の `repo-finish.mjs` を `node` で起動し、`--target=origin/staging` の dry-run を確認してから、別の guard で同じ snapshot 手順と `--apply` を実行する。削除対象 worktree を cwd や実行 script の置き場にせず、snapshot は guard が正規回収する。
+
 apply は次の条件をすべて満たさなければ何も削除しない。
 
 - main checkout が clean な `master` で、`master == origin/master`
