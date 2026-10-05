@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { isManagedTaskWorktree, isPathWithin, parseFinishArgs } from "../../scripts/repo-finish-lib.mjs";
+import { registeredTaskWorkspace, isPathWithin, parseFinishArgs } from "../../scripts/repo-finish-lib.mjs";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testDir, "../..");
@@ -29,17 +29,34 @@ function git(cwd, args, options) {
   return run("git", args, { cwd, ...options });
 }
 
-function createFixture(t, { integrated = true, lsofScript = "#!/bin/sh\nexit 1\n", worktree = true } = {}) {
+function createFixture(t, { integrated = true, openHandles = false, worktree = true } = {}) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "repo-finish-test-"));
   const remote = path.join(tempRoot, "origin.git");
   const repository = path.join(tempRoot, "repository");
   const bin = path.join(tempRoot, "bin");
   const branch = "codex/example-task";
-  const worktreePath = path.join(repository, ".codex-worktrees", "example-task");
+  const worktreePath = path.join(tempRoot, "raid", "example-task");
   t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
 
   fs.mkdirSync(bin, { recursive: true });
-  fs.writeFileSync(path.join(bin, "lsof"), lsofScript, { mode: 0o755 });
+  const configuration = path.join(tempRoot, "lifecycle.json");
+  fs.writeFileSync(configuration, JSON.stringify({ repository, worktreePath, branch, openHandles }));
+  fs.writeFileSync(path.join(bin, "python3"), `#!/usr/bin/env node
+const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
+const config = JSON.parse(fs.readFileSync(process.env.REPO_FINISH_FIXTURE));
+const args = process.argv.slice(3);
+const operation = args[0];
+const workspace = { workspace_id: "test-workspace", path: config.worktreePath, repository: config.repository, branch: config.branch, kind: "git-worktree", state: "active", effective_owner_agent: "fixture", effective_owner_task: "test" };
+const branch = { branch_id: "test-branch", repository: config.repository, branch: config.branch, state: "active", workspace_id: workspace.workspace_id };
+const git = (args) => { const result = spawnSync("git", args, { cwd: config.repository, encoding: "utf8" }); if (result.status !== 0) { console.error(result.stderr); process.exit(2); } };
+let result = { ok: true };
+if (operation === "list") result = { workspaces: [workspace], branches: [branch] };
+if (operation === "audit") result = { reasons: config.openHandles ? ["open_handles"] : [], processes: [], listeners: [], runtime: {} };
+if (operation === "dispose") git(["worktree", "remove", config.worktreePath]);
+if (operation === "branch-dispose") git(["branch", "-d", config.branch]);
+console.log(JSON.stringify(result));
+`, { mode: 0o755 });
   git(tempRoot, ["init", "--bare", remote]);
   git(tempRoot, ["init", "--initial-branch=master", repository]);
   git(repository, ["config", "user.name", "Repo Finish Test"]);
@@ -66,7 +83,7 @@ function createFixture(t, { integrated = true, lsofScript = "#!/bin/sh\nexit 1\n
 
   return {
     branch,
-    env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+    env: { ...process.env, REPO_FINISH_FIXTURE: configuration, PATH: `${bin}${path.delimiter}${process.env.PATH}` },
     remote,
     repository,
     worktreePath,
@@ -88,11 +105,14 @@ test("parses an explicit branch and keeps execution dry-run by default", () => {
   assert.throws(() => parseFinishArgs(["codex/example", "--target=HEAD"]), /Target must be one of/);
 });
 
-test("recognizes only nested managed task worktrees", () => {
+test("recognizes exact registered worktrees on RAID and rejects identity mismatch", () => {
   assert.equal(isPathWithin("/repo/.codex-worktrees", "/repo/.codex-worktrees/task"), true);
   assert.equal(isPathWithin("/repo/.codex-worktrees", "/repo/other"), false);
-  assert.equal(isManagedTaskWorktree("/repo", "/repo/.claude/worktrees/task"), true);
-  assert.equal(isManagedTaskWorktree("/repo", "/tmp/task"), false);
+  const record = { path: "/raid/task", repository: "/repo", branch: "codex/task", kind: "git-worktree", state: "active", workspace_id: "id", effective_owner_agent: "agent", effective_owner_task: "task" };
+  assert.equal(registeredTaskWorkspace([record], "/repo", "/raid/task", "codex/task"), record);
+  assert.throws(() => registeredTaskWorkspace([record], "/other", "/raid/task", "codex/task"), /exact lifecycle registration/);
+  assert.throws(() => registeredTaskWorkspace([record], "/repo", "/raid/task-other", "codex/task"), /exact lifecycle registration/);
+  assert.throws(() => registeredTaskWorkspace([record, record], "/repo", "/raid/task", "codex/task"), /exact lifecycle registration/);
 });
 
 test("dry-run leaves an integrated branch lifecycle untouched", (t) => {
@@ -162,7 +182,7 @@ test("refuses a dirty task worktree without deleting either ref", (t) => {
 
 test("refuses a task worktree with an open handle", (t) => {
   const fixture = createFixture(t, {
-    lsofScript: "#!/bin/sh\nprintf 'COMMAND PID NAME\\nnode 123 /repo/.codex-worktrees/example-task/file\\n'\nexit 0\n",
+    openHandles: true,
   });
   const result = run(
     process.execPath,
@@ -171,7 +191,7 @@ test("refuses a task worktree with an open handle", (t) => {
   );
 
   assert.equal(result.status, 2);
-  assert.match(result.stderr, /Task worktree has open handles/);
+  assert.match(result.stderr, /Lifecycle audit refused: open_handles/);
   assert.equal(fs.existsSync(fixture.worktreePath), true);
   assert.equal(refExists(fixture.repository, `refs/heads/${fixture.branch}`), true);
   assert.notEqual(git(fixture.repository, ["ls-remote", "--heads", "origin", fixture.branch]).stdout.trim(), "");

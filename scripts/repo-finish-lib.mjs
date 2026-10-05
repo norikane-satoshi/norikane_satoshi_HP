@@ -37,9 +37,16 @@ export function isPathWithin(parentPath, candidatePath) {
   return relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
-export function isManagedTaskWorktree(mainRoot, worktreePath) {
-  return [
-    path.join(mainRoot, ".codex-worktrees"),
-    path.join(mainRoot, ".claude", "worktrees"),
-  ].some((root) => isPathWithin(root, worktreePath));
+export function registeredTaskWorkspace(records, mainRoot, worktreePath, branch) {
+  const matches = records.filter((record) =>
+    path.resolve(record.path) === path.resolve(worktreePath) &&
+    path.resolve(record.repository) === path.resolve(mainRoot) &&
+    record.kind === "git-worktree" && record.branch === branch &&
+    !["removed", "disposed", "tombstoned", "superseded"].includes(record.state),
+  );
+  if (matches.length !== 1 || !matches[0].workspace_id ||
+      !matches[0].effective_owner_agent || !matches[0].effective_owner_task) {
+    throw new Error(`Task worktree must have one exact lifecycle registration: ${worktreePath}`);
+  }
+  return matches[0];
 }

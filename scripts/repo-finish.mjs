@@ -2,9 +2,16 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { parseWorktreePorcelain } from "./repo-hygiene-lib.mjs";
-import { isManagedTaskWorktree, parseFinishArgs } from "./repo-finish-lib.mjs";
+import { registeredTaskWorkspace, parseFinishArgs } from "./repo-finish-lib.mjs";
+
+const lifecycleCli = path.join(os.homedir(), "clawd/tools/workspace_lifecycle/cli.py");
+
+function lifecycle(args) {
+  return JSON.parse(run("python3", [lifecycleCli, ...args, "--json"], { timeout: 300_000 }).stdout);
+}
 
 function run(command, args, { cwd, allowFailure = false, timeout = 30_000 } = {}) {
   const result = spawnSync(command, args, {
@@ -44,22 +51,6 @@ function remoteBranchSha(branch, cwd) {
 
 function isAncestor(commit, target, cwd) {
   return git(["merge-base", "--is-ancestor", commit, target], { cwd, allowFailure: true }).status === 0;
-}
-
-function assertNoOpenHandles(worktreePath, cwd) {
-  const result = run("lsof", ["-nP", "+D", worktreePath], {
-    cwd,
-    allowFailure: true,
-    timeout: 60_000,
-  });
-  if (result.status === 1 && !result.stdout.trim() && !result.stderr.trim()) return;
-  if (result.status !== 0) {
-    const detail = result.stderr.trim() || `exit ${result.status}`;
-    throw new Error(`Could not verify open handles for ${worktreePath}: ${detail}`);
-  }
-  const lines = result.stdout.trim().split(/\r?\n/).filter(Boolean);
-  const sample = lines.slice(1, 4).join(" | ");
-  throw new Error(`Task worktree has open handles: ${worktreePath}${sample ? ` (${sample})` : ""}`);
 }
 
 function buildPreflight(options) {
@@ -107,15 +98,28 @@ function buildPreflight(options) {
   if (taskWorktrees.length > 1) throw new Error(`Multiple worktrees are attached to ${options.branch}`);
 
   const taskWorktree = taskWorktrees[0];
+  lifecycle(["policy", "verify", "--require-installed"]);
+  lifecycle(["adapter-attest", "--adapter-id", "codex-app", "--capability", "disposal"]);
+  const registry = lifecycle(["list"]);
+  const branches = registry.branches.filter((record) =>
+    path.resolve(record.repository) === path.resolve(mainRoot) && record.branch === options.branch &&
+    !["removed", "disposed", "tombstoned", "superseded"].includes(record.state),
+  );
+  if (localSha && branches.length !== 1) throw new Error("Local branch must have one exact lifecycle registration");
+  let workspace = null;
   if (taskWorktree) {
     if (!fs.existsSync(taskWorktree.path)) throw new Error(`Registered task worktree is missing: ${taskWorktree.path}`);
     const realWorktreePath = fs.realpathSync(taskWorktree.path);
-    if (!isManagedTaskWorktree(fs.realpathSync(mainRoot), realWorktreePath)) {
-      throw new Error(`Refusing to remove worktree outside managed roots: ${taskWorktree.path}`);
-    }
+    workspace = registeredTaskWorkspace(registry.workspaces, fs.realpathSync(mainRoot), realWorktreePath, options.branch);
     const taskStatus = git(["status", "--porcelain", "--untracked-files=normal"], { cwd: taskWorktree.path }).stdout.trim();
     if (taskStatus) throw new Error(`Task worktree is dirty: ${taskWorktree.path}`);
-    assertNoOpenHandles(taskWorktree.path, mainRoot);
+    const audit = lifecycle(["audit", "--workspace-id", workspace.workspace_id]);
+    if (audit.processes?.length || audit.listeners?.length || audit.runtime?.running) {
+      throw new Error(`Task worktree is in use: ${taskWorktree.path}`);
+    }
+    const pendingFinalization = new Set(["physical_disposal_not_authorized"]);
+    const blockers = audit.reasons.filter((reason) => !pendingFinalization.has(reason));
+    if (blockers.length) throw new Error(`Lifecycle audit refused: ${blockers.join(", ")}`);
   }
 
   return {
@@ -129,12 +133,24 @@ function buildPreflight(options) {
     target: options.target,
     targetSha,
     worktreePath: taskWorktree?.path ?? null,
+    workspace,
+    branchId: branches[0]?.branch_id ?? null,
   };
 }
 
 function applyFinish(preflight) {
   if (preflight.worktreePath) {
-    git(["worktree", "remove", preflight.worktreePath], { cwd: preflight.mainRoot });
+    const workspace = preflight.workspace;
+    const owner = ["--owner-agent", workspace.effective_owner_agent, "--owner-task", workspace.effective_owner_task, "--adapter-id", "codex-app"];
+    if (workspace.state === "retained") {
+      lifecycle(["restore-for-mutation", "--workspace-id", workspace.workspace_id, ...owner, "--reason", "Authorized exact integrated branch cleanup"]);
+    }
+    lifecycle(["finalize", "--workspace-id", workspace.workspace_id, ...owner]);
+    lifecycle(["dispose", "--workspace-id", workspace.workspace_id, "--adapter-id", "codex-app"]);
+  }
+
+  if (preflight.localPresent) {
+    lifecycle(["branch-dispose", "--branch-id", preflight.branchId, "--adapter-id", "codex-app"]);
   }
 
   if (preflight.remotePresent) {
@@ -146,10 +162,6 @@ function applyFinish(preflight) {
     ], { cwd: preflight.mainRoot });
   }
 
-  if (preflight.localPresent) {
-    git(["update-ref", "-d", `refs/heads/${preflight.branch}`, preflight.localSha], { cwd: preflight.mainRoot });
-  }
-  git(["worktree", "prune"], { cwd: preflight.mainRoot });
 
   const remainingLocal = resolveOptionalRef(`refs/heads/${preflight.branch}`, preflight.mainRoot);
   const remainingRemote = remoteBranchSha(preflight.branch, preflight.mainRoot);
