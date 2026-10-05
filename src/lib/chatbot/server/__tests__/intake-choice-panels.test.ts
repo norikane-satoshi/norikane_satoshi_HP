@@ -96,13 +96,18 @@ function persistedState(h: ReturnType<typeof harness>) {
 }
 
 describe("structured condition persistence and editing", () => {
-  it("stores composition rows with the actual user ID without parsing display text", async () => {
-    const h = harness(conversation({ messages: [msg("a1", "assistant", "old arbitrary copy")], activeChoices: conditionChoiceSet("project-length"), conversationState: { hasJobKind: true } }))
-    const composition = [{ name: "Main", count: 3, durationSeconds: 15 }, { name: "Extra", count: 2, durationSeconds: 30 }]
-    const result = await handleChatbotMessage({ sessionId: "session_panels", message: "Opaque display text", clientUserMessageId: "native-duration", conditionAnswer: { conditionId: "project-length", answer: { status: "answered", composition, sourceMessageId: "forged" } } }, h.options)
+  it.each([
+    { jobKind: "cm" as const, composition: [{ name: "Main", count: 3, durationSeconds: 15 }, { name: "Extra", count: 2, durationSeconds: 30 }], message: "Opaque display text", minutes: 1.75 },
+    { jobKind: "cm" as const, composition: [{ name: "CM", count: 3, durationSeconds: 30 }], message: "CM 30秒 × 3本", minutes: 1.5 },
+    { jobKind: "live" as const, composition: [{ name: "Main", count: 1, durationSeconds: 120 * 60 }, { name: "Extra", count: 1, durationSeconds: 20 * 60 }], message: "ライブ120分＋20分", minutes: 140 },
+  ])("stores $jobKind composition as $minutes minutes without reparsing display text", async ({ jobKind, composition, message, minutes }) => {
+    const existing = conversation({ messages: [msg("a1", "assistant", "old arbitrary copy")], activeChoices: conditionChoiceSet("project-length"), conversationState: { conditionAnswers: { "job-kind": { status: "answered", selectedIds: [jobKind] } }, hasJobKind: true } })
+    existing.context.jobContext = { ...existing.context.jobContext, jobKind }
+    const h = harness(existing)
+    const result = await handleChatbotMessage({ sessionId: "session_panels", message, clientUserMessageId: "native-duration", conditionAnswer: { conditionId: "project-length", answer: { status: "answered", composition, sourceMessageId: "forged" } } }, h.options)
     expect(h.generate).not.toHaveBeenCalled()
     expect(persistedState(h).conditionAnswers?.["project-length"]).toEqual({ status: "answered", composition, sourceMessageId: result.userMessage.id })
-    expect(h.repository.updateConversationRouting.mock.calls.at(-1)?.[0]?.jobContext?.projectLengthMinutes).toBe(1.75)
+    expect(h.repository.updateConversationRouting.mock.calls.at(-1)?.[0]?.jobContext?.projectLengthMinutes).toBe(minutes)
   })
 
   it("replays stored IDs after copy changes and removes future answers when editing", async () => {
