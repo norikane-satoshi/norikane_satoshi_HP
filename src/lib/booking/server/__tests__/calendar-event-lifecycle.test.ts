@@ -77,6 +77,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.bookingCalendarEvent.update.mockResolvedValue({})
   mocks.bookingGroup.update.mockResolvedValue({})
+  mocks.bookingGroup.findUnique.mockResolvedValue({ contactName: "Client", companyName: "Studio" })
   mocks.bookingTimeSlot.updateMany.mockResolvedValue({ count: 0 })
   mocks.bookingCalendarEvent.count.mockResolvedValue(0)
   mocks.createCalendarEvent.mockResolvedValue({ id: "group1" })
@@ -130,14 +131,16 @@ describe("booking calendar event lifecycle", () => {
       verifyConfirmed: true,
     })
     expect(result).toEqual({ eventId: "group1", action: "created", ok: true })
-    expect(mocks.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({ eventId: "group1" }))
+    expect(mocks.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventId: "group1", customerName: "Client", customerCompany: "Studio",
+    }))
     expect(mocks.bookingCalendarEvent.update).toHaveBeenLastCalledWith(expect.objectContaining({
       where: { eventId: "group1" },
       data: expect.objectContaining({ status: BOOKING_CALENDAR_EVENT_STATUS.confirmed }),
     }))
   })
 
-  it("repairs drift across every managed field during confirmed-event reconciliation", async () => {
+  it("repairs managed-field drift while retaining an observed booking confirmation", async () => {
     mocks.getCalendarEvent.mockResolvedValue({
       id: "group1",
       bookingGroupId: "group_1",
@@ -168,10 +171,44 @@ describe("booking calendar event lifecycle", () => {
       summary: "summary",
       description: "description",
       colorId: "4",
-      notionTaskType: "仮押さえ",
+      notionTaskType: "本予約",
       bookingGroupId: "group_1",
-      transparency: "transparent",
+      transparency: "opaque",
     }))
+  })
+
+  it.each([
+    BOOKING_CALENDAR_EVENT_STATUS.confirmed,
+    BOOKING_CALENDAR_EVENT_STATUS.pendingUpdate,
+  ])("preserves an externally promoted booking during %s synchronization", async (status) => {
+    const oldHold = event({ status, summary: "【仮キープ】案件 / Client（候補 1/2）（立ち会い）" })
+    mocks.getCalendarEvent.mockResolvedValue({
+      id: oldHold.eventId, bookingGroupId: oldHold.bookingGroupId,
+      start: oldHold.startValue, end: oldHold.endValue, dateOnly: true,
+      summary: "案件 / Client（立ち会い）", description: oldHold.description,
+      colorId: oldHold.colorId, notionTaskType: "本予約", transparency: "opaque",
+      privateProperties: { customer_name: "Client", customer_company: "Studio", notion_task_type: "本予約" },
+    })
+    const result = await syncCalendarEventIntent({
+      event: oldHold, calendarId: "calendar_1", accessToken: "token", verifyConfirmed: true,
+    })
+    expect(result.ok).toBe(true)
+    expect(mocks.bookingCalendarEvent.update).toHaveBeenCalledWith({
+      where: { eventId: oldHold.eventId },
+      data: { notionTaskType: "本予約", summary: "案件 / Client（立ち会い）", transparency: "opaque" },
+    })
+    if (status === BOOKING_CALENDAR_EVENT_STATUS.confirmed) {
+      expect(result.action).toBe("verified")
+      expect(mocks.updateCalendarEvent).not.toHaveBeenCalled()
+    } else {
+      expect(result.action).toBe("updated")
+      expect(mocks.updateCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
+        eventId: oldHold.eventId, notionTaskType: "本予約",
+        summary: "案件 / Client（立ち会い）", transparency: "opaque",
+      }))
+    }
+    expect(mocks.createCalendarEvent).not.toHaveBeenCalled()
+    expect(mocks.bookingGroup.update).not.toHaveBeenCalled()
   })
 
   it("refuses to overwrite a deterministic event id owned by another group", async () => {
@@ -224,7 +261,50 @@ describe("booking calendar event lifecycle", () => {
       start: "2026-11-01",
       end: "2026-11-02",
       dateOnly: true,
+      customerName: "Client",
+      customerCompany: "Studio",
     }))
+  })
+
+  it("confirms the same booking day in place while preserving its stage", async () => {
+    mocks.getCalendarEvent.mockResolvedValue({ id: "group1", bookingGroupId: "group_1" })
+    const result = await syncCalendarEventIntent({
+      event: event({
+        status: BOOKING_CALENDAR_EVENT_STATUS.pendingUpdate,
+        notionTaskType: "本予約",
+        summary: "【仮キープ】案件 / Client（候補 1/2）（立ち会い）",
+      }),
+      calendarId: "calendar_1",
+      accessToken: "token",
+    })
+    expect(result).toEqual({ eventId: "group1", action: "updated", ok: true })
+    expect(mocks.createCalendarEvent).not.toHaveBeenCalled()
+    expect(mocks.updateCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventId: "group1", bookingGroupId: "group_1", notionTaskType: "本予約",
+      summary: "案件 / Client（立ち会い）", customerName: "Client", customerCompany: "Studio",
+    }))
+  })
+
+  it("repairs missing customer metadata and accepts the repaired confirmed title", async () => {
+    const confirmed = event({
+      status: BOOKING_CALENDAR_EVENT_STATUS.confirmed,
+      notionTaskType: "本予約",
+      summary: "【仮キープ】案件 / Client（候補 1/2）（QC）",
+    })
+    const snapshot = {
+      id: "group1", bookingGroupId: "group_1", start: confirmed.startValue,
+      end: confirmed.endValue, dateOnly: true, summary: "案件 / Client（QC）",
+      description: confirmed.description, colorId: confirmed.colorId,
+      notionTaskType: "本予約", transparency: "transparent", privateProperties: {},
+    }
+    mocks.getCalendarEvent.mockResolvedValue(snapshot)
+    expect((await syncCalendarEventIntent({ event: confirmed, calendarId: "calendar_1", accessToken: "token", verifyConfirmed: true })).action).toBe("updated")
+    mocks.updateCalendarEvent.mockClear()
+    mocks.getCalendarEvent.mockResolvedValue({
+      ...snapshot, privateProperties: { customer_name: "Client", customer_company: "Studio" },
+    })
+    expect((await syncCalendarEventIntent({ event: confirmed, calendarId: "calendar_1", accessToken: "token", verifyConfirmed: true })).action).toBe("verified")
+    expect(mocks.updateCalendarEvent).not.toHaveBeenCalled()
   })
 
   it("treats an unchanged confirmed replacement as complete before deleting obsolete events", async () => {
@@ -403,4 +483,3 @@ describe("booking calendar event lifecycle", () => {
     expect(new Set(intents.map((intent) => intent.eventId)).size).toBe(6)
   })
 })
-
