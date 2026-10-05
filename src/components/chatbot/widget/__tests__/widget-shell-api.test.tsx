@@ -1723,7 +1723,7 @@ describe("WidgetShell API wiring", () => {
     expect(screen.getByLabelText("案件名")).toHaveValue("ライブ案件")
     expect(screen.getByLabelText("メール")).toHaveValue("client@example.jp")
     expect(screen.getByLabelText("補足")).toHaveValue("")
-    expect(screen.getByLabelText("尺")).toHaveValue("")
+    expect(screen.getByLabelText("尺の分")).toHaveValue(null)
     expect(screen.getByLabelText("作業場所/立ち会い")).toHaveValue("")
 
     const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
