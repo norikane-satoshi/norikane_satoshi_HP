@@ -4,7 +4,8 @@ import { isCalendarDate, isValidDeadlineInput } from "@/lib/chatbot/domain/deadl
 import { DeadlineInput } from "./DeadlineInput"
 import { ProjectDurationInput } from "./ProjectDurationInput"
 import { formatProjectLengthMinutes, parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import { bookingDetailLabels, canonicalBookingDetails, unconfirmedBookingValue, type BookingDetail } from "@/lib/chatbot/domain/booking-details"
+import { bookingDetailLabels, displayBookingDetails, unconfirmedBookingValue, type BookingDetail } from "@/lib/chatbot/domain/booking-details"
+import { formatRequestedBookingDates } from "@/lib/booking/domain/booking-display"
 
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
@@ -74,17 +75,6 @@ const API_PATH = "/api/chatbot/create-booking-from-chat"
 const CANDIDATES_API_PATH = "/api/chatbot/booking-candidates"
 const MAX_VISIBLE_CANDIDATES = 31
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
-
-function formatCandidateDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("ja-JP", {
-    month: "numeric",
-    day: "numeric",
-    weekday: "short",
-    timeZone: "Asia/Tokyo",
-  }).format(date)
-}
 
 function jstDateKey(value: string | Date): string {
   const date = typeof value === "string" ? new Date(value) : value
@@ -193,7 +183,7 @@ function selectedDateKeys(slots: CandidateWindow[]) {
 }
 
 function formatSelectedSlots(slots: CandidateWindow[]): string {
-  return slots.map((slot) => formatCandidateDate(slot.start)).join("、")
+  return formatRequestedBookingDates(slots.map((slot) => jstDateKey(slot.start)))
 }
 
 function displayOptionalValue(value: string | undefined): string {
@@ -848,7 +838,7 @@ export function ChatbotBookingCard({
             </dd>
           </div>
           {unavailableDates.trim() ? <div><dt className="text-xs font-semibold text-hp-muted">都合の悪い日</dt><dd className="mt-0.5 break-words text-hp">{unavailableDates.trim()}</dd></div> : null}
-          {canonicalBookingDetails([...visibleReviewDetails, { label: "納品希望日", value: isCalendarDate(dueDate) ? dueDate : unconfirmedBookingValue }]).map((item) => (
+          {displayBookingDetails([...reviewDetails, { label: "納品希望日", value: isCalendarDate(dueDate) ? dueDate : unconfirmedBookingValue }]).map((item) => (
             <div key={item.label}>
               <dt className="text-xs font-semibold text-hp-muted">{item.label}</dt>
               <dd className="mt-0.5 break-words text-hp">{item.value.trim() || unconfirmedBookingValue}</dd>

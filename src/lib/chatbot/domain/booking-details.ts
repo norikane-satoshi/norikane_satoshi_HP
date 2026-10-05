@@ -1,7 +1,7 @@
 import { formatProjectLengthMinutes, parseProjectLengthMinutes } from "./project-length"
 import type { ChatbotMessage, ConversationState } from "./conversation"
-import { isCalendarDate } from "./deadline"
 import { matchChoiceAnswer } from "./choice-answer"
+import { bookingDateKeyFromDisplay, formatBookingDate } from "@/lib/booking/domain/booking-display"
 
 export const bookingDetailLabels = [
   "案件種別", "尺", "最終媒体", "納品形式", "DCP必要性", "DCP作成担当",
@@ -94,13 +94,26 @@ export function canonicalBookingDetails(details: ReadonlyArray<BookingDetail>): 
 function canonicalBookingDetailValue(label: BookingDetailLabel, value: string): string {
   const raw = value.trim()
   if (/^(?:未定|不明|未確認)$/u.test(raw)) return unconfirmedBookingValue
-  if ((label === "納品希望日" || label === "素材が揃う日") && !isCalendarDate(raw)) return unconfirmedBookingValue
+  if (label === "納品希望日" || label === "素材が揃う日") return bookingDateKeyFromDisplay(raw) ?? unconfirmedBookingValue
   if (label === "尺") {
     const minutes = parseProjectLengthMinutes(raw)
     if (minutes !== undefined) return formatProjectLengthMinutes(minutes)
     if (/^(?:未定|不明|未確認)$/u.test(raw)) return unconfirmedBookingValue
   }
   return raw || unconfirmedBookingValue
+}
+
+export function displayBookingDetails(details: ReadonlyArray<BookingDetail>): BookingDetail[] {
+  const canonical = canonicalBookingDetails(details)
+  const theatrical = /劇場/u.test(canonical.find((item) => item.label === "最終媒体")?.value ?? "")
+  const dcpRequired = canonical.find((item) => item.label === "DCP必要性")?.value
+  return canonical.filter(({ label }) =>
+    (label !== "DCP必要性" || theatrical) &&
+    (label !== "DCP作成担当" || (theatrical && dcpRequired !== "不要")),
+  ).map(({ label, value }) => ({
+    label,
+    value: label === "納品希望日" || label === "素材が揃う日" ? formatBookingDate(value) : value,
+  }))
 }
 
 export function bookingDetailsMemo(note: string, details: ReadonlyArray<BookingDetail>): string {
@@ -111,7 +124,7 @@ export function bookingDetailsMemo(note: string, details: ReadonlyArray<BookingD
     const label = /^\s*(?:- )?([^:：]+)[:：]/u.exec(line)?.[1]
     return !label || (!bookingDetailLabels.includes(label as BookingDetailLabel) && !["納期", "納期理由", "作業場所", "依頼内容", "立ち会い日数", "作業日数", "基本工程目安", "工程目安", "受け渡し素材", "素材受け渡し方法", "素材搬入/受け取り時期"].includes(label))
   }).join("\n").trim()
-  return [...unavailableDates, ...canonicalBookingDetails(details).map(({ label, value }) => `${label}: ${value}`), ownNote].filter(Boolean).join("\n")
+  return [...unavailableDates, ...displayBookingDetails(details).map(({ label, value }) => `${label}: ${value}`), ownNote].filter(Boolean).join("\n")
 }
 
 /** A model-written supplemental note is retained only when a whole line is customer-authored. */

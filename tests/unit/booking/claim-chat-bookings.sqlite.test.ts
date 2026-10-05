@@ -11,12 +11,12 @@ const directory = mkdtempSync(join(tmpdir(), "hp-claim-test-"))
 const url = `file:${join(directory, "test.db")}`
 const db = new PrismaClient({ adapter: new PrismaLibSql({ url }) })
 beforeAll(async () => {
-  const schema = execFileSync(process.execPath, ["node_modules/prisma/build/index.js", "migrate", "diff", "--from-empty", "--to-schema", "prisma/schema.prisma", "--script"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+  const schema = execFileSync(process.execPath, ["node_modules/prisma/build/index.js", "migrate", "diff", "--from-empty", "--to-schema", "prisma/schema.prisma", "--script"], { encoding: "utf8", timeout: 240_000, stdio: ["ignore", "pipe", "pipe"] })
   const sql = createClient({ url })
   await sql.executeMultiple(schema)
   sql.close()
   vi.doMock("@/lib/prisma", () => ({ prisma: db }))
-})
+}, 300_000)
 afterAll(async () => { await db.$disconnect(); rmSync(directory, { recursive: true, force: true }); vi.doUnmock("@/lib/prisma") })
 
 it("claims only verified anonymous chat bookings and never reassigns ownership on repeat", async () => {

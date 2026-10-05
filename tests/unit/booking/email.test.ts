@@ -12,6 +12,39 @@ vi.mock("resend", () => ({
 }))
 
 describe("booking email sender", () => {
+  it.each([
+    ["Web公開", "未確認", false, false],
+    ["劇場", "不要", true, false],
+    ["劇場", "必要", true, true],
+    ["劇場", "未確認", true, true],
+  ])("applies the same conditional DCP rows and date labels to both recipients: %s / %s", async (medium, required, showRequired, showCreator) => {
+    process.env.RESEND_API_KEY = "resend_key"
+    mocks.send.mockResolvedValue({ data: { id: "display" }, error: null })
+    const { buildBookingConfirmedEmail, sendChatbotBookingOwnerNotification } = await import("@/lib/booking/server/email")
+    const memo = bookingDetailsMemo("都合の悪い日: 10/20は不可、週末も相談", [
+      { label: "最終媒体", value: medium }, { label: "DCP必要性", value: required },
+      { label: "DCP作成担当", value: "他社" }, { label: "納品希望日", value: "2026-10-25" },
+      { label: "素材が揃う日", value: "2026-10-18" },
+    ])
+    const dates = { selectedSlots: [], requestedDates: ["2026-10-19", "2026-10-21"] }
+    const receipt = buildBookingConfirmedEmail({ ...dates, to: "test@example.com", projectTitle: "テスト", workScopes: [], memo })
+    await sendChatbotBookingOwnerNotification({ ...dates, bookingGroupId: "test", projectTitle: "テスト", contactName: "テスト", contactEmail: "test@example.com", memo })
+    const owner = mocks.send.mock.calls[0][0]
+    for (const mail of [receipt, owner]) {
+      for (const body of [mail.text, mail.html]) {
+        expect(body.includes("DCP必要性:")).toBe(showRequired)
+        expect(body.includes("DCP作成担当:")).toBe(showCreator)
+        expect(body).toContain("希望日: 2026/10/19(月)、2026/10/21(水)")
+        expect(body).toContain("納品希望日: 2026/10/25(日)")
+        expect(body).toContain("素材が揃う日: 2026/10/18(日)")
+        expect(body).toContain("都合の悪い日: 10/20は不可、週末も相談")
+        expect(body).not.toMatch(/\d+日間/u)
+      }
+    }
+    expect(receipt.subject).toContain("2026/10/19(月)、2026/10/21(水)")
+    expect(receipt.subject).not.toMatch(/\d+日間/u)
+  })
+
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
@@ -126,7 +159,7 @@ describe("booking email sender", () => {
 
     const message = mocks.send.mock.calls[0][0]
     expect(message.subject).toContain("【仮キープ受付】Date request")
-    expect(message.subject).toContain("3日間")
+    expect(message.subject).not.toMatch(/\d+日間/u)
     expect(message.text).toContain("希望日:")
     expect(message.text).toContain("2026/07/10")
     expect(message.text).not.toContain("2026/07/11")
@@ -158,7 +191,8 @@ describe("booking email sender", () => {
       ...base,
       requestedDateRange: { startDate: "2026-07-10", endDate: "2026-07-12" },
     })
-    expect(mocks.send.mock.calls.at(-1)?.[0].text).toContain("3日間")
+    expect(mocks.send.mock.calls.at(-1)?.[0].text).toContain("2026/07/10(金)〜2026/07/12(日)")
+    expect(mocks.send.mock.calls.at(-1)?.[0].text).not.toMatch(/\d+日間/u)
 
     await sendBookingConfirmedEmail({
       ...base,
@@ -326,7 +360,7 @@ describe("booking email sender", () => {
     expect(customerConditions).toBe(ownerConditions)
     expect(receipt.text).toContain("尺: 18分")
     expect(receipt.text).toContain("素材が揃う日: 未確認")
-    expect(receipt.text).toContain("DCP作成担当: 未確認")
+    expect(receipt.text).not.toContain("DCP作成担当")
     expect(receipt.text).toContain("作業場所/立ち会い: 未確認")
     expect(receipt.text).toContain("内容に誤りがあれば、このメールへの返信でお知らせください\n希望日:")
     expect(receipt.text.indexOf("納品希望日:")).toBeLessThan(receipt.text.indexOf("納品希望日の理由:"))
@@ -343,7 +377,8 @@ describe("booking email sender", () => {
     expect(mail.subject).toContain("【ご相談受付】")
     expect(mail.text).not.toContain("仮キープ受付")
     const { bookingDetailLabels } = await import("@/lib/chatbot/domain/booking-details")
-    for (const label of bookingDetailLabels) expect(mail.text).toContain(`${label}: 未確認`)
+    for (const label of bookingDetailLabels.filter((label) => !label.startsWith("DCP"))) expect(mail.text).toContain(`${label}: 未確認`)
+    expect(mail.text).not.toContain("DCP")
     expect(mail.text).toContain("都合の悪い日: 未確認")
   })
 

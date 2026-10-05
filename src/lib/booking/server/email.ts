@@ -1,4 +1,5 @@
-import { bookingDetailLabels, canonicalBookingDetails, type BookingDetail, type BookingDetailLabel } from "@/lib/chatbot/domain/booking-details"
+import { bookingDetailLabels, displayBookingDetails, type BookingDetail, type BookingDetailLabel } from "@/lib/chatbot/domain/booking-details"
+import { formatBookingDate, formatBookingDateTime, formatBookingSlot, formatRequestedBookingDates } from "@/lib/booking/domain/booking-display"
 import { Resend } from "resend"
 
 let cached: Resend | null = null
@@ -64,57 +65,20 @@ function getFrom(): string {
 }
 
 function formatDateTime(value: string | Date): string {
-  const date = typeof value === "string" ? new Date(value) : value
-  return new Intl.DateTimeFormat("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date)
+  return formatBookingDateTime(value)
 }
 
 function formatSchedule(start: string | Date, end: string | Date): string {
-  return `${formatDateTime(start)} - ${formatDateTime(end)}`
-}
-
-function dateFromDateKey(value: string): Date | null {
-  const [year, month, day] = value.split("-").map(Number)
-  if (!year || !month || !day) return null
-  const date = new Date(year, month - 1, day, 0, 0, 0, 0)
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null
-  return date
-}
-
-function formatDateOnly(value: string): string {
-  const date = dateFromDateKey(value)
-  if (!date) return value
-  return new Intl.DateTimeFormat("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    weekday: "short",
-  }).format(date)
+  return formatBookingSlot(start, end)
 }
 
 function formatRequestedDateRange(range: BookingDateRange): string {
-  if (range.startDate === range.endDate) return formatDateOnly(range.startDate)
-  const start = dateFromDateKey(range.startDate)
-  const end = dateFromDateKey(range.endDate)
-  const dayCount = start && end
-    ? Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1
-    : 0
-  const countLabel = dayCount > 0 ? `、${dayCount}日間` : ""
-  return `${formatDateOnly(range.startDate)}〜${formatDateOnly(range.endDate)}${countLabel}`
+  if (range.startDate === range.endDate) return formatBookingDate(range.startDate)
+  return `${formatBookingDate(range.startDate)}〜${formatBookingDate(range.endDate)}`
 }
 
 function formatRequestedDates(dates: string[]): string {
-  const normalized = Array.from(new Set(dates.filter((date) => dateFromDateKey(date)))).sort()
-  const dateLabel = normalized.map((date) => formatDateOnly(date)).join(", ")
-  return normalized.length > 0 ? `${dateLabel}、${normalized.length}日間` : "候補日未選択"
+  return formatRequestedBookingDates(dates) || "候補日未選択"
 }
 
 function formatWork(args: Pick<BookingEmailArgs, "workScopes" | "otherWorkDetail" | "estimatedDuration">): string {
@@ -224,7 +188,7 @@ function bookingConditionLines(schedule: string, memo = ""): string[] {
   return [
     `希望日: ${schedule}`,
     `都合の悪い日: ${values.get("都合の悪い日")?.trim() || "未確認"}`,
-    ...canonicalBookingDetails(details).map(({ label, value }) => `${label}: ${value}`),
+    ...displayBookingDetails(details).map(({ label, value }) => `${label}: ${value}`),
     `補足: ${notes.join("\n").trim() || "未確認"}`,
   ]
 }

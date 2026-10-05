@@ -1,6 +1,6 @@
 import { bookingDetailLabels } from "@/lib/chatbot/domain/booking-details"
 import { NextRequest } from "next/server"
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest"
 
 beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-05-26T00:00:00Z")) })
 afterEach(() => vi.useRealTimers())
@@ -98,6 +98,8 @@ async function loadPost(session: { user?: { id?: string; email?: string } } | nu
   }
 }
 
+beforeAll(async () => { await loadPost() }, 120_000)
+
 afterEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
@@ -137,7 +139,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(response.status).toBe(200)
     const memo = route.createBookingFromApiInput.mock.calls[0][0].input.memo
     expect(memo).toContain("尺: 約18分（クレジット込み）")
-    expect(memo).toContain("納品希望日: 2026-10-25")
+    expect(memo).toContain("納品希望日: 2026/10/25(日)")
     expect(memo).toContain("納品形式: ProRes 422 HQ（Rec.709）、DCP不要")
     expect(memo).toContain("作業場所/立ち会い: 未確認")
     expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({ memo }))

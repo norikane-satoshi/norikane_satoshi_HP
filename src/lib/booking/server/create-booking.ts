@@ -2,9 +2,9 @@ import type { BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { resolveConflictForFinalSubmit } from "@/lib/booking/domain/conflicts"
 import {
   bookingDateRangeToSelection,
-  formatBookingDateSelection,
   type BookingDateSelection,
 } from "@/lib/booking/domain/form-schema"
+import { formatBookingDate, formatBookingSlot, formatRequestedBookingDates } from "@/lib/booking/domain/booking-display"
 import { invalidateCalendarFreeBusyCacheForUser } from "@/lib/booking/server/calendar-free-busy/free-busy"
 import { findConflictingBookings } from "@/lib/booking/server/conflicts"
 import { BookingConflictError } from "@/lib/booking/server/errors"
@@ -54,7 +54,7 @@ function createDescription(input: BookingApiInput): string {
   const fields = [
     ["候補日", getScheduleLabel(input)],
     ["案件名", input.projectTitle],
-    ["納期", input.dueDate],
+    ["納期", formatBookingDate(input.dueDate)],
     ["会社名", input.companyName],
     ["氏名", input.contactName],
     ["メール", input.sessionEmail],
@@ -93,10 +93,10 @@ function getRequestedDateSelection(input: BookingApiInput): BookingDateSelection
 
 function getScheduleLabel(input: BookingApiInput): string {
   if (input.selectedSlots.length > 0) {
-    return input.selectedSlots.map((slot) => `${slot.start} - ${slot.end}`).join(" / ")
+    return input.selectedSlots.map((slot) => formatBookingSlot(slot.start, slot.end)).join(" / ")
   }
   const requestedDateSelection = getRequestedDateSelection(input)
-  return requestedDateSelection ? formatBookingDateSelection(requestedDateSelection) : "未定（日程は則兼と相談）"
+  return requestedDateSelection ? formatRequestedBookingDates(requestedDateSelection.dates) : "未定（日程は則兼と相談）"
 }
 
 async function warnOnEmailFailure(task: Promise<unknown>, tag: string) {
@@ -508,7 +508,7 @@ async function existingIdempotentBookingResult(existing: {
   let effectiveStatus = existing.status
   const scheduleLabel = existing.timeSlots.length > 0
     ? existing.timeSlots
-        .map((slot) => slot.startTime && slot.endTime ? `${slot.startTime.toISOString()} - ${slot.endTime.toISOString()}` : "")
+        .map((slot) => slot.startTime && slot.endTime ? formatBookingSlot(slot.startTime, slot.endTime) : "")
         .filter(Boolean)
         .join(" / ")
     : "候補日未選択"

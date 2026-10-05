@@ -3,7 +3,7 @@ import { expect, it } from "vitest"
 import { buildBookingConfirmationItems } from "./consultation-summary"
 import { jobKindChoices, projectLengthChoices, finalMediumChoices } from "./survey-choice"
 import { matchChoiceAnswer } from "./choice-answer"
-import { canonicalBookingDetails, bookingDetailsMemo, confirmedBookingDetails, confirmedBookingNote } from "./booking-details"
+import { canonicalBookingDetails, displayBookingDetails, bookingDetailsMemo, confirmedBookingDetails, confirmedBookingNote } from "./booking-details"
 
 it("uses the customer's exact duration instead of the stored estimate anchor", () => {
   const messages = [
@@ -115,9 +115,32 @@ it("clears stale DCP answers and obsolete work counts when creating a memo", () 
   const details = confirmedBookingDetails({ messages: [{ id: "u", role: "user", createdAt: "2026-10-05T01:00:00Z", content: "最終媒体: 劇場公開\nDCP必要性: 不要\nDCP作成担当: 旧担当" }] })
   const memo = bookingDetailsMemo("作業日数: 5日\n立ち会い日数: 3日\n受け渡し素材: カメラ素材\n補足: 試写会", details)
   expect(memo).toContain("DCP必要性: 不要")
-  expect(memo).toContain("DCP作成担当: 未確認")
+  expect(memo).not.toContain("DCP作成担当")
   expect(memo).toContain("補足: 試写会")
   expect(memo).not.toMatch(/旧担当|5日|3日|カメラ素材/u)
+})
+
+it.each([
+  ["Web公開", "未確認", []],
+  ["劇場", "不要", ["DCP必要性"]],
+  ["劇場", "必要", ["DCP必要性", "DCP作成担当"]],
+  ["劇場", "未確認", ["DCP必要性", "DCP作成担当"]],
+])("projects DCP rows for %s / %s identically into display and sync memo", (medium, required, labels) => {
+  const details = [
+    { label: "最終媒体" as const, value: medium },
+    { label: "DCP必要性" as const, value: required },
+    { label: "DCP作成担当" as const, value: "他社" },
+    { label: "納品希望日" as const, value: "2026-10-25" },
+    { label: "素材が揃う日" as const, value: "2026-10-18" },
+  ]
+  expect(displayBookingDetails(details).filter(({ label }) => label.startsWith("DCP")).map(({ label }) => label)).toEqual(labels)
+  const memo = bookingDetailsMemo("都合の悪い日: 10月20日は不可", details)
+  expect(memo.split("\n").filter((line) => line.startsWith("DCP")).map((line) => line.split(":")[0])).toEqual(labels)
+  expect(memo).toContain("納品希望日: 2026/10/25(日)")
+  expect(memo).toContain("素材が揃う日: 2026/10/18(日)")
+  expect(memo).toContain("都合の悪い日: 10月20日は不可")
+  expect(memo).not.toMatch(/\d+日間/u)
+  expect(canonicalBookingDetails(displayBookingDetails(details))).toContainEqual({ label: "納品希望日", value: "2026-10-25" })
 })
 
 it("keeps related fields adjacent in review and downstream memos regardless of input order", () => {

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import type { NextAuthConfig } from "next-auth"
 
 const mocks = vi.hoisted(() => ({ updateMany: vi.fn(), nextAuth: vi.fn((config: unknown) => ({ config })) }))
@@ -13,6 +13,12 @@ const event = (provider = "google"): Event => ({
   account: { provider, providerAccountId: "provider_1", type: "oidc" },
   profile: { email: "owner@example.com", email_verified: true },
 })
+let configuredAuth: NextAuthConfig
+beforeAll(async () => {
+  await import("@/auth")
+  configuredAuth = mocks.nextAuth.mock.calls[0]?.[0] as unknown as NextAuthConfig
+}, 120_000)
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers().setSystemTime(new Date("2026-09-29T12:00:00Z"))
@@ -51,8 +57,7 @@ describe("verified Google sign-in", () => {
     expect(mocks.updateMany.mock.calls[0][0].where).toEqual({ id: "user_1", email: "owner@example.com", emailVerified: null })
   })
   it("wires the post-persistence signIn event and keeps Resend an email provider", async () => {
-    await import("@/auth")
-    const config = mocks.nextAuth.mock.calls[0]?.[0] as unknown as NextAuthConfig
+    const config = configuredAuth
     expect(config.events?.signIn).toBe(markVerifiedGoogleEmail)
     expect(config.providers).toEqual(expect.arrayContaining([expect.objectContaining({ id: "resend", type: "email" })]))
   })

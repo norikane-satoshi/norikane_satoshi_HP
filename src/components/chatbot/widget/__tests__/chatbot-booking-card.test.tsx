@@ -77,6 +77,30 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
 }
 
 describe("ChatbotBookingCard", () => {
+  it.each([
+    ["Web公開", "未確認", false, false],
+    ["劇場", "不要", true, false],
+    ["劇場", "必要", true, true],
+    ["劇場", "未確認", true, true],
+  ])("uses conditional DCP rows in the final list: %s / %s", (medium, required, showRequired, showCreator) => {
+    mockFetch(200, {})
+    renderCard({ candidates: [{ start: "2026-10-10T01:00:00.000Z", end: "2026-10-10T02:00:00.000Z", label: "10月10日" }], defaultDueDate: "2026-10-25", confirmationItems: [
+      { label: "最終媒体", value: medium }, { label: "DCP必要性", value: required },
+      { label: "DCP作成担当", value: "他社" }, { label: "素材が揃う日", value: "2026-10-18" },
+    ] })
+    fireEvent.change(screen.getByLabelText("都合の悪い日（任意）"), { target: { value: "10/20は不可" } })
+    fireEvent.click(screen.getByRole("button", { name: "2026-10-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
+    const summary = screen.getByLabelText("送信する内容")
+    expect(within(summary).queryByText("DCP必要性") !== null).toBe(showRequired)
+    expect(within(summary).queryByText("DCP作成担当") !== null).toBe(showCreator)
+    expect(within(summary).getByText("2026/10/10(土)")).toBeInTheDocument()
+    expect(within(summary).getByText("2026/10/25(日)")).toBeInTheDocument()
+    expect(within(summary).getByText("2026/10/18(日)")).toBeInTheDocument()
+    expect(within(summary).getByText("10/20は不可")).toBeInTheDocument()
+    expect(summary.textContent).not.toMatch(/\d+日間/u)
+  })
+
   it("groups related summary fields and puts the deadline immediately before its reason", () => {
     mockFetch(200, {})
     renderCard({ defaultDueDate: "2026-10-25", confirmationItems: [
@@ -94,9 +118,10 @@ describe("ChatbotBookingCard", () => {
       "希望日", "都合の悪い日", "案件種別", "尺", "最終媒体", "納品形式", "DCP必要性", "DCP作成担当",
       "納品希望日", "納品希望日の理由", "素材が揃う日", "作業場所/立ち会い", "追加作業", "付随素材", "字幕・テロップ等", "参考URL",
     ])
-    expect(within(summary).getByText("2026-10-25")).toBeInTheDocument()
+    expect(within(summary).getByText("2026/10/25(日)")).toBeInTheDocument()
+    expect(within(summary).getByText("2026/10/18(日)")).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("納期をカレンダーで選ぶ"), { target: { value: "2026-10-26" } })
-    expect(within(summary).getByText("2026-10-26")).toBeInTheDocument()
+    expect(within(summary).getByText("2026/10/26(月)")).toBeInTheDocument()
     expect(within(summary).getByText("映画祭応募")).toBeInTheDocument()
   })
 
@@ -1086,7 +1111,7 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByText("田中")).toBeInTheDocument()
     expect(screen.getByText("client@example.jp")).toBeInTheDocument()
     expect(screen.getByText("株式会社サンプル")).toBeInTheDocument()
-    expect(screen.getByText("6/10(水)、6/11(木)")).toBeInTheDocument()
+    expect(screen.getByText("2026/06/10(水)、2026/06/11(木)")).toBeInTheDocument()
     expect(screen.getByText("ありがとうございます。則兼が内容を確認してご連絡します。")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "予約内容を送信" })).not.toBeInTheDocument()
     expect(screen.queryByText(/bookingGroupId:/)).not.toBeInTheDocument()

@@ -145,6 +145,36 @@ describe("createBookingFromApiInput", () => {
     expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining(memo) }))
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ memo }))
   })
+  it.each([
+    ["Web", "未確認", []],
+    ["劇場", "不要", ["DCP必要性"]],
+    ["劇場", "必要", ["DCP必要性", "DCP作成担当"]],
+    ["劇場", "未確認", ["DCP必要性", "DCP作成担当"]],
+  ])("uses the same condition display in calendar memos for %s / %s", async (medium, dcp, labels) => {
+    const memo = bookingDetailsMemo("都合の悪い日: 10/20は不可", [
+      { label: "最終媒体", value: medium }, { label: "DCP必要性", value: dcp },
+      { label: "DCP作成担当", value: "他社に依頼" },
+      { label: "納品希望日", value: "2026-10-25" },
+      { label: "素材が揃う日", value: "2026-10-18" },
+    ])
+    await service.createBookingFromApiInput({
+      input: bookingInput({ memo, dueDate: "2026-10-25", requestedDates: ["2026-10-19", "2026-10-21"] }),
+      originatedFrom: "chatbot", userId: "user_1", userEmail: "satoshi@example.com",
+    })
+    const description = service.createCalendarEvent.mock.calls[0][0].description
+    for (const label of ["DCP必要性", "DCP作成担当"]) {
+      expect(description.includes(`${label}:`)).toBe(labels.includes(label))
+    }
+    expect(description).toContain("2026/10/19(月)、2026/10/21(水)")
+    expect(description).toContain("納期: 2026/10/25(日)")
+    expect(description).toContain("素材が揃う日: 2026/10/18(日)")
+    expect(description).toContain("都合の悪い日: 10/20は不可")
+    expect(description).not.toMatch(/\d+日間/)
+    expect(service.prisma.bookingGroup.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ dueDate: "2026-10-25" }),
+    }))
+  })
+
   it("carries confirmed and unconfirmed chatbot facts unchanged into storage, calendar descriptions and booking mail", async () => {
     const memo = "案件種別: 短編ドキュメンタリー\n尺: 約18分\n最終媒体: 未確認\n納品形式: ProRes 422 HQ（Rec.709）、DCP不要"
     await service.createBookingFromApiInput({
@@ -333,7 +363,7 @@ describe("createBookingFromApiInput", () => {
       },
     })
     expect(result.body).toMatchObject({
-      scheduleLabel: expect.stringContaining("3日間"),
+      scheduleLabel: "2026/07/10(金)、2026/07/12(日)、2026/07/15(水)",
     })
     expect(result.body).toMatchObject({
       scheduleLabel: expect.not.stringContaining("7/11"),

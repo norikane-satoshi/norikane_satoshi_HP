@@ -310,7 +310,7 @@ describe("POST /api/booking", () => {
     expect(mocks.sendLineBookingReceipt).toHaveBeenCalledWith(expect.objectContaining({
       bookingGroupId: "group_1",
       lineUserId: "Uline123",
-      scheduleLabel: "2099-06-10T01:00:00.000Z - 2099-06-10T02:00:00.000Z",
+      scheduleLabel: "2099/06/10(水) 10:00 - 2099/06/10(水) 11:00",
     }))
     expect(mocks.sendBookingConfirmedEmail).not.toHaveBeenCalled()
     expect(mocks.invalidateCalendarFreeBusyCacheForUser).toHaveBeenCalledWith("line_user_1", null)
@@ -352,7 +352,7 @@ describe("POST /api/booking", () => {
     expect(mocks.sendLineBookingReceipt).toHaveBeenCalledWith(expect.objectContaining({
       bookingGroupId: "group_1",
       lineUserId: "Uline123",
-      scheduleLabel: "6/10(水)、1日間",
+      scheduleLabel: "2099/06/10(水)",
     }))
     expect(mocks.sendBookingConfirmedEmail).not.toHaveBeenCalled()
     expect(mocks.invalidateCalendarFreeBusyCacheForUser).not.toHaveBeenCalled()
