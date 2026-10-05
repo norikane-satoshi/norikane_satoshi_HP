@@ -193,31 +193,41 @@ function bookingConditionLines(schedule: string, memo = ""): string[] {
   ]
 }
 
-export async function sendChatbotBookingOwnerNotification(
-  args: ChatbotBookingOwnerNotificationArgs,
-): Promise<BookingEmailResult> {
-  const to = getChatbotBookingOwnerEmail()
+export function buildChatbotBookingOwnerNotification(args: ChatbotBookingOwnerNotificationArgs) {
   const schedule = formatSelectedSlots(args.selectedSlots, args.requestedDates, args.requestedDateRange)
   const submittedAt = args.submittedAt ?? new Date()
 
+  const lines = [
+    "HPチャットボット経由で Booking Order が送信されました。",
+    "",
+    `案件名: ${args.projectTitle}`,
+    `氏名: ${args.contactName}`,
+    `メール: ${args.contactEmail}`,
+    `会社名: ${formatOptional(args.companyName)}`,
+    ...bookingConditionLines(schedule, args.memo),
+    `予約番号: ${args.bookingGroupId}`,
+    `送信日時: ${formatDateTime(submittedAt)}`,
+    "経由: HPチャットボット Booking Order",
+    ...signatureLines(),
+  ]
+  return {
+    subject: `【チャットボット予約通知】${args.projectTitle}`,
+    lines,
+    text: lines.join("\n"),
+    html: paragraphsToHtml(lines),
+  }
+}
+
+export async function sendChatbotBookingOwnerNotification(
+  args: ChatbotBookingOwnerNotificationArgs,
+): Promise<BookingEmailResult> {
+  const content = buildChatbotBookingOwnerNotification(args)
   return sendBookingEmail({
     tag: "chatbot_owner",
-    to,
+    to: getChatbotBookingOwnerEmail(),
     replyTo: args.contactEmail,
-    subject: `【チャットボット予約通知】${args.projectTitle}`,
-    lines: [
-      "HPチャットボット経由で Booking Order が送信されました。",
-      "",
-      `案件名: ${args.projectTitle}`,
-      `氏名: ${args.contactName}`,
-      `メール: ${args.contactEmail}`,
-      `会社名: ${formatOptional(args.companyName)}`,
-      ...bookingConditionLines(schedule, args.memo),
-      `予約番号: ${args.bookingGroupId}`,
-      `送信日時: ${formatDateTime(submittedAt)}`,
-      "経由: HPチャットボット Booking Order",
-      ...signatureLines(),
-    ],
+    subject: content.subject,
+    lines: content.lines,
   })
 }
 

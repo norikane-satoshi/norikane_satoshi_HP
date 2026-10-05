@@ -12,6 +12,24 @@ vi.mock("resend", () => ({
 }))
 
 describe("booking email sender", () => {
+  it("builds the exact owner notification without sending it", async () => {
+    const { buildChatbotBookingOwnerNotification, sendChatbotBookingOwnerNotification } = await import("@/lib/booking/server/email")
+    const args = {
+      bookingGroupId: "test-preview", projectTitle: "表示確認", contactName: "テスト",
+      contactEmail: "test@example.com", selectedSlots: [], submittedAt: "2026-10-05T12:00:00Z",
+      memo: bookingDetailsMemo("", [{ label: "尺", value: "18分" }]),
+    }
+    const preview = buildChatbotBookingOwnerNotification(args)
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(preview.text).toContain("尺: 18分")
+    process.env.RESEND_API_KEY = "resend_key"
+    mocks.send.mockResolvedValue({ data: { id: "preview-match" }, error: null })
+    await sendChatbotBookingOwnerNotification(args)
+    expect(mocks.send.mock.calls[0][0]).toMatchObject({
+      subject: preview.subject, text: preview.text, html: preview.html,
+    })
+  })
+
   it.each([
     ["Web公開", "未確認", false, false],
     ["劇場", "不要", true, false],
