@@ -1,11 +1,12 @@
 import { projectConditionDefinitions } from "@/lib/booking/domain/project-conditions"
+import { jobKindLabel, normalizeJobKind } from "@/lib/booking/domain/job-kind"
 import { confirmedBookingNote, unconfirmedBookingValue } from "@/lib/chatbot/domain/booking-details"
 import { matchChoiceAnswer } from "@/lib/chatbot/domain/choice-answer"
+import { conditionChoiceSet } from "@/lib/chatbot/domain/survey-choice"
 import type { ChoiceAnswer } from "@/lib/chatbot/domain/conversation"
 import { deadlineFromMessage, deadlineForScheduling, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import {
   additionalWorkChoices,
-  finalMediumChoices,
   buildBookingConfirmationItems,
   formatConsultationSummary,
   formatProjectLengthMinutes,
@@ -684,24 +685,9 @@ export async function handleChatbotMessage(
     })
       ? fallbackRoutingDecision
       : undefined)
-  const contractRoutingDecision = normalizeProjectLengthInput({
-    requestId: input.requestId,
-    conversation,
-    tier: llmResponse.tier,
-    routingDecision: rawRoutingDecision,
-    rawAssistantText: llmResponse.rawText,
-    jobContext,
-  })
-  const finalMediumRoutingDecision = enforceFinalMediumChoiceContract({
-    requestId: input.requestId,
-    conversation,
-    tier: llmResponse.tier,
-    routingDecision: contractRoutingDecision,
-    rawAssistantText: llmResponse.rawText,
-    jobContext,
-  })
+  const contractRoutingDecision = normalizeProjectConditionPanel(rawRoutingDecision)
   const flowPolicy = applyBookingFinalConfirmationPolicy({
-    routingDecision: finalMediumRoutingDecision,
+    routingDecision: contractRoutingDecision,
     fallbackRoutingDecision,
     conversationState,
     jobContext,
@@ -712,17 +698,19 @@ export async function handleChatbotMessage(
     ? flowPolicy.routingDecision
     : withoutFreeTextIntakePanel(flowPolicy.routingDecision)
   const persistedConversationState = flowPolicy.conversationState
-  persistedConversationState.conditionAnswers = visibleConditionAnswers(persistedConversationState.conditionAnswers ?? {})
-  const visibleIds = new Set(missingConditionPanels({ conditionAnswers: persistedConversationState.conditionAnswers }, jobContext).map((panel) => panel.id))
-  if (!visibleIds.has("dcp-required") && !persistedConversationState.conditionAnswers["dcp-required"]) {
+  if (persistedConversationState.conditionAnswers !== undefined) {
+    persistedConversationState.conditionAnswers = visibleConditionAnswers(persistedConversationState.conditionAnswers)
+  }
+  const visibleIds = new Set(missingConditionPanels(persistedConversationState, jobContext).map((panel) => panel.id))
+  if (persistedConversationState.conditionAnswers !== undefined && !visibleIds.has("dcp-required") && !persistedConversationState.conditionAnswers["dcp-required"]) {
     persistedConversationState.hasDcpRequirement = false
     persistedConversationState.dcpRequirement = undefined
   }
-  if (!visibleIds.has("dcp-creator") && !persistedConversationState.conditionAnswers["dcp-creator"]) {
+  if (persistedConversationState.conditionAnswers !== undefined && !visibleIds.has("dcp-creator") && !persistedConversationState.conditionAnswers["dcp-creator"]) {
     persistedConversationState.hasDcpCreator = false
     persistedConversationState.dcpCreator = undefined
   }
-  if (!visibleIds.has("retouch-cut-count") && !persistedConversationState.conditionAnswers["retouch-cut-count"]) jobContext.retouchCutCount = undefined
+  if (persistedConversationState.conditionAnswers !== undefined && !visibleIds.has("retouch-cut-count") && !persistedConversationState.conditionAnswers["retouch-cut-count"]) jobContext.retouchCutCount = undefined
   persistedConversationState.choiceAnswers = {
     ...conversation.context.conversationState?.choiceAnswers,
     ...(activeChoices && isConfirmedChoiceAnswer(activeChoiceAnswer) ? {
@@ -1065,19 +1053,12 @@ function shouldUseFallbackRouting(input: {
   }
 }
 
-function normalizeProjectLengthInput(input: {
-  requestId?: string
-  conversation: ChatbotConversation
-  tier: ChatbotLlmTier
-  routingDecision: RoutingDecision | undefined
-  rawAssistantText: string
-  jobContext: JobContext
-}): RoutingDecision | undefined {
-  const routingDecision = input.routingDecision
-  if (routingDecision?.kind !== "continue" || routingDecision.presentChoices?.id !== "project-length") {
-    return routingDecision
-  }
-  return { kind: "continue", nextQuestion: projectLengthChoices.question, presentChoices: projectLengthChoices }
+function normalizeProjectConditionPanel(routingDecision: RoutingDecision | undefined): RoutingDecision | undefined {
+  if (routingDecision?.kind !== "continue" || !routingDecision.presentChoices) return routingDecision
+  const definition = projectConditionDefinitions.find(({ id }) => id === routingDecision.presentChoices?.id)
+  if (!definition) return routingDecision
+  const panel = conditionChoiceSet(definition.id)
+  return { ...routingDecision, nextQuestion: panel.question, presentChoices: panel }
 }
 
 function hasProjectTypeTextMismatch(text: string, jobKind: NonNullable<JobContext["jobKind"]>): boolean {
@@ -1090,13 +1071,17 @@ function hasProjectTypeTextMismatch(text: string, jobKind: NonNullable<JobContex
   }
 
   switch (jobKind) {
+    case "drama":
     case "drama-first":
     case "drama-follow-up":
       return mentions.live || mentions.cm || mentions.mv
+    case "live":
     case "live-60m":
       return mentions.drama || mentions.cm || mentions.mv
+    case "cm":
     case "cm-30s":
       return mentions.drama || mentions.live || mentions.mv
+    case "mv":
     case "mv-5m":
       return mentions.drama || mentions.live || mentions.cm
     default:
@@ -1110,151 +1095,6 @@ function contextualizeStoredActiveChoices(conversation: ChatbotConversation): Su
   if (activeChoices?.id !== "project-length") return activeChoices
 
   return projectLengthChoices
-}
-
-function enforceFinalMediumChoiceContract(input: {
-  requestId?: string
-  conversation: ChatbotConversation
-  tier: ChatbotLlmTier
-  routingDecision: RoutingDecision | undefined
-  rawAssistantText: string
-  jobContext: JobContext
-}): RoutingDecision | undefined {
-  const routingDecision = input.routingDecision
-  const jobKind = input.jobContext.jobKind
-  if (!jobKind || routingDecision?.kind !== "continue" || routingDecision.presentChoices?.id !== "final-medium") {
-    return routingDecision
-  }
-
-  const mismatchReason = getFinalMediumChoiceMismatchReason({
-    jobKind,
-    choiceSet: routingDecision.presentChoices,
-    rawAssistantText: input.rawAssistantText,
-  })
-  if (!mismatchReason) return routingDecision
-
-  const correctedQuestion = buildFinalMediumRejudgmentQuestion(jobKind)
-  logFinalMediumChoiceMismatch({
-    requestId: input.requestId,
-    conversation: input.conversation,
-    tier: input.tier,
-    jobKind,
-    reason: mismatchReason,
-    receivedQuestion: routingDecision.nextQuestion,
-    correctedQuestion,
-    receivedChoiceLabels: routingDecision.presentChoices.choices.map((choice) => choice.label),
-  })
-
-  return {
-    kind: "continue",
-    nextQuestion: correctedQuestion,
-    presentChoices: buildFinalMediumRejudgmentChoiceSet(jobKind, correctedQuestion),
-  }
-}
-
-function getFinalMediumChoiceMismatchReason(input: {
-  jobKind: NonNullable<JobContext["jobKind"]>
-  choiceSet: SurveyChoiceSet
-  rawAssistantText: string
-}): "fixed-final-medium-fallback" | "choice-set-context-mismatch" | undefined {
-  if (isStaticFinalMediumChoiceSet(input.choiceSet)) return "fixed-final-medium-fallback"
-  if (!isCanonicalFinalMediumChoiceSet(input.choiceSet)) return "choice-set-context-mismatch"
-
-  const text = [
-    input.rawAssistantText,
-    input.choiceSet.question,
-    ...input.choiceSet.choices.map((choice) => `${choice.id} ${choice.label}`),
-  ]
-    .join("\n")
-    .normalize("NFKC")
-    .toLowerCase()
-
-  switch (input.jobKind) {
-    case "drama-first":
-    case "drama-follow-up":
-      return /(ライブ|コンサート|舞台収録|縦型|縦動画|shorts|reels|tiktok|web\s*cm|ウェブ\s*cm|コマーシャル|ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(text)
-        ? "choice-set-context-mismatch"
-        : undefined
-    case "live-60m":
-      return /(ドラマ|シリーズ|1話|話数|web\s*cm|ウェブ\s*cm|コマーシャル|ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9])|縦型|縦動画|shorts|reels|tiktok)/u.test(text)
-        ? "choice-set-context-mismatch"
-        : undefined
-    case "cm-30s":
-      return /(ドラマ|シリーズ|1話|話数|ライブ|コンサート|舞台収録|ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(text)
-        ? "choice-set-context-mismatch"
-        : undefined
-    case "mv-5m":
-      return /(ドラマ|シリーズ|1話|話数|web\s*cm|ウェブ\s*cm|コマーシャル)/u.test(text)
-        ? "choice-set-context-mismatch"
-        : undefined
-    default:
-      return undefined
-  }
-}
-
-function isCanonicalFinalMediumChoiceSet(choiceSet: SurveyChoiceSet): boolean {
-  if (choiceSet.id !== finalMediumChoices.id || choiceSet.selectionMode !== "multiple") return false
-  const actual = choiceSet.choices.map((choice) => `${choice.id}:${choice.label}`).join("|")
-  const canonical = finalMediumChoices.choices.map((choice) => `${choice.id}:${choice.label}`).join("|")
-  return actual === canonical
-}
-
-function isStaticFinalMediumChoiceSet(choiceSet: SurveyChoiceSet): boolean {
-  if (choiceSet.id !== finalMediumChoices.id) return false
-  const actual = choiceSet.choices.map((choice) => `${choice.id}:${choice.label}`).join("|")
-  const canonical = finalMediumChoices.choices.map((choice) => `${choice.id}:${choice.label}`).join("|")
-  return choiceSet.question === finalMediumChoices.question && actual === canonical
-}
-
-function buildFinalMediumRejudgmentQuestion(jobKind: NonNullable<JobContext["jobKind"]>): string {
-  switch (jobKind) {
-    case "drama-first":
-    case "drama-follow-up":
-      return "ドラマ / シリーズとして整理しています。想定している公開先・納品先をすべて選んでください。"
-    case "live-60m":
-      return "ライブ / 舞台収録として整理しています。想定している公開先・納品先をすべて選んでください。"
-    case "cm-30s":
-      return "Web CM / CM として整理しています。想定している公開先・使用先をすべて選んでください。"
-    case "mv-5m":
-      return "MV / 音楽映像として整理しています。想定している公開先・使用先をすべて選んでください。"
-    default:
-      return "今回の案件で想定している公開先・納品先・使用先をすべて選んでください。"
-  }
-}
-
-function buildFinalMediumRejudgmentChoiceSet(
-  _jobKind: NonNullable<JobContext["jobKind"]>,
-  question: string,
-): SurveyChoiceSet {
-  return {
-    ...finalMediumChoices,
-    question,
-    allowFreeText: true,
-  }
-}
-
-function logFinalMediumChoiceMismatch(input: {
-  requestId?: string
-  conversation: ChatbotConversation
-  tier: ChatbotLlmTier
-  jobKind: JobContext["jobKind"]
-  reason: "fixed-final-medium-fallback" | "choice-set-context-mismatch"
-  receivedQuestion: string
-  correctedQuestion: string
-  receivedChoiceLabels: string[]
-}): void {
-  logPrivacySafeChatbotEvent({
-      event: "final_media_choice_mismatch",
-      requestId: input.requestId,
-      conversationId: input.conversation.id,
-      sessionId: input.conversation.context.sessionId,
-      tier: input.tier,
-      jobKind: input.jobKind,
-      reason: input.reason,
-      receivedQuestion: redactForChatbotLog(input.receivedQuestion),
-      correctedQuestion: redactForChatbotLog(input.correctedQuestion),
-      receivedChoiceLabels: input.receivedChoiceLabels.map(redactForChatbotLog),
-  })
 }
 
 function hasConsultationStartIntent(message: string): boolean {
@@ -1518,7 +1358,7 @@ function recoverHistoricalChoiceContext(
     const previous = source.messages[index - 1]
     // Exact stored question is evidence; keyword-based panel guesses are deliberately excluded.
     const storedQuestionPanel = previous?.role === "assistant"
-      ? surveyChoiceSets.find((panel) => previous.content.trim() === panel.question)
+      ? findChoiceSetFromAssistantContent(previous.content)
       : undefined
     const panel = answers[message.id]?.choiceSet ?? storedQuestionPanel
       ?? (decision.kind === "continue" ? decision.presentChoices : undefined)
@@ -1538,7 +1378,7 @@ function reconcileConversationContextFromHistory(conversation: ChatbotConversati
 
   const recovered = recoverChoicePanelContextFromHistory(conversation.messages, conversation.context.conversationState?.choiceAnswers, conversation.context.conversationState?.conditionAnswers)
   const hasStoredAnswers = Object.keys(conversation.context.conversationState?.choiceAnswers ?? {}).length > 0 || conversation.context.conversationState?.conditionAnswers !== undefined
-  const recoveredBooking = hasStoredAnswers ? { conversationState: {}, bookingPrefill: {} } : recoverBookingContextFromHistory(conversation.messages)
+  const recoveredBooking = recoverBookingContextFromHistory(conversation.messages)
   const mergedState = mergeRecoveredBookingContext(mergeRecoveredConversationState(conversation.context.conversationState ?? {}, recovered.conversationState), recoveredBooking)
   const conversationState = hasStoredAnswers ? mergedState : recoverMaterialHandoffFromHistory(conversation.messages, mergedState)
   const jobContext = {
@@ -1596,14 +1436,15 @@ function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[], answer
     }
 
     const storedCondition = Object.entries(conditionAnswers ?? {}).find(([, answer]) => answer.sourceMessageId === message.id)
-    if (message.role === "user" && answers?.[message.id]) activeChoices = answers[message.id].choiceSet
+    const storedChoice = conditionAnswers === undefined ? answers?.[message.id] : undefined
+    if (message.role === "user" && storedChoice) activeChoices = storedChoice.choiceSet
     if (message.role === "user" && storedCondition) activeChoices = surveyChoiceSets.find((panel) => panel.id === storedCondition[0])
     if (message.role !== "user" || !activeChoices) continue
 
     const patch = applyActiveChoiceAnswer({
       activeChoices,
-      message: answers?.[message.id]?.selectedIds.length && !storedCondition
-        ? `選択: ${answers[message.id].selectedIds.join("、")}${answers[message.id].otherComment ? `\nその他コメント: ${answers[message.id].otherComment}` : ""}`
+      message: storedChoice?.selectedIds.length && !storedCondition
+        ? `選択: ${storedChoice.selectedIds.join("、")}${storedChoice.otherComment ? `\nその他コメント: ${storedChoice.otherComment}` : ""}`
         : message.content,
       conditionAnswer: storedCondition ? { conditionId: storedCondition[0], answer: storedCondition[1] } : undefined,
       activeIntakeClarification: conversationState.activeIntakeClarification,
@@ -1862,8 +1703,16 @@ function findContactEmailInText(value: string): string | undefined {
 }
 
 function findChoiceSetFromAssistantContent(content: string): SurveyChoiceSet | undefined {
-  const normalized = content.normalize("NFKC").trim()
-  return surveyChoiceSets.find((choiceSet) => normalized === choiceSet.question.normalize("NFKC"))
+  const suffix = "\n下の選択肢から選んでください。"
+  const value = content.normalize("NFKC").trim()
+  const normalized = value.endsWith(suffix) ? value.slice(0, -suffix.length).trim() : value
+  const historicalQuestions: Record<string, string> = {
+    "尺・分量の大枠を選んでください": "project-length",
+    "カラグレ以外の追加作業はありますか?": "additional-work",
+    "付随する映像はありますか?": "documentary-attachment",
+  }
+  const historicalId = historicalQuestions[normalized]
+  return surveyChoiceSets.find((choiceSet) => historicalId ? choiceSet.id === historicalId : normalized === choiceSet.question.normalize("NFKC"))
 }
 
 function selectRecoveredActiveChoices(input: {
@@ -1962,6 +1811,10 @@ function mergeRecoveredConversationState(
       merged[key] = true
     }
   }
+  const pending = stored.activeIntakeClarification
+  if (pending?.status === "needs-clarification" && (!pending.choiceSetId || !recovered.conditionAnswers?.[pending.choiceSetId])) {
+    merged.activeIntakeClarification = pending
+  }
   if (hasSubmittedBooking) delete merged.bookingFinalConfirmation
 
   if (!Object.keys(merged.otherChoiceComments ?? {}).length) delete merged.otherChoiceComments
@@ -2000,7 +1853,9 @@ function resetEditedConversationContext(
     context: {
       conversationState: {
         choiceAnswers: Object.fromEntries(Object.entries(conversation.context.conversationState?.choiceAnswers ?? {}).filter(([id]) => messageIds.has(id))),
-        conditionAnswers: retainConditionAnswers(conversation.context.conversationState?.conditionAnswers, messageIds),
+        ...(conversation.context.conversationState?.conditionAnswers !== undefined
+          ? { conditionAnswers: retainConditionAnswers(conversation.context.conversationState.conditionAnswers, messageIds) }
+          : {}),
       },
       sessionId: conversation.context.sessionId,
       ...(conversation.context.userId ? { userId: conversation.context.userId } : {}),
@@ -3666,7 +3521,6 @@ function normalizeBookingCardPrefill(
   const trustedToolPrefill = toolPrefillLooksStale ? {} : prefill
   const projectTitle = normalizeBookingProjectTitle(
     statePrefill.projectTitle ?? stateBookingPrefill.projectTitle ?? trustedToolPrefill.projectTitle,
-    jobContext,
   )
   const contactEmail = stateContactEmail ?? statePrefillEmail ?? stateBookingPrefillEmail ?? prefillEmailFromMemo ?? toolContactEmail
   const memoParts = [
@@ -3692,7 +3546,7 @@ function normalizeBookingCardPrefill(
   if (
     trustedToolPrefill.projectTitle &&
     projectTitle !== trustedToolPrefill.projectTitle &&
-    shouldKeepRejectedProjectTitleInMemo(trustedToolPrefill.projectTitle, jobContext)
+    shouldKeepRejectedProjectTitleInMemo(trustedToolPrefill.projectTitle)
   ) {
     memoParts.push(trustedToolPrefill.projectTitle)
   }
@@ -3731,21 +3585,21 @@ function formatInquiryDuration(minutes: number): string {
   return formatProjectLengthMinutes(minutes)
 }
 
-function normalizeBookingProjectTitle(value: string | undefined, jobContext: JobContext): string | undefined {
+function normalizeBookingProjectTitle(value: string | undefined): string | undefined {
   if (!value) return undefined
   const title = value.trim()
   if (!title) return undefined
-  if (isGenericBookingProjectTitle(title, jobContext)) return undefined
+  if (isGenericBookingProjectTitle(title)) return undefined
   if (isLikelyProjectDetail(title)) return undefined
   return title.slice(0, 80)
 }
 
-function shouldKeepRejectedProjectTitleInMemo(value: string, jobContext: JobContext): boolean {
+function shouldKeepRejectedProjectTitleInMemo(value: string): boolean {
   const title = value.trim()
-  return Boolean(title && !isGenericBookingProjectTitle(title, jobContext) && isLikelyProjectDetail(title))
+  return Boolean(title && !isGenericBookingProjectTitle(title) && isLikelyProjectDetail(title))
 }
 
-function isGenericBookingProjectTitle(value: string, jobContext: JobContext): boolean {
+function isGenericBookingProjectTitle(value: string): boolean {
   const normalized = value.normalize("NFKC").replace(/\s+/g, "")
   const genericTitles = [
     "ライブ案件",
@@ -3754,8 +3608,7 @@ function isGenericBookingProjectTitle(value: string, jobContext: JobContext): bo
     "ドラマ案件",
     "長編案件",
     "縦型動画案件",
-    defaultProjectTitleForJob(jobContext),
-  ].filter((item): item is string => Boolean(item))
+  ]
 
   return genericTitles.some((title) => normalized === title.normalize("NFKC").replace(/\s+/g, ""))
 }
@@ -3768,23 +3621,9 @@ function isLikelyProjectDetail(value: string): boolean {
   )
 }
 
-function defaultProjectTitleForJob(jobContext: JobContext): string | undefined {
-  if (jobContext.jobKind === "live-60m" || jobContext.finalMedium === "live") return "ライブ案件"
-  if (jobContext.jobKind?.startsWith("cm-")) return "CM案件"
-  if (jobContext.jobKind?.startsWith("mv-")) return "MV案件"
-  if (jobContext.jobKind?.startsWith("drama-")) return "ドラマ案件"
-  if (jobContext.jobKind?.startsWith("feature-")) return "長編案件"
-  if (jobContext.jobKind?.startsWith("vertical-")) return "縦型動画案件"
-  return undefined
-}
-
 function labelRequestCategory(jobContext: JobContext, conversationState: ConversationState): string | undefined {
-  if (jobContext.jobKind === "live-60m") return "ライブ"
-  if (jobContext.jobKind === "cm-30s") return "Web CM / CM"
-  if (jobContext.jobKind === "mv-5m") return "MV"
-  if (jobContext.jobKind === "feature-90m") return "映画 / 長編"
-  if (jobContext.jobKind === "drama-first" || jobContext.jobKind === "drama-follow-up") return "ドラマ"
-  if (jobContext.jobKind === "vertical-60s") return "縦型動画 / SNS動画"
+  const kind = normalizeJobKind(jobContext.jobKind)
+  if (kind && kind !== "other") return jobKindLabel(kind)
   return normalizeSupplementalMemo(conversationState.otherChoiceComments?.["job-kind"])
 }
 

@@ -13,7 +13,7 @@ function answer(c: ChatbotConversation, panel: SurveyChoiceSet, text: string) {
 it("replays old opening and multiple selections without saved answer metadata", () => {
   const c = conversation()
   const first = answer(c, choices.jobKindChoices, "映画 / 長編 / 本編")
-  expect(recoverHistoricalChoiceAnswer(c, first)?.selectedIds).toEqual(["feature-90m"])
+  expect(recoverHistoricalChoiceAnswer(c, first)?.selectedIds).toEqual(["feature"])
   answer(c, choices.projectLengthChoices, "尺: 1時間30分")
   const target = answer(c, choices.finalMediumChoices, "選択: Web公開、劇場公開")
   c.context.jobContext = { jobKind: "cm-30s" } // Later state must not affect replay.

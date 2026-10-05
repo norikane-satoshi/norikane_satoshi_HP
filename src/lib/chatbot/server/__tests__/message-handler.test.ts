@@ -18,10 +18,14 @@ import {
   finalMediumChoices,
   jobKindChoices,
   workSiteChoices,
+  lectureTrainingFormatChoices,
 } from "@/lib/chatbot/domain"
+import { conditionChoiceSet } from "@/lib/chatbot/domain/survey-choice"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { createStaticChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
+import { normalizeJobKind } from "@/lib/booking/domain/job-kind"
+import type { ConditionAnswers } from "@/lib/booking/domain/project-conditions"
 import type { UserChatbotContext } from "@/lib/chatbot/server/user-context-loader"
 
 function conversation(overrides: Partial<ChatbotConversation> = {}): ChatbotConversation {
@@ -34,6 +38,38 @@ function conversation(overrides: Partial<ChatbotConversation> = {}): ChatbotConv
     messages: [{ id: "old_user_1", role: "user", content: "current session text", createdAt: "2026-05-26T00:00:00.000Z" }],
     ...overrides,
   }
+}
+
+// These fixtures represent answers already saved from actual customer messages.
+function recordedConversation(overrides: Partial<ChatbotConversation>): ChatbotConversation {
+  const value = conversation(overrides)
+  const state = value.context.conversationState ?? {}
+  const job = value.context.jobContext ?? {}
+  const conditionAnswers: ConditionAnswers = {}
+  const selected = (selectedIds: string[]) => ({ status: "answered" as const, selectedIds })
+  const unknown = { status: "unknown" as const }
+  const entries: Array<[string, boolean | undefined, ConditionAnswers[string]]> = [
+    ["job-kind", state.hasJobKind, job.jobKind ? selected([normalizeJobKind(job.jobKind)!]) : unknown],
+    ["project-length", state.hasProjectLength, job.projectLengthMinutes !== undefined ? { status: "answered", composition: [{ count: 1, durationSeconds: job.projectLengthMinutes * 60 }] } : unknown],
+    ["final-medium", state.hasFinalMedium, selected(state.finalMedia ?? [job.finalMedium === "live" ? "web" : job.finalMedium ?? "web"])],
+    ["delivery-format", state.hasDeliveryFormat, { status: "answered", text: state.deliveryFormat ?? "ProRes" }],
+    ["dcp-required", state.hasDcpRequirement, selected([state.dcpRequirement ?? "not-required"])],
+    ["dcp-creator", state.hasDcpCreator, { status: "answered", text: state.dcpCreator ?? "制作側" }],
+    ["additional-work", state.hasAdditionalWork, selected(job.additionalWork?.length ? job.additionalWork : ["none"])],
+    ["documentary-attachment", state.hasDocumentaryAttachments, unknown],
+    ["work-site", state.hasWorkSite, selected([job.workSite ?? "remote-grading"])],
+    ["material-timing", state.hasMaterialTiming, unknown],
+    ["reference-urls", state.hasReferenceUrls, unknown],
+  ]
+  if (state.hasAdditionalWork && job.additionalWork?.some(id => ["retouch", "skin-retouch", "compositing"].includes(id))) entries.push(["retouch-cut-count", true, unknown])
+  const messages: ChatbotMessage[] = []
+  for (const [id, confirmed, answer] of entries) {
+    if (!confirmed) continue
+    const sourceMessageId = `recorded_${id}`
+    conditionAnswers[id] = { ...answer, sourceMessageId }
+    messages.push({ id: sourceMessageId, role: "user", content: JSON.stringify(answer), createdAt: "2026-05-25T00:00:00.000Z" })
+  }
+  return { ...value, messages: [...messages, ...value.messages], context: { ...value.context, conversationState: { ...state, conditionAnswers } } }
 }
 
 function message(role: ChatbotMessage["role"], content: string): ChatbotMessage {
@@ -197,6 +233,47 @@ function setup(overrides: {
 }
 
 describe("handleChatbotMessage user context", () => {
+  it.each([
+    [{}, "job-kind"],
+    [{ "job-kind": { status: "answered", selectedIds: ["mv"], sourceMessageId: "confirmed_kind" } }, "project-length"],
+  ] satisfies Array<[ConditionAnswers, string]>)("recovers customer identity without promoting inferred conditions: %j", async (conditionAnswers, nextId) => {
+    const harness = setup({
+      existingConversation: conversation({
+        context: {
+          sessionId: "session_1",
+          userId: "user_a",
+          conversationState: {
+            ...readyMaterialHandoff,
+            hasJobKind: true,
+            hasProjectLength: true,
+            hasFinalMedium: true,
+            hasAdditionalWork: true,
+            hasDocumentaryAttachments: true,
+            hasWorkSite: true,
+            hasReferenceUrls: true,
+            hasDesiredSchedule: true,
+            conditionAnswers,
+            choiceAnswers: { confirmed_kind: { choiceSet: jobKindChoices, selectedIds: ["feature"], selectedLabels: ["映画 / 長編"] } },
+          },
+          jobContext: { jobKind: "feature-90m", projectLengthMinutes: 90, finalMedium: "cinema", workSite: "remote-grading" },
+        },
+        messages: [
+          { ...message("user", "選択: MV / 音楽映像"), id: "confirmed_kind" },
+          { ...message("user", "案件名: 顧客の作品\n担当者名: 山田\nメール: yamada@example.com\n90分の映画、劇場向けです"), id: "customer_identity" },
+        ],
+      }),
+    })
+
+    await handleChatbotMessage({ sessionId: "session_1", userId: "user_a", message: "相談を続けたいです" }, harness.options)
+
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
+      activeChoices: conditionChoiceSet(nextId),
+      conversationState: expect.objectContaining({ conditionAnswers, customerName: "山田", contactEmail: "yamada@example.com" }),
+      jobContext: expect.objectContaining({ projectLengthMinutes: undefined }),
+    }))
+    expect(harness.candidateWindowFinder).not.toHaveBeenCalled()
+  })
+
   it("stops before assistant persistence when request ownership is lost during generation", async () => {
     const harness = setup()
     const ownershipLost = new Error("chatbot_message_request_ownership_lost")
@@ -368,7 +445,7 @@ describe("handleChatbotMessage user context", () => {
 
       expect(result.ui).toEqual({ kind: "duration-input", question: projectLengthChoices.question })
       expect(result.assistantMessage.content).toBe(projectLengthChoices.question)
-      expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({ jobKind: "drama-first", projectLengthMinutes: undefined })
+      expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({ jobKind: "drama", projectLengthMinutes: undefined })
     } finally {
       consoleInfo.mockRestore()
       vi.unstubAllEnvs()
@@ -445,7 +522,7 @@ describe("handleChatbotMessage user context", () => {
             hasProjectLength: false,
             turnCount: 2,
           },
-          jobContext: { jobKind: "live-60m" },
+          jobContext: { jobKind: "live" },
         },
       }),
     })
@@ -509,7 +586,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it.each(["drama-first", "live-60m", "cm-30s", "mv-5m"] as const)("replaces model-authored duration buckets for %s", async (jobKind) => {
+  it.each(["drama", "live", "cm", "mv"] as const)("replaces model-authored duration buckets for %s", async (jobKind) => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply(JSON.stringify({ tool: "show_choice_panel", args: {
@@ -528,7 +605,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("normalizes a production-log-like LLM-authored drama final-medium panel", async () => {
     const question = "このドラマの最終放映先・配信先はどちらですか？"
-    const correctedQuestion = "ドラマ / シリーズとして整理しています。想定している公開先・納品先をすべて選んでください。"
+    const correctedQuestion = finalMediumChoices.question
     const choices = [
       { id: "tv-broadcast", label: "地上波・BS／CS放送" },
       { id: "ott", label: "配信プラットフォーム" },
@@ -538,7 +615,7 @@ describe("handleChatbotMessage user context", () => {
       { id: "other", label: "その他" },
     ]
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -557,7 +634,7 @@ describe("handleChatbotMessage user context", () => {
             turnCount: 2,
           },
           jobContext: {
-            jobKind: "drama-first",
+            jobKind: "drama",
             finalMedium: "other",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -590,33 +667,19 @@ describe("handleChatbotMessage user context", () => {
     )
 
     expect(result.assistantMessage.content).toBe(`${correctedQuestion}\n下の選択肢から選んでください。`)
-    expect(result.ui).toMatchObject({
-      kind: "choice-panel",
-      choiceSet: {
-        id: "final-medium",
-        question: correctedQuestion,
-        selectionMode: "multiple",
-        allowFreeText: true,
-      },
-    })
+    expect(result.ui).toEqual({ kind: "choice-panel", choiceSet: finalMediumChoices })
     expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(finalMediumChoices.choices)
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         currentQuestion: correctedQuestion,
-        activeChoices: expect.objectContaining({
-          id: "final-medium",
-          question: correctedQuestion,
-          choices: finalMediumChoices.choices,
-          selectionMode: "multiple",
-          allowFreeText: true,
-        }),
+        activeChoices: finalMediumChoices,
         conversationState: expect.objectContaining({
           hasJobKind: true,
           hasProjectLength: true,
           hasFinalMedium: false,
         }),
         jobContext: expect.objectContaining({
-          jobKind: "drama-first",
+          jobKind: "drama",
           finalMedium: "other",
           projectLengthMinutes: 60,
         }),
@@ -628,7 +691,7 @@ describe("handleChatbotMessage user context", () => {
     vi.stubEnv("NODE_ENV", "production")
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -647,7 +710,7 @@ describe("handleChatbotMessage user context", () => {
             turnCount: 2,
           },
           jobContext: {
-            jobKind: "drama-first",
+            jobKind: "drama",
             finalMedium: "other",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -656,7 +719,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     const question = "ドラマ / シリーズとして整理しています。想定している公開先・納品先を1つ教えてください"
-    const correctedQuestion = "ドラマ / シリーズとして整理しています。想定している公開先・納品先をすべて選んでください。"
+    const correctedQuestion = finalMediumChoices.question
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply([
         `${question}。`,
@@ -682,15 +745,7 @@ describe("handleChatbotMessage user context", () => {
       )
 
       expect(result.assistantMessage.content).toBe(`${correctedQuestion}\n下の選択肢から選んでください。`)
-      expect(result.ui).toMatchObject({
-        kind: "choice-panel",
-        choiceSet: {
-          id: "final-medium",
-          question: correctedQuestion,
-          selectionMode: "multiple",
-          allowFreeText: true,
-        },
-      })
+      expect(result.ui).toEqual({ kind: "choice-panel", choiceSet: finalMediumChoices })
       expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(finalMediumChoices.choices)
       expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -706,7 +761,7 @@ describe("handleChatbotMessage user context", () => {
             hasFinalMedium: false,
           }),
           jobContext: expect.objectContaining({
-            jobKind: "drama-first",
+            jobKind: "drama",
             projectLengthMinutes: 60,
           }),
         }),
@@ -720,7 +775,7 @@ describe("handleChatbotMessage user context", () => {
     }
   })
 
-  it("does not show the fixed final-medium fallback for drama context", async () => {
+  it("uses the shared final-medium definition for drama context", async () => {
     vi.stubEnv("NODE_ENV", "production")
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup()
@@ -737,7 +792,7 @@ describe("handleChatbotMessage user context", () => {
           userId: "user_a",
           message: "媒体はまだ相談したいです",
           jobContext: {
-            jobKind: "drama-first",
+            jobKind: "drama",
             finalMedium: "other",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -751,8 +806,7 @@ describe("handleChatbotMessage user context", () => {
         harness.options,
       )
 
-      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
-      expect(result.assistantMessage.content).toContain("公開先・納品先")
+      expect(result.assistantMessage.content).toBe(`${finalMediumChoices.question}\n下の選択肢から選んでください。`)
       expect(result.ui).toMatchObject({
         kind: "choice-panel",
         choiceSet: {
@@ -769,14 +823,8 @@ describe("handleChatbotMessage user context", () => {
       expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
         expect.objectContaining({
           activeChoices: expect.objectContaining({ id: "final-medium" }),
-          currentQuestion: expect.stringContaining("ドラマ / シリーズとして整理しています"),
+          currentQuestion: finalMediumChoices.question,
         }),
-      )
-      expect(consoleInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"event":"final_media_choice_mismatch"'),
-      )
-      expect(consoleInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"reason":"fixed-final-medium-fallback"'),
       )
     } finally {
       consoleInfo.mockRestore()
@@ -784,7 +832,7 @@ describe("handleChatbotMessage user context", () => {
     }
   })
 
-  it("returns to a natural final-medium rejudgment question when LLM mixes another context", async () => {
+  it("uses the shared final-medium panel when LLM mixes another context", async () => {
     vi.stubEnv("NODE_ENV", "production")
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const harness = setup()
@@ -812,7 +860,7 @@ describe("handleChatbotMessage user context", () => {
           userId: "user_a",
           message: "ドラマシリーズです。1話45分です。",
           jobContext: {
-            jobKind: "drama-first",
+            jobKind: "drama",
             finalMedium: "other",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -826,18 +874,12 @@ describe("handleChatbotMessage user context", () => {
         harness.options,
       )
 
-      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
+      expect(result.assistantMessage.content).toBe(`${finalMediumChoices.question}\n下の選択肢から選んでください。`)
       expect(result.assistantMessage.content).not.toContain("ライブ配信")
       expect(result.ui).toMatchObject({
         kind: "choice-panel",
         choiceSet: { id: "final-medium" },
       })
-      expect(consoleInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"event":"final_media_choice_mismatch"'),
-      )
-      expect(consoleInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"reason":"choice-set-context-mismatch"'),
-      )
     } finally {
       consoleInfo.mockRestore()
       vi.unstubAllEnvs()
@@ -857,7 +899,7 @@ describe("handleChatbotMessage user context", () => {
       ],
     }
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -876,7 +918,7 @@ describe("handleChatbotMessage user context", () => {
             turnCount: 3,
           },
           jobContext: {
-            jobKind: "drama-first",
+            jobKind: "drama",
             finalMedium: "other",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -906,9 +948,9 @@ describe("handleChatbotMessage user context", () => {
   })
 
   it.each([
-    ["live-60m", "ライブの公開・納品先を選んでください", ["配信", "会場上映", "パッケージ納品", "未定"]],
-    ["cm-30s", "CMの使用先を選んでください", ["Web広告", "SNS", "テレビ放送", "店頭・イベント"]],
-    ["mv-5m", "MVの公開先を選んでください", ["YouTube", "SNS", "配信プラットフォーム", "ライブ会場上映"]],
+    ["live", "ライブの公開・納品先を選んでください", ["配信", "会場上映", "パッケージ納品", "未定"]],
+    ["cm", "CMの使用先を選んでください", ["Web広告", "SNS", "テレビ放送", "店頭・イベント"]],
+    ["mv", "MVの公開先を選んでください", ["YouTube", "SNS", "配信プラットフォーム", "ライブ会場上映"]],
   ] as const)("normalizes LLM-authored final-medium panel for %s", async (jobKind, question, labels) => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
@@ -934,7 +976,7 @@ describe("handleChatbotMessage user context", () => {
           finalMedium: "other",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
-          projectLengthMinutes: jobKind === "cm-30s" ? 0.5 : 60,
+          projectLengthMinutes: jobKind === "cm" ? 0.5 : 60,
         },
         conversationState: {
           ...baseProductionConversationState(),
@@ -957,9 +999,9 @@ describe("handleChatbotMessage user context", () => {
   })
 
   it.each([
-    ["live-60m", "ライブ / 舞台収録として整理しています。想定している公開先・納品先を選んでください", ["配信", "会場上映", "パッケージ納品", "未定"]],
-    ["cm-30s", "Web CM / CM として整理しています。想定している使用先を選んでください", ["Web広告", "SNS", "テレビ放送", "店頭・イベント"]],
-    ["mv-5m", "MV / 音楽映像として整理しています。想定している公開先を選んでください", ["YouTube", "SNS", "配信プラットフォーム", "ライブ会場上映"]],
+    ["live", "ライブ / 舞台収録として整理しています。想定している公開先・納品先を選んでください", ["配信", "会場上映", "パッケージ納品", "未定"]],
+    ["cm", "Web CM / CM として整理しています。想定している使用先を選んでください", ["Web広告", "SNS", "テレビ放送", "店頭・イベント"]],
+    ["mv", "MV / 音楽映像として整理しています。想定している公開先を選んでください", ["YouTube", "SNS", "配信プラットフォーム", "ライブ会場上映"]],
   ] as const)("converts plain text final-medium choices into a panel for %s", async (jobKind, question, labels) => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
@@ -977,7 +1019,7 @@ describe("handleChatbotMessage user context", () => {
           finalMedium: "other",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
-          projectLengthMinutes: jobKind === "cm-30s" ? 0.5 : 60,
+          projectLengthMinutes: jobKind === "cm" ? 0.5 : 60,
         },
         conversationState: {
           ...baseProductionConversationState(),
@@ -1014,7 +1056,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "ライブ60分の進め方だけ教えてください",
         jobContext: {
-          jobKind: "live-60m",
+          jobKind: "live",
           finalMedium: "live",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -1045,7 +1087,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "公開先を相談したいです",
         jobContext: {
-          jobKind: "drama-first",
+          jobKind: "drama",
           finalMedium: "other",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -1059,15 +1101,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.ui).toMatchObject({
-      kind: "choice-panel",
-      choiceSet: {
-        id: "final-medium",
-        question: "ドラマ / シリーズとして整理しています。想定している公開先・納品先をすべて選んでください。",
-        selectionMode: "multiple",
-        allowFreeText: true,
-      },
-    })
+    expect(result.ui).toEqual({ kind: "choice-panel", choiceSet: finalMediumChoices })
     expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices : []).toEqual(finalMediumChoices.choices)
   })
 
@@ -1471,7 +1505,7 @@ describe("handleChatbotMessage user context", () => {
             otherChoiceComments: { "additional-work": "MA も相談したい" },
             durationContext: {
               workflowFacts: {
-                jobKind: "live-60m",
+                jobKind: "live",
                 finalMedium: "live",
                 workSite: "remote-grading",
                 projectLengthMinutes: 150,
@@ -1480,7 +1514,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             workSite: "remote-grading",
             projectLengthMinutes: 150,
@@ -1500,7 +1534,7 @@ describe("handleChatbotMessage user context", () => {
         message: "グレーディングについて教えてください",
         editTargetMessageId: "user_1",
         jobContext: {
-          jobKind: "live-60m",
+          jobKind: "live",
           finalMedium: "live",
           workSite: "remote-grading",
           projectLengthMinutes: 150,
@@ -1528,6 +1562,7 @@ describe("handleChatbotMessage user context", () => {
       turnCount: 1,
     })
     expect(harness.generate.mock.calls[0]?.[0].conversationState.otherChoiceComments).toBeUndefined()
+    expect(harness.generate.mock.calls[0]?.[0].conversationState.conditionAnswers).toBeUndefined()
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "other",
       workSite: "remote-grading",
@@ -1539,7 +1574,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("preserves current routing state when a client-only edit id never reached the server", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -1559,8 +1594,8 @@ describe("handleChatbotMessage user context", () => {
             turnCount: 5,
           },
           jobContext: {
-            jobKind: "live-60m",
-            finalMedium: "live",
+            jobKind: "live",
+            finalMedium: "web",
             workSite: "remote-grading",
             projectLengthMinutes: 150,
             additionalWork: ["retouch", "skin-retouch"],
@@ -1600,8 +1635,8 @@ describe("handleChatbotMessage user context", () => {
           otherChoiceComments: { "documentary-attachment": "特典映像だよ" },
         }),
         jobContext: expect.objectContaining({
-          jobKind: "live-60m",
-          finalMedium: "live",
+          jobKind: "live",
+          finalMedium: "web",
           workSite: "remote-grading",
           projectLengthMinutes: 150,
           additionalWork: ["retouch", "skin-retouch"],
@@ -1691,7 +1726,7 @@ describe("handleChatbotMessage user context", () => {
   })
 
   it("keeps booking project titles short and moves detailed work notes into the booking memo", async () => {
-    const harness = setup()
+    const harness = setup({ existingConversation: recordedConversation({ context: { sessionId: "session_1", userId: "user_a", jobContext: { jobKind: "live", finalMedium: "live", projectLengthMinutes: 150 }, conversationState: { ...baseProductionConversationState(), ...readyMaterialHandoff } } }) })
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"ライブ2.5h 消し物・肌修正・観客の顔ぼかし30カット以上、リモートでも立ち会いでも相談","contactName":"テスト太郎","contactEmail":"client@example.jp","companyName":"テスト株式会社","dueDate":"2026-07-31"}}'),
@@ -1704,7 +1739,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "メールは client@example.jp です。顔ぼかしは30カット以上です。",
         jobContext: {
-          jobKind: "live-60m",
+          jobKind: "live",
           finalMedium: "live",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -1746,7 +1781,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "CM案件、山田太郎、client@example.com、7月10日納品です",
         jobContext: {
-          jobKind: "cm-30s",
+          jobKind: "cm",
           finalMedium: "web",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -1811,7 +1846,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -1877,7 +1912,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -1930,7 +1965,7 @@ describe("handleChatbotMessage user context", () => {
             contactEmail: undefined,
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -1976,7 +2011,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -2036,7 +2071,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -2079,7 +2114,7 @@ describe("handleChatbotMessage user context", () => {
             contactEmail: "client@example.com",
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -2118,7 +2153,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("moves to the booking card when the final confirmation choice label is submitted", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -2133,7 +2168,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             projectLengthMinutes: 150,
             workSite: "remote-grading",
@@ -2176,7 +2211,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("recovers customer-facing booking prefill from the same session history", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         messages: [
           message("assistant", "次に案件名を教えてください。決まっていなければ仮の呼び名でも構いません。"),
           message("user", "案件Tで"),
@@ -2205,7 +2240,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             projectLengthMinutes: 150,
             workSite: "remote-grading",
@@ -2237,7 +2272,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.ui).toMatchObject({
       kind: "booking-card",
       confirmationItems: expect.arrayContaining([
-        { label: "案件種別", value: "未確認" },
+        { label: "案件種別", value: "ライブ / コンサート / 舞台収録" },
         { label: "素材が揃う日", value: "未確認" },
       ]),
     })
@@ -2250,12 +2285,12 @@ describe("handleChatbotMessage user context", () => {
     expect(memo).not.toContain("受け渡し素材:")
     expect(memo).not.toContain("案件種別:")
     expect(memo).not.toContain("最終媒体:")
-    expect(memo).not.toContain("live-60m")
+    expect(memo).not.toContain("live")
   })
 
   it("recovers only labeled booking prefill from user messages", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         messages: [
           message("assistant", "予約候補カードに進む前に、案件名（作品タイトル、または短い呼び名）を教えていただけますでしょうか？"),
           message("user", "作品タイトルは「案件T」でお願いします"),
@@ -2279,7 +2314,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             projectLengthMinutes: 150,
             workSite: "remote-grading",
@@ -2321,7 +2356,7 @@ describe("handleChatbotMessage user context", () => {
           sessionId: "session_1",
           userId: "user_a",
           conversationState: baseProductionConversationState(),
-          jobContext: { jobKind: "live-60m", finalMedium: "live", projectLengthMinutes: 150 },
+          jobContext: { jobKind: "live", finalMedium: "live", projectLengthMinutes: 150 },
         },
       }),
     })
@@ -2357,7 +2392,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("displays the material ready date question after attendance selection", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         messages: [message("assistant", workSiteChoices.question)],
         context: {
           sessionId: "session_1",
@@ -2372,7 +2407,7 @@ describe("handleChatbotMessage user context", () => {
             hasWorkSite: false,
           }),
           jobContext: {
-            jobKind: "drama-first",
+            jobKind: "drama",
             finalMedium: "tv-broadcast",
             projectLengthMinutes: 60,
             workSite: "remote-grading",
@@ -2415,7 +2450,7 @@ describe("handleChatbotMessage user context", () => {
             contactEmail: "client@example.com",
           }),
           jobContext: {
-            jobKind: "drama-first",
+            jobKind: "drama",
             finalMedium: "tv-broadcast",
             projectLengthMinutes: 60,
             workSite: "remote-grading",
@@ -2472,7 +2507,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("does not let stale hosted tool args override confirmed session identity", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -2489,7 +2524,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             projectLengthMinutes: 150,
             workSite: "remote-grading",
@@ -2543,7 +2578,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             projectLengthMinutes: 150,
             workSite: "remote-grading",
@@ -2600,7 +2635,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -2646,7 +2681,7 @@ describe("handleChatbotMessage user context", () => {
             contactEmail: "client@example.com",
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -2690,7 +2725,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -2751,7 +2786,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -2835,7 +2870,7 @@ describe("handleChatbotMessage user context", () => {
               },
             },
             jobContext: {
-              jobKind: "live-60m",
+              jobKind: "live",
               finalMedium: "live",
               workSite: "remote-grading",
               documentaryAttachment: { kind: "none" },
@@ -2881,7 +2916,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -2984,7 +3019,7 @@ describe("handleChatbotMessage user context", () => {
               },
             },
             jobContext: {
-              jobKind: "live-60m",
+              jobKind: "live",
               finalMedium: "live",
               workSite: "remote-grading",
               documentaryAttachment: { kind: "none" },
@@ -3026,7 +3061,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -3096,7 +3131,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -3136,7 +3171,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "CM案件、山田太郎、client@example.com、7月10日納品です",
         jobContext: {
-          jobKind: "cm-30s",
+          jobKind: "cm",
           finalMedium: "web",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -3183,7 +3218,7 @@ describe("handleChatbotMessage user context", () => {
             contactEmail: "client@example.com",
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -3232,7 +3267,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -3291,7 +3326,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -3340,7 +3375,7 @@ describe("handleChatbotMessage user context", () => {
             },
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "web",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -3419,7 +3454,7 @@ describe("handleChatbotMessage user context", () => {
       "project length",
       "ライブの相談です。",
       {
-        jobKind: "live-60m",
+        jobKind: "live",
         finalMedium: "live",
         workSite: "remote-grading",
         documentaryAttachment: { kind: "none" },
@@ -3440,7 +3475,7 @@ describe("handleChatbotMessage user context", () => {
       "additional work",
       "ライブ2時間半ぐらいあります。",
       {
-        jobKind: "live-60m",
+        jobKind: "live",
         finalMedium: "live",
         workSite: "remote-grading",
         documentaryAttachment: { kind: "none" },
@@ -3454,14 +3489,14 @@ describe("handleChatbotMessage user context", () => {
         hasDocumentaryAttachments: true,
         hasWorkSite: true,
       },
-      "カラグレ以外の追加作業はありますか？",
+      additionalWorkChoices.question,
       additionalWorkChoices.id,
     ],
     [
       "documentary attachment",
       "ライブ2時間半ぐらいあります。",
       {
-        jobKind: "live-60m",
+        jobKind: "live",
         finalMedium: "live",
         workSite: "remote-grading",
         documentaryAttachment: { kind: "none" },
@@ -3475,14 +3510,14 @@ describe("handleChatbotMessage user context", () => {
         hasDocumentaryAttachments: false,
         hasWorkSite: true,
       },
-      "付随する映像はありますか？",
+      documentaryAttachmentChoices.question,
       documentaryAttachmentChoices.id,
     ],
     [
       "work site",
       "ライブ2時間半ぐらいあります。",
       {
-        jobKind: "live-60m",
+        jobKind: "live",
         finalMedium: "live",
         documentaryAttachment: { kind: "none" },
       },
@@ -3538,7 +3573,7 @@ describe("handleChatbotMessage user context", () => {
     },
   )
 
-  it("replaces the fixed final-medium prompt with a contextual choice panel", async () => {
+  it("replaces an authored final-medium prompt with the shared definition", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText:
@@ -3564,8 +3599,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("MV / 音楽映像として整理しています")
-    expect(result.assistantMessage.content).toContain("公開先・使用先")
+    expect(result.assistantMessage.content).toBe(`${finalMediumChoices.question}\n下の選択肢から選んでください。`)
     expect(result.assistantMessage.content).not.toContain("受付内容の整理")
     expect(result.assistantMessage.content).not.toContain("納品形式も教えてください")
     expect(result.ui).toMatchObject({
@@ -3575,7 +3609,7 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         activeChoices: expect.objectContaining({ id: "final-medium" }),
-        currentQuestion: expect.stringContaining("MV / 音楽映像として整理しています"),
+        currentQuestion: finalMediumChoices.question,
       }),
     )
   })
@@ -3593,7 +3627,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "ドラマシリーズの尺を相談したいです。",
         jobContext: {
-          jobKind: "drama-first",
+          jobKind: "drama",
           finalMedium: "ott",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -3632,7 +3666,7 @@ describe("handleChatbotMessage user context", () => {
           userId: "user_a",
           message: "ライブ2時間半ぐらいあります。",
           jobContext: {
-            jobKind: "live-60m",
+            jobKind: "live",
             finalMedium: "live",
             documentaryAttachment: { kind: "none" },
           },
@@ -3678,7 +3712,7 @@ describe("handleChatbotMessage user context", () => {
           },
         ],
         jobContext: {
-          jobKind: "cm-30s",
+          jobKind: "cm",
           finalMedium: "web",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -3967,7 +4001,7 @@ describe("handleChatbotMessage user context", () => {
           },
           jobContext: {
             finalMedium: "live",
-            jobKind: "live-60m",
+            jobKind: "live",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
             projectLengthMinutes: 150,
@@ -4039,7 +4073,7 @@ describe("handleChatbotMessage user context", () => {
           },
           jobContext: {
             finalMedium: "live",
-            jobKind: "live-60m",
+            jobKind: "live",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
             projectLengthMinutes: 150,
@@ -4110,7 +4144,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).not.toContain("通常7〜9日")
   })
 
-  it("infers explicit live duration facts from free text before blocking unsupported live estimate text", async () => {
+  it("keeps prose duration unconfirmed while blocking unsupported live estimate text", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
@@ -4157,16 +4191,17 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).not.toContain("20日")
     expect(result.assistantMessage.content).not.toContain("通常のラインです")
     expect(harness.generate.mock.calls[0]?.[0].systemPrompt).not.toContain("基本工程ライン:")
-    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("- 尺: 2時間30分")
+    expect(harness.generate.mock.calls[0]?.[0].systemPrompt).toContain("- 尺: 未確認")
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         jobContext: expect.objectContaining({
           finalMedium: "live",
           deliveryMedium: "dvd",
-          jobKind: "live-60m",
-          projectLengthMinutes: 150,
+          jobKind: "live",
+          projectLengthMinutes: undefined,
           workflowEstimate: expect.objectContaining({
-            estimateStatus: "authoritative",
+            estimateStatus: "needs-confirmation",
+        unsupportedReason: "project-length-unconfirmed",
           }),
         }),
         conversationState: expect.objectContaining({
@@ -4184,33 +4219,33 @@ describe("handleChatbotMessage user context", () => {
       prompt: "Web CM 30秒、追加作業なしです。所要日数だけ知りたいです。",
       rawText: "Web CM 30秒の所要日数の目安は17〜20日です。",
       expectedRange: "所要日数の目安は1日",
-      expectedJobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 },
+      expectedJobContext: { finalMedium: "web", jobKind: "cm", projectLengthMinutes: undefined },
     },
     {
       prompt: "MV 5分のカラーグレーディング相談です。",
       rawText: "MV 5分の作業期間は17〜20日です。",
       expectedRange: "作業期間は1.5日",
-      expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
+      expectedJobContext: { jobKind: "mv", projectLengthMinutes: undefined },
     },
     {
       prompt: "OTT向け本編90分です。工程感を知りたいです。",
       rawText: "本編90分の工程目安は17〜20日です。",
       expectedRange: "工程目安は7〜9日",
-      expectedJobContext: { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 },
+      expectedJobContext: { finalMedium: "ott", jobKind: "feature", projectLengthMinutes: undefined },
     },
     {
       prompt: "ドラマ初回の案件です。期間の目安を教えてください。",
       rawText: "ドラマ初回の期間は17〜20日です。",
       expectedRange: "尺が未確認のため工程日数は確認が必要",
-      expectedJobContext: { jobKind: "drama-first" },
+      expectedJobContext: { jobKind: "drama", projectLengthMinutes: undefined },
     },
     {
       prompt: "縦型動画60秒の相談です。工程だけ知りたいです。",
       rawText: "縦型動画60秒の工程は17〜20日です。",
       expectedRange: "工程は1日",
-      expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 },
+      expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical", projectLengthMinutes: undefined },
     },
-  ])("infers workflow estimate facts from non-live free text: $prompt", async ({ prompt, rawText, expectedRange, expectedJobContext }) => {
+  ])("normalizes kind but keeps duration unconfirmed from non-live free text: $prompt", async ({ prompt, rawText, expectedRange, expectedJobContext }) => {
     const harness = setup({
       existingConversation: conversation({
         context: {
@@ -4267,7 +4302,7 @@ describe("handleChatbotMessage user context", () => {
           userId: "user_a",
           jobContext: {
             finalMedium: "web",
-            jobKind: "cm-30s",
+            jobKind: "cm",
             projectLengthMinutes: 0.5,
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -4316,7 +4351,7 @@ describe("handleChatbotMessage user context", () => {
           userId: "user_a",
           jobContext: {
             finalMedium: "web",
-            jobKind: "cm-30s",
+            jobKind: "cm",
             projectLengthMinutes: 0.5,
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
@@ -4427,12 +4462,11 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "live",
-      jobKind: "live-60m",
-      projectLengthMinutes: 150,
+      jobKind: "live",
+      projectLengthMinutes: undefined,
       workflowEstimate: expect.objectContaining({
-        totalMinDays: 7,
-        totalMaxDays: 8,
-        estimateStatus: "authoritative",
+        estimateStatus: "needs-confirmation",
+        unsupportedReason: "project-length-unconfirmed",
       }),
     })
   })
@@ -4499,30 +4533,32 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "web",
-      jobKind: "cm-30s",
-      projectLengthMinutes: 0.5,
+      jobKind: "cm",
+      projectLengthMinutes: undefined,
       workflowEstimate: expect.objectContaining({
-        totalMinDays: 1,
-        totalMaxDays: 1,
+        estimateStatus: "needs-confirmation",
+        unsupportedReason: "project-length-unconfirmed",
       }),
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         jobContext: expect.objectContaining({
           finalMedium: "web",
-          jobKind: "cm-30s",
-          projectLengthMinutes: 0.5,
+          jobKind: "cm",
+          projectLengthMinutes: undefined,
         }),
         conversationState: expect.objectContaining({
           durationContext: expect.objectContaining({
             workflowFacts: expect.objectContaining({
               finalMedium: "web",
-              jobKind: "cm-30s",
-              projectLengthMinutes: 0.5,
+              jobKind: "cm",
+              projectLengthMinutes: undefined,
             }),
             workflowEstimate: expect.objectContaining({
-              totalMinDays: 1,
-              totalMaxDays: 1,
+              totalMinDays: 0,
+              totalMaxDays: 0,
+              estimateStatus: "needs-confirmation",
+              unsupportedReason: "project-length-unconfirmed",
             }),
             snapshotStatus: "current",
           }),
@@ -4537,28 +4573,28 @@ describe("handleChatbotMessage user context", () => {
       latest: "素材はオンラインで渡せます。追加作業は今のところありません。",
       rawText: "素材状況を踏まえると、基本工程は17〜20日です。",
       expectedRange: "基本工程は1日",
-      expectedJobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 },
+      expectedJobContext: { finalMedium: "web", jobKind: "cm", projectLengthMinutes: undefined },
     },
     {
       prior: "MV 5分のカラーグレーディング相談です。",
       latest: "肌修正が少しあります。基本工程はどれくらいですか？",
       rawText: "追加作業込みでも基本工程は17〜20日から考えます。",
       expectedRange: "基本工程は1.5日",
-      expectedJobContext: { jobKind: "mv-5m", projectLengthMinutes: 5 },
+      expectedJobContext: { jobKind: "mv", projectLengthMinutes: undefined },
     },
     {
       prior: "OTT向け本編90分です。",
       latest: "素材は整っています。まず基本工程だけ知りたいです。",
       rawText: "本編90分なら工程目安は17〜20日です。",
       expectedRange: "工程目安は7〜9日",
-      expectedJobContext: { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 },
+      expectedJobContext: { finalMedium: "ott", jobKind: "feature", projectLengthMinutes: undefined },
     },
     {
       prior: "縦型動画60秒の相談です。",
       latest: "テロップだけ追加になるかもしれません。期間感は？",
       rawText: "縦型動画の工程は17〜20日です。",
       expectedRange: "工程は1日",
-      expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 },
+      expectedJobContext: { finalMedium: "vertical-sns", jobKind: "vertical", projectLengthMinutes: undefined },
     },
   ])("reuses prior workflow facts on follow-up turns: $prior", async ({ prior, latest, rawText, expectedRange, expectedJobContext }) => {
     const harness = setup({
@@ -4648,7 +4684,7 @@ describe("handleChatbotMessage user context", () => {
             durationContext: {
               workflowFacts: {
                 finalMedium: "vertical-sns",
-                jobKind: "vertical-60s",
+                jobKind: "vertical",
                 workSite: "remote-grading",
                 projectLengthMinutes: 1,
               },
@@ -4682,7 +4718,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "vertical-sns",
-      jobKind: "vertical-60s",
+      jobKind: "vertical",
       projectLengthMinutes: undefined,
       workflowEstimate: expect.objectContaining({
         unsupportedReason: "project-length-unconfirmed",
@@ -4690,13 +4726,14 @@ describe("handleChatbotMessage user context", () => {
     })
   })
 
-  it("persists rederived project length when the stored job kind is present but duration is missing", async () => {
+  it("reuses saved composition when the stored job kind is present but duration is missing", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
           conversationState: {
+            conditionAnswers: { "project-length": { status: "answered", composition: [{ count: 1, durationSeconds: 300 }], sourceMessageId: "user_1" } },
             hasFinalMedium: true,
             hasDeliveryFormat: true,
             hasJobKind: true,
@@ -4711,7 +4748,7 @@ describe("handleChatbotMessage user context", () => {
           },
           jobContext: {
             finalMedium: "web",
-            jobKind: "mv-5m",
+            jobKind: "mv",
             workSite: "remote-grading",
             documentaryAttachment: { kind: "none" },
           },
@@ -4720,7 +4757,7 @@ describe("handleChatbotMessage user context", () => {
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: customerReply("MV 5分なら通常2〜2.5日を基準に、素材状況で前後します。"),
+      rawText: customerReply(`案件種別を確認します。 ${JSON.stringify({ tool: "show_choice_panel", args: jobKindChoices })}`),
       tier: "tier-1-hosted-chrome-notion-ai",
     })
 
@@ -4734,7 +4771,7 @@ describe("handleChatbotMessage user context", () => {
     )
 
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
-      jobKind: "mv-5m",
+      jobKind: "mv",
       projectLengthMinutes: 5,
       workflowEstimate: expect.objectContaining({
         totalMinDays: 1.5,
@@ -4744,11 +4781,12 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         jobContext: expect.objectContaining({
-          jobKind: "mv-5m",
+          jobKind: "mv",
           projectLengthMinutes: 5,
         }),
         conversationState: expect.objectContaining({
           hasProjectLength: true,
+          conditionAnswers: { "project-length": { status: "answered", composition: [{ count: 1, durationSeconds: 300 }], sourceMessageId: "user_1" } },
         }),
       }),
     )
@@ -4773,7 +4811,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "日程はまだ未定です。client@example.com に連絡してください",
         jobContext: {
-          jobKind: "live-60m",
+          jobKind: "live",
           finalMedium: "live",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -4817,7 +4855,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: `納期: ${deadline}`,
         jobContext: {
-          jobKind: "cm-30s",
+          jobKind: "cm",
           finalMedium: "web",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -4848,7 +4886,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("consumes stored final medium choice and advances to the next slot", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -4860,7 +4898,7 @@ describe("handleChatbotMessage user context", () => {
             hasCustomerIdentity: true,
             turnCount: 2,
           },
-          jobContext: { jobKind: "live-60m", projectLengthMinutes: 60 },
+          jobContext: { jobKind: "live", projectLengthMinutes: 60 },
         },
       }),
     })
@@ -4884,14 +4922,14 @@ describe("handleChatbotMessage user context", () => {
       expect.objectContaining({
         activeChoices: expect.objectContaining({ id: "delivery-format" }),
         conversationState: expect.objectContaining({ hasFinalMedium: true }),
-        jobContext: expect.objectContaining({ finalMedium: "youtube", jobKind: "live-60m" }),
+        jobContext: expect.objectContaining({ finalMedium: "youtube", jobKind: "live" }),
       }),
     )
   })
 
   it("consumes stored additional work choices as one confirmed multiple-choice answer", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -4905,7 +4943,7 @@ describe("handleChatbotMessage user context", () => {
             hasCustomerIdentity: true,
             turnCount: 3,
           },
-          jobContext: { jobKind: "cm-30s", finalMedium: "web", projectLengthMinutes: 1 },
+          jobContext: { jobKind: "cm", finalMedium: "web", projectLengthMinutes: 1 },
         },
       }),
     })
@@ -4927,9 +4965,9 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        activeChoices: expect.objectContaining({ id: documentaryAttachmentChoices.id }),
+        activeChoices: expect.objectContaining({ id: "retouch-cut-count" }),
         conversationState: expect.objectContaining({ hasAdditionalWork: true }),
-        jobContext: expect.objectContaining({ jobKind: "cm-30s", additionalWork: ["retouch", "skin-retouch"] }),
+        jobContext: expect.objectContaining({ jobKind: "cm", additionalWork: ["retouch", "skin-retouch"] }),
       }),
     )
   })
@@ -4951,7 +4989,7 @@ describe("handleChatbotMessage user context", () => {
             turnCount: 3,
           },
           jobContext: {
-            jobKind: "cm-30s",
+            jobKind: "cm",
             finalMedium: "cinema",
             projectLengthMinutes: 1,
           },
@@ -4978,7 +5016,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("stores other comments from a confirmed multiple-choice answer", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -4992,7 +5030,7 @@ describe("handleChatbotMessage user context", () => {
             hasCustomerIdentity: true,
             turnCount: 3,
           },
-          jobContext: { jobKind: "cm-30s", finalMedium: "web", projectLengthMinutes: 1 },
+          jobContext: { jobKind: "cm", finalMedium: "web", projectLengthMinutes: 1 },
         },
       }),
     })
@@ -5020,7 +5058,7 @@ describe("handleChatbotMessage user context", () => {
           hasAdditionalWork: true,
           otherChoiceComments: { "additional-work": "MA も相談したい" },
         }),
-        jobContext: expect.objectContaining({ jobKind: "cm-30s", additionalWork: ["other"] }),
+        jobContext: expect.objectContaining({ jobKind: "cm", additionalWork: ["other"] }),
       }),
     )
   })
@@ -5046,7 +5084,7 @@ describe("handleChatbotMessage user context", () => {
             hasDesiredSchedule: false,
             turnCount: 5,
           },
-          jobContext: { jobKind: "live-60m", finalMedium: "live", projectLengthMinutes: 150 },
+          jobContext: { jobKind: "live", finalMedium: "live", projectLengthMinutes: 150 },
         },
         messages: [
           { id: "user_start", role: "user", content: "お仕事頼みたいです", createdAt: "2026-05-26T00:00:00.000Z" },
@@ -5054,10 +5092,16 @@ describe("handleChatbotMessage user context", () => {
           { id: "user_job", role: "user", content: "選択: ライブ / コンサート / 舞台収録", createdAt: "2026-05-26T00:00:02.000Z" },
           { id: "assistant_length", role: "assistant", content: "尺・分量の大枠を選んでください\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:03.000Z" },
           { id: "user_length", role: "user", content: "尺: 2時間30分", createdAt: "2026-05-26T00:00:04.000Z" },
+          { id: "assistant_medium", role: "assistant", content: finalMediumChoices.question, createdAt: "2026-05-26T00:00:04.100Z" },
+          { id: "user_medium", role: "user", content: "選択: Web公開", createdAt: "2026-05-26T00:00:04.200Z" },
+          { id: "assistant_format", role: "assistant", content: conditionChoiceSet("delivery-format").question, createdAt: "2026-05-26T00:00:04.300Z" },
+          { id: "user_format", role: "user", content: "ProRes", createdAt: "2026-05-26T00:00:04.400Z" },
           { id: "assistant_additional", role: "assistant", content: "カラグレ以外の追加作業はありますか？\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:05.000Z" },
           { id: "user_additional", role: "user", content: "選択: 消し物、肌修正", createdAt: "2026-05-26T00:00:06.000Z" },
           { id: "assistant_documentary", role: "assistant", content: "付随する映像はありますか？\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:07.000Z" },
           { id: "user_documentary", role: "user", content: "選択: 特典映像", createdAt: "2026-05-26T00:00:08.000Z" },
+          { id: "assistant_cuts", role: "assistant", content: conditionChoiceSet("retouch-cut-count").question, createdAt: "2026-05-26T00:00:08.100Z" },
+          { id: "user_cuts", role: "user", content: "未定", createdAt: "2026-05-26T00:00:08.200Z" },
           { id: "assistant_stale", role: "assistant", content: "カラグレ以外の追加作業はありますか？\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:09.000Z" },
         ],
       }),
@@ -5081,23 +5125,22 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(harness.generate.mock.calls[0]?.[0].conversationState).toMatchObject({
-      hasAdditionalWork: true,
-      hasDocumentaryAttachments: true,
-    })
-    expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
-      jobKind: "live-60m",
-      finalMedium: "live",
-      projectLengthMinutes: 150,
-      additionalWork: ["retouch", "skin-retouch"],
-      documentaryAttachment: { kind: "bonus", count: 1 },
-    })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         activeChoices: expect.objectContaining({ id: "work-site" }),
         conversationState: expect.objectContaining({
           hasAdditionalWork: true,
           hasDocumentaryAttachments: true,
+          conditionAnswers: expect.objectContaining({
+            "job-kind": expect.objectContaining({ selectedIds: ["live"], sourceMessageId: "user_job" }),
+            "project-length": expect.objectContaining({ composition: [{ count: 1, durationSeconds: 9000 }], sourceMessageId: "user_length" }),
+            "additional-work": expect.objectContaining({ selectedIds: ["retouch", "skin-retouch"], sourceMessageId: "user_additional" }),
+            "documentary-attachment": expect.objectContaining({ selectedIds: ["bonus"], sourceMessageId: "user_documentary" }),
+          }),
+        }),
+        jobContext: expect.objectContaining({
+          jobKind: "live", finalMedium: "web", projectLengthMinutes: 150,
+          additionalWork: ["retouch", "skin-retouch"], documentaryAttachment: { kind: "bonus", count: 1 },
         }),
       }),
     )
@@ -5118,7 +5161,7 @@ describe("handleChatbotMessage user context", () => {
             hasProjectLength: true,
             turnCount: 3,
           },
-          jobContext: { jobKind: "cm-30s", finalMedium: "web", projectLengthMinutes: 1 },
+          jobContext: { jobKind: "cm", finalMedium: "web", projectLengthMinutes: 1 },
         },
       }),
     })
@@ -5149,7 +5192,7 @@ describe("handleChatbotMessage user context", () => {
             reason: "other-choice-needs-detail",
           }),
         }),
-        jobContext: expect.objectContaining({ jobKind: "cm-30s" }),
+        jobContext: expect.objectContaining({ jobKind: "cm" }),
       }),
     )
     expect(harness.slackNotifier).toHaveBeenCalledWith(
@@ -5173,7 +5216,7 @@ describe("handleChatbotMessage user context", () => {
             hasJobKind: true,
             turnCount: 2,
           },
-          jobContext: { jobKind: "live-60m" },
+          jobContext: { jobKind: "live" },
         },
       }),
     })
@@ -5196,7 +5239,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("returns to the original flow after an other-choice clarification is answered", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -5216,7 +5259,7 @@ describe("handleChatbotMessage user context", () => {
               reason: "other-choice-needs-detail",
             },
           },
-          jobContext: { jobKind: "cm-30s", finalMedium: "web", projectLengthMinutes: 1 },
+          jobContext: { jobKind: "cm", finalMedium: "web", projectLengthMinutes: 1 },
         },
       }),
     })
@@ -5245,7 +5288,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("keeps explicit undecided values without forcing an immediate clarification", async () => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
         context: {
           sessionId: "session_1",
           userId: "user_a",
@@ -5255,7 +5298,7 @@ describe("handleChatbotMessage user context", () => {
             hasJobKind: true,
             turnCount: 2,
           },
-          jobContext: { jobKind: "cm-30s" },
+          jobContext: { jobKind: "cm" },
         },
       }),
     })
@@ -5272,12 +5315,10 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
         activeChoices: expect.objectContaining({ id: "final-medium" }),
-        currentQuestion: expect.stringContaining("Web CM / CM として整理しています"),
+        currentQuestion: finalMediumChoices.question,
         conversationState: expect.objectContaining({
           hasProjectLength: true,
-          intakeClarifications: {
-            "project-length": expect.objectContaining({ status: "unknown-but-acceptable" }),
-          },
+          conditionAnswers: expect.objectContaining({ "project-length": expect.objectContaining({ status: "unknown", sourceMessageId: "user_1" }) }),
         }),
       }),
     )
@@ -5297,7 +5338,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "CM案件、山田太郎、client@example.com、7月10日納品です",
         jobContext: {
-          jobKind: "cm-30s",
+          jobKind: "cm",
           finalMedium: "web",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -5357,7 +5398,7 @@ describe("handleChatbotMessage user context", () => {
         userId: "user_a",
         message: "メールは stored@example.com、7月いっぱい納品です",
         jobContext: {
-          jobKind: "cm-30s",
+          jobKind: "cm",
           finalMedium: "web",
           workSite: "remote-grading",
           documentaryAttachment: { kind: "none" },
@@ -5411,7 +5452,7 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.candidateWindowFinder).not.toHaveBeenCalled()
     expect(result.routingDecision).toMatchObject({
       kind: "continue",
-      nextQuestion: "開催形式を選んでください。",
+      nextQuestion: lectureTrainingFormatChoices.question,
       presentChoices: { id: "lecture-training-format" },
     })
     expect(result.ui).not.toMatchObject({ kind: "booking-card" })
@@ -5445,13 +5486,13 @@ describe("handleChatbotMessage user context", () => {
 
     expect(result.routingDecision).toMatchObject({
       kind: "continue",
-      nextQuestion: "開催形式を選んでください。",
+      nextQuestion: lectureTrainingFormatChoices.question,
       presentChoices: { id: "lecture-training-format" },
     })
     expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "lecture-training-format" } })
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
       expect.objectContaining({
-        currentQuestion: "開催形式を選んでください。",
+        currentQuestion: lectureTrainingFormatChoices.question,
       }),
     )
   })
@@ -5888,7 +5929,7 @@ describe("the code's next panel is kept whatever the model writes", () => {
 
     const result = await handleChatbotMessage({ sessionId: "session_1", message: firstMessage }, harness.options)
 
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "delivery-format" } })
+    expect(result.ui).toEqual({ kind: "duration-input", question: projectLengthChoices.question })
     expect(result.assistantMessage.content).not.toContain("作業場所はどちら")
   })
 
@@ -5904,7 +5945,7 @@ describe("the code's next panel is kept whatever the model writes", () => {
       harness.options,
     )
 
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "delivery-format" } })
+    expect(result.ui).toEqual({ kind: "duration-input", question: projectLengthChoices.question })
     expect(result.assistantMessage.content).not.toContain("6〜8日")
   })
 })
@@ -5916,7 +5957,7 @@ describe("booking card right after the last question", () => {
     sessionId: "session_1",
     conversationState: baseProductionConversationState({ turnCount: 9 }),
     jobContext: {
-      jobKind: "cm-30s" as const,
+      jobKind: "cm" as const,
       finalMedium: "web" as const,
       projectLengthMinutes: 0.5,
       workSite: "remote-grading" as const,
@@ -5957,8 +5998,8 @@ describe("a release date is not a question about the notes", () => {
         id: "job-kind",
         question: "案件の種別を選んでください",
         choices: [
-          { id: "feature-90m", label: "長編" },
-          { id: "cm-30s", label: "CM" },
+          { id: "feature", label: "長編" },
+          { id: "cm", label: "CM" },
         ],
       },
     })
@@ -5991,7 +6032,7 @@ describe("a release date is not a question about the notes", () => {
       { ...harness.options, knowledgeSnapshotLoader: async () => snapshot },
     )
 
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "delivery-format" } })
+    expect(result.ui).toEqual({ kind: "duration-input", question: projectLengthChoices.question })
   })
 })
 

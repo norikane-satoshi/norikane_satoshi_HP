@@ -55,7 +55,7 @@ export function buildSingleUserPromptGuardContent(input: {
 
   if (input.routingDecision?.kind === "continue" && input.routingDecision.presentChoices) {
     if (input.uiKind === "duration-input") return {
-      content: "作品の尺を時間・分で入力してください。未定の場合は未定を選んでください。",
+      content: input.routingDecision.presentChoices.question,
       reason: "choice-panel",
       choiceSetId: "project-length",
     }
