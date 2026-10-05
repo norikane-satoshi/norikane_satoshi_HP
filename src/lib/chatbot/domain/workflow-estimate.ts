@@ -1,13 +1,7 @@
 export type WorkflowStage = "conform" | "prep" | "attended" | "final-check" | "delivery"
 
-export type JobKind =
-  | "cm-30s"
-  | "mv-5m"
-  | "feature-90m"
-  | "drama-first"
-  | "drama-follow-up"
-  | "vertical-60s"
-  | "live-60m"
+import type { JobKind, LegacyJobKind } from "@/lib/booking/domain/job-kind"
+export type { JobKind } from "@/lib/booking/domain/job-kind"
 
 export type FinalMedium =
   | "ott"
@@ -50,7 +44,7 @@ export type WorkflowEstimate = {
   note?: string
   riskFlags: Array<"tight-deadline" | "heavy-retouch" | "strict-delivery" | "on-site-transfer">
   estimateStatus?: "authoritative" | "needs-confirmation"
-  referencePresetId?: JobKind
+  referencePresetId?: LegacyJobKind
   referenceMinDays?: number
   referenceMaxDays?: number
   unsupportedReason?: "live-duration-outside-baseline" | "project-length-unconfirmed"
@@ -74,6 +68,7 @@ export type JobContext = {
   retouchCutCount?: number
   heavyRetouch?: boolean
   projectLengthMinutes?: number
+  workComposition?: import("@/lib/booking/domain/work-composition").WorkCompositionRow[]
   publicReleaseDate?: string
   preferredStartDate?: string
   preferredAttendanceDates?: string[]
@@ -82,7 +77,7 @@ export type JobContext = {
   /** The customer said the delivery is NHK or an OTT platform (Netflix, Disney+, ...): one more QC day. */
   strictDeliveryClient?: boolean
   referenceUrls?: string[]
-  additionalWork?: Array<"retouch" | "skin-retouch" | "other">
+  additionalWork?: Array<"retouch" | "skin-retouch" | "compositing" | "other">
   workflowEstimate?: WorkflowEstimate
 }
 

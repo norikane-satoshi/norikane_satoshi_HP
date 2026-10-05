@@ -60,3 +60,9 @@ export {
   type WorkSchedulePlan,
   type WorkScheduleRole,
 } from "./work-schedule"
+
+export { projectConditionDefinitions, getProjectConditionDefinition, isConditionVisible, formatConditionAnswer, projectConditionDetails, validateConditionAnswers, sanitizeConditionAnswers } from "@/lib/booking/domain/project-conditions"
+export type { ConditionAnswer, ConditionAnswers, ConditionAnswerIssue, ConditionAnswersValidation, ProjectConditionId, ProjectConditionDefinition } from "@/lib/booking/domain/project-conditions"
+export { normalizeJobKind, workflowPresetJobKind } from "@/lib/booking/domain/job-kind"
+export { totalWorkCompositionSeconds, totalWorkCompositionMinutes, formatWorkComposition } from "@/lib/booking/domain/work-composition"
+export type { WorkCompositionRow } from "@/lib/booking/domain/work-composition"
