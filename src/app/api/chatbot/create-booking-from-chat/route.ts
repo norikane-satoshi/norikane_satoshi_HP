@@ -13,6 +13,7 @@ import {
 } from "@/lib/chatbot/audit/server-evidence"
 import { scheduleChatbotAuditPersistence } from "@/lib/chatbot/audit/scheduler"
 import { isChatbotConversationOwnedBySession } from "@/lib/chatbot/audit/store"
+import { validateConditionAnswers } from "@/lib/booking/domain/project-conditions"
 import { bookingApiSchema, type BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { bookingFormSchema } from "@/lib/booking/domain/form-schema"
 import { createBookingFromApiInput } from "@/lib/booking/server/create-booking"
@@ -65,6 +66,17 @@ const selectedSlotSchema = z
     }
   })
 
+const conditionAnswersSchema = z.unknown().transform((value, context) => {
+  const result = validateConditionAnswers(value)
+  if (!result.success) {
+    for (const issue of result.issues) context.addIssue({
+      code: "custom", path: issue.path.split("."), message: issue.message,
+    })
+    return z.NEVER
+  }
+  return result.data
+})
+
 const chatbotBookingRequestSchema = z
   .object({
     conversationId: z.string().trim().min(1).optional(),
@@ -75,9 +87,10 @@ const chatbotBookingRequestSchema = z
     phone: z.string().trim().max(32).optional(),
     dueDate: z.string().refine((value) => isValidDeadlineInput(value)),
     memo: z.string().trim().max(2000).optional(),
+    conditionAnswers: conditionAnswersSchema.optional(),
     confirmedDetails: z.array(z.object({
       label: z.enum(bookingDetailLabels),
-      value: z.string().trim().max(160),
+      value: z.string().trim().max(2000),
     })).max(bookingDetailLabels.length).optional(),
     detailsConfirmed: z.literal(true).optional(),
     agreed: z.literal(true),
@@ -85,7 +98,7 @@ const chatbotBookingRequestSchema = z
     selectedSlots: z.array(selectedSlotSchema).optional(),
     correlationId: z.string().uuid().optional(),
   }).superRefine((input, context) => {
-    if (input.confirmedDetails && (!input.detailsConfirmed || new Set(input.confirmedDetails.map((item) => item.label)).size !== input.confirmedDetails.length)) {
+    if ((input.conditionAnswers || input.confirmedDetails) && (!input.detailsConfirmed || (input.confirmedDetails && new Set(input.confirmedDetails.map((item) => item.label)).size !== input.confirmedDetails.length))) {
       context.addIssue({ code: "custom", message: "予約内容を確認してください", path: ["confirmedDetails"] })
     }
   })
@@ -370,14 +383,24 @@ export async function POST(request: NextRequest) {
     customerNote = confirmedBookingNote(conversation.messages)
   }
 
-  const reviewed = parsed.data.confirmedDetails
-  if (reviewed) {
+  const reviewed = parsed.data.conditionAnswers || parsed.data.confirmedDetails
+  if (parsed.data.conditionAnswers) {
+    const requestedDates = normalizeSelectedSlots(parsed.data).map((slot) => todayInJapan(new Date(slot.start)))
+    parsed.data.conditionAnswers = {
+      ...parsed.data.conditionAnswers,
+      "preferred-dates": requestedDates.length ? { status: "answered", dates: requestedDates } : { status: "unknown" },
+    }
+    confirmedDetails = confirmedBookingDetails({ conversationState: { conditionAnswers: parsed.data.conditionAnswers } })
+  } else if (parsed.data.confirmedDetails) {
+    const legacyDetails = parsed.data.confirmedDetails
     confirmedDetails = bookingDetailLabels.map((label): BookingDetail => ({
-      label, value: reviewed.find((item) => item.label === label)?.value || unconfirmedBookingValue,
+      label, value: legacyDetails.find((item) => item.label === label)?.value || unconfirmedBookingValue,
     }))
   }
-  const dueDate = reviewed ? parsed.data.dueDate ?? confirmedDetails.find((item) => item.label === "納品希望日")?.value
-    : confirmedDetails.find((item) => item.label === "納品希望日")?.value
+  const dueDate = parsed.data.conditionAnswers
+    ? confirmedDetails.find((item) => item.label === "納品希望日")?.value
+    : reviewed ? parsed.data.dueDate ?? confirmedDetails.find((item) => item.label === "納品希望日")?.value
+      : confirmedDetails.find((item) => item.label === "納品希望日")?.value
   parsed.data.dueDate = dueDate === unconfirmedBookingValue ? "未定" : dueDate ?? "未定"
   confirmedDetails = confirmedDetails.map((item) => item.label === "納品希望日"
     ? { ...item, value: parsed.data.dueDate === "未定" ? unconfirmedBookingValue : parsed.data.dueDate } : item)
@@ -444,6 +467,7 @@ export async function POST(request: NextRequest) {
         await linkChatToBookingGroup({
           conversationId: parsed.data.conversationId,
           bookingGroupId,
+          ...(parsed.data.conditionAnswers ? { conditionAnswers: parsed.data.conditionAnswers } : {}),
         })
         conversationLinked = true
       } catch (error) {

@@ -117,7 +117,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     })))
     expect(response.status).toBe(200)
     const memo = route.createBookingFromApiInput.mock.calls[0][0].input.memo
-    expect(memo).toContain("案件種別: 未確認\n尺: 未確認\n最終媒体: 未確認")
+    expect(memo).toContain("案件種別: 未確認\n作品構成: 未確認\n尺: 未確認\n最終媒体: 未確認")
     expect(memo).toContain("納品希望日: 未確認")
     expect(memo).not.toContain("1時間")
     expect(memo).not.toContain("長編")
@@ -408,7 +408,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       contactName: "Satoshi",
       contactEmail: "client@example.com",
       companyName: "NCS",
-      memo: expect.stringContaining("案件種別: 未確認\n尺: 未確認\n最終媒体: 未確認"),
+      memo: expect.stringContaining("案件種別: 未確認\n作品構成: 未確認\n尺: 未確認\n最終媒体: 未確認"),
       selectedSlots: [
         {
           start: "2026-06-10T15:00:00.000Z",
@@ -576,4 +576,96 @@ it.each(["", "相談したい", "2026-02-30"])("rejects a deadline without a dat
   const response = await route.POST(request(validChatBooking({ dueDate })))
   expect(response.status).toBe(400)
   expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+})
+
+describe("booking review by stable condition IDs", () => {
+  it.each([
+    { kind: "documentary", rows: [{ name: "短編", count: 1, durationSeconds: 1080 }], medium: "cinema", total: "18分", dcp: true },
+    { kind: "cm", rows: [{ name: "CM", count: 3, durationSeconds: 30 }], medium: "web", total: "1分30秒", dcp: false },
+    { kind: "live", rows: [{ name: "本編", count: 1, durationSeconds: 7200 }, { name: "メイキング", count: 1, durationSeconds: 1200 }], medium: "ott", total: "2時間20分", dcp: false },
+  ])("stores $kind composition and the same canonical notification", async ({ kind, rows, medium, total, dcp }) => {
+    const route = await loadPost()
+    const conditionAnswers = {
+      "job-kind": { status: "answered", selectedIds: [kind] },
+      "project-length": { status: "answered", composition: rows },
+      "final-medium": { status: "answered", selectedIds: [medium] },
+      "dcp-required": { status: "answered", selectedIds: ["not-required"] },
+      "dcp-creator": { status: "answered", text: "hidden stale answer" },
+      "desired-delivery-date": { status: "answered", date: "2026-10-25" },
+      "material-timing": { status: "unknown" },
+      "additional-work": { status: "answered", selectedIds: ["retouch"] },
+      "retouch-cut-count": { status: "unknown" },
+    }
+    const response = await route.POST(request(validChatBooking({
+      conditionAnswers, confirmedDetails: undefined, dueDate: "2026-11-20",
+      selectedSlot: undefined, selectedSlots: [],
+      memo: "初回相談",
+    })))
+    expect(response.status).toBe(200)
+    const input = route.createBookingFromApiInput.mock.calls[0][0].input
+    expect(input.memo).toContain(`尺: ${total}`)
+    expect(input.memo).toContain("作品構成:")
+    expect(input.memo).toContain("修正カット数: 未確認")
+    expect(input.memo.includes("DCP必要性: 不要")).toBe(dcp)
+    expect(input.memo).not.toContain("DCP作成担当:")
+    expect(input.memo).not.toContain("hidden stale answer")
+    expect(input.dueDate).toBe("2026-10-25")
+    expect(input.selectedSlots).toEqual([])
+    expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({ memo: input.memo }))
+    expect(route.linkChatToBookingGroup).toHaveBeenCalledWith(expect.objectContaining({
+      conditionAnswers: expect.objectContaining({
+        "project-length": expect.objectContaining({ composition: rows }),
+      }),
+    }))
+  })
+
+  it("accepts multiple named parts beyond the former 160 character display limit", async () => {
+    const route = await loadPost()
+    const rows = Array.from({ length: 8 }, (_, index) => ({ name: `長い名称でも切り捨てない作品構成のパート${index + 1}`, count: 1, durationSeconds: 30 }))
+    const response = await route.POST(request(validChatBooking({
+      conditionAnswers: { "project-length": { composition: rows } },
+      confirmedDetails: undefined,
+    })))
+    expect(response.status).toBe(200)
+    const memo = route.createBookingFromApiInput.mock.calls[0][0].input.memo
+    for (const row of rows) expect(memo).toContain(row.name)
+    expect(memo).toContain("尺: 4分")
+  })
+
+  it("rejects an option outside the shared definition before creating a booking", async () => {
+    const route = await loadPost()
+    const response = await route.POST(request(validChatBooking({
+      conditionAnswers: { "job-kind": { selectedIds: ["guess-90-minutes"] } },
+    })))
+    expect(response.status).toBe(400)
+    expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+  })
+
+  it("uses only selected dates even when review metadata contains additional days", async () => {
+    const route = await loadPost()
+    const response = await route.POST(request(validChatBooking({
+      conditionAnswers: {
+        "desired-delivery-date": { status: "unknown" },
+        "preferred-dates": { dates: ["2026-06-10", "2026-06-11", "2026-06-12"] },
+      },
+      confirmedDetails: undefined,
+    })))
+    expect(response.status).toBe(200)
+    const input = route.createBookingFromApiInput.mock.calls[0][0].input
+    expect(input.selectedSlots).toHaveLength(1)
+    expect(input.memo).toContain("希望日: 2026/06/10(水)")
+    expect(input.memo).not.toContain("2026/06/11")
+    expect(input.memo).not.toContain("2026/06/12")
+    expect(input.dueDate).toBe("未定")
+  })
+
+  it("requires final confirmation for typed answers", async () => {
+    const route = await loadPost()
+    const response = await route.POST(request(validChatBooking({
+      conditionAnswers: { "project-length": { status: "unknown" } },
+      confirmedDetails: undefined, detailsConfirmed: undefined,
+    })))
+    expect(response.status).toBe(400)
+    expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+  })
 })

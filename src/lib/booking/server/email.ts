@@ -1,4 +1,4 @@
-import { bookingDetailLabels, displayBookingDetails, type BookingDetail, type BookingDetailLabel } from "@/lib/chatbot/domain/booking-details"
+import { bookingDetailLabels, displayBookingDetails, readBookingDetailsMemo, type BookingDetail } from "@/lib/chatbot/domain/booking-details"
 import { formatBookingDate, formatBookingDateTime, formatBookingSlot, formatRequestedBookingDates } from "@/lib/booking/domain/booking-display"
 import { Resend } from "resend"
 
@@ -174,22 +174,17 @@ function getBookingEmailSubjectSchedule(slots: BookingScheduleSlot[], requestedD
 }
 
 function bookingConditionLines(schedule: string, memo = ""): string[] {
-  const values = new Map<string, string>()
-  const notes: string[] = []
-  for (const line of memo.split("\n")) {
-    const match = /^\s*([^:：]+)[:：]\s*(.*)$/u.exec(line)
-    if (match && (bookingDetailLabels.includes(match[1] as BookingDetailLabel) || match[1] === "都合の悪い日")) {
-      values.set(match[1], match[2])
-    } else if (line.trim() && !/^\s*(?:希望日|作業日数|立ち会い日数|基本工程目安|工程目安|工程)(?:[:：]|（)/u.test(line)) {
-      notes.push(line.replace(/^\s*(?:補足|備考)[:：]\s*/u, ""))
-    }
-  }
+  const saved = readBookingDetailsMemo(memo)
+  const values = new Map(saved.details.map(({ label, value }) => [label, value]))
+  values.set("希望日", schedule)
   const details: BookingDetail[] = bookingDetailLabels.map((label) => ({ label, value: values.get(label) ?? "未確認" }))
+  const note = saved.note.split("\n")
+    .filter((line) => !/^\s*(?:作業日数|立ち会い日数|基本工程目安|工程目安|工程)(?:[:：]|（)/u.test(line))
+    .map((line) => line.replace(/^\s*(?:補足|備考)[:：]\s*/u, ""))
+    .join("\n").trim()
   return [
-    `希望日: ${schedule}`,
-    `都合の悪い日: ${values.get("都合の悪い日")?.trim() || "未確認"}`,
     ...displayBookingDetails(details).map(({ label, value }) => `${label}: ${value}`),
-    `補足: ${notes.join("\n").trim() || "未確認"}`,
+    `補足: ${note || "未確認"}`,
   ]
 }
 

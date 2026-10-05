@@ -303,8 +303,8 @@ describe("booking email sender", () => {
     })
     const message = mocks.send.mock.calls[0][0]
     for (const body of [message.text, message.html]) {
-      const labels = ["希望日:", "都合の悪い日:", "最終媒体:", "納品形式:", "DCP必要性:", "DCP作成担当:", "納品希望日:", "納品希望日の理由:", "素材が揃う日:"]
-      const positions = labels.map((label) => body.indexOf(label))
+      const labels = ["案件種別:", "作品構成:", "尺:", "最終媒体:", "納品形式:", "DCP必要性:", "DCP作成担当:", "納品希望日:", "納品希望日の理由:", "素材が揃う日:", "希望日:", "都合の悪い日:"]
+      const positions = labels.map((label) => body.indexOf(body === message.html ? `<p>${label}` : `\n${label}`))
       expect(positions.every((position) => position >= 0)).toBe(true)
       expect(positions).toEqual([...positions].sort((a, b) => a - b))
     }
@@ -373,14 +373,14 @@ describe("booking email sender", () => {
     await sendChatbotBookingOwnerNotification({ ...schedule, bookingGroupId: "test_receipt", projectTitle: "確認用短編", contactName: "テスト", contactEmail: "client@example.com", memo, ...{ scheduleLines: ["仕込み: 2026-10-18"] } })
     const [receipt, owner] = mocks.send.mock.calls.map(([message]) => message)
     expect(receipt.replyTo).toBe("norikane.satoshi@gmail.com")
-    const customerConditions = receipt.text.slice(receipt.text.indexOf("希望日:"), receipt.text.indexOf("\n\nこのメールは"))
-    const ownerConditions = owner.text.slice(owner.text.indexOf("希望日:"), owner.text.indexOf("\n予約番号:"))
+    const customerConditions = receipt.text.slice(receipt.text.indexOf("案件種別:"), receipt.text.indexOf("\n\nこのメールは"))
+    const ownerConditions = owner.text.slice(owner.text.indexOf("案件種別:"), owner.text.indexOf("\n予約番号:"))
     expect(customerConditions).toBe(ownerConditions)
     expect(receipt.text).toContain("尺: 18分")
     expect(receipt.text).toContain("素材が揃う日: 未確認")
     expect(receipt.text).not.toContain("DCP作成担当")
     expect(receipt.text).toContain("作業場所/立ち会い: 未確認")
-    expect(receipt.text).toContain("内容に誤りがあれば、このメールへの返信でお知らせください\n希望日:")
+    expect(receipt.text).toContain("内容に誤りがあれば、このメールへの返信でお知らせください\n案件種別:")
     expect(receipt.text.indexOf("納品希望日:")).toBeLessThan(receipt.text.indexOf("納品希望日の理由:"))
     for (const mail of [receipt, owner]) {
       expect(mail.text).not.toMatch(/工程|仕込み|2026-10-18/)
@@ -394,8 +394,11 @@ describe("booking email sender", () => {
     const mail = buildBookingConfirmedEmail({ to: "client@example.com", projectTitle: "未定", selectedSlots: [], workScopes: [] })
     expect(mail.subject).toContain("【ご相談受付】")
     expect(mail.text).not.toContain("仮キープ受付")
-    const { bookingDetailLabels } = await import("@/lib/chatbot/domain/booking-details")
-    for (const label of bookingDetailLabels.filter((label) => !label.startsWith("DCP"))) expect(mail.text).toContain(`${label}: 未確認`)
+    const { bookingDetailLabels, displayBookingDetails } = await import("@/lib/chatbot/domain/booking-details")
+    const visible = displayBookingDetails(bookingDetailLabels.map((label) => ({ label, value: "未確認" })))
+    for (const detail of visible.filter((detail) => detail.label !== "希望日")) expect(mail.text).toContain(`${detail.label}: 未確認`)
+    expect(mail.text).toContain("希望日: 未定（日程は則兼と相談）")
+    expect(mail.text).not.toContain("修正カット数:")
     expect(mail.text).not.toContain("DCP")
     expect(mail.text).toContain("都合の悪い日: 未確認")
   })

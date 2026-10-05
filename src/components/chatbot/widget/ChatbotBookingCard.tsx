@@ -310,7 +310,7 @@ export function ChatbotBookingCard({
   defaultDueDate = "",
   defaultMemo = "",
   confirmationItems = [],
-  conditionAnswers = {},
+  conditionAnswers,
   completedBooking,
   showDemo = false,
   onBooked,
@@ -326,8 +326,8 @@ export function ChatbotBookingCard({
     () => addJstMonths(initialMonthKey, displayedMonthOffset),
     [displayedMonthOffset, initialMonthKey],
   )
-  const initialDueDate = conditionAnswers["desired-delivery-date"]?.status === "unknown"
-    ? "未定" : conditionAnswers["desired-delivery-date"]?.date ?? defaultDueDate
+  const initialDueDate = conditionAnswers?.["desired-delivery-date"]?.status === "unknown"
+    ? "未定" : conditionAnswers?.["desired-delivery-date"]?.date ?? defaultDueDate
   const [dueDate, setDueDate] = useState(isCalendarDate(initialDueDate) || initialDueDate === "未定" ? initialDueDate : "")
   const displayedMonthRequest = useMemo<CandidateRequestPayload>(
     () => ({ month: displayedMonthKey, ...(isCalendarDate(dueDate) ? { dueDate } : {}) }),
@@ -369,9 +369,10 @@ export function ChatbotBookingCard({
   const [contactEmail, setContactEmail] = useState(defaultContactEmail ?? "")
   const [phone, setPhone] = useState("")
   const [memo, setMemo] = useState(defaultMemo ?? "")
-  const [unavailableDates, setUnavailableDates] = useState(conditionAnswers["unavailable-dates"]?.dates?.join("、") ?? conditionAnswers["unavailable-dates"]?.text ?? "")
+  const [unavailableDates, setUnavailableDates] = useState(conditionAnswers?.["unavailable-dates"]?.dates?.join("、") ?? conditionAnswers?.["unavailable-dates"]?.text ?? "")
   const [reviewAnswers, setReviewAnswers] = useState<ConditionAnswers>(() => {
     const answers = { ...conditionAnswers }
+    if (conditionAnswers !== undefined) return answers
     for (const definition of projectConditionDefinitions as readonly ProjectConditionDefinition[]) {
       if (answers[definition.id]) continue
       const item = confirmationItems.find((item) => item.label === definition.label || definition.detailLabels?.includes(item.label))

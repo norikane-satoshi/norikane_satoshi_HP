@@ -77,6 +77,20 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
 }
 
 describe("ChatbotBookingCard", () => {
+  it("does not restore stale label values when ID answers are present but empty", () => {
+    mockFetch(200, {})
+    renderCard({ conditionAnswers: {}, confirmationItems: [
+      { label: "尺", value: "90分" }, { label: "最終媒体", value: "劇場公開" },
+      { label: "DCP必要性", value: "必要" },
+    ] })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+    const summary = screen.getByLabelText("送信する内容")
+    expect(within(summary).queryByText("90分")).not.toBeInTheDocument()
+    expect(within(summary).queryByText("劇場公開")).not.toBeInTheDocument()
+    expect(within(summary).queryByText("DCP必要性")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("案件種別")).toHaveValue("")
+  })
+
   it.each([
     ["Web公開", "未確認", false, false],
     ["劇場", "不要", true, false],
