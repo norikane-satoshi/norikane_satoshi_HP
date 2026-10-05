@@ -313,6 +313,9 @@ describe("/api/booking/[id] access control", () => {
     expect(route.updateCalendarEvent).toHaveBeenCalledWith({
       calendarId: "calendar_id_test",
       eventId: "gcal_evt_1",
+      bookingGroupId: "group_1",
+      customerName: "Original Name",
+      customerCompany: "Original Company",
       accessToken: "access_token",
       start: "2099-05-18T02:00:00.000Z",
       end: "2099-05-18T03:30:00.000Z",
@@ -505,6 +508,9 @@ describe("/api/booking/[id] access control", () => {
     expect(route.updateCalendarEvent).toHaveBeenCalledWith({
       calendarId: "calendar_id_test",
       eventId: "gcal_evt_1",
+      bookingGroupId: "group_1",
+      customerName: "Original Name",
+      customerCompany: "Original Company",
       accessToken: "access_token",
       start: FUTURE_START.toISOString(),
       end: FUTURE_END.toISOString(),

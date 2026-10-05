@@ -1,5 +1,6 @@
 import { google } from "googleapis"
 
+import { calendarBookingSummary } from "@/lib/booking/domain/calendar-summary"
 import { prisma } from "@/lib/prisma"
 
 const CALENDAR_SCOPES = [
@@ -42,6 +43,8 @@ export type CalendarEventWriteInput = {
   accessToken: string
   eventId?: string
   bookingGroupId?: string
+  customerName?: string
+  customerCompany?: string
   notionTaskType?: "仮押さえ" | "本予約"
   dateOnly?: boolean
   transparency?: "opaque" | "transparent"
@@ -59,6 +62,8 @@ export type CalendarEventUpdateInput = {
   colorId?: string
   notionTaskType?: "仮押さえ" | "本予約"
   bookingGroupId?: string
+  customerName?: string
+  customerCompany?: string
   transparency?: "opaque" | "transparent"
   bufferBeforeHours?: number | null
   bufferAfterHours?: number | null
@@ -389,7 +394,7 @@ export async function createCalendarEvent(input: CalendarEventWriteInput): Promi
       calendarId: input.calendarId,
       requestBody: {
         id: input.eventId,
-        summary: input.summary,
+        summary: calendarBookingSummary(input.summary, input.notionTaskType),
         description: input.description,
         colorId: input.colorId,
         start,
@@ -400,6 +405,8 @@ export async function createCalendarEvent(input: CalendarEventWriteInput): Promi
             source: "hp-booking",
             ...(input.bookingGroupId ? { booking_group_id: input.bookingGroupId } : {}),
             ...(input.notionTaskType ? { notion_task_type: input.notionTaskType } : {}),
+            ...(input.customerName !== undefined ? { customer_name: input.customerName } : {}),
+            ...(input.customerCompany !== undefined ? { customer_company: input.customerCompany } : {}),
           },
         },
       },
@@ -500,8 +507,8 @@ function managedEventSnapshot(event: {
     summary: event.summary ?? "",
     description: event.description ?? "",
     colorId: event.colorId ?? "9",
-    notionTaskType: event.extendedProperties?.private?.notionTaskType
-      ?? event.extendedProperties?.private?.notion_task_type,
+    notionTaskType: event.extendedProperties?.private?.notion_task_type
+      ?? event.extendedProperties?.private?.notionTaskType,
     transparency: event.transparency ?? undefined,
     bookingGroupId: event.extendedProperties?.private?.booking_group_id,
     privateProperties: event.extendedProperties?.private ?? {},
@@ -545,6 +552,8 @@ export async function updateCalendarEvent(input: CalendarEventUpdateInput): Prom
   if (input.notionTaskType) {
     privateProperties.notion_task_type = input.notionTaskType
   }
+  if (input.customerName !== undefined) privateProperties.customer_name = input.customerName
+  if (input.customerCompany !== undefined) privateProperties.customer_company = input.customerCompany
   if (Number.isFinite(input.bufferBeforeHours)) {
     privateProperties.bufferBeforeHours = String(input.bufferBeforeHours)
   }
@@ -555,7 +564,7 @@ export async function updateCalendarEvent(input: CalendarEventUpdateInput): Prom
     calendarId: input.calendarId,
     eventId: input.eventId,
     requestBody: {
-      ...(input.summary !== undefined ? { summary: input.summary } : {}),
+      ...(input.summary !== undefined ? { summary: calendarBookingSummary(input.summary, input.notionTaskType) } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.colorId !== undefined ? { colorId: input.colorId } : {}),
       ...(input.transparency !== undefined ? { transparency: input.transparency } : {}),

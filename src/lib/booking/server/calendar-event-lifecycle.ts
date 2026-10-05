@@ -1,5 +1,6 @@
 import type { BookingCalendarEvent, Prisma } from "@prisma/client"
 
+import { calendarBookingSummary } from "@/lib/booking/domain/calendar-summary"
 import { normalizeBookingDateKeys } from "@/lib/booking/domain/form-schema"
 import {
   createCalendarEvent,
@@ -8,6 +9,7 @@ import {
   HP_BOOKING_CANCEL_ACK_KEY,
   requestCalendarEventCancellation,
   updateCalendarEvent,
+  type CalendarEventSnapshot,
 } from "@/lib/google-calendar/server"
 import { prisma } from "@/lib/prisma"
 
@@ -36,6 +38,7 @@ export type BookingCalendarEventIntent = {
 }
 
 type RequestedDateRange = { start: string; end: string }
+type CalendarCustomerIdentity = { customerName?: string; customerCompany?: string }
 
 function nextDateKey(dateKey: string): string {
   const [year, month, day] = dateKey.split("-").map(Number)
@@ -128,6 +131,22 @@ function sameCalendarValue(left: string, right: string, dateOnly: boolean): bool
   return Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime === rightTime
 }
 
+async function preserveObservedBookingConfirmation(
+  existing: CalendarEventSnapshot,
+  event: BookingCalendarEvent,
+): Promise<BookingCalendarEvent> {
+  if (existing.notionTaskType !== "本予約" || event.notionTaskType === "本予約") return event
+  const data = {
+    notionTaskType: "本予約",
+    summary: calendarBookingSummary(event.summary, "本予約"),
+    transparency: existing.transparency === "opaque" || existing.transparency === "transparent"
+      ? existing.transparency
+      : event.transparency,
+  }
+  await prisma.bookingCalendarEvent.update({ where: { eventId: event.eventId }, data })
+  return { ...event, ...data }
+}
+
 function calendarProjectionMatches(
   existing: {
     start?: string
@@ -138,27 +157,32 @@ function calendarProjectionMatches(
     colorId?: string
     notionTaskType?: string
     transparency?: string
+    privateProperties?: Record<string, string>
   },
   event: BookingCalendarEvent,
+  customerIdentity: CalendarCustomerIdentity,
 ): boolean {
   if (!existing.start || !existing.end || existing.dateOnly === undefined) return true
   const expectedTransparency = event.transparency ?? "opaque"
   return existing.dateOnly === event.dateOnly
     && sameCalendarValue(existing.start, event.startValue, event.dateOnly)
     && sameCalendarValue(existing.end, event.endValue, event.dateOnly)
-    && existing.summary === event.summary
+    && existing.summary === calendarBookingSummary(event.summary, event.notionTaskType)
     && existing.description === event.description
     && existing.colorId === event.colorId
     && existing.notionTaskType === (event.notionTaskType ?? undefined)
     && (existing.transparency ?? "opaque") === expectedTransparency
+    && (customerIdentity.customerName === undefined || existing.privateProperties?.customer_name === customerIdentity.customerName)
+    && (customerIdentity.customerCompany === undefined || (existing.privateProperties?.customer_company ?? "") === customerIdentity.customerCompany)
 }
 
 async function updateCalendarEventFromIntent(input: {
   event: BookingCalendarEvent
   calendarId: string
   accessToken: string
+  customerIdentity: CalendarCustomerIdentity
 }): Promise<void> {
-  const { event, calendarId, accessToken } = input
+  const { event, calendarId, accessToken, customerIdentity } = input
   await updateCalendarEvent({
     calendarId,
     eventId: event.eventId,
@@ -166,10 +190,11 @@ async function updateCalendarEventFromIntent(input: {
     start: event.startValue,
     end: event.endValue,
     dateOnly: event.dateOnly,
-    summary: event.summary,
+    summary: calendarBookingSummary(event.summary, event.notionTaskType),
     description: event.description,
     colorId: event.colorId,
     bookingGroupId: event.bookingGroupId,
+    ...customerIdentity,
     notionTaskType: event.notionTaskType === "本予約" ? "本予約" : "仮押さえ",
     transparency: event.transparency === "transparent" ? "transparent" : "opaque",
   })
@@ -223,7 +248,8 @@ export async function syncCalendarEventIntent(input: {
   accessToken: string
   verifyConfirmed?: boolean
 }): Promise<CalendarEventSyncResult> {
-  const { event, calendarId, accessToken } = input
+  const { calendarId, accessToken } = input
+  let event = input.event
   const status = event.status as BookingCalendarEventStatus
   if (status === BOOKING_CALENDAR_EVENT_STATUS.cancelled) {
     return { eventId: event.eventId, action: "skipped", ok: true }
@@ -261,12 +287,21 @@ export async function syncCalendarEventIntent(input: {
       return { eventId: event.eventId, action: "deleted", ok: true }
     }
 
+    const group = await prisma.bookingGroup.findUnique({
+      where: { id: event.bookingGroupId },
+      select: { contactName: true, companyName: true },
+    })
+    const customerIdentity: CalendarCustomerIdentity = group
+      ? { customerName: group.contactName, customerCompany: group.companyName ?? "" }
+      : {}
+
     if (status === BOOKING_CALENDAR_EVENT_STATUS.confirmed && input.verifyConfirmed) {
       const existing = await getCalendarEvent({ calendarId, eventId: event.eventId, accessToken })
       if (existing) {
         assertCalendarEventOwnership(existing, event)
-        if (!calendarProjectionMatches(existing, event)) {
-          await updateCalendarEventFromIntent({ event, calendarId, accessToken })
+        event = await preserveObservedBookingConfirmation(existing, event)
+        if (!calendarProjectionMatches(existing, event, customerIdentity)) {
+          await updateCalendarEventFromIntent({ event, calendarId, accessToken, customerIdentity })
           await prisma.bookingCalendarEvent.update({
             where: { eventId: event.eventId },
             data: { lastVerifiedAt: new Date(), lastErrorCode: null },
@@ -285,7 +320,8 @@ export async function syncCalendarEventIntent(input: {
       const existing = await getCalendarEvent({ calendarId, eventId: event.eventId, accessToken })
       if (existing) {
         assertCalendarEventOwnership(existing, event)
-        await updateCalendarEventFromIntent({ event, calendarId, accessToken })
+        event = await preserveObservedBookingConfirmation(existing, event)
+        await updateCalendarEventFromIntent({ event, calendarId, accessToken, customerIdentity })
       } else {
         await createCalendarEvent({
           calendarId,
@@ -293,11 +329,12 @@ export async function syncCalendarEventIntent(input: {
           start: event.startValue,
           end: event.endValue,
           dateOnly: event.dateOnly,
-          summary: event.summary,
+          summary: calendarBookingSummary(event.summary, event.notionTaskType),
           description: event.description,
           colorId: event.colorId,
           accessToken,
           bookingGroupId: event.bookingGroupId,
+          ...customerIdentity,
           notionTaskType: event.notionTaskType === "本予約" ? "本予約" : "仮押さえ",
           transparency: event.transparency === "opaque" ? "opaque" : event.transparency === "transparent" ? "transparent" : undefined,
         })
@@ -319,11 +356,12 @@ export async function syncCalendarEventIntent(input: {
       start: event.startValue,
       end: event.endValue,
       dateOnly: event.dateOnly,
-      summary: event.summary,
+      summary: calendarBookingSummary(event.summary, event.notionTaskType),
       description: event.description,
       colorId: event.colorId,
       accessToken,
       bookingGroupId: event.bookingGroupId,
+      ...customerIdentity,
       notionTaskType: event.notionTaskType === "本予約" ? "本予約" : "仮押さえ",
       transparency: event.transparency === "opaque" ? "opaque" : event.transparency === "transparent" ? "transparent" : undefined,
     })

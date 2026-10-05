@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   get: vi.fn(),
+  list: vi.fn(),
   patch: vi.fn(),
   setCredentials: vi.fn(),
 }))
@@ -16,7 +17,7 @@ vi.mock("googleapis", () => {
     google: {
       auth: { OAuth2 },
       calendar: () => ({
-        events: { insert: mocks.insert, get: mocks.get, patch: mocks.patch },
+        events: { insert: mocks.insert, get: mocks.get, list: mocks.list, patch: mocks.patch },
       }),
     },
   }
@@ -26,6 +27,8 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 
 import {
   createCalendarEvent,
+  getCalendarEvent,
+  listManagedCalendarEvents,
   requestCalendarEventCancellation,
   updateCalendarEvent,
 } from "@/lib/google-calendar/server"
@@ -44,6 +47,7 @@ describe("createCalendarEvent", () => {
   beforeEach(() => {
     mocks.insert.mockReset()
     mocks.get.mockReset()
+    mocks.list.mockReset()
     mocks.patch.mockReset()
     mocks.setCredentials.mockReset()
     process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_ID = "client-id"
@@ -85,6 +89,61 @@ describe("createCalendarEvent", () => {
       source: "hp-booking",
       booking_group_id: "booking_group_1",
     })
+  })
+
+  it.each([
+    ["仮押さえ", "（候補 1/2）"], ["本予約", "（候補 1/2）"],
+    ["仮押さえ", "(候補 1/2)"], ["本予約", "(候補 1/2)"],
+  ] as const)("writes trusted customer identity for %s with %s and preserves stage labels", async (notionTaskType, candidate) => {
+    mocks.insert.mockResolvedValue({ data: { id: "evt-identity" } })
+    const summary = `【仮キープ】案件 / Client${candidate}（仕込み）`
+    await createCalendarEvent({
+      ...baseInput, summary, bookingGroupId: "group_1", notionTaskType,
+      customerName: "Client", customerCompany: "Studio",
+    })
+    expect(mocks.insert.mock.calls[0][0].requestBody).toMatchObject({
+      summary: notionTaskType === "本予約" ? "案件 / Client（仕込み）" : summary,
+      extendedProperties: { private: {
+        source: "hp-booking", booking_group_id: "group_1", notion_task_type: notionTaskType,
+        customer_name: "Client", customer_company: "Studio",
+      } },
+    })
+  })
+
+  it("updates customer identity and confirmed title on the existing event", async () => {
+    await updateCalendarEvent({
+      ...baseInput, eventId: "existing", bookingGroupId: "group_1", notionTaskType: "本予約",
+      summary: "【仮キープ】案件 / Client（候補 2/2）（QC）",
+      customerName: "Client", customerCompany: "",
+    })
+    expect(mocks.patch.mock.calls[0][0]).toMatchObject({
+      eventId: "existing", requestBody: {
+        summary: "案件 / Client（QC）",
+        extendedProperties: { private: { customer_name: "Client", customer_company: "" } },
+      },
+    })
+    expect(mocks.insert).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { canonical: "本予約", legacy: "仮押さえ", expected: "本予約" },
+    { canonical: "仮押さえ", legacy: "本予約", expected: "仮押さえ" },
+    { canonical: undefined, legacy: "本予約", expected: "本予約" },
+  ])("reads canonical task type $canonical before legacy $legacy", async ({ canonical, legacy, expected }) => {
+    const event = {
+      id: "existing", start: { date: "2026-06-10" }, end: { date: "2026-06-11" },
+      extendedProperties: { private: {
+        source: "hp-booking", notionTaskType: legacy,
+        ...(canonical !== undefined ? { notion_task_type: canonical } : {}),
+      } },
+    }
+    mocks.get.mockResolvedValue({ data: event })
+    mocks.list.mockResolvedValue({ data: { items: [event] } })
+
+    await expect(getCalendarEvent({ calendarId: "primary", eventId: "existing", accessToken: "token" }))
+      .resolves.toMatchObject({ notionTaskType: expected })
+    await expect(listManagedCalendarEvents({ calendarId: "primary", accessToken: "token" }))
+      .resolves.toMatchObject([{ notionTaskType: expected }])
   })
 
   it("preserves summary, description, colorId, start, end (regression)", async () => {

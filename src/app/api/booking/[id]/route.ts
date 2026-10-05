@@ -273,6 +273,9 @@ export async function PATCH(
         await updateCalendarEvent({
           calendarId,
           eventId: booking.gcalEventId,
+          bookingGroupId: booking.bookingGroupId,
+          customerName: booking.details.contactName,
+          customerCompany: booking.details.companyName ?? "",
           accessToken: token,
           start: currentSlot.startTime,
           end: currentSlot.endTime,
@@ -311,6 +314,9 @@ export async function PATCH(
       await updateCalendarEvent({
         calendarId,
         eventId: booking.gcalEventId,
+        bookingGroupId: booking.bookingGroupId,
+        customerName: booking.details.contactName,
+        customerCompany: booking.details.companyName ?? "",
         accessToken: token,
         start,
         end,

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { bookingDetailsMemo } from "@/lib/chatbot/domain/booking-details"
@@ -117,8 +117,13 @@ afterEach(() => {
 })
 
 describe("createBookingFromApiInput", () => {
+  let service: Awaited<ReturnType<typeof loadCreateBooking>>
+
+  beforeEach(async () => {
+    service = await loadCreateBooking()
+  })
+
   it.each([[], ["2026-10-13"]])("keeps desired and unavailable dates before the canonical details in persisted sync notes (%j)", async (...requestedDates) => {
-    const service = await loadCreateBooking()
     const memo = bookingDetailsMemo("都合の悪い日: 10月20日", [
       { label: "納品希望日の理由", value: "映画祭応募" }, { label: "納品希望日", value: "2026-10-25" },
     ])
@@ -128,7 +133,6 @@ describe("createBookingFromApiInput", () => {
   })
 
   it.each([["0時間18分", "18分"], ["1時間18分", "1時間18分"], ["未定", "未確認"]])("carries reviewed duration %s into calendar descriptions and booking mail", async (value, canonical) => {
-    const service = await loadCreateBooking()
     const memo = bookingDetailsMemo("", [{ label: "尺", value }])
     await service.createBookingFromApiInput({
       input: bookingInput({ memo, requestedDates: ["2026-10-13"] }),
@@ -142,7 +146,6 @@ describe("createBookingFromApiInput", () => {
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ memo }))
   })
   it("carries confirmed and unconfirmed chatbot facts unchanged into storage, calendar descriptions and booking mail", async () => {
-    const service = await loadCreateBooking()
     const memo = "案件種別: 短編ドキュメンタリー\n尺: 約18分\n最終媒体: 未確認\n納品形式: ProRes 422 HQ（Rec.709）、DCP不要"
     await service.createBookingFromApiInput({
       input: bookingInput({ memo, requestedDates: ["2026-10-13"] }),
@@ -155,7 +158,6 @@ describe("createBookingFromApiInput", () => {
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ memo }))
   })
   it("returns the existing chatbot booking for the same idempotency key without repeating side effects", async () => {
-    const service = await loadCreateBooking()
     service.prisma.bookingGroup.findUnique.mockResolvedValueOnce({
       id: "group_existing",
       status: "NEEDS_SCHEDULE",
@@ -188,7 +190,6 @@ describe("createBookingFromApiInput", () => {
   })
 
   it("passes confirmed condition memo to the customer receipt without estimates", async () => {
-    const service = await loadCreateBooking()
     const memo = "尺: 18分\n納品形式: ProRes 422 HQ、Rec.709\n納品希望日: 2026-10-25"
     await service.createBookingFromApiInput({ input: bookingInput({ memo }), originatedFrom: "chatbot", userId: "public_user", userEmail: "client@example.com" })
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ memo }))
@@ -198,7 +199,6 @@ describe("createBookingFromApiInput", () => {
   })
 
   it("recovers an idempotency race from the unique database constraint", async () => {
-    const service = await loadCreateBooking()
     service.prisma.bookingGroup.findUnique
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: "group_winner", status: "NEEDS_SCHEDULE", timeSlots: [] })
@@ -224,7 +224,6 @@ describe("createBookingFromApiInput", () => {
   })
 
   it("creates selected-slot calendar entries as tentative holds", async () => {
-    const service = await loadCreateBooking()
 
     await service.createBookingFromApiInput({
       input: bookingInput({
@@ -255,7 +254,6 @@ describe("createBookingFromApiInput", () => {
   })
 
   it("passes chatbot Notion task type to the Google Calendar event for reverse sync only when requested", async () => {
-    const service = await loadCreateBooking()
 
     await service.createBookingFromApiInput({
       input: bookingInput({
@@ -277,7 +275,6 @@ describe("createBookingFromApiInput", () => {
   })
 
   it("persists zero selected slots as an unscheduled chatbot booking request without creating a calendar event when no candidate date exists", async () => {
-    const service = await loadCreateBooking()
 
     const result = await service.createBookingFromApiInput({
       input: bookingInput(),
@@ -315,7 +312,6 @@ describe("createBookingFromApiInput", () => {
   })
 
   it("creates a transparent all-day tentative hold for requested date arrays", async () => {
-    const service = await loadCreateBooking()
 
     const result = await service.createBookingFromApiInput({
       input: bookingInput({
@@ -385,7 +381,6 @@ describe("createBookingFromApiInput", () => {
   })
 
   it("creates one all-day event per requested date without holding unrequested gap days", async () => {
-    const service = await loadCreateBooking()
     service.createCalendarEvent.mockImplementation(async ({ eventId }: { eventId: string }) => ({ id: eventId }))
 
     await service.createBookingFromApiInput({
@@ -422,7 +417,6 @@ describe("createBookingFromApiInput", () => {
   })
 
   it("retries only an unfinished requested-date event on an idempotent replay", async () => {
-    const service = await loadCreateBooking()
     service.createCalendarEvent
       .mockResolvedValueOnce({ id: "group1" })
       .mockRejectedValueOnce(Object.assign(new Error("temporary"), { code: "ETIMEDOUT" }))
