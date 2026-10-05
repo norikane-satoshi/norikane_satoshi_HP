@@ -1,18 +1,7 @@
 import type { ConversationState, JobContext, RoutingDecision, WorkflowEstimate } from "@/lib/chatbot/domain"
 import {
-  additionalWorkChoices,
   bookingFinalConfirmationChoices,
   formatConsultationSummary,
-  customerFacingWorkSiteChoices,
-  documentaryAttachmentChoices,
-  finalMediumChoices,
-  jobKindChoices,
-  materialTimingChoices,
-  deliveryFormatChoices,
-  dcpRequiredChoices,
-  dcpCreatorChoices,
-  projectLengthChoicesForJobKind,
-  referenceUrlChoices,
 } from "@/lib/chatbot/domain"
 import {
   tightDeadlineThresholdDays,
@@ -27,6 +16,7 @@ import {
 } from "@/lib/chatbot/server/lecture-training"
 import { buildBookingFinalConfirmationQuestion, desiredScheduleQuestion } from "@/lib/chatbot/server/flow-policy"
 import type { ChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
+import { missingConditionPanels } from "./condition-intake"
 
 export type RoutingDecisionInput = {
   jobContext: JobContext
@@ -113,82 +103,9 @@ function continueDecision(input: {
   estimate?: WorkflowEstimate
   now?: Date
 }): RoutingDecision {
-  const { conversationState, jobContext, estimate, now } = input
-  if (!conversationState.hasJobKind) {
-    return {
-      kind: "continue",
-      nextQuestion: "まず案件種別を選んでください",
-      presentChoices: jobKindChoices,
-    }
-  }
-
-  if (!conversationState.hasProjectLength) {
-    const presentChoices = projectLengthChoicesForJobKind(jobContext.jobKind)
-    return {
-      kind: "continue",
-      nextQuestion: presentChoices.question,
-      presentChoices,
-    }
-  }
-
-  if (!conversationState.hasFinalMedium) {
-    return {
-      kind: "continue",
-      nextQuestion: "最終媒体は何になりますか？",
-      presentChoices: finalMediumChoices,
-    }
-  }
-
-  if (!conversationState.hasDeliveryFormat) {
-    return { kind: "continue", nextQuestion: deliveryFormatChoices.question, presentChoices: deliveryFormatChoices }
-  }
-  const cinema = conversationState.finalMedia?.includes("cinema") || jobContext.finalMedium === "cinema"
-  if (cinema && !conversationState.hasDcpRequirement) {
-    return { kind: "continue", nextQuestion: dcpRequiredChoices.question, presentChoices: dcpRequiredChoices }
-  }
-  if (cinema && conversationState.dcpRequirement === "required" && !conversationState.hasDcpCreator) {
-    return { kind: "continue", nextQuestion: dcpCreatorChoices.question, presentChoices: dcpCreatorChoices }
-  }
-
-  if (!conversationState.hasAdditionalWork) {
-    return {
-      kind: "continue",
-      nextQuestion: "カラグレ以外の追加作業はありますか？",
-      presentChoices: additionalWorkChoices,
-    }
-  }
-
-  if (!conversationState.hasDocumentaryAttachments) {
-    return {
-      kind: "continue",
-      nextQuestion: "付随する映像はありますか？",
-      presentChoices: documentaryAttachmentChoices,
-    }
-  }
-
-  if (!conversationState.hasWorkSite) {
-    return {
-      kind: "continue",
-      nextQuestion: customerFacingWorkSiteChoices(now).question,
-      presentChoices: customerFacingWorkSiteChoices(now),
-    }
-  }
-
-  if (!conversationState.hasMaterialTiming || !conversationState.materialHandoff?.timing) {
-    return {
-      kind: "continue",
-      nextQuestion: materialTimingChoices.question,
-      presentChoices: materialTimingChoices,
-    }
-  }
-
-  if (!conversationState.hasReferenceUrls) {
-    return {
-      kind: "continue",
-      nextQuestion: referenceUrlChoices.question,
-      presentChoices: referenceUrlChoices,
-    }
-  }
+  const { conversationState, jobContext, estimate } = input
+  const presentChoices = missingConditionPanels(conversationState, jobContext)[0]
+  if (presentChoices) return { kind: "continue", nextQuestion: presentChoices.question, presentChoices }
 
   if (!conversationState.hasContactEmail || !conversationState.contactEmail) {
     return {

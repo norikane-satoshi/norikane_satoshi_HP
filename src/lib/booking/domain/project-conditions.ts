@@ -25,6 +25,8 @@ export type ProjectConditionDefinition = {
   allowFreeText?: boolean
   visibility?: ConditionVisibility
   detailLabels?: readonly string[]
+  chatIntake?: boolean
+  order?: number
   summary?: boolean
   unknownValue?: string
 }
@@ -32,7 +34,7 @@ export type ProjectConditionDefinition = {
 export const jobKindDefinition = {
   label: "案件種別",
   input: "single",
-  id: "job-kind",
+  id: "job-kind", chatIntake: true, order: 0,
   question: "まず案件種別を選んでください",
   options: [
     { id: "cm", label: "Web CM / CM" },
@@ -54,7 +56,7 @@ export const jobKindDefinition = {
 const finalMediumChoices = {
   label: "最終媒体",
   input: "multiple",
-  id: "final-medium",
+  id: "final-medium", chatIntake: true, order: 2,
   question: "最終媒体をすべて選んでください",
   options: [
     { id: "ott", label: "VOD・オンデマンド配信" },
@@ -71,7 +73,7 @@ const finalMediumChoices = {
 const additionalWorkChoices = {
   label: "追加作業",
   input: "multiple",
-  id: "additional-work",
+  id: "additional-work", chatIntake: true, order: 6,
   question: "カラグレ以外の追加作業はありますか",
   options: [
     { id: "retouch", label: "消し物" },
@@ -85,7 +87,7 @@ const additionalWorkChoices = {
 const documentaryAttachmentChoices = {
   label: "付随素材",
   input: "multiple",
-  id: "documentary-attachment",
+  id: "documentary-attachment", chatIntake: true, order: 8,
   question: "付随する映像はありますか",
   options: [
     { id: "digest", label: "ダイジェスト" },
@@ -100,7 +102,7 @@ const documentaryAttachmentChoices = {
 const workSiteChoices = {
   label: "作業場所/立ち会い",
   input: "single",
-  id: "work-site",
+  id: "work-site", chatIntake: true, order: 9,
   question: "立ち会い方法の希望はありますか",
   options: [
     { id: "remote-grading", label: "オンライン" },
@@ -183,7 +185,7 @@ const bookingFinalConfirmationChoices = {
 const materialTimingChoices = {
   label: "素材が揃う日",
   input: "date",
-  id: "material-timing",
+  id: "material-timing", chatIntake: true, order: 10,
   question: "編集確定版の素材が揃う日を選んでください。未定の場合は未定を選んでください。",
   options: [
     { id: "undecided", label: "未定" },
@@ -193,7 +195,7 @@ const materialTimingChoices = {
 const deliveryFormatChoices = {
   label: "納品形式",
   input: "text",
-  id: "delivery-format",
+  id: "delivery-format", chatIntake: true, order: 3,
   question: "納品形式（コーデック・色空間）が分かれば教えてください。未定の場合は未定を選んでください。",
   allowFreeText: true,
   options: [{ id: "undecided", label: "未定" }],
@@ -203,7 +205,7 @@ const dcpRequiredChoices = {
   label: "DCP必要性",
   input: "single",
   visibility: { questionId: "final-medium", includes: ["cinema"] },
-  id: "dcp-required",
+  id: "dcp-required", chatIntake: true, order: 4,
   question: "劇場上映用のDCPは必要ですか？ 則兼はDCPを作成していないため、必要な場合はポスプロなど他社への依頼になります。",
   options: [
     { id: "required", label: "必要" },
@@ -216,7 +218,7 @@ const dcpCreatorChoices = {
   label: "DCP作成担当",
   input: "text",
   visibility: { all: [{ questionId: "final-medium", includes: ["cinema"] }, { questionId: "dcp-required", excludes: ["not-required"] }] },
-  id: "dcp-creator",
+  id: "dcp-creator", chatIntake: true, order: 5,
   question: "DCPの作成担当を教えてください。則兼はDCPを作成していないため、他社へご依頼ください。未定の場合は未定を選んでください。",
   allowFreeText: true,
   options: [{ id: "undecided", label: "未定" }],
@@ -225,7 +227,7 @@ const dcpCreatorChoices = {
 const referenceUrlChoices = {
   label: "参考URL",
   input: "single",
-  id: "reference-urls",
+  id: "reference-urls", chatIntake: true, order: 11,
   question: "事前に把握しておきたい参考URLがあれば教えてください",
   options: [
     { id: "none", label: "なし" },
@@ -234,12 +236,12 @@ const referenceUrlChoices = {
 } as const satisfies ProjectConditionDefinition
 
 const projectLengthChoices = {
-  id: "project-length", label: "作品構成", detailLabels: ["作品構成", "尺"],
+  id: "project-length", chatIntake: true, order: 1, label: "作品構成", detailLabels: ["作品構成", "尺"],
   question: "作品ごとの名称、本数、尺を入力してください。未定の場合は未定を選んでください。",
   input: "composition", options: [{ id: "undecided", label: "未定" }],
 } as const satisfies ProjectConditionDefinition
 const retouchCutCount = {
-  id: "retouch-cut-count", label: "修正カット数", question: "修正が必要なカット数を入力してください。未定の場合は未定を選んでください。",
+  id: "retouch-cut-count", chatIntake: true, order: 7, label: "修正カット数", question: "修正が必要なカット数を入力してください。未定の場合は未定を選んでください。",
   input: "number", options: [{ id: "undecided", label: "未定" }],
   visibility: { questionId: "additional-work", includes: ["retouch", "skin-retouch", "compositing"] },
 } as const satisfies ProjectConditionDefinition

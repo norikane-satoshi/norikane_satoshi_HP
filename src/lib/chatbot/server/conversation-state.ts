@@ -49,6 +49,10 @@ export function buildConversationState(input: {
     ...(inputState.intakeClarifications ?? {}),
     ...(activeChoiceState.intakeClarifications ?? {}),
   }
+  const conditionAnswers = {
+    ...stored.conditionAnswers,
+    ...activeChoiceState.conditionAnswers,
+  }
   const bookingFinalConfirmation = {
     ...(stored.bookingFinalConfirmation ?? {}),
     ...(inputState.bookingFinalConfirmation ?? {}),
@@ -86,6 +90,7 @@ export function buildConversationState(input: {
     ...(Object.keys(otherChoiceComments).length > 0 ? { otherChoiceComments } : {}),
     ...(Object.keys(lectureTrainingInquiry).length > 0 ? { lectureTrainingInquiry } : {}),
     ...(Object.keys(intakeClarifications).length > 0 ? { intakeClarifications } : {}),
+    ...(stored.conditionAnswers !== undefined || activeChoiceState.conditionAnswers !== undefined ? { conditionAnswers } : {}),
     ...(Object.keys(bookingPrefill).length > 0 ? { bookingPrefill } : {}),
     ...mergedBookingFinalConfirmation,
     ...mergedBookingSubmission,

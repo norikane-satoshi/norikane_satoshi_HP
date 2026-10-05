@@ -1,6 +1,6 @@
-import { confirmedBookingDetails } from "@/lib/chatbot/domain/booking-details"
+import { totalWorkCompositionMinutes } from "@/lib/booking/domain/work-composition"
 import { jobKindLabels } from "@/lib/chatbot/domain/job-kind-label"
-import { formatProjectLengthMinutes, parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
+import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import type { ChatbotConversation, ConversationState, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
@@ -68,6 +68,9 @@ export function resolveWorkflowDurationContext(input: {
 }): WorkflowDurationContext {
   const base = buildBaseJobContext(input.inputJobContext, input.conversation, input.activeChoiceJobContext)
   const resolvedFacts = resolveWorkflowFactsFromConversation(base, input.conversation, input.latestUserMessage)
+  if (input.activeChoiceJobContext && Object.prototype.hasOwnProperty.call(input.activeChoiceJobContext, "projectLengthMinutes")) {
+    resolvedFacts.projectLengthMinutes = input.activeChoiceJobContext.projectLengthMinutes
+  }
   const jobContext = provideWorkflowEstimate(resolvedFacts, input.knowledgeSnapshot)
   const durationState = buildDurationConversationState(jobContext, input.knowledgeSnapshot)
 
@@ -125,15 +128,11 @@ export function resolveWorkflowFactsFromConversation(
       ...inferred,
     }
   }, base)
-  const messages = [
-    ...conversation.messages,
-    ...(latestUserMessage ? [
-      ...(conversation.context.currentQuestion ? [{ id: "duration-question", role: "assistant" as const, content: conversation.context.currentQuestion, createdAt: conversation.updatedAt }] : []),
-      { id: "duration-latest", role: "user" as const, content: latestUserMessage, createdAt: conversation.updatedAt },
-    ] : []),
-  ]
-  const value = confirmedBookingDetails({ messages, conversationState: conversation.context.conversationState }).find((detail) => detail.label === "尺")?.value
-  return { ...facts, projectLengthMinutes: value ? parseProjectLengthMinutes(value) : undefined }
+  const composition = conversation.context.conversationState?.conditionAnswers?.["project-length"]
+  const projectLengthMinutes = composition
+    ? composition.status !== "unknown" && composition.composition ? totalWorkCompositionMinutes(composition.composition) : undefined
+    : undefined
+  return { ...facts, projectLengthMinutes }
 }
 
 export function provideWorkflowEstimate(

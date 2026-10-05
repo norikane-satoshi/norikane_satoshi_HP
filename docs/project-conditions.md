@@ -2,7 +2,7 @@
 
 `src/lib/booking/domain/project-conditions.ts` を質問・選択肢・入力形式・表示条件の正本とする。
 
-- `projectConditionDefinitions`: id / label / question / input / options / visibility。
+- `projectConditionDefinitions`: id / label / question / input / options / visibility / chatIntake / order。
 - `getProjectConditionDefinition(id)`, `isConditionVisible(definition, answers)`。
 - `validateConditionAnswers(value: unknown)` は `{ success: true, data: ConditionAnswers } | { success: false, issues: { path: string; message: string }[] }`。未知の質問・選択肢、入力型不一致、不正日付、非整数秒を拒否し、現在の選択で非表示になる回答を data から除く。
 - `sanitizeConditionAnswers(value: unknown): ConditionAnswers` は同じ検証を行い、不正入力では TypeError を投げる。JSON の受け口では validate の結果で 400 を返す。
@@ -22,3 +22,12 @@
 `JobKind` は canonical + legacy の union。`normalizeJobKind` は保存済み alias を正規化し、`workflowPresetJobKind` は工程推定の代表プリセットへ明示変換する。対応する工程基準のない種別（short-film / documentary / corporate-video など）は undefined を返す。推定側で確認待ちにする。`WorkflowEstimate.referencePresetId` は LegacyJobKind のまま。`JobContext.workComposition` で作品構成を保持できる。
 
 server の `duration-estimator.ts` は `workflowDurationJobKindMap` を `JobKind` で直接 index せず、`workflowPresetJobKind` で正規化してから読む。未対応種別は推定なし・要確認。安定 ID の選択自体には尺確認を要求しない。
+
+## チャットの質問を追加する
+
+1. `projectConditionDefinitions` に安定した ID、question、input、options を定義する。チャット受付で聞く項目には `chatIntake: true` と `order` を指定する。小さい order から質問し、`visibility` は保存済みの ID 回答で評価する。
+2. 定義の表示条件と入力・保存の振る舞いをテストに追加する。`src/lib/chatbot/server/__tests__/condition-intake.test.ts` は、定義を追加するだけで text / number / date / dates の質問生成と保存ができることを検証する。
+
+server は定義の input で structured answer を検証し、`conditionAnswers[ID]` に保存する。通常の質問追加で server の質問一覧や専用 handler を増やす必要はない。既存 JobContext への変換が必要な項目だけ、互換処理を追加する。質問文の変更は回答キーや replay に影響しない。
+
+`sourceMessageId` は server が保存した実際の user message ID を設定する。編集時は、そのメッセージ以降を削除し、残った message ID に結びつく回答だけを保持する。`conditionAnswers: {}` も structured state として扱い、legacy flags や推定した案件条件で未回答を補完しない。

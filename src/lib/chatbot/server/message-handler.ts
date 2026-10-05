@@ -1,3 +1,4 @@
+import { projectConditionDefinitions } from "@/lib/booking/domain/project-conditions"
 import { confirmedBookingNote, unconfirmedBookingValue } from "@/lib/chatbot/domain/booking-details"
 import { matchChoiceAnswer } from "@/lib/chatbot/domain/choice-answer"
 import type { ChoiceAnswer } from "@/lib/chatbot/domain/conversation"
@@ -60,8 +61,9 @@ import {
   logChatbotBoundaryEvent,
   logPrivacySafeChatbotEvent,
 } from "@/lib/chatbot/server/boundary-event-log"
-import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/server/choice-panel-state"
+import { applyActiveChoiceAnswer, isSatisfiedChoicePanel, type ConditionSubmission } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
+import { missingConditionPanels, retainConditionAnswers, visibleConditionAnswers } from "./condition-intake"
 import { requiresStructuredUi } from "@/lib/chatbot/server/llm-client"
 import { chatbotSlackAuditErrorCode } from "@/lib/chatbot/server/diagnostic-request"
 import {
@@ -120,6 +122,7 @@ import {
   type ChatbotTierAttemptAuditEvidence,
 } from "@/lib/chatbot/audit/server-evidence"
 import type { UpdateConversationRoutingInput } from "@/lib/chatbot/server/repository"
+import type { ConditionAnswers } from "@/lib/booking/domain/project-conditions"
 
 type ChatbotMessageUi =
   | { kind: "none" }
@@ -134,6 +137,7 @@ type ChatbotMessageUi =
       bookingPrefill?: BookingCardPrefill
       confirmationItems?: Array<{ label: string; value: string }>
       confirmationEvidenceVersion?: 1
+      conditionAnswers?: ConditionAnswers
     }
   | {
       kind: "direct-contact-card"
@@ -202,6 +206,7 @@ export type HandleChatbotMessageInput = {
   pendingRequestKind?: "message" | "edit"
   jobContext?: Partial<JobContext>
   conversationState?: Partial<ConversationState>
+  conditionAnswer?: ConditionSubmission
 }
 
 type ChatbotMessageRepository = {
@@ -455,8 +460,8 @@ export async function handleChatbotMessage(
   const isOpeningPanelAnswer =
     conversation.messages.length === 0 &&
     !conversation.context.activeChoices &&
-    isExplicitChoiceSubmission(input.message) &&
-    applyActiveChoiceAnswer({ activeChoices: jobKindChoices, message: input.message }) !== null
+    (isExplicitChoiceSubmission(input.message) || input.conditionAnswer?.conditionId === "job-kind") &&
+    applyActiveChoiceAnswer({ activeChoices: jobKindChoices, message: input.message, conditionAnswer: input.conditionAnswer }) !== null
   const activeChoices =
     contextualizeStoredActiveChoices(conversation) ?? (isOpeningPanelAnswer ? jobKindChoices : undefined)
   const activeIntakeClarification = conversation.context.conversationState?.activeIntakeClarification
@@ -464,10 +469,13 @@ export async function handleChatbotMessage(
     activeChoices,
     message: input.message,
     activeIntakeClarification,
+    sourceMessageId: userMessage.id,
+    conditionAnswer: input.conditionAnswer,
   })
   if (
     activeChoices &&
     activeChoices.id !== "project-length" &&
+    !input.conditionAnswer &&
     !isConfirmedChoiceAnswer(activeChoiceAnswer) &&
     !isExplicitChoiceSubmission(input.message) &&
     !looksLikeCustomerQuestion(input.message)
@@ -486,6 +494,7 @@ export async function handleChatbotMessage(
         activeChoices,
         message: `選択: ${labels.join("、")}`,
         activeIntakeClarification,
+        sourceMessageId: userMessage.id,
       })
       if (isConfirmedChoiceAnswer(interpretedAnswer)) activeChoiceAnswer = interpretedAnswer
     }
@@ -512,7 +521,7 @@ export async function handleChatbotMessage(
   const previousAssistantMessage = findLastAssistantMessageContent(conversation.messages)
   const baseConversationState = applyMaterialHandoffAnswer({
     latestUserMessage: input.message,
-    previousAssistantMessage,
+    previousAssistantMessage: conversation.context.conversationState?.conditionAnswers === undefined ? previousAssistantMessage : undefined,
     conversationState: applyEmptyReferenceUrlAnswer({
       latestUserMessage: input.message,
       previousAssistantMessage,
@@ -703,14 +712,25 @@ export async function handleChatbotMessage(
     ? flowPolicy.routingDecision
     : withoutFreeTextIntakePanel(flowPolicy.routingDecision)
   const persistedConversationState = flowPolicy.conversationState
+  persistedConversationState.conditionAnswers = visibleConditionAnswers(persistedConversationState.conditionAnswers ?? {})
+  const visibleIds = new Set(missingConditionPanels({ conditionAnswers: persistedConversationState.conditionAnswers }, jobContext).map((panel) => panel.id))
+  if (!visibleIds.has("dcp-required") && !persistedConversationState.conditionAnswers["dcp-required"]) {
+    persistedConversationState.hasDcpRequirement = false
+    persistedConversationState.dcpRequirement = undefined
+  }
+  if (!visibleIds.has("dcp-creator") && !persistedConversationState.conditionAnswers["dcp-creator"]) {
+    persistedConversationState.hasDcpCreator = false
+    persistedConversationState.dcpCreator = undefined
+  }
+  if (!visibleIds.has("retouch-cut-count") && !persistedConversationState.conditionAnswers["retouch-cut-count"]) jobContext.retouchCutCount = undefined
   persistedConversationState.choiceAnswers = {
     ...conversation.context.conversationState?.choiceAnswers,
-    ...(activeChoices && activeChoiceAnswer && isExplicitChoiceSubmission(input.message) ? {
+    ...(activeChoices && isConfirmedChoiceAnswer(activeChoiceAnswer) ? {
       [userMessage.id]: {
         choiceSet: activeChoices,
         selectedIds: activeChoiceAnswer.choiceIds,
         selectedLabels: activeChoices.choices.filter((choice) => activeChoiceAnswer.choiceIds.includes(choice.id)).map((choice) => choice.label),
-        ...(input.message.match(/その他コメント:\s*(.*)/u)?.[1] ? { otherComment: input.message.match(/その他コメント:\s*(.*)/u)![1] } : {}),
+        ...(activeChoiceAnswer.conversationState.conditionAnswers?.[activeChoices.id]?.otherComment ? { otherComment: activeChoiceAnswer.conversationState.conditionAnswers[activeChoices.id].otherComment } : {}),
       },
     } : {}),
   }
@@ -808,7 +828,7 @@ export async function handleChatbotMessage(
     tier: llmResponse.tier,
     routingDecisionKind: routingDecision?.kind,
     uiKind: ui.kind,
-    choiceSetId: routingDecision?.kind === "continue" ? routingDecision.presentChoices?.id : undefined,
+    choiceSetId: routingDecision?.kind === "continue" ? projectConditionDefinitions.find((definition) => definition.id === routingDecision.presentChoices?.id)?.id : undefined,
     issueReasons,
     userAgent: input.userAgent,
     retryDiagnostics,
@@ -839,7 +859,7 @@ export async function handleChatbotMessage(
               : routingDecision
                 ? null
                 : conversation.context.activeChoices ?? null,
-          conversationState: persistedConversationState,
+          conversationState: { ...persistedConversationState, activeConditionId: routingDecision?.kind === "continue" ? projectConditionDefinitions.find((definition) => definition.id === routingDecision.presentChoices?.id)?.id : undefined },
           jobContext,
         }
       : undefined
@@ -901,7 +921,7 @@ export async function handleChatbotMessage(
     tier: llmResponse.tier,
     routingDecisionKind: routingDecision?.kind,
     uiKind: ui.kind,
-    choiceSetId: routingDecision?.kind === "continue" ? routingDecision.presentChoices?.id : undefined,
+    choiceSetId: routingDecision?.kind === "continue" ? projectConditionDefinitions.find((definition) => definition.id === routingDecision.presentChoices?.id)?.id : undefined,
     bookingProgress: routingDecision?.kind === "to-booking-inline",
     flowStep: inferChatbotFlowStep({
       routingDecision,
@@ -1460,7 +1480,7 @@ function applyEmptyReferenceUrlAnswer(input: {
   previousAssistantMessage?: string
   conversationState: ConversationState
 }): ConversationState {
-  if (input.conversationState.hasReferenceUrls) return input.conversationState
+  if (input.conversationState.conditionAnswers !== undefined || input.conversationState.hasReferenceUrls) return input.conversationState
   if (!isReferenceUrlQuestion(input.previousAssistantMessage)) return input.conversationState
   if (!isNoAdditionalBookingConcern(input.latestUserMessage) && !/https?:\/\/\S+/u.test(input.latestUserMessage)) {
     return input.conversationState
@@ -1490,7 +1510,7 @@ function recoverHistoricalChoiceContext(
   for (let index = 0; index <= target; index += 1) {
     const message = source.messages[index]
     if (message.role !== "user") continue
-    const replaySource = { ...source, context: { ...source.context, conversationState: { choiceAnswers: answers } } }
+    const replaySource = { ...source, context: { ...source.context, conversationState: { ...source.context.conversationState, choiceAnswers: answers } } }
     const prefix = reconcileConversationContextFromHistory(resetEditedConversationContext(replaySource, source.messages.slice(0, index)))
     const { jobContext } = resolveWorkflowDurationContext({ conversation: prefix, knowledgeSnapshot })
     const state = buildConversationState({ conversation: prefix, userMessage: { ...message, content: "" }, jobContext })
@@ -1502,7 +1522,7 @@ function recoverHistoricalChoiceContext(
       : undefined
     const panel = answers[message.id]?.choiceSet ?? storedQuestionPanel
       ?? (decision.kind === "continue" ? decision.presentChoices : undefined)
-    const answer = panel ? matchChoiceAnswer(panel, message.content) : undefined
+    const answer = answers[message.id] ?? (panel ? matchChoiceAnswer(panel, message.content) : undefined)
     if (answer) answers[message.id] = answer
     if (index === target) return { answer, answers }
   }
@@ -1516,12 +1536,11 @@ export function recoverHistoricalChoiceAnswer(source: ChatbotConversation, messa
 function reconcileConversationContextFromHistory(conversation: ChatbotConversation): ChatbotConversation {
   if (conversation.messages.length === 0) return conversation
 
-  const recovered = recoverChoicePanelContextFromHistory(conversation.messages, conversation.context.conversationState?.choiceAnswers)
-  const recoveredBooking = recoverBookingContextFromHistory(conversation.messages)
-  const conversationState = recoverMaterialHandoffFromHistory(conversation.messages, mergeRecoveredBookingContext(
-    mergeRecoveredConversationState(conversation.context.conversationState ?? {}, recovered.conversationState),
-    recoveredBooking,
-  ))
+  const recovered = recoverChoicePanelContextFromHistory(conversation.messages, conversation.context.conversationState?.choiceAnswers, conversation.context.conversationState?.conditionAnswers)
+  const hasStoredAnswers = Object.keys(conversation.context.conversationState?.choiceAnswers ?? {}).length > 0 || conversation.context.conversationState?.conditionAnswers !== undefined
+  const recoveredBooking = hasStoredAnswers ? { conversationState: {}, bookingPrefill: {} } : recoverBookingContextFromHistory(conversation.messages)
+  const mergedState = mergeRecoveredBookingContext(mergeRecoveredConversationState(conversation.context.conversationState ?? {}, recovered.conversationState), recoveredBooking)
+  const conversationState = hasStoredAnswers ? mergedState : recoverMaterialHandoffFromHistory(conversation.messages, mergedState)
   const jobContext = {
     ...(conversation.context.jobContext ?? {}),
     ...recovered.jobContext,
@@ -1557,7 +1576,7 @@ function reconcileConversationContextFromHistory(conversation: ChatbotConversati
   }
 }
 
-function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[], answers?: ConversationState["choiceAnswers"]): {
+function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[], answers?: ConversationState["choiceAnswers"], conditionAnswers?: ConversationState["conditionAnswers"]): {
   activeChoices?: SurveyChoiceSet
   conversationState: Partial<ConversationState>
   jobContext: Partial<JobContext>
@@ -1568,6 +1587,7 @@ function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[], answer
 
   for (const message of messages) {
     if (message.role === "assistant") {
+      if (Object.keys(answers ?? {}).length > 0 || conditionAnswers !== undefined) continue
       const choiceSet = findChoiceSetFromAssistantContent(message.content)
       if (choiceSet && !isChoicePanelSatisfied(choiceSet, conversationState)) {
         activeChoices = choiceSet
@@ -1575,13 +1595,19 @@ function recoverChoicePanelContextFromHistory(messages: ChatbotMessage[], answer
       continue
     }
 
+    const storedCondition = Object.entries(conditionAnswers ?? {}).find(([, answer]) => answer.sourceMessageId === message.id)
     if (message.role === "user" && answers?.[message.id]) activeChoices = answers[message.id].choiceSet
+    if (message.role === "user" && storedCondition) activeChoices = surveyChoiceSets.find((panel) => panel.id === storedCondition[0])
     if (message.role !== "user" || !activeChoices) continue
 
     const patch = applyActiveChoiceAnswer({
       activeChoices,
-      message: message.content,
+      message: answers?.[message.id]?.selectedIds.length && !storedCondition
+        ? `選択: ${answers[message.id].selectedIds.join("、")}${answers[message.id].otherComment ? `\nその他コメント: ${answers[message.id].otherComment}` : ""}`
+        : message.content,
+      conditionAnswer: storedCondition ? { conditionId: storedCondition[0], answer: storedCondition[1] } : undefined,
       activeIntakeClarification: conversationState.activeIntakeClarification,
+      sourceMessageId: message.id,
     })
     if (!patch) continue
 
@@ -1836,22 +1862,8 @@ function findContactEmailInText(value: string): string | undefined {
 }
 
 function findChoiceSetFromAssistantContent(content: string): SurveyChoiceSet | undefined {
-  const normalized = content.normalize("NFKC")
-  const exactQuestionMatch = surveyChoiceSets.find((choiceSet) =>
-    normalized.includes(choiceSet.question.normalize("NFKC")),
-  )
-  if (exactQuestionMatch) return exactQuestionMatch
-  if (normalized.includes("案件種別")) return surveyChoiceSets.find((choiceSet) => choiceSet.id === "job-kind")
-  if (normalized.includes("尺・分量")) return projectLengthChoices
-  if (normalized.includes("最終媒体")) return surveyChoiceSets.find((choiceSet) => choiceSet.id === "final-medium")
-  if (normalized.includes("カラグレ以外の追加作業")) {
-    return surveyChoiceSets.find((choiceSet) => choiceSet.id === "additional-work")
-  }
-  if (normalized.includes("付随する映像")) {
-    return surveyChoiceSets.find((choiceSet) => choiceSet.id === "documentary-attachment")
-  }
-  if (normalized.includes("作業場所")) return surveyChoiceSets.find((choiceSet) => choiceSet.id === "work-site")
-  return undefined
+  const normalized = content.normalize("NFKC").trim()
+  return surveyChoiceSets.find((choiceSet) => normalized === choiceSet.question.normalize("NFKC"))
 }
 
 function selectRecoveredActiveChoices(input: {
@@ -1931,6 +1943,8 @@ function mergeRecoveredConversationState(
       ...(stored.intakeClarifications ?? {}),
       ...(recovered.intakeClarifications ?? {}),
     },
+    ...(stored.conditionAnswers !== undefined || recovered.conditionAnswers !== undefined
+      ? { conditionAnswers: { ...stored.conditionAnswers, ...recovered.conditionAnswers } } : {}),
     ...(hasSubmittedBooking
       ? { bookingSubmission: bookingSubmission as NonNullable<ConversationState["bookingSubmission"]> }
       : {}),
@@ -1979,11 +1993,15 @@ function resetEditedConversationContext(
   conversation: ChatbotConversation,
   messages: ChatbotMessage[],
 ): ChatbotConversation {
+  const messageIds = new Set(messages.map((message) => message.id))
   return {
     ...conversation,
     status: "open",
     context: {
-      conversationState: { choiceAnswers: Object.fromEntries(Object.entries(conversation.context.conversationState?.choiceAnswers ?? {}).filter(([id]) => messages.some((message) => message.id === id))) },
+      conversationState: {
+        choiceAnswers: Object.fromEntries(Object.entries(conversation.context.conversationState?.choiceAnswers ?? {}).filter(([id]) => messageIds.has(id))),
+        conditionAnswers: retainConditionAnswers(conversation.context.conversationState?.conditionAnswers, messageIds),
+      },
       sessionId: conversation.context.sessionId,
       ...(conversation.context.userId ? { userId: conversation.context.userId } : {}),
       ...(conversation.context.customerEmail ? { customerEmail: conversation.context.customerEmail } : {}),
@@ -2191,8 +2209,8 @@ function createDeterministicIntakeResponse(
   })
 }
 
-function isConfirmedChoiceAnswer(patch: ReturnType<typeof applyActiveChoiceAnswer>): boolean {
-  return Boolean(patch?.choiceIds.length) && patch?.conversationState.activeIntakeClarification?.status !== "needs-clarification"
+function isConfirmedChoiceAnswer(patch: ReturnType<typeof applyActiveChoiceAnswer>): patch is NonNullable<ReturnType<typeof applyActiveChoiceAnswer>> {
+  return Boolean(patch && (patch.choiceIds.length || patch.conversationState.conditionAnswers?.[patch.choiceSetId])) && patch?.conversationState.activeIntakeClarification?.status !== "needs-clarification"
 }
 
 function isExplicitChoiceSubmission(message: string): boolean {
@@ -3031,6 +3049,7 @@ function toMessageUi(input: {
       },
       confirmationEvidenceVersion: 1,
       confirmationItems,
+      conditionAnswers: input.conversationState.conditionAnswers,
     }
   }
 

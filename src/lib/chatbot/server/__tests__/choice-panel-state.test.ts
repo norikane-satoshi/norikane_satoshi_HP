@@ -100,13 +100,13 @@ describe("choice panel state", () => {
   })
 
   it.each([
-    [jobKindChoices, "選択: Web CM / CM", { hasJobKind: true }, { jobKind: "cm-30s" }],
-    [jobKindChoices, "選択: Web CMです", { hasJobKind: true }, { jobKind: "cm-30s" }],
-    [jobKindChoices, "選択: 映画 / 長編 / 本編", { hasJobKind: true }, { jobKind: "feature-90m" }],
-    [jobKindChoices, "選択: ドラマ / シリーズです", { hasJobKind: true }, { jobKind: "drama-first" }],
-    [jobKindChoices, "選択: ドラマシリーズ", { hasJobKind: true }, { jobKind: "drama-first" }],
-    [jobKindChoices, "選択: ライブ / コンサート / 舞台収録", { hasJobKind: true }, { jobKind: "live-60m" }],
-    [jobKindChoices, "選択: MVです", { hasJobKind: true }, { jobKind: "mv-5m" }],
+    [jobKindChoices, "選択: Web CM / CM", { hasJobKind: true }, { jobKind: "cm" }],
+    [jobKindChoices, "選択: Web CMです", { hasJobKind: true }, { jobKind: "cm" }],
+    [jobKindChoices, "選択: 映画 / 長編 / 本編", { hasJobKind: true }, { jobKind: "feature" }],
+    [jobKindChoices, "選択: ドラマ / シリーズです", { hasJobKind: true }, { jobKind: "drama" }],
+    [jobKindChoices, "選択: ドラマシリーズ", { hasJobKind: true }, { jobKind: "drama" }],
+    [jobKindChoices, "選択: ライブ / コンサート / 舞台収録", { hasJobKind: true }, { jobKind: "live" }],
+    [jobKindChoices, "選択: MVです", { hasJobKind: true }, { jobKind: "mv" }],
     [
       jobKindChoices,
       "選択: 講演会 / 講習会 / 教育 / 研修 / 講師依頼",
@@ -314,7 +314,7 @@ describe("job kind answer after an other-choice clarification", () => {
       activeIntakeClarification: pendingOtherClarification,
     })
 
-    expect(patch?.jobContext).toEqual({ jobKind: "cm-30s" })
+    expect(patch?.jobContext).toEqual({ jobKind: "cm" })
     expect(patch?.conversationState).toHaveProperty("activeIntakeClarification", undefined)
     expect(patch?.conversationState.intakeClarifications?.["job-kind"]?.status).toBe("clear")
   })
