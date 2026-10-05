@@ -1,3 +1,4 @@
+import { conditionChoiceSet } from "@/lib/chatbot/domain/survey-choice"
 import { describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }))
@@ -20,6 +21,15 @@ const msg = (id: string, role: ChatbotMessage["role"], content: string): Chatbot
 const panelText = (choiceSet: SurveyChoiceSet) => `${choiceSet.question}\n下の選択肢から選んでください。`
 
 const beforeMaterials: Partial<ConversationState> = {
+  conditionAnswers: {
+    "job-kind": { status: "answered", selectedIds: ["cm"] },
+    "project-length": { status: "answered", composition: [{ count: 1, durationSeconds: 30 }] },
+    "final-medium": { status: "answered", selectedIds: ["web"] },
+    "delivery-format": { status: "answered", text: "ProRes" },
+    "additional-work": { status: "answered", selectedIds: ["none"] },
+    "documentary-attachment": { status: "answered", selectedIds: ["none"] },
+    "work-site": { status: "answered", selectedIds: ["remote-grading"] },
+  },
   hasJobKind: true,
   hasProjectLength: true,
   hasFinalMedium: true,
@@ -85,16 +95,43 @@ function persistedState(h: ReturnType<typeof harness>) {
   return h.repository.updateConversationRouting.mock.calls.at(-1)?.[0]?.conversationState as ConversationState
 }
 
+describe("structured condition persistence and editing", () => {
+  it("stores composition rows with the actual user ID without parsing display text", async () => {
+    const h = harness(conversation({ messages: [msg("a1", "assistant", "old arbitrary copy")], activeChoices: conditionChoiceSet("project-length"), conversationState: { hasJobKind: true } }))
+    const composition = [{ name: "Main", count: 3, durationSeconds: 15 }, { name: "Extra", count: 2, durationSeconds: 30 }]
+    const result = await handleChatbotMessage({ sessionId: "session_panels", message: "Opaque display text", clientUserMessageId: "native-duration", conditionAnswer: { conditionId: "project-length", answer: { status: "answered", composition, sourceMessageId: "forged" } } }, h.options)
+    expect(h.generate).not.toHaveBeenCalled()
+    expect(persistedState(h).conditionAnswers?.["project-length"]).toEqual({ status: "answered", composition, sourceMessageId: result.userMessage.id })
+    expect(h.repository.updateConversationRouting.mock.calls.at(-1)?.[0]?.jobContext?.projectLengthMinutes).toBe(1.75)
+  })
+
+  it("replays stored IDs after copy changes and removes future answers when editing", async () => {
+    const lengthPanel = conditionChoiceSet("project-length")
+    const kindPanel = conditionChoiceSet("job-kind")
+    const h = harness(conversation({ messages: [msg("kind", "user", "Opaque kind"), msg("a1", "assistant", "changed question copy"), msg("length", "user", "Opaque composition"), msg("a2", "assistant", "changed material copy"), msg("future", "user", "Opaque material")], activeChoices: referenceUrlChoices, conversationState: {
+      conditionAnswers: { "job-kind": { status: "answered", selectedIds: ["cm"], sourceMessageId: "kind" }, "project-length": { status: "answered", composition: [{ count: 1, durationSeconds: 90 }], sourceMessageId: "length" }, "material-timing": { status: "answered", date: "2026-10-15", sourceMessageId: "future" } },
+      choiceAnswers: { kind: { choiceSet: kindPanel, selectedIds: ["cm"], selectedLabels: ["Web CM / CM"] }, length: { choiceSet: lengthPanel, selectedIds: [], selectedLabels: [] }, future: { choiceSet: materialTimingChoices, selectedIds: [], selectedLabels: [] } },
+    } }))
+    await handleChatbotMessage({ sessionId: "session_panels", message: "New opaque composition", editTargetMessageId: "length", clientUserMessageId: "edited-length", conditionAnswer: { conditionId: "project-length", answer: { composition: [{ count: 2, durationSeconds: 60 }] } } }, h.options)
+    const state = persistedState(h)
+    expect(state.conditionAnswers?.["job-kind"]?.selectedIds).toEqual(["cm"])
+    expect(state.conditionAnswers?.["project-length"]?.composition).toEqual([{ count: 2, durationSeconds: 60 }])
+    expect(state.conditionAnswers).not.toHaveProperty("material-timing")
+    expect(state.choiceAnswers).not.toHaveProperty("future")
+    expect(h.repository.updateConversationRouting.mock.calls.at(-1)?.[0]?.jobContext?.projectLengthMinutes).toBe(2)
+  })
+})
+
 describe("delivery and material date intake", () => {
   it("asks only the material ready date before reference URLs", () => {
     const jobContext = { jobKind: "cm-30s" as const, finalMedium: "web" as const, documentaryAttachment: { kind: "none" as const }, workSite: "remote-grading" as const }
     const state = { hasReferenceUrls: false, hasContactEmail: false, hasDesiredSchedule: false, ...beforeMaterials } as ConversationState
     expect(decideRoutingFallback({ jobContext, conversationState: state })).toMatchObject({ kind: "continue", presentChoices: { id: "material-timing" } })
-    expect(decideRoutingFallback({ jobContext, conversationState: { ...state, hasMaterialTiming: true, materialHandoff: { timing: "未確認" } } })).toMatchObject({ kind: "continue", presentChoices: { id: "reference-urls" } })
+    expect(decideRoutingFallback({ jobContext, conversationState: { ...state, hasMaterialTiming: true, conditionAnswers: { ...state.conditionAnswers, "material-timing": { status: "unknown" } }, materialHandoff: { timing: "未確認" } } })).toMatchObject({ kind: "continue", presentChoices: { id: "reference-urls" } })
   })
 
   it.each(["ProRes 422 HQ / Rec.709", "未定"])("records an explicit delivery format without the LLM: %s", async (answer) => {
-    const h = harness(conversation({ messages: [msg("a1", "assistant", panelText(deliveryFormatChoices))], activeChoices: deliveryFormatChoices, conversationState: { ...beforeMaterials, hasDeliveryFormat: false } }))
+    const h = harness(conversation({ messages: [msg("a1", "assistant", panelText(deliveryFormatChoices))], activeChoices: deliveryFormatChoices, conversationState: { ...beforeMaterials, hasDeliveryFormat: false, conditionAnswers: Object.fromEntries(Object.entries(beforeMaterials.conditionAnswers ?? {}).filter(([id]) => id !== "delivery-format")) } }))
     const result = await handleChatbotMessage({ sessionId: "session_panels", message: `納品形式: ${answer}` }, h.options)
     expect(h.generate).not.toHaveBeenCalled()
     expect(persistedState(h)).toMatchObject({ hasDeliveryFormat: true, deliveryFormat: answer === "未定" ? "未確認" : answer })
@@ -112,7 +149,7 @@ describe("delivery and material date intake", () => {
     const h = harness(conversation({
       messages: [msg("u1", "user", "CMの相談です"), msg("a1", "assistant", panelText(referenceUrlChoices))],
       activeChoices: referenceUrlChoices,
-      conversationState: { ...beforeMaterials, hasMaterialDetails: true, hasMaterialTiming: true, hasMaterialHandoff: true, materialHandoff: { contents: "a", timing: "b", method: "c" } },
+      conversationState: { ...beforeMaterials, hasMaterialDetails: true, hasMaterialTiming: true, hasMaterialHandoff: true, conditionAnswers: { ...beforeMaterials.conditionAnswers, "material-timing": { status: "unknown" } }, materialHandoff: { contents: "a", timing: "b", method: "c" } },
     }))
     const result = await handleChatbotMessage(
       { sessionId: "session_panels", message: "選択: URLを入力する\nその他コメント: https://example.com/ref" },
@@ -121,6 +158,7 @@ describe("delivery and material date intake", () => {
 
     expect(h.generate).not.toHaveBeenCalled()
     expect(persistedState(h).hasReferenceUrls).toBe(true)
+    expect(persistedState(h).conditionAnswers?.["reference-urls"]).toMatchObject({ selectedIds: ["other"], otherComment: "https://example.com/ref", sourceMessageId: result.userMessage.id })
     expect(result.assistantMessage.content).toContain("メール")
   })
 
@@ -128,12 +166,13 @@ describe("delivery and material date intake", () => {
     const h = harness(conversation({
       messages: [msg("u1", "user", "CMの相談です"), msg("a1", "assistant", panelText(referenceUrlChoices))],
       activeChoices: referenceUrlChoices,
-      conversationState: { ...beforeMaterials, hasMaterialDetails: true, hasMaterialTiming: true, hasMaterialHandoff: true, materialHandoff: { contents: "a", timing: "b", method: "c" } },
+      conversationState: { ...beforeMaterials, hasMaterialDetails: true, hasMaterialTiming: true, hasMaterialHandoff: true, conditionAnswers: { ...beforeMaterials.conditionAnswers, "material-timing": { status: "unknown" } }, materialHandoff: { contents: "a", timing: "b", method: "c" } },
     }))
     const result = await handleChatbotMessage({ sessionId: "session_panels", message: "https://example.com/ref" }, h.options)
 
     expect(h.generate).not.toHaveBeenCalled()
     expect(persistedState(h).hasReferenceUrls).toBe(true)
+    expect(persistedState(h).conditionAnswers?.["reference-urls"]).toMatchObject({ selectedIds: ["other"], otherComment: "https://example.com/ref", sourceMessageId: result.userMessage.id })
     expect(result.assistantMessage.content).toContain("メール")
   })
 })

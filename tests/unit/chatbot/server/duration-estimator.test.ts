@@ -5,7 +5,7 @@ import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot
 
 function jobContext(overrides: Partial<JobContext>): JobContext {
   return {
-    jobKind: "cm-30s",
+    jobKind: "cm",
     finalMedium: "web",
     workSite: "satoshi-studio",
     documentaryAttachment: { kind: "none" },
@@ -15,14 +15,14 @@ function jobContext(overrides: Partial<JobContext>): JobContext {
 
 describe("chatbot duration estimator", () => {
   it.each([
-    ["Web CM 30秒です", { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.5 }],
-    ["MV 5分の相談です", { jobKind: "mv-5m", projectLengthMinutes: 5 }],
-    ["OTT向け本編90分です", { finalMedium: "ott", jobKind: "feature-90m", projectLengthMinutes: 90 }],
-    ["ドラマシリーズです", { jobKind: "drama-first" }],
-    ["ドラマ初回です", { jobKind: "drama-first" }],
-    ["ドラマ2話目以降です", { jobKind: "drama-follow-up" }],
-    ["縦型動画60秒です", { finalMedium: "vertical-sns", jobKind: "vertical-60s", projectLengthMinutes: 1 }],
-    ["ライブ2時間半です。最終的にDVDにします", { finalMedium: "live", deliveryMedium: "dvd", jobKind: "live-60m", projectLengthMinutes: 150 }],
+    ["Web CM 30秒です", { finalMedium: "web", jobKind: "cm", projectLengthMinutes: 0.5 }],
+    ["MV 5分の相談です", { jobKind: "mv", projectLengthMinutes: 5 }],
+    ["OTT向け本編90分です", { finalMedium: "ott", jobKind: "feature", projectLengthMinutes: 90 }],
+    ["ドラマシリーズです", { jobKind: "drama" }],
+    ["ドラマ初回です", { jobKind: "drama" }],
+    ["ドラマ2話目以降です", { jobKind: "drama" }],
+    ["縦型動画60秒です", { finalMedium: "vertical-sns", jobKind: "vertical", projectLengthMinutes: 1 }],
+    ["ライブ2時間半です。最終的にDVDにします", { finalMedium: "live", deliveryMedium: "dvd", jobKind: "live", projectLengthMinutes: 150 }],
   ])("infers workflow facts from explicit free text: %s", (message, expected) => {
     expect(inferWorkflowJobContextFromText(message, jobContext({ jobKind: undefined, finalMedium: "other" }))).toMatchObject(expected)
   })

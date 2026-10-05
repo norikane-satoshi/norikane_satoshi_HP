@@ -30,25 +30,32 @@ describe("workflow prompt context", () => {
 
 
 describe("customer duration evidence", () => {
-  const conversation = (contents: string[]): ChatbotConversation => ({
+  const conversation = (): ChatbotConversation => ({
     id: "c", status: "open", startedAt: "2026-10-05", updatedAt: "2026-10-05",
-    context: { sessionId: "s", jobContext: { jobKind: "feature-90m", projectLengthMinutes: 60 } },
-    messages: contents.map((content, index) => ({ id: String(index), role: "user", content, createdAt: "2026-10-05" })),
+    context: { sessionId: "s", jobContext: { jobKind: "feature", projectLengthMinutes: 60 } },
+    messages: [{ id: "user", role: "user", content: "古い表示では90分", createdAt: "2026-10-05" }],
   })
-  it.each([["尺: 0時間18分", 18], ["尺: 1時間18分", 78], ["尺: 未定", undefined], ["未定", undefined], ["尺: 約18分", undefined], ["尺: 15〜20分", undefined]] as const)("uses the latest customer correction %s", (latestUserMessage, minutes) => {
-    const c = conversation(["尺: 2時間0分"])
-    c.context.currentQuestion = "作品の尺を時間・分で入力してください。"
-    const result = resolveWorkflowDurationContext({ conversation: c, latestUserMessage })
-    expect(result.jobContext.projectLengthMinutes).toBe(minutes)
-    if (minutes === undefined) {
-      expect(result.jobContext.workflowEstimate).toMatchObject({ estimateStatus: "needs-confirmation", unsupportedReason: "project-length-unconfirmed", stages: [] })
-      expect(result.promptContext).toContain("尺: 未確認")
-    }
-  })
-  it("never turns input or stored numeric estimates and assistant guesses into customer duration", () => {
-    const c = conversation([])
-    c.messages.push({ id: "guess", role: "assistant", content: "尺は1時間18分ですね", createdAt: "2026-10-05" })
+  it("uses the structured customer composition instead of message wording or stale numeric values", () => {
+    const c = conversation()
+    c.context.conversationState = { conditionAnswers: { "project-length": { status: "answered", composition: [{ count: 2, durationSeconds: 30 }, { count: 1, durationSeconds: 15 }], sourceMessageId: "user" } } }
     const result = resolveWorkflowDurationContext({ conversation: c, inputJobContext: { projectLengthMinutes: 90 } })
+    expect(result.jobContext.projectLengthMinutes).toBe(1.25)
+  })
+  it("keeps unknown row durations unconfirmed", () => {
+    const c = conversation()
+    c.context.conversationState = { conditionAnswers: { "project-length": { status: "answered", composition: [{ count: 2 }], sourceMessageId: "user" } } }
+    const result = resolveWorkflowDurationContext({ conversation: c })
+    expect(result.jobContext.projectLengthMinutes).toBeUndefined()
+    expect(result.jobContext.workflowEstimate?.unsupportedReason).toBe("project-length-unconfirmed")
+  })
+  it("accepts a newly validated active composition before persistence", () => {
+    const result = resolveWorkflowDurationContext({ conversation: conversation(), activeChoiceJobContext: { projectLengthMinutes: 18 } })
+    expect(result.jobContext.projectLengthMinutes).toBe(18)
+  })
+  it("never turns input or stored numeric estimates and message guesses into customer duration", () => {
+    const c = conversation()
+    c.messages.push({ id: "guess", role: "assistant", content: "尺は1時間18分ですね", createdAt: "2026-10-05" })
+    const result = resolveWorkflowDurationContext({ conversation: c, inputJobContext: { projectLengthMinutes: 90 }, latestUserMessage: "Web CM 30秒です" })
     expect(result.jobContext.projectLengthMinutes).toBeUndefined()
     expect(result.jobContext.workflowEstimate?.unsupportedReason).toBe("project-length-unconfirmed")
   })

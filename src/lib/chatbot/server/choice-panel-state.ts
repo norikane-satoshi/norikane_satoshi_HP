@@ -1,5 +1,9 @@
 import { parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import { isSelectableDeadline } from "@/lib/chatbot/domain/deadline"
+import { getProjectConditionDefinition, validateConditionAnswers, type ConditionAnswer } from "@/lib/booking/domain/project-conditions"
+import { totalWorkCompositionMinutes, validWorkComposition, type WorkCompositionRow } from "@/lib/booking/domain/work-composition"
+import { isConditionAnswered } from "./condition-intake"
+import { normalizeJobKind } from "@/lib/booking/domain/job-kind"
 import type {
   ConversationState,
   DocumentaryAttachment,
@@ -25,17 +29,125 @@ const otherCommentPrefixPattern = /^\s*その他(?:コメント|の内容)?\s*[:
 const noChoiceIds = new Set(["none"])
 const undecidedChoiceIds = new Set(["undecided"])
 
+export type ConditionSubmission = { conditionId: string; answer: ConditionAnswer }
+
 export function applyActiveChoiceAnswer(input: {
   activeChoices?: SurveyChoiceSet
   message: string
   activeIntakeClarification?: ConversationState["activeIntakeClarification"]
+  sourceMessageId?: string
+  conditionAnswer?: ConditionSubmission
 }): ChoicePanelPatch | null {
+  const id = input.activeChoices?.id
+  const definition = id ? getProjectConditionDefinition(id) : undefined
+  if (input.conditionAnswer) {
+    if (!definition || input.conditionAnswer.conditionId !== id) return null
+    const submitted = input.conditionAnswer.answer
+    const unknown = submitted.status === "unknown" || submitted.selectedIds?.includes("undecided") === true
+    const selectedIds = submitted.selectedIds ? [...new Set(submitted.selectedIds.map((value) => id === "job-kind" ? normalizeJobKind(value) ?? value : value))] : undefined
+    if (!validateConditionAnswers({ [definition.id]: { ...submitted, ...(selectedIds ? { selectedIds } : {}) } }).success) return null
+    if (selectedIds?.some((value) => !definition.options.some((option) => option.id === value))) return null
+    if (definition.input === "single" && selectedIds && selectedIds.length > 1) return null
+    if (!unknown && definition.input === "composition" && (!submitted.composition || !validWorkComposition(submitted.composition))) return null
+    if (!unknown && definition.input === "number" && (submitted.number === undefined || !Number.isSafeInteger(submitted.number) || submitted.number < 0)) return null
+    if (!unknown && definition.input === "date" && !submitted.date) return null
+    if (!unknown && definition.input === "text" && !submitted.text?.trim()) return null
+    if (!unknown && (definition.input === "single" || definition.input === "multiple") && !selectedIds?.length) return null
+    if (!unknown && definition.input === "dates" && (!submitted.dates?.length && !submitted.text?.trim())) return null
+    const choices = (selectedIds ?? []).map((value) => definition.options.find((choice) => choice.id === value)!).filter(Boolean)
+    if (hasExclusiveChoiceConflict(choices)) return null
+    const otherComment = submitted.otherComment?.trim()
+    if (!unknown && selectedIds?.includes("other") && !otherComment && !submitted.text?.trim()) return null
+    const selectedPatch = choices.length ? applyChoiceSelection(input.activeChoices!, choices,
+      otherComment ? { otherChoiceComments: { [definition.id]: otherComment } } : {}, input.message) : null
+    const patch: ChoicePanelPatch = selectedPatch ?? {
+      choiceSetId: definition.id, choiceId: unknown ? "undecided" : "explicit-answer", choiceIds: selectedIds ?? [],
+      conversationState: { ...toSlotSatisfiedPatch(definition.id), activeIntakeClarification: undefined }, jobContext: {},
+    }
+    Object.assign(patch.conversationState, toStructuredValueState(definition.id, submitted, unknown))
+    if (definition.id === "project-length") patch.jobContext.projectLengthMinutes = unknown ? undefined : totalWorkCompositionMinutes(submitted.composition!)
+    if (definition.id === "retouch-cut-count") patch.jobContext.retouchCutCount = unknown ? undefined : submitted.number
+    const answer: ConditionAnswer = unknown ? { status: "unknown" } : {
+      status: "answered", ...(selectedIds ? { selectedIds } : {}),
+      ...(submitted.text ? { text: submitted.text.trim() } : {}),
+      ...(submitted.date ? { date: submitted.date } : {}),
+      ...(submitted.dates ? { dates: submitted.dates } : {}),
+      ...(submitted.composition ? { composition: submitted.composition } : {}),
+      ...(submitted.number !== undefined ? { number: submitted.number } : {}),
+      ...(submitted.otherComment ? { otherComment: submitted.otherComment.trim() } : {}),
+    }
+    patch.conversationState.conditionAnswers = { [definition.id]: { ...answer, ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}) } }
+    return patch
+  }
+  let patch: ChoicePanelPatch | null
+  let answer: ConditionAnswer | undefined
+  if (id === "project-length") {
+    const value = input.message.normalize("NFKC").replace(/^\s*(?:作品構成|尺)\s*[:：]\s*/u, "").trim()
+    if (isExplicitUnknown(value)) {
+      answer = { status: "unknown", selectedIds: ["undecided"] }
+      patch = { choiceSetId: id, choiceId: "undecided", choiceIds: ["undecided"], conversationState: { hasProjectLength: true, activeIntakeClarification: undefined }, jobContext: { projectLengthMinutes: undefined } }
+    } else {
+      let rows: WorkCompositionRow[] | undefined
+      try { const parsed: unknown = JSON.parse(value); if (Array.isArray(parsed) && validWorkComposition(parsed)) rows = parsed } catch { /* Explicit legacy duration is accepted below. */ }
+      const minutes = rows ? totalWorkCompositionMinutes(rows) : parseProjectLengthMinutes(value)
+      if (!rows && minutes === undefined) return null
+      rows ??= [{ count: 1, durationSeconds: Math.round(minutes! * 60) }]
+      if (!validWorkComposition(rows)) return null
+      answer = { status: "answered", composition: rows }
+      patch = { choiceSetId: id, choiceId: "exact-duration", choiceIds: [], conversationState: { hasProjectLength: true, activeIntakeClarification: undefined }, jobContext: { projectLengthMinutes: totalWorkCompositionMinutes(rows) } }
+    }
+  } else if (id === "retouch-cut-count") {
+    const value = input.message.normalize("NFKC").replace(/^\s*(?:修正カット数|選択)\s*[:：]\s*/u, "").trim()
+    const unknown = isExplicitUnknown(value)
+    const count = /^\d+(?:\s*カット)?$/u.test(value) ? Number(value.replace(/\s*カット$/u, "")) : undefined
+    if (!unknown && (count === undefined || !Number.isSafeInteger(count) || count < 0)) return null
+    answer = unknown ? { status: "unknown", selectedIds: ["undecided"] } : { status: "answered", number: count }
+    patch = { choiceSetId: id, choiceId: unknown ? "undecided" : "explicit-number", choiceIds: unknown ? ["undecided"] : [], conversationState: { activeIntakeClarification: undefined }, jobContext: { retouchCutCount: unknown ? undefined : count } }
+  } else {
+    patch = applyLegacyChoiceAnswer(input)
+    if (patch && definition && patch.conversationState.activeIntakeClarification?.status !== "needs-clarification") {
+      const text = input.message.normalize("NFKC").replace(/^\s*[^:\n]+\s*[:：]\s*/u, "").trim()
+      answer = {
+        status: patch.choiceIds.includes("undecided") ? "unknown" : "answered",
+        ...((definition.input === "single" || definition.input === "multiple") && patch.choiceIds.length ? { selectedIds: patch.choiceIds } : {}),
+        ...(definition.input === "text" && !patch.choiceIds.includes("undecided") ? { text } : {}),
+        ...(definition.input === "date" && !patch.choiceIds.includes("undecided") ? { date: text } : {}),
+        ...(patch.conversationState.otherChoiceComments?.[patch.choiceSetId] ? { otherComment: patch.conversationState.otherChoiceComments[patch.choiceSetId] } : {}),
+      }
+      if (id === "job-kind" && answer.selectedIds) answer.selectedIds = answer.selectedIds.map((value) => normalizeJobKind(value) ?? value)
+    }
+  }
+  if (!patch || !answer) return patch
+  patch.conversationState.conditionAnswers = { [patch.choiceSetId]: { ...answer, ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}) } }
+  return patch
+}
+
+function toStructuredValueState(id: string, answer: ConditionAnswer, unknown: boolean): Partial<ConversationState> {
+  const value = unknown ? "未確認" : answer.text?.trim() ?? answer.date
+  switch (id) {
+    case "delivery-format": return { hasDeliveryFormat: true, deliveryFormat: value }
+    case "dcp-creator": return { hasDcpCreator: true, dcpCreator: value }
+    case "material-timing": return { hasMaterialTiming: true, materialHandoff: { timing: value } }
+    case "dcp-required": return unknown ? { hasDcpRequirement: true, dcpRequirement: "undecided" } : {}
+    default: return {}
+  }
+}
+
+function applyLegacyChoiceAnswer(input: {
+  activeChoices?: SurveyChoiceSet
+  message: string
+  activeIntakeClarification?: ConversationState["activeIntakeClarification"]
+}): ChoicePanelPatch | null {
+  if (input.activeChoices?.id === "reference-urls" && /^https?:\/\/\S+$/u.test(input.message.trim())) {
+    const choice = input.activeChoices.choices.find((item) => item.id === "other")
+    if (choice) return applyChoiceSelection(input.activeChoices, [choice], { otherChoiceComments: { "reference-urls": input.message.trim() } }, input.message)
+  }
   const textIntake = [
     { id: "delivery-format", label: "納品形式", flag: "hasDeliveryFormat", field: "deliveryFormat" },
     { id: "dcp-creator", label: "DCP作成担当", flag: "hasDcpCreator", field: "dcpCreator" },
     { id: "material-timing", label: "素材が揃う日", flag: "hasMaterialTiming", field: "materialTiming" },
   ] as const
-  const intake = textIntake.find((item) => input.activeChoices?.id === item.id || input.message.startsWith(`${item.label}:`))
+  const intake = textIntake.find((item) => input.activeChoices?.id === item.id)
   if (intake) {
     const value = input.message.normalize("NFKC").replace(new RegExp(`^(?:${intake.label}|選択)\\s*[:：]\\s*`, "u"), "").trim()
     if (!value || /[?？]/u.test(value)) return null
@@ -52,21 +164,6 @@ export function applyActiveChoiceAnswer(input: {
       jobContext: {},
     }
   }
-  if (input.activeChoices?.id === "project-length" || /^\s*尺\s*[:：]/u.test(input.message)) {
-    const value = input.message.normalize("NFKC").replace(/^\s*尺\s*[:：]\s*/u, "").trim()
-    const minutes = parseProjectLengthMinutes(value)
-    const unknown = isExplicitUnknown(value)
-    if (minutes !== undefined || unknown) return {
-      choiceSetId: "project-length", choiceId: unknown ? "undecided" : "exact-duration", choiceIds: [],
-      conversationState: {
-        hasProjectLength: true,
-        activeIntakeClarification: undefined,
-        intakeClarifications: { "project-length": { status: unknown ? "unknown-but-acceptable" : "clear", reason: unknown ? "explicitly-undecided" : "exact-duration", answerPreview: preview(input.message) } },
-      },
-      jobContext: { projectLengthMinutes: minutes },
-    }
-    return null
-  }
   const clarifiedPatch = applyPendingClarificationAnswer(input.activeChoices, input.activeIntakeClarification, input.message)
   if (clarifiedPatch) return clarifiedPatch
 
@@ -80,6 +177,17 @@ export function applyActiveChoiceAnswer(input: {
   const clarification = assessChoiceAnswerClarity(activeChoices, choices, input.message, otherCommentPatch)
   if (clarification) return clarification
 
+  return applyChoiceSelection(activeChoices, choices, otherCommentPatch, input.message)
+}
+
+function applyChoiceSelection(
+  activeChoices: SurveyChoiceSet,
+  choices: SurveyChoice[],
+  otherCommentPatch: Partial<ConversationState>,
+  message: string,
+): ChoicePanelPatch | null {
+  const choice = choices[0]
+  if (!choice) return null
   switch (activeChoices.id) {
     case "dcp-required":
       return {
@@ -180,7 +288,7 @@ export function applyActiveChoiceAnswer(input: {
           workSiteLabel: choice.label,
           ...otherCommentPatch,
           ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
-          ...toUnknownChoicePatch(activeChoices, choices, input.message),
+          ...toUnknownChoicePatch(activeChoices, choices, message),
         },
         jobContext: { workSite: toWorkSite(choice.id) },
       }
@@ -220,7 +328,7 @@ export function applyActiveChoiceAnswer(input: {
           },
           ...otherCommentPatch,
           ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
-          ...toUnknownChoicePatch(activeChoices, choices, input.message),
+          ...toUnknownChoicePatch(activeChoices, choices, message),
         },
         jobContext: {},
       }
@@ -619,40 +727,7 @@ export function isSatisfiedChoicePanel(
   choiceSet: SurveyChoiceSet | undefined,
   conversationState: ConversationState,
 ): boolean {
-  switch (choiceSet?.id) {
-    case "job-kind":
-      return conversationState.hasJobKind
-    case "project-length":
-      return Boolean(conversationState.hasProjectLength)
-    case "final-medium":
-      return conversationState.hasFinalMedium
-    case "additional-work":
-      return conversationState.hasAdditionalWork
-    case "documentary-attachment":
-      return conversationState.hasDocumentaryAttachments
-    case "work-site":
-      return conversationState.hasWorkSite
-    case "lecture-training-content":
-      return Boolean(conversationState.hasLectureTrainingContent)
-    case "lecture-training-format":
-      return Boolean(conversationState.hasLectureTrainingVenue)
-    case "lecture-training-software":
-      return Boolean(conversationState.hasLectureTrainingSoftware)
-    case "production-options":
-      return Boolean(conversationState.hasProductionOptions)
-    case "material-timing":
-      return Boolean(conversationState.hasMaterialTiming)
-    case "reference-urls":
-      return conversationState.hasReferenceUrls
-    case "delivery-format":
-      return Boolean(conversationState.hasDeliveryFormat)
-    case "dcp-required":
-      return Boolean(conversationState.hasDcpRequirement)
-    case "dcp-creator":
-      return Boolean(conversationState.hasDcpCreator)
-    default:
-      return false
-  }
+  return Boolean(choiceSet && isConditionAnswered(choiceSet.id, conversationState))
 }
 
 function resolveChoices(activeChoices: SurveyChoiceSet | undefined, message: string): SurveyChoice[] {
@@ -727,17 +802,7 @@ function applyJobKindChoice(
 }
 
 function toKnownJobKind(choiceId: string): JobKind | undefined {
-  if (
-    choiceId === "cm-30s" ||
-    choiceId === "mv-5m" ||
-    choiceId === "feature-90m" ||
-    choiceId === "drama-first" ||
-    choiceId === "live-60m" ||
-    choiceId === "vertical-60s"
-  ) {
-    return choiceId
-  }
-  return undefined
+  return normalizeJobKind(choiceId)
 }
 
 function normalizeLectureTrainingContentChoices(choices: SurveyChoice[]): SurveyChoice[] {

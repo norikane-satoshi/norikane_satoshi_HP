@@ -3,13 +3,12 @@ import {
   bookingFinalConfirmationChoices,
   formatProjectLengthMinutes,
   materialTimingChoices,
-  deliveryFormatChoices,
-  dcpRequiredChoices,
-  dcpCreatorChoices,
   projectLengthChoicesForJobKind,
   surveyChoiceSets,
 } from "@/lib/chatbot/domain"
 import { isLectureTrainingInquiry } from "@/lib/chatbot/server/lecture-training"
+import { missingConditionPanels } from "./condition-intake"
+import { getProjectConditionDefinition } from "@/lib/booking/domain/project-conditions"
 
 export type ChatbotFlowStep =
   | "conversation"
@@ -301,24 +300,8 @@ export function getMissingBookingReadinessSlots(
     bookingPrefill?: Extract<RoutingDecision, { kind: "to-booking-inline" }>["bookingPrefill"]
   } = {},
 ): BookingReadinessSlot[] {
-  const jobContext = options.jobContext
   return [
-    conversationState.hasJobKind || jobContext?.jobKind ? undefined : "job-kind",
-    conversationState.hasProjectLength ||
-      typeof jobContext?.projectLengthMinutes === "number" ||
-      hasImplicitProjectLength(jobContext?.jobKind)
-      ? undefined
-      : "project-length",
-    conversationState.hasFinalMedium || (jobContext?.finalMedium && jobContext.finalMedium !== "other")
-      ? undefined
-      : "final-medium",
-    conversationState.hasDeliveryFormat ? undefined : "delivery-format",
-    (conversationState.finalMedia?.includes("cinema") || jobContext?.finalMedium === "cinema") && !conversationState.hasDcpRequirement ? "dcp-required" : undefined,
-    (conversationState.finalMedia?.includes("cinema") || jobContext?.finalMedium === "cinema") && conversationState.dcpRequirement === "required" && !conversationState.hasDcpCreator ? "dcp-creator" : undefined,
-    conversationState.hasWorkSite || jobContext?.workSite ? undefined : "work-site",
-    conversationState.hasMaterialTiming && conversationState.materialHandoff?.timing
-      ? undefined
-      : "material-timing",
+    ...missingConditionPanels(conversationState, options.jobContext).map((panel) => panel.id),
     conversationState.hasContactEmail && conversationState.contactEmail ? undefined
       : options.bookingPrefill?.contactEmail ? undefined
         : "contact-email",
@@ -328,36 +311,15 @@ export function getMissingBookingReadinessSlots(
   ].filter((item): item is BookingReadinessSlot => Boolean(item))
 }
 
-type BookingReadinessSlot =
-  | "job-kind"
-  | "project-length"
-  | "final-medium"
-  | "work-site"
-  | "material-timing"
-  | "delivery-format"
-  | "dcp-required"
-  | "dcp-creator"
-  | "contact-email"
-  | "desired-schedule"
+type BookingReadinessSlot = string
 
-function isMaterialReadinessSlot(slot: BookingReadinessSlot): slot is Extract<
-  BookingReadinessSlot,
-  "material-timing"
-> {
+function isMaterialReadinessSlot(slot: BookingReadinessSlot): slot is "material-timing" {
   return slot === "material-timing"
 }
 
 function isMaterialHandoffDecision(decision: RoutingDecision | undefined): boolean {
   if (decision?.kind !== "continue") return false
-  const text = [
-    decision.nextQuestion,
-    decision.presentChoices?.question,
-    ...(decision.presentChoices?.choices.map((choice) => choice.label) ?? []),
-  ]
-    .filter(Boolean)
-    .join("\n")
-    .normalize("NFKC")
-  return /素材.{0,40}(?:いつ|時期|揃う日)/u.test(text)
+  return decision.presentChoices?.id === "material-timing"
 }
 
 export function wasBookingFinalQuestionOffered(conversationState: ConversationState): boolean {
@@ -416,10 +378,6 @@ function hasNoAdditionalBookingConcern(conversationState: ConversationState, lat
     conversationState.bookingFinalConfirmation?.status === "confirmed" ||
     isNoAdditionalBookingConcern(latestUserMessage)
   )
-}
-
-function hasImplicitProjectLength(jobKind: JobContext["jobKind"] | undefined): boolean {
-  return Boolean(jobKind && /(?:-\d+[smh]|feature-90m|vertical-60s)/u.test(jobKind))
 }
 
 function isCleanBookingProceedSignal(assistantText: string): boolean {
@@ -538,27 +496,15 @@ const materialReadinessChoiceSets = {
 } as const
 
 function buildMissingBookingReadinessQuestion(slot: ReturnType<typeof getMissingBookingReadinessSlots>[number]): string {
+  const definition = getProjectConditionDefinition(slot)
+  if (definition) return definition.question
   switch (slot) {
-    case "job-kind":
-      return "まず案件種別を選んでください"
-    case "project-length":
-      return "尺・分量を1つ教えてください。"
-    case "final-medium":
-      return "最終媒体は何になりますか？"
-    case "work-site":
-      return "立ち会い方法の希望はありますか？"
-    case "material-timing":
-      return materialReadinessChoiceSets[slot].question
-    case "delivery-format":
-      return deliveryFormatChoices.question
-    case "dcp-required":
-      return dcpRequiredChoices.question
-    case "dcp-creator":
-      return dcpCreatorChoices.question
     case "contact-email":
       return "ご連絡先メールを教えてください"
     case "desired-schedule":
       return desiredScheduleQuestion
+    default:
+      throw new Error(`Unknown booking readiness slot: ${slot}`)
   }
 }
 

@@ -1,4 +1,5 @@
 import { parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
+import { workflowPresetJobKind } from "@/lib/booking/domain/job-kind"
 import type {
   DocumentaryAttachment,
   DeliveryMedium,
@@ -63,10 +64,7 @@ export function inferWorkflowJobContextFromText(
   const normalized = message.normalize("NFKC").toLowerCase().split(/(?<=。)/u).filter((sentence) => !/[?？]/u.test(sentence)).join("")
   const explicitJobKind = inferJobKind(normalized)
   const explicitProjectLengthMinutes = inferProjectLengthMinutes(normalized)
-  const safeExplicitJobKind =
-    explicitJobKind && canInferExplicitJobKind(explicitJobKind, explicitProjectLengthMinutes)
-      ? explicitJobKind
-      : undefined
+  const safeExplicitJobKind = explicitJobKind
   const jobKind = current.jobKind ?? safeExplicitJobKind
   const canInferProjectLength =
     current.projectLengthMinutes === undefined &&
@@ -92,10 +90,6 @@ export function inferWorkflowJobContextFromText(
   return inferred
 }
 
-function canInferExplicitJobKind(jobKind: JobKind, projectLengthMinutes: number | undefined): boolean {
-  return workflowDurationJobKindMap[jobKind].baselineMinutes === undefined || projectLengthMinutes !== undefined
-}
-
 function looksLikeJobKindChoiceOnly(text: string): boolean {
   if (!/^\s*選択\s*[：:]/u.test(text)) return false
   if (!inferJobKind(text)) return false
@@ -103,19 +97,20 @@ function looksLikeJobKindChoiceOnly(text: string): boolean {
 }
 
 function inferJobKind(text: string): JobKind | undefined {
-  if (/(?:ライブ|live)/u.test(text)) return "live-60m"
-  if (/(?:縦型|縦動画|縦長|shorts|reels|tiktok|vertical)/u.test(text)) return "vertical-60s"
+  if (/(?:ライブ|live)/u.test(text)) return "live"
+  if (/(?:縦型|縦動画|縦長|shorts|reels|tiktok|vertical)/u.test(text)) return "vertical"
   if (/(?:ドラマ|drama)/u.test(text)) {
     if (/(?:2話目以降|二話目以降|第?[2-9][0-9]*話|[2-9][0-9]*話目|続話|継続)/u.test(text)) {
-      return "drama-follow-up"
+      return "drama"
     }
-    if (/(?:初回|第?1話|1話目|一話目)/u.test(text)) return "drama-first"
-    return "drama-first"
+    return "drama"
   }
-  if (/(?:本編|長編|feature)/u.test(text)) return "feature-90m"
-  if (/(?:ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(text)) return "mv-5m"
+  if (/(?:短編|short\s*film)/u.test(text)) return "short-film"
+  if (/(?:ドキュメンタリー|documentary)/u.test(text)) return "documentary"
+  if (/(?:本編|長編|feature)/u.test(text)) return "feature"
+  if (/(?:ミュージックビデオ|music\s*video|(?:^|[^a-z0-9])mv(?:$|[^a-z0-9]))/u.test(text)) return "mv"
   if (/(?:web\s*cm|ウェブ\s*cm|webコマーシャル|cm\s*\d|(?:^|[^a-z0-9])cm(?:$|[^a-z0-9])|コマーシャル)/u.test(text)) {
-    return "cm-30s"
+    return "cm"
   }
 
   return undefined
@@ -146,10 +141,12 @@ function inferDeliveryMedium(text: string): DeliveryMedium | undefined {
 }
 
 export function estimateBaseDuration(
-  jobKind: JobKind,
+  inputJobKind: JobKind,
   lengthMinutes: number,
   options: DurationEstimatorOptions = {},
 ): BaseDurationRange {
+  const jobKind = workflowPresetJobKind(inputJobKind)
+  if (!jobKind) throw new Error("No workflow baseline for this project kind")
   const presetDays = (presetId: WorkflowDurationPresetId): PresetDays => {
     // A snapshot synced before a line (or its stage columns) existed lacks it; the built-in line
     // stands in until the next sync.
@@ -315,7 +312,7 @@ export function estimateWorkflow(
     throw new Error("jobKind is required to estimate chatbot workflow duration")
   }
 
-  if (jobContext.projectLengthMinutes === undefined || !Number.isFinite(jobContext.projectLengthMinutes) || jobContext.projectLengthMinutes <= 0) {
+  if (!workflowPresetJobKind(jobContext.jobKind) || jobContext.projectLengthMinutes === undefined || !Number.isFinite(jobContext.projectLengthMinutes) || jobContext.projectLengthMinutes <= 0) {
     return {
       stages: [], totalMinDays: 0, totalMaxDays: 0,
       riskFlags: jobContext.heavyRetouch ? ["heavy-retouch"] : [],
@@ -403,7 +400,7 @@ function resolveAttendanceDays(range: DayRange, chosen: number | undefined): num
 
 function getEstimateStatus(jobContext: JobContext, base: BaseDurationRange): Partial<WorkflowEstimate> {
   if (
-    jobContext.jobKind === "live-60m" &&
+    jobContext.jobKind && workflowPresetJobKind(jobContext.jobKind) === "live-60m" &&
     typeof jobContext.projectLengthMinutes === "number" &&
     jobContext.projectLengthMinutes > workflowDurationLengthAnchors["live-60m"].long.minutes
   ) {

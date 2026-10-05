@@ -20,7 +20,12 @@ import type {
   SurveyChoiceSet,
   WorkSite,
 } from "@/lib/chatbot/domain"
+import { visibleConditionAnswers } from "./condition-intake"
 import { prisma } from "@/lib/prisma"
+import { conditionChoiceSet } from "@/lib/chatbot/domain/survey-choice"
+import { getProjectConditionDefinition } from "@/lib/booking/domain/project-conditions"
+import type { ConditionAnswers } from "@/lib/booking/domain/project-conditions"
+import { normalizeJobKind } from "@/lib/booking/domain/job-kind"
 
 type RoutingDecisionKind = RoutingDecision["kind"]
 export type ChatbotRepositoryClient = Prisma.TransactionClient | PrismaClient
@@ -46,15 +51,6 @@ const routingDecisionKinds = [
 ] as const satisfies readonly RoutingDecisionKind[]
 
 const messageRoles = ["user", "assistant", "system"] as const satisfies readonly ChatbotMessageRole[]
-const jobKinds = [
-  "cm-30s",
-  "mv-5m",
-  "feature-90m",
-  "drama-first",
-  "drama-follow-up",
-  "vertical-60s",
-  "live-60m",
-] as const satisfies readonly JobKind[]
 const finalMediums = [
   "ott",
   "cinema",
@@ -338,6 +334,7 @@ export async function linkConversationToUser(input: {
 export async function linkChatToBookingGroup(input: {
   conversationId: string
   bookingGroupId: string
+  conditionAnswers?: ConditionAnswers
 }): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const [contextFields] = await tx.$queryRaw<RepositoryContextFields[]>`
@@ -346,9 +343,13 @@ export async function linkChatToBookingGroup(input: {
       WHERE "id" = ${input.conversationId}
       LIMIT 1
     `
+    const storedState = toConversationState(contextFields?.conversationState) ?? {}
     const submittedAt = new Date()
     const conversationState = serializeConversationState(
-      withSubmittedBookingState(toConversationState(contextFields?.conversationState) ?? {}, {
+      withSubmittedBookingState({
+        ...storedState,
+        ...(input.conditionAnswers ? { conditionAnswers: visibleConditionAnswers({ ...storedState.conditionAnswers, ...input.conditionAnswers }) } : {}),
+      }, {
         reservationNumber: input.bookingGroupId,
         submittedAt: submittedAt.toISOString(),
       }),
@@ -524,7 +525,7 @@ function toConversationSummaryUpdateData(
     customerCompany: summary.companyName ?? null,
     customerEmail: summary.customerEmail,
     finalMedium: jobContext.finalMedium,
-    jobType: summary.subject,
+    jobType: normalizeJobKind(jobContext.jobKind) ?? summary.subject,
     mainDuration:
       typeof jobContext.projectLengthMinutes === "number"
         ? String(jobContext.projectLengthMinutes)
@@ -539,7 +540,7 @@ function toConversationSummaryUpdateData(
 function toJobContextUpdateData(jobContext: JobContext): Prisma.ChatbotConversationUpdateInput {
   return {
     finalMedium: jobContext.finalMedium,
-    jobType: jobContext.jobKind ?? null,
+    jobType: normalizeJobKind(jobContext.jobKind) ?? null,
     mainDuration:
       typeof jobContext.projectLengthMinutes === "number"
         ? String(jobContext.projectLengthMinutes)
@@ -573,9 +574,7 @@ function toJobContext(row: ChatbotConversationRow): Partial<JobContext> {
 }
 
 function toJobKind(value: string | null): JobKind | undefined {
-  if (value === null) return undefined
-  if (isOneOf(value, jobKinds)) return value
-  return undefined
+  return normalizeJobKind(value ?? undefined)
 }
 
 function toConversationStatus(
@@ -672,8 +671,11 @@ function toConversationState(value: string | null | undefined): Partial<Conversa
     throw new Error("Invalid chatbot conversation state JSON")
   }
   const state = parsed as Partial<ConversationState>
+  const kindAnswer = state.conditionAnswers?.["job-kind"]
+  if (kindAnswer?.selectedIds) kindAnswer.selectedIds = kindAnswer.selectedIds.map((id) => normalizeJobKind(id) ?? id)
   const durationContext = state.durationContext
   const workflowFacts = durationContext?.workflowFacts
+  if (workflowFacts?.jobKind) workflowFacts.jobKind = normalizeJobKind(workflowFacts.jobKind)
   const storedAdditionalWork = workflowFacts?.additionalWork
   if (!durationContext || !Array.isArray(storedAdditionalWork)) return state
   return {
@@ -755,12 +757,15 @@ function normalizeSurveyChoiceSet(value: unknown): SurveyChoiceSet | null {
         typeof (choice as { label?: unknown }).label === "string",
     )
   if (!isValid) return null
+  if (getProjectConditionDefinition(id)) return conditionChoiceSet(id)
   return {
     id,
     question,
     selectionMode,
     ...(allowFreeText === true ? { allowFreeText } : {}),
     choices,
+    ...(candidate.input ? { input: candidate.input } : {}),
+    ...(candidate.visibility ? { visibility: candidate.visibility } : {}),
   }
 }
 

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import type { Prisma } from "@prisma/client"
 
 import type { ConversationState } from "@/lib/chatbot/domain/conversation"
+import { retainConditionAnswers } from "./condition-intake"
 import { prisma } from "@/lib/prisma"
 
 export type ChatbotMessageRequestStatus = "processing" | "completed" | "failed"
@@ -462,6 +463,7 @@ export async function replaceChatbotMessageRequestUserMessage(input: {
     })
     const choiceAnswers = Object.fromEntries(Object.entries(state?.choiceAnswers ?? {})
       .filter(([id]) => remaining.some((message) => message.id === id)))
+    const conditionAnswers = retainConditionAnswers(state?.conditionAnswers, new Set(remaining.map((message) => message.id)))
     const editedAnswer = state?.choiceAnswers?.[input.targetMessageId]
     if (editedAnswer) choiceAnswers[input.ownership.requestKey] = editedAnswer
 
@@ -481,7 +483,7 @@ export async function replaceChatbotMessageRequestUserMessage(input: {
         referenceUrls: null,
         currentQuestion: null,
         activeChoices: null,
-        conversationState: Object.keys(choiceAnswers).length ? JSON.stringify({ choiceAnswers }) : null,
+        conversationState: Object.keys(choiceAnswers).length || Object.keys(conditionAnswers).length ? JSON.stringify({ choiceAnswers, conditionAnswers }) : null,
         messages: {
           create: {
             id: input.ownership.requestKey,

@@ -96,7 +96,7 @@ describe("chatbot fallback router", () => {
 
   it.each(["drama-first", "live-60m", "cm-30s", "mv-5m"] as const)("requests exact duration without buckets for %s", (jobKind) => {
     const result = decideRoutingFallback({ jobContext: jobContext({ jobKind }), conversationState: conversationState({ hasProjectLength: false }) })
-    expect(result).toMatchObject({ kind: "continue", presentChoices: { id: "project-length", choices: [] } })
+    expect(result).toMatchObject({ kind: "continue", presentChoices: { id: "project-length", input: "composition" } })
   })
 
   it("continues with additional work choices after final medium and job kind are collected", () => {
@@ -341,6 +341,7 @@ describe("chatbot fallback router", () => {
       conversationState: conversationState({
         turnCount: 24,
         hasMaterialDetails: false,
+        hasMaterialTiming: false,
         materialHandoff: undefined,
       }),
     })
