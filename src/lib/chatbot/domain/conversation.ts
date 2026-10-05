@@ -51,6 +51,8 @@ export type ChatbotConversation = {
 }
 
 export type ConversationState = {
+  conditionAnswers?: import("@/lib/booking/domain/project-conditions").ConditionAnswers
+  activeConditionId?: import("@/lib/booking/domain/project-conditions").ProjectConditionId
   choiceAnswers?: Record<string, ChoiceAnswer>
   requestKind?: "production" | "lecture-training"
   hasFinalMedium: boolean

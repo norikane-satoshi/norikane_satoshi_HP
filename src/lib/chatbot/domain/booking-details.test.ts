@@ -37,7 +37,7 @@ it("preserves a natural project correction without taking unrelated work time as
 
 it("replaces obsolete automatic memo fields with the same confirmed details used downstream", () => {
   const memo = bookingDetailsMemo("メモ\n尺: 1時間\n最終媒体: 劇場\n作業場所: リモート", confirmedBookingDetails({}))
-  expect(memo).toContain("案件種別: 未確認\n尺: 未確認\n最終媒体: 未確認")
+  expect(memo).toContain("案件種別: 未確認\n作品構成: 未確認\n尺: 未確認\n最終媒体: 未確認")
   expect(memo.endsWith("メモ")).toBe(true)
   expect(memo).not.toContain("1時間")
   expect(memo).not.toContain("劇場")
