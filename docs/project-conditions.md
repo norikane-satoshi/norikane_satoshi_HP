@@ -4,6 +4,7 @@
 
 - `projectConditionDefinitions`: id / label / question / input / options / visibility / chatIntake / order。
 - `getProjectConditionDefinition(id)`, `isConditionVisible(definition, answers)`。
+- `visibility` の `includes` / `excludes` は選択肢 ID、`hasDate` / `hasText` は確認済みの日付・文章の有無を評価する。DCP と納期理由の表示条件はこのデータで共有する。日付が未確定でも、明記された納期理由は保持する。
 - `validateConditionAnswers(value: unknown)` は `{ success: true, data: ConditionAnswers } | { success: false, issues: { path: string; message: string }[] }`。未知の質問・選択肢、入力型不一致、不正日付、非整数秒を拒否し、現在の選択で非表示になる回答を data から除く。
 - `sanitizeConditionAnswers(value: unknown): ConditionAnswers` は同じ検証を行い、不正入力では TypeError を投げる。JSON の受け口では validate の結果で 400 を返す。
 - `formatConditionAnswer(definition, answer)`, `projectConditionDetails(answers)` は既存の label / value 経路へ出力する。

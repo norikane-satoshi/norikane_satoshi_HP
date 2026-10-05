@@ -15,7 +15,7 @@ export type ConditionAnswer = {
   sourceMessageId?: string
 }
 export type ConditionAnswers = Record<string, ConditionAnswer>
-export type ConditionVisibility = { all?: ConditionVisibility[]; any?: ConditionVisibility[]; questionId?: string; includes?: string[]; excludes?: string[] }
+export type ConditionVisibility = { all?: ConditionVisibility[]; any?: ConditionVisibility[]; questionId?: string; includes?: string[]; excludes?: string[]; hasDate?: boolean; hasText?: boolean }
 export type ProjectConditionDefinition = {
   id: string
   label: string
@@ -246,7 +246,7 @@ const retouchCutCount = {
   visibility: { questionId: "additional-work", includes: ["retouch", "skin-retouch", "compositing"] },
 } as const satisfies ProjectConditionDefinition
 const desiredDeliveryDate = { id: "desired-delivery-date", label: "納品希望日", question: "納品希望日を教えてください", input: "date", options: [] } as const satisfies ProjectConditionDefinition
-const deliveryDateReason = { id: "delivery-date-reason", label: "納品希望日の理由", question: "納品希望日の理由を教えてください", input: "text", options: [] } as const satisfies ProjectConditionDefinition
+const deliveryDateReason = { id: "delivery-date-reason", label: "納品希望日の理由", question: "納品希望日の理由を教えてください", input: "text", options: [], visibility: { any: [{ questionId: "desired-delivery-date", hasDate: true }, { questionId: "delivery-date-reason", hasText: true }] } } as const satisfies ProjectConditionDefinition
 const preferredDates = { id: "preferred-dates", label: "希望日", question: "作業希望日を教えてください", input: "dates", options: [], unknownValue: "未定（日程は則兼と相談）" } as const satisfies ProjectConditionDefinition
 const unavailableDates = { id: "unavailable-dates", label: "都合の悪い日", question: "都合の悪い日を教えてください", input: "dates", options: [] } as const satisfies ProjectConditionDefinition
 
@@ -286,7 +286,7 @@ export function isConditionVisible(definition: ProjectConditionDefinition, answe
     if (rule.any) return rule.any.some(evaluate)
     const answer = answers[rule.questionId ?? ""]
     const ids = answer?.status === "unknown" ? [] : answer?.selectedIds ?? []
-    return (!rule.includes || rule.includes.some((id) => ids.includes(id))) && (!rule.excludes || !rule.excludes.some((id) => ids.includes(id)))
+    return (!rule.hasDate || (answer?.status !== "unknown" && Boolean(answer?.date && isCalendarDate(answer.date)))) && (!rule.hasText || (answer?.status !== "unknown" && Boolean(answer?.text?.trim()))) && (!rule.includes || rule.includes.some((id) => ids.includes(id))) && (!rule.excludes || !rule.excludes.some((id) => ids.includes(id)))
   }
   return !definition.visibility || evaluate(definition.visibility)
 }

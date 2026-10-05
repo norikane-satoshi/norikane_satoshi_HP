@@ -1,7 +1,6 @@
 "use client"
 
 import { isCalendarDate, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
-import { DeadlineInput } from "./DeadlineInput"
 import { ProjectConditionInput } from "./ProjectConditionInput"
 import { projectConditionDefinitions, isConditionVisible, projectConditionDetails, formatConditionAnswer, type ProjectConditionDefinition, type ConditionAnswers, type ConditionAnswer } from "@/lib/booking/domain/project-conditions"
 import { parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
@@ -389,11 +388,12 @@ export function ChatbotBookingCard({
     }
     return answers
   })
-  const reviewDefinitions = (projectConditionDefinitions as readonly ProjectConditionDefinition[]).filter((definition) => definition.summary !== false && isConditionVisible(definition, reviewAnswers))
+  const reviewVisibilityAnswers = { ...reviewAnswers, "desired-delivery-date": isCalendarDate(dueDate) ? { date: dueDate } : { status: "unknown" as const } }
+  const reviewDefinitions = (projectConditionDefinitions as readonly ProjectConditionDefinition[]).filter((definition) => definition.summary !== false && isConditionVisible(definition, reviewVisibilityAnswers))
   const submissionAnswers: ConditionAnswers = {
     ...Object.fromEntries((projectConditionDefinitions as readonly ProjectConditionDefinition[]).filter((definition) => definition.summary !== false).map((definition) => {
       const answer = reviewAnswers[definition.id]
-      const confirmed = isConditionVisible(definition, reviewAnswers) && formatConditionAnswer(definition, answer) !== (definition.unknownValue ?? "未確認")
+      const confirmed = isConditionVisible(definition, reviewVisibilityAnswers) && formatConditionAnswer(definition, answer) !== (definition.unknownValue ?? "未確認")
       return [definition.id, confirmed ? answer : { status: "unknown" }]
     })),
     "desired-delivery-date": isCalendarDate(dueDate) ? { status: "answered", date: dueDate } : { status: "unknown" },
@@ -402,8 +402,8 @@ export function ChatbotBookingCard({
   }
   const reviewDetails = projectConditionDetails(submissionAnswers)
   const visibleReviewLabels = new Set(reviewDefinitions.flatMap((definition) => definition.detailLabels ?? [definition.label]))
-  const displayedReviewDetails = reviewDetails.filter((item) => visibleReviewLabels.has(item.label) && !["希望日", "都合の悪い日"].includes(item.label))
-  const visibleReviewDefinitions = reviewDefinitions.filter((definition) => !["desired-delivery-date", "preferred-dates", "unavailable-dates"].includes(definition.id) && (definition.id !== "delivery-date-reason" || isCalendarDate(dueDate)))
+  const displayedReviewDetails = reviewDetails.filter((item) => visibleReviewLabels.has(item.label))
+  const visibleReviewDefinitions = reviewDefinitions.filter((definition) => !["preferred-dates", "unavailable-dates"].includes(definition.id))
   const [agreed, setAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -592,6 +592,11 @@ export function ChatbotBookingCard({
   }, [displayedMonthRequest, displayedMonthRequestKey, monthCandidateOverrides])
 
   const updateReviewAnswer = (conditionId: string, answer: ConditionAnswer) => {
+    if (conditionId === "desired-delivery-date") {
+      const value = answer.status === "unknown" ? "未定" : answer.date ?? ""
+      setDueDate(value)
+      if (isCalendarDate(value)) setSelectedSlots((current) => current.filter((slot) => jstDateKey(slot.start) <= value))
+    }
     setReviewAnswers((current) => {
       const next = { ...current, [conditionId]: answer }
       return Object.fromEntries(Object.entries(next).filter(([id]) => {
@@ -863,13 +868,6 @@ export function ChatbotBookingCard({
         ) : (
         <>
         <dl className="space-y-2 rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3 text-sm" aria-label="送信する内容">
-          <div>
-            <dt className="text-xs font-semibold text-hp-muted">希望日</dt>
-            <dd className="mt-0.5 whitespace-pre-line text-hp">
-              {selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "未定（日程は則兼と相談）"}
-            </dd>
-          </div>
-          {unavailableDates.trim() ? <div><dt className="text-xs font-semibold text-hp-muted">都合の悪い日</dt><dd className="mt-0.5 break-words text-hp">{unavailableDates.trim()}</dd></div> : null}
           {displayedReviewDetails.map((item) => (
             <div key={item.label}>
               <dt className="text-xs font-semibold text-hp-muted">{item.label}</dt>
@@ -884,7 +882,7 @@ export function ChatbotBookingCard({
         <div className="grid gap-3">
           <p className="text-sm text-hp-muted">案件の条件を確認し、違う項目は修正してください。分からない項目は未定を選ぶか空欄にしてください（未確認として届きます）。納期は日付または未定を選んでください。</p>
           {visibleReviewDefinitions.map((definition) => (
-            <ProjectConditionInput key={definition.id} definition={definition} answer={reviewAnswers[definition.id] ?? {}} onChange={(answer) => updateReviewAnswer(definition.id, answer)} />
+            <ProjectConditionInput key={definition.id} definition={definition} answer={submissionAnswers[definition.id] ?? {}} onChange={(answer) => updateReviewAnswer(definition.id, answer)} />
           ))}
           <label className="block text-sm font-medium text-hp">
             案件名
@@ -898,16 +896,6 @@ export function ChatbotBookingCard({
               aria-label="案件名"
               required
             />
-          </label>
-          <label className="block text-sm font-medium text-hp">
-            納期
-            <DeadlineInput value={dueDate} onChange={(value) => {
-              setDueDate(value)
-              setAgreed(false)
-              if (isCalendarDate(value)) {
-                setSelectedSlots((current) => current.filter((slot) => jstDateKey(slot.start) <= value))
-              }
-            }} />
           </label>
           <label className="block text-sm font-medium text-hp">
             会社名

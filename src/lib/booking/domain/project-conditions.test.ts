@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { getProjectConditionDefinition, isConditionVisible, projectConditionDefinitions, projectConditionDetails, formatConditionAnswer, validateConditionAnswers, sanitizeConditionAnswers } from "./project-conditions"
+
+it("uses the same declarative deadline reason visibility in every output", () => {
+  const definition = getProjectConditionDefinition("delivery-date-reason")!
+  expect(isConditionVisible(definition, {})).toBe(false)
+  expect(isConditionVisible(definition, { "desired-delivery-date": { status: "unknown" } })).toBe(false)
+  expect(isConditionVisible(definition, { "desired-delivery-date": { date: "2026-10-25" } })).toBe(true)
+  expect(isConditionVisible(definition, { "desired-delivery-date": { status: "unknown" }, "delivery-date-reason": { text: "試写会" } })).toBe(true)
+})
 import { confirmedBookingDetails, displayBookingDetails, bookingDetailsMemo, readBookingDetailsMemo } from "@/lib/chatbot/domain/booking-details"
 import { conditionChoiceSet } from "@/lib/chatbot/domain/survey-choice"
 import { matchChoiceAnswer } from "@/lib/chatbot/domain/choice-answer"

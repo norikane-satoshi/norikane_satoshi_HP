@@ -17,7 +17,11 @@ function detailVisibilityAnswers(details: ReadonlyArray<BookingDetail>): Conditi
   const answers: ConditionAnswers = {}
   for (const { label, value } of details) {
     const definition = definitionForLabel(label)
-    if (definition) answers[definition.id] = { selectedIds: definition.options.filter((option) => (value === option.label || value.split(" / ").includes(option.label)) || ("aliases" in option && (option.aliases as readonly string[]).some((alias) => value === alias || value.split(" / ").includes(alias)))).map(({ id }) => id) }
+    if (definition) answers[definition.id] = {
+      selectedIds: definition.options.filter((option) => (value === option.label || value.split(" / ").includes(option.label)) || ("aliases" in option && (option.aliases as readonly string[]).some((alias) => value === alias || value.split(" / ").includes(alias)))).map(({ id }) => id),
+      ...(definition.input === "date" ? { date: bookingDateKeyFromDisplay(value) } : {}),
+      ...(definition.input === "text" && value !== unconfirmedBookingValue ? { text: value } : {}),
+    }
   }
   return answers
 }

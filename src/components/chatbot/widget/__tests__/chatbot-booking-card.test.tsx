@@ -129,12 +129,12 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     const summary = screen.getByLabelText("送信する内容")
     expect(Array.from(summary.querySelectorAll("dt"), (element) => element.textContent)).toEqual([
-      "希望日", "都合の悪い日", "案件種別", "作品構成", "尺", "最終媒体", "納品形式", "DCP必要性", "DCP作成担当",
-      "納品希望日", "納品希望日の理由", "素材が揃う日", "作業場所/立ち会い", "追加作業", "付随素材", "字幕・テロップ等", "参考URL",
+      "案件種別", "作品構成", "尺", "最終媒体", "納品形式", "DCP必要性", "DCP作成担当",
+      "納品希望日", "納品希望日の理由", "素材が揃う日", "希望日", "都合の悪い日", "作業場所/立ち会い", "追加作業", "付随素材", "字幕・テロップ等", "参考URL",
     ])
     expect(within(summary).getByText("2026/10/25(日)")).toBeInTheDocument()
     expect(within(summary).getByText("2026/10/18(日)")).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText("納期をカレンダーで選ぶ"), { target: { value: "2026-10-26" } })
+    fireEvent.change(screen.getByLabelText("納品希望日をカレンダーで選ぶ"), { target: { value: "2026-10-26" } })
     expect(within(summary).getByText("2026/10/26(月)")).toBeInTheDocument()
     expect(within(summary).getByText("映画祭応募")).toBeInTheDocument()
   })
@@ -163,7 +163,7 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     expect(screen.getByRole("button", { name: "予約内容を送信" })).toBeDisabled()
-    fireEvent.change(screen.getByLabelText("納期をカレンダーで選ぶ"), { target: { value: "2026-10-25" } })
+    fireEvent.change(screen.getByLabelText("納品希望日をカレンダーで選ぶ"), { target: { value: "2026-10-25" } })
     fireEvent.change(screen.getByLabelText("納品希望日の理由"), { target: { value: "11月1日の映画祭応募" } })
     fireEvent.change(screen.getByLabelText("納品形式"), { target: { value: "ProRes 422 HQ、Rec.709" } })
     fireEvent.click(screen.getByLabelText("素材が揃う日は未定"))
