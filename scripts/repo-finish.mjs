@@ -69,6 +69,9 @@ function buildPreflight(options) {
   if (mainStatus) throw new Error("Main checkout must be clean before finishing a task branch");
 
   verifyRefName(options.branch, mainRoot);
+  lifecycle(["policy", "verify", "--require-installed"]);
+  lifecycle(["adapter-attest", "--adapter-id", "codex-app", "--capability", "workspace-mutation"]);
+  lifecycle(["require", "--path", mainRoot, "--adapter-id", "codex-app"]);
   git(["fetch", "--prune", "origin"], { cwd: mainRoot });
 
   const originMasterSha = resolveOptionalRef("origin/master", mainRoot);
@@ -98,7 +101,6 @@ function buildPreflight(options) {
   if (taskWorktrees.length > 1) throw new Error(`Multiple worktrees are attached to ${options.branch}`);
 
   const taskWorktree = taskWorktrees[0];
-  lifecycle(["policy", "verify", "--require-installed"]);
   lifecycle(["adapter-attest", "--adapter-id", "codex-app", "--capability", "disposal"]);
   const registry = lifecycle(["list"]);
   const branches = registry.branches.filter((record) =>
@@ -110,7 +112,9 @@ function buildPreflight(options) {
   if (taskWorktree) {
     if (!fs.existsSync(taskWorktree.path)) throw new Error(`Registered task worktree is missing: ${taskWorktree.path}`);
     const realWorktreePath = fs.realpathSync(taskWorktree.path);
-    workspace = registeredTaskWorkspace(registry.workspaces, fs.realpathSync(mainRoot), realWorktreePath, options.branch);
+    const records = registry.workspaces.filter((record) => path.resolve(record.path) === realWorktreePath)
+      .map((record) => lifecycle(["show", "--workspace-id", record.workspace_id]));
+    workspace = registeredTaskWorkspace(records, fs.realpathSync(mainRoot), realWorktreePath, options.branch);
     if (branches[0]?.workspace_id !== workspace.workspace_id) {
       throw new Error("Branch registration must bind to the exact task workspace");
     }
@@ -120,7 +124,7 @@ function buildPreflight(options) {
     if (audit.processes?.length || audit.listeners?.length || audit.runtime?.running) {
       throw new Error(`Task worktree is in use: ${taskWorktree.path}`);
     }
-    const pendingFinalization = new Set(["physical_disposal_not_authorized"]);
+    const pendingFinalization = new Set(["physical_disposal_not_authorized", "artifact_state_unresolved"]);
     const blockers = audit.reasons.filter((reason) => !pendingFinalization.has(reason));
     if (blockers.length) throw new Error(`Lifecycle audit refused: ${blockers.join(", ")}`);
   }
@@ -149,6 +153,9 @@ function applyFinish(preflight) {
     if (["retained", "quarantined"].includes(workspace.state) || metadata.cleanup_requested || metadata.resume_retention?.status === "retained") {
       lifecycle(["restore-for-mutation", "--workspace-id", workspace.workspace_id, ...owner, "--reason", "Authorized exact integrated branch cleanup"]);
     }
+    lifecycle(["artifact-update", "--workspace-id", workspace.workspace_id, "--artifact-status", "promoted", "--artifact-evidence-json", JSON.stringify({
+      kind: "git-commit", commit: preflight.branchSha, ref: preflight.target, repository: preflight.mainRoot,
+    }), "--adapter-id", "codex-app"]);
     lifecycle(["finalize", "--workspace-id", workspace.workspace_id, ...owner]);
     lifecycle(["dispose", "--workspace-id", workspace.workspace_id, "--adapter-id", "codex-app"]);
   }

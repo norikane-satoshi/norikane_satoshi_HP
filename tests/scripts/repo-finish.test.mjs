@@ -53,7 +53,13 @@ const git = (args) => { const result = spawnSync("git", args, { cwd: config.repo
 let result = { ok: true };
 if (operation === "list") result = { workspaces: [workspace], branches: [branch] };
 if (operation === "show") result = workspace;
-if (operation === "audit") result = { reasons: config.openHandles ? ["open_handles"] : [], processes: [], listeners: [], runtime: {} };
+if (operation === "audit") result = { reasons: config.openHandles ? ["open_handles"] : ["artifact_state_unresolved"], processes: [], listeners: [], runtime: {} };
+if (operation === "artifact-update") {
+ const evidence = JSON.parse(args[args.indexOf("--artifact-evidence-json") + 1]);
+ git(["merge-base", "--is-ancestor", evidence.commit, evidence.ref]);
+ fs.writeFileSync(config.worktreePath + ".promoted.json", JSON.stringify(evidence));
+}
+if (operation === "finalize" && !fs.existsSync(config.worktreePath + ".promoted.json")) process.exit(2);
 if (operation === "dispose") git(["worktree", "remove", config.worktreePath]);
 if (operation === "branch-dispose") git(["branch", "-d", config.branch]);
 console.log(JSON.stringify(result));
@@ -144,6 +150,10 @@ test("apply removes only the clean integrated worktree and exact local/origin br
   assert.equal(report.worktreeRemoved, true);
   assert.equal(report.localDeleted, true);
   assert.equal(report.remoteDeleted, true);
+  const evidence = JSON.parse(fs.readFileSync(fixture.worktreePath + ".promoted.json"));
+  assert.equal(evidence.kind, "git-commit");
+  assert.equal(evidence.commit, report.branchSha);
+  assert.equal(evidence.ref, "origin/master");
   assert.equal(fs.existsSync(fixture.worktreePath), false);
   assert.equal(refExists(fixture.repository, `refs/heads/${fixture.branch}`), false);
   assert.equal(git(fixture.repository, ["ls-remote", "--heads", "origin", fixture.branch]).stdout.trim(), "");
