@@ -2,9 +2,10 @@
 
 import { isCalendarDate, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import { DeadlineInput } from "./DeadlineInput"
-import { ProjectDurationInput } from "./ProjectDurationInput"
-import { formatProjectLengthMinutes, parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import { bookingDetailLabels, displayBookingDetails, unconfirmedBookingValue, type BookingDetail } from "@/lib/chatbot/domain/booking-details"
+import { ProjectConditionInput } from "./ProjectConditionInput"
+import { projectConditionDefinitions, isConditionVisible, projectConditionDetails, formatConditionAnswer, type ProjectConditionDefinition, type ConditionAnswers, type ConditionAnswer } from "@/lib/booking/domain/project-conditions"
+import { parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
+import { unconfirmedBookingValue } from "@/lib/chatbot/domain/booking-details"
 import { formatRequestedBookingDates } from "@/lib/booking/domain/booking-display"
 
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -46,6 +47,7 @@ type ChatbotBookingCardProps = {
   defaultMemo?: string
   /** What the chat settled, listed on the confirmation step and sent with the booking. */
   confirmationItems?: ReadonlyArray<{ label: string; value: string }>
+  conditionAnswers?: ConditionAnswers
   completedBooking?: BookingCompletionSummary
   showDemo?: boolean
   onBooked?: (result: BookingResult) => void
@@ -308,6 +310,7 @@ export function ChatbotBookingCard({
   defaultDueDate = "",
   defaultMemo = "",
   confirmationItems = [],
+  conditionAnswers = {},
   completedBooking,
   showDemo = false,
   onBooked,
@@ -323,7 +326,9 @@ export function ChatbotBookingCard({
     () => addJstMonths(initialMonthKey, displayedMonthOffset),
     [displayedMonthOffset, initialMonthKey],
   )
-  const [dueDate, setDueDate] = useState(isCalendarDate(defaultDueDate) || defaultDueDate === "未定" ? defaultDueDate : "")
+  const initialDueDate = conditionAnswers["desired-delivery-date"]?.status === "unknown"
+    ? "未定" : conditionAnswers["desired-delivery-date"]?.date ?? defaultDueDate
+  const [dueDate, setDueDate] = useState(isCalendarDate(initialDueDate) || initialDueDate === "未定" ? initialDueDate : "")
   const displayedMonthRequest = useMemo<CandidateRequestPayload>(
     () => ({ month: displayedMonthKey, ...(isCalendarDate(dueDate) ? { dueDate } : {}) }),
     [displayedMonthKey, dueDate],
@@ -364,26 +369,40 @@ export function ChatbotBookingCard({
   const [contactEmail, setContactEmail] = useState(defaultContactEmail ?? "")
   const [phone, setPhone] = useState("")
   const [memo, setMemo] = useState(defaultMemo ?? "")
-  const [unavailableDates, setUnavailableDates] = useState("")
-  const [reviewDetails, setReviewDetails] = useState<BookingDetail[]>(() => bookingDetailLabels.map((label) => ({
-    label,
-    value: label === "尺"
-      ? (() => {
-          const minutes = parseProjectLengthMinutes(confirmationItems.find((item) => item.label === label)?.value ?? "")
-          return minutes === undefined || !Number.isInteger(minutes) ? unconfirmedBookingValue : formatProjectLengthMinutes(minutes)
-        })()
-      : confirmationItems.find((item) => item.label === label)?.value ?? unconfirmedBookingValue,
-  })))
-  const theatrical = /劇場/u.test(reviewDetails.find((item) => item.label === "最終媒体")?.value ?? "")
-  const needsDcp = reviewDetails.find((item) => item.label === "DCP必要性")?.value === "必要"
-  const visibleReviewDetails = reviewDetails.filter((item) => item.label !== "納品希望日" &&
-    (item.label !== "納品希望日の理由" || isCalendarDate(dueDate)) &&
-    (item.label !== "DCP必要性" || theatrical) &&
-    (item.label !== "DCP作成担当" || (theatrical && needsDcp)))
-  const updateDetail = (label: BookingDetail["label"], value: string) => {
-    setReviewDetails((current) => current.map((detail) => detail.label === label ? { ...detail, value } : detail))
-    setAgreed(false)
+  const [unavailableDates, setUnavailableDates] = useState(conditionAnswers["unavailable-dates"]?.dates?.join("、") ?? conditionAnswers["unavailable-dates"]?.text ?? "")
+  const [reviewAnswers, setReviewAnswers] = useState<ConditionAnswers>(() => {
+    const answers = { ...conditionAnswers }
+    for (const definition of projectConditionDefinitions as readonly ProjectConditionDefinition[]) {
+      if (answers[definition.id]) continue
+      const item = confirmationItems.find((item) => item.label === definition.label || definition.detailLabels?.includes(item.label))
+      if (!item || item.value === unconfirmedBookingValue) continue
+      if (definition.input === "composition") {
+        const minutes = parseProjectLengthMinutes(item.value)
+        if (minutes !== undefined) answers[definition.id] = { status: "answered", composition: [{ count: 1, durationSeconds: Math.round(minutes * 60) }] }
+      } else if (definition.input === "single" || definition.input === "multiple") {
+        const selectedIds = definition.options.filter((option) => item.value.split(" / ").some((value) => value === option.label || option.aliases?.includes(value))).map((option) => option.id)
+        answers[definition.id] = selectedIds.length ? { status: "answered", selectedIds } : { status: "answered", text: item.value }
+      } else if (definition.input === "date") answers[definition.id] = isCalendarDate(item.value) ? { status: "answered", date: item.value } : { status: "unknown" }
+      else if (definition.input === "number") answers[definition.id] = Number.isSafeInteger(Number(item.value)) ? { status: "answered", number: Number(item.value) } : { status: "unknown" }
+      else answers[definition.id] = { status: "answered", text: item.value }
+    }
+    return answers
+  })
+  const reviewDefinitions = (projectConditionDefinitions as readonly ProjectConditionDefinition[]).filter((definition) => definition.summary !== false && isConditionVisible(definition, reviewAnswers))
+  const submissionAnswers: ConditionAnswers = {
+    ...Object.fromEntries((projectConditionDefinitions as readonly ProjectConditionDefinition[]).filter((definition) => definition.summary !== false).map((definition) => {
+      const answer = reviewAnswers[definition.id]
+      const confirmed = isConditionVisible(definition, reviewAnswers) && formatConditionAnswer(definition, answer) !== (definition.unknownValue ?? "未確認")
+      return [definition.id, confirmed ? answer : { status: "unknown" }]
+    })),
+    "desired-delivery-date": isCalendarDate(dueDate) ? { status: "answered", date: dueDate } : { status: "unknown" },
+    "preferred-dates": selectedSlots.length ? { status: "answered", dates: selectedSlots.map((slot) => jstDateKey(slot.start)) } : { status: "unknown" },
+    "unavailable-dates": unavailableDates.trim() ? { status: "answered", text: unavailableDates.trim() } : { status: "unknown" },
   }
+  const reviewDetails = projectConditionDetails(submissionAnswers)
+  const visibleReviewLabels = new Set(reviewDefinitions.flatMap((definition) => definition.detailLabels ?? [definition.label]))
+  const displayedReviewDetails = reviewDetails.filter((item) => visibleReviewLabels.has(item.label) && !["希望日", "都合の悪い日"].includes(item.label))
+  const visibleReviewDefinitions = reviewDefinitions.filter((definition) => !["desired-delivery-date", "preferred-dates", "unavailable-dates"].includes(definition.id) && (definition.id !== "delivery-date-reason" || isCalendarDate(dueDate)))
   const [agreed, setAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -571,6 +590,17 @@ export function ChatbotBookingCard({
     }
   }, [displayedMonthRequest, displayedMonthRequestKey, monthCandidateOverrides])
 
+  const updateReviewAnswer = (conditionId: string, answer: ConditionAnswer) => {
+    setReviewAnswers((current) => {
+      const next = { ...current, [conditionId]: answer }
+      return Object.fromEntries(Object.entries(next).filter(([id]) => {
+        const definition = projectConditionDefinitions.find((item) => item.id === id)
+        return definition && isConditionVisible(definition, next)
+      }))
+    })
+    setAgreed(false)
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!canSubmit) return
@@ -598,7 +628,8 @@ export function ChatbotBookingCard({
           phone: phone.trim(),
           dueDate,
           memo: submission.memo,
-          confirmedDetails: reviewDetails.map((item) => ({ ...item, value: item.label === "納品希望日" ? (isCalendarDate(dueDate) ? dueDate : unconfirmedBookingValue) : (item.label === "DCP必要性" && !theatrical) || (item.label === "DCP作成担当" && (!theatrical || !needsDcp)) || (item.label === "納品希望日の理由" && !isCalendarDate(dueDate)) ? unconfirmedBookingValue : item.value })),
+          confirmedDetails: reviewDetails,
+          conditionAnswers: submissionAnswers,
           detailsConfirmed: true,
           agreed,
           selectedSlots: selectedSlots.map((slot) => {
@@ -838,10 +869,10 @@ export function ChatbotBookingCard({
             </dd>
           </div>
           {unavailableDates.trim() ? <div><dt className="text-xs font-semibold text-hp-muted">都合の悪い日</dt><dd className="mt-0.5 break-words text-hp">{unavailableDates.trim()}</dd></div> : null}
-          {displayBookingDetails([...reviewDetails, { label: "納品希望日", value: isCalendarDate(dueDate) ? dueDate : unconfirmedBookingValue }]).map((item) => (
+          {displayedReviewDetails.map((item) => (
             <div key={item.label}>
               <dt className="text-xs font-semibold text-hp-muted">{item.label}</dt>
-              <dd className="mt-0.5 break-words text-hp">{item.value.trim() || unconfirmedBookingValue}</dd>
+              <dd className="mt-0.5 break-words text-hp">{isCalendarDate(item.value) ? formatRequestedBookingDates([item.value]) : item.value.trim() || unconfirmedBookingValue}</dd>
             </div>
           ))}
         </dl>
@@ -851,48 +882,8 @@ export function ChatbotBookingCard({
 
         <div className="grid gap-3">
           <p className="text-sm text-hp-muted">案件の条件を確認し、違う項目は修正してください。分からない項目は未定を選ぶか空欄にしてください（未確認として届きます）。納期は日付または未定を選んでください。</p>
-          {visibleReviewDetails.map((item) => (
-            item.label === "尺" ? (
-              <div key={item.label} className="space-y-2">
-                <p className="text-sm font-medium text-hp">尺</p>
-                <ProjectDurationInput
-                  initialMinutes={parseProjectLengthMinutes(item.value)}
-                  onChange={(minutes) => {
-                    const value = minutes === undefined ? unconfirmedBookingValue : formatProjectLengthMinutes(minutes)
-                    setReviewDetails((current) => current.map((detail) => detail.label === "尺" ? { ...detail, value } : detail))
-                    setAgreed(false)
-                  }}
-                />
-              </div>
-            ) : item.label === "素材が揃う日" ? (
-              <div key={item.label} className="space-y-2">
-                <p className="text-sm font-medium text-hp">{item.label}</p>
-                <DeadlineInput label={item.label} value={item.value === unconfirmedBookingValue ? "未定" : item.value} onChange={(value) => updateDetail(item.label, value === "未定" ? unconfirmedBookingValue : value)} />
-              </div>
-            ) : item.label === "作業場所/立ち会い" || item.label === "DCP必要性" ? (
-              <label key={item.label} className="block text-sm font-medium text-hp">
-                {item.label}
-                <select aria-label={item.label} className="glass-input mt-2 w-full px-4 py-3 text-sm" value={item.value} onChange={(event) => updateDetail(item.label, event.target.value)}>
-                  {[unconfirmedBookingValue, ...(item.label === "DCP必要性" ? ["必要", "不要"] : ["オンライン", "先方の場所で", "不要", "お任せ"])].map((value) => <option key={value} value={value}>{value}</option>)}
-                </select>
-                {item.label === "DCP必要性" ? <p className="mt-2 text-xs font-normal text-hp-muted">則兼はDCPを作成しません。必要な場合はポスプロなど他社への依頼になります。</p> : null}
-              </label>
-            ) :
-            <label key={item.label} className="block text-sm font-medium text-hp">
-              {item.label}
-              <input
-                aria-label={item.label}
-                className="glass-input mt-2 w-full min-w-0 px-4 py-3 text-sm"
-                value={item.value === unconfirmedBookingValue ? "" : item.value}
-                placeholder={unconfirmedBookingValue}
-                maxLength={160}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setReviewDetails((current) => current.map((detail) => detail.label === item.label ? { ...detail, value } : detail))
-                  setAgreed(false)
-                }}
-              />
-            </label>
+          {visibleReviewDefinitions.map((definition) => (
+            <ProjectConditionInput key={definition.id} definition={definition} answer={reviewAnswers[definition.id] ?? {}} onChange={(answer) => updateReviewAnswer(definition.id, answer)} />
           ))}
           <label className="block text-sm font-medium text-hp">
             案件名

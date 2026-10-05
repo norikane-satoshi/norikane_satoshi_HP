@@ -1,3 +1,5 @@
+import type { ConditionAnswers } from "@/lib/booking/domain/project-conditions"
+import type { ConditionSubmission } from "./ProjectConditionInput"
 import type {
   BookingCardPrefill,
   ChatbotMessageRole,
@@ -30,6 +32,7 @@ export type BookingCompletionSummary = {
 export type WidgetUi =
   | { kind: "none" }
   | { kind: "duration-input"; question: string }
+  | { kind: "condition-input"; conditionId: string }
   | { kind: "choice-panel"; choiceSet: NonNullable<Extract<RoutingDecision, { kind: "continue" }>["presentChoices"]> }
   | {
       kind: "booking-card"
@@ -41,6 +44,7 @@ export type WidgetUi =
       /** What the chat settled; the card lists it on its confirmation step. */
       confirmationItems?: Array<{ label: string; value: string }>
       confirmationEvidenceVersion?: 1
+      conditionAnswers?: ConditionAnswers
       completedBooking?: BookingCompletionSummary
     }
   | {
@@ -118,6 +122,7 @@ export type ChatbotMessageResponse = {
 }
 
 export type SubmitChatbotMessageInput = {
+  conditionAnswer?: ConditionSubmission
   message: string
   conversationId?: string
   editTargetMessageId?: string

@@ -35,15 +35,14 @@ import {
 import { ChatInput } from "./ChatInput"
 import { ChatMessage } from "./ChatMessage"
 import { ChatbotBookingCard } from "./ChatbotBookingCard"
-import { DurationInputCard } from "./ProjectDurationInput"
+import { ProjectConditionCard, type ConditionSubmission } from "./ProjectConditionInput"
+import { getProjectConditionDefinition } from "@/lib/booking/domain/project-conditions"
 import {
   ChatbotDebugPanel,
   isLocalChatbotDebugHost,
   shouldAutoOpenChatbotDebug,
   type ChatbotDebugRequest,
 } from "./ChatbotDebugPanel"
-import { BookingDetailInputCard } from "./BookingDetailInputCard"
-import { DateAnswerPanel, DeadlinePanel } from "./DeadlineInput"
 import { ChoicePanel } from "./ChoicePanel"
 import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
@@ -140,6 +139,7 @@ type StoredWidgetSession = {
 }
 
 type StoredPendingRequest = {
+  conditionAnswer?: ConditionSubmission
   choiceAnswer?: ChoiceAnswer
   kind: "message" | "edit"
   message: string
@@ -757,6 +757,7 @@ export function WidgetShell({
       const payload = await submitChatbotMessage(
         {
           message: pending.message,
+          conditionAnswer: pending.conditionAnswer,
           conversationId: pending.conversationId ?? conversationId,
           clientUserMessageId: recoveryClientUserMessageId,
           clientSessionId,
@@ -932,7 +933,7 @@ export function WidgetShell({
     setSubmitting(false)
   }
 
-  const handleSubmit = async (text: string, choiceAnswer?: ChoiceAnswer) => {
+  const handleSubmit = async (text: string, choiceAnswer?: ChoiceAnswer, conditionAnswer?: ConditionSubmission) => {
     if (submitting || activeRequestControllerRef.current || recoverableRequest) return
     const debugStartedAt = Date.now()
     const controller = new AbortController()
@@ -942,6 +943,7 @@ export function WidgetShell({
     const nextPendingRequest: StoredPendingRequest = {
       kind: "message",
       choiceAnswer,
+      conditionAnswer,
       message: text,
       clientUserMessageId,
       submittedAt: createdAt.toISOString(),
@@ -970,7 +972,7 @@ export function WidgetShell({
 
     try {
       const payload = await submitChatbotMessage(
-        { message: text, conversationId, clientUserMessageId, clientSessionId },
+        { message: text, conversationId, clientUserMessageId, clientSessionId, conditionAnswer },
         { signal: controller.signal },
       )
       if (controller.signal.aborted) return
@@ -1700,7 +1702,6 @@ export function WidgetShell({
               </div>
             </div>
           ) : null}
-          {!submitting && !recoverableRequest && activeUi.kind === "none" && /(?:納期|納品.*期限|仕上がり).*(?:[？?]|教えて|選んで)/u.test(messages.filter((message) => message.role === "assistant").at(-1)?.content ?? "") ? <DeadlinePanel onSubmit={handleSubmit} /> : null}
           <ActiveWidgetUi
             ui={activeUi}
             conversationId={conversationId}
@@ -1817,7 +1818,7 @@ function ActiveWidgetUi({
   ui: WidgetUi
   conversationId?: string
   auditContext?: ChatbotRenderAuditContext
-  onSubmit: (text: string, choiceAnswer?: ChoiceAnswer) => void
+  onSubmit: (text: string, choiceAnswer?: ChoiceAnswer, conditionAnswer?: ConditionSubmission) => void
   onInquirySubmit: (input: Omit<SubmitInquiryInput, "conversationId">) => void
   onBookingCompleted: (booking: BookingCompletionSummary) => void
 }) {
@@ -1859,25 +1860,22 @@ function ActiveWidgetUi({
     })
   }, [auditContext, conversationId, ui.kind])
 
-  if (ui.kind === "duration-input") {
-    return <DurationInputCard question={ui.question} onSubmit={onSubmit} />
+  if (ui.kind === "duration-input" || ui.kind === "condition-input") {
+    const definition = getProjectConditionDefinition(ui.kind === "duration-input" ? "project-length" : ui.conditionId)
+    return definition ? <ProjectConditionCard key={definition.id} definition={definition} onSubmit={(text, submission) => onSubmit(text, undefined, submission)} /> : null
   }
 
   if (ui.kind === "choice-panel") {
-    if (ui.choiceSet.id === "delivery-format" || ui.choiceSet.id === "dcp-creator") {
-      return <BookingDetailInputCard label={ui.choiceSet.id === "delivery-format" ? "納品形式" : "DCP作成担当"} onSubmit={onSubmit} />
+    const definition = getProjectConditionDefinition(ui.choiceSet.id)
+    if (definition && !["single", "multiple"].includes(definition.input)) {
+      return <ProjectConditionCard key={definition.id} definition={definition} onSubmit={(text, submission) => onSubmit(text, undefined, submission)} />
     }
-    if (ui.choiceSet.id === "material-timing") {
-      return <DateAnswerPanel label="素材が揃う日" onSubmit={onSubmit} />
-    }
-    if (ui.choiceSet.id === "project-length") {
-      return <DurationInputCard question="作品の尺を時間・分で入力してください。未定の場合は未定を選んでください。" onSubmit={onSubmit} />
-    }
+    const choiceSet = definition ? { ...ui.choiceSet, question: definition.question, choices: [...definition.options], selectionMode: definition.input === "multiple" ? "multiple" as const : "single" as const } : ui.choiceSet
     return (
       <ChoicePanel
-        choiceSet={ui.choiceSet}
-        allowMultiple={ui.choiceSet.selectionMode === "multiple"}
-        onSelect={(selection) => onSubmit(formatChoicePanelSubmission(selection), { choiceSet: ui.choiceSet, ...selection })}
+        choiceSet={choiceSet}
+        allowMultiple={choiceSet.selectionMode === "multiple"}
+        onSelect={(selection) => onSubmit(formatChoicePanelSubmission(selection), { choiceSet, ...selection }, definition ? { conditionId: definition.id, answer: { status: selection.selectedIds.includes("undecided") ? "unknown" : "answered", selectedIds: selection.selectedIds, ...(selection.otherComment ? { otherComment: selection.otherComment } : {}) } } : undefined)}
       />
     )
   }
@@ -1899,6 +1897,7 @@ function ActiveWidgetUi({
         defaultDueDate={ui.confirmationEvidenceVersion === 1 ? ui.confirmationItems?.find((item) => item.label === "納品希望日" && item.value !== "未確認")?.value : undefined}
         defaultMemo={ui.confirmationEvidenceVersion === 1 ? ui.bookingPrefill?.memo ?? "" : ""}
         confirmationItems={ui.confirmationEvidenceVersion === 1 ? ui.confirmationItems : undefined}
+        conditionAnswers={ui.conditionAnswers}
         completedBooking={ui.completedBooking}
         auditContext={auditContext}
         onBooked={onBookingCompleted}
@@ -1963,6 +1962,7 @@ function bookingCardInstanceKey(conversationId: string | undefined, ui: Extract<
     ui.bookingPrefill?.companyName ?? "",
     ui.bookingPrefill?.contactEmail ?? "",
     ui.bookingPrefill?.dueDate ?? "",
+    JSON.stringify(ui.conditionAnswers ?? {}),
     ui.suggestedSlots.map((slot) => `${slot.start}/${slot.end}`).join(","),
   ].join("|")
 }

@@ -136,13 +136,13 @@ describe("WidgetShell API wiring", () => {
 
   it.each([
     ["duration-input", "作品の尺を入力してください"],
-    ["none", "納期を教えてください。日付または未定を選んでください。"],
+    ["condition-input", "納品希望日を教えてください"],
   ])("shows the %s input question once", (kind, question) => {
-    writeStoredWidgetSession({ messages: [{ ...assistantMessage, content: question }], activeUi: { kind, question } })
+    writeStoredWidgetSession({ messages: [{ ...assistantMessage, content: question }], activeUi: { kind, question, ...(kind === "condition-input" ? { conditionId: "desired-delivery-date" } : {}) } })
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockJsonResponse({})))
     render(<WidgetShell onMinimize={vi.fn()} />)
     expect(screen.getAllByText(question, { exact: true })).toHaveLength(1)
-    expect(screen.getByLabelText(kind === "duration-input" ? "尺の分" : "納期をカレンダーで選ぶ")).toBeInTheDocument()
+    expect(screen.getByLabelText(kind === "duration-input" ? "尺の分" : "納品希望日をカレンダーで選ぶ")).toBeInTheDocument()
   })
 
   it.each([
@@ -174,11 +174,11 @@ describe("WidgetShell API wiring", () => {
     vi.stubGlobal("fetch", fetchMock)
     render(<WidgetShell onMinimize={vi.fn()} />)
     fireEvent.change(screen.getByLabelText("尺の分"), { target: { value: "18" } })
-    fireEvent.click(screen.getByRole("button", { name: "この尺で回答する" }))
+    fireEvent.click(screen.getByRole("button", { name: "作品構成を回答する" }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const call = fetchMock.mock.calls.find(([url]) => String(url) === "/api/chatbot/message")
-    expect(JSON.parse(call![1].body).message).toBe("尺: 0時間18分")
-    expect(screen.getByText("尺: 0時間18分")).toBeInTheDocument()
+    expect(JSON.parse(call![1].body)).toMatchObject({ message: "作品構成: 作品1 1本 × 18分", conditionAnswer: { conditionId: "project-length", answer: { status: "answered", composition: [{ count: 1, durationSeconds: 1080 }] } } })
+    expect(screen.getByText("作品構成: 作品1 1本 × 18分")).toBeInTheDocument()
   })
 
   it("replaces a restored legacy duration bucket panel with the precise input card", () => {
@@ -1762,7 +1762,7 @@ describe("WidgetShell API wiring", () => {
     expect(screen.getByLabelText("メール")).toHaveValue("client@example.jp")
     expect(screen.getByLabelText("補足")).toHaveValue("")
     expect(screen.getByLabelText("尺の分")).toHaveValue(null)
-    expect(screen.getByLabelText("作業場所/立ち会い")).toHaveValue("未確認")
+    expect(screen.getByLabelText("作業場所/立ち会い")).toHaveValue("")
 
     const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
     expect(stored.activeUi.bookingPrefill).toMatchObject({
