@@ -1,3 +1,4 @@
+import { parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import type {
   ConversationState,
   DocumentaryAttachment,
@@ -28,6 +29,21 @@ export function applyActiveChoiceAnswer(input: {
   message: string
   activeIntakeClarification?: ConversationState["activeIntakeClarification"]
 }): ChoicePanelPatch | null {
+  if (input.activeChoices?.id === "project-length" || /^\s*尺\s*[:：]/u.test(input.message)) {
+    const value = input.message.normalize("NFKC").replace(/^\s*尺\s*[:：]\s*/u, "").trim()
+    const minutes = parseProjectLengthMinutes(value)
+    const unknown = isExplicitUnknown(value)
+    if (minutes !== undefined || unknown) return {
+      choiceSetId: "project-length", choiceId: unknown ? "undecided" : "exact-duration", choiceIds: [],
+      conversationState: {
+        hasProjectLength: true,
+        activeIntakeClarification: undefined,
+        intakeClarifications: { "project-length": { status: unknown ? "unknown-but-acceptable" : "clear", reason: unknown ? "explicitly-undecided" : "exact-duration", answerPreview: preview(input.message) } },
+      },
+      jobContext: { projectLengthMinutes: minutes },
+    }
+    return null
+  }
   const clarifiedPatch = applyPendingClarificationAnswer(input.activeChoices, input.activeIntakeClarification, input.message)
   if (clarifiedPatch) return clarifiedPatch
 
@@ -52,19 +68,6 @@ export function applyActiveChoiceAnswer(input: {
         },
       }
     }
-    case "project-length":
-      return {
-        choiceSetId: activeChoices.id,
-        choiceId: choice.id,
-        choiceIds: [choice.id],
-        conversationState: {
-          hasProjectLength: true,
-          ...otherCommentPatch,
-          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
-          ...toUnknownChoicePatch(activeChoices, choices, input.message),
-        },
-        jobContext: toProjectLengthJobContext(choice.id),
-      }
     case "final-medium":
       const finalMediumPatch = toFinalMediumJobContextPatch(activeChoices, choices)
       return {
@@ -382,15 +385,6 @@ function buildUnmatchedChoiceClarification(
       message,
       question: "その数値の単位を1つだけ教えてください。分、時間、本数など、どれに近いですか？",
       reason: "quantity-needs-unit",
-    })
-  }
-  if (activeChoices.id === "project-length" && unmatchedChoiceText) {
-    return toClarificationPatch({
-      activeChoices,
-      choices: [],
-      message,
-      question: "尺・分量は下の選択肢から選ぶか、「その他」の内容を1つだけ補足してください。",
-      reason: "project-length-choice-mismatch",
     })
   }
   if (unmatchedChoiceText && activeChoices.choices.some((choice) => choice.id === "other")) {
@@ -753,63 +747,6 @@ function normalizeLectureTrainingContentChoices(choices: SurveyChoice[]): Survey
   return normalizedChoices.filter(
     (choice, index, items) => items.findIndex((item) => item.id === choice.id) === index,
   )
-}
-
-function toProjectLengthJobContext(choiceId: string): Partial<JobContext> {
-  switch (choiceId) {
-    case "short-under-60s":
-      return { projectLengthMinutes: 1 }
-    case "medium-5m":
-      return { projectLengthMinutes: 5 }
-    case "long-30m":
-      return { projectLengthMinutes: 30 }
-    case "feature-90m":
-      return { projectLengthMinutes: 90 }
-    case "live-60m":
-      return { projectLengthMinutes: 60 }
-    case "live-150m":
-      return { projectLengthMinutes: 150 }
-    case "cm-length-15s":
-      return { projectLengthMinutes: 0.25 }
-    case "cm-length-30s":
-      return { projectLengthMinutes: 0.5 }
-    case "cm-length-60s":
-      return { projectLengthMinutes: 1 }
-    case "mv-length-3-5m":
-      return { projectLengthMinutes: 5 }
-    case "mv-length-5-10m":
-      return { projectLengthMinutes: 10 }
-    case "mv-length-over-10m":
-      return { projectLengthMinutes: 10 }
-    case "drama-episode-under-15m":
-      return { projectLengthMinutes: 15 }
-    case "drama-episode-30m":
-      return { projectLengthMinutes: 30 }
-    case "drama-episode-45-60m":
-      return { projectLengthMinutes: 60 }
-    case "live-length-30m":
-      return { projectLengthMinutes: 30 }
-    case "live-length-60m":
-      return { projectLengthMinutes: 60 }
-    case "live-length-90m":
-      return { projectLengthMinutes: 90 }
-    case "live-length-over-120m":
-      return { projectLengthMinutes: 120 }
-    case "feature-length-under-60m":
-      return { projectLengthMinutes: 60 }
-    case "feature-length-90m":
-      return { projectLengthMinutes: 90 }
-    case "feature-length-over-120m":
-      return { projectLengthMinutes: 120 }
-    case "vertical-length-15s":
-      return { projectLengthMinutes: 0.25 }
-    case "vertical-length-30s":
-      return { projectLengthMinutes: 0.5 }
-    case "vertical-length-60s":
-      return { projectLengthMinutes: 1 }
-    default:
-      return {}
-  }
 }
 
 function toDocumentaryAttachment(choiceIds: string[], otherComment?: string): DocumentaryAttachment {

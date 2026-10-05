@@ -2,6 +2,7 @@ import type { RoutingDecision } from "@/lib/chatbot/domain"
 
 export type SingleUserPromptGuardUiKind =
   | "none"
+  | "duration-input"
   | "choice-panel"
   | "booking-card"
   | "direct-contact-card"
@@ -53,6 +54,11 @@ export function buildSingleUserPromptGuardContent(input: {
   }
 
   if (input.routingDecision?.kind === "continue" && input.routingDecision.presentChoices) {
+    if (input.uiKind === "duration-input") return {
+      content: "作品の尺を時間・分で入力してください。未定の場合は未定を選んでください。",
+      reason: "choice-panel",
+      choiceSetId: "project-length",
+    }
     if (input.uiKind !== "choice-panel") return undefined
     return {
       content: `${input.routingDecision.nextQuestion}\n下の選択肢から選んでください。`,

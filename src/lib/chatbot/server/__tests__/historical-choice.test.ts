@@ -17,7 +17,7 @@ it("replays old opening and multiple selections without saved answer metadata", 
   const c = conversation()
   const first = answer(c, choices.jobKindChoices, "映画 / 長編 / 本編")
   expect(recoverHistoricalChoiceAnswer(c, first)?.selectedIds).toEqual(["feature-90m"])
-  answer(c, choices.featureProjectLengthChoices, "選択: 90分前後")
+  answer(c, choices.projectLengthChoices, "尺: 1時間30分")
   const target = answer(c, choices.finalMediumChoices, "選択: Web公開、劇場公開")
   c.context.jobContext = { jobKind: "cm-30s" } // Later state must not affect replay.
   expect(recoverHistoricalChoiceAnswer(c, target)?.selectedIds).toEqual(["web", "cinema"])
@@ -25,13 +25,13 @@ it("replays old opening and multiple selections without saved answer metadata", 
 it("recomputes a dynamic attendance panel from the prefix", () => {
   const c = conversation()
   const sequence: Array<[SurveyChoiceSet, string]> = [
-    [choices.jobKindChoices, "映画 / 長編 / 本編"], [choices.featureProjectLengthChoices, "90分前後"],
+    [choices.jobKindChoices, "映画 / 長編 / 本編"], [choices.projectLengthChoices, "1時間30分"],
     [choices.finalMediumChoices, "Web公開"], [choices.additionalWorkChoices, "なし"],
     [choices.documentaryAttachmentChoices, "なし"], [choices.workSiteChoices, "リモートグレーディング"],
     [choices.materialContentsChoices, "書き出し済みの映像"], [choices.materialTimingChoices, "1週間以内"],
     [choices.materialHandoffMethodChoices, "アップローダー"], [choices.referenceUrlChoices, "なし"],
   ]
-  for (const [panel, text] of sequence) answer(c, panel, `選択: ${text}`)
+  for (const [panel, text] of sequence) answer(c, panel, panel.id === "project-length" ? `尺: ${text}` : `選択: ${text}`)
   const knowledge = createStaticChatbotKnowledgeSnapshot()
   const job: JobContext = { jobKind: "feature-90m", projectLengthMinutes: 90, finalMedium: "web", workSite: "remote-grading", documentaryAttachment: { kind: "none" } }
   const panel = buildAttendanceDaysChoices(job, estimateWorkflow(job, { knowledgeSnapshot: knowledge }))

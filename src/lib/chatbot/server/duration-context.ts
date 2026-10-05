@@ -1,5 +1,6 @@
+import { confirmedBookingDetails } from "@/lib/chatbot/domain/booking-details"
 import { jobKindLabels } from "@/lib/chatbot/domain/job-kind-label"
-import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
+import { formatProjectLengthMinutes, parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import { describeJobForEstimate, describeWorkflowStages, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import type { ChatbotConversation, ConversationState, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
@@ -117,7 +118,7 @@ export function resolveWorkflowFactsFromConversation(
       .map((message) => message.content),
   ].filter((text): text is string => Boolean(text?.trim()))
 
-  return userTexts.reduce((current, text) => {
+  const facts = userTexts.reduce((current, text) => {
     const inferred = inferWorkflowJobContextFromText(text, current)
     if (Object.keys(inferred).length === 0) return current
     return {
@@ -125,6 +126,15 @@ export function resolveWorkflowFactsFromConversation(
       ...inferred,
     }
   }, base)
+  const messages = [
+    ...conversation.messages,
+    ...(latestUserMessage ? [
+      ...(conversation.context.currentQuestion ? [{ id: "duration-question", role: "assistant" as const, content: conversation.context.currentQuestion, createdAt: conversation.updatedAt }] : []),
+      { id: "duration-latest", role: "user" as const, content: latestUserMessage, createdAt: conversation.updatedAt },
+    ] : []),
+  ]
+  const value = confirmedBookingDetails({ messages, conversationState: conversation.context.conversationState }).find((detail) => detail.label === "尺")?.value
+  return { ...facts, projectLengthMinutes: value ? parseProjectLengthMinutes(value) : undefined }
 }
 
 export function provideWorkflowEstimate(
@@ -167,7 +177,9 @@ export function buildWorkflowPromptContext(
     `- 尺: ${jobContext.projectLengthMinutes !== undefined ? formatMinutes(jobContext.projectLengthMinutes) : "未確認"}`,
   )
   if (jobContext.workflowEstimate) {
-    if (jobContext.workflowEstimate.estimateStatus === "needs-confirmation") {
+    if (jobContext.workflowEstimate.unsupportedReason === "project-length-unconfirmed") {
+      lines.push("- 工程日数: 尺が未確認のため確認が必要。代表尺・既定値で日数を計算しない。")
+    } else if (jobContext.workflowEstimate.estimateStatus === "needs-confirmation") {
       const referenceMinDays = jobContext.workflowEstimate.referenceMinDays ?? jobContext.workflowEstimate.totalMinDays
       const referenceMaxDays = jobContext.workflowEstimate.referenceMaxDays ?? jobContext.workflowEstimate.totalMaxDays
       lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")

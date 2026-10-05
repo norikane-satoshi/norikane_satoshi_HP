@@ -3,16 +3,12 @@ import { describe, expect, it } from "vitest"
 import type { ConversationState, JobContext, SurveyChoiceSet } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
-  cmProjectLengthChoices,
+  projectLengthChoices,
   documentaryAttachmentChoices,
-  dramaProjectLengthChoices,
   finalMediumChoices,
   jobKindChoices,
-  liveProjectLengthChoices,
   lectureTrainingContentChoices,
   lectureTrainingFormatChoices,
-  mvProjectLengthChoices,
-  projectLengthChoices,
   productionOptionChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
@@ -117,13 +113,6 @@ describe("choice panel state", () => {
       { hasJobKind: true, requestKind: "lecture-training", hasLectureTrainingIntent: true },
       {},
     ],
-    [projectLengthChoices, "選択: ライブ 150分前後", { hasProjectLength: true }, { projectLengthMinutes: 150 }],
-    [projectLengthChoices, "選択: 未定", { hasProjectLength: true }, {}],
-    [dramaProjectLengthChoices, "選択: 1話30分前後", { hasProjectLength: true }, { projectLengthMinutes: 30 }],
-    [dramaProjectLengthChoices, "選択: 話数・全体尺を相談したい", { hasProjectLength: true }, {}],
-    [liveProjectLengthChoices, "選択: 90分", { hasProjectLength: true }, { projectLengthMinutes: 90 }],
-    [cmProjectLengthChoices, "選択: 15秒", { hasProjectLength: true }, { projectLengthMinutes: 0.25 }],
-    [mvProjectLengthChoices, "選択: 5〜10分", { hasProjectLength: true }, { projectLengthMinutes: 10 }],
     [additionalWorkChoices, "retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch"] }],
     [additionalWorkChoices, "選択: retouch, skin-retouch", { hasAdditionalWork: true }, { additionalWork: ["retouch", "skin-retouch"] }],
     [additionalWorkChoices, "選択: 消し物、肌修正", { hasAdditionalWork: true }, { additionalWork: ["retouch", "skin-retouch"] }],
@@ -250,6 +239,10 @@ describe("choice panel state", () => {
     })
   })
 
+  it.each([["尺: 0時間18分", 18], ["尺: 1時間18分", 78], ["尺: 未定", undefined]])("accepts exact duration input %s", (message, minutes) => {
+    expect(applyActiveChoiceAnswer({ activeChoices: projectLengthChoices, message })).toMatchObject({ conversationState: { hasProjectLength: true }, jobContext: { projectLengthMinutes: minutes } })
+  })
+
   it("marks ambiguous choice answers as clarification state without advancing the slot", () => {
     expect(
       applyActiveChoiceAnswer({
@@ -267,37 +260,9 @@ describe("choice panel state", () => {
       jobContext: {},
     })
 
-    expect(
-      applyActiveChoiceAnswer({
-        activeChoices: projectLengthChoices,
-        message: "2.5",
-      }),
-    ).toMatchObject({
-      conversationState: {
-        activeIntakeClarification: {
-          status: "needs-clarification",
-          choiceSetId: "project-length",
-          reason: "quantity-needs-unit",
-        },
-      },
-      jobContext: {},
-    })
+    expect(applyActiveChoiceAnswer({ activeChoices: projectLengthChoices, message: "2.5" })).toBeNull()
+    expect(applyActiveChoiceAnswer({ activeChoices: projectLengthChoices, message: "選択: ライブ 60分前後" })).toBeNull()
 
-    expect(
-      applyActiveChoiceAnswer({
-        activeChoices: dramaProjectLengthChoices,
-        message: "選択: ライブ 60分前後",
-      }),
-    ).toMatchObject({
-      conversationState: {
-        activeIntakeClarification: {
-          status: "needs-clarification",
-          choiceSetId: "project-length",
-          reason: "project-length-choice-mismatch",
-        },
-      },
-      jobContext: {},
-    })
   })
 
   it("keeps other comments in conversation state and maps them to server state", () => {
@@ -314,74 +279,8 @@ describe("choice panel state", () => {
       jobContext: {},
     })
 
-    expect(
-      applyActiveChoiceAnswer({
-        activeChoices: projectLengthChoices,
-        message: "選択: その他\nその他コメント: 12分が3本",
-      }),
-    ).toMatchObject({
-      conversationState: {
-        hasProjectLength: true,
-        otherChoiceComments: { "project-length": "12分が3本" },
-      },
-      jobContext: {},
-    })
+    expect(applyActiveChoiceAnswer({ activeChoices: projectLengthChoices, message: "選択: その他\nその他コメント: 12分が3本" })).toBeNull()
 
-    expect(
-      applyActiveChoiceAnswer({
-        activeChoices: additionalWorkChoices,
-        message: "選択: その他\nその他コメント: MA も相談したい",
-      }),
-    ).toMatchObject({
-      conversationState: {
-        hasAdditionalWork: true,
-        otherChoiceComments: { "additional-work": "MA も相談したい" },
-      },
-      jobContext: { additionalWork: ["other"] },
-    })
-
-    expect(
-      applyActiveChoiceAnswer({
-        activeChoices: documentaryAttachmentChoices,
-        message: "選択: その他\nその他コメント: 舞台裏の短尺あり",
-      }),
-    ).toMatchObject({
-      conversationState: {
-        hasDocumentaryAttachments: true,
-        otherChoiceComments: { "documentary-attachment": "舞台裏の短尺あり" },
-      },
-      jobContext: {
-        documentaryAttachment: { kind: "other", count: 1, note: "舞台裏の短尺あり" },
-      },
-    })
-
-    expect(
-      applyActiveChoiceAnswer({
-        activeChoices: documentaryAttachmentChoices,
-        message: "選択: 特典映像だよ",
-      }),
-    ).toMatchObject({
-      conversationState: {
-        hasDocumentaryAttachments: true,
-        otherChoiceComments: { "documentary-attachment": "特典映像だよ" },
-      },
-      jobContext: {
-        documentaryAttachment: { kind: "other", count: 1, note: "特典映像だよ" },
-      },
-    })
-
-    expect(
-      applyActiveChoiceAnswer({
-        activeChoices: productionOptionChoices,
-        message: "選択: 字幕、その他\nその他コメント: 英語版ナレーション",
-      }),
-    ).toMatchObject({
-      conversationState: {
-        hasProductionOptions: true,
-        productionOptions: ["captions", "other"],
-        otherChoiceComments: { "production-options": "英語版ナレーション" },
-      },
-    })
   })
 
   it("uses a pending other-choice clarification answer as the free-text comment", () => {

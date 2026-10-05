@@ -53,7 +53,7 @@ export type WorkflowEstimate = {
   referencePresetId?: JobKind
   referenceMinDays?: number
   referenceMaxDays?: number
-  unsupportedReason?: "live-duration-outside-baseline"
+  unsupportedReason?: "live-duration-outside-baseline" | "project-length-unconfirmed"
   requiresDirectContact?: boolean
 }
 

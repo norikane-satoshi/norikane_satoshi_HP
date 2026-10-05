@@ -11,7 +11,6 @@ import {
   hasRequiredEmailConsultationSlots,
   jobKindChoices,
   projectLengthChoices,
-  projectLengthChoicesForJobKind,
   surveyChoiceSets,
 } from "@/lib/chatbot/domain"
 import type {
@@ -71,7 +70,7 @@ import {
   resolveWorkflowDurationContext,
   type DurationTraceContext,
 } from "@/lib/chatbot/server/duration-context"
-import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
+import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 import {
   sanitizeChatbotLlmTextWithReport,
   type ChatbotLlmSanitizationReport,
@@ -127,6 +126,7 @@ import type { UpdateConversationRoutingInput } from "@/lib/chatbot/server/reposi
 
 type ChatbotMessageUi =
   | { kind: "none" }
+  | { kind: "duration-input"; question: string }
   | { kind: "choice-panel"; choiceSet: NonNullable<Extract<RoutingDecision, { kind: "continue" }>["presentChoices"]> }
   | {
       kind: "booking-card"
@@ -470,6 +470,7 @@ export async function handleChatbotMessage(
   })
   if (
     activeChoices &&
+    activeChoices.id !== "project-length" &&
     !isConfirmedChoiceAnswer(activeChoiceAnswer) &&
     !isExplicitChoiceSubmission(input.message) &&
     !looksLikeCustomerQuestion(input.message)
@@ -676,7 +677,7 @@ export async function handleChatbotMessage(
     })
       ? fallbackRoutingDecision
       : undefined)
-  const contractRoutingDecision = enforceProjectTypeChoiceContract({
+  const contractRoutingDecision = normalizeProjectLengthInput({
     requestId: input.requestId,
     conversation,
     tier: llmResponse.tier,
@@ -1046,7 +1047,7 @@ function shouldUseFallbackRouting(input: {
   }
 }
 
-function enforceProjectTypeChoiceContract(input: {
+function normalizeProjectLengthInput(input: {
   requestId?: string
   conversation: ChatbotConversation
   tier: ChatbotLlmTier
@@ -1055,48 +1056,10 @@ function enforceProjectTypeChoiceContract(input: {
   jobContext: JobContext
 }): RoutingDecision | undefined {
   const routingDecision = input.routingDecision
-  const jobKind = input.jobContext.jobKind
-  if (!jobKind || routingDecision?.kind !== "continue" || routingDecision.presentChoices?.id !== "project-length") {
+  if (routingDecision?.kind !== "continue" || routingDecision.presentChoices?.id !== "project-length") {
     return routingDecision
   }
-
-  const hasRawTextMismatch = hasProjectTypeTextMismatch(input.rawAssistantText, jobKind)
-  if (!hasRawTextMismatch) {
-    return routingDecision
-  }
-
-  logProjectTypeChoiceMismatch({
-    requestId: input.requestId,
-    conversation: input.conversation,
-    tier: input.tier,
-    jobKind,
-    reason: "choice-set-context-mismatch",
-    receivedQuestion: routingDecision.nextQuestion,
-    correctedQuestion: buildProjectLengthRejudgmentQuestion(jobKind),
-    receivedChoiceLabels: routingDecision.presentChoices.choices.map((choice) => choice.label),
-    correctedChoiceLabels: [],
-  })
-
-  return {
-    kind: "continue",
-    nextQuestion: buildProjectLengthRejudgmentQuestion(jobKind),
-  }
-}
-
-function buildProjectLengthRejudgmentQuestion(jobKind: NonNullable<JobContext["jobKind"]>): string {
-  switch (jobKind) {
-    case "drama-first":
-    case "drama-follow-up":
-      return "ドラマ / シリーズとして整理しています。1話の尺、話数、全体尺のどれから確認するのが近いですか？"
-    case "live-60m":
-      return "ライブ / 舞台収録として整理しています。収録全体の尺か、曲数・パート数のどちらから確認するのが近いですか？"
-    case "cm-30s":
-      return "Web CM / CM として整理しています。1本あたりの尺か、本数・バリエーションのどちらから確認するのが近いですか？"
-    case "mv-5m":
-      return "MV / 音楽映像として整理しています。楽曲尺か、複数バージョンの有無のどちらから確認するのが近いですか？"
-    default:
-      return "案件内容に合わせて、次に確認すべき尺・分量の粒度をもう少し教えてください。"
-  }
+  return { kind: "continue", nextQuestion: projectLengthChoices.question, presentChoices: projectLengthChoices }
 }
 
 function hasProjectTypeTextMismatch(text: string, jobKind: NonNullable<JobContext["jobKind"]>): boolean {
@@ -1128,65 +1091,7 @@ function contextualizeStoredActiveChoices(conversation: ChatbotConversation): Su
   if (activeChoices?.id === additionalWorkChoices.id) return additionalWorkChoices
   if (activeChoices?.id !== "project-length") return activeChoices
 
-  const jobKind = resolveStoredOrHistoricalJobKind(conversation)
-  if (!jobKind) return activeChoices
-  const knownGenericChoices =
-    activeChoices.question === projectLengthChoices.question &&
-    activeChoices.choices.length === projectLengthChoices.choices.length &&
-    activeChoices.choices.every((choice, index) => {
-      const knownChoice = projectLengthChoices.choices[index]
-      return choice.id === knownChoice?.id && choice.label === knownChoice.label
-    })
-  const choiceSetText = [activeChoices.question, ...activeChoices.choices.map((choice) => choice.label)].join(" ")
-
-  if (knownGenericChoices || hasProjectTypeTextMismatch(choiceSetText, jobKind)) {
-    return projectLengthChoicesForJobKind(jobKind)
-  }
-  return activeChoices
-}
-
-function resolveStoredOrHistoricalJobKind(conversation: ChatbotConversation): JobContext["jobKind"] | undefined {
-  const storedJobKind =
-    conversation.context.jobContext?.jobKind ??
-    conversation.context.conversationState?.durationContext?.workflowFacts?.jobKind
-  if (storedJobKind) return storedJobKind
-
-  const base: JobContext = {
-    finalMedium: "other",
-    workSite: "remote-grading",
-    documentaryAttachment: { kind: "none" },
-  }
-
-  return conversation.messages
-    .filter((message) => message.role === "user")
-    .reduce((current, message) => ({ ...current, ...inferWorkflowJobContextFromText(message.content, current) }), base)
-    .jobKind
-}
-
-function logProjectTypeChoiceMismatch(input: {
-  requestId?: string
-  conversation: ChatbotConversation
-  tier: ChatbotLlmTier
-  jobKind: JobContext["jobKind"]
-  reason: "choice-set-context-mismatch"
-  receivedQuestion: string
-  correctedQuestion: string
-  receivedChoiceLabels: string[]
-  correctedChoiceLabels: string[]
-}): void {
-  logPrivacySafeChatbotEvent({
-      event: "project_type_choice_mismatch",
-      requestId: input.requestId,
-      conversationId: input.conversation.id,
-      sessionId: input.conversation.context.sessionId,
-      tier: input.tier,
-      jobKind: input.jobKind,
-      reason: input.reason,
-      receivedQuestion: redactForChatbotLog(input.receivedQuestion),
-      correctedQuestion: redactForChatbotLog(input.correctedQuestion),
-      receivedChoiceLabels: input.receivedChoiceLabels.map(redactForChatbotLog),
-      correctedChoiceLabels: input.correctedChoiceLabels.map(redactForChatbotLog),
-  })
+  return projectLengthChoices
 }
 
 function enforceFinalMediumChoiceContract(input: {
@@ -2360,11 +2265,12 @@ function buildChatbotSystemPrompt(
     "AI アシスタント名を通常の応答で常時明記しません。名前を聞かれた場合だけ「のーちゃん」と答えます。",
     "確認漏れ、不安、伝え忘れを減らし、ユーザーの考える量を増やさず次にすることを1つずつ案内します。",
     "案件整理では複数項目を文章で一気に聞かず、選べる項目は choice-panel の1項目ずつで確認します。その他を選んだ自由入力は補足として保持し、勝手に近い既存分類へ潰しません。",
-    'choice-panel を出す時は、本文に {"tool":"show_choice_panel","args":{"id":"project-length","question":"...","selectionMode":"single","allowFreeText":true,"choices":[{"id":"...","label":"..."}]}} を1個だけ含めます。',
+    'choice-panel を出す時は、本文に {"tool":"show_choice_panel","args":{"id":"job-kind","question":"...","selectionMode":"single","allowFreeText":true,"choices":[{"id":"...","label":"..."}]}} を1個だけ含めます。',
     "選択させる候補は本文の箇条書きや「選択肢: A/B/C」だけで出さず、必ず show_choice_panel に入れます。候補を選ばせる意図がある本文だけの回答は禁止です。",
-    "choice-panel の id は job-kind / project-length / final-medium / additional-work / documentary-attachment / work-site / production-options のいずれかを使います。",
+    "尺は時間・分を入力する専用UIで確認します。尺の選択肢や代表値を作らないでください。",
+    "choice-panel の id は job-kind / final-medium / additional-work / documentary-attachment / work-site / production-options のいずれかを使います。",
     "案件種別ごとの候補表は例と安全網です。最終的な質問文、選択肢粒度、複数選択可否、自由入力有無は、会話全体、確定済み facts、未確定 facts、ユーザーの言い方から自然に判断します。",
-    "ドラマ / シリーズ、ライブ、Web CM、MV の尺確認では、固定順や固定候補表に縛られず、会話に合う粒度を選びます。ただし別文脈の選択肢を混ぜません。",
+    "案件種別にかかわらず、尺は時間・分の専用入力で確認します。",
     "最終媒体 / 公開先 / 納品先は複数選択として扱い、地上波放送とBlu-rayとYouTubeのような併用をすべて保持します。ライブは案件種別であり最終媒体には含めません。OTTという表記は使わず、VOD・オンデマンド配信と表現します。",
     "Booking Orderへ進む前に、何の素材を、いつ、どういう方法で受け渡すかを1項目ずつ確認します。SSD / HDDの郵送・バイク便・手渡し、アップローダー、ProRes、撮影素材の使用クリップなど、ユーザーの回答を要約で潰さず保持します。",
     "現在確認している1項目について、会話文脈、選択済み項目、自由入力、未確認項目から次へ進めるほど明確かを判断します。疑問が残る場合は同じ項目について確認を1問だけ返し、十分明確なら過剰確認せず次へ進みます。",
@@ -3107,6 +3013,9 @@ function toMessageUi(input: {
   if (!routingDecision) return { kind: "none" }
 
   if (routingDecision.kind === "continue" && routingDecision.presentChoices) {
+    if (routingDecision.presentChoices.id === "project-length") {
+      return { kind: "duration-input", question: projectLengthChoices.question }
+    }
     return { kind: "choice-panel", choiceSet: routingDecision.presentChoices }
   }
 

@@ -194,8 +194,7 @@ const estimateSubjectLabels: Record<JobKind, string> = {
 }
 
 /**
- * What a duration estimate is for: the length the customer chose, or, while it is still open, the
- * reference length the estimate assumes stated as a condition rather than as the customer's length.
+ * Describe the exact customer duration, leaving an unanswered length unconfirmed.
  */
 export function describeJobForEstimate(jobKind: JobKind, projectLengthMinutes: number | undefined): string {
   const subject = estimateSubjectLabels[jobKind]
@@ -207,5 +206,5 @@ export function describeJobForEstimate(jobKind: JobKind, projectLengthMinutes: n
       : `${subject}（1話${formatProjectLengthMinutes(projectLengthMinutes)}）`
   }
   if (projectLengthMinutes !== undefined) return `${subject} ${formatProjectLengthMinutes(projectLengthMinutes)}`
-  return `${subject}（${formatProjectLengthMinutes(baselineMinutes)}の場合）`
+  return `${subject}（尺未確認）`
 }

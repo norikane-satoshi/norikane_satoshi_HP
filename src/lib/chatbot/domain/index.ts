@@ -17,12 +17,8 @@ export type { BookingCardPrefill, RoutingDecision } from "@/lib/chatbot/domain/r
 export {
   additionalWorkChoices,
   bookingFinalConfirmationChoices,
-  cmProjectLengthChoices,
-  contextualProjectLengthChoices,
   customerFacingWorkSiteChoices,
   documentaryAttachmentChoices,
-  dramaProjectLengthChoices,
-  featureProjectLengthChoices,
   finalMediumChoices,
   isSatoshiStudioCustomerFacingAvailable,
   jobKindChoices,
@@ -33,14 +29,11 @@ export {
   lectureTrainingContentChoices,
   lectureTrainingFormatChoices,
   lectureTrainingSoftwareChoices,
-  liveProjectLengthChoices,
-  mvProjectLengthChoices,
   projectLengthChoices,
   projectLengthChoicesForJobKind,
   SATOSHI_STUDIO_AVAILABLE_FROM_JST,
   productionOptionChoices,
   surveyChoiceSets,
-  verticalProjectLengthChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain/survey-choice"
 export type { SurveyChoice, SurveyChoiceSet } from "@/lib/chatbot/domain/survey-choice"
@@ -57,7 +50,7 @@ export type {
   WorkflowStage,
   WorkSite,
 } from "@/lib/chatbot/domain/workflow-estimate"
-export { formatProjectLengthMinutes } from "./project-length"
+export { formatProjectLengthMinutes, parseProjectLengthMinutes } from "./project-length"
 export { jobKindLabels } from "./job-kind-label"
 export {
   describeWorkSchedule,

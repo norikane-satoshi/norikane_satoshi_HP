@@ -33,124 +33,15 @@ export const jobKindChoices = {
   ],
 } as const satisfies SurveyChoiceSet
 
-export const projectLengthChoices = {
+export const projectLengthChoices: SurveyChoiceSet = {
   id: "project-length",
-  question: "尺・分量の大枠を選んでください",
-  choices: [
-    { id: "short-under-60s", label: "60秒以内" },
-    { id: "medium-5m", label: "5分前後" },
-    { id: "long-30m", label: "30分前後" },
-    { id: "feature-90m", label: "90分前後" },
-    { id: "live-60m", label: "ライブ 60分前後" },
-    { id: "live-150m", label: "ライブ 150分前後" },
-    { id: "undecided", label: "未定" },
-    { id: "other", label: "その他" },
-  ],
-} as const satisfies SurveyChoiceSet
-
-export const cmProjectLengthChoices = {
-  id: "project-length",
-  question: "CM / Web CM の尺・本数を選んでください",
-  choices: [
-    { id: "cm-length-15s", label: "15秒" },
-    { id: "cm-length-30s", label: "30秒" },
-    { id: "cm-length-60s", label: "60秒" },
-    { id: "cm-length-multiple", label: "複数本" },
-    { id: "undecided", label: "未定・相談したい" },
-    { id: "other", label: "その他" },
-  ],
-} as const satisfies SurveyChoiceSet
-
-export const mvProjectLengthChoices = {
-  id: "project-length",
-  question: "MV / 音楽映像の尺を選んでください",
-  choices: [
-    { id: "mv-length-3-5m", label: "3〜5分" },
-    { id: "mv-length-5-10m", label: "5〜10分" },
-    { id: "mv-length-over-10m", label: "10分以上" },
-    { id: "undecided", label: "未定・相談したい" },
-    { id: "other", label: "その他" },
-  ],
-} as const satisfies SurveyChoiceSet
-
-export const dramaProjectLengthChoices = {
-  id: "project-length",
-  question: "ドラマ / シリーズの尺・話数を選んでください",
-  choices: [
-    { id: "drama-episode-under-15m", label: "1話15分以内" },
-    { id: "drama-episode-30m", label: "1話30分前後" },
-    { id: "drama-episode-45-60m", label: "1話45〜60分" },
-    { id: "drama-series-total", label: "話数・全体尺を相談したい" },
-    { id: "undecided", label: "未定・相談したい" },
-    { id: "other", label: "その他" },
-  ],
-} as const satisfies SurveyChoiceSet
-
-export const liveProjectLengthChoices = {
-  id: "project-length",
-  question: "ライブ / 舞台収録の尺を選んでください",
-  choices: [
-    { id: "live-length-30m", label: "30分" },
-    { id: "live-length-60m", label: "60分" },
-    { id: "live-length-90m", label: "90分" },
-    { id: "live-length-over-120m", label: "2時間以上" },
-    { id: "undecided", label: "未定・相談したい" },
-    { id: "other", label: "その他" },
-  ],
-} as const satisfies SurveyChoiceSet
-
-export const featureProjectLengthChoices = {
-  id: "project-length",
-  question: "映画 / 長編 / 本編の尺を選んでください",
-  choices: [
-    { id: "feature-length-under-60m", label: "60分未満" },
-    { id: "feature-length-90m", label: "90分前後" },
-    { id: "feature-length-over-120m", label: "120分以上" },
-    { id: "undecided", label: "未定・相談したい" },
-    { id: "other", label: "その他" },
-  ],
-} as const satisfies SurveyChoiceSet
-
-export const verticalProjectLengthChoices = {
-  id: "project-length",
-  question: "縦型動画 / SNS動画の尺・本数を選んでください",
-  choices: [
-    { id: "vertical-length-15s", label: "15秒" },
-    { id: "vertical-length-30s", label: "30秒" },
-    { id: "vertical-length-60s", label: "60秒" },
-    { id: "vertical-length-multiple", label: "複数本" },
-    { id: "undecided", label: "未定・相談したい" },
-    { id: "other", label: "その他" },
-  ],
-} as const satisfies SurveyChoiceSet
-
-export const contextualProjectLengthChoices = [
-  cmProjectLengthChoices,
-  mvProjectLengthChoices,
-  dramaProjectLengthChoices,
-  liveProjectLengthChoices,
-  featureProjectLengthChoices,
-  verticalProjectLengthChoices,
-] as const satisfies readonly SurveyChoiceSet[]
+  question: "作品の尺を時間・分で入力してください。未定の場合は未定を選んでください。",
+  choices: [],
+}
 
 export function projectLengthChoicesForJobKind(jobKind: JobKind | undefined): SurveyChoiceSet {
-  switch (jobKind) {
-    case "cm-30s":
-      return cmProjectLengthChoices
-    case "mv-5m":
-      return mvProjectLengthChoices
-    case "drama-first":
-    case "drama-follow-up":
-      return dramaProjectLengthChoices
-    case "live-60m":
-      return liveProjectLengthChoices
-    case "feature-90m":
-      return featureProjectLengthChoices
-    case "vertical-60s":
-      return verticalProjectLengthChoices
-    default:
-      return projectLengthChoices
-  }
+  void jobKind
+  return projectLengthChoices
 }
 
 export const finalMediumChoices = {
@@ -328,7 +219,6 @@ export const referenceUrlChoices = {
 
 export const surveyChoiceSets = [
   jobKindChoices,
-  ...contextualProjectLengthChoices,
   projectLengthChoices,
   finalMediumChoices,
   additionalWorkChoices,

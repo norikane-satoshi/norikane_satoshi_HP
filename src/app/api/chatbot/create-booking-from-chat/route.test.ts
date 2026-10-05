@@ -156,6 +156,19 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(route.planChatbotWorkSchedule).not.toHaveBeenCalled()
   })
 
+  it.each([["0時間18分", "18分"], ["1時間18分", "1時間18分"], ["未定", "未確認"]])("shares reviewed duration %s with the booking and owner notification", async (value, canonical) => {
+    const route = await loadPost()
+    const response = await route.POST(request(validChatBooking({
+      selectedSlot: undefined, attendanceDates: ["2026-10-13"], dueDate: "2026-10-25",
+      confirmedDetails: [{ label: "尺", value }], detailsConfirmed: true,
+    })))
+    expect(response.status).toBe(200)
+    const memo = route.createBookingFromApiInput.mock.calls[0][0].input.memo
+    expect(memo).toContain(`尺: ${canonical}`)
+    expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({ memo }))
+    expect(route.planChatbotWorkSchedule).not.toHaveBeenCalled()
+  })
+
   it("requires explicit confirmation for edited facts", async () => {
     const route = await loadPost()
     const response = await route.POST(request(validChatBooking({ confirmedDetails: [{ label: "尺", value: "18分" }], detailsConfirmed: undefined })))

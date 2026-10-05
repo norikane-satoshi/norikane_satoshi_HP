@@ -13,14 +13,10 @@ import type {
 import {
   additionalWorkChoices,
   bookingFinalConfirmationChoices,
-  cmProjectLengthChoices,
+  projectLengthChoices,
   documentaryAttachmentChoices,
-  dramaProjectLengthChoices,
   finalMediumChoices,
   jobKindChoices,
-  liveProjectLengthChoices,
-  mvProjectLengthChoices,
-  projectLengthChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
@@ -369,24 +365,9 @@ describe("handleChatbotMessage user context", () => {
         harness.options,
       )
 
-      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
-      expect(result.assistantMessage.content).not.toContain("ライブ")
-      expect(result.ui).toEqual({ kind: "none" })
-      expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({ jobKind: "drama-first" })
-      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
-        expect.objectContaining({
-          currentQuestion: expect.stringContaining("ドラマ / シリーズとして整理しています"),
-          activeChoices: null,
-          conversationState: expect.objectContaining({ hasJobKind: true, hasProjectLength: false }),
-          jobContext: expect.objectContaining({ jobKind: "drama-first" }),
-        }),
-      )
-      expect(consoleInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"event":"project_type_choice_mismatch"'),
-      )
-      expect(consoleInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"reason":"choice-set-context-mismatch"'),
-      )
+      expect(result.ui).toEqual({ kind: "duration-input", question: projectLengthChoices.question })
+      expect(result.assistantMessage.content).toBe(projectLengthChoices.question)
+      expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({ jobKind: "drama-first", projectLengthMinutes: undefined })
     } finally {
       consoleInfo.mockRestore()
       vi.unstubAllEnvs()
@@ -433,26 +414,15 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("尺・分量は下の選択肢から選ぶ")
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "project-length" } })
-    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toContain("1話30分前後")
-    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).not.toContain("ライブ 60分前後")
-    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
-      expect.objectContaining({
-        activeChoices: dramaProjectLengthChoices,
-        conversationState: expect.objectContaining({
-          hasProjectLength: false,
-          activeIntakeClarification: expect.objectContaining({
-            choiceSetId: "project-length",
-            reason: "project-length-choice-mismatch",
-          }),
-        }),
-        jobContext: expect.objectContaining({ jobKind: "drama-first" }),
-      }),
-    )
+    expect(result.ui).toEqual({ kind: "duration-input", question: projectLengthChoices.question })
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
+      activeChoices: projectLengthChoices,
+      conversationState: expect.objectContaining({ hasProjectLength: false }),
+      jobContext: expect.objectContaining({ projectLengthMinutes: undefined }),
+    }))
   })
 
-  it("keeps an LLM-authored project-length panel stable until its displayed choice is answered", async () => {
+  it("replaces a stored authored duration panel and accepts exact customer duration", async () => {
     const authoredChoices = {
       id: "project-length",
       question: "映像の長さはどのくらいですか？（例: 60分、120分など）",
@@ -483,7 +453,7 @@ describe("handleChatbotMessage user context", () => {
       {
         sessionId: "session_1",
         userId: "user_a",
-        message: "選択: 120分",
+        message: "尺: 1時間18分",
       },
       harness.options,
     )
@@ -494,7 +464,7 @@ describe("handleChatbotMessage user context", () => {
           hasProjectLength: true,
           activeIntakeClarification: undefined,
         }),
-        jobContext: expect.objectContaining({ projectLengthMinutes: 120 }),
+        jobContext: expect.objectContaining({ projectLengthMinutes: 78 }),
       }),
     )
     expect(harness.slackNotifier).toHaveBeenCalledWith(
@@ -506,9 +476,9 @@ describe("handleChatbotMessage user context", () => {
   })
 
   it.each([
-    ["選択: ライブ / コンサート / 舞台収録", liveProjectLengthChoices],
-    ["選択: Web CMです", cmProjectLengthChoices],
-    ["選択: MVです", mvProjectLengthChoices],
+    ["選択: ライブ / コンサート / 舞台収録", projectLengthChoices],
+    ["選択: Web CMです", projectLengthChoices],
+    ["選択: MVです", projectLengthChoices],
   ] as const)("keeps contextual project-length choices for %s", async (messageText, expectedChoices) => {
     const harness = setup({
       existingConversation: conversation({
@@ -538,178 +508,21 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it.each([
-    [
-      "drama-first",
-      "ドラマ / シリーズでは、先にどの粒度を整理しますか？",
-      ["1話ごとの尺", "話数", "全体尺", "未定・相談したい"],
-    ],
-    [
-      "drama-first",
-      "シリーズ全体の規模感として、今わかる範囲を選んでください。",
-      ["1話尺だけ決まっている", "話数だけ決まっている", "全体尺が決まっている", "これから相談"],
-    ],
-  ] as const)("respects LLM-authored drama project-length panel: %s", async (jobKind, question, labels) => {
+  it.each(["drama-first", "live-60m", "cm-30s", "mv-5m"] as const)("replaces model-authored duration buckets for %s", async (jobKind) => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
-      rawText: customerReply(JSON.stringify({
-        tool: "show_choice_panel",
-        args: {
-          id: "project-length",
-          question,
-          selectionMode: "single",
-          allowFreeText: true,
-          choices: labels.map((label, index) => ({ id: `drama-natural-${index + 1}`, label })),
-        },
-      })),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      rawText: customerReply(JSON.stringify({ tool: "show_choice_panel", args: {
+        id: "project-length", question: "尺の区分を選んでください", choices: [{ id: "approx", label: "90分前後" }],
+      } })), tier: "tier-1-hosted-chrome-notion-ai",
     })
-
-    const result = await handleChatbotMessage(
-      {
-        sessionId: "session_1",
-        userId: "user_a",
-        message: "ドラマ / シリーズです",
-        jobContext: {
-          jobKind,
-          finalMedium: "ott",
-          workSite: "remote-grading",
-          documentaryAttachment: { kind: "none" },
-        },
-        conversationState: {
-          ...baseProductionConversationState(),
-          hasJobKind: true,
-          hasProjectLength: false,
-        },
-      },
-      harness.options,
-    )
-
-    expect(result.assistantMessage.content).toBe(`${question}\n下の選択肢から選んでください。`)
-    expect(result.ui).toMatchObject({
-      kind: "choice-panel",
-      choiceSet: {
-        id: "project-length",
-        question,
-        allowFreeText: true,
-      },
-    })
-    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
-    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
-      expect.objectContaining({
-        currentQuestion: question,
-        activeChoices: expect.objectContaining({
-          id: "project-length",
-          question,
-          allowFreeText: true,
-        }),
-      }),
-    )
-  })
-
-  it.each([
-    ["live-60m", "ライブ全体の尺感はどれに近いですか？", ["60分前後", "90分前後", "2時間以上", "未定"]],
-    ["cm-30s", "CMは1本あたりの尺と本数、どちらが先に決まっていますか？", ["15秒", "30秒", "複数本", "未定"]],
-    ["mv-5m", "MVの尺やバージョン数はどれに近いですか？", ["3〜5分", "5〜10分", "複数バージョン", "未定"]],
-  ] as const)("respects LLM-authored project-length granularity for %s", async (jobKind, question, labels) => {
-    const harness = setup()
-    harness.generate.mockResolvedValueOnce({
-      rawText: customerReply(JSON.stringify({
-        tool: "show_choice_panel",
-        args: {
-          id: "project-length",
-          question,
-          choices: labels.map((label, index) => ({ id: `${jobKind.replace(/[^a-z0-9]/g, "-")}-${index + 1}`, label })),
-        },
-      })),
-      tier: "tier-1-hosted-chrome-notion-ai",
-    })
-
-    const result = await handleChatbotMessage(
-      {
-        sessionId: "session_1",
-        userId: "user_a",
-        message: "尺を相談したいです",
-        jobContext: {
-          jobKind,
-          finalMedium: "web",
-          workSite: "remote-grading",
-          documentaryAttachment: { kind: "none" },
-        },
-        conversationState: {
-          ...baseProductionConversationState(),
-          hasJobKind: true,
-          hasProjectLength: false,
-        },
-      },
-      harness.options,
-    )
-
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "project-length", question } })
-    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(labels)
-  })
-
-  it("does not silently replace an LLM-authored cross-context project-length panel", async () => {
-    vi.stubEnv("NODE_ENV", "production")
-    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
-    const harness = setup()
-    harness.generate.mockResolvedValueOnce({
-      rawText: customerReply(JSON.stringify({
-        tool: "show_choice_panel",
-        args: {
-          id: "project-length",
-          question: "ライブ / 舞台収録の尺を選んでください",
-          choices: [
-            { id: "live-length-60m", label: "60分" },
-            { id: "live-length-90m", label: "90分" },
-            { id: "live-length-over-120m", label: "2時間以上" },
-          ],
-        },
-      })),
-      tier: "tier-1-hosted-chrome-notion-ai",
-    })
-
-    try {
-      const result = await handleChatbotMessage(
-        {
-          requestId: "req_choice_mismatch",
-          sessionId: "session_1",
-          userId: "user_a",
-          message: "ドラマ / シリーズです",
-          jobContext: {
-            jobKind: "drama-first",
-            finalMedium: "ott",
-            workSite: "remote-grading",
-            documentaryAttachment: { kind: "none" },
-          },
-          conversationState: {
-            ...baseProductionConversationState(),
-            hasJobKind: true,
-            hasProjectLength: false,
-          },
-        },
-        harness.options,
-      )
-
-      expect(result.assistantMessage.content).toContain("ドラマ / シリーズとして整理しています")
-      expect(result.assistantMessage.content).not.toContain("ライブ")
-      expect(result.ui).toEqual({ kind: "none" })
-      expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
-        expect.objectContaining({
-          activeChoices: null,
-          currentQuestion: expect.stringContaining("ドラマ / シリーズとして整理しています"),
-        }),
-      )
-      expect(consoleInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"event":"project_type_choice_mismatch"'),
-      )
-      expect(consoleInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"reason":"choice-set-context-mismatch"'),
-      )
-    } finally {
-      consoleInfo.mockRestore()
-      vi.unstubAllEnvs()
-    }
+    const result = await handleChatbotMessage({
+      sessionId: "session_1", userId: "user_a", message: "尺を相談したいです",
+      jobContext: { jobKind, finalMedium: "web", workSite: "remote-grading", documentaryAttachment: { kind: "none" } },
+      conversationState: { ...baseProductionConversationState(), hasJobKind: true, hasProjectLength: false },
+    }, harness.options)
+    expect(result.ui).toEqual({ kind: "duration-input", question: projectLengthChoices.question })
+    expect(result.assistantMessage.content).toBe(projectLengthChoices.question)
+    expect(harness.generate.mock.calls[0]?.[0].jobContext.projectLengthMinutes).toBeUndefined()
   })
 
   it("normalizes a production-log-like LLM-authored drama final-medium panel", async () => {
@@ -728,8 +541,8 @@ describe("handleChatbotMessage user context", () => {
         context: {
           sessionId: "session_1",
           userId: "user_a",
-          activeChoices: dramaProjectLengthChoices,
-          currentQuestion: dramaProjectLengthChoices.question,
+          activeChoices: projectLengthChoices,
+          currentQuestion: projectLengthChoices.question,
           conversationState: {
             hasFinalMedium: false,
             hasJobKind: true,
@@ -770,7 +583,7 @@ describe("handleChatbotMessage user context", () => {
         requestId: "req_drama_final_media",
         sessionId: "session_1",
         userId: "user_a",
-        message: "選択: 1話45〜60分",
+        message: "尺: 1時間0分",
       },
       harness.options,
     )
@@ -818,8 +631,8 @@ describe("handleChatbotMessage user context", () => {
         context: {
           sessionId: "session_1",
           userId: "user_a",
-          activeChoices: dramaProjectLengthChoices,
-          currentQuestion: dramaProjectLengthChoices.question,
+          activeChoices: projectLengthChoices,
+          currentQuestion: projectLengthChoices.question,
           conversationState: {
             hasFinalMedium: false,
             hasJobKind: true,
@@ -862,7 +675,7 @@ describe("handleChatbotMessage user context", () => {
           requestId: "req_text_final_media",
           sessionId: "session_1",
           userId: "user_a",
-          message: "選択: 1話45〜60分ですー",
+          message: "尺: 1時間0分",
         },
         harness.options,
       )
@@ -1672,7 +1485,7 @@ describe("handleChatbotMessage user context", () => {
           },
         },
         messages: [
-          { id: "user_1", role: "user", content: "ライブ2.5hの相談です", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "user_1", role: "user", content: "ライブ2時間30分の相談です", createdAt: "2026-05-26T00:00:00.000Z" },
           { id: "assistant_1", role: "assistant", content: "カラグレ以外の追加作業はありますか？", createdAt: "2026-05-26T00:00:01.000Z" },
         ],
       }),
@@ -1750,7 +1563,7 @@ describe("handleChatbotMessage user context", () => {
           },
         },
         messages: [
-          { id: "user_kind", role: "user", content: "ライブ2.5hの相談です", createdAt: "2026-05-26T00:00:00.000Z" },
+          { id: "user_kind", role: "user", content: "ライブ2時間30分の相談です", createdAt: "2026-05-26T00:00:00.000Z" },
           { id: "assistant_additional", role: "assistant", content: "カラグレ以外の追加作業はありますか？", createdAt: "2026-05-26T00:00:01.000Z" },
           { id: "user_additional", role: "user", content: "選択: 消し物、肌修正", createdAt: "2026-05-26T00:00:02.000Z" },
           { id: "assistant_attachment", role: "assistant", content: "付随する映像はありますか？", createdAt: "2026-05-26T00:00:03.000Z" },
@@ -3699,13 +3512,12 @@ describe("handleChatbotMessage user context", () => {
         harness.options,
       )
 
-      expect(result.assistantMessage.content).toBe(`${expectedQuestion}\n下の選択肢から選んでください。`)
+      expect(result.assistantMessage.content).toBe(expectedChoiceSetId === "project-length" ? projectLengthChoices.question : `${expectedQuestion}\n下の選択肢から選んでください。`)
       expect(result.assistantMessage.content).not.toContain("受付内容の整理")
       expect(result.assistantMessage.content).not.toContain("納品形式も教えてください")
-      expect(result.ui).toMatchObject({
-        kind: "choice-panel",
-        choiceSet: { id: expectedChoiceSetId },
-      })
+      expect(result.ui).toMatchObject(expectedChoiceSetId === "project-length"
+        ? { kind: "duration-input", question: projectLengthChoices.question }
+        : { kind: "choice-panel", choiceSet: { id: expectedChoiceSetId } })
       expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
         expect.objectContaining({
           activeChoices: expect.objectContaining({ id: expectedChoiceSetId }),
@@ -3787,19 +3599,8 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.ui).toMatchObject({
-      kind: "choice-panel",
-      choiceSet: {
-        id: "project-length",
-        question: "ドラマ / シリーズの尺・話数を選んでください",
-      },
-    })
-    expect(result.ui.kind === "choice-panel" ? result.ui.choiceSet.choices.map((choice) => choice.label) : []).toEqual(
-      expect.arrayContaining(["1話30分前後", "話数・全体尺を相談したい"]),
-    )
-    expect(result.assistantMessage.content).toBe(
-      "ドラマ / シリーズの尺・話数を選んでください\n下の選択肢から選んでください。",
-    )
+    expect(result.ui).toEqual({ kind: "duration-input", question: projectLengthChoices.question })
+    expect(result.assistantMessage.content).toBe(projectLengthChoices.question)
   })
 
   it("keeps the studio premise internal before 2026-09-15 while hiding it from work-site choices", async () => {
@@ -4188,7 +3989,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("通常7〜8日が目安")
+    expect(result.assistantMessage.content).toContain("尺が未確認のため工程日数は確認が必要")
     expect(result.assistantMessage.content).toContain("3日以内も")
     expect(result.assistantMessage.content).toContain("確約しません")
     expect(result.assistantMessage.content).not.toContain("受け付けできません")
@@ -4199,7 +4000,7 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(result.ui).toMatchObject({
       kind: "direct-contact-card",
-      suggestedMessage: expect.stringContaining("正本ライン 7〜8日"),
+      suggestedMessage: expect.stringContaining("尺が未確認のため工程日数の確認が必要"),
     })
     expect(result.ui).toMatchObject({
       kind: "direct-contact-card",
@@ -4385,7 +4186,7 @@ describe("handleChatbotMessage user context", () => {
     {
       prompt: "ドラマ初回の案件です。期間の目安を教えてください。",
       rawText: "ドラマ初回の期間は17〜20日です。",
-      expectedRange: "期間は6〜7日",
+      expectedRange: "尺が未確認のため工程日数は確認が必要",
       expectedJobContext: { jobKind: "drama-first" },
     },
     {
@@ -4484,7 +4285,7 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("CM 30秒の基本目安は1日程度")
+    expect(result.assistantMessage.content).toContain("尺が未確認のため工程日数は確認が必要")
     expect(result.assistantMessage.content).not.toContain("ライブ60分")
     expect(result.assistantMessage.content).not.toContain("4日程度")
   })
@@ -4801,7 +4602,7 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("reuses workflow facts persisted in conversationState durationContext when DB scalar context is sparse", async () => {
+  it("keeps persisted job facts but discards duration without customer evidence", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: {
@@ -4851,15 +4652,14 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.assistantMessage.content).toContain("工程目安は1日")
+    expect(result.assistantMessage.content).toContain("尺が未確認のため工程日数は確認が必要")
     expect(result.assistantMessage.content).not.toContain("17〜20日")
     expect(harness.generate.mock.calls[0]?.[0].jobContext).toMatchObject({
       finalMedium: "vertical-sns",
       jobKind: "vertical-60s",
-      projectLengthMinutes: 1,
+      projectLengthMinutes: undefined,
       workflowEstimate: expect.objectContaining({
-        totalMinDays: 1,
-        totalMaxDays: 1,
+        unsupportedReason: "project-length-unconfirmed",
       }),
     })
   })
@@ -5218,7 +5018,7 @@ describe("handleChatbotMessage user context", () => {
           { id: "assistant_job", role: "assistant", content: "まず案件種別を選んでください\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:01.000Z" },
           { id: "user_job", role: "user", content: "選択: ライブ / コンサート / 舞台収録", createdAt: "2026-05-26T00:00:02.000Z" },
           { id: "assistant_length", role: "assistant", content: "尺・分量の大枠を選んでください\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:03.000Z" },
-          { id: "user_length", role: "user", content: "選択: ライブ 150分前後", createdAt: "2026-05-26T00:00:04.000Z" },
+          { id: "user_length", role: "user", content: "尺: 2時間30分", createdAt: "2026-05-26T00:00:04.000Z" },
           { id: "assistant_additional", role: "assistant", content: "カラグレ以外の追加作業はありますか？\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:05.000Z" },
           { id: "user_additional", role: "user", content: "選択: 消し物、肌修正", createdAt: "2026-05-26T00:00:06.000Z" },
           { id: "assistant_documentary", role: "assistant", content: "付随する映像はありますか？\n下の選択肢から選んでください。", createdAt: "2026-05-26T00:00:07.000Z" },
@@ -5350,18 +5150,11 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
-      expect.objectContaining({
-        currentQuestion: expect.stringContaining("単位"),
-        conversationState: expect.objectContaining({
-          activeIntakeClarification: expect.objectContaining({
-            choiceSetId: "project-length",
-            reason: "quantity-needs-unit",
-          }),
-        }),
-        jobContext: expect.not.objectContaining({ projectLengthMinutes: expect.any(Number) }),
-      }),
-    )
+    expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
+      currentQuestion: projectLengthChoices.question,
+      activeChoices: projectLengthChoices,
+      jobContext: expect.objectContaining({ projectLengthMinutes: undefined }),
+    }))
   })
 
   it("returns to the original flow after an other-choice clarification is answered", async () => {
@@ -5433,7 +5226,7 @@ describe("handleChatbotMessage user context", () => {
       {
         sessionId: "session_1",
         userId: "user_a",
-        message: "選択: 未定",
+        message: "尺: 未定",
       },
       harness.options,
     )

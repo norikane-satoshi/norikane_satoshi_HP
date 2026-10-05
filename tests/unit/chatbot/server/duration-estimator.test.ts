@@ -118,6 +118,7 @@ describe("chatbot duration estimator", () => {
     const result = estimateWorkflow(
       jobContext({
         jobKind: "drama-first",
+        projectLengthMinutes: 45,
         finalMedium: "tv-broadcast",
         heavyRetouch: true,
         additionalWork: ["retouch"],
@@ -196,7 +197,6 @@ describe("chatbot duration estimator", () => {
     ["drama-follow-up", 14, 1, 2, "短尺ドラマ（1話あたり）の目安"],
     ["drama-first", 45, 6, 7, undefined],
     ["drama-follow-up", 50, 5, 5, undefined],
-    ["drama-first", undefined, 6, 7, undefined],
     ["drama-first", 30, 6, 7, "尺が基準（1話45〜50分）と異なるため要相談"],
   ] as const)("estimates a %s episode of %s min from its length", (jobKind, minutes, min, max, note) => {
     const result = estimateWorkflow(jobContext({ jobKind, projectLengthMinutes: minutes }))

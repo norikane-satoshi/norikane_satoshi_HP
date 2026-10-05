@@ -4,12 +4,8 @@ import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
   additionalWorkChoices,
   bookingFinalConfirmationChoices,
-  cmProjectLengthChoices,
-  dramaProjectLengthChoices,
   finalMediumChoices,
   jobKindChoices,
-  liveProjectLengthChoices,
-  mvProjectLengthChoices,
   workSiteChoices,
 } from "@/lib/chatbot/domain"
 import {
@@ -95,28 +91,9 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it.each([
-    ["drama-first", dramaProjectLengthChoices, ["話数・全体尺を相談したい"], ["30分", "60分", "90分", "2時間以上"]],
-    ["live-60m", liveProjectLengthChoices, ["30分", "60分", "90分", "2時間以上"], ["1話30分前後", "15秒"]],
-    ["cm-30s", cmProjectLengthChoices, ["15秒", "30秒", "60秒", "複数本"], ["90分", "1話30分前後"]],
-    ["mv-5m", mvProjectLengthChoices, ["3〜5分", "5〜10分"], ["2時間以上", "15秒"]],
-  ] as const)("continues with contextual project length choices for %s", (jobKind, expectedChoices, included, excluded) => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({ jobKind }),
-      conversationState: conversationState({
-        hasProjectLength: false,
-        hasContactEmail: false,
-        hasDesiredSchedule: false,
-      }),
-    })
-
-    expect(result.kind).toBe("continue")
-    if (result.kind !== "continue") return
-    expect(result.nextQuestion).toBe(expectedChoices.question)
-    expect(result.presentChoices).toBe(expectedChoices)
-    const labels = result.presentChoices?.choices.map((choice) => choice.label) ?? []
-    included.forEach((label) => expect(labels).toContain(label))
-    excluded.forEach((label) => expect(labels).not.toContain(label))
+  it.each(["drama-first", "live-60m", "cm-30s", "mv-5m"] as const)("requests exact duration without buckets for %s", (jobKind) => {
+    const result = decideRoutingFallback({ jobContext: jobContext({ jobKind }), conversationState: conversationState({ hasProjectLength: false }) })
+    expect(result).toMatchObject({ kind: "continue", presentChoices: { id: "project-length", choices: [] } })
   })
 
   it("continues with additional work choices after final medium and job kind are collected", () => {
@@ -243,7 +220,7 @@ describe("chatbot fallback router", () => {
     })
     expect(result).toMatchObject({
       kind: "to-direct-contact",
-      suggestedMessage: expect.stringContaining("正本ライン 1日"),
+      suggestedMessage: expect.stringContaining("尺が未確認"),
     })
     expect(result).toMatchObject({
       kind: "to-direct-contact",
@@ -392,7 +369,7 @@ describe("chatbot fallback router", () => {
     expect(result.kind).toBe("continue")
     if (result.kind !== "continue") return
     expect(result.nextQuestion).toBe(
-      "長編 1.5時間は、コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 2日（納品先の検査に合わせて1日多め）が目安です。立ち会いは何日にしますか？",
+      "長編 1時間30分は、コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 2日（納品先の検査に合わせて1日多め）が目安です。立ち会いは何日にしますか？",
     )
     expect(result.presentChoices?.choices.map((choice) => choice.label)).toEqual([
       "1日（全体で7日）",
@@ -412,7 +389,7 @@ describe("chatbot fallback router", () => {
     if (result.kind !== "continue") return
     expect(result.presentChoices?.id).toBe("attendance-days")
     expect(result.nextQuestion).toBe(
-      "長編 1.5時間は、コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 1日が目安です。立ち会いは何日にしますか？",
+      "長編 1時間30分は、コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 1日が目安です。立ち会いは何日にしますか？",
     )
     expect(result.presentChoices?.choices).toEqual([
       { id: "1", label: "1日（全体で6日）" },

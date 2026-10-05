@@ -1,3 +1,4 @@
+import { parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import type {
   DocumentaryAttachment,
   DeliveryMedium,
@@ -59,7 +60,7 @@ export function inferWorkflowJobContextFromText(
 ): Partial<JobContext> {
   if (!message) return {}
 
-  const normalized = message.normalize("NFKC").toLowerCase()
+  const normalized = message.normalize("NFKC").toLowerCase().split(/(?<=。)/u).filter((sentence) => !/[?？]/u.test(sentence)).join("")
   const explicitJobKind = inferJobKind(normalized)
   const explicitProjectLengthMinutes = inferProjectLengthMinutes(normalized)
   const safeExplicitJobKind =
@@ -131,21 +132,11 @@ function inferFinalMedium(text: string): FinalMedium | undefined {
 }
 
 function inferProjectLengthMinutes(text: string): number | undefined {
-  const hoursAndHalf = /(\d+(?:\.\d+)?)\s*時間\s*半/u.exec(text)
-  if (hoursAndHalf) return Number(hoursAndHalf[1]) * 60 + 30
-
-  const hoursAndMinutes = /(\d+(?:\.\d+)?)\s*(?:時間|h)(?:\s*(\d+(?:\.\d+)?)\s*分)?/u.exec(text)
-  if (hoursAndMinutes) {
-    return Number(hoursAndMinutes[1]) * 60 + (hoursAndMinutes[2] ? Number(hoursAndMinutes[2]) : 0)
-  }
-
-  const minutes = /(\d+(?:\.\d+)?)\s*(?:分|m(?:in)?(?:ute)?s?)/u.exec(text)
-  if (minutes) return Number(minutes[1])
-
-  const seconds = /(\d+(?:\.\d+)?)\s*(?:秒|s(?:ec(?:ond)?s?)?)/u.exec(text)
-  if (seconds) return Number(seconds[1]) / 60
-
-  return undefined
+  if (/[?？]|未定|約|前後|程度|以内|未満|以上|[〜～]|ではなく|ではありません/u.test(text)) return undefined
+  const length = /(?:\d+\s*時間\s*半|(?:\d+\s*時間)?\s*\d+(?:\.\d+)?\s*(?:分|秒)|\d+\s*時間)/u.exec(text)?.[0]?.trim()
+  if (!length) return undefined
+  if (/^\d+\s*時間\s*半$/u.test(length)) return Number.parseInt(length, 10) * 60 + 30
+  return parseProjectLengthMinutes(length)
 }
 
 function inferDeliveryMedium(text: string): DeliveryMedium | undefined {
@@ -156,7 +147,7 @@ function inferDeliveryMedium(text: string): DeliveryMedium | undefined {
 
 export function estimateBaseDuration(
   jobKind: JobKind,
-  lengthMinutes?: number,
+  lengthMinutes: number,
   options: DurationEstimatorOptions = {},
 ): BaseDurationRange {
   const presetDays = (presetId: WorkflowDurationPresetId): PresetDays => {
@@ -169,8 +160,8 @@ export function estimateBaseDuration(
     const stages = ("stages" in preset && preset.stages) || builtIn?.stages
     return { minDays: preset.minDays, maxDays: preset.maxDays, ...(stages ? { stages } : {}) }
   }
-  const length =
-    typeof lengthMinutes === "number" && Number.isFinite(lengthMinutes) ? Math.max(0, lengthMinutes) : undefined
+  if (!Number.isFinite(lengthMinutes) || lengthMinutes <= 0) throw new Error("exact project length is required")
+  const length = lengthMinutes
 
   if (jobKind === "live-60m" || jobKind === "feature-90m") {
     return estimateAnchoredDuration(workflowDurationLengthAnchors[jobKind], length, presetDays)
@@ -201,12 +192,12 @@ export function estimateBaseDuration(
 
 function estimateAnchoredDuration(
   anchors: (typeof workflowDurationLengthAnchors)[keyof typeof workflowDurationLengthAnchors],
-  length: number | undefined,
+  length: number,
   presetDays: (presetId: WorkflowDurationPresetId) => PresetDays,
 ): BaseDurationRange {
   const short = { ...anchors.short, ...presetDays(anchors.short.presetId) }
   const long = { ...anchors.long, ...presetDays(anchors.long.presetId) }
-  const minutes = length ?? short.minutes
+  const minutes = length
 
   if (minutes <= short.minutes) {
     return {
@@ -324,6 +315,15 @@ export function estimateWorkflow(
     throw new Error("jobKind is required to estimate chatbot workflow duration")
   }
 
+  if (jobContext.projectLengthMinutes === undefined || !Number.isFinite(jobContext.projectLengthMinutes) || jobContext.projectLengthMinutes <= 0) {
+    return {
+      stages: [], totalMinDays: 0, totalMaxDays: 0,
+      riskFlags: jobContext.heavyRetouch ? ["heavy-retouch"] : [],
+      ...(jobContext.heavyRetouch ? { requiresDirectContact: true } : {}),
+      estimateStatus: "needs-confirmation", unsupportedReason: "project-length-unconfirmed",
+      note: "尺が未確認のため工程日数は要確認",
+    }
+  }
   const base = estimateBaseDuration(jobContext.jobKind, jobContext.projectLengthMinutes, options)
   const adjusted = applyAdditionalWorkAdjustment(base, jobContext)
   const workSiteAdjusted = applyWorkSiteAdjustment(adjusted, jobContext.workSite)

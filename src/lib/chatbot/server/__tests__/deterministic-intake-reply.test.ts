@@ -91,7 +91,7 @@ describe("deterministic intake replies (Tier 0)", () => {
 
     expect(h.generate).not.toHaveBeenCalled()
     expect(result.tier).toBe(chatbotLlmTierIds.tier0DeterministicIntake)
-    expect(result.ui.kind).toBe("choice-panel")
+    expect(result.ui.kind).toBe("duration-input")
     expect(result.assistantMessage.content).not.toContain("LLM本文")
     expect(result.auditEvidence.tierAttempts).toEqual([
       expect.objectContaining({ tier: chatbotLlmTierIds.tier0DeterministicIntake, phase: "generate", result: "success" }),

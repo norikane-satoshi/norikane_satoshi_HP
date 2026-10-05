@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 
 import type { ChatbotConversation, ChatbotMessage, ConversationState, SurveyChoiceSet } from "@/lib/chatbot/domain"
-import { cmProjectLengthChoices } from "@/lib/chatbot/domain"
+import { projectLengthChoices } from "@/lib/chatbot/domain"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { chatbotLlmTierIds } from "@/lib/chatbot/server/llm-client"
 import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
@@ -73,9 +73,9 @@ const projectLengthPanelConversation = () =>
   conversation({
     messages: [
       msg("u1", "user", "選択: Web CM / CM"),
-      msg("a1", "assistant", "CM / Web CM の尺・本数を選んでください\n下の選択肢から選んでください。"),
+      msg("a1", "assistant", "CM / Web CM の尺・本数を選んでください\n作品の尺を時間・分で入力してください。"),
     ],
-    activeChoices: cmProjectLengthChoices,
+    activeChoices: projectLengthChoices,
     conversationState: { hasJobKind: true, turnCount: 1 },
     jobContext: { jobKind: "cm-30s" },
   })
@@ -88,18 +88,18 @@ describe("a question typed while a panel is shown", () => {
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
 
     expect(h.generate).toHaveBeenCalledOnce()
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: cmProjectLengthChoices.id } })
+    expect(result.ui).toMatchObject({ kind: "duration-input" })
     expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります")
-    expect(result.assistantMessage.content).toContain("下の選択肢から選んでください。")
+    expect(result.assistantMessage.content).toContain("作品の尺を時間・分で入力してください。")
   })
 
   it("keeps a Tier 2 answer that came without structured UI", async () => {
     const h = harness(projectLengthPanelConversation(), { raw: answer, tier: chatbotLlmTierIds.tier2GeminiFlash })
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
 
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: cmProjectLengthChoices.id } })
+    expect(result.ui).toMatchObject({ kind: "duration-input" })
     expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります")
-    expect(result.assistantMessage.content).toContain("下の選択肢から選んでください。")
+    expect(result.assistantMessage.content).toContain("作品の尺を時間・分で入力してください。")
   })
 
   it("still shows only the panel prompt when the customer did not ask anything", async () => {
@@ -116,8 +116,8 @@ describe("a question typed while a panel is shown", () => {
     })
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
 
-    expect(result.assistantMessage.content).toContain("1〜2日")
-    expect(result.ui).toMatchObject({ kind: "choice-panel" })
+    expect(result.assistantMessage.content).toContain("尺が未確認のため工程日数は確認が必要")
+    expect(result.ui).toMatchObject({ kind: "duration-input" })
   })
 
   it("drops a closing counter-question so the panel prompt is the only ask", async () => {
@@ -129,8 +129,8 @@ describe("a question typed while a panel is shown", () => {
 
     expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります。")
     expect(result.assistantMessage.content).not.toContain("教えていただけますでしょうか")
-    expect(result.assistantMessage.content).toContain("下の選択肢から選んでください。")
-    expect(result.ui).toMatchObject({ kind: "choice-panel" })
+    expect(result.assistantMessage.content).toContain("作品の尺を時間・分で入力してください。")
+    expect(result.ui).toMatchObject({ kind: "duration-input" })
   })
 
   it("drops a closing request phrased without a question mark", async () => {
@@ -152,7 +152,7 @@ describe("a question typed while a panel is shown", () => {
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
 
     expect(result.assistantMessage.content).not.toContain("どの媒体で使う予定ですか")
-    expect(result.assistantMessage.content).toContain("下の選択肢から選んでください。")
+    expect(result.assistantMessage.content).toContain("作品の尺を時間・分で入力してください。")
   })
 
   it("tells the model to answer without asking back while a panel waits", async () => {
@@ -171,7 +171,7 @@ describe("a question typed while a panel is shown", () => {
     expect(systemPrompt).toContain("- 案件種別: Web CM / CM")
     expect(systemPrompt).not.toContain("案件種別: cm-30s")
     expect(systemPrompt).toContain("- 尺: 未確認")
-    expect(systemPrompt).toContain("CM（30秒の場合）")
+    expect(systemPrompt).toContain("尺が未確認のため確認が必要")
     expect(systemPrompt).not.toContain("- 最終媒体: other")
     expect(systemPrompt).not.toContain("- 作業場所: remote-grading")
   })
@@ -185,6 +185,6 @@ describe("a question typed while a panel is shown", () => {
     // Nothing is logged as a failed attempt: the reply without a panel was expected.
     expect(result.auditEvidence.tierAttempts.filter((attempt) => attempt.result === "failure")).toEqual([])
     expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります")
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: cmProjectLengthChoices.id } })
+    expect(result.ui).toMatchObject({ kind: "duration-input" })
   })
 })

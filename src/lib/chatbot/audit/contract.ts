@@ -59,6 +59,7 @@ export const chatbotAuditTierSchema = z.enum([
 export const chatbotAuditUiKindSchema = z.enum([
   "none",
   "choice-panel",
+  "duration-input",
   "booking-card",
   "direct-contact-card",
   "consultation-summary-form",

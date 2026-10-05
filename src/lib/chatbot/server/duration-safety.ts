@@ -37,6 +37,15 @@ export function evaluateWorkflowDurationSafety(
     corrections: [],
   }
   if (!estimate) return { text: rawText, report }
+  if (estimate.unsupportedReason === "project-length-unconfirmed") {
+    return {
+      text: rawText.replace(sentenceWithDurationDayPattern, (sentence) =>
+        /工程|作業|所要|日数|期間|目安|見積|グレーディング/u.test(sentence)
+          ? "尺が未確認のため工程日数は確認が必要です。"
+          : sentence),
+      report,
+    }
+  }
 
   if (estimate.estimateStatus === "needs-confirmation" && estimate.unsupportedReason === "live-duration-outside-baseline") {
     return {

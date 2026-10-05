@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { BookingApiInput } from "@/lib/booking/domain/api-schema"
+import { bookingDetailsMemo } from "@/lib/chatbot/domain/booking-details"
 
 function bookingInput(overrides: Partial<BookingApiInput> = {}): BookingApiInput {
   return {
@@ -116,6 +117,20 @@ afterEach(() => {
 })
 
 describe("createBookingFromApiInput", () => {
+  it.each([["0時間18分", "18分"], ["1時間18分", "1時間18分"], ["未定", "未確認"]])("carries reviewed duration %s into calendar descriptions and booking mail", async (value, canonical) => {
+    const service = await loadCreateBooking()
+    const memo = bookingDetailsMemo("", [{ label: "尺", value }])
+    await service.createBookingFromApiInput({
+      input: bookingInput({ memo, requestedDates: ["2026-10-13"] }),
+      originatedFrom: "chatbot", userId: "user_1", userEmail: "satoshi@example.com",
+    })
+    expect(memo).toContain(`尺: ${canonical}`)
+    expect(service.prisma.bookingGroup.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ memo: expect.stringContaining(memo) }),
+    }))
+    expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining(memo) }))
+    expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ otherWorkDetail: memo }))
+  })
   it("carries confirmed and unconfirmed chatbot facts unchanged into storage, calendar descriptions and booking mail", async () => {
     const service = await loadCreateBooking()
     const memo = "案件種別: 短編ドキュメンタリー\n尺: 約18分\n最終媒体: 未確認\n納品形式: ProRes 422 HQ（Rec.709）、DCP不要"

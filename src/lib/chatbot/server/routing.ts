@@ -105,7 +105,9 @@ function directContact(
 
 function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["workflowEstimate"]): string {
   const baseline =
-    workflowEstimate?.estimateStatus === "needs-confirmation"
+    workflowEstimate?.unsupportedReason === "project-length-unconfirmed"
+      ? "尺が未確認のため工程日数の確認が必要です。"
+      : workflowEstimate?.estimateStatus === "needs-confirmation"
       ? `ライブ150分超の暫定上限目安は${formatDayRange(
           workflowEstimate.referenceMinDays ?? workflowEstimate.totalMinDays,
           workflowEstimate.referenceMaxDays ?? workflowEstimate.totalMaxDays,

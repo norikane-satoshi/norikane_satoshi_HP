@@ -1,14 +1,14 @@
 import { expect, it } from "vitest"
 
 import { buildBookingConfirmationItems } from "./consultation-summary"
-import { jobKindChoices, featureProjectLengthChoices, finalMediumChoices } from "./survey-choice"
+import { jobKindChoices, projectLengthChoices, finalMediumChoices } from "./survey-choice"
 import { matchChoiceAnswer } from "./choice-answer"
 import { bookingDetailsMemo, confirmedBookingDetails, confirmedBookingNote } from "./booking-details"
 
-it("preserves the customer's category and length range instead of estimate anchors", () => {
+it("uses the customer's exact duration instead of the stored estimate anchor", () => {
   const messages = [
     { id: "kind", role: "user" as const, content: "選択: 映画 / 長編 / 本編", createdAt: "2026-10-05T01:14:43Z" },
-    { id: "length", role: "user" as const, content: "選択: 60分未満", createdAt: "2026-10-05T01:14:52Z" },
+    { id: "length", role: "user" as const, content: "尺: 0時間18分", createdAt: "2026-10-05T01:14:52Z" },
     { id: "media", role: "user" as const, content: "選択: 劇場公開、Web公開", createdAt: "2026-10-05T01:15:22Z" },
   ]
   const items = buildBookingConfirmationItems({
@@ -16,11 +16,11 @@ it("preserves the customer's category and length range instead of estimate ancho
     jobContext: { jobKind: "feature-90m", projectLengthMinutes: 60, finalMedium: "ott", workSite: "remote-grading" },
     conversationState: {
       hasJobKind: true, hasProjectLength: true, hasFinalMedium: true,
-      choiceAnswers: Object.fromEntries(messages.map((message, index) => [message.id, matchChoiceAnswer([jobKindChoices, featureProjectLengthChoices, finalMediumChoices][index], message.content)!])),
+      choiceAnswers: Object.fromEntries(messages.map((message, index) => [message.id, matchChoiceAnswer([jobKindChoices, projectLengthChoices, finalMediumChoices][index], message.content)!])),
     },
   })
   expect(items).toContainEqual({ label: "案件種別", value: "映画 / 長編 / 本編" })
-  expect(items).toContainEqual({ label: "尺", value: "60分未満" })
+  expect(items).toContainEqual({ label: "尺", value: "18分" })
   expect(items).toContainEqual({ label: "最終媒体", value: "劇場公開 / Web公開" })
   expect(items).toContainEqual({ label: "作業場所/立ち会い", value: "未確認" })
 })

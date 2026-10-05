@@ -169,7 +169,7 @@ describe("job-kind panel shown before the first message", () => {
     expect(h.generate).not.toHaveBeenCalled()
     expect(result.tier).toBe(chatbotLlmTierIds.tier0DeterministicIntake)
     expect(persistedState(h).hasJobKind).toBe(true)
-    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "project-length" } })
+    expect(result.ui).toMatchObject({ kind: "duration-input" })
   })
 
   it("still uses the LLM for a typed first message", async () => {
