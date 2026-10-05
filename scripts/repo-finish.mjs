@@ -69,6 +69,9 @@ function buildPreflight(options) {
   if (mainStatus) throw new Error("Main checkout must be clean before finishing a task branch");
 
   verifyRefName(options.branch, mainRoot);
+  lifecycle(["policy", "verify", "--require-installed"]);
+  lifecycle(["adapter-attest", "--adapter-id", "codex-app", "--capability", "workspace-mutation"]);
+  lifecycle(["require", "--path", mainRoot, "--adapter-id", "codex-app"]);
   git(["fetch", "--prune", "origin"], { cwd: mainRoot });
 
   const originMasterSha = resolveOptionalRef("origin/master", mainRoot);
@@ -98,7 +101,6 @@ function buildPreflight(options) {
   if (taskWorktrees.length > 1) throw new Error(`Multiple worktrees are attached to ${options.branch}`);
 
   const taskWorktree = taskWorktrees[0];
-  lifecycle(["policy", "verify", "--require-installed"]);
   lifecycle(["adapter-attest", "--adapter-id", "codex-app", "--capability", "disposal"]);
   const registry = lifecycle(["list"]);
   const branches = registry.branches.filter((record) =>
