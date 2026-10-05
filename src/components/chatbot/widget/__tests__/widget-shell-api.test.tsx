@@ -122,6 +122,21 @@ describe("WidgetShell API wiring", () => {
     window.history.replaceState({}, "", "/")
   })
 
+  it.each([
+    ["delivery-format", "納品形式", "ProRes 422 HQ、Rec.709", "納品形式を回答する"],
+    ["dcp-creator", "DCP作成担当", "他社ポスプロ", "DCP作成担当を回答する"],
+    ["material-timing", "素材が揃う日をカレンダーで選ぶ", "2027-10-18", "素材が揃う日を回答する"],
+  ])("records %s card input as the customer's message", async (id, label, value, submitLabel) => {
+    writeStoredWidgetSession({ conversationId: "conv_input", clientSessionId: "session_input", messages: [assistantMessage], activeUi: { kind: "choice-panel", choiceSet: { id, question: "質問", choices: [{ id: "undecided", label: "未定", value: "未定" }] } } })
+    const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse({ conversationId: "conv_input", assistantMessage: { ...assistantMessage, id: "answer_received", content: "回答を記録しました" }, ui: { kind: "none" } }))
+    vi.stubGlobal("fetch", fetchMock)
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    fireEvent.change(await screen.findByLabelText(label), { target: { value } })
+    fireEvent.click(screen.getByRole("button", { name: submitLabel }))
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url) === "/api/chatbot/message" && String(init?.body).includes(value))).toBe(true))
+    await screen.findByText("回答を記録しました")
+  })
+
   it("restores the duration card and records exact minutes as the customer's chat answer", async () => {
     writeStoredWidgetSession({
       conversationId: "conv_duration",
@@ -1724,7 +1739,7 @@ describe("WidgetShell API wiring", () => {
     expect(screen.getByLabelText("メール")).toHaveValue("client@example.jp")
     expect(screen.getByLabelText("補足")).toHaveValue("")
     expect(screen.getByLabelText("尺の分")).toHaveValue(null)
-    expect(screen.getByLabelText("作業場所/立ち会い")).toHaveValue("")
+    expect(screen.getByLabelText("作業場所/立ち会い")).toHaveValue("未確認")
 
     const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
     expect(stored.activeUi.bookingPrefill).toMatchObject({
@@ -1788,6 +1803,7 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("Booking Order")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+    fireEvent.click(screen.getByLabelText("納期は未定"))
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -1907,6 +1923,7 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("Booking Order")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+    fireEvent.click(screen.getByLabelText("納期は未定"))
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 

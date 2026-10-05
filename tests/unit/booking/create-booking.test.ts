@@ -273,7 +273,7 @@ describe("createBookingFromApiInput", () => {
         bookingIds: [],
         bookingStatus: "NEEDS_SCHEDULE",
         scheduleStatus: "unscheduled",
-        scheduleLabel: "候補日未選択",
+        scheduleLabel: "未定（日程は則兼と相談）",
       },
     })
     expect(service.prisma.bookingGroup.create).toHaveBeenCalledWith(
@@ -281,7 +281,7 @@ describe("createBookingFromApiInput", () => {
         data: expect.objectContaining({
           status: "NEEDS_SCHEDULE",
           pendingExpiresAt: null,
-          memo: "希望日: 候補日未選択",
+          memo: "希望日: 未定（日程は則兼と相談）",
           timeSlots: { create: [] },
         }),
       }),

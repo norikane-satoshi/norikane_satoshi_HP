@@ -12,6 +12,8 @@ describe("project duration input", () => {
   it("starts unanswered, replaces buckets with hours/minutes, and submits the exact customer answer", () => {
     const submit = vi.fn()
     render(<DurationInputCard question="作品の尺を教えてください" onSubmit={submit} />)
+    expect(screen.queryByText("作品の尺を教えてください")).not.toBeInTheDocument()
+    expect(screen.getByText("尺", { exact: true })).toBeInTheDocument()
     expect(screen.queryByText("60分未満")).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/秒/)).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "この尺で回答する" })).toBeDisabled()

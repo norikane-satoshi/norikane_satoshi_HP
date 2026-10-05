@@ -98,8 +98,8 @@ describe("booking email sender", () => {
 
     const message = mocks.send.mock.calls[0][0]
     expect(message.subject).toContain("【仮キープ受付】Schedule later")
-    expect(message.subject).toContain("候補日未選択")
-    expect(message.text).toContain("候補日: 候補日未選択（候補日未選択の相談として受け付けました）")
+    expect(message.subject).toContain("未定（日程は則兼と相談）")
+    expect(message.text).toContain("希望日: 未定（日程は則兼と相談）")
     expect(message.text).toContain("日程は後ほど相談させてください")
     expect(message.text).toContain("後ほど則兼本人から直接ご連絡します")
     expect(message.subject).not.toMatch(/予約確定|本予約として確定|確定しました/)
@@ -251,7 +251,7 @@ describe("booking email sender", () => {
 
     expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
       to: "owner@example.com",
-      text: expect.stringContaining("希望日: 候補日未選択"),
+      text: expect.stringContaining("希望日: 未定（日程は則兼と相談）"),
     }))
     delete process.env.CHATBOT_BOOKING_OWNER_EMAIL
   })

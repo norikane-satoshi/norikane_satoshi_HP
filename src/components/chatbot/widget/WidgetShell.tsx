@@ -42,7 +42,8 @@ import {
   shouldAutoOpenChatbotDebug,
   type ChatbotDebugRequest,
 } from "./ChatbotDebugPanel"
-import { DeadlinePanel } from "./DeadlineInput"
+import { BookingDetailInputCard } from "./BookingDetailInputCard"
+import { DateAnswerPanel, DeadlinePanel } from "./DeadlineInput"
 import { ChoicePanel } from "./ChoicePanel"
 import { DirectContactCard } from "./DirectContactCard"
 import { InquiryForm } from "./InquiryForm"
@@ -1863,6 +1864,12 @@ function ActiveWidgetUi({
   }
 
   if (ui.kind === "choice-panel") {
+    if (ui.choiceSet.id === "delivery-format" || ui.choiceSet.id === "dcp-creator") {
+      return <BookingDetailInputCard label={ui.choiceSet.id === "delivery-format" ? "納品形式" : "DCP作成担当"} onSubmit={onSubmit} />
+    }
+    if (ui.choiceSet.id === "material-timing") {
+      return <DateAnswerPanel label="素材が揃う日" onSubmit={onSubmit} />
+    }
     if (ui.choiceSet.id === "project-length") {
       return <DurationInputCard question="作品の尺を時間・分で入力してください。未定の場合は未定を選んでください。" onSubmit={onSubmit} />
     }

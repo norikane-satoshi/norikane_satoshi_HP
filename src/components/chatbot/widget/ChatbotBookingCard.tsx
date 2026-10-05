@@ -15,8 +15,6 @@ import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import { mapErrorCodeToJa } from "@/lib/booking/domain/api-schema"
 import { bookingOnboardingDemoScript } from "@/lib/chatbot/demo"
 import type { CandidateWindow, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain/workflow-estimate"
-import { workScheduleDayCounts, type WorkScheduleDay } from "@/lib/chatbot/domain/work-schedule"
-import { describeWorkflowStages, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import { type BookingCompletionSummary, isChatbotOperationError, postChatbotJson } from "./api"
 import {
   buildBrowserBookingPrefillAudit,
@@ -70,44 +68,12 @@ type CandidatesApiResponse = {
   tentativeDateKeys?: string[]
 }
 
-type CandidateRequestPayload = {
-  jobContext: JobContext
-  workflowEstimate: WorkflowEstimate
-  month: string
-}
+type CandidateRequestPayload = { month: string; dueDate?: string }
 
 const API_PATH = "/api/chatbot/create-booking-from-chat"
 const CANDIDATES_API_PATH = "/api/chatbot/booking-candidates"
-const PLAN_API_PATH = "/api/chatbot/booking-plan"
-
-type SchedulePlanResponse = {
-  days?: WorkScheduleDay[]
-  shortfall?: { prep: number; finish: number } | null
-  lines?: string[]
-}
-
-type SchedulePlanResult =
-  | { status: "ready"; key: string; lines: string[]; days: WorkScheduleDay[]; shortfall: boolean }
-  | { status: "failed"; key: string }
-type SchedulePlanState = { status: "idle" } | { status: "loading" } | SchedulePlanResult
 const MAX_VISIBLE_CANDIDATES = 31
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
-
-function estimateText(estimate?: WorkflowEstimate): string | null {
-  if (!estimate) return null
-  return `工程目安 ${formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)}`
-}
-
-// With the job split into stages the customer picks only the attendance days; the owner's days are
-// placed around them by the server.
-function attendanceDayLimits(estimate?: WorkflowEstimate): { min: number; max: number } | null {
-  if (!estimate?.stages.some((stage) => stage.stage === "attended") || estimate.stages.length < 2) return null
-  return workScheduleDayCounts(estimate).attendanceDays
-}
-
-function requiredDayCount(estimate?: WorkflowEstimate): number {
-  return Math.max(1, Math.ceil(estimate?.totalMaxDays ?? estimate?.totalMinDays ?? 1))
-}
 
 function formatCandidateDate(value: string): string {
   const date = new Date(value)
@@ -341,7 +307,6 @@ function RequiredMark() {
 
 export function ChatbotBookingCard({
   conversationId,
-  estimate,
   jobContext,
   candidates,
   busyDateKeys = [],
@@ -364,30 +329,16 @@ export function ChatbotBookingCard({
     [defaultDueDate, jobContext, visibleCandidates],
   )
   const [displayedMonthOffset, setDisplayedMonthOffset] = useState(0)
-  const estimateFactsConfirmed = ["案件種別", "尺", "最終媒体", "作業場所/立ち会い"].every((label) =>
-    confirmationItems.some((item) => item.label === label && item.value.trim() && item.value !== unconfirmedBookingValue))
-  const effectiveEstimate = estimateFactsConfirmed ? estimate ?? jobContext?.workflowEstimate : undefined
-  const attendanceLimits = attendanceDayLimits(effectiveEstimate)
-  const requiredDays = attendanceLimits?.max ?? requiredDayCount(effectiveEstimate)
-  const stageBreakdown = effectiveEstimate ? describeWorkflowStages(effectiveEstimate.stages) : undefined
   const displayedMonthKey = useMemo(
     () => addJstMonths(initialMonthKey, displayedMonthOffset),
     [displayedMonthOffset, initialMonthKey],
   )
-  const displayedMonthRequest = useMemo<CandidateRequestPayload | null>(
-    () => (jobContext && effectiveEstimate
-      ? {
-          jobContext,
-          workflowEstimate: effectiveEstimate,
-          month: displayedMonthKey,
-        }
-      : null),
-    [displayedMonthKey, effectiveEstimate, jobContext],
+  const [dueDate, setDueDate] = useState(isCalendarDate(defaultDueDate) || defaultDueDate === "未定" ? defaultDueDate : "")
+  const displayedMonthRequest = useMemo<CandidateRequestPayload>(
+    () => ({ month: displayedMonthKey, ...(isCalendarDate(dueDate) ? { dueDate } : {}) }),
+    [displayedMonthKey, dueDate],
   )
-  const displayedMonthRequestKey = useMemo(
-    () => (displayedMonthRequest ? JSON.stringify(displayedMonthRequest) : null),
-    [displayedMonthRequest],
-  )
+  const displayedMonthRequestKey = JSON.stringify(displayedMonthRequest)
   const [monthCandidateOverrides, setMonthCandidateOverrides] = useState<Record<string, CandidateWindow[]>>({})
   const [monthBusyDateKeyOverrides, setMonthBusyDateKeyOverrides] = useState<Record<string, string[]>>({})
   const [monthTentativeDateKeyOverrides, setMonthTentativeDateKeyOverrides] = useState<Record<string, string[]>>({})
@@ -417,13 +368,13 @@ export function ChatbotBookingCard({
   const [monthLoadError, setMonthLoadError] = useState<string | null>(null)
   const [calendarHint, setCalendarHint] = useState<string | null>(null)
   const [projectTitle, setProjectTitle] = useState(defaultProjectTitle ?? "")
-  const [dueDate, setDueDate] = useState(defaultDueDate ?? "")
   const deadlineDateKey = isCalendarDate(dueDate) ? dueDate : undefined
   const [companyName, setCompanyName] = useState(defaultCompanyName ?? "")
   const [contactName, setContactName] = useState(defaultContactName ?? "")
   const [contactEmail, setContactEmail] = useState(defaultContactEmail ?? "")
   const [phone, setPhone] = useState("")
   const [memo, setMemo] = useState(defaultMemo ?? "")
+  const [unavailableDates, setUnavailableDates] = useState("")
   const [reviewDetails, setReviewDetails] = useState<BookingDetail[]>(() => bookingDetailLabels.map((label) => ({
     label,
     value: label === "尺"
@@ -433,26 +384,31 @@ export function ChatbotBookingCard({
         })()
       : confirmationItems.find((item) => item.label === label)?.value ?? unconfirmedBookingValue,
   })))
+  const theatrical = /劇場/u.test(reviewDetails.find((item) => item.label === "最終媒体")?.value ?? "")
+  const needsDcp = reviewDetails.find((item) => item.label === "DCP必要性")?.value === "必要"
+  const visibleReviewDetails = reviewDetails.filter((item) => item.label !== "納品希望日" &&
+    (item.label !== "納品希望日の理由" || isCalendarDate(dueDate)) &&
+    (item.label !== "DCP必要性" || theatrical) &&
+    (item.label !== "DCP作成担当" || (theatrical && needsDcp)))
+  const updateDetail = (label: BookingDetail["label"], value: string) => {
+    setReviewDetails((current) => current.map((detail) => detail.label === label ? { ...detail, value } : detail))
+    setAgreed(false)
+  }
   const [agreed, setAgreed] = useState(false)
-  const detailsEdited = reviewDetails.some((item) => item.value !== (confirmationItems.find((initial) => initial.label === item.label)?.value ?? unconfirmedBookingValue))
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [booked, setBooked] = useState<BookingResult | null>(completedBooking ?? null)
-  const [schedulePlanResult, setSchedulePlanResult] = useState<SchedulePlanResult | null>(null)
   const auditEventIdsRef = useRef(new Map<string, string>())
   const sentAuditKeysRef = useRef(new Set<string>())
 
   const currentJstDateKey = todayJstDateKey()
   const selectedKeys = useMemo(() => selectedDateKeys(selectedSlots), [selectedSlots])
-  const attendanceDates = useMemo(() => [...selectedKeys].sort(), [selectedKeys])
-  const attendanceReady = Boolean(attendanceLimits && attendanceDates.length >= attendanceLimits.min)
-  const planKey = attendanceReady ? attendanceDates.join(",") : null
   const trimmedContactEmail = contactEmail.trim()
   const contactEmailValid = isValidEmail(trimmedContactEmail)
   const contactEmailErrorVisible = trimmedContactEmail.length > 0 && !contactEmailValid
   // The card is two steps: the calendar alone, then everything decided with the contact fields.
   const [step, setStep] = useState<"schedule" | "confirm">("schedule")
-  const scheduleChosen = attendanceLimits ? attendanceReady : selectedSlots.length > 0
+  const scheduleChosen = selectedSlots.length > 0
   const canSubmit = Boolean(
     step === "confirm" &&
     projectTitle.trim() &&
@@ -585,48 +541,6 @@ export function ChatbotBookingCard({
     })
   }
 
-  // Serialized so a parent re-render with an equal jobContext does not refetch the plan.
-  const planRequestBody =
-    !detailsEdited && planKey && jobContext && effectiveEstimate
-      ? JSON.stringify({ jobContext, dueDate, workflowEstimate: effectiveEstimate, attendanceDates: planKey.split(",") })
-      : null
-
-  const schedulePlan: SchedulePlanState = !planRequestBody
-    ? { status: "idle" }
-    : schedulePlanResult?.key === planRequestBody
-      ? schedulePlanResult
-      : { status: "loading" }
-
-  useEffect(() => {
-    if (!planRequestBody) return
-    let cancelled = false
-    fetch(PLAN_API_PATH, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: planRequestBody,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("booking_plan_failed")
-        return (await response.json()) as SchedulePlanResponse
-      })
-      .then((payload) => {
-        if (cancelled) return
-        setSchedulePlanResult({
-          status: "ready",
-          key: planRequestBody,
-          lines: Array.isArray(payload.lines) ? payload.lines : [],
-          days: Array.isArray(payload.days) ? payload.days : [],
-          shortfall: Boolean(payload.shortfall),
-        })
-      })
-      .catch(() => {
-        if (!cancelled) setSchedulePlanResult({ status: "failed", key: planRequestBody })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [planRequestBody])
-
   useEffect(() => {
     if (!displayedMonthRequest || !displayedMonthRequestKey) return
     if (monthCandidateOverrides[displayedMonthRequestKey]) return
@@ -678,7 +592,7 @@ export function ChatbotBookingCard({
       contactName: contactName.trim(),
       contactEmail: trimmedContactEmail,
       companyName: companyName.trim(),
-      memo: memo.trim(),
+      memo: [memo.trim(), unavailableDates.trim() ? `都合の悪い日: ${unavailableDates.trim()}` : ""].filter(Boolean).join("\n"),
     }
 
     try {
@@ -694,19 +608,13 @@ export function ChatbotBookingCard({
           phone: phone.trim(),
           dueDate,
           memo: submission.memo,
-          confirmedDetails: reviewDetails,
+          confirmedDetails: reviewDetails.map((item) => ({ ...item, value: item.label === "納品希望日" ? (isCalendarDate(dueDate) ? dueDate : unconfirmedBookingValue) : (item.label === "DCP必要性" && !theatrical) || (item.label === "DCP作成担当" && (!theatrical || !needsDcp)) || (item.label === "納品希望日の理由" && !isCalendarDate(dueDate)) ? unconfirmedBookingValue : item.value })),
           detailsConfirmed: true,
           agreed,
-          ...(attendanceLimits
-            ? { attendanceDates }
-            : {
-                selectedSlots: selectedSlots.map((slot) => ({
-                  start: slot.start,
-                  end: slot.end,
-                })),
-              }),
-          jobContext,
-          workflowEstimate: detailsEdited ? undefined : effectiveEstimate,
+          selectedSlots: selectedSlots.map((slot) => {
+            const start = jstDateKey(slot.start)
+            return { start, end: jstDateKey(addJstDays(jstDateFromKey(start), 1)) }
+          }),
           correlationId: auditContext?.correlationId,
         },
       )
@@ -721,10 +629,7 @@ export function ChatbotBookingCard({
         bookingIds: payload.bookingIds,
         bookingStatus: payload.bookingStatus,
         scheduleStatus: payload.scheduleStatus,
-        scheduleLabel:
-          schedulePlan.status === "ready" && schedulePlan.lines.length > 0
-            ? schedulePlan.lines.join("\n")
-            : payload.scheduleLabel ?? (selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "希望日未選択"),
+        scheduleLabel: payload.scheduleLabel ?? (selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "未定（日程は則兼と相談）"),
         ...submission,
       }
       emitBookingSubmitSuccessRendered()
@@ -755,19 +660,8 @@ export function ChatbotBookingCard({
         >
           {step === "confirm"
             ? "チャットで決まった内容です。これで送信してよいか確認してください。"
-            : attendanceLimits
-              ? "立ち会いの日を選んでください。コンフォーム・仕込み・QC は則兼の空いている日に自動で入れて、まとめて仮キープします。まだ決まっていなければ、そのまま次へ進めます。"
-              : `作業する日を選んでください。想定の日数（${requiredDays}日）まで仮キープで押さえます。まだ決まっていなければ、そのまま次へ進めます。`}
+            : "希望日や都合の悪い日があれば教えてください。希望日を選ぶと、その日だけ仮キープします。日程は未定のままでも次へ進めます。"}
         </p>
-        {step === "schedule" && estimateText(effectiveEstimate) ? (
-          <p
-            className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} mt-2 text-xs font-medium text-hp-muted`}
-            style={CHATBOT_CONVERSATION_CONTENT_STYLE}
-          >
-            {estimateText(effectiveEstimate)}
-            {stageBreakdown ? <span className="block">{stageBreakdown}</span> : null}
-          </p>
-        ) : null}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -775,7 +669,7 @@ export function ChatbotBookingCard({
         <>
         <fieldset className="space-y-2">
           <legend className="text-sm font-semibold text-hp">
-            {attendanceLimits ? "立ち会い日" : "仮キープ候補"}
+            希望日（任意）
           </legend>
           <div className="rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -892,14 +786,6 @@ export function ChatbotBookingCard({
                           setCalendarHint(null)
                           return current.filter((selectedSlot) => jstDateKey(selectedSlot.start) !== dateKey)
                         }
-                        if (current.length >= requiredDays) {
-                          setCalendarHint(
-                            attendanceLimits
-                              ? `立ち会いは${requiredDays}日までです。別の日にする場合は、選択済みの日を外してください。`
-                              : `候補日は最大${requiredDays}日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。`,
-                          )
-                          return current
-                        }
                         setCalendarHint(null)
                         return [...current, slot.candidate].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
                       })
@@ -920,34 +806,16 @@ export function ChatbotBookingCard({
             ) : null}
             <p className="mt-3 text-xs leading-relaxed text-hp-muted" aria-live="polite">
               <span className="font-semibold text-hp">
-                {selectedSlots.length > 0 ? `${selectedSlots.length}／${requiredDays}` : "希望日未選択"}
+                {selectedSlots.length > 0 ? "選択した希望日" : "希望日未選択"}
               </span>
               {selectedSlots.length > 0 ? <span className="ml-2">{formatSelectedSlots(selectedSlots)}</span> : null}
             </p>
-            {attendanceLimits && selectedSlots.length > 0 && !attendanceReady ? (
-              <p className="mt-2 text-xs leading-relaxed text-hp-muted" role="status">
-                立ち会いは{attendanceLimits.min}日選んでください。
-              </p>
-            ) : null}
-            {attendanceLimits && schedulePlan.status !== "idle" ? (
-              <div className="mt-3 rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/45 p-3" aria-live="polite" data-testid="chatbot-booking-schedule-plan">
-                <p className="text-xs font-semibold text-hp">仮キープする日程</p>
-                {schedulePlan.status === "loading" ? (
-                  <p className="mt-1 text-xs text-hp-muted">則兼の作業日を空きから探しています…</p>
-                ) : null}
-                {schedulePlan.status === "ready" ? (
-                  <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-hp">{schedulePlan.lines.join("\n")}</p>
-                ) : null}
-                {schedulePlan.status === "ready" && schedulePlan.shortfall ? (
-                  <p className="mt-1 text-xs leading-relaxed text-hp-muted">空きが足りない分は、則兼が日程を相談します。立ち会い日を後ろにずらすと入ることがあります。</p>
-                ) : null}
-                {schedulePlan.status === "failed" ? (
-                  <p className="mt-1 text-xs leading-relaxed text-hp-muted">作業日を自動で入れられませんでした。このまま送信すると、立ち会い日だけを仮キープします。</p>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         </fieldset>
+        <label className="block text-sm font-medium text-hp">
+          都合の悪い日（任意）
+          <input aria-label="都合の悪い日（任意）" className="glass-input mt-2 w-full px-4 py-3 text-sm" value={unavailableDates} maxLength={160} placeholder="例: 10月20日は不可" onChange={(event) => { setUnavailableDates(event.target.value); setAgreed(false) }} />
+        </label>
         <div className="flex flex-col gap-2">
           <button
             type="button"
@@ -976,23 +844,11 @@ export function ChatbotBookingCard({
           <div>
             <dt className="text-xs font-semibold text-hp-muted">仮キープする日程</dt>
             <dd className="mt-0.5 whitespace-pre-line text-hp">
-              {schedulePlan.status === "ready" && schedulePlan.lines.length > 0
-                ? schedulePlan.lines.join("\n")
-                : selectedSlots.length > 0
-                  ? formatSelectedSlots(selectedSlots)
-                  : "未定（日程は則兼と相談）"}
+              {selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "未定（日程は則兼と相談）"}
             </dd>
           </div>
-          {!detailsEdited && estimateText(effectiveEstimate) ? (
-            <div>
-              <dt className="text-xs font-semibold text-hp-muted">工程の目安</dt>
-              <dd className="mt-0.5 text-hp">
-                {estimateText(effectiveEstimate)?.replace(/^工程目安\s*/u, "")}
-                {stageBreakdown ? `（${stageBreakdown}）` : ""}
-              </dd>
-            </div>
-          ) : null}
-          {[...reviewDetails.filter((item) => item.label !== "納品希望日"), { label: "納品希望日", value: dueDate.trim() || unconfirmedBookingValue }].map((item) => (
+          {unavailableDates.trim() ? <div><dt className="text-xs font-semibold text-hp-muted">都合の悪い日</dt><dd className="mt-0.5 break-words text-hp">{unavailableDates.trim()}</dd></div> : null}
+          {[...visibleReviewDetails, { label: "納品希望日", value: isCalendarDate(dueDate) ? dueDate : unconfirmedBookingValue }].map((item) => (
             <div key={item.label}>
               <dt className="text-xs font-semibold text-hp-muted">{item.label}</dt>
               <dd className="mt-0.5 break-words text-hp">{item.value.trim() || unconfirmedBookingValue}</dd>
@@ -1004,8 +860,8 @@ export function ChatbotBookingCard({
         </button>
 
         <div className="grid gap-3">
-          <p className="text-sm text-hp-muted">案件の条件を確認し、違う項目は修正してください。分からない項目は空欄のままで送信できます（未確認として届きます）。</p>
-          {reviewDetails.filter((item) => item.label !== "納品希望日").map((item) => (
+          <p className="text-sm text-hp-muted">案件の条件を確認し、違う項目は修正してください。分からない項目は未定を選ぶか空欄にしてください（未確認として届きます）。納期は日付または未定を選んでください。</p>
+          {visibleReviewDetails.map((item) => (
             item.label === "尺" ? (
               <div key={item.label} className="space-y-2">
                 <p className="text-sm font-medium text-hp">尺</p>
@@ -1018,6 +874,19 @@ export function ChatbotBookingCard({
                   }}
                 />
               </div>
+            ) : item.label === "素材が揃う日" ? (
+              <div key={item.label} className="space-y-2">
+                <p className="text-sm font-medium text-hp">{item.label}</p>
+                <DeadlineInput label={item.label} value={item.value === unconfirmedBookingValue ? "未定" : item.value} onChange={(value) => updateDetail(item.label, value === "未定" ? unconfirmedBookingValue : value)} />
+              </div>
+            ) : item.label === "作業場所/立ち会い" || item.label === "DCP必要性" ? (
+              <label key={item.label} className="block text-sm font-medium text-hp">
+                {item.label}
+                <select aria-label={item.label} className="glass-input mt-2 w-full px-4 py-3 text-sm" value={item.value} onChange={(event) => updateDetail(item.label, event.target.value)}>
+                  {[unconfirmedBookingValue, ...(item.label === "DCP必要性" ? ["必要", "不要"] : ["オンライン", "先方の場所で", "不要", "お任せ"])].map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+                {item.label === "DCP必要性" ? <p className="mt-2 text-xs font-normal text-hp-muted">則兼はDCPを作成しません。必要な場合はポスプロなど他社への依頼になります。</p> : null}
+              </label>
             ) :
             <label key={item.label} className="block text-sm font-medium text-hp">
               {item.label}

@@ -35,12 +35,6 @@ const estimate: WorkflowEstimate = {
   riskFlags: [],
 }
 
-const rangedEstimate: WorkflowEstimate = {
-  stages: [],
-  totalMinDays: 2,
-  totalMaxDays: 3,
-  riskFlags: [],
-}
 const conversationContentClasses = CHATBOT_CONVERSATION_CONTENT_CLASS_NAME.split(" ")
 
 const jobContext = {
@@ -57,7 +51,9 @@ function mockFetch(status: number, body: unknown) {
     status,
     json: vi.fn().mockResolvedValue(body),
   })
-  vi.stubGlobal("fetch", fetchMock)
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => String(input) === "/api/chatbot/booking-candidates"
+    ? Promise.resolve({ ok: true, status: 200, json: async () => ({ candidates, busyDateKeys: [] }) })
+    : fetchMock(input, init))
   return fetchMock
 }
 
@@ -66,6 +62,7 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
     <ChatbotBookingCard
       candidates={candidates}
       estimate={estimate}
+      defaultDueDate="未定"
       defaultProjectTitle="CM grading"
       defaultContactName="田中"
       defaultCompanyName="株式会社サンプル"
@@ -80,6 +77,64 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
 }
 
 describe("ChatbotBookingCard", () => {
+  it("holds only explicitly selected dates even when the internal estimate spans multiple days", async () => {
+    const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
+    renderCard({ estimate: { ...estimate, totalMinDays: 8, totalMaxDays: 10 }, defaultContactEmail: "client@example.jp", candidates: [{ ...candidates[0], end: "2026-06-20T01:00:00.000Z" }] })
+    expect(screen.queryByText(/工程目安|立ち会い日数|作業日数/u)).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("都合の悪い日（任意）"), { target: { value: "6月12日は不可" } })
+    fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
+    fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.selectedSlots).toEqual([{ start: "2026-06-10", end: "2026-06-11" }])
+    expect(body.memo).toContain("都合の悪い日: 6月12日は不可")
+    expect(body).not.toHaveProperty("workflowEstimate")
+    expect(body).not.toHaveProperty("attendanceDates")
+    expect(body).not.toHaveProperty("jobContext")
+  })
+
+  it("requires a deadline date or explicit undecided choice and lets the customer edit all new details", async () => {
+    const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
+    renderCard({ defaultDueDate: "相談したい", defaultContactEmail: "client@example.jp", confirmationItems: [{ label: "最終媒体", value: "劇場" }, { label: "DCP必要性", value: "必要" }] })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    expect(screen.getByRole("button", { name: "予約内容を送信" })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText("納期をカレンダーで選ぶ"), { target: { value: "2026-10-25" } })
+    fireEvent.change(screen.getByLabelText("納品希望日の理由"), { target: { value: "11月1日の映画祭応募" } })
+    fireEvent.change(screen.getByLabelText("納品形式"), { target: { value: "ProRes 422 HQ、Rec.709" } })
+    fireEvent.click(screen.getByLabelText("素材が揃う日は未定"))
+    fireEvent.change(screen.getByLabelText("素材が揃う日をカレンダーで選ぶ"), { target: { value: "2026-10-18" } })
+    fireEvent.change(screen.getByLabelText("DCP作成担当"), { target: { value: "他社ポスプロ" } })
+    expect(screen.queryByRole("option", { name: /則兼|グレーディングルーム/u })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/受け渡し方法|受け渡し素材/u)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.dueDate).toBe("2026-10-25")
+    expect(body.confirmedDetails).toEqual(expect.arrayContaining([
+      { label: "納品形式", value: "ProRes 422 HQ、Rec.709" }, { label: "素材が揃う日", value: "2026-10-18" },
+      { label: "納品希望日の理由", value: "11月1日の映画祭応募" }, { label: "DCP作成担当", value: "他社ポスプロ" },
+    ]))
+  })
+
+  it("clears DCP answers after the customer changes away from theatrical release", async () => {
+    const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
+    renderCard({ defaultContactEmail: "client@example.jp", confirmationItems: [{ label: "最終媒体", value: "劇場" }, { label: "DCP必要性", value: "必要" }, { label: "DCP作成担当", value: "ポスプロ" }] })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+    fireEvent.change(screen.getByLabelText("最終媒体"), { target: { value: "Web" } })
+    expect(screen.queryByLabelText("DCP必要性")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("DCP作成担当")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
+    fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).confirmedDetails).toEqual(expect.arrayContaining([
+      { label: "DCP必要性", value: "未確認" }, { label: "DCP作成担当", value: "未確認" },
+    ]))
+  })
+
   it("does not display or submit an estimate whose core facts are unconfirmed", async () => {
     const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
     renderCard({ confirmationItems: [], defaultContactEmail: "client@example.jp" })
@@ -136,7 +191,7 @@ describe("ChatbotBookingCard", () => {
     const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
     renderCard({ defaultContactEmail: "client@example.jp" })
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
-    fireEvent.click(screen.getByLabelText("未定"))
+    fireEvent.click(within(screen.getByRole("group", { name: "尺" })).getByLabelText("未定"))
     expect(screen.getByLabelText("尺の分")).toBeDisabled()
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
@@ -203,8 +258,8 @@ describe("ChatbotBookingCard", () => {
       />,
     )
 
-    expect(screen.getByText(/作業する日を選んでください/u)).toBeInTheDocument()
-    expect(screen.getByText(/そのまま次へ進めます/u)).toBeInTheDocument()
+    expect(screen.getByText(/希望日や都合の悪い日があれば/u)).toBeInTheDocument()
+    expect(screen.getByText(/日程は未定のままでも次へ進めます/u)).toBeInTheDocument()
     expect(screen.queryByLabelText("メール")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
@@ -259,15 +314,13 @@ describe("ChatbotBookingCard", () => {
     expect(screen.getByText("希望日未選択")).toBeInTheDocument()
   })
 
-  it("marks required booking order fields in red without rendering optional label text", () => {
+  it("marks contact fields as required and leaves desired dates optional", () => {
     renderCard()
 
     const bookingOrder = screen.getByLabelText("チャット内予約")
-    expect(within(bookingOrder).getByText("仮キープ候補")).toBeInTheDocument()
-    expect(within(bookingOrder).getByText("仮キープ候補").parentElement).not.toHaveTextContent("必須")
+    expect(within(bookingOrder).getByText("希望日（任意）")).toBeInTheDocument()
+    expect(within(bookingOrder).getByText("希望日（任意）").parentElement).not.toHaveTextContent("必須")
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
-    expect(bookingOrder).not.toHaveTextContent("（任意）")
-    expect(bookingOrder).not.toHaveTextContent("任意")
     expect(bookingOrder).not.toHaveTextContent("（必須）")
 
     const requiredMarks = within(bookingOrder).getAllByText("必須")
@@ -375,10 +428,10 @@ describe("ChatbotBookingCard", () => {
   it("keeps chat copy in the conversation typography without changing booking controls", () => {
     renderCard()
 
-    expect(screen.getByText("作業する日を選んでください。想定の日数（2日）まで仮キープで押さえます。まだ決まっていなければ、そのまま次へ進めます。")).toHaveClass(
+    expect(screen.getByText("希望日や都合の悪い日があれば教えてください。希望日を選ぶと、その日だけ仮キープします。日程は未定のままでも次へ進めます。")).toHaveClass(
       ...conversationContentClasses,
     )
-    expect(screen.getByText("工程目安 2日")).toHaveClass(...conversationContentClasses)
+    expect(screen.queryByText("工程目安 2日")).not.toBeInTheDocument()
     expect(screen.getByText("Booking Order")).not.toHaveClass(...conversationContentClasses)
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     expect(screen.getByLabelText("案件名")).not.toHaveClass(...conversationContentClasses)
@@ -544,11 +597,11 @@ describe("ChatbotBookingCard", () => {
 
     expect(saturday).toHaveAttribute("aria-pressed", "true")
     expect(sunday).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getAllByText("2／2")).toHaveLength(1)
+    expect(screen.getAllByText("選択した希望日")).toHaveLength(1)
     expect(document.body).not.toHaveTextContent("不可")
   })
 
-  it("uses jobContext workflow estimates when refreshing the current month candidates", async () => {
+  it("loads single-day availability without exposing workflow estimates", async () => {
     vi.setSystemTime(new Date("2026-06-12T12:00:00+09:00"))
     const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       if (String(input) === "/api/chatbot/booking-candidates") {
@@ -612,100 +665,16 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(june17)
     expect(june14).toHaveAttribute("aria-pressed", "true")
     expect(june17).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getAllByText("2／2")).toHaveLength(1)
+    expect(screen.getAllByText("選択した希望日")).toHaveLength(1)
 
     const monthCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/chatbot/booking-candidates")
     expect(monthCall).toBeTruthy()
     expect(JSON.parse(String(monthCall?.[1]?.body))).toMatchObject({
       month: "2026-06",
-      workflowEstimate: expect.objectContaining({ totalMaxDays: 2 }),
     })
   })
 
-  it("re-fetches the same month when jobContext or workflowEstimate changes", async () => {
-    vi.setSystemTime(new Date("2026-06-12T12:00:00+09:00"))
-    const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input) === "/api/chatbot/booking-candidates") {
-        const payload = JSON.parse(String(init?.body))
-        const totalMaxDays = payload.workflowEstimate?.totalMaxDays
-        const candidatesByEstimate = totalMaxDays === 3
-          ? [
-              {
-                start: "2026-06-18T15:00:00.000Z",
-                end: "2026-06-19T15:00:00.000Z",
-                label: "6月19日 単日",
-              },
-            ]
-          : [
-              {
-                start: "2026-06-13T15:00:00.000Z",
-                end: "2026-06-14T15:00:00.000Z",
-                label: "6月14日 単日",
-              },
-            ]
 
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: vi.fn().mockResolvedValue({
-            candidates: candidatesByEstimate,
-            busyDateKeys: [],
-          }),
-        })
-      }
-
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ bookingGroupId: "group_1", bookingIds: ["slot_1"] }),
-      })
-    })
-    vi.stubGlobal("fetch", fetchMock)
-
-    const { rerender } = renderCard({
-      candidates: [],
-      estimate: undefined,
-      jobContext,
-    })
-
-    expect(await screen.findByRole("button", { name: "2026-06-14 選択可" })).toBeTruthy()
-
-    const updatedEstimate: WorkflowEstimate = {
-      stages: [],
-      totalMinDays: 3,
-      totalMaxDays: 3,
-      riskFlags: [],
-    }
-
-    rerender(
-      <ChatbotBookingCard
-        candidates={[]}
-        estimate={undefined}
-        defaultProjectTitle="CM grading"
-        defaultContactName="田中"
-        defaultCompanyName="株式会社サンプル"
-        conversationId="conv_1"
-        jobContext={{ ...jobContext, workflowEstimate: updatedEstimate }}
-        confirmationItems={[
-          { label: "案件種別", value: "CM" }, { label: "尺", value: "18分" },
-          { label: "最終媒体", value: "Web公開" }, { label: "作業場所/立ち会い", value: "お任せ" },
-        ]}
-      />,
-    )
-
-    expect(await screen.findByRole("button", { name: "2026-06-19 選択可" })).toBeTruthy()
-
-    const bookingCalls = fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/chatbot/booking-candidates")
-    expect(bookingCalls).toHaveLength(2)
-    expect(JSON.parse(String(bookingCalls[0]?.[1]?.body))).toMatchObject({
-      month: "2026-06",
-      workflowEstimate: expect.objectContaining({ totalMaxDays: 2 }),
-    })
-    expect(JSON.parse(String(bookingCalls[1]?.[1]?.body))).toMatchObject({
-      month: "2026-06",
-      workflowEstimate: expect.objectContaining({ totalMaxDays: 3 }),
-    })
-  })
 
   it("allows disjoint selected days around a busy day", () => {
     renderCard({
@@ -729,7 +698,7 @@ describe("ChatbotBookingCard", () => {
 
     expect(screen.getByRole("button", { name: "2026-06-10 選択可" })).toHaveAttribute("aria-pressed", "true")
     expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getAllByText("2／2")).toHaveLength(1)
+    expect(screen.getAllByText("選択した希望日")).toHaveLength(1)
   })
 
   it("allows Saturday and Sunday selections and counts them toward the required days", () => {
@@ -753,7 +722,7 @@ describe("ChatbotBookingCard", () => {
 
     expect(screen.getByRole("button", { name: "2026-06-13 選択可" })).toHaveAttribute("aria-pressed", "true")
     expect(screen.getByRole("button", { name: "2026-06-14 選択可" })).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getAllByText("2／2")).toHaveLength(1)
+    expect(screen.getAllByText("選択した希望日")).toHaveLength(1)
   })
 
   it("keeps disjoint selected days visible when navigating across months", () => {
@@ -776,38 +745,11 @@ describe("ChatbotBookingCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "翌月を表示" }))
     fireEvent.click(screen.getByRole("button", { name: "2026-07-01 選択可" }))
 
-    expect(screen.getAllByText("2／2")).toHaveLength(1)
+    expect(screen.getAllByText("選択した希望日")).toHaveLength(1)
     expect(screen.getByRole("button", { name: "2026-07-01 選択可" })).toHaveAttribute("data-selected", "true")
   })
 
-  it("allows selecting up to the workflow estimate maximum day count", () => {
-    renderCard({
-      estimate: rangedEstimate,
-      candidates: [
-        ...candidates,
-        {
-          start: "2026-06-12T01:00:00.000Z",
-          end: "2026-06-13T01:00:00.000Z",
-          label: "6月12日 単日",
-        },
-        {
-          start: "2026-06-13T01:00:00.000Z",
-          end: "2026-06-14T01:00:00.000Z",
-          label: "6月13日 単日",
-        },
-      ],
-    })
 
-    fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
-    fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
-    fireEvent.click(screen.getByRole("button", { name: "2026-06-12 選択可" }))
-    fireEvent.click(screen.getByRole("button", { name: "2026-06-13 選択可" }))
-
-    expect(screen.getAllByText("3／3")).toHaveLength(1)
-    expect(screen.getByText("候補日は最大3日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getByRole("button", { name: "2026-06-13 選択可" })).toHaveAttribute("aria-pressed", "false")
-  })
 
   it("uses the selected cell surface instead of circle or check markers", () => {
     renderCard()
@@ -822,25 +764,7 @@ describe("ChatbotBookingCard", () => {
     expect(firstDate.querySelector(".rounded-full")).toBeNull()
   })
 
-  it("rejects selecting more than the required day count", () => {
-    renderCard({
-      candidates: [
-        ...candidates,
-        {
-          start: "2026-06-12T01:00:00.000Z",
-          end: "2026-06-13T01:00:00.000Z",
-          label: "6月12日 単日",
-        },
-      ],
-    })
 
-    fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
-    fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
-    fireEvent.click(screen.getByRole("button", { name: "2026-06-12 選択可" }))
-
-    expect(screen.getByText("候補日は最大2日まで選べます。別の日を選ぶ場合は、選択済みの日を外してください。")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "false")
-  })
 
   it("does not render internal candidate notes or booking names in the calendar UI", () => {
     renderCard({
@@ -994,12 +918,12 @@ describe("ChatbotBookingCard", () => {
       contactEmail: "client@example.jp",
       selectedSlots: [
         {
-          start: "2026-06-10T01:00:00.000Z",
-          end: "2026-06-10T02:00:00.000Z",
+          start: "2026-06-10",
+          end: "2026-06-11",
         },
         {
-          start: "2026-06-11T05:00:00.000Z",
-          end: "2026-06-11T06:00:00.000Z",
+          start: "2026-06-11",
+          end: "2026-06-12",
         },
       ],
     })
@@ -1019,8 +943,8 @@ describe("ChatbotBookingCard", () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
       selectedSlots: [
         {
-          start: "2026-06-10T01:00:00.000Z",
-          end: "2026-06-10T02:00:00.000Z",
+          start: "2026-06-10",
+          end: "2026-06-11",
         },
       ],
     })
@@ -1045,7 +969,7 @@ describe("ChatbotBookingCard", () => {
       selectedSlots: [],
     })
     const completion = await screen.findByLabelText("予約送信完了")
-    expect(within(completion).getByText("希望日未選択")).toBeInTheDocument()
+    expect(within(completion).getByText("未定（日程は則兼と相談）")).toBeInTheDocument()
     expect(within(completion).getByText("予約番号: group_1")).toBeInTheDocument()
     expect(within(completion).getByText("CM grading")).toBeInTheDocument()
     expect(within(completion).getByText("田中")).toBeInTheDocument()
@@ -1176,135 +1100,12 @@ describe("ChatbotBookingCard", () => {
     expect(screen.queryByRole("button", { name: "予約内容を送信" })).not.toBeInTheDocument()
   })
 
-  describe("attendance mode", () => {
-    const stagedEstimate: WorkflowEstimate = {
-      stages: [
-        { stage: "conform", minDays: 1, maxDays: 1 },
-        { stage: "prep", minDays: 3, maxDays: 3 },
-        { stage: "attended", minDays: 1, maxDays: 2 },
-        { stage: "final-check", minDays: 1, maxDays: 1 },
-      ],
-      totalMinDays: 6,
-      totalMaxDays: 7,
-      riskFlags: [],
-    }
-    const stagedJobContext = { ...jobContext, jobKind: "feature-90m" as const, workflowEstimate: stagedEstimate }
-    const attendanceCandidates: CandidateWindow[] = ["2026-06-10", "2026-06-11", "2026-06-12"].map((day) => ({
-      start: `${day}T01:00:00.000Z`,
-      end: `${day}T10:00:00.000Z`,
-      label: `${day} 単日`,
-    }))
-    const planLines = [
-      "コンフォーム・仕込み（則兼の作業日）: 6/5(金)、6/6(土)、6/8(月)、6/9(火)",
-      "立ち会い: 6/10(水)",
-      "QC（則兼の作業日）: 6/11(木)",
-    ]
-
-    function mockRoutedFetch() {
-      const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
-        const url = String(input)
-        const body =
-          url === "/api/chatbot/booking-candidates"
-            ? { candidates: attendanceCandidates, busyDateKeys: [] }
-            : url === "/api/chatbot/booking-plan"
-              ? { days: [], shortfall: null, lines: planLines }
-              : { bookingGroupId: "group_1", bookingIds: ["slot_1"] }
-        return Promise.resolve({ ok: true, status: 200, json: vi.fn().mockResolvedValue(body) })
-      })
-      vi.stubGlobal("fetch", fetchMock)
-      return fetchMock
-    }
-
-    function renderStagedCard() {
-      return renderCard({
-        candidates: attendanceCandidates,
-        estimate: stagedEstimate,
-        jobContext: stagedJobContext,
-        defaultContactEmail: "client@example.jp",
-      })
-    }
-
-    beforeEach(() => {
-      vi.setSystemTime(new Date("2026-06-01T09:00:00+09:00"))
-    })
-
-    it("shows the stage breakdown and asks only for attendance days", () => {
-      mockRoutedFetch()
-      renderStagedCard()
-
-      expect(screen.getByText("コンフォーム1日・仕込み3日・立ち会い1〜2日・QC 1日")).toBeInTheDocument()
-      expect(screen.getByText("立ち会い日")).toBeInTheDocument()
-      expect(screen.getByText(/コンフォーム・仕込み・QC は則兼の空いている日に自動で入れて/u)).toBeInTheDocument()
-    })
-
-    it("limits the selection to the attendance maximum", () => {
-      mockRoutedFetch()
-      renderStagedCard()
-
-      fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
-      fireEvent.click(screen.getByRole("button", { name: "2026-06-11 選択可" }))
-      fireEvent.click(screen.getByRole("button", { name: "2026-06-12 選択可" }))
-
-      expect(screen.getByText("立ち会いは2日までです。別の日にする場合は、選択済みの日を外してください。")).toBeInTheDocument()
-      expect(screen.getByRole("button", { name: "2026-06-12 選択可" })).toHaveAttribute("aria-pressed", "false")
-    })
-
-    it("plans the owner's work days around the chosen attendance day and submits attendance dates", async () => {
-      const fetchMock = mockRoutedFetch()
-      renderStagedCard()
-
-      fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
-
-      const plan = await screen.findByTestId("chatbot-booking-schedule-plan")
-      await waitFor(() => expect(within(plan).getByText(/立ち会い: 6\/10\(水\)/u)).toBeInTheDocument())
-      const planCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/chatbot/booking-plan")
-      expect(JSON.parse(String(planCall?.[1]?.body))).toMatchObject({
-        attendanceDates: ["2026-06-10"],
-        workflowEstimate: expect.objectContaining({ totalMaxDays: 7 }),
-        jobContext: expect.objectContaining({ jobKind: "feature-90m" }),
-      })
-      const planCallCount = fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/chatbot/booking-plan").length
-      expect(planCallCount).toBe(1)
-
-      fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
-      fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
-      fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
-
-      await screen.findByLabelText("予約送信完了")
-      const submitCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/chatbot/create-booking-from-chat")
-      const submitted = JSON.parse(String(submitCall?.[1]?.body))
-      expect(submitted).toMatchObject({ attendanceDates: ["2026-06-10"] })
-      expect(submitted).not.toHaveProperty("selectedSlots")
-      expect(screen.getByText(/QC（則兼の作業日）: 6\/11\(木\)/u)).toBeInTheDocument()
-    })
-
-    it("tells the customer when the owner's work days could not be planned", async () => {
-      const fetchMock = mockRoutedFetch()
-      fetchMock.mockImplementation((input: RequestInfo | URL) => {
-        const url = String(input)
-        if (url === "/api/chatbot/booking-plan") {
-          return Promise.resolve({ ok: false, status: 500, json: vi.fn().mockResolvedValue({ error: "x" }) })
-        }
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: vi.fn().mockResolvedValue(url === "/api/chatbot/booking-candidates" ? { candidates: attendanceCandidates, busyDateKeys: [] } : {}),
-        })
-      })
-      renderStagedCard()
-
-      fireEvent.click(screen.getByRole("button", { name: "2026-06-10 選択可" }))
-
-      expect(await screen.findByText(/作業日を自動で入れられませんでした/u)).toBeInTheDocument()
-    })
-  })
-
   describe("two steps: the calendar, then what will be sent", () => {
     const confirmationItems = [
       { label: "案件種別", value: "CM" },
       { label: "尺", value: "18分" },
       { label: "最終媒体", value: "Web" },
-      { label: "作業場所/立ち会い", value: "リモートグレーディング" },
+      { label: "作業場所/立ち会い", value: "オンライン" },
     ]
 
     it("moves on with the chosen dates only once a date is picked", () => {
@@ -1320,21 +1121,11 @@ describe("ChatbotBookingCard", () => {
       expect(within(summary).getByText("仮キープする日程")).toBeInTheDocument()
       expect(within(summary).getByText(/6\/10/u)).toBeInTheDocument()
       expect(within(summary).getByText("最終媒体")).toBeInTheDocument()
-      expect(within(summary).getByText("リモートグレーディング")).toBeInTheDocument()
+      expect(within(summary).getByText("オンライン")).toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "2026-06-10 選択可" })).not.toBeInTheDocument()
     })
 
-    it("shows the estimate once on the confirmation step, inside the list", () => {
-      renderCard({ confirmationItems })
 
-      expect(screen.getByText("工程目安 2日")).toBeInTheDocument()
-      fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
-
-      expect(screen.queryByText("工程目安 2日")).not.toBeInTheDocument()
-      const summary = screen.getByLabelText("送信する内容")
-      expect(within(summary).getByText("工程の目安")).toBeInTheDocument()
-      expect(within(summary).getByText("2日")).toBeInTheDocument()
-    })
 
     it("goes back to the calendar with the dates still chosen", () => {
       renderCard({ confirmationItems })

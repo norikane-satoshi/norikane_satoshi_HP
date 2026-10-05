@@ -124,12 +124,12 @@ export function ProjectDurationInput({ initialMinutes, initialUnknown = false, o
   )
 }
 
-export function DurationInputCard({ question, onSubmit }: { question: string; onSubmit: (message: string) => void }) {
+export function DurationInputCard({ onSubmit }: { question: string; onSubmit: (message: string) => void }) {
   const [minutes, setMinutes] = useState<number>()
   const [unknown, setUnknown] = useState(false)
   return (
     <section className="glass-card space-y-3 p-4" aria-label="尺の入力">
-      <p className="text-sm font-medium text-hp">{question}</p>
+      <p className="text-sm font-medium text-hp">尺</p>
       <ProjectDurationInput onChange={(value, undecided) => { setMinutes(value); setUnknown(undecided) }} />
       <p className="text-sm text-hp-muted" aria-live="polite">
         {unknown ? "尺: 未確認" : minutes ? `尺: ${formatProjectLengthMinutes(minutes)}` : "時間と分を合わせてください"}
