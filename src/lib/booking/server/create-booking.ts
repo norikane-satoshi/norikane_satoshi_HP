@@ -100,7 +100,7 @@ function getScheduleLabel(input: BookingApiInput): string {
     return input.selectedSlots.map((slot) => `${slot.start} - ${slot.end}`).join(" / ")
   }
   const requestedDateSelection = getRequestedDateSelection(input)
-  return requestedDateSelection ? formatBookingDateSelection(requestedDateSelection) : "候補日未選択"
+  return requestedDateSelection ? formatBookingDateSelection(requestedDateSelection) : "未定（日程は則兼と相談）"
 }
 
 async function warnOnEmailFailure(task: Promise<unknown>, tag: string) {

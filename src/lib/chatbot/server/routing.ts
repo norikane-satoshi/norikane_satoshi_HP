@@ -7,14 +7,14 @@ import {
   documentaryAttachmentChoices,
   finalMediumChoices,
   jobKindChoices,
-  materialContentsChoices,
-  materialHandoffMethodChoices,
   materialTimingChoices,
+  deliveryFormatChoices,
+  dcpRequiredChoices,
+  dcpCreatorChoices,
   projectLengthChoicesForJobKind,
   referenceUrlChoices,
 } from "@/lib/chatbot/domain"
 import {
-  formatDayRange,
   tightDeadlineThresholdDays,
   tightishDeadlineMaxDays,
 } from "@/lib/chatbot/knowledge/workflow-duration"
@@ -26,7 +26,6 @@ import {
   isLectureTrainingInquiry,
 } from "@/lib/chatbot/server/lecture-training"
 import { buildBookingFinalConfirmationQuestion, desiredScheduleQuestion } from "@/lib/chatbot/server/flow-policy"
-import { buildAttendanceDaysChoices, needsAttendanceDaysChoice } from "@/lib/chatbot/server/attendance-days"
 import type { ChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
 
 export type RoutingDecisionInput = {
@@ -104,24 +103,8 @@ function directContact(
 }
 
 function buildTightDeadlineConsultationMessage(workflowEstimate: JobContext["workflowEstimate"]): string {
-  const baseline =
-    workflowEstimate?.unsupportedReason === "project-length-unconfirmed"
-      ? "尺が未確認のため工程日数の確認が必要です。"
-      : workflowEstimate?.estimateStatus === "needs-confirmation"
-      ? `ライブ150分超の暫定上限目安は${formatDayRange(
-          workflowEstimate.referenceMinDays ?? workflowEstimate.totalMinDays,
-          workflowEstimate.referenceMaxDays ?? workflowEstimate.totalMaxDays,
-        )}です。素材量・カメラ数・ぼかし箇所・チェック体制を確認して判断します。`
-      : workflowEstimate
-        ? `通常は正本ライン ${formatDayRange(workflowEstimate.totalMinDays, workflowEstimate.totalMaxDays)}が目安です。`
-        : "通常の正本ラインを目安にします。"
-
-  return [
-    baseline,
-    "希望日数内でも、内容・素材状況・空き状況によって調整できる可能性があるため、条件を整理して相談できます。",
-    "ただし、この場では確約せず、空き状況・内容確認・本人確認後に判断します。",
-    "送信前に整理内容を確認して、ご連絡先のメールアドレスを必ず添えてください。",
-  ].join("")
+  void workflowEstimate
+  return "希望納期・内容・素材状況・空き状況を整理して則兼本人と相談できます。この場では確約せず、本人確認後に判断します。ご連絡先のメールアドレスを必ず添えてください。"
 }
 
 function continueDecision(input: {
@@ -156,6 +139,17 @@ function continueDecision(input: {
     }
   }
 
+  if (!conversationState.hasDeliveryFormat) {
+    return { kind: "continue", nextQuestion: deliveryFormatChoices.question, presentChoices: deliveryFormatChoices }
+  }
+  const cinema = conversationState.finalMedia?.includes("cinema") || jobContext.finalMedium === "cinema"
+  if (cinema && !conversationState.hasDcpRequirement) {
+    return { kind: "continue", nextQuestion: dcpRequiredChoices.question, presentChoices: dcpRequiredChoices }
+  }
+  if (cinema && conversationState.dcpRequirement === "required" && !conversationState.hasDcpCreator) {
+    return { kind: "continue", nextQuestion: dcpCreatorChoices.question, presentChoices: dcpCreatorChoices }
+  }
+
   if (!conversationState.hasAdditionalWork) {
     return {
       kind: "continue",
@@ -175,16 +169,8 @@ function continueDecision(input: {
   if (!conversationState.hasWorkSite) {
     return {
       kind: "continue",
-      nextQuestion: "作業場所のご希望はありますか？",
+      nextQuestion: customerFacingWorkSiteChoices(now).question,
       presentChoices: customerFacingWorkSiteChoices(now),
-    }
-  }
-
-  if (!conversationState.hasMaterialDetails || !conversationState.materialHandoff?.contents) {
-    return {
-      kind: "continue",
-      nextQuestion: materialContentsChoices.question,
-      presentChoices: materialContentsChoices,
     }
   }
 
@@ -196,30 +182,11 @@ function continueDecision(input: {
     }
   }
 
-  if (!conversationState.hasMaterialHandoff || !conversationState.materialHandoff?.method) {
-    return {
-      kind: "continue",
-      nextQuestion: materialHandoffMethodChoices.question,
-      presentChoices: materialHandoffMethodChoices,
-    }
-  }
-
   if (!conversationState.hasReferenceUrls) {
     return {
       kind: "continue",
       nextQuestion: referenceUrlChoices.question,
       presentChoices: referenceUrlChoices,
-    }
-  }
-
-  // The owner's own days are fixed by the job; how many days the customer attends is theirs to
-  // choose, and it fixes the total the booking card holds.
-  if (!conversationState.hasAttendanceDays && estimate && needsAttendanceDaysChoice(estimate)) {
-    const presentChoices = buildAttendanceDaysChoices(jobContext, estimate)
-    return {
-      kind: "continue",
-      nextQuestion: presentChoices.question,
-      presentChoices,
     }
   }
 
@@ -237,9 +204,7 @@ function continueDecision(input: {
     }
   }
 
-  // The booking card needs an estimate, which only an estimable job kind has. Without one the
-  // confirmed intake goes to the consultation summary form; returning the final question again
-  // left those customers answering the same confirmation panel forever.
+  // Unsupported job kinds use the consultation summary after confirmation.
   if (!jobContext.jobKind && conversationState.bookingFinalConfirmation?.status === "confirmed") {
     return consultationEmailDecision(jobContext, conversationState)
   }

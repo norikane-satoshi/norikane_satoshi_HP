@@ -29,6 +29,9 @@ function jobContext(overrides: Partial<JobContext> = {}): JobContext {
 
 function conversationState(overrides: Partial<ConversationState> = {}): ConversationState {
   return {
+    hasDeliveryFormat: true,
+    hasDcpRequirement: true,
+    dcpRequirement: "not-required",
     hasFinalMedium: true,
     hasJobKind: true,
     hasProjectLength: true,
@@ -129,7 +132,7 @@ describe("chatbot fallback router", () => {
     expect(result.presentChoices?.choices.map((choice) => choice.id)).not.toContain("satoshi-studio")
   })
 
-  it("can surface studio work site choices from 2026-09-15 JST", () => {
+  it("offers four attendance methods without studio choices", () => {
     const result = decideRoutingFallback({
       jobContext: jobContext(),
       conversationState: conversationState({
@@ -142,7 +145,7 @@ describe("chatbot fallback router", () => {
 
     expect(result.kind).toBe("continue")
     if (result.kind !== "continue") return
-    expect(result.presentChoices?.choices.map((choice) => choice.id)).toContain("satoshi-studio")
+    expect(result.presentChoices?.choices.map((choice) => choice.label)).toEqual(["オンライン", "先方の場所で", "不要", "お任せ"])
   })
 
   it("does not pre-route to inline booking when schedule and contact facts are ready", () => {
@@ -166,7 +169,7 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: "納期はいつごろをご希望ですか？ カレンダーで日付を選ぶか、未定・相談したいを選んでください。",
+      nextQuestion: "納期はいつごろをご希望ですか？ 日付か未定を選んでください。日付を選んだ場合、理由があれば任意でご記入ください。",
     })
     if (result.kind === "continue") expect(result.presentChoices).toBeUndefined()
     expect(getMissingBookingReadinessSlots(conversationState({ hasDesiredSchedule: false }), { jobContext: jobContext() }))
@@ -212,7 +215,7 @@ describe("chatbot fallback router", () => {
     })
     expect(result).toMatchObject({
       kind: "to-direct-contact",
-      suggestedMessage: expect.stringContaining("希望日数内でも"),
+      suggestedMessage: expect.stringContaining("希望納期"),
     })
     expect(result).toMatchObject({
       kind: "to-direct-contact",
@@ -220,7 +223,7 @@ describe("chatbot fallback router", () => {
     })
     expect(result).toMatchObject({
       kind: "to-direct-contact",
-      suggestedMessage: expect.stringContaining("尺が未確認"),
+      suggestedMessage: expect.not.stringMatching(/\d+日/u),
     })
     expect(result).toMatchObject({
       kind: "to-direct-contact",
@@ -344,7 +347,7 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: expect.stringMatching(/何の素材/u),
+      nextQuestion: expect.stringMatching(/素材が揃う日/u),
     })
   })
 
@@ -360,62 +363,26 @@ describe("chatbot fallback router", () => {
     })
   })
 
-  it("recommends one more QC day only once the customer has named an NHK or OTT delivery", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90, finalMedium: "ott", strictDeliveryClient: true }),
-      conversationState: conversationState(),
-    })
-
-    expect(result.kind).toBe("continue")
-    if (result.kind !== "continue") return
-    expect(result.nextQuestion).toBe(
-      "長編 1時間30分は、コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 2日（納品先の検査に合わせて1日多め）が目安です。立ち会いは何日にしますか？",
-    )
-    expect(result.presentChoices?.choices.map((choice) => choice.label)).toEqual([
-      "1日（全体で7日）",
-      "2日（全体で8日）",
-      "3日（全体で9日）",
-      "未定・相談して決めたい",
-    ])
-  })
-
-  it("shows the stage split and asks how many days the customer attends before the contact and final check", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90 }),
-      conversationState: conversationState(),
-    })
-
-    expect(result.kind).toBe("continue")
-    if (result.kind !== "continue") return
-    expect(result.presentChoices?.id).toBe("attendance-days")
-    expect(result.nextQuestion).toBe(
-      "長編 1時間30分は、コンフォーム1日・仕込み3日・立ち会い1〜3日・QC 1日が目安です。立ち会いは何日にしますか？",
-    )
-    expect(result.presentChoices?.choices).toEqual([
-      { id: "1", label: "1日（全体で6日）" },
-      { id: "2", label: "2日（全体で7日）" },
-      { id: "3", label: "3日（全体で8日）" },
-      { id: "undecided", label: "未定・相談して決めたい" },
-    ])
-  })
-
-  it("does not ask for a job whose attendance is a fixed length, and closes with the fixed split", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({ projectLengthMinutes: 0.5 }),
-      conversationState: conversationState(),
-    })
-
+  it("keeps internal estimates out of final confirmation", () => {
+    const result = decideRoutingFallback({ jobContext: jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90, strictDeliveryClient: true }), conversationState: conversationState() })
     expect(result).toMatchObject({ kind: "continue", presentChoices: bookingFinalConfirmationChoices })
+    if (result.kind === "continue") expect(result.nextQuestion).not.toMatch(/\d+日|コンフォーム|仕込み|QC/u)
   })
+})
 
-  it("states the chosen split in the final check once the attendance days are chosen", () => {
-    const result = decideRoutingFallback({
-      jobContext: jobContext({ jobKind: "feature-90m", projectLengthMinutes: 90, attendanceDays: 2 }),
-      conversationState: conversationState({ hasAttendanceDays: true }),
-    })
 
-    expect(result).toMatchObject({ kind: "continue", presentChoices: bookingFinalConfirmationChoices })
-    if (result.kind !== "continue") return
-    expect(result.nextQuestion).toContain("工程はコンフォーム1日・仕込み3日・立ち会い2日・QC 1日の全体7日です。")
+describe("delivery and cinema intake order", () => {
+  it.each([
+    [{ hasDeliveryFormat: false, hasWorkSite: false }, "web", "delivery-format"],
+    [{ hasDcpRequirement: false, hasWorkSite: false }, "cinema", "dcp-required"],
+    [{ dcpRequirement: "required", hasDcpCreator: false, hasWorkSite: false }, "cinema", "dcp-creator"],
+    [{ hasDcpRequirement: false, hasWorkSite: false }, "web", "work-site"],
+    [{ hasWorkSite: false }, "cinema", "work-site"],
+  ] as const)("asks the next explicit intake item", (state, medium, id) => {
+    const result = decideRoutingFallback({ jobContext: jobContext({ finalMedium: medium }), conversationState: conversationState(state), now: new Date("2026-10-05T00:00:00+09:00") })
+    expect(result).toMatchObject({ kind: "continue", presentChoices: { id } })
+  })
+  it("keeps delivery, DCP and attendance together in readiness order", () => {
+    expect(getMissingBookingReadinessSlots(conversationState({ hasDeliveryFormat: false, hasDcpRequirement: false, dcpRequirement: "required", hasDcpCreator: false, hasWorkSite: false }), { jobContext: jobContext({ finalMedium: "cinema", workSite: undefined }) }).slice(0, 4)).toEqual(["delivery-format", "dcp-required", "dcp-creator", "work-site"])
   })
 })

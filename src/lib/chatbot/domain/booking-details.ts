@@ -1,11 +1,12 @@
 import { formatProjectLengthMinutes, parseProjectLengthMinutes } from "./project-length"
 import type { ChatbotMessage, ConversationState } from "./conversation"
+import { isCalendarDate } from "./deadline"
 import { matchChoiceAnswer } from "./choice-answer"
 
 export const bookingDetailLabels = [
   "案件種別", "尺", "最終媒体", "作業場所/立ち会い", "納品希望日",
-  "追加作業", "付随素材", "字幕・テロップ等", "受け渡し素材",
-  "素材搬入/受け取り時期", "素材受け渡し方法", "参考URL", "立ち会い日数", "納品形式",
+  "追加作業", "付随素材", "字幕・テロップ等", "素材が揃う日",
+  "参考URL", "納品形式", "DCP必要性", "DCP作成担当", "納品希望日の理由",
 ] as const
 export type BookingDetailLabel = typeof bookingDetailLabels[number]
 export type BookingDetail = { label: BookingDetailLabel; value: string }
@@ -15,9 +16,8 @@ const choiceLabels: Record<string, BookingDetailLabel> = {
   "job-kind": "案件種別", "project-length": "尺", "final-medium": "最終媒体",
   "work-site": "作業場所/立ち会い", "additional-work": "追加作業",
   "documentary-attachment": "付随素材", "production-options": "字幕・テロップ等",
-  "material-contents": "受け渡し素材", "material-timing": "素材搬入/受け取り時期",
-  "material-handoff-method": "素材受け渡し方法", "reference-urls": "参考URL",
-  "attendance-days": "立ち会い日数", "delivery-format": "納品形式",
+  "material-timing": "素材が揃う日", "reference-urls": "参考URL",
+  "delivery-format": "納品形式", "dcp-required": "DCP必要性", "dcp-creator": "DCP作成担当",
 }
 
 /** Only customer messages and exactly matched choices are evidence; estimates are never answers. */
@@ -27,12 +27,17 @@ export function confirmedBookingDetails(input: {
 }): BookingDetail[] {
   const values = new Map<BookingDetailLabel, string>()
   let askedLength = false
+  let askedText: BookingDetailLabel | undefined
   for (const message of input.messages ?? []) {
     if (message.role === "assistant") {
+      askedText = /納品形式.*(?:教えて|選んで|[?？])/u.test(message.content) ? "納品形式" : /DCP.*作成担当.*(?:教えて|選んで|[?？])/u.test(message.content) ? "DCP作成担当" : /素材.*揃う日.*(?:教えて|選んで|[?？])/u.test(message.content) ? "素材が揃う日" : undefined
       askedLength = /(?:尺|本編の長さ|作品の長さ).*(?:教えて|入力|選んで|[?？])/u.test(message.content)
       continue
     }
     if (message.role !== "user") continue
+    const replyToText = askedText
+    askedText = undefined
+    if (replyToText && !/[?？]|[:：]/u.test(message.content) && message.content.trim()) values.set(replyToText, canonicalBookingDetailValue(replyToText, message.content.trim().replace(/^選択\s*[:：]\s*/u, "")))
     const replyToLength = askedLength
     askedLength = false
     if (replyToLength && /^(?:未定|不明|未確認)$/u.test(message.content.trim())) {
@@ -43,13 +48,13 @@ export function confirmedBookingDetails(input: {
     const answer = stored && matchChoiceAnswer(stored.choiceSet, message.content)
     const label = answer && choiceLabels[answer.choiceSet.id]
     if (answer && label) {
-      values.set(label, [...answer.selectedLabels, ...(answer.otherComment ? [answer.otherComment] : [])].join(" / "))
+      values.set(label, canonicalBookingDetailValue(label, [...answer.selectedLabels, ...(answer.otherComment ? [answer.otherComment] : [])].join(" / ")))
       continue
     }
     for (const line of message.content.split(/\n|(?<=。)/u)) {
       const explicit = /^([^:：]+)[:：]\s*(.+)$/u.exec(line.trim())
       const explicitName = explicit?.[1].trim()
-      const name = explicitName === "納期" ? "納品希望日" : explicitName
+      const name = explicitName === "納期" ? "納品希望日" : explicitName === "納期理由" ? "納品希望日の理由" : explicitName
       if (name && bookingDetailLabels.includes(name as BookingDetailLabel)) {
         const raw = explicit![2].trim()
         values.set(name as BookingDetailLabel, canonicalBookingDetailValue(name as BookingDetailLabel, raw))
@@ -71,11 +76,24 @@ export function confirmedBookingDetails(input: {
       if (kinds.length === 1 && /^(?:今回は|案件は|作品は)|(?:分|秒|時間)の(?:短編|長編|ドキュメンタリー)|^(?:短編|長編|ドキュメンタリー|ミュージックビデオ|Web CM|企業VP)(?:です|を)/u.test(line)) values.set("案件種別", kinds[0][0])
     }
   }
-  return bookingDetailLabels.map((label) => ({ label, value: values.get(label) || unconfirmedBookingValue }))
+  return canonicalBookingDetails(bookingDetailLabels.map((label) => ({ label, value: values.get(label) || unconfirmedBookingValue })))
+}
+
+export function canonicalBookingDetails(details: ReadonlyArray<BookingDetail>): BookingDetail[] {
+  const values = new Map(details.map(({ label, value }) => [label, canonicalBookingDetailValue(label, value)]))
+  if (!/劇場/u.test(values.get("最終媒体") ?? "")) {
+    values.set("DCP必要性", unconfirmedBookingValue)
+    values.set("DCP作成担当", unconfirmedBookingValue)
+  } else if (values.get("DCP必要性") !== "必要") {
+    values.set("DCP作成担当", unconfirmedBookingValue)
+  }
+  return details.map(({ label }) => ({ label, value: values.get(label) ?? unconfirmedBookingValue }))
 }
 
 function canonicalBookingDetailValue(label: BookingDetailLabel, value: string): string {
   const raw = value.trim()
+  if (/^(?:未定|不明|未確認)$/u.test(raw)) return unconfirmedBookingValue
+  if ((label === "納品希望日" || label === "素材が揃う日") && !isCalendarDate(raw)) return unconfirmedBookingValue
   if (label === "尺") {
     const minutes = parseProjectLengthMinutes(raw)
     if (minutes !== undefined) return formatProjectLengthMinutes(minutes)
@@ -87,9 +105,9 @@ function canonicalBookingDetailValue(label: BookingDetailLabel, value: string): 
 export function bookingDetailsMemo(note: string, details: ReadonlyArray<BookingDetail>): string {
   const ownNote = note.split("\n").filter((line) => {
     const label = /^\s*(?:- )?([^:：]+)[:：]/u.exec(line)?.[1]
-    return !label || (!bookingDetailLabels.includes(label as BookingDetailLabel) && !["納期", "作業場所", "依頼内容"].includes(label))
+    return !label || (!bookingDetailLabels.includes(label as BookingDetailLabel) && !["納期", "納期理由", "作業場所", "依頼内容", "立ち会い日数", "作業日数", "基本工程目安", "工程目安", "受け渡し素材", "素材受け渡し方法", "素材搬入/受け取り時期"].includes(label))
   }).join("\n").trim()
-  return [ownNote, ...details.map(({ label, value }) => `${label}: ${canonicalBookingDetailValue(label, value)}`)].filter(Boolean).join("\n")
+  return [ownNote, ...canonicalBookingDetails(details).map(({ label, value }) => `${label}: ${value}`)].filter(Boolean).join("\n")
 }
 
 /** A model-written supplemental note is retained only when a whole line is customer-authored. */

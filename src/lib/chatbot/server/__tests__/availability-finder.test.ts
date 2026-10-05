@@ -48,24 +48,11 @@ function attendance(
   return vi.fn(async () => slots)
 }
 
-const NOW_BEFORE_STUDIO = new Date("2026-05-25T10:00:00+09:00")
 const NOW_AFTER_STUDIO = new Date("2026-10-01T10:00:00+09:00")
 
 describe("findCandidateWindows", () => {
   beforeEach(() => {
     mocks.getNotionWorkScheduleBusyIntervals.mockReset()
-  })
-
-  it("rejects satoshi-studio before 2026-09-15 JST", async () => {
-    await expect(
-      findCandidateWindows({
-        jobContext: jobContext({ workSite: "satoshi-studio" }),
-        workflowEstimate: workflowEstimate(1),
-        now: NOW_BEFORE_STUDIO,
-        freeBusyFetcher: freeBusy(),
-        attendanceConflictResolver: attendance(),
-      }),
-    ).rejects.toMatchObject({ kind: "studio-not-yet-active" })
   })
 
   it("allows satoshi-studio from 2026-09-15 JST", async () => {
@@ -78,18 +65,6 @@ describe("findCandidateWindows", () => {
     })
 
     expect(windows[0]?.label).toBe("2026-09-15 単日")
-  })
-
-  it("rejects an unspecified work site without assigning a default", async () => {
-    await expect(
-      findCandidateWindows({
-        jobContext: jobContext({ workSite: undefined as unknown as JobContext["workSite"] }),
-        workflowEstimate: workflowEstimate(1),
-        now: NOW_AFTER_STUDIO,
-        freeBusyFetcher: freeBusy(),
-        attendanceConflictResolver: attendance(),
-      }),
-    ).rejects.toMatchObject({ kind: "work-site-unspecified" })
   })
 
   it("filters out windows that overlap attended booking intervals", async () => {
@@ -355,7 +330,7 @@ describe("findCandidateWindows", () => {
       attendanceConflictResolver: attendance(),
     })
 
-    expect(windows[0]?.note).toContain("requiredDays=1")
+    expect(windows[0]?.note).not.toContain("requiredDays=")
     expect(windows[0]?.note).toContain("busyRatio=0.00")
     expect(windows[0]?.note).toContain("deadlineSlackDays=")
     expect(windows[0]?.note).toContain("attendanceConflicts=0")

@@ -6,7 +6,9 @@ it("validates actual calendar dates and JST boundaries", () => {
   expect(isCalendarDate("2026-02-30")).toBe(false)
   expect(isValidDeadlineInput("2026-09-29", now)).toBe(false)
   expect(isValidDeadlineInput("2026-09-30", now)).toBe(true)
-  expect(isValidDeadlineInput("10月末ごろ", now)).toBe(true)
+  expect(isValidDeadlineInput("10月末ごろ", now)).toBe(false)
+  expect(isValidDeadlineInput("", now)).toBe(false)
+  expect(isValidDeadlineInput("未定", now)).toBe(true)
   expect(deadlineFromMessage("納期: 2026-10-10")).toBe("2026-10-10")
 })
 

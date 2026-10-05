@@ -21,11 +21,10 @@ describe("workflow prompt context", () => {
     expect(prompt).not.toMatch(/NHK|OTT|Netflix|Disney|1日多め/u)
   })
 
-  it("states the extra QC day once the customer has named an NHK or OTT delivery", () => {
+  it("keeps internal estimates out of the customer prompt even for strict deliveries", () => {
     const prompt = buildWorkflowPromptContext(context({ strictDeliveryClient: true })) ?? ""
 
-    expect(prompt).toContain("QC を1日多めに勧めている")
-    expect(prompt).toContain("QC 1日（納品先の検査に合わせて1日多め）")
+    expect(prompt).not.toMatch(/QC|工程|\d+日/u)
   })
 })
 

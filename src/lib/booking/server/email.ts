@@ -190,7 +190,7 @@ function formatSelectedSlots(
 ): string {
   if (slots.length === 0) {
     if (requestedDates?.length) return formatRequestedDates(requestedDates)
-    return requestedDateRange ? formatRequestedDateRange(requestedDateRange) : "候補日未選択"
+    return requestedDateRange ? formatRequestedDateRange(requestedDateRange) : "未定（日程は則兼と相談）"
   }
   return slots.map((slot) => formatSchedule(slot.start, slot.end)).join("\n")
 }
@@ -204,7 +204,7 @@ function getBookingEmailSlots(args: BookingEmailArgs): BookingScheduleSlot[] {
 function getBookingEmailSubjectSchedule(slots: BookingScheduleSlot[], requestedDates?: string[], requestedDateRange?: BookingDateRange): string {
   if (slots.length === 0) {
     if (requestedDates?.length) return formatRequestedDates(requestedDates)
-    return requestedDateRange ? formatRequestedDateRange(requestedDateRange) : "候補日未選択"
+    return requestedDateRange ? formatRequestedDateRange(requestedDateRange) : "未定（日程は則兼と相談）"
   }
   if (slots.length === 1) return formatSchedule(slots[0].start, slots[0].end)
   return `${slots.length}件の仮キープ候補`
@@ -248,7 +248,7 @@ export async function sendBookingConfirmedEmail(args: BookingEmailArgs): Promise
     ? `仮キープ候補日:\n${schedule}`
     : args.requestedDates?.length || args.requestedDateRange
       ? `希望日: ${schedule}`
-      : "候補日: 候補日未選択（候補日未選択の相談として受け付けました）"
+      : "希望日: 未定（日程は則兼と相談）"
   const scheduleNote = slots.length > 0
     ? "選択された日程は実施日ではなく、仮キープ候補としてお預かりしています。"
     : args.requestedDates?.length || args.requestedDateRange

@@ -1,4 +1,5 @@
 import { parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
+import { isSelectableDeadline } from "@/lib/chatbot/domain/deadline"
 import type {
   ConversationState,
   DocumentaryAttachment,
@@ -29,6 +30,28 @@ export function applyActiveChoiceAnswer(input: {
   message: string
   activeIntakeClarification?: ConversationState["activeIntakeClarification"]
 }): ChoicePanelPatch | null {
+  const textIntake = [
+    { id: "delivery-format", label: "納品形式", flag: "hasDeliveryFormat", field: "deliveryFormat" },
+    { id: "dcp-creator", label: "DCP作成担当", flag: "hasDcpCreator", field: "dcpCreator" },
+    { id: "material-timing", label: "素材が揃う日", flag: "hasMaterialTiming", field: "materialTiming" },
+  ] as const
+  const intake = textIntake.find((item) => input.activeChoices?.id === item.id || input.message.startsWith(`${item.label}:`))
+  if (intake) {
+    const value = input.message.normalize("NFKC").replace(new RegExp(`^(?:${intake.label}|選択)\\s*[:：]\\s*`, "u"), "").trim()
+    if (!value || /[?？]/u.test(value)) return null
+    const unknown = isExplicitUnknown(value)
+    if (intake.id === "material-timing" && !unknown && !isSelectableDeadline(value)) return null
+    return {
+      choiceSetId: intake.id, choiceId: unknown ? "undecided" : "explicit-text", choiceIds: [unknown ? "undecided" : "explicit-text"],
+      conversationState: {
+        [intake.flag]: true,
+        ...(intake.id === "material-timing" ? { materialHandoff: { timing: unknown ? "未確認" : value } } : { [intake.field]: unknown ? "未確認" : value }),
+        activeIntakeClarification: undefined,
+        intakeClarifications: { [intake.id]: { status: unknown ? "unknown-but-acceptable" : "clear", reason: "explicit-answer", answerPreview: preview(value) } },
+      },
+      jobContext: {},
+    }
+  }
   if (input.activeChoices?.id === "project-length" || /^\s*尺\s*[:：]/u.test(input.message)) {
     const value = input.message.normalize("NFKC").replace(/^\s*尺\s*[:：]\s*/u, "").trim()
     const minutes = parseProjectLengthMinutes(value)
@@ -58,6 +81,16 @@ export function applyActiveChoiceAnswer(input: {
   if (clarification) return clarification
 
   switch (activeChoices.id) {
+    case "dcp-required":
+      return {
+        choiceSetId: activeChoices.id, choiceId: choice.id, choiceIds: [choice.id],
+        conversationState: {
+          hasDcpRequirement: true,
+          dcpRequirement: choice.id as "required" | "not-required" | "undecided",
+          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
+        },
+        jobContext: {},
+      }
     case "job-kind": {
       const jobKindPatch = applyJobKindChoice(activeChoices, choice, otherCommentPatch)
       return {
@@ -280,39 +313,6 @@ export function applyActiveChoiceAnswer(input: {
         },
         jobContext: {},
       }
-    case "material-contents":
-    case "material-timing":
-    case "material-handoff-method":
-      // The answer text itself is stored by applyMaterialHandoffAnswer, which reads it against the
-      // previous question; the panel only confirms which intake item was answered.
-      return {
-        choiceSetId: activeChoices.id,
-        choiceId: choice.id,
-        choiceIds: choices.map((item) => item.id),
-        conversationState: {
-          ...(activeChoices.id === "material-contents" ? { hasMaterialDetails: true } : {}),
-          ...(activeChoices.id === "material-timing" ? { hasMaterialTiming: true } : {}),
-          ...(activeChoices.id === "material-handoff-method" ? { hasMaterialHandoff: true } : {}),
-          ...otherCommentPatch,
-          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
-        },
-        jobContext: {},
-      }
-    case "attendance-days": {
-      // A count sets the attendance days; "undecided" answers the question and leaves the count open.
-      const days = Number(choice.id)
-      return {
-        choiceSetId: activeChoices.id,
-        choiceId: choice.id,
-        choiceIds: [choice.id],
-        conversationState: {
-          hasAttendanceDays: true,
-          ...otherCommentPatch,
-          ...toIntakeClarityPatch(activeChoices, choices, "clear", "choice-confirmed"),
-        },
-        jobContext: Number.isInteger(days) && days > 0 ? { attendanceDays: days } : {},
-      }
-    }
     case "reference-urls":
       if (choices.some((item) => item.id === "none")) {
         return {
@@ -640,16 +640,16 @@ export function isSatisfiedChoicePanel(
       return Boolean(conversationState.hasLectureTrainingSoftware)
     case "production-options":
       return Boolean(conversationState.hasProductionOptions)
-    case "material-contents":
-      return Boolean(conversationState.hasMaterialDetails)
     case "material-timing":
       return Boolean(conversationState.hasMaterialTiming)
-    case "material-handoff-method":
-      return Boolean(conversationState.hasMaterialHandoff)
     case "reference-urls":
       return conversationState.hasReferenceUrls
-    case "attendance-days":
-      return Boolean(conversationState.hasAttendanceDays)
+    case "delivery-format":
+      return Boolean(conversationState.hasDeliveryFormat)
+    case "dcp-required":
+      return Boolean(conversationState.hasDcpRequirement)
+    case "dcp-creator":
+      return Boolean(conversationState.hasDcpCreator)
     default:
       return false
   }
@@ -763,10 +763,7 @@ function toDocumentaryAttachmentItem(choiceId: string, otherComment?: string): D
 }
 
 function toWorkSite(choiceId: string): WorkSite {
-  if (choiceId === "satoshi-studio" || choiceId === "remote-grading") return choiceId
-  if (choiceId === "post-production-room" || choiceId === "client-equipment-room" || choiceId === "client-rental-space") {
-    return "on-site"
-  }
+  if (choiceId === "on-site") return "on-site"
   return "remote-grading"
 }
 

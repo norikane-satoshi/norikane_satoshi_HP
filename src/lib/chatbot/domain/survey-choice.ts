@@ -13,7 +13,6 @@ export type SurveyChoiceSet = {
   allowFreeText?: boolean
 }
 
-export const SATOSHI_STUDIO_AVAILABLE_FROM_JST = "2026-09-15T00:00:00+09:00"
 
 export const jobKindChoices = {
   id: "job-kind",
@@ -88,30 +87,18 @@ export const documentaryAttachmentChoices = {
 
 export const workSiteChoices = {
   id: "work-site",
-  question: "作業場所の希望はありますか",
-  // The owner's studio is the first choice. Away from it, grading happens in a rented post-production
-  // room, the client's own equipment room, or a space the client rents; never at the client's facility.
+  question: "立ち会い方法の希望はありますか",
   choices: [
-    { id: "satoshi-studio", label: "のりかね映像設計室スタジオ" },
-    { id: "post-production-room", label: "ポスプロの部屋を借りる" },
-    { id: "client-equipment-room", label: "依頼元の機材部屋（制作会社など）" },
-    { id: "client-rental-space", label: "依頼元が手配するレンタルスペース" },
-    { id: "remote-grading", label: "リモートグレーディング" },
+    { id: "remote-grading", label: "オンライン" },
+    { id: "on-site", label: "先方の場所で" },
+    { id: "none", label: "不要" },
     { id: "entrust", label: "お任せ" },
-    { id: "other", label: "その他" },
   ],
 } as const satisfies SurveyChoiceSet
 
-export function isSatoshiStudioCustomerFacingAvailable(now: Date = new Date()): boolean {
-  return now.getTime() >= new Date(SATOSHI_STUDIO_AVAILABLE_FROM_JST).getTime()
-}
-
 export function customerFacingWorkSiteChoices(now: Date = new Date()): SurveyChoiceSet {
-  if (isSatoshiStudioCustomerFacingAvailable(now)) return workSiteChoices
-  return {
-    ...workSiteChoices,
-    choices: workSiteChoices.choices.filter((choice) => choice.id !== "satoshi-studio"),
-  }
+  void now
+  return workSiteChoices
 }
 
 export const lectureTrainingContentChoices = {
@@ -172,40 +159,36 @@ export const bookingFinalConfirmationChoices = {
   ],
 } as const satisfies SurveyChoiceSet
 
-// Material handoff and reference URL intake. The question texts must keep matching the
-// material-handoff and reference-URL patterns, which read the answer against the previous question.
-export const materialContentsChoices = {
-  id: "material-contents",
-  question: "何の素材をお送りいただく予定ですか？",
-  selectionMode: "multiple",
-  choices: [
-    { id: "exported-video", label: "書き出し済みの映像" },
-    { id: "camera-originals", label: "撮影素材一式" },
-    { id: "selected-clips", label: "使用クリップのみ" },
-    { id: "other", label: "その他" },
-  ],
-} as const satisfies SurveyChoiceSet
-
 export const materialTimingChoices = {
   id: "material-timing",
-  question: "その素材は、いつお送りいただけそうですか？",
+  question: "編集確定版の素材が揃う日を選んでください。未定の場合は未定を選んでください。",
   choices: [
-    { id: "within-1-week", label: "1週間以内" },
-    { id: "within-3-weeks", label: "2〜3週間以内" },
-    { id: "over-1-month", label: "1か月以上先" },
     { id: "undecided", label: "未定" },
   ],
 } as const satisfies SurveyChoiceSet
 
-export const materialHandoffMethodChoices = {
-  id: "material-handoff-method",
-  question: "素材の受け渡し方法を教えてください。",
+export const deliveryFormatChoices = {
+  id: "delivery-format",
+  question: "納品形式（コーデック・色空間）が分かれば教えてください。未定の場合は未定を選んでください。",
+  allowFreeText: true,
+  choices: [{ id: "undecided", label: "未定" }],
+} as const satisfies SurveyChoiceSet
+
+export const dcpRequiredChoices = {
+  id: "dcp-required",
+  question: "劇場上映用のDCPは必要ですか？ 則兼はDCPを作成していないため、必要な場合はポスプロなど他社への依頼になります。",
   choices: [
-    { id: "uploader", label: "アップローダー" },
-    { id: "drive-shipping", label: "SSD・HDDを郵送・バイク便" },
-    { id: "hand-delivery", label: "手渡し" },
-    { id: "other", label: "その他" },
+    { id: "required", label: "必要" },
+    { id: "not-required", label: "不要" },
+    { id: "undecided", label: "未定" },
   ],
+} as const satisfies SurveyChoiceSet
+
+export const dcpCreatorChoices = {
+  id: "dcp-creator",
+  question: "DCPの作成担当を教えてください。則兼はDCPを作成していないため、他社へご依頼ください。未定の場合は未定を選んでください。",
+  allowFreeText: true,
+  choices: [{ id: "undecided", label: "未定" }],
 } as const satisfies SurveyChoiceSet
 
 export const referenceUrlChoices = {
@@ -228,9 +211,10 @@ export const surveyChoiceSets = [
   lectureTrainingFormatChoices,
   lectureTrainingSoftwareChoices,
   productionOptionChoices,
-  materialContentsChoices,
   materialTimingChoices,
-  materialHandoffMethodChoices,
+  deliveryFormatChoices,
+  dcpRequiredChoices,
+  dcpCreatorChoices,
   referenceUrlChoices,
   bookingFinalConfirmationChoices,
 ] as const satisfies readonly SurveyChoiceSet[]

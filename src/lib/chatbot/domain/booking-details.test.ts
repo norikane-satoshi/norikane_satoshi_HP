@@ -91,3 +91,30 @@ it("uses a later explicit correction and never reads assistant guesses", () => {
   expect(items).toContainEqual({ label: "納品希望日", value: "2026-10-25" })
   expect(items).toContainEqual({ label: "最終媒体", value: "未確認" })
 })
+
+
+it("keeps explicit new intake answers and normalizes ambiguous dates", () => {
+  const details = confirmedBookingDetails({ messages: [{ id: "u", role: "user", createdAt: "2026-10-05T01:00:00Z", content: "納品形式: ProRes / Rec.709\n素材が揃う日: 来週\n納期: 相談したい\n納品希望日の理由: 試写会\nDCP必要性: 必要\nDCP作成担当: 他社" }] })
+  expect(details).toContainEqual({ label: "納品形式", value: "ProRes / Rec.709" })
+  expect(details).toContainEqual({ label: "素材が揃う日", value: "未確認" })
+  expect(details).toContainEqual({ label: "納品希望日", value: "未確認" })
+  expect(details).toContainEqual({ label: "納品希望日の理由", value: "試写会" })
+  expect(details).toContainEqual({ label: "DCP必要性", value: "未確認" })
+  expect(details).toContainEqual({ label: "DCP作成担当", value: "未確認" })
+})
+
+it("reads an explicit free text reply to the actual delivery question", () => {
+  expect(confirmedBookingDetails({ messages: [
+    { id: "a", role: "assistant", createdAt: "2026-10-05T01:00:00Z", content: "納品形式を教えてください" },
+    { id: "u", role: "user", createdAt: "2026-10-05T01:00:00Z", content: "ProRes 422 HQ / Rec.709" },
+  ] })).toContainEqual({ label: "納品形式", value: "ProRes 422 HQ / Rec.709" })
+})
+
+it("clears stale DCP answers and obsolete work counts when creating a memo", () => {
+  const details = confirmedBookingDetails({ messages: [{ id: "u", role: "user", createdAt: "2026-10-05T01:00:00Z", content: "最終媒体: 劇場公開\nDCP必要性: 不要\nDCP作成担当: 旧担当" }] })
+  const memo = bookingDetailsMemo("作業日数: 5日\n立ち会い日数: 3日\n受け渡し素材: カメラ素材\n補足: 試写会", details)
+  expect(memo).toContain("DCP必要性: 不要")
+  expect(memo).toContain("DCP作成担当: 未確認")
+  expect(memo).toContain("補足: 試写会")
+  expect(memo).not.toMatch(/旧担当|5日|3日|カメラ素材/u)
+})

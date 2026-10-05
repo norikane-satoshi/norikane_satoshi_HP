@@ -1,16 +1,11 @@
 import type { ChatbotMessage, ConversationState } from "@/lib/chatbot/domain"
+import { isSelectableDeadline } from "@/lib/chatbot/domain/deadline"
 
-const materialContentsQuestionPattern = /何の素材|どの素材|どのような素材|素材の内容/u
-const materialTimingQuestionPattern = /素材.{0,24}(?:いつ|時期)|いつ.{0,24}素材/u
-const materialMethodQuestionPattern = /素材.{0,24}(?:受け渡し方法|どの方法|どういう方法|どのような方法|どう送)|(?:受け渡し方法|どの方法|どういう方法).{0,24}素材/u
+const materialTimingQuestionPattern = /素材.{0,24}(?:いつ|時期|揃う日)|いつ.{0,24}素材/u
 
 export function isMaterialHandoffQuestion(message: string | undefined): boolean {
   if (!message) return false
-  return (
-    materialContentsQuestionPattern.test(message) ||
-    materialTimingQuestionPattern.test(message) ||
-    materialMethodQuestionPattern.test(message)
-  )
+  return materialTimingQuestionPattern.test(message)
 }
 
 export function applyMaterialHandoffAnswer(input: {
@@ -22,27 +17,13 @@ export function applyMaterialHandoffAnswer(input: {
   if (!answer || !input.previousAssistantMessage) return input.conversationState
 
   const materialHandoff = { ...(input.conversationState.materialHandoff ?? {}) }
-  if (materialContentsQuestionPattern.test(input.previousAssistantMessage)) {
-    materialHandoff.contents = answer
-    return {
-      ...input.conversationState,
-      hasMaterialDetails: true,
-      materialHandoff,
-    }
-  }
   if (materialTimingQuestionPattern.test(input.previousAssistantMessage)) {
-    materialHandoff.timing = answer
+    const date = answer.replace(/^素材が揃う日\s*[:：]\s*/u, "")
+    if (date !== "未定" && date !== "未確認" && !isSelectableDeadline(date)) return input.conversationState
+    materialHandoff.timing = date === "未定" ? "未確認" : date
     return {
       ...input.conversationState,
       hasMaterialTiming: true,
-      materialHandoff,
-    }
-  }
-  if (materialMethodQuestionPattern.test(input.previousAssistantMessage)) {
-    materialHandoff.method = answer
-    return {
-      ...input.conversationState,
-      hasMaterialHandoff: true,
       materialHandoff,
     }
   }

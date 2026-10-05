@@ -1,7 +1,6 @@
 import { confirmedBookingDetails } from "@/lib/chatbot/domain/booking-details"
 import { jobKindLabels } from "@/lib/chatbot/domain/job-kind-label"
 import { formatProjectLengthMinutes, parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import { describeJobForEstimate, describeWorkflowStages, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import type { ChatbotConversation, ConversationState, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 import { estimateWorkflow, inferWorkflowJobContextFromText } from "@/lib/chatbot/server/duration-estimator"
 import {
@@ -176,50 +175,6 @@ export function buildWorkflowPromptContext(
   lines.push(
     `- 尺: ${jobContext.projectLengthMinutes !== undefined ? formatMinutes(jobContext.projectLengthMinutes) : "未確認"}`,
   )
-  if (jobContext.workflowEstimate) {
-    if (jobContext.workflowEstimate.unsupportedReason === "project-length-unconfirmed") {
-      lines.push("- 工程日数: 尺が未確認のため確認が必要。代表尺・既定値で日数を計算しない。")
-    } else if (jobContext.workflowEstimate.estimateStatus === "needs-confirmation") {
-      const referenceMinDays = jobContext.workflowEstimate.referenceMinDays ?? jobContext.workflowEstimate.totalMinDays
-      const referenceMaxDays = jobContext.workflowEstimate.referenceMaxDays ?? jobContext.workflowEstimate.totalMaxDays
-      lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
-      lines.push(`- 今回尺の暫定上限目安: ${formatDayRange(referenceMinDays, referenceMaxDays)}`)
-      lines.push("- 今回尺の確定日数: 150分超のため確認待ち")
-      lines.push("- 禁止: 17〜20日などの正本にない日数レンジ、尺による線形倍率計算")
-      lines.push("- 禁止: 顔ぼかし・追加補正・付随作業・ディスク納品を基本工程ラインに最初から込みと断定する表現")
-      lines.push("- 納品形式: DVDという古い媒体名を回答側から新規に出さず、必要ならブルーレイディスクまたはディスク納品として確認する")
-      lines.push("150分超は素材量・カメラ数・ぼかし箇所・チェック体制の確認を優先し、断定的な新規日数を発明しません。")
-    } else {
-      lines.push(
-        `- 基本工程ライン: ${formatDayRange(
-          jobContext.workflowEstimate.totalMinDays,
-          jobContext.workflowEstimate.totalMaxDays,
-        )}（${describeJobForEstimate(jobContext.jobKind, jobContext.projectLengthMinutes)}の目安）`,
-      )
-      const breakdown = describeWorkflowStages(jobContext.workflowEstimate.stages)
-      if (breakdown) {
-        const attendance = jobContext.workflowEstimate.attendanceDays
-        lines.push(
-          `- 工程の内訳: ${breakdown}（${
-            attendance !== undefined
-              ? `立ち会いはお客さまが${attendance}日を選択済み`
-              : "立ち会い日数だけはお客さまが選ぶ。コンフォーム・仕込み・QC は則兼の作業日で、お客さまには「則兼の作業日」と伝える"
-          }）`,
-        )
-      }
-      // Only once the customer names such a delivery; otherwise the extra day is not brought up at all.
-      if (jobContext.strictDeliveryClient) {
-        lines.push("- 納品先: お客さまが NHK や OTT への納品と伝えているため、QC を1日多めに勧めている")
-      }
-      if (jobContext.jobKind === "live-60m") {
-        lines.push("- ライブ尺基準: 60分は約4日、150分は7〜8日程度。尺の増加は完全比例ではない。")
-        lines.push("- 禁止: 17〜20日などの過大見積もり、60分の単純2.5倍で10日とする線形倍率計算")
-        lines.push("- 禁止: 顔ぼかし・追加補正・付随作業・ディスク納品を基本工程ラインに最初から込みと断定する表現")
-        lines.push("- 納品形式: DVDという古い媒体名を回答側から新規に出さず、必要ならブルーレイディスクまたはディスク納品として確認する")
-      }
-      lines.push("このライン日数を正本ナレッジ由来の基本目安として扱い、追加作業・素材状況・希望納期・納品形式で前後または追加になる可能性を添えます。")
-    }
-  }
 
   return lines.join("\n")
 }

@@ -5,8 +5,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 import type { ChatbotConversation, ChatbotMessage, ConversationState, SurveyChoiceSet } from "@/lib/chatbot/domain"
 import {
   jobKindChoices,
-  materialContentsChoices,
-  materialHandoffMethodChoices,
+  deliveryFormatChoices,
   materialTimingChoices,
   referenceUrlChoices,
 } from "@/lib/chatbot/domain"
@@ -24,6 +23,7 @@ const beforeMaterials: Partial<ConversationState> = {
   hasJobKind: true,
   hasProjectLength: true,
   hasFinalMedium: true,
+  hasDeliveryFormat: true,
   hasAdditionalWork: true,
   hasDocumentaryAttachments: true,
   hasWorkSite: true,
@@ -85,50 +85,27 @@ function persistedState(h: ReturnType<typeof harness>) {
   return h.repository.updateConversationRouting.mock.calls.at(-1)?.[0]?.conversationState as ConversationState
 }
 
-describe("material and reference intake questions are choice panels", () => {
-  it("asks materials, timing, handoff method and reference URLs with choice panels", () => {
-    const base = { jobContext: { jobKind: "cm-30s" as const, finalMedium: "web" as const, documentaryAttachment: { kind: "none" as const }, workSite: "remote-grading" as const } }
-    const state = (patch: Partial<ConversationState>) => ({
-      hasReferenceUrls: false,
-      hasContactEmail: false,
-      hasDesiredSchedule: false,
-      ...beforeMaterials,
-      ...patch,
-    }) as ConversationState
-    const ids = [
-      decideRoutingFallback({ ...base, conversationState: state({}) }),
-      decideRoutingFallback({ ...base, conversationState: state({ hasMaterialDetails: true, materialHandoff: { contents: "撮影素材一式" } }) }),
-      decideRoutingFallback({ ...base, conversationState: state({ hasMaterialDetails: true, hasMaterialTiming: true, materialHandoff: { contents: "a", timing: "b" } }) }),
-      decideRoutingFallback({ ...base, conversationState: state({ hasMaterialDetails: true, hasMaterialTiming: true, hasMaterialHandoff: true, materialHandoff: { contents: "a", timing: "b", method: "c" } }) }),
-    ].map((decision) => (decision.kind === "continue" ? decision.presentChoices?.id : decision.kind))
-    expect(ids).toEqual(["material-contents", "material-timing", "material-handoff-method", "reference-urls"])
+describe("delivery and material date intake", () => {
+  it("asks only the material ready date before reference URLs", () => {
+    const jobContext = { jobKind: "cm-30s" as const, finalMedium: "web" as const, documentaryAttachment: { kind: "none" as const }, workSite: "remote-grading" as const }
+    const state = { hasReferenceUrls: false, hasContactEmail: false, hasDesiredSchedule: false, ...beforeMaterials } as ConversationState
+    expect(decideRoutingFallback({ jobContext, conversationState: state })).toMatchObject({ kind: "continue", presentChoices: { id: "material-timing" } })
+    expect(decideRoutingFallback({ jobContext, conversationState: { ...state, hasMaterialTiming: true, materialHandoff: { timing: "未確認" } } })).toMatchObject({ kind: "continue", presentChoices: { id: "reference-urls" } })
   })
 
-  it("records a material choice without calling the LLM and moves to the timing panel", async () => {
-    const h = harness(conversation({
-      messages: [msg("u1", "user", "CMの相談です"), msg("a1", "assistant", panelText(materialContentsChoices))],
-      activeChoices: materialContentsChoices,
-      conversationState: beforeMaterials,
-    }))
-    const result = await handleChatbotMessage({ sessionId: "session_panels", message: "選択: 撮影素材一式" }, h.options)
-
+  it.each(["ProRes 422 HQ / Rec.709", "未定"])("records an explicit delivery format without the LLM: %s", async (answer) => {
+    const h = harness(conversation({ messages: [msg("a1", "assistant", panelText(deliveryFormatChoices))], activeChoices: deliveryFormatChoices, conversationState: { ...beforeMaterials, hasDeliveryFormat: false } }))
+    const result = await handleChatbotMessage({ sessionId: "session_panels", message: `納品形式: ${answer}` }, h.options)
     expect(h.generate).not.toHaveBeenCalled()
-    expect(result.tier).toBe(chatbotLlmTierIds.tier0DeterministicIntake)
-    expect(persistedState(h).materialHandoff?.contents).toBe("撮影素材一式")
+    expect(persistedState(h)).toMatchObject({ hasDeliveryFormat: true, deliveryFormat: answer === "未定" ? "未確認" : answer })
     expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "material-timing" } })
   })
 
-  it("stores the other comment itself as the handoff method", async () => {
-    const h = harness(conversation({
-      messages: [msg("u1", "user", "CMの相談です"), msg("a1", "assistant", panelText(materialHandoffMethodChoices))],
-      activeChoices: materialHandoffMethodChoices,
-      conversationState: { ...beforeMaterials, hasMaterialDetails: true, hasMaterialTiming: true, materialHandoff: { contents: "a", timing: "b" } },
-    }))
-    await handleChatbotMessage({ sessionId: "session_panels", message: "選択: その他\nその他コメント: 共有ドライブ" }, h.options)
-
+  it.each(["2026-10-15", "未定"])("records the material date without the LLM: %s", async (answer) => {
+    const h = harness(conversation({ messages: [msg("a1", "assistant", panelText(materialTimingChoices))], activeChoices: materialTimingChoices, conversationState: beforeMaterials }))
+    await handleChatbotMessage({ sessionId: "session_panels", message: `素材が揃う日: ${answer}` }, h.options)
     expect(h.generate).not.toHaveBeenCalled()
-    expect(persistedState(h).materialHandoff?.method).toBe("共有ドライブ")
-    expect(persistedState(h).hasMaterialHandoff).toBe(true)
+    expect(persistedState(h)).toMatchObject({ hasMaterialTiming: true, materialHandoff: { timing: answer === "未定" ? "未確認" : answer } })
   })
 
   it("accepts a reference URL entered through the panel", async () => {
@@ -182,6 +159,6 @@ describe("job-kind panel shown before the first message", () => {
 
 describe("time choices", () => {
   it("offers the approved timing labels", () => {
-    expect(materialTimingChoices.choices.map((choice) => choice.label)).toEqual(["1週間以内", "2〜3週間以内", "1か月以上先", "未定"])
+    expect(materialTimingChoices.choices.map((choice) => choice.label)).toEqual(["未定"])
   })
 })

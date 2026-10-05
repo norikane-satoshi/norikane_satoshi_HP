@@ -10,20 +10,6 @@ function request(body: unknown) {
 
 function validRequest(overrides: Record<string, unknown> = {}) {
   return {
-    jobContext: {
-      jobKind: "live-60m",
-      finalMedium: "live",
-      workSite: "remote-grading",
-      documentaryAttachment: { kind: "none" },
-      publicReleaseDate: "2026-07-31",
-      preferredStartDate: "2026-07-01",
-    },
-    workflowEstimate: {
-      stages: [{ stage: "attended", minDays: 2, maxDays: 2 }],
-      totalMinDays: 2,
-      totalMaxDays: 2,
-      riskFlags: [],
-    },
     month: "2026-08",
     ...overrides,
   }
@@ -31,7 +17,7 @@ function validRequest(overrides: Record<string, unknown> = {}) {
 
 async function loadPost() {
   vi.resetModules()
-  const findCandidateCalendar = vi.fn().mockResolvedValue({
+  const findPreferredDateCalendar = vi.fn().mockResolvedValue({
     candidates: [
       {
         start: "2026-08-03T15:00:00.000Z",
@@ -42,10 +28,10 @@ async function loadPost() {
     busyDateKeys: [],
   })
 
-  vi.doMock("@/lib/chatbot/server/availability-finder", () => ({ findCandidateCalendar }))
+  vi.doMock("@/lib/chatbot/server/availability-finder", () => ({ findPreferredDateCalendar }))
 
   const route = await import("./route")
-  return { POST: route.POST, findCandidateCalendar }
+  return { POST: route.POST, findPreferredDateCalendar }
 }
 
 afterEach(() => {
@@ -63,13 +49,15 @@ describe("POST /api/chatbot/booking-candidates", () => {
       const response = await route.POST(request(validRequest()))
 
       expect(response.status).toBe(200)
-      const args = route.findCandidateCalendar.mock.calls[0]?.[0]
+      const args = route.findPreferredDateCalendar.mock.calls[0]?.[0]
       expect(args).toMatchObject({
         notBefore: "2026-08-01",
         busyFrom: "2026-08-01",
         candidateLimit: 31,
       })
-      expect(args).not.toHaveProperty("desiredDeadline")
+      expect(args.desiredDeadline).toBeUndefined()
+      expect(args).not.toHaveProperty("workflowEstimate")
+      expect(args).not.toHaveProperty("jobContext")
       await expect(response.json()).resolves.toMatchObject({
         candidates: [{ label: "2026-08-04 単日" }],
       })

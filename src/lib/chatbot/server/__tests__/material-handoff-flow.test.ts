@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import type { ConversationState, JobContext } from "@/lib/chatbot/domain"
 import {
-  applyBookingFinalConfirmationPolicy,
   getMissingBookingReadinessSlots,
 } from "@/lib/chatbot/server/flow-policy"
 import { applyMaterialHandoffAnswer } from "@/lib/chatbot/server/material-handoff"
@@ -36,163 +35,22 @@ const jobContext: JobContext = {
   documentaryAttachment: { kind: "none" },
 }
 
-describe("material handoff before Booking Order", () => {
-  it("stores what, when, and how from the three guided answers", () => {
-    const withContents = applyMaterialHandoffAnswer({
-      conversationState: readyState(),
-      previousAssistantMessage: "何の素材をお送りいただく予定ですか？",
-      latestUserMessage: "ProRes書き出しと撮影素材の使用クリップです",
-    })
-    const withTiming = applyMaterialHandoffAnswer({
-      conversationState: withContents,
-      previousAssistantMessage: "その素材は、いつお送りいただけそうですか？",
-      latestUserMessage: "9月1日です",
-    })
-    const complete = applyMaterialHandoffAnswer({
-      conversationState: withTiming,
-      previousAssistantMessage: "素材の受け渡し方法を教えてください",
-      latestUserMessage: "SSDをバイク便で送ります",
-    })
-
-    expect(complete).toMatchObject({
-      hasMaterialDetails: true,
-      hasMaterialTiming: true,
-      hasMaterialHandoff: true,
-      materialHandoff: {
-        contents: "ProRes書き出しと撮影素材の使用クリップです",
-        timing: "9月1日です",
-        method: "SSDをバイク便で送ります",
-      },
-    })
+describe("material ready date", () => {
+  it.each(["2026-10-15", "未定"])("stores only an explicit ready date or unknown: %s", (answer) => {
+    const result = applyMaterialHandoffAnswer({ conversationState: readyState(), previousAssistantMessage: "編集確定版の素材が揃う日を選んでください。", latestUserMessage: `素材が揃う日: ${answer}` })
+    expect(result).toMatchObject({ hasMaterialTiming: true, materialHandoff: { timing: answer === "未定" ? "未確認" : answer } })
+    expect(result.hasMaterialDetails).toBe(false)
+    expect(result.hasMaterialHandoff).toBe(false)
   })
-
-  it("recovers answers after legacy Notion AI wording for contents and method", () => {
-    const withContents = applyMaterialHandoffAnswer({
-      conversationState: readyState(),
-      previousAssistantMessage:
-        "次に、どの素材を共有いただく予定かを確認します。撮影素材一式、使用クリップのみ、ProRes書き出しなど、現時点の予定で大丈夫です。",
-      latestUserMessage: "ProRes書き出しと撮影素材の使用クリップです",
-    })
-    const complete = applyMaterialHandoffAnswer({
-      conversationState: withContents,
-      previousAssistantMessage: "素材はどの方法でお渡しいただく予定ですか？",
-      latestUserMessage: "選択: アップローダー・クラウド共有",
-    })
-
-    expect(complete).toMatchObject({
-      hasMaterialDetails: true,
-      hasMaterialHandoff: true,
-      materialHandoff: {
-        contents: "ProRes書き出しと撮影素材の使用クリップです",
-        method: "アップローダー・クラウド共有",
-      },
-    })
+  it.each(["来週", "2026-02-30", "どう送ればいいですか？"])("rejects a non-date answer: %s", (answer) => {
+    const state = readyState()
+    expect(applyMaterialHandoffAnswer({ conversationState: state, previousAssistantMessage: "素材が揃う日を教えてください", latestUserMessage: answer })).toBe(state)
   })
-
-  it("asks what material will be sent first", () => {
-    expect(decideRoutingFallback({ jobContext, conversationState: readyState() })).toMatchObject({
-      kind: "continue",
-      nextQuestion: expect.stringMatching(/何の素材/u),
-    })
-  })
-
-  it("asks when the material will be sent after its contents are known", () => {
-    expect(
-      decideRoutingFallback({
-        jobContext,
-        conversationState: readyState({
-          hasMaterialDetails: true,
-          materialHandoff: { contents: "ProResと使用クリップ" },
-        }),
-      }),
-    ).toMatchObject({
-      kind: "continue",
-      nextQuestion: expect.stringMatching(/いつ/u),
-    })
-  })
-
-  it("asks how the material will be sent after contents and timing are known", () => {
-    expect(
-      decideRoutingFallback({
-        jobContext,
-        conversationState: readyState({
-          hasMaterialDetails: true,
-          hasMaterialTiming: true,
-          materialHandoff: { contents: "ProResと使用クリップ", timing: "9月1日" },
-        }),
-      }),
-    ).toMatchObject({
-      kind: "continue",
-      nextQuestion: expect.stringMatching(/どういう方法|受け渡し方法/u),
-    })
-  })
-
-  it("does not consider booking ready until what, when, and how are all stored", () => {
-    expect(getMissingBookingReadinessSlots(readyState(), { jobContext })).toEqual(
-      expect.arrayContaining(["material-contents", "material-timing", "material-method"]),
-    )
-
-    expect(
-      getMissingBookingReadinessSlots(
-        readyState({
-          hasMaterialDetails: true,
-          hasMaterialTiming: true,
-          hasMaterialHandoff: true,
-          materialHandoff: {
-            contents: "撮影素材一式",
-            timing: "9月1日",
-            method: "SSDをバイク便",
-          },
-        }),
-        { jobContext },
-      ),
-    ).not.toEqual(expect.arrayContaining(["material-contents", "material-timing", "material-method"]))
-  })
-
-  it.each([
-    [readyState(), /何の素材/u],
-    [
-      readyState({
-        hasMaterialDetails: true,
-        materialHandoff: { contents: "ProResと使用クリップ" },
-      }),
-      /いつ/u,
-    ],
-    [
-      readyState({
-        hasMaterialDetails: true,
-        hasMaterialTiming: true,
-        materialHandoff: { contents: "ProResと使用クリップ", timing: "9月1日" },
-      }),
-      /受け渡し方法/u,
-    ],
-  ] as const)("normalizes an early LLM material-method prompt into the required order", (conversationState, expected) => {
-    const methodFirstDecision = {
-      kind: "continue" as const,
-      nextQuestion: "素材はどの方法でお渡しいただく予定ですか？",
-      presentChoices: {
-        id: "material-method",
-        question: "素材はどの方法でお渡しいただく予定ですか？",
-        choices: [
-          { id: "courier", label: "バイク便" },
-          { id: "uploader", label: "アップローダー・クラウド共有" },
-        ],
-      },
-    }
-
-    const result = applyBookingFinalConfirmationPolicy({
-      routingDecision: methodFirstDecision,
-      fallbackRoutingDecision: decideRoutingFallback({ jobContext, conversationState }),
-      conversationState,
-      jobContext,
-      latestUserMessage: "追加作業はありません",
-      assistantText: methodFirstDecision.nextQuestion,
-    })
-
-    expect(result.routingDecision).toMatchObject({
-      kind: "continue",
-      nextQuestion: expect.stringMatching(expected),
-    })
-    expect(result.routingDecision?.kind === "continue" ? result.routingDecision.presentChoices : undefined).toBeUndefined()
+  it("requires the ready date but never material contents or handoff method", () => {
+    const state = readyState({ hasDeliveryFormat: true })
+    expect(decideRoutingFallback({ jobContext, conversationState: state })).toMatchObject({ kind: "continue", presentChoices: { id: "material-timing" } })
+    expect(getMissingBookingReadinessSlots(state, { jobContext })).toContain("material-timing")
+    expect(getMissingBookingReadinessSlots(state, { jobContext })).not.toContain("material-contents")
+    expect(getMissingBookingReadinessSlots(state, { jobContext })).not.toContain("material-method")
   })
 })

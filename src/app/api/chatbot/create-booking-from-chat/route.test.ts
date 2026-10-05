@@ -65,15 +65,6 @@ async function loadPost(session: { user?: { id?: string; email?: string } } | nu
   const sendChatbotSlackNotification = vi.fn().mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
   const auth = vi.fn().mockResolvedValue(session)
   const scheduleChatbotAuditPersistence = vi.fn()
-  const planChatbotWorkSchedule = vi.fn().mockResolvedValue({
-    days: [
-      { date: "2026-10-12", role: "prep" },
-      { date: "2026-10-13", role: "attendance" },
-      { date: "2026-10-14", role: "finish" },
-    ],
-    lines: ["コンフォーム・仕込み（則兼の作業日）: 10/12(月)", "立ち会い: 10/13(火)", "QC（則兼の作業日）: 10/14(水)"],
-    dateLabels: { "2026-10-12": "仕込み", "2026-10-13": "立ち会い", "2026-10-14": "QC" },
-  })
 
   vi.doMock("@/auth", () => ({ auth }))
   vi.doMock("@/lib/prisma", () => ({ prisma }))
@@ -91,7 +82,6 @@ async function loadPost(session: { user?: { id?: string; email?: string } } | nu
     sendChatbotSlackNotification,
   }))
   vi.doMock("@/lib/chatbot/audit/scheduler", () => ({ scheduleChatbotAuditPersistence }))
-  vi.doMock("@/lib/chatbot/server/work-schedule-plan", () => ({ planChatbotWorkSchedule }))
 
   const route = await import("./route")
   return {
@@ -105,7 +95,6 @@ async function loadPost(session: { user?: { id?: string; email?: string } } | nu
     sendChatbotSlackNotification,
     auth,
     scheduleChatbotAuditPersistence,
-    planChatbotWorkSchedule,
   }
 }
 
@@ -119,7 +108,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
   it("shares unconfirmed facts across the stored booking and owner notification, ignoring legacy inferred memo", async () => {
     const route = await loadPost()
     const response = await route.POST(request(validChatBooking({
-      selectedSlot: undefined, attendanceDates: ["2026-10-13"], dueDate: "",
+      selectedSlot: undefined, attendanceDates: ["2026-10-13"], dueDate: "未定",
       confirmedDetails: undefined, detailsConfirmed: undefined,
       memo: "相談\n案件種別: 長編\n尺: 1時間\n最終媒体: 劇場",
       jobContext: { jobKind: "feature-90m", finalMedium: "cinema", projectLengthMinutes: 60 },
@@ -131,9 +120,8 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(memo).not.toContain("1時間")
     expect(memo).not.toContain("長編")
     expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({ memo }))
-    expect(route.planChatbotWorkSchedule).not.toHaveBeenCalled()
     expect(route.createBookingFromApiInput).toHaveBeenCalledWith(expect.objectContaining({
-      input: expect.objectContaining({ requestedDates: ["2026-10-13"] }),
+      input: expect.objectContaining({ requestedDates: [] }),
     }))
   })
 
@@ -153,7 +141,6 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(memo).toContain("納品形式: ProRes 422 HQ（Rec.709）、DCP不要")
     expect(memo).toContain("作業場所/立ち会い: 未確認")
     expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({ memo }))
-    expect(route.planChatbotWorkSchedule).not.toHaveBeenCalled()
   })
 
   it.each([["0時間18分", "18分"], ["1時間18分", "1時間18分"], ["未定", "未確認"]])("shares reviewed duration %s with the booking and owner notification", async (value, canonical) => {
@@ -166,7 +153,6 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     const memo = route.createBookingFromApiInput.mock.calls[0][0].input.memo
     expect(memo).toContain(`尺: ${canonical}`)
     expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({ memo }))
-    expect(route.planChatbotWorkSchedule).not.toHaveBeenCalled()
   })
 
   it("requires explicit confirmation for edited facts", async () => {
@@ -311,8 +297,8 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
         sessionEmail: "client@example.com",
         selectedSlots: [
           {
-            start: "2026-06-10T01:00:00.000Z",
-            end: "2026-06-10T02:00:00.000Z",
+            start: "2026-06-09T15:00:00.000Z",
+            end: "2026-06-10T15:00:00.000Z",
           },
         ],
       }),
@@ -326,8 +312,8 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       contactEmail: "client@example.com",
       selectedSlots: [
         {
-          start: "2026-06-10T01:00:00.000Z",
-          end: "2026-06-10T02:00:00.000Z",
+          start: "2026-06-09T15:00:00.000Z",
+          end: "2026-06-10T15:00:00.000Z",
         },
       ],
     }))
@@ -562,45 +548,29 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(manual.sendChatbotSlackNotification).toHaveBeenCalled()
   })
 
-  it("holds the chosen attendance days and the owner's placed work days, each named for its part", async () => {
+  it("holds only selected dates and ignores legacy estimates", async () => {
     const route = await loadPost()
-    route.loadConversationById.mockResolvedValueOnce({
-      id: "conv_1",
-      context: { sessionId: "session_1", slackThreadTs: "1700000000.000100" },
-      messages: [{ id: "facts", role: "user", content: "案件種別: ミュージックビデオ\n尺: 5分\n最終媒体: Web\n作業場所/立ち会い: リモート", createdAt: "2026-05-26T00:00:00Z" }],
-    })
-    const estimate = {
-      stages: [
-        { stage: "conform", minDays: 0.5, maxDays: 0.5 },
-        { stage: "prep", minDays: 0, maxDays: 0.5 },
-        { stage: "attended", minDays: 1, maxDays: 1 },
-        { stage: "final-check", minDays: 1, maxDays: 1 },
-      ],
-      totalMinDays: 2.5,
-      totalMaxDays: 3,
-      attendanceDays: 1,
-      riskFlags: [],
-    }
-
     const response = await route.POST(request(validChatBooking({
-      confirmedDetails: undefined, detailsConfirmed: undefined,
       selectedSlot: undefined,
-      attendanceDates: ["2026-10-13"],
+      selectedSlots: [{ start: "2026-10-13", end: "2026-10-17" }],
       dueDate: "2026-10-30",
-      jobContext: { jobKind: "mv-5m", finalMedium: "web", workSite: "remote-grading", documentaryAttachment: { kind: "none" } },
-      workflowEstimate: estimate,
+      attendanceDates: ["2026-10-14"],
+      workflowEstimate: { totalMinDays: 4, totalMaxDays: 5 },
     })))
-
     expect(response.status).toBe(200)
-    expect(route.planChatbotWorkSchedule).toHaveBeenCalledWith(expect.objectContaining({ attendanceDates: ["2026-10-13"] }))
-    expect(route.createBookingFromApiInput).toHaveBeenCalledWith(expect.objectContaining({
-      input: expect.objectContaining({ selectedSlots: [], requestedDates: ["2026-10-12", "2026-10-13", "2026-10-14"] }),
-      requestedDateLabels: { "2026-10-12": "仕込み", "2026-10-13": "立ち会い", "2026-10-14": "QC" },
-      scheduleLines: expect.arrayContaining(["立ち会い: 10/13(火)"]),
-    }))
-    expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({
-      requestedDates: ["2026-10-12", "2026-10-13", "2026-10-14"],
-      scheduleLines: expect.arrayContaining(["QC（則兼の作業日）: 10/14(水)"]),
-    }))
+    const args = route.createBookingFromApiInput.mock.calls[0][0]
+    expect(args.input.selectedSlots).toEqual([{ start: "2026-10-12T15:00:00.000Z", end: "2026-10-13T15:00:00.000Z" }])
+    expect(args).not.toHaveProperty("scheduleLines")
+    expect(args).not.toHaveProperty("requestedDateLabels")
+    expect(args.input).not.toHaveProperty("workflowEstimate")
+    expect(route.sendChatbotBookingOwnerNotification.mock.calls[0][0]).not.toHaveProperty("scheduleLines")
   })
+})
+
+
+it.each(["", "相談したい", "2026-02-30"])("rejects a deadline without a date or explicit undecided selection: %s", async (dueDate) => {
+  const route = await loadPost()
+  const response = await route.POST(request(validChatBooking({ dueDate })))
+  expect(response.status).toBe(400)
+  expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
 })

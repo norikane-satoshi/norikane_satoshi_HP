@@ -66,6 +66,11 @@ export type ConversationState = {
   /** The customer chose how many attendance days, or left it open ("未定"). */
   hasAttendanceDays?: boolean
   hasDeliveryFormat?: boolean
+  hasDcpRequirement?: boolean
+  hasDcpCreator?: boolean
+  deliveryFormat?: string
+  dcpRequirement?: "required" | "not-required" | "undecided"
+  dcpCreator?: string
   hasProductionOptions?: boolean
   hasBudgetRange?: boolean
   hasContactEmail: boolean

@@ -14,12 +14,12 @@ export function isSelectableDeadline(value: string, now = new Date()): boolean {
 }
 
 export function deadlineFromMessage(message: string): string | undefined {
-  return message.match(/^(?:納期|納品希望日)\s*[:：]\s*(.+)$/u)?.[1]?.trim()
+  return message.match(/^(?:納期|納品希望日)[ \t]*[:：][ \t]*([^\n]*)$/mu)?.[1]?.trim()
 }
 
-/** Preserve free-form deadlines; reject invalid/past ISO calendar selections. */
+/** Customers choose a calendar date or explicitly leave it undecided. */
 export function isValidDeadlineInput(value: string, now = new Date()): boolean {
-  return !/^\d{4}-\d{2}-\d{2}$/.test(value) || isSelectableDeadline(value, now)
+  return value === "未定" || isSelectableDeadline(value, now)
 }
 
 /** Free text stays in the summary; only an unambiguous date constrains availability. */

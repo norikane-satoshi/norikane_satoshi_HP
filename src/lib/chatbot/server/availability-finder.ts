@@ -1,13 +1,10 @@
-import type { CandidateWindow, JobContext, WorkflowEstimate, WorkSite } from "@/lib/chatbot/domain"
-import { SATOSHI_STUDIO_AVAILABLE_FROM_JST } from "@/lib/chatbot/domain"
+import type { CandidateWindow, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
 
-export const STUDIO_ACTIVE_FROM = SATOSHI_STUDIO_AVAILABLE_FROM_JST
 
 const DEFAULT_LOOKAHEAD_WEEKS = 8
 const CANDIDATE_LIMIT = 3
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
-const VALID_WORK_SITES = new Set<WorkSite>(["satoshi-studio", "remote-grading", "on-site"])
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 export type FreeBusyFetcher = (args: {
   from: string
@@ -28,8 +25,7 @@ export type TentativeDateKeysFetcher = (args: {
 }) => Promise<string[]>
 
 export type ChatbotAvailabilityErrorKind =
-  | "studio-not-yet-active"
-  | "work-site-unspecified"
+  | "invalid-date"
   | "free-busy-fetch-failed"
   | "attendance-resolver-failed"
   | "tentative-date-keys-fetch-failed"
@@ -71,15 +67,16 @@ export async function findCandidateWindows(args: CandidateSearchArgs): Promise<C
 }
 
 export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<CandidateCalendarResult> {
-  const now = args.now ?? new Date()
-  assertWorkSite(args.jobContext.workSite, now)
+  return findPreferredDateCalendar(args)
+}
 
+export async function findPreferredDateCalendar(args: Omit<CandidateSearchArgs, "jobContext" | "workflowEstimate">): Promise<CandidateCalendarResult> {
+  const now = args.now ?? new Date()
   const lookaheadWeeks = args.lookaheadWeeks ?? DEFAULT_LOOKAHEAD_WEEKS
   const searchFrom = maxDate(startOfJstDay(now), args.notBefore ? parseStartDate(args.notBefore) : null)
   const busyFrom = args.busyFrom ? parseStartDate(args.busyFrom) : searchFrom
   const searchTo = new Date(now.getTime() + lookaheadWeeks * 7 * DAY_MS)
   const deadline = args.desiredDeadline ? parseDeadline(args.desiredDeadline) : null
-  const neededDays = Math.max(1, Math.ceil(args.workflowEstimate.totalMaxDays))
   const fetcher = args.freeBusyFetcher ?? defaultFreeBusyFetcher
   const resolver = args.attendanceConflictResolver ?? defaultAttendanceConflictResolver
   const tentativeFetcher = args.tentativeDateKeysFetcher ?? defaultTentativeDateKeysFetcher
@@ -115,7 +112,6 @@ export async function findCandidateCalendar(args: CandidateSearchArgs): Promise<
         label: `${formatJstDate(candidate.start)} 単日`,
         available: true,
         note: [
-          `requiredDays=${neededDays}`,
           `busyRatio=${candidate.busyRatio.toFixed(2)}`,
           deadline ? `deadlineSlackDays=${candidate.deadlineSlackDays.toFixed(1)}` : null,
           "attendanceConflicts=0",
@@ -211,22 +207,6 @@ async function runAttendanceResolver(
   }
 }
 
-function assertWorkSite(workSite: JobContext["workSite"], now: Date): asserts workSite is WorkSite {
-  if (!workSite || !VALID_WORK_SITES.has(workSite)) {
-    throw new ChatbotAvailabilityError(
-      "work-site-unspecified",
-      "Work site must be specified before finding candidate windows.",
-    )
-  }
-
-  if (workSite === "satoshi-studio" && now.getTime() < new Date(STUDIO_ACTIVE_FROM).getTime()) {
-    throw new ChatbotAvailabilityError(
-      "studio-not-yet-active",
-      "Satoshi studio is not active before 2026-09-15 JST.",
-    )
-  }
-}
-
 function parseDeadline(value: string): Date {
   const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value)
     ? new Date(`${value}T23:59:59.999+09:00`)
@@ -234,7 +214,7 @@ function parseDeadline(value: string): Date {
 
   if (Number.isNaN(parsed.getTime())) {
     throw new ChatbotAvailabilityError(
-      "work-site-unspecified",
+      "invalid-date",
       "desiredDeadline must be an ISO 8601 string or ISO date string.",
     )
   }
@@ -249,7 +229,7 @@ function parseStartDate(value: string): Date {
 
   if (Number.isNaN(parsed.getTime())) {
     throw new ChatbotAvailabilityError(
-      "work-site-unspecified",
+      "invalid-date",
       "notBefore must be an ISO 8601 string or ISO date string.",
     )
   }

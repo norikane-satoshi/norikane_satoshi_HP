@@ -279,6 +279,9 @@ describe("POST /api/chatbot/message", () => {
         },
         conversationState: {
           hasFinalMedium: true,
+          hasDeliveryFormat: true,
+          hasMaterialTiming: true,
+          materialHandoff: { timing: "未定" },
           hasJobKind: true,
           hasProjectLength: true,
           hasAdditionalWork: true,
@@ -1132,4 +1135,11 @@ it("uses stored panel choices for an edited API submission", async () => {
   expect(route.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
     jobContext: expect.objectContaining({ finalMedium: "cinema" }),
   }))
+})
+
+
+it("rejects a blank explicit deadline while accepting ordinary chat", async () => {
+  const route = await loadPost()
+  expect((await route.POST(request({ message: "納期: " }))).status).toBe(400)
+  expect((await route.POST(request({ message: "相談です" }))).status).toBe(200)
 })

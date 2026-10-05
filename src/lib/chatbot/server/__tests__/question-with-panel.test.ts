@@ -116,7 +116,7 @@ describe("a question typed while a panel is shown", () => {
     })
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
 
-    expect(result.assistantMessage.content).toContain("尺が未確認のため工程日数は確認が必要")
+    expect(result.assistantMessage.content).not.toMatch(/\d+[〜～-]\d+日/u)
     expect(result.ui).toMatchObject({ kind: "duration-input" })
   })
 
@@ -171,7 +171,7 @@ describe("a question typed while a panel is shown", () => {
     expect(systemPrompt).toContain("- 案件種別: Web CM / CM")
     expect(systemPrompt).not.toContain("案件種別: cm-30s")
     expect(systemPrompt).toContain("- 尺: 未確認")
-    expect(systemPrompt).toContain("尺が未確認のため確認が必要")
+    expect(systemPrompt).not.toContain("基本工程ライン")
     expect(systemPrompt).not.toContain("- 最終媒体: other")
     expect(systemPrompt).not.toContain("- 作業場所: remote-grading")
   })

@@ -7,58 +7,23 @@ import {
 } from "@/lib/chatbot/domain/consultation-summary"
 
 describe("formatConsultationSummary", () => {
-  it("includes other comments from choice panels", () => {
+  it("shares only explicit customer facts, with unanswered items unconfirmed", () => {
     const summary = formatConsultationSummary({
-      jobContext: {
-        finalMedium: "other",
-        jobKind: "live-60m",
-        projectLengthMinutes: 60,
-        additionalWork: ["other"],
-        documentaryAttachment: { kind: "other", count: 1, note: "舞台裏の短尺あり" },
-        workSite: "remote-grading",
-        referenceUrls: ["https://example.com/reference"],
-      },
-      conversationState: {
-        hasFinalMedium: true,
-        hasJobKind: true,
-        hasProjectLength: true,
-        hasAdditionalWork: true,
-        hasDocumentaryAttachments: true,
-        hasWorkSite: true,
-        hasReferenceUrls: true,
-        hasContactEmail: true,
-        hasDesiredSchedule: false,
-        hasProductionOptions: true,
-        productionOptions: ["captions", "other"],
-        otherChoiceComments: {
-          "final-medium": "展示会場上映",
-          "additional-work": "MA も相談したい",
-          "production-options": "英語版ナレーション",
-        },
-        contactEmail: "client@example.com",
-        bookingPrefill: {
-          projectTitle: "テスト案件",
-          memo: "HDR版も相談",
-        },
-        turnCount: 8,
-      },
+      messages: [{ id: "u", role: "user", content: "最終媒体: 展示会場上映\n納品形式: ProRes 422 HQ Rec.709\nDCP必要性: 不要", createdAt: "2026-10-05" }],
+      jobContext: { jobKind: "feature-90m", projectLengthMinutes: 90, workSite: "satoshi-studio" },
+      conversationState: { hasJobKind: true, hasProjectLength: true, hasWorkSite: true },
     })
-
-    expect(summary).toContain("最終媒体: その他（展示会場上映）")
-    expect(summary).toContain("- 追加作業: その他（MA も相談したい）")
-    expect(summary).toContain("- 付随素材: その他 1件（舞台裏の短尺あり）")
-    expect(summary).toContain("- 字幕・テロップ等: 字幕 / その他（英語版ナレーション）")
-    expect(summary).toContain("- 案件名: テスト案件")
-    expect(summary).toContain("- 参考URL: https://example.com/reference")
-    expect(summary).toContain("- その他の補足: HDR版も相談")
+    expect(summary).toContain("納品形式: ProRes 422 HQ Rec.709")
+    expect(summary).toContain("尺: 未確認")
+    expect(summary).not.toMatch(/立ち会い日数|受け渡し方法|工程日数/u)
   })
 
-  it("requires what, when, and how before production handoff notifications", () => {
+  it("requires delivery format and material readiness before notifications", () => {
     const state = {
       hasFinalMedium: true,
       hasJobKind: true,
       hasProjectLength: true,
-      hasMaterialDetails: true,
+      hasDeliveryFormat: true,
       hasMaterialTiming: false,
       hasMaterialHandoff: true,
       hasWorkSite: true,
@@ -81,24 +46,12 @@ describe("formatConsultationSummary", () => {
     ).toBe(true)
   })
 
-  it("names the job kind without a length, so it cannot contradict the chosen length", () => {
-    const summary = formatConsultationSummary({
-      jobContext: { finalMedium: "web", jobKind: "cm-30s", projectLengthMinutes: 0.25, workSite: "remote-grading" },
-      conversationState: {
-        hasFinalMedium: true,
-        hasJobKind: true,
-        hasProjectLength: true,
-        hasAdditionalWork: false,
-        hasDocumentaryAttachments: false,
-        hasWorkSite: true,
-        hasReferenceUrls: false,
-        hasContactEmail: false,
-        hasDesiredSchedule: false,
-      },
-    })
+})
 
-    expect(summary).toContain("- 案件種別: Web CM / CM")
-    expect(summary).toContain("- 尺: 15秒")
-    expect(summary).not.toContain("30秒")
-  })
+
+it("keeps the customer's explicit project name and supplemental text", () => {
+  const content = "案件名: 作品A\n補足: 試写会の予定があります"
+  const result = formatConsultationSummary({ messages: [{ id: "u", role: "user", content, createdAt: "2026-10-05T01:00:00Z" }] })
+  expect(result).toContain("案件名: 作品A")
+  expect(result).toContain("その他の補足: 試写会の予定があります")
 })

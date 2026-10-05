@@ -2,16 +2,15 @@ import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 
 import { respondInternalError } from "@/lib/api/server/error-response"
-import { findCandidateCalendar } from "@/lib/chatbot/server/availability-finder"
-import { jobContextSchema, workflowEstimateSchema } from "@/lib/chatbot/server/booking-request-schemas"
+import { findPreferredDateCalendar } from "@/lib/chatbot/server/availability-finder"
+import { deadlineForScheduling, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const requestSchema = z.object({
-  jobContext: jobContextSchema,
-  workflowEstimate: workflowEstimateSchema,
-  month: z.string().regex(/^\d{4}-\d{2}$/),
+  month: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/),
+  dueDate: z.string().refine((value) => isValidDeadlineInput(value)).optional(),
 })
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
@@ -70,10 +69,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const now = new Date()
-    const calendar = await findCandidateCalendar({
-      jobContext: parsed.data.jobContext,
-      workflowEstimate: parsed.data.workflowEstimate,
-      notBefore: latestIsoDate(`${parsed.data.month}-01`, parsed.data.jobContext.preferredStartDate, jstDateKey(now)),
+    const calendar = await findPreferredDateCalendar({
+      desiredDeadline: deadlineForScheduling(parsed.data.dueDate),
+      notBefore: latestIsoDate(`${parsed.data.month}-01`, jstDateKey(now)),
       busyFrom: `${parsed.data.month}-01`,
       now,
       lookaheadWeeks: 9,

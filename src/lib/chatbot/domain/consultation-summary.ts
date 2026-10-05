@@ -1,7 +1,5 @@
-import type { ChatbotMessage, ConversationState, DocumentaryAttachmentItem, JobContext } from "@/lib/chatbot/domain"
-import { confirmedBookingDetails } from "./booking-details"
-import { formatProjectLengthMinutes } from "./project-length"
-import { jobKindLabels } from "./job-kind-label"
+import type { ChatbotMessage, ConversationState, JobContext } from "@/lib/chatbot/domain"
+import { confirmedBookingDetails, confirmedBookingNote } from "./booking-details"
 
 export type ConsultationSummaryInput = {
   messages?: ReadonlyArray<ChatbotMessage>
@@ -17,104 +15,20 @@ export type ConsultationSummaryInput = {
   }
 }
 
-const missing = "未取得"
-
-const finalMediumLabels: Record<NonNullable<JobContext["finalMedium"]>, string> = {
-  ott: "VOD・オンデマンド配信",
-  cinema: "劇場",
-  "tv-broadcast": "TV放送",
-  "blu-ray": "Blu-ray / ディスク",
-  youtube: "YouTube",
-  live: "ライブ",
-  web: "Web",
-  "vertical-sns": "縦型SNS",
-  other: "その他",
-}
-
-const workSiteLabels: Record<NonNullable<JobContext["workSite"]>, string> = {
-  "satoshi-studio": "のりかね映像設計室",
-  "remote-grading": "リモート",
-  "on-site": "現地",
-}
-
-const additionalWorkLabels: Record<NonNullable<JobContext["additionalWork"]>[number], string> = {
-  retouch: "レタッチ",
-  "skin-retouch": "肌レタッチ",
-  other: "その他",
-}
-
 export function formatConsultationSummary(input: ConsultationSummaryInput): string {
-  const jobContext = input.jobContext ?? {}
-  const conversationState = input.conversationState ?? {}
+  const state = input.conversationState ?? {}
   const fallback = input.fallback ?? {}
-
+  const explicitProjectName = input.messages?.filter((message) => message.role === "user").flatMap((message) => message.content.split("\n")).map((line) => /^(?:案件名|作品名)[:：]\s*(.+)$/u.exec(line)?.[1] ?? /^(?:案件名|作品名)は[「『]([^」』]+)[」』](?:です)?[。]?$/u.exec(line)?.[1]).filter(Boolean).at(-1)
+  const note = confirmedBookingNote(input.messages ?? [], state.bookingFinalConfirmation?.supplementalNote)
   return [
     "相談サマリ",
-    `最終媒体: ${
-      conversationState.hasFinalMedium
-        ? labelFinalMedia(
-            conversationState.finalMedia,
-            jobContext.finalMedium,
-            conversationState.otherChoiceComments?.["final-medium"],
-          )
-        : missing
-    }`,
-    "作業内容:",
-    `- 案件名: ${formatContactValue(conversationState.bookingPrefill?.projectTitle)}`,
-    `- 案件種別: ${
-      conversationState.hasJobKind
-        ? labelJobKind(jobContext.jobKind, fallback.jobKind, conversationState.otherChoiceComments?.["job-kind"])
-        : missing
-    }`,
-    `- 尺: ${
-      conversationState.hasProjectLength
-        ? formatValue(
-            formatProjectLength(
-              jobContext.projectLengthMinutes,
-              conversationState.otherChoiceComments?.["project-length"] ?? fallback.projectLength,
-            ),
-          )
-        : missing
-    }`,
-    `- 追加作業: ${
-      conversationState.hasAdditionalWork
-        ? labelAdditionalWork(jobContext.additionalWork, conversationState.otherChoiceComments?.["additional-work"])
-        : missing
-    }`,
-    `- 付随素材: ${
-      conversationState.hasDocumentaryAttachments ? labelDocumentaryAttachment(jobContext.documentaryAttachment) : missing
-    }`,
-    `- 字幕・テロップ等: ${
-      conversationState.hasProductionOptions
-        ? labelProductionOptions(
-            conversationState.productionOptions,
-            conversationState.otherChoiceComments?.["production-options"],
-          )
-        : missing
-    }`,
-    "作業場所・立ち会い:",
-    `- 作業場所/立ち会い: ${
-      conversationState.hasWorkSite ? conversationState.workSiteLabel ?? labelWorkSite(jobContext.workSite) : missing
-    }`,
-    "素材搬入〜納品:",
-    `- 受け渡し素材: ${conversationState.hasMaterialDetails ? formatValue(conversationState.materialHandoff?.contents) : missing}`,
-    `- 素材搬入/受け取り時期: ${conversationState.hasMaterialTiming ? formatValue(conversationState.materialHandoff?.timing) : missing}`,
-    `- 素材受け渡し方法: ${conversationState.hasMaterialHandoff ? formatValue(conversationState.materialHandoff?.method) : missing}`,
-    `- 納品希望日: ${
-      conversationState.hasDesiredSchedule ? formatValue(jobContext.publicReleaseDate ?? fallback.publicReleaseDate) : missing
-    }`,
-    `- 参考URL: ${
-      conversationState.hasReferenceUrls
-        ? jobContext.referenceUrls?.length
-          ? jobContext.referenceUrls.join(" / ")
-          : "なし"
-        : missing
-    }`,
-    `- その他の補足: ${formatValue(conversationState.bookingPrefill?.memo)}`,
+    `案件名: ${explicitProjectName ?? "未確認"}`,
+    ...confirmedBookingDetails(input).map(({ label, value }) => `${label}: ${value}`),
+    ...(note ? [`その他の補足: ${note}`] : []),
     "連絡先:",
-    `- 氏名: ${formatContactValue(conversationState.customerName ?? fallback.customerName)}`,
-    `- 会社: ${formatContactValue(conversationState.companyName ?? fallback.companyName)}`,
-    `- メール: ${formatValue(conversationState.contactEmail ?? fallback.contactEmail)}`,
+    `- 氏名: ${state.customerName ?? fallback.customerName ?? "未確認"}`,
+    `- 会社: ${state.companyName ?? fallback.companyName ?? "未確認"}`,
+    `- メール: ${state.contactEmail ?? fallback.contactEmail ?? "未確認"}`,
   ].join("\n")
 }
 
@@ -131,9 +45,8 @@ export function hasRequiredConsultationNotificationSlots(input: {
     state.hasFinalMedium &&
       state.hasJobKind &&
       state.hasProjectLength &&
-      state.hasMaterialDetails &&
+      state.hasDeliveryFormat &&
       state.hasMaterialTiming &&
-      state.hasMaterialHandoff &&
       state.hasWorkSite &&
       state.hasDesiredSchedule &&
       state.hasContactEmail &&
@@ -164,107 +77,10 @@ export function hasRequiredEmailConsultationSlots(input: {
     state.hasFinalMedium &&
       state.hasJobKind &&
       state.hasProjectLength &&
-      state.hasMaterialDetails &&
+      state.hasDeliveryFormat &&
       state.hasMaterialTiming &&
-      state.hasMaterialHandoff &&
       state.hasWorkSite &&
       state.hasContactEmail &&
       state.contactEmail,
   )
-}
-
-function labelFinalMedium(value: JobContext["finalMedium"] | undefined, otherComment?: string): string {
-  if (!value) return missing
-  return labelOther(value, finalMediumLabels[value], otherComment)
-}
-
-function labelFinalMedia(
-  values: ConversationState["finalMedia"],
-  fallback: JobContext["finalMedium"] | undefined,
-  otherComment?: string,
-): string {
-  const media = values?.length ? values : fallback ? [fallback] : []
-  return media.length > 0
-    ? media.map((value) => labelFinalMedium(value, otherComment)).join(" / ")
-    : missing
-}
-
-
-function labelJobKind(
-  value: JobContext["jobKind"] | undefined,
-  fallback: string | undefined,
-  otherComment?: string,
-): string {
-  if (value) return jobKindLabels[value]
-  return formatValue(otherComment ?? fallback)
-}
-
-function labelWorkSite(value: JobContext["workSite"] | undefined): string {
-  return value ? workSiteLabels[value] : missing
-}
-
-// Only called once the additional-work question is answered, so an empty list is the answer "なし".
-function labelAdditionalWork(value: JobContext["additionalWork"] | undefined, otherComment?: string): string {
-  if (!value || value.length === 0) return "なし"
-  return value.map((item) => labelOther(item, additionalWorkLabels[item], otherComment)).join(" / ")
-}
-
-function labelDocumentaryAttachment(value: JobContext["documentaryAttachment"] | undefined): string {
-  if (!value) return missing
-  if (value.kind === "none") return "なし"
-  if (value.kind === "mixed") return value.items.map(labelDocumentaryAttachmentItem).join(" / ")
-  return labelDocumentaryAttachmentItem(value)
-}
-
-function labelDocumentaryAttachmentItem(value: DocumentaryAttachmentItem): string {
-  const base = `${documentaryAttachmentKindLabel(value.kind)} ${value.count}件`
-  return value.kind === "other" && value.note.trim() ? `${base}（${value.note.trim()}）` : base
-}
-
-function documentaryAttachmentKindLabel(kind: DocumentaryAttachmentItem["kind"]): string {
-  switch (kind) {
-    case "digest":
-      return "ダイジェスト"
-    case "interview":
-      return "インタビュー"
-    case "bonus":
-      return "特典"
-    case "making":
-      return "メイキング"
-    case "other":
-      return "その他"
-  }
-}
-
-function formatProjectLength(minutes: number | undefined, fallback: string | undefined): string | undefined {
-  if (typeof minutes === "number") return formatProjectLengthMinutes(minutes)
-  return fallback
-}
-
-function formatContactValue(value: string | undefined): string {
-  if (!value || value.trim() === "") return missing
-  if (value === "provided") return "取得済み（具体名未転記）"
-  return value
-}
-
-function formatValue(value: string | undefined): string {
-  if (!value || value.trim() === "") return missing
-  return value
-}
-
-function labelProductionOptions(value: ConversationState["productionOptions"] | undefined, otherComment?: string): string {
-  if (!value || value.length === 0) return "なし"
-  return value.map((item) => labelOther(item, productionOptionLabels[item], otherComment)).join(" / ")
-}
-
-function labelOther(value: string, label: string, otherComment?: string): string {
-  return value === "other" && otherComment ? `${label}（${otherComment}）` : label
-}
-
-const productionOptionLabels: Record<NonNullable<ConversationState["productionOptions"]>[number], string> = {
-  captions: "字幕",
-  telops: "テロップ",
-  narration: "ナレーション",
-  music: "音楽",
-  other: "その他",
 }

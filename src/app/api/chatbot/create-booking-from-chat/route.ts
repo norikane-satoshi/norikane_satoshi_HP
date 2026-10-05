@@ -34,8 +34,6 @@ import {
   type ChatbotSlackNotificationInput,
 } from "@/lib/chatbot/server/slack-notifier"
 import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
-import { jobContextSchema, workflowEstimateSchema } from "@/lib/chatbot/server/booking-request-schemas"
-import { planChatbotWorkSchedule, type ChatbotWorkSchedule } from "@/lib/chatbot/server/work-schedule-plan"
 import {
   chatbotSlackAuditErrorCode,
   isChatbotDiagnosticRequest,
@@ -52,8 +50,8 @@ const sessionCookieName = "chatbot_session_id"
 
 const selectedSlotSchema = z
   .object({
-    start: z.string().datetime(),
-    end: z.string().datetime(),
+    start: z.union([z.string().datetime(), z.string().refine(isCalendarDate)]),
+    end: z.union([z.string().datetime(), z.string().refine(isCalendarDate)]),
   })
   .superRefine((value, context) => {
     const start = new Date(value.start)
@@ -75,7 +73,7 @@ const chatbotBookingRequestSchema = z
     contactEmail: z.string().trim().email().max(254),
     companyName: z.string().trim().max(120).optional(),
     phone: z.string().trim().max(32).optional(),
-    dueDate: z.string().refine((value) => isValidDeadlineInput(value)).optional(),
+    dueDate: z.string().refine((value) => isValidDeadlineInput(value)),
     memo: z.string().trim().max(2000).optional(),
     confirmedDetails: z.array(z.object({
       label: z.enum(bookingDetailLabels),
@@ -85,10 +83,6 @@ const chatbotBookingRequestSchema = z
     agreed: z.literal(true),
     selectedSlot: selectedSlotSchema.optional(),
     selectedSlots: z.array(selectedSlotSchema).optional(),
-    // The attendance days the customer picked; the owner's work days are placed around them.
-    attendanceDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(10).optional(),
-    jobContext: z.unknown().optional(),
-    workflowEstimate: z.unknown().optional(),
     correlationId: z.string().uuid().optional(),
   }).superRefine((input, context) => {
     if (input.confirmedDetails && (!input.detailsConfirmed || new Set(input.confirmedDetails.map((item) => item.label)).size !== input.confirmedDetails.length)) {
@@ -113,12 +107,15 @@ async function getPublicChatbotBookingUserId(): Promise<string> {
 }
 
 function normalizeSelectedSlots(input: z.infer<typeof chatbotBookingRequestSchema>) {
-  return input.selectedSlots?.length ? input.selectedSlots : input.selectedSlot ? [input.selectedSlot] : []
+  const slots = input.selectedSlots?.length ? input.selectedSlots : input.selectedSlot ? [input.selectedSlot] : []
+  return [...new Set(slots.map((slot) => todayInJapan(new Date(slot.start))))].map((day) => {
+    const start = new Date(`${day}T00:00:00+09:00`)
+    return { start: start.toISOString(), end: new Date(start.getTime() + 86_400_000).toISOString() }
+  })
 }
 
 function toBookingApiInput(
   input: z.infer<typeof chatbotBookingRequestSchema>,
-  requestedDates: string[] = [],
 ): BookingApiInput {
   const selectedSlots = normalizeSelectedSlots(input)
   const baseInput = {
@@ -142,23 +139,8 @@ function toBookingApiInput(
   return {
     ...bookingFormSchema.parse(baseInput),
     selectedSlots: [],
-    requestedDates,
+    requestedDates: [],
   }
-}
-
-async function planRequestedSchedule(
-  input: z.infer<typeof chatbotBookingRequestSchema>,
-): Promise<ChatbotWorkSchedule | null> {
-  if (!input.attendanceDates?.length || normalizeSelectedSlots(input).length > 0) return null
-  const jobContext = jobContextSchema.safeParse(input.jobContext)
-  const workflowEstimate = workflowEstimateSchema.safeParse(input.workflowEstimate)
-  if (!jobContext.success || !workflowEstimate.success) return null
-  return planChatbotWorkSchedule({
-    jobContext: jobContext.data,
-    workflowEstimate: workflowEstimate.data,
-    attendanceDates: input.attendanceDates,
-    dueDate: input.dueDate,
-  })
 }
 
 function bookingGroupIdFromBody(body: unknown): string | null {
@@ -212,14 +194,10 @@ function bodyWithWarning(body: unknown, key: string, value: string): unknown {
 async function notifyOwner(
   input: z.infer<typeof chatbotBookingRequestSchema>,
   bookingGroupId: string,
-  schedule: ChatbotWorkSchedule | null,
 ) {
   const selectedSlots = normalizeSelectedSlots(input)
   try {
     const result = await sendChatbotBookingOwnerNotification({
-      ...(schedule
-        ? { requestedDates: schedule.days.map((day) => day.date), scheduleLines: schedule.lines }
-        : {}),
       bookingGroupId,
       projectTitle: input.projectTitle,
       contactName: input.contactName,
@@ -392,7 +370,6 @@ export async function POST(request: NextRequest) {
     customerNote = confirmedBookingNote(conversation.messages)
   }
 
-  const conversationDetails = confirmedDetails
   const reviewed = parsed.data.confirmedDetails
   if (reviewed) {
     confirmedDetails = bookingDetailLabels.map((label): BookingDetail => ({
@@ -401,9 +378,9 @@ export async function POST(request: NextRequest) {
   }
   const dueDate = reviewed ? parsed.data.dueDate ?? confirmedDetails.find((item) => item.label === "納品希望日")?.value
     : confirmedDetails.find((item) => item.label === "納品希望日")?.value
-  parsed.data.dueDate = dueDate === unconfirmedBookingValue ? "" : dueDate ?? ""
+  parsed.data.dueDate = dueDate === unconfirmedBookingValue ? "未定" : dueDate ?? "未定"
   confirmedDetails = confirmedDetails.map((item) => item.label === "納品希望日"
-    ? { ...item, value: parsed.data.dueDate || unconfirmedBookingValue } : item)
+    ? { ...item, value: parsed.data.dueDate === "未定" ? unconfirmedBookingValue : parsed.data.dueDate } : item)
   parsed.data.memo = bookingDetailsMemo(reviewed ? parsed.data.memo ?? "" : customerNote, confirmedDetails)
 
   const deadline = parsed.data.dueDate
@@ -411,34 +388,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 })
   }
   if (deadline && isCalendarDate(deadline) && (
-    parsed.data.attendanceDates?.some((date) => date > deadline) ||
     normalizeSelectedSlots(parsed.data).some((slot) => todayInJapan(new Date(new Date(slot.end).getTime() - 1)) > deadline)
   )) {
     return NextResponse.json({ error: "attendance_after_deadline" }, { status: 400 })
   }
-  const estimateLabels = ["案件種別", "尺", "最終媒体", "作業場所/立ち会い"]
-  const estimateStillApplies = confirmedDetails.every((detail) =>
-    !estimateLabels.includes(detail.label) || (detail.value !== unconfirmedBookingValue &&
-      detail.value === conversationDetails.find((item) => item.label === detail.label)?.value))
-
-  let schedule: ChatbotWorkSchedule | null = null
-  try {
-    schedule = estimateStillApplies ? await planRequestedSchedule(parsed.data) : null
-  } catch (error) {
-    // Without a placed schedule the booking still goes through, with the attendance days alone.
-    logPrivacySafeChatbotEvent({
-      event: "chatbot_booking_schedule_plan_failed",
-      requestId,
-      errorKind: error instanceof Error ? error.name : typeof error,
-    })
-  }
-  const requestedDates = schedule
-    ? schedule.days.map((day) => day.date)
-    : normalizeSelectedSlots(parsed.data).length === 0 ? parsed.data.attendanceDates ?? [] : []
-
   let input: BookingApiInput
   try {
-    input = toBookingApiInput(parsed.data, requestedDates)
+    input = toBookingApiInput(parsed.data)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -463,7 +419,6 @@ export async function POST(request: NextRequest) {
       idempotencyKey: requestId,
       userId,
       userEmail,
-      ...(schedule ? { requestedDateLabels: schedule.dateLabels, scheduleLines: schedule.lines } : {}),
     })
     const bookingGroupId = bookingGroupIdFromBody(result.body)
     const idempotentReplay = isIdempotentReplayBody(result.body)
@@ -476,7 +431,7 @@ export async function POST(request: NextRequest) {
       errorCode: "slack-not-attempted",
     }
     if (result.status >= 200 && result.status < 300 && bookingGroupId && !idempotentReplay) {
-      const ownerNotification = await notifyOwner(parsed.data, bookingGroupId, schedule)
+      const ownerNotification = await notifyOwner(parsed.data, bookingGroupId)
       notificationWarning = ownerNotification.warning
       responseBody = bodyWithEmailDebug(responseBody, "chatbotOwnerNotificationId", ownerNotification.id)
       if (notificationWarning) {
@@ -571,7 +526,6 @@ export async function POST(request: NextRequest) {
       requestSummary: {
         conversationId: parsed.data.conversationId,
         selectedSlotCount: normalizeSelectedSlots(parsed.data).length,
-        hasWorkflowEstimate: Boolean(parsed.data.workflowEstimate),
       },
     })
   }

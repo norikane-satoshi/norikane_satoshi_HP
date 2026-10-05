@@ -2,14 +2,13 @@ import type { ConversationState, JobContext, RoutingDecision } from "@/lib/chatb
 import {
   bookingFinalConfirmationChoices,
   formatProjectLengthMinutes,
-  materialContentsChoices,
-  materialHandoffMethodChoices,
   materialTimingChoices,
+  deliveryFormatChoices,
+  dcpRequiredChoices,
+  dcpCreatorChoices,
   projectLengthChoicesForJobKind,
   surveyChoiceSets,
 } from "@/lib/chatbot/domain"
-import { describeWorkflowStages, formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
-import { needsAttendanceDaysChoice } from "@/lib/chatbot/server/attendance-days"
 import { isLectureTrainingInquiry } from "@/lib/chatbot/server/lecture-training"
 
 export type ChatbotFlowStep =
@@ -293,7 +292,7 @@ export function inferChatbotFlowStep(input: {
   }
 }
 
-export const desiredScheduleQuestion = "納期はいつごろをご希望ですか？ カレンダーで日付を選ぶか、未定・相談したいを選んでください。"
+export const desiredScheduleQuestion = "納期はいつごろをご希望ですか？ 日付か未定を選んでください。日付を選んだ場合、理由があれば任意でご記入ください。"
 
 export function getMissingBookingReadinessSlots(
   conversationState: ConversationState,
@@ -313,19 +312,13 @@ export function getMissingBookingReadinessSlots(
     conversationState.hasFinalMedium || (jobContext?.finalMedium && jobContext.finalMedium !== "other")
       ? undefined
       : "final-medium",
+    conversationState.hasDeliveryFormat ? undefined : "delivery-format",
+    (conversationState.finalMedia?.includes("cinema") || jobContext?.finalMedium === "cinema") && !conversationState.hasDcpRequirement ? "dcp-required" : undefined,
+    (conversationState.finalMedia?.includes("cinema") || jobContext?.finalMedium === "cinema") && conversationState.dcpRequirement === "required" && !conversationState.hasDcpCreator ? "dcp-creator" : undefined,
     conversationState.hasWorkSite || jobContext?.workSite ? undefined : "work-site",
-    conversationState.hasMaterialDetails && conversationState.materialHandoff?.contents
-      ? undefined
-      : "material-contents",
     conversationState.hasMaterialTiming && conversationState.materialHandoff?.timing
       ? undefined
       : "material-timing",
-    conversationState.hasMaterialHandoff && conversationState.materialHandoff?.method
-      ? undefined
-      : "material-method",
-    conversationState.hasAttendanceDays || !needsAttendanceDaysChoice(jobContext?.workflowEstimate)
-      ? undefined
-      : "attendance-days",
     conversationState.hasContactEmail && conversationState.contactEmail ? undefined
       : options.bookingPrefill?.contactEmail ? undefined
         : "contact-email",
@@ -340,18 +333,18 @@ type BookingReadinessSlot =
   | "project-length"
   | "final-medium"
   | "work-site"
-  | "material-contents"
   | "material-timing"
-  | "material-method"
-  | "attendance-days"
+  | "delivery-format"
+  | "dcp-required"
+  | "dcp-creator"
   | "contact-email"
   | "desired-schedule"
 
 function isMaterialReadinessSlot(slot: BookingReadinessSlot): slot is Extract<
   BookingReadinessSlot,
-  "material-contents" | "material-timing" | "material-method"
+  "material-timing"
 > {
-  return slot === "material-contents" || slot === "material-timing" || slot === "material-method"
+  return slot === "material-timing"
 }
 
 function isMaterialHandoffDecision(decision: RoutingDecision | undefined): boolean {
@@ -364,7 +357,7 @@ function isMaterialHandoffDecision(decision: RoutingDecision | undefined): boole
     .filter(Boolean)
     .join("\n")
     .normalize("NFKC")
-  return /何の素材|素材.{0,40}(?:いつ|時期|送|渡|受け取り|郵送|手渡し|バイク便|アップローダー|クラウド|SSD|HDD)/iu.test(text)
+  return /素材.{0,40}(?:いつ|時期|揃う日)/u.test(text)
 }
 
 export function wasBookingFinalQuestionOffered(conversationState: ConversationState): boolean {
@@ -541,9 +534,7 @@ function markBookingFinalConfirmationSupplemental(
 }
 
 const materialReadinessChoiceSets = {
-  "material-contents": materialContentsChoices,
   "material-timing": materialTimingChoices,
-  "material-method": materialHandoffMethodChoices,
 } as const
 
 function buildMissingBookingReadinessQuestion(slot: ReturnType<typeof getMissingBookingReadinessSlots>[number]): string {
@@ -555,13 +546,15 @@ function buildMissingBookingReadinessQuestion(slot: ReturnType<typeof getMissing
     case "final-medium":
       return "最終媒体は何になりますか？"
     case "work-site":
-      return "作業場所のご希望はありますか？"
-    case "material-contents":
+      return "立ち会い方法の希望はありますか？"
     case "material-timing":
-    case "material-method":
       return materialReadinessChoiceSets[slot].question
-    case "attendance-days":
-      return "立ち会いは何日にしますか？"
+    case "delivery-format":
+      return deliveryFormatChoices.question
+    case "dcp-required":
+      return dcpRequiredChoices.question
+    case "dcp-creator":
+      return dcpCreatorChoices.question
     case "contact-email":
       return "ご連絡先メールを教えてください"
     case "desired-schedule":
@@ -595,13 +588,7 @@ export function buildBookingFinalConfirmationQuestion(
     typeof jobContext.projectLengthMinutes === "number" ? `尺は${formatMinutes(jobContext.projectLengthMinutes)}` : undefined,
   ].filter((item): item is string => Boolean(item))
   const prefix = summary.length > 0 ? `${summary.join("、")}として整理しています。` : "ここまでの内容で整理しています。"
-  const estimate = jobContext.workflowEstimate
-  const breakdown = estimate ? describeWorkflowStages(estimate.stages) : undefined
-  const schedule = estimate && breakdown && estimate.attendanceDays !== undefined
-    ? `工程は${breakdown}の全体${formatDayRange(estimate.totalMinDays, estimate.totalMaxDays)}です。`
-    : ""
-
-  return `${prefix}${schedule}ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？なければ「なし」で進めます。`
+  return `${prefix}ほかに確認したいこと、伝えておきたいこと、不安な点はありますか？なければ「なし」で進めます。`
 }
 
 function labelRequestCategory(jobContext: JobContext): string | undefined {

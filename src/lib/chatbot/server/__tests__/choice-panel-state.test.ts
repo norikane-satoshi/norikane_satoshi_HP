@@ -144,20 +144,10 @@ describe("choice panel state", () => {
       { documentaryAttachment: { kind: "interview", count: 1 } },
     ],
     [documentaryAttachmentChoices, "なし", { hasDocumentaryAttachments: true }, { documentaryAttachment: { kind: "none" } }],
-    [workSiteChoices, "satoshi-studio", { hasWorkSite: true, workSiteLabel: "のりかね映像設計室スタジオ" }, { workSite: "satoshi-studio" }],
-    [workSiteChoices, "post-production-room", { hasWorkSite: true, workSiteLabel: "ポスプロの部屋を借りる" }, { workSite: "on-site" }],
-    [
-      workSiteChoices,
-      "client-equipment-room",
-      { hasWorkSite: true, workSiteLabel: "依頼元の機材部屋（制作会社など）" },
-      { workSite: "on-site" },
-    ],
-    [
-      workSiteChoices,
-      "選択: 依頼元が手配するレンタルスペース",
-      { hasWorkSite: true, workSiteLabel: "依頼元が手配するレンタルスペース" },
-      { workSite: "on-site" },
-    ],
+    [workSiteChoices, "オンライン", { hasWorkSite: true, workSiteLabel: "オンライン" }, { workSite: "remote-grading" }],
+    [workSiteChoices, "先方の場所で", { hasWorkSite: true, workSiteLabel: "先方の場所で" }, { workSite: "on-site" }],
+    [workSiteChoices, "不要", { hasWorkSite: true, workSiteLabel: "不要" }, { workSite: "remote-grading" }],
+    [workSiteChoices, "お任せ", { hasWorkSite: true, workSiteLabel: "お任せ" }, { workSite: "remote-grading" }],
     [
       lectureTrainingContentChoices,
       "選択: カラーグレーディング、DaVinci Resolve 基礎",
@@ -341,25 +331,4 @@ describe("job kind answer after an other-choice clarification", () => {
     expect(patch?.conversationState.intakeClarifications?.["job-kind"]?.status).toBe("clear")
   })
 
-  it("sets the attendance days from the chosen count and answers the question for an open count", () => {
-    const attendanceChoices: SurveyChoiceSet = {
-      id: "attendance-days",
-      question: "立ち会いは何日にしますか？",
-      choices: [
-        { id: "1", label: "1日（全体で6日）" },
-        { id: "2", label: "2日（全体で7日）" },
-        { id: "3", label: "3日（全体で8日）" },
-        { id: "undecided", label: "未定・相談して決めたい" },
-      ],
-    }
-
-    const chosen = applyActiveChoiceAnswer({ activeChoices: attendanceChoices, message: "選択: 2日（全体で7日）" })
-    expect(chosen?.jobContext).toEqual({ attendanceDays: 2 })
-    expect(chosen?.conversationState.hasAttendanceDays).toBe(true)
-
-    const open = applyActiveChoiceAnswer({ activeChoices: attendanceChoices, message: "選択: 未定・相談して決めたい" })
-    expect(open?.jobContext).toEqual({})
-    expect(open?.conversationState.hasAttendanceDays).toBe(true)
-  })
 })
-

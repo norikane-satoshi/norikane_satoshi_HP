@@ -108,6 +108,7 @@ describe("deterministic intake replies (Tier 0)", () => {
         hasJobKind: true,
         hasProjectLength: true,
         hasFinalMedium: true,
+        hasDeliveryFormat: true,
         hasAdditionalWork: true,
         hasDocumentaryAttachments: true,
         hasWorkSite: true,
@@ -117,11 +118,11 @@ describe("deterministic intake replies (Tier 0)", () => {
       },
       jobContext: { jobKind: "cm-30s", finalMedium: "web" },
     }))
-    const result = await handleChatbotMessage({ sessionId: "session_det", message: "来週中に送れます" }, h.options)
+    const result = await handleChatbotMessage({ sessionId: "session_det", message: "2099-10-15" }, h.options)
 
     expect(h.generate).not.toHaveBeenCalled()
     expect(result.tier).toBe(chatbotLlmTierIds.tier0DeterministicIntake)
-    expect(result.assistantMessage.content).toContain("受け渡し方法")
+    expect(result.assistantMessage.content).toContain("参考URL")
   })
 
   it("keeps the LLM for a question typed while a panel is shown", async () => {

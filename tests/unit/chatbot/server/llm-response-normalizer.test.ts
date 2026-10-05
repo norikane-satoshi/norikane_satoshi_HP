@@ -354,183 +354,29 @@ describe("normalizeChatbotLlmResponse", () => {
     expect(result.report.unsafeArtifacts?.reasons).toEqual(expect.arrayContaining(["internal-booking-ui-state"]))
   })
 
-  it("replaces overlarge live day ranges with the 150m anchor wording", () => {
-    const normalized = normalizeChatbotLlmResponse(
-      {
-        rawText: customerReply("ライブ2.5時間規模ですと、**17〜20日程度**が通常のラインです。素材状況を確認します。"),
-        tier: "tier-2-gemini-flash",
-      },
-      {
-        jobContext: {
-          jobKind: "live-60m",
-          finalMedium: "live",
-          workSite: "remote-grading",
-          documentaryAttachment: { kind: "none" },
-          projectLengthMinutes: 150,
-          workflowEstimate: {
-            stages: [],
-            totalMinDays: 7,
-            totalMaxDays: 8,
-            riskFlags: [],
-            estimateStatus: "authoritative",
-          },
-        },
-      },
-    )
-
-    expect(normalized.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
-    expect(normalized.content).toContain("顔ぼかしなどの追加作業やディスク納品の条件によっては")
-    expect(normalized.content).not.toContain("17〜20日")
-    expect(normalized.content).not.toContain("通常のラインです")
-  })
-
-  it("does not include face blur or delivery media in the 150m live baseline", () => {
-    const normalized = normalizeChatbotLlmResponse(
-      {
-        rawText: customerReply(
-          "ライブ2時間30分・DVD納品・顔ぼかし数カット込みでしたら、7〜8日程度が目安です。素材状況を確認します。",
-        ),
-        tier: "tier-1-hosted-chrome-notion-ai",
-      },
-      {
-        jobContext: {
-          jobKind: "live-60m",
-          finalMedium: "live",
-          workSite: "remote-grading",
-          documentaryAttachment: { kind: "none" },
-          projectLengthMinutes: 150,
-          workflowEstimate: {
-            stages: [],
-            totalMinDays: 7,
-            totalMaxDays: 8,
-            riskFlags: [],
-            estimateStatus: "authoritative",
-          },
-        },
-      },
-    )
-
-    expect(normalized.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
-    expect(normalized.content).toContain("顔ぼかしなどの追加作業やディスク納品の条件によっては")
-    expect(normalized.content).toContain("納品形式や追加作業量を確認します")
-    expect(normalized.content).not.toContain("DVD")
-    expect(normalized.content).not.toContain("顔ぼかし数カット込み")
-    expect(normalized.content).not.toContain("納品込み")
-  })
-
-  it("does not keep invented nearby ranges for anchored live durations", () => {
-    const normalized = normalizeChatbotLlmResponse(
-      {
-        rawText: customerReply("ライブ2時間半規模の工程目安は通常7〜9日です。素材状況や追加作業で前後します。"),
-        tier: "tier-2-gemini-flash",
-      },
-      {
-        jobContext: {
-          jobKind: "live-60m",
-          finalMedium: "live",
-          workSite: "remote-grading",
-          documentaryAttachment: { kind: "none" },
-          projectLengthMinutes: 150,
-          workflowEstimate: {
-            stages: [],
-            totalMinDays: 7,
-            totalMaxDays: 8,
-            riskFlags: [],
-            estimateStatus: "authoritative",
-          },
-        },
-      },
-    )
-
-    expect(normalized.content).toContain("ライブ2時間30分の基本目安は7〜8日程度")
-    expect(normalized.content).not.toContain("通常7〜9日")
-  })
-
   it.each([
-    ["作業期間は17～20日ほど見てください。"],
-    ["工程: 17-20日で進められます。"],
-    ["工程目安は17日から20日です。"],
-    ["所要日数の目安は17〜20日です。"],
-    ["スタジオの手配は、所要日数（17〜20日）を踏まえて相談します。"],
-    ["ライブ2時間半のカラーグレーディングは、目安として17〜20日です。"],
-    ["ライブ2時間半は60分の2.5倍なので10日程度です。"],
-  ])("suppresses clearly hallucinated workflow range notation: %s", (rawText) => {
-    const normalized = normalizeChatbotLlmResponse(
-      {
-        rawText: customerReply(rawText),
-        tier: "tier-2-gemini-flash",
-      },
-      {
-        jobContext: {
-          jobKind: "live-60m",
-          finalMedium: "live",
-          workSite: "remote-grading",
-          documentaryAttachment: { kind: "none" },
-          projectLengthMinutes: 150,
-          workflowEstimate: {
-            stages: [],
-            totalMinDays: 7,
-            totalMaxDays: 8,
-            riskFlags: [],
-            estimateStatus: "authoritative",
-          },
-        },
-      },
-    )
-
-    expect(normalized.content).toContain("7〜8日")
-    expect(normalized.content).not.toMatch(/17(?:日から|[〜～-])20日/u)
-    expect(normalized.content).not.toContain("10日程度")
+    "ライブ2.5時間規模ですと、**17〜20日程度**が通常のラインです。",
+    "ライブ2時間30分・顔ぼかし込みでしたら、7〜8日程度が目安です。",
+    "工程: 17-20日で進められます。",
+    "工程目安は17日から20日です。",
+    "所要日数（17〜20日）を踏まえて相談します。",
+    "ライブ2時間半は60分の2.5倍なので10日程度です。",
+    "立ち会いは2日、QCは1日です。",
+  ])("does not display work or attendance day counts: %s", (rawText) => {
+    const result = normalizeChatbotLlmResponse({ rawText: customerReply(rawText), tier: "tier-2-gemini-flash" })
+    expect(result.content).toBe("日程は則兼と相談して決めます。")
+    expect(result.content).not.toMatch(/\d+日/u)
   })
 
-  it("keeps explicitly framed 150m live baselines", () => {
-    const normalized = normalizeChatbotLlmResponse(
-      {
-        rawText: customerReply("150分ライブの標準目安は7〜8日です。2時間半の場合は素材量を確認します。"),
-        tier: "tier-2-gemini-flash",
-      },
-      {
-        jobContext: {
-          jobKind: "live-60m",
-          finalMedium: "live",
-          workSite: "remote-grading",
-          documentaryAttachment: { kind: "none" },
-          projectLengthMinutes: 150,
-          workflowEstimate: {
-            stages: [],
-            totalMinDays: 7,
-            totalMaxDays: 8,
-            riskFlags: [],
-            estimateStatus: "authoritative",
-          },
-        },
-      },
-    )
-
-    expect(normalized.content).toBe("150分ライブの標準目安は7〜8日です。2時間半の場合は素材量を確認します。")
-  })
-
-  it("does not rewrite unrelated price, date, or headcount ranges", () => {
-    const normalized = normalizeChatbotLlmResponse(
-      {
-        rawText: customerReply("費用は17〜20万円では答えません。日程は7/17〜7/20が候補で、2〜3名体制です。工程目安は17〜20日です。"),
-        tier: "tier-2-gemini-flash",
-      },
-      {
-        jobContext: {
-          jobKind: "cm-30s",
-          finalMedium: "web",
-          workSite: "remote-grading",
-          documentaryAttachment: { kind: "none" },
-          projectLengthMinutes: 0.5,
-        },
-      },
-    )
-
-    expect(normalized.content).toContain("費用は17〜20万円")
-    expect(normalized.content).toContain("日程は7/17〜7/20")
-    expect(normalized.content).toContain("2〜3名体制")
-    expect(normalized.content).toContain("工程目安は1日")
-    expect(normalized.content).not.toContain("工程目安は17〜20日")
+  it("preserves calendar dates, price and headcount alongside a rejected estimate", () => {
+    const result = normalizeChatbotLlmResponse({
+      rawText: customerReply("費用は17〜20万円では答えません。日程は7/17〜7/20が候補で、2〜3名体制です。納品日は10月13日です。工程目安は17〜20日です。"),
+      tier: "tier-2-gemini-flash",
+    })
+    expect(result.content).toContain("日程は7/17〜7/20")
+    expect(result.content).toContain("納品日は10月13日")
+    expect(result.content).toContain("2〜3名体制")
+    expect(result.content).toContain("17〜20万円")
+    expect(result.content).not.toContain("17〜20日")
   })
 })

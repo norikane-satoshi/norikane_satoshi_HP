@@ -1,7 +1,7 @@
 import { confirmedBookingNote, unconfirmedBookingValue } from "@/lib/chatbot/domain/booking-details"
 import { matchChoiceAnswer } from "@/lib/chatbot/domain/choice-answer"
 import type { ChoiceAnswer } from "@/lib/chatbot/domain/conversation"
-import { deadlineFromMessage, deadlineForScheduling } from "@/lib/chatbot/domain/deadline"
+import { deadlineFromMessage, deadlineForScheduling, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import {
   additionalWorkChoices,
   finalMediumChoices,
@@ -53,7 +53,7 @@ import {
 } from "@/lib/chatbot/server"
 import {
   ChatbotAvailabilityError,
-  findCandidateCalendar,
+  findPreferredDateCalendar,
   type CandidateCalendarResult,
 } from "@/lib/chatbot/server/availability-finder"
 import {
@@ -64,19 +64,16 @@ import { applyActiveChoiceAnswer, isSatisfiedChoicePanel } from "@/lib/chatbot/s
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import { requiresStructuredUi } from "@/lib/chatbot/server/llm-client"
 import { chatbotSlackAuditErrorCode } from "@/lib/chatbot/server/diagnostic-request"
-import { formatDayRange } from "@/lib/chatbot/knowledge/workflow-duration"
 import {
   buildWorkflowPromptContext,
   resolveWorkflowDurationContext,
   type DurationTraceContext,
 } from "@/lib/chatbot/server/duration-context"
-import { estimateWorkflow } from "@/lib/chatbot/server/duration-estimator"
 import {
   sanitizeChatbotLlmTextWithReport,
   type ChatbotLlmSanitizationReport,
 } from "@/lib/chatbot/server/llm-response-normalizer"
 import {
-  getWorkflowDurationPresetsFromSnapshot,
   loadLatestChatbotKnowledgeSnapshot,
   type ChatbotKnowledgeSnapshot,
 } from "@/lib/chatbot/server/notion-knowledge-sync"
@@ -223,8 +220,8 @@ type ChatbotEditSlackEvent = {
 }
 
 type CandidateWindowFinder =
-  | typeof findCandidateCalendar
-  | ((args: Parameters<typeof findCandidateCalendar>[0]) => Promise<CandidateCalendarResult | Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]>)
+  | typeof findPreferredDateCalendar
+  | ((args: Parameters<typeof findPreferredDateCalendar>[0]) => Promise<CandidateCalendarResult | Extract<RoutingDecision, { kind: "to-booking-inline" }>["suggestedSlots"]>)
 
 type HandleChatbotMessageOptions = {
   repository?: ChatbotMessageRepository
@@ -305,7 +302,7 @@ export async function handleChatbotMessage(
   const repository = options.repository ?? defaultRepository
   const userContextLoader = options.userContextLoader ?? loadUserChatbotContext
   const userContextFormatter = options.userContextFormatter ?? formatUserChatbotContextForPrompt
-  const candidateWindowFinder = options.candidateWindowFinder ?? findCandidateCalendar
+  const candidateWindowFinder = options.candidateWindowFinder ?? findPreferredDateCalendar
   const knowledgeSnapshotLoader = options.knowledgeSnapshotLoader ?? loadLatestChatbotKnowledgeSnapshot
   const slackNotifier = options.slackNotifier ?? sendChatbotSlackNotification
   const assertRequestOwnership = options.assertRequestOwnership ?? (async () => undefined)
@@ -509,7 +506,8 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   const jobContext = durationContext.jobContext
-  const explicitDeadline = deadlineFromMessage(input.message)
+  const submittedDeadline = deadlineFromMessage(input.message)
+  const explicitDeadline = submittedDeadline && isValidDeadlineInput(submittedDeadline) ? submittedDeadline : undefined
   if (explicitDeadline) jobContext.publicReleaseDate = explicitDeadline
   const previousAssistantMessage = findLastAssistantMessageContent(conversation.messages)
   const baseConversationState = applyMaterialHandoffAnswer({
@@ -1528,7 +1526,7 @@ function reconcileConversationContextFromHistory(conversation: ChatbotConversati
     ...(conversation.context.jobContext ?? {}),
     ...recovered.jobContext,
   }
-  const deadline = conversation.messages.filter((message) => message.role === "user").map((message) => deadlineFromMessage(message.content)).filter(Boolean).at(-1)
+  const deadline = conversation.messages.filter((message) => message.role === "user").map((message) => deadlineFromMessage(message.content)).filter((value) => value === "未定" || (value && /^\d{4}-\d{2}-\d{2}$/.test(value))).at(-1)
   if (deadline) {
     jobContext.publicReleaseDate = deadline
     conversationState.hasDesiredSchedule = true
@@ -1879,6 +1877,8 @@ const booleanConversationSlots = [
   "hasReferenceUrls",
   "hasAttendanceDays",
   "hasDeliveryFormat",
+  "hasDcpRequirement",
+  "hasDcpCreator",
   "hasProductionOptions",
   "hasBudgetRange",
   "hasContactEmail",
@@ -2098,7 +2098,7 @@ async function generateContractedLlmResponse(input: {
   }
 }
 
-const freeTextIntakePanelIds = new Set(["material-contents", "material-timing", "material-handoff-method", "reference-urls"])
+const freeTextIntakePanelIds = new Set(["reference-urls"])
 
 /**
  * The material and reference-URL intake items were free-text questions before they became panels.
@@ -2140,7 +2140,7 @@ function decideDeterministicIntakeReply(input: {
     input.bookingCardIsNext &&
     fallback.kind === "continue" &&
     /納期はいつごろ/u.test(input.previousAssistantMessage) &&
-    deadlineAnswer &&
+    deadlineAnswer && isValidDeadlineInput(deadlineAnswer) &&
     input.noteAccess.kind === "none" &&
     !looksLikeCustomerQuestion(deadlineAnswer)
   ) {
@@ -2272,7 +2272,7 @@ function buildChatbotSystemPrompt(
     "案件種別ごとの候補表は例と安全網です。最終的な質問文、選択肢粒度、複数選択可否、自由入力有無は、会話全体、確定済み facts、未確定 facts、ユーザーの言い方から自然に判断します。",
     "案件種別にかかわらず、尺は時間・分の専用入力で確認します。",
     "最終媒体 / 公開先 / 納品先は複数選択として扱い、地上波放送とBlu-rayとYouTubeのような併用をすべて保持します。ライブは案件種別であり最終媒体には含めません。OTTという表記は使わず、VOD・オンデマンド配信と表現します。",
-    "Booking Orderへ進む前に、何の素材を、いつ、どういう方法で受け渡すかを1項目ずつ確認します。SSD / HDDの郵送・バイク便・手渡し、アップローダー、ProRes、撮影素材の使用クリップなど、ユーザーの回答を要約で潰さず保持します。",
+    "素材の種類・受け渡し方法は質問しません。編集確定版の素材が揃う日だけ日付または未定で確認します。納品形式はコーデック・色空間を任意入力または未定で確認し、劇場が最終媒体の場合だけDCP必要性、必要なら他社の作成担当を確認します。",
     "現在確認している1項目について、会話文脈、選択済み項目、自由入力、未確認項目から次へ進めるほど明確かを判断します。疑問が残る場合は同じ項目について確認を1問だけ返し、十分明確なら過剰確認せず次へ進みます。",
     "明確でないが未定として扱える回答は未定として保持し、後段の相談、最終確認、予約可否判断で扱います。",
     "選択肢パネルの回答待ちの間に質問された場合は、その質問に答えるだけにし、答えの最後に聞き返しや追加の質問を付けません。次の確認は選択肢パネルが担います。",
@@ -2285,7 +2285,7 @@ function buildChatbotSystemPrompt(
     "さとしさん本人を日本語で呼ぶ場合は、本人呼称を常に「則兼」と表記します。",
     "不明なことを推測で断定せず、未確認事項として質問します。",
     "LOOK Decomposer v2 の詳細には触れず、直接確認が必要な事項として扱います。",
-    "作業場所の第一候補は「のりかね映像設計室スタジオ」で、2026年11月には稼働している予定です。スタジオ以外の部屋（ポスプロの部屋・依頼元の機材部屋・依頼元が手配するレンタルスペース）へ行く移動は作業日数に数えません。",
+    "立ち会い方法はオンライン、先方の場所で、不要、お任せから確認します。則兼の自室は案内しません。",
     "呼称は中立に保ち、他顧客の情報を参照または推測しません。",
     "ユーザーへの表示文は直近ユーザー入力への返答だけにし、内部識別、バックエンド名、JSON 出力の説明だけを返しません。",
     "最終出力は必ず <customer_reply> と </customer_reply> の内側だけに、お客様へ表示してよい本文を書きます。内部推論、確認メモ、英語の思考、モデル名、署名、ラベル説明、タグ外の本文は一切書きません。",
@@ -2296,9 +2296,7 @@ function buildChatbotSystemPrompt(
     "show_booking_card の projectTitle は作品名または短い案件名だけにし、ライブ内容、作業内容、顔ぼかしカット数、素材状況、立ち会い方法、希望条件は memo に分離します。",
     "Booking Order の自動入力では、メール、氏名、会社名、案件名、補足を必ず対応する専用フィールドに一対一で入れ、別フィールドや memo へ混ぜません。example.com などのプレースホルダーは実データとして扱いません。",
     "show_booking_card の args は会話で明示された値だけを書き、未確認・不完全なメールや不足項目がある時は tool を呼ばず自然に聞き返します。案件名が未確定なら projectTitle を空にし、ライブ案件 / CM案件などの種別名で推測補完しません。",
-    "所要日数は同期済み正本ナレッジを基準値・判断材料として使い、案件種別、尺、媒体、素材状況、追加作業、希望納期を文脈から読んで前提つきの目安を返します。",
-    "工程別日数テーブルを単純な固定回答として扱わず、迷う場合は通常範囲と変動要因を短く添え、正本から大きく外れる断定は避けます。",
-    "希望日数が正本ラインより短い場合も即時に不可と断定せず、内容・素材状況・空き状況によって希望日数内で調整できる可能性を示し、確定には空き状況・内容確認・本人確認が必要だと伝えます。",
+    "作業日数・立ち会い日数・工程の日数は顧客へ表示・質問しません。日程は則兼本人と相談します。内部の工程推定は予約日や顧客の回答へ変換しません。未回答と未定は未確認として保存します。",
   ]
 
   if (userContext) {
@@ -2345,17 +2343,11 @@ function isCustomerFacingNoteQuestion(message: string): boolean {
 }
 
 function formatWorkflowDurationKnowledgeForPrompt(snapshot: ChatbotKnowledgeSnapshot, noteKnowledgeContext: string): string {
-  const durationLines = getWorkflowDurationPresetsFromSnapshot(snapshot).map(
-    (preset) => `- ${preset.label}: ${formatDayRange(preset.minDays, preset.maxDays)}`,
-  )
   const noteLines = selectCustomerFacingNoteKnowledge(snapshot, noteKnowledgeContext).flatMap((entry) => [
     `- ${entry.status}${entry.pageTitle ? ` / ${entry.pageTitle}` : ""}${entry.status === "published" && entry.slug ? ` / 公開URL: https://norikane.studio/notes/${entry.slug}` : ""}:`,
     entry.content,
   ])
   return [
-    "工程別日数テーブル（同期済み正本）:",
-    ...durationLines,
-    "この表は日程感のための同期済みデータであり、料金・契約・未承認メモは含めません。",
     ...(noteLines.length > 0
       ? [
           "外部向け note ナレッジ（同期済み正本）:",
@@ -3327,16 +3319,12 @@ async function buildBookingInlineRoutingDecision(input: {
   candidateWindowFinder: CandidateWindowFinder
   knowledgeSnapshot?: ChatbotKnowledgeSnapshot | null
 }): Promise<Extract<RoutingDecision, { kind: "to-booking-inline" }> | undefined> {
-  const workflowEstimate = estimateWorkflow(input.jobContext, { knowledgeSnapshot: input.knowledgeSnapshot })
-  const jobContext = {
-    ...input.jobContext,
-    workflowEstimate,
-  }
+  const { workflowEstimate: internalEstimate, attendanceDays: internalAttendance, ...jobContext } = input.jobContext
+  void internalEstimate
+  void internalAttendance
 
   try {
     const calendar = normalizeCandidateCalendarResult(await input.candidateWindowFinder({
-      jobContext,
-      workflowEstimate,
       desiredDeadline: deadlineForScheduling(input.bookingPrefill.dueDate),
       notBefore: input.jobContext.preferredStartDate,
       candidateLimit: 31,
