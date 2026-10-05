@@ -32,10 +32,10 @@ apply は次の条件をすべて満たさなければ何も削除しない。
 
 - main checkout が clean な `master` で、`master == origin/master`
 - 対象 branch の local/origin 先端が一致し、指定した `origin/master` または `origin/staging` の祖先
-- task worktree が `.codex-worktrees/` または `.claude/worktrees/` 内にあり、clean で open handle がない
+- task worktree の exact path・repository・branch・owner が共通 lifecycle registry に一意登録され、clean で open handle がない。RAID 上の登録済み worktree も同じ契約を使う
 - `master` / `staging` ではなく、構文上有効な明示 branch 名
 
-実行時は対象 worktree、同名 origin branch、local branch の順に削除し、全対象の不在を再確認する。remote の削除には確認済み先端への lease を付け、確認後に進んだ branch を削除しない。`repo:hygiene -- --strict` は、worktree を外したあとに残った統合済み local branch もエラーにする。歴史的な branch を一括削除する用途には使わない。
+実行時は共通 lifecycle CLI で exact owner の finalize、worktree dispose、branch dispose を行い、最後に同名 origin branch を削除して全対象の不在を再確認する。共通 CLI の二重 audit・fingerprint・open handle 検査を使い、HP 独自の tree 走査や raw worktree 削除は行わない。remote の削除には確認済み先端への lease を付け、確認後に進んだ branch を削除しない。`repo:hygiene -- --strict` は、worktree を外したあとに残った統合済み local branch もエラーにする。歴史的な branch を一括削除する用途には使わない。
 
 ## ローカル専用領域
 
