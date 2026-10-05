@@ -1,3 +1,4 @@
+import { confirmedBookingNote, unconfirmedBookingValue } from "@/lib/chatbot/domain/booking-details"
 import { matchChoiceAnswer } from "@/lib/chatbot/domain/choice-answer"
 import type { ChoiceAnswer } from "@/lib/chatbot/domain/conversation"
 import { deadlineFromMessage, deadlineForScheduling } from "@/lib/chatbot/domain/deadline"
@@ -135,6 +136,7 @@ type ChatbotMessageUi =
       jobContext: JobContext
       bookingPrefill?: BookingCardPrefill
       confirmationItems?: Array<{ label: string; value: string }>
+      confirmationEvidenceVersion?: 1
     }
   | {
       kind: "direct-contact-card"
@@ -728,6 +730,7 @@ export async function handleChatbotMessage(
     routingDecision,
     conversationState: persistedConversationState,
     inquiryPrefill,
+    messages: [...conversation.messages, userMessage],
   })
   const assistantDisplay = buildAssistantDisplayContent({
     requestId: input.requestId,
@@ -3090,6 +3093,7 @@ function isBackendIdentityOnlyResponse(text: string): boolean {
 }
 
 function toMessageUi(input: {
+  messages: ChatbotMessage[]
   tier: ChatbotLlmResponse["tier"]
   routingDecision: RoutingDecision | undefined
   conversationState: ConversationState
@@ -3107,17 +3111,25 @@ function toMessageUi(input: {
   }
 
   if (routingDecision.kind === "to-booking-inline") {
+    const confirmationItems = buildBookingConfirmationItems({
+      messages: input.messages,
+      jobContext: routingDecision.jobContext,
+      conversationState: input.conversationState,
+    })
+    const dueDate = confirmationItems.find((item) => item.label === "納品希望日")?.value
     return {
       kind: "booking-card",
       suggestedSlots: routingDecision.suggestedSlots,
       busyDateKeys: routingDecision.busyDateKeys,
       tentativeDateKeys: routingDecision.tentativeDateKeys,
       jobContext: routingDecision.jobContext,
-      bookingPrefill: routingDecision.bookingPrefill,
-      confirmationItems: buildBookingConfirmationItems({
-        jobContext: routingDecision.jobContext,
-        conversationState: input.conversationState,
-      }),
+      bookingPrefill: {
+        ...routingDecision.bookingPrefill,
+        dueDate: dueDate === unconfirmedBookingValue ? undefined : dueDate,
+        memo: confirmedBookingNote(input.messages, routingDecision.bookingPrefill?.memo),
+      },
+      confirmationEvidenceVersion: 1,
+      confirmationItems,
     }
   }
 

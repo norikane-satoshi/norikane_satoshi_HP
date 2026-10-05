@@ -47,9 +47,10 @@ describe("work-site choices", () => {
 })
 
 describe("booking confirmation items", () => {
-  it("lists the answered items, with no additional work as なし, and leaves the editable fields out", async () => {
+  it("lists customer answers and marks unanswered conditions as unconfirmed", async () => {
     const { buildBookingConfirmationItems } = await import("@/lib/chatbot/domain/consultation-summary")
     const items = buildBookingConfirmationItems({
+      messages: [{ id: "answer", role: "user", content: "追加作業: なし\n参考URL: なし", createdAt: "2026-10-05T01:00:00Z" }],
       jobContext: {
         finalMedium: "web",
         jobKind: "cm-30s",
@@ -75,6 +76,7 @@ describe("booking confirmation items", () => {
     expect(items).toContainEqual({ label: "追加作業", value: "なし" })
     expect(items).toContainEqual({ label: "参考URL", value: "なし" })
     expect(items.map((item) => item.label)).not.toContain("メール")
-    expect(items.map((item) => item.label)).not.toContain("納品希望日")
+    expect(items).toContainEqual({ label: "納品希望日", value: "未確認" })
+    expect(items).toContainEqual({ label: "尺", value: "未確認" })
   })
 })

@@ -20,7 +20,6 @@ import type { ChatbotMessageRole } from "@/lib/chatbot/domain/conversation"
 import type { InquiryFormPrefill } from "@/lib/chatbot/domain"
 import { jobKindChoices } from "@/lib/chatbot/domain/survey-choice"
 import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import type { JobContext } from "@/lib/chatbot/domain/workflow-estimate"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
 import {
@@ -124,18 +123,6 @@ const hiddenScrollIndicatorState: ScrollIndicatorState = {
   trackHeight: 0,
   thumbHeight: 0,
   thumbTop: 0,
-}
-
-const additionalWorkMemoLabels: Record<NonNullable<JobContext["additionalWork"]>[number], string> = {
-  retouch: "消し物/レタッチ",
-  "skin-retouch": "肌修正",
-  other: "その他追加作業",
-}
-
-const workSiteMemoLabels: Record<JobContext["workSite"], string> = {
-  "satoshi-studio": "のりかね映像設計室",
-  "remote-grading": "リモート",
-  "on-site": "スタジオ外の部屋（ポスプロ・依頼元の部屋など）",
 }
 
 type StoredWidgetSession = {
@@ -437,18 +424,6 @@ function createClientSessionId() {
   return `00000000-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`
 }
 
-function buildBookingSupplementalNote(jobContext: JobContext, prefillMemo?: string): string {
-  return [
-    prefillMemo,
-    formatProjectLengthMemo(jobContext.projectLengthMinutes),
-    formatAdditionalWorkMemo(jobContext.additionalWork),
-    formatWorkSiteMemo(jobContext.workSite),
-    jobContext.preferredStartDate ? `素材搬入/受け取り時期: ${jobContext.preferredStartDate}` : undefined,
-    jobContext.publicReleaseDate ? `納品希望日: ${jobContext.publicReleaseDate}` : undefined,
-    ...(jobContext.referenceUrls ?? []),
-  ].filter((item): item is string => Boolean(item)).join("\n")
-}
-
 function formatProjectLengthMemo(minutes: number | undefined): string | undefined {
   if (minutes === undefined) return undefined
   if (minutes >= 60) {
@@ -456,16 +431,6 @@ function formatProjectLengthMemo(minutes: number | undefined): string | undefine
     return `尺: ${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`
   }
   return `尺: ${formatProjectLengthMinutes(minutes)}`
-}
-
-function formatAdditionalWorkMemo(additionalWork: JobContext["additionalWork"]): string | undefined {
-  if (!additionalWork?.length) return undefined
-  return `追加作業: ${additionalWork.map((item) => additionalWorkMemoLabels[item]).join(" / ")}`
-}
-
-function formatWorkSiteMemo(workSite: JobContext["workSite"]): string | undefined {
-  if (!workSite) return undefined
-  return `作業場所: ${workSiteMemoLabels[workSite]}`
 }
 
 export function WidgetShell({
@@ -1916,14 +1881,9 @@ function ActiveWidgetUi({
         defaultContactName={ui.bookingPrefill?.contactName}
         defaultContactEmail={ui.bookingPrefill?.contactEmail}
         defaultCompanyName={ui.bookingPrefill?.companyName}
-        defaultDueDate={ui.bookingPrefill?.dueDate ?? ui.jobContext.publicReleaseDate}
-        // A card listing what was decided keeps the note field for the customer's own words.
-        defaultMemo={
-          ui.confirmationItems
-            ? (ui.bookingPrefill?.memo ?? "")
-            : buildBookingSupplementalNote(ui.jobContext, ui.bookingPrefill?.memo)
-        }
-        confirmationItems={ui.confirmationItems}
+        defaultDueDate={ui.confirmationEvidenceVersion === 1 ? ui.confirmationItems?.find((item) => item.label === "納品希望日" && item.value !== "未確認")?.value : undefined}
+        defaultMemo={ui.confirmationEvidenceVersion === 1 ? ui.bookingPrefill?.memo ?? "" : ""}
+        confirmationItems={ui.confirmationEvidenceVersion === 1 ? ui.confirmationItems : undefined}
         completedBooking={ui.completedBooking}
         auditContext={auditContext}
         onBooked={onBookingCompleted}

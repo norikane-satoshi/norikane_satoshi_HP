@@ -1689,7 +1689,9 @@ describe("WidgetShell API wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
     expect(screen.getByLabelText("案件名")).toHaveValue("ライブ案件")
     expect(screen.getByLabelText("メール")).toHaveValue("client@example.jp")
-    expect(screen.getByLabelText("補足")).toHaveValue("観客の顔ぼかし30カット以上\n作業場所: リモート")
+    expect(screen.getByLabelText("補足")).toHaveValue("")
+    expect(screen.getByLabelText("尺")).toHaveValue("")
+    expect(screen.getByLabelText("作業場所/立ち会い")).toHaveValue("")
 
     const stored = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
     expect(stored.activeUi.bookingPrefill).toMatchObject({
@@ -1781,7 +1783,7 @@ describe("WidgetShell API wiring", () => {
                 contactName: "田中",
                 contactEmail: "client@example.jp",
                 companyName: "株式会社サンプル",
-                memo: expect.stringContaining("観客の顔ぼかし30カット以上"),
+                memo: "",
               }),
             }),
           }),
@@ -1903,7 +1905,7 @@ describe("WidgetShell API wiring", () => {
                 contactName: "田中",
                 contactEmail: "client@example.jp",
                 companyName: "株式会社サンプル",
-                memo: expect.stringContaining("保持メモ"),
+                memo: "",
               }),
             }),
           }),

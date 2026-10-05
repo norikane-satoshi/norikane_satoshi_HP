@@ -43,6 +43,7 @@ import {
 } from "@/lib/chatbot/server/diagnostic-request"
 import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { prisma } from "@/lib/prisma"
+import { bookingDetailLabels, bookingDetailsMemo, confirmedBookingDetails, confirmedBookingNote, unconfirmedBookingValue, type BookingDetail } from "@/lib/chatbot/domain/booking-details"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -76,6 +77,11 @@ const chatbotBookingRequestSchema = z
     phone: z.string().trim().max(32).optional(),
     dueDate: z.string().refine((value) => isValidDeadlineInput(value)).optional(),
     memo: z.string().trim().max(2000).optional(),
+    confirmedDetails: z.array(z.object({
+      label: z.enum(bookingDetailLabels),
+      value: z.string().trim().max(160),
+    })).max(bookingDetailLabels.length).optional(),
+    detailsConfirmed: z.literal(true).optional(),
     agreed: z.literal(true),
     selectedSlot: selectedSlotSchema.optional(),
     selectedSlots: z.array(selectedSlotSchema).optional(),
@@ -84,6 +90,10 @@ const chatbotBookingRequestSchema = z
     jobContext: z.unknown().optional(),
     workflowEstimate: z.unknown().optional(),
     correlationId: z.string().uuid().optional(),
+  }).superRefine((input, context) => {
+    if (input.confirmedDetails && (!input.detailsConfirmed || new Set(input.confirmedDetails.map((item) => item.label)).size !== input.confirmedDetails.length)) {
+      context.addIssue({ code: "custom", message: "予約内容を確認してください", path: ["confirmedDetails"] })
+    }
   })
 
 
@@ -358,15 +368,10 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     )
   }
-  const deadline = parsed.data.dueDate
-  if (deadline && isCalendarDate(deadline) && (
-    parsed.data.attendanceDates?.some((date) => date > deadline) ||
-    normalizeSelectedSlots(parsed.data).some((slot) => todayInJapan(new Date(new Date(slot.end).getTime() - 1)) > deadline)
-  )) {
-    return NextResponse.json({ error: "attendance_after_deadline" }, { status: 400 })
-  }
   const requestId = parsed.data.correlationId ?? crypto.randomUUID()
   const bookingStartedAt = Date.now()
+  let confirmedDetails = confirmedBookingDetails({})
+  let customerNote = ""
 
   if (parsed.data.conversationId) {
     const cookieSessionId = request.cookies.get(sessionCookieName)?.value
@@ -383,11 +388,42 @@ export async function POST(request: NextRequest) {
     })) {
       return NextResponse.json({ error: "conversation_not_owned" }, { status: 403 })
     }
+    confirmedDetails = confirmedBookingDetails({ messages: conversation.messages, conversationState: conversation.context.conversationState })
+    customerNote = confirmedBookingNote(conversation.messages)
   }
+
+  const conversationDetails = confirmedDetails
+  const reviewed = parsed.data.confirmedDetails
+  if (reviewed) {
+    confirmedDetails = bookingDetailLabels.map((label): BookingDetail => ({
+      label, value: reviewed.find((item) => item.label === label)?.value || unconfirmedBookingValue,
+    }))
+  }
+  const dueDate = reviewed ? parsed.data.dueDate ?? confirmedDetails.find((item) => item.label === "納品希望日")?.value
+    : confirmedDetails.find((item) => item.label === "納品希望日")?.value
+  parsed.data.dueDate = dueDate === unconfirmedBookingValue ? "" : dueDate ?? ""
+  confirmedDetails = confirmedDetails.map((item) => item.label === "納品希望日"
+    ? { ...item, value: parsed.data.dueDate || unconfirmedBookingValue } : item)
+  parsed.data.memo = bookingDetailsMemo(reviewed ? parsed.data.memo ?? "" : customerNote, confirmedDetails)
+
+  const deadline = parsed.data.dueDate
+  if (!isValidDeadlineInput(deadline)) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 })
+  }
+  if (deadline && isCalendarDate(deadline) && (
+    parsed.data.attendanceDates?.some((date) => date > deadline) ||
+    normalizeSelectedSlots(parsed.data).some((slot) => todayInJapan(new Date(new Date(slot.end).getTime() - 1)) > deadline)
+  )) {
+    return NextResponse.json({ error: "attendance_after_deadline" }, { status: 400 })
+  }
+  const estimateLabels = ["案件種別", "尺", "最終媒体", "作業場所/立ち会い"]
+  const estimateStillApplies = confirmedDetails.every((detail) =>
+    !estimateLabels.includes(detail.label) || (detail.value !== unconfirmedBookingValue &&
+      detail.value === conversationDetails.find((item) => item.label === detail.label)?.value))
 
   let schedule: ChatbotWorkSchedule | null = null
   try {
-    schedule = await planRequestedSchedule(parsed.data)
+    schedule = estimateStillApplies ? await planRequestedSchedule(parsed.data) : null
   } catch (error) {
     // Without a placed schedule the booking still goes through, with the attendance days alone.
     logPrivacySafeChatbotEvent({

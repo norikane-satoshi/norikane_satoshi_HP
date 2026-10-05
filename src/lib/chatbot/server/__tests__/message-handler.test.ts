@@ -1906,8 +1906,8 @@ describe("handleChatbotMessage user context", () => {
         contactName: "テスト太郎",
         contactEmail: "client@example.jp",
         companyName: "テスト株式会社",
-        dueDate: "2026-07-31",
-        memo: expect.stringContaining("観客の顔ぼかし30カット以上"),
+        dueDate: undefined,
+        memo: "",
       },
     })
     if (result.ui.kind !== "booking-card") throw new Error("booking-card expected")
@@ -2243,7 +2243,7 @@ describe("handleChatbotMessage user context", () => {
       bookingPrefill: expect.objectContaining({
         contactName: "山田太郎",
         contactEmail: "client@example.com",
-        memo: expect.stringContaining("LINE希望"),
+        memo: "",
       }),
     })
   })
@@ -2418,12 +2418,12 @@ describe("handleChatbotMessage user context", () => {
     expect(result.ui).toMatchObject({
       kind: "booking-card",
       confirmationItems: expect.arrayContaining([
-        { label: "案件種別", value: expect.stringContaining("ライブ") },
-        { label: "受け渡し素材", value: "ProResと使用クリップ" },
+        { label: "案件種別", value: "未確認" },
+        { label: "受け渡し素材", value: "未確認" },
       ]),
     })
     expect(result.ui?.kind === "booking-card" ? result.ui.confirmationItems : undefined).toEqual(
-      expect.arrayContaining([expect.objectContaining({ label: "付随素材", value: expect.stringContaining("特典映像") })]),
+      expect.arrayContaining([expect.objectContaining({ label: "付随素材", value: "未確認" })]),
     )
     expect(JSON.stringify(result.ui)).not.toContain("なし、このまま進める")
     const memo = result.ui.kind === "booking-card" ? result.ui.bookingPrefill?.memo ?? "" : ""
@@ -2754,12 +2754,10 @@ describe("handleChatbotMessage user context", () => {
     })
     if (result.ui.kind !== "booking-card") throw new Error("booking-card expected")
     expect(result.ui.bookingPrefill?.projectTitle).toBeUndefined()
-    expect(result.ui.bookingPrefill?.memo).toContain("共有事項: 当日立ち会い希望")
+    expect(result.ui.bookingPrefill?.memo).toBe("")
     expect(result.ui.bookingPrefill?.memo).not.toContain("client@example.jp")
     expect(result.ui.bookingPrefill?.memo).not.toContain("別名")
     expect(result.ui.bookingPrefill?.memo).not.toContain("別会社")
-    expect(result.ui.bookingPrefill?.memo?.match(/(?:共有予定素材|受け渡し素材)\s*:/gu)).toHaveLength(1)
-    expect(result.ui.bookingPrefill?.memo?.match(/素材受け渡し方法\s*:/gu)).toHaveLength(1)
   })
 
   it("keeps confirmed final confirmation on booking-card even when the thread is otherwise complex", async () => {
@@ -5505,7 +5503,7 @@ describe("handleChatbotMessage user context", () => {
         contactName: "山田太郎",
         contactEmail: "client@example.com",
         companyName: "Example",
-        dueDate: "2026-07-10",
+        dueDate: undefined,
       },
     })
     expect(JSON.stringify(result.ui)).not.toContain("Stored Customer")
@@ -5555,7 +5553,7 @@ describe("handleChatbotMessage user context", () => {
       kind: "booking-card",
       bookingPrefill: {
         contactEmail: "stored@example.com",
-        dueDate: "2026-07-31",
+        dueDate: undefined,
       },
     })
   })

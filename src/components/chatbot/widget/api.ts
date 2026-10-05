@@ -39,6 +39,7 @@ export type WidgetUi =
       bookingPrefill?: BookingCardPrefill
       /** What the chat settled; the card lists it on its confirmation step. */
       confirmationItems?: Array<{ label: string; value: string }>
+      confirmationEvidenceVersion?: 1
       completedBooking?: BookingCompletionSummary
     }
   | {

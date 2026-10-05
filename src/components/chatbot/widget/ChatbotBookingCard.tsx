@@ -2,6 +2,7 @@
 
 import { isCalendarDate, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import { DeadlineInput } from "./DeadlineInput"
+import { bookingDetailLabels, unconfirmedBookingValue, type BookingDetail } from "@/lib/chatbot/domain/booking-details"
 
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
@@ -361,7 +362,9 @@ export function ChatbotBookingCard({
     [defaultDueDate, jobContext, visibleCandidates],
   )
   const [displayedMonthOffset, setDisplayedMonthOffset] = useState(0)
-  const effectiveEstimate = estimate ?? jobContext?.workflowEstimate
+  const estimateFactsConfirmed = ["案件種別", "尺", "最終媒体", "作業場所/立ち会い"].every((label) =>
+    confirmationItems.some((item) => item.label === label && item.value.trim() && item.value !== unconfirmedBookingValue))
+  const effectiveEstimate = estimateFactsConfirmed ? estimate ?? jobContext?.workflowEstimate : undefined
   const attendanceLimits = attendanceDayLimits(effectiveEstimate)
   const requiredDays = attendanceLimits?.max ?? requiredDayCount(effectiveEstimate)
   const stageBreakdown = effectiveEstimate ? describeWorkflowStages(effectiveEstimate.stages) : undefined
@@ -419,7 +422,12 @@ export function ChatbotBookingCard({
   const [contactEmail, setContactEmail] = useState(defaultContactEmail ?? "")
   const [phone, setPhone] = useState("")
   const [memo, setMemo] = useState(defaultMemo ?? "")
+  const [reviewDetails, setReviewDetails] = useState<BookingDetail[]>(() => bookingDetailLabels.map((label) => ({
+    label,
+    value: confirmationItems.find((item) => item.label === label)?.value ?? unconfirmedBookingValue,
+  })))
   const [agreed, setAgreed] = useState(false)
+  const detailsEdited = reviewDetails.some((item) => item.value !== (confirmationItems.find((initial) => initial.label === item.label)?.value ?? unconfirmedBookingValue))
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [booked, setBooked] = useState<BookingResult | null>(completedBooking ?? null)
@@ -572,7 +580,7 @@ export function ChatbotBookingCard({
 
   // Serialized so a parent re-render with an equal jobContext does not refetch the plan.
   const planRequestBody =
-    planKey && jobContext && effectiveEstimate
+    !detailsEdited && planKey && jobContext && effectiveEstimate
       ? JSON.stringify({ jobContext, dueDate, workflowEstimate: effectiveEstimate, attendanceDates: planKey.split(",") })
       : null
 
@@ -678,10 +686,9 @@ export function ChatbotBookingCard({
           companyName: submission.companyName,
           phone: phone.trim(),
           dueDate,
-          memo: [submission.memo, ...(dueDate.trim() ? [`納品希望日: ${dueDate.trim()}`] : []), ...confirmationItems.filter((item) => item.label !== "納品希望日").map((item) => `${item.label}: ${item.value}`)]
-            .filter(Boolean)
-            .join("\n")
-            .slice(0, 2000),
+          memo: submission.memo,
+          confirmedDetails: reviewDetails,
+          detailsConfirmed: true,
           agreed,
           ...(attendanceLimits
             ? { attendanceDates }
@@ -692,7 +699,7 @@ export function ChatbotBookingCard({
                 })),
               }),
           jobContext,
-          workflowEstimate: effectiveEstimate,
+          workflowEstimate: detailsEdited ? undefined : effectiveEstimate,
           correlationId: auditContext?.correlationId,
         },
       )
@@ -969,7 +976,7 @@ export function ChatbotBookingCard({
                   : "未定（日程は則兼と相談）"}
             </dd>
           </div>
-          {estimateText(effectiveEstimate) ? (
+          {!detailsEdited && estimateText(effectiveEstimate) ? (
             <div>
               <dt className="text-xs font-semibold text-hp-muted">工程の目安</dt>
               <dd className="mt-0.5 text-hp">
@@ -978,10 +985,10 @@ export function ChatbotBookingCard({
               </dd>
             </div>
           ) : null}
-          {[...confirmationItems.filter((item) => item.label !== "納品希望日"), ...(dueDate.trim() ? [{ label: "納品希望日", value: dueDate.trim() }] : [])].map((item) => (
+          {[...reviewDetails.filter((item) => item.label !== "納品希望日"), { label: "納品希望日", value: dueDate.trim() || unconfirmedBookingValue }].map((item) => (
             <div key={item.label}>
               <dt className="text-xs font-semibold text-hp-muted">{item.label}</dt>
-              <dd className="mt-0.5 break-words text-hp">{item.value}</dd>
+              <dd className="mt-0.5 break-words text-hp">{item.value.trim() || unconfirmedBookingValue}</dd>
             </div>
           ))}
         </dl>
@@ -990,6 +997,24 @@ export function ChatbotBookingCard({
         </button>
 
         <div className="grid gap-3">
+          <p className="text-sm text-hp-muted">案件の条件を確認し、違う項目は修正してください。分からない項目は空欄のままで送信できます（未確認として届きます）。</p>
+          {reviewDetails.filter((item) => item.label !== "納品希望日").map((item) => (
+            <label key={item.label} className="block text-sm font-medium text-hp">
+              {item.label}
+              <input
+                aria-label={item.label}
+                className="glass-input mt-2 w-full min-w-0 px-4 py-3 text-sm"
+                value={item.value === unconfirmedBookingValue ? "" : item.value}
+                placeholder={unconfirmedBookingValue}
+                maxLength={160}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setReviewDetails((current) => current.map((detail) => detail.label === item.label ? { ...detail, value } : detail))
+                  setAgreed(false)
+                }}
+              />
+            </label>
+          ))}
           <label className="block text-sm font-medium text-hp">
             案件名
             <RequiredMark />
@@ -1007,6 +1032,7 @@ export function ChatbotBookingCard({
             納期
             <DeadlineInput value={dueDate} onChange={(value) => {
               setDueDate(value)
+              setAgreed(false)
               if (isCalendarDate(value)) {
                 setSelectedSlots((current) => current.filter((slot) => jstDateKey(slot.start) <= value))
               }
