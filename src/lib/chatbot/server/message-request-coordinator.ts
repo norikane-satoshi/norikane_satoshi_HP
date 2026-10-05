@@ -463,7 +463,8 @@ export async function replaceChatbotMessageRequestUserMessage(input: {
     })
     const choiceAnswers = Object.fromEntries(Object.entries(state?.choiceAnswers ?? {})
       .filter(([id]) => remaining.some((message) => message.id === id)))
-    const conditionAnswers = retainConditionAnswers(state?.conditionAnswers, new Set(remaining.map((message) => message.id)))
+    const conditionAnswers = state?.conditionAnswers === undefined ? undefined
+      : retainConditionAnswers(state.conditionAnswers, new Set(remaining.map((message) => message.id)))
     const editedAnswer = state?.choiceAnswers?.[input.targetMessageId]
     if (editedAnswer) choiceAnswers[input.ownership.requestKey] = editedAnswer
 
@@ -483,7 +484,7 @@ export async function replaceChatbotMessageRequestUserMessage(input: {
         referenceUrls: null,
         currentQuestion: null,
         activeChoices: null,
-        conversationState: Object.keys(choiceAnswers).length || Object.keys(conditionAnswers).length ? JSON.stringify({ choiceAnswers, conditionAnswers }) : null,
+        conversationState: Object.keys(choiceAnswers).length || conditionAnswers !== undefined ? JSON.stringify({ choiceAnswers, ...(conditionAnswers !== undefined ? { conditionAnswers } : {}) }) : null,
         messages: {
           create: {
             id: input.ownership.requestKey,

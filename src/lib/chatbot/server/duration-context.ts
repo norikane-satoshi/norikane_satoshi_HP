@@ -1,4 +1,5 @@
 import { totalWorkCompositionMinutes } from "@/lib/booking/domain/work-composition"
+import { normalizeJobKind } from "@/lib/booking/domain/job-kind"
 import { jobKindLabels } from "@/lib/chatbot/domain/job-kind-label"
 import { formatProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
 import type { ChatbotConversation, ConversationState, JobContext, WorkflowEstimate } from "@/lib/chatbot/domain"
@@ -132,7 +133,7 @@ export function resolveWorkflowFactsFromConversation(
   const projectLengthMinutes = composition
     ? composition.status !== "unknown" && composition.composition ? totalWorkCompositionMinutes(composition.composition) : undefined
     : undefined
-  return { ...facts, projectLengthMinutes }
+  return { ...facts, jobKind: normalizeJobKind(facts.jobKind), projectLengthMinutes }
 }
 
 export function provideWorkflowEstimate(

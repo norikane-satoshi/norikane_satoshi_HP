@@ -76,7 +76,7 @@ export function applyActiveChoiceAnswer(input: {
       ...(submitted.number !== undefined ? { number: submitted.number } : {}),
       ...(submitted.otherComment ? { otherComment: submitted.otherComment.trim() } : {}),
     }
-    patch.conversationState.conditionAnswers = { [definition.id]: { ...answer, ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}) } }
+    if (definition.id !== "booking-final-confirmation") patch.conversationState.conditionAnswers = { [definition.id]: { ...answer, ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}) } }
     return patch
   }
   let patch: ChoicePanelPatch | null
@@ -118,7 +118,7 @@ export function applyActiveChoiceAnswer(input: {
     }
   }
   if (!patch || !answer) return patch
-  patch.conversationState.conditionAnswers = { [patch.choiceSetId]: { ...answer, ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}) } }
+  if (patch.choiceSetId !== "booking-final-confirmation") patch.conversationState.conditionAnswers = { [patch.choiceSetId]: { ...answer, ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}) } }
   return patch
 }
 

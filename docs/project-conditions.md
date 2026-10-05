@@ -32,3 +32,5 @@ server の `duration-estimator.ts` は `workflowDurationJobKindMap` を `JobKind
 server は定義の input で structured answer を検証し、`conditionAnswers[ID]` に保存する。通常の質問追加で server の質問一覧や専用 handler を増やす必要はない。既存 JobContext への変換が必要な項目だけ、互換処理を追加する。質問文の変更は回答キーや replay に影響しない。
 
 `sourceMessageId` は server が保存した実際の user message ID を設定する。編集時は、そのメッセージ以降を削除し、残った message ID に結びつく回答だけを保持する。`conditionAnswers: {}` も structured state として扱い、legacy flags や推定した案件条件で未回答を補完しない。
+
+旧会話の通常保存・編集時は conditionAnswers 不在を維持する。明示回答を旧質問から復元できた時だけ、実メッセージ ID 付きの回答として移す。履歴 reader は保存済み質問の完全一致と既知の旧質問の対応表を使い、JobContext の推定値は回答に移さない。過去の別質問の replay で現在の補足待ちを解除しない。

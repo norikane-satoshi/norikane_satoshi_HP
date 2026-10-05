@@ -24,10 +24,10 @@ describe("interpretChoiceWithJev", () => {
 
   it("adopts a confident single choice and sends only the question, options and a redacted answer", async () => {
     vi.stubEnv("TYPESAFE_API_KEY", "test-key")
-    const fetchMock = mockJev({ answer: { choice: "mv-5m", confidence: 0.93 } })
+    const fetchMock = mockJev({ answer: { choice: "mv", confidence: 0.93 } })
     await expect(
       interpretChoiceWithJev({ choiceSet: jobKindChoices, message: "ミュージックビデオです。連絡は a@example.com まで" }),
-    ).resolves.toEqual({ choiceIds: ["mv-5m"] })
+    ).resolves.toEqual({ choiceIds: ["mv"] })
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
     expect(body.state.customer_answer).not.toContain("a@example.com")
     expect(Object.keys(body.questions.answer.criteria)).not.toContain("other")
@@ -36,7 +36,7 @@ describe("interpretChoiceWithJev", () => {
 
   it("abstains below the confidence threshold or on not_an_answer", async () => {
     vi.stubEnv("TYPESAFE_API_KEY", "test-key")
-    mockJev({ answer: { choice: "mv-5m", confidence: 0.6 } })
+    mockJev({ answer: { choice: "mv", confidence: 0.6 } })
     await expect(interpretChoiceWithJev({ choiceSet: jobKindChoices, message: "たぶんMV" })).resolves.toBeNull()
     mockJev({ answer: { choice: "not_an_answer", confidence: 0.99 } })
     await expect(interpretChoiceWithJev({ choiceSet: jobKindChoices, message: "こんにちは" })).resolves.toBeNull()
