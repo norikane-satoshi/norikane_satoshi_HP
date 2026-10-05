@@ -209,7 +209,7 @@ export async function createBookingFromApiInput({
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   const teamId = input.teamId ?? null
   const requestedDateSelection = hasSelectedSlots ? null : getRequestedDateSelection(input)
-  const storedMemo = [input.memo, hasSelectedSlots ? undefined : `希望日: ${scheduleLabel}`]
+  const storedMemo = [originatedFrom === "chatbot" || !hasSelectedSlots ? `希望日: ${scheduleLabel}` : undefined, input.memo]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
     .join("\n")

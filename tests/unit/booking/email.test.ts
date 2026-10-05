@@ -1,3 +1,5 @@
+import { bookingDetailsMemo } from "@/lib/chatbot/domain/booking-details"
+
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
@@ -233,6 +235,27 @@ describe("booking email sender", () => {
     expect(mocks.send.mock.calls[0][0].text).toEqual(expect.stringContaining("予約番号: group_1"))
     expect(mocks.send.mock.calls[0][0].text).toEqual(expect.stringContaining("希望日: 2026/06/10"))
     expect(mocks.send.mock.calls[0][0].text).toEqual(expect.stringContaining("2026/06/12"))
+  })
+
+  it("sends related booking details in the same order as the review list and sync memo", async () => {
+    process.env.RESEND_API_KEY = "resend_key"
+    mocks.send.mockResolvedValue({ data: { id: "email_order" }, error: null })
+    const { sendChatbotBookingOwnerNotification } = await import("@/lib/booking/server/email")
+    await sendChatbotBookingOwnerNotification({
+      bookingGroupId: "group_order", projectTitle: "短編", contactName: "テスト", contactEmail: "client@example.com", selectedSlots: [],
+      memo: bookingDetailsMemo("都合の悪い日: 10月20日", [
+        { label: "納品希望日の理由", value: "映画祭応募" }, { label: "素材が揃う日", value: "2026-10-18" },
+        { label: "DCP作成担当", value: "他社" }, { label: "納品希望日", value: "2026-10-25" },
+        { label: "DCP必要性", value: "必要" }, { label: "納品形式", value: "ProRes 422 HQ、Rec.709" }, { label: "最終媒体", value: "劇場" },
+      ]),
+    })
+    const message = mocks.send.mock.calls[0][0]
+    for (const body of [message.text, message.html]) {
+      const labels = ["希望日:", "都合の悪い日:", "最終媒体:", "納品形式:", "DCP必要性:", "DCP作成担当:", "納品希望日:", "納品希望日の理由:", "素材が揃う日:"]
+      const positions = labels.map((label) => body.indexOf(label))
+      expect(positions.every((position) => position >= 0)).toBe(true)
+      expect(positions).toEqual([...positions].sort((a, b) => a - b))
+    }
   })
 
   it("marks chatbot booking owner notification as unscheduled when no slots are selected", async () => {

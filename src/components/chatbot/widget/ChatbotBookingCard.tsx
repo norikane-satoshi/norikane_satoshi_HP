@@ -4,7 +4,7 @@ import { isCalendarDate, isValidDeadlineInput } from "@/lib/chatbot/domain/deadl
 import { DeadlineInput } from "./DeadlineInput"
 import { ProjectDurationInput } from "./ProjectDurationInput"
 import { formatProjectLengthMinutes, parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import { bookingDetailLabels, unconfirmedBookingValue, type BookingDetail } from "@/lib/chatbot/domain/booking-details"
+import { bookingDetailLabels, canonicalBookingDetails, unconfirmedBookingValue, type BookingDetail } from "@/lib/chatbot/domain/booking-details"
 
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
@@ -842,13 +842,13 @@ export function ChatbotBookingCard({
         <>
         <dl className="space-y-2 rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3 text-sm" aria-label="送信する内容">
           <div>
-            <dt className="text-xs font-semibold text-hp-muted">仮キープする日程</dt>
+            <dt className="text-xs font-semibold text-hp-muted">希望日</dt>
             <dd className="mt-0.5 whitespace-pre-line text-hp">
               {selectedSlots.length > 0 ? formatSelectedSlots(selectedSlots) : "未定（日程は則兼と相談）"}
             </dd>
           </div>
           {unavailableDates.trim() ? <div><dt className="text-xs font-semibold text-hp-muted">都合の悪い日</dt><dd className="mt-0.5 break-words text-hp">{unavailableDates.trim()}</dd></div> : null}
-          {[...visibleReviewDetails, { label: "納品希望日", value: isCalendarDate(dueDate) ? dueDate : unconfirmedBookingValue }].map((item) => (
+          {canonicalBookingDetails([...visibleReviewDetails, { label: "納品希望日", value: isCalendarDate(dueDate) ? dueDate : unconfirmedBookingValue }]).map((item) => (
             <div key={item.label}>
               <dt className="text-xs font-semibold text-hp-muted">{item.label}</dt>
               <dd className="mt-0.5 break-words text-hp">{item.value.trim() || unconfirmedBookingValue}</dd>

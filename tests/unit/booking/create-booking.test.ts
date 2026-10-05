@@ -117,6 +117,16 @@ afterEach(() => {
 })
 
 describe("createBookingFromApiInput", () => {
+  it.each([[], ["2026-10-13"]])("keeps desired and unavailable dates before the canonical details in persisted sync notes (%j)", async (...requestedDates) => {
+    const service = await loadCreateBooking()
+    const memo = bookingDetailsMemo("都合の悪い日: 10月20日", [
+      { label: "納品希望日の理由", value: "映画祭応募" }, { label: "納品希望日", value: "2026-10-25" },
+    ])
+    await service.createBookingFromApiInput({ input: bookingInput({ memo, requestedDates }), originatedFrom: "chatbot", userId: "user_1", userEmail: "client@example.com" })
+    const storedMemo = service.prisma.bookingGroup.create.mock.calls[0][0].data.memo
+    expect(storedMemo.split("\n").map((line: string) => line.split(":")[0])).toEqual(["希望日", "都合の悪い日", "納品希望日", "納品希望日の理由"])
+  })
+
   it.each([["0時間18分", "18分"], ["1時間18分", "1時間18分"], ["未定", "未確認"]])("carries reviewed duration %s into calendar descriptions and booking mail", async (value, canonical) => {
     const service = await loadCreateBooking()
     const memo = bookingDetailsMemo("", [{ label: "尺", value }])

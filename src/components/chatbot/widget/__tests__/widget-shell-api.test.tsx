@@ -13,6 +13,7 @@ import {
   isLocalChatbotDebugHost,
   shouldAutoOpenChatbotDebug,
 } from "@/components/chatbot/widget/ChatbotDebugPanel"
+import { surveyChoiceSets } from "@/lib/chatbot/domain/survey-choice"
 import { additionalWorkChoices, finalMediumChoices } from "@/lib/chatbot/domain"
 
 vi.mock("next-auth/react", () => ({
@@ -120,6 +121,28 @@ describe("WidgetShell API wiring", () => {
     vi.useRealTimers()
     delete process.env.NEXT_PUBLIC_ENABLE_BOOKING
     window.history.replaceState({}, "", "/")
+  })
+
+  it.each(surveyChoiceSets)("shows the $id question once across the assistant and answer card", (choiceSet) => {
+    writeStoredWidgetSession({
+      conversationId: "conv_question",
+      messages: [{ ...assistantMessage, content: choiceSet.question }],
+      activeUi: { kind: "choice-panel", choiceSet },
+    })
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockJsonResponse({})))
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    expect(screen.getAllByText(choiceSet.question, { exact: true })).toHaveLength(1)
+  })
+
+  it.each([
+    ["duration-input", "作品の尺を入力してください"],
+    ["none", "納期を教えてください。日付または未定を選んでください。"],
+  ])("shows the %s input question once", (kind, question) => {
+    writeStoredWidgetSession({ messages: [{ ...assistantMessage, content: question }], activeUi: { kind, question } })
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockJsonResponse({})))
+    render(<WidgetShell onMinimize={vi.fn()} />)
+    expect(screen.getAllByText(question, { exact: true })).toHaveLength(1)
+    expect(screen.getByLabelText(kind === "duration-input" ? "尺の分" : "納期をカレンダーで選ぶ")).toBeInTheDocument()
   })
 
   it.each([
@@ -904,7 +927,7 @@ describe("WidgetShell API wiring", () => {
       }),
     )
     expect(await screen.findByText("復元後の回答です")).toBeInTheDocument()
-    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "最終媒体をすべて選んでください" })).toBeInTheDocument()
     await waitFor(() => {
       const storedAfterRecovery = JSON.parse(window.localStorage.getItem(chatbotSessionStorageKey) ?? "{}")
       expect(storedAfterRecovery.pendingRequest).toBeUndefined()
@@ -1358,7 +1381,7 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage()
 
-    expect(await screen.findByText("最終媒体をすべて選んでください")).toBeInTheDocument()
+    expect(await screen.findByText(assistantMessage.content)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "VOD・オンデマンド配信" })).toBeInTheDocument()
   })
 
@@ -1389,7 +1412,7 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage()
 
-    expect(await screen.findByText("カラグレ以外の追加作業はありますか")).toBeInTheDocument()
+    expect(await screen.findByRole("region", { name: "カラグレ以外の追加作業はありますか" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "消し物" }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -1428,7 +1451,7 @@ describe("WidgetShell API wiring", () => {
     const container = setConversationScrollGeometry({ scrollTop: 300, clientHeight: 300, scrollHeight: 600 })
     submitMessage()
 
-    expect(await screen.findByText("カラグレ以外の追加作業はありますか")).toBeInTheDocument()
+    expect(await screen.findByRole("region", { name: "カラグレ以外の追加作業はありますか" })).toBeInTheDocument()
     setConversationScrollGeometry({ scrollTop: 0, clientHeight: 300, scrollHeight: 900 })
     fireEvent.scroll(container)
     fireEvent.click(screen.getByRole("button", { name: "消し物" }))
@@ -1483,7 +1506,7 @@ describe("WidgetShell API wiring", () => {
     render(<WidgetShell onMinimize={vi.fn()} />)
     submitMessage()
 
-    expect(await screen.findByText("カラグレ以外の追加作業はありますか")).toBeInTheDocument()
+    expect(await screen.findByRole("region", { name: "カラグレ以外の追加作業はありますか" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "その他" }))
     fireEvent.change(screen.getByLabelText("その他の内容"), { target: { value: "MA も相談したい" } })
     fireEvent.click(screen.getByRole("button", { name: "選択を送信" }))
@@ -1524,14 +1547,14 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("初回相談です")).toBeInTheDocument()
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
-    expect(await screen.findByText("最終媒体をすべて選んでください")).toBeInTheDocument()
+    expect(await screen.findByText(assistantMessage.content)).toBeInTheDocument()
 
     firstRender.unmount()
     render(<WidgetShell onMinimize={vi.fn()} />)
 
     expect(screen.getByText("初回相談です")).toBeInTheDocument()
     expect(screen.getByText("最終媒体を選んでください")).toBeInTheDocument()
-    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "最終媒体をすべて選んでください" })).toBeInTheDocument()
 
     submitMessage("続きです")
 
@@ -1576,7 +1599,7 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("リロード前の相談です")).toBeInTheDocument()
     expect(screen.getByText("保存済みの回答です")).toBeInTheDocument()
-    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "最終媒体をすべて選んでください" })).toBeInTheDocument()
     expect(onRecoverableError).not.toHaveBeenCalled()
 
     submitMessage("リロード後の続きです")
@@ -2286,7 +2309,7 @@ describe("WidgetShell API wiring", () => {
     submitMessage("初回相談です")
 
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
-    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "最終媒体をすべて選んでください" })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "メッセージを編集" }))
     fireEvent.change(await screen.findByLabelText("編集内容"), { target: { value: "編集後の相談です" } })
@@ -2298,7 +2321,7 @@ describe("WidgetShell API wiring", () => {
     expect(await screen.findByText("編集後の回答です")).toBeInTheDocument()
     expect(screen.getByText("編集後の相談です")).toBeInTheDocument()
     expect(screen.queryByText("最終媒体を選んでください")).not.toBeInTheDocument()
-    expect(screen.queryByText("最終媒体をすべて選んでください")).not.toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "最終媒体をすべて選んでください" })).not.toBeInTheDocument()
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
       message: "編集後の相談です",
       conversationId: "conv_1",

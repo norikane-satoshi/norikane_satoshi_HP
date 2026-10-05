@@ -406,7 +406,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       contactName: "Satoshi",
       contactEmail: "client@example.com",
       companyName: "NCS",
-      memo: expect.stringContaining("初回相談\n案件種別: 未確認\n尺: 未確認\n最終媒体: 未確認"),
+      memo: expect.stringContaining("案件種別: 未確認\n尺: 未確認\n最終媒体: 未確認"),
       selectedSlots: [
         {
           start: "2026-06-10T15:00:00.000Z",
@@ -419,6 +419,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       ],
       submittedAt: expect.any(Date),
     })
+    expect(route.sendChatbotBookingOwnerNotification.mock.calls[0][0].memo.endsWith("初回相談")).toBe(true)
   })
 
   it("returns the owner notification ID only in local development", async () => {

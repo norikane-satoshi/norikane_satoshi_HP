@@ -3,7 +3,7 @@ import { expect, it } from "vitest"
 import { buildBookingConfirmationItems } from "./consultation-summary"
 import { jobKindChoices, projectLengthChoices, finalMediumChoices } from "./survey-choice"
 import { matchChoiceAnswer } from "./choice-answer"
-import { bookingDetailsMemo, confirmedBookingDetails, confirmedBookingNote } from "./booking-details"
+import { canonicalBookingDetails, bookingDetailsMemo, confirmedBookingDetails, confirmedBookingNote } from "./booking-details"
 
 it("uses the customer's exact duration instead of the stored estimate anchor", () => {
   const messages = [
@@ -37,7 +37,8 @@ it("preserves a natural project correction without taking unrelated work time as
 
 it("replaces obsolete automatic memo fields with the same confirmed details used downstream", () => {
   const memo = bookingDetailsMemo("メモ\n尺: 1時間\n最終媒体: 劇場\n作業場所: リモート", confirmedBookingDetails({}))
-  expect(memo).toContain("メモ\n案件種別: 未確認\n尺: 未確認\n最終媒体: 未確認")
+  expect(memo).toContain("案件種別: 未確認\n尺: 未確認\n最終媒体: 未確認")
+  expect(memo.endsWith("メモ")).toBe(true)
   expect(memo).not.toContain("1時間")
   expect(memo).not.toContain("劇場")
   expect(memo).not.toContain("リモート")
@@ -117,4 +118,23 @@ it("clears stale DCP answers and obsolete work counts when creating a memo", () 
   expect(memo).toContain("DCP作成担当: 未確認")
   expect(memo).toContain("補足: 試写会")
   expect(memo).not.toMatch(/旧担当|5日|3日|カメラ素材/u)
+})
+
+it("keeps related fields adjacent in review and downstream memos regardless of input order", () => {
+  const details = canonicalBookingDetails([
+    { label: "納品希望日の理由", value: "映画祭応募" },
+    { label: "DCP作成担当", value: "他社" },
+    { label: "素材が揃う日", value: "2026-10-18" },
+    { label: "納品形式", value: "ProRes 422 HQ、Rec.709" },
+    { label: "納品希望日", value: "2026-10-25" },
+    { label: "DCP必要性", value: "必要" },
+    { label: "最終媒体", value: "劇場" },
+  ])
+  expect(details.map(({ label }) => label)).toEqual([
+    "最終媒体", "納品形式", "DCP必要性", "DCP作成担当", "納品希望日", "納品希望日の理由", "素材が揃う日",
+  ])
+  const memo = bookingDetailsMemo("字幕について相談\n都合の悪い日: 10月20日", [...details].reverse())
+  expect(memo.split("\n").map((line) => line.split(":")[0])).toEqual([
+    "都合の悪い日", "最終媒体", "納品形式", "DCP必要性", "DCP作成担当", "納品希望日", "納品希望日の理由", "素材が揃う日", "字幕について相談",
+  ])
 })

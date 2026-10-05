@@ -4,9 +4,9 @@ import { isCalendarDate } from "./deadline"
 import { matchChoiceAnswer } from "./choice-answer"
 
 export const bookingDetailLabels = [
-  "案件種別", "尺", "最終媒体", "作業場所/立ち会い", "納品希望日",
-  "追加作業", "付随素材", "字幕・テロップ等", "素材が揃う日",
-  "参考URL", "納品形式", "DCP必要性", "DCP作成担当", "納品希望日の理由",
+  "案件種別", "尺", "最終媒体", "納品形式", "DCP必要性", "DCP作成担当",
+  "納品希望日", "納品希望日の理由", "素材が揃う日", "作業場所/立ち会い",
+  "追加作業", "付随素材", "字幕・テロップ等", "参考URL",
 ] as const
 export type BookingDetailLabel = typeof bookingDetailLabels[number]
 export type BookingDetail = { label: BookingDetailLabel; value: string }
@@ -87,7 +87,8 @@ export function canonicalBookingDetails(details: ReadonlyArray<BookingDetail>): 
   } else if (values.get("DCP必要性") !== "必要") {
     values.set("DCP作成担当", unconfirmedBookingValue)
   }
-  return details.map(({ label }) => ({ label, value: values.get(label) ?? unconfirmedBookingValue }))
+  const included = new Set(details.map(({ label }) => label))
+  return bookingDetailLabels.filter((label) => included.has(label)).map((label) => ({ label, value: values.get(label) ?? unconfirmedBookingValue }))
 }
 
 function canonicalBookingDetailValue(label: BookingDetailLabel, value: string): string {
@@ -103,11 +104,14 @@ function canonicalBookingDetailValue(label: BookingDetailLabel, value: string): 
 }
 
 export function bookingDetailsMemo(note: string, details: ReadonlyArray<BookingDetail>): string {
-  const ownNote = note.split("\n").filter((line) => {
+  const lines = note.split("\n")
+  const unavailableDates = lines.filter((line) => /^\s*都合の悪い日[:：]/u.test(line))
+  const ownNote = lines.filter((line) => {
+    if (/^\s*都合の悪い日[:：]/u.test(line)) return false
     const label = /^\s*(?:- )?([^:：]+)[:：]/u.exec(line)?.[1]
     return !label || (!bookingDetailLabels.includes(label as BookingDetailLabel) && !["納期", "納期理由", "作業場所", "依頼内容", "立ち会い日数", "作業日数", "基本工程目安", "工程目安", "受け渡し素材", "素材受け渡し方法", "素材搬入/受け取り時期"].includes(label))
   }).join("\n").trim()
-  return [ownNote, ...canonicalBookingDetails(details).map(({ label, value }) => `${label}: ${value}`)].filter(Boolean).join("\n")
+  return [...unavailableDates, ...canonicalBookingDetails(details).map(({ label, value }) => `${label}: ${value}`), ownNote].filter(Boolean).join("\n")
 }
 
 /** A model-written supplemental note is retained only when a whole line is customer-authored. */

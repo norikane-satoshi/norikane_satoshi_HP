@@ -77,6 +77,29 @@ function renderCard(props: Partial<ComponentProps<typeof ChatbotBookingCard>> = 
 }
 
 describe("ChatbotBookingCard", () => {
+  it("groups related summary fields and puts the deadline immediately before its reason", () => {
+    mockFetch(200, {})
+    renderCard({ defaultDueDate: "2026-10-25", confirmationItems: [
+      { label: "納品希望日の理由", value: "映画祭応募" },
+      { label: "DCP作成担当", value: "他社" },
+      { label: "素材が揃う日", value: "2026-10-18" },
+      { label: "納品形式", value: "ProRes 422 HQ、Rec.709" },
+      { label: "DCP必要性", value: "必要" },
+      { label: "最終媒体", value: "劇場" },
+    ] })
+    fireEvent.change(screen.getByLabelText("都合の悪い日（任意）"), { target: { value: "10月20日" } })
+    fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
+    const summary = screen.getByLabelText("送信する内容")
+    expect(Array.from(summary.querySelectorAll("dt"), (element) => element.textContent)).toEqual([
+      "希望日", "都合の悪い日", "案件種別", "尺", "最終媒体", "納品形式", "DCP必要性", "DCP作成担当",
+      "納品希望日", "納品希望日の理由", "素材が揃う日", "作業場所/立ち会い", "追加作業", "付随素材", "字幕・テロップ等", "参考URL",
+    ])
+    expect(within(summary).getByText("2026-10-25")).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("納期をカレンダーで選ぶ"), { target: { value: "2026-10-26" } })
+    expect(within(summary).getByText("2026-10-26")).toBeInTheDocument()
+    expect(within(summary).getByText("映画祭応募")).toBeInTheDocument()
+  })
+
   it("holds only explicitly selected dates even when the internal estimate spans multiple days", async () => {
     const fetchMock = mockFetch(200, { bookingGroupId: "group_1", bookingIds: [] })
     renderCard({ estimate: { ...estimate, totalMinDays: 8, totalMaxDays: 10 }, defaultContactEmail: "client@example.jp", candidates: [{ ...candidates[0], end: "2026-06-20T01:00:00.000Z" }] })
@@ -1118,7 +1141,7 @@ describe("ChatbotBookingCard", () => {
       fireEvent.click(next)
 
       const summary = screen.getByLabelText("送信する内容")
-      expect(within(summary).getByText("仮キープする日程")).toBeInTheDocument()
+      expect(within(summary).getByText("希望日")).toBeInTheDocument()
       expect(within(summary).getByText(/6\/10/u)).toBeInTheDocument()
       expect(within(summary).getByText("最終媒体")).toBeInTheDocument()
       expect(within(summary).getByText("オンライン")).toBeInTheDocument()

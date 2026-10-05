@@ -10,10 +10,11 @@ import { additionalWorkChoices, finalMediumChoices } from "@/lib/chatbot/domain/
 describe("ChoicePanel", () => {
   afterEach(() => cleanup())
 
-  it("renders the choice question and labels", () => {
+  it("labels the choices accessibly without repeating the assistant question", () => {
     render(<ChoicePanel choiceSet={finalMediumChoices} onSelect={vi.fn()} />)
 
-    expect(screen.getByText("最終媒体をすべて選んでください")).toBeInTheDocument()
+    expect(screen.queryByText(finalMediumChoices.question)).not.toBeInTheDocument()
+    expect(screen.getByRole("region", { name: finalMediumChoices.question })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "劇場公開" })).toBeInTheDocument()
   })
 

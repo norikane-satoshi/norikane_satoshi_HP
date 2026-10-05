@@ -5,10 +5,6 @@ import { Check } from "lucide-react"
 
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea"
 import type { SurveyChoiceSet } from "@/lib/chatbot/domain/survey-choice"
-import {
-  CHATBOT_CONVERSATION_CONTENT_CLASS_NAME,
-  CHATBOT_CONVERSATION_CONTENT_STYLE,
-} from "./conversationTypography"
 
 export type ChoicePanelSelection = {
   selectedIds: string[]
@@ -59,12 +55,6 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false, initia
 
   return (
     <section className="glass-inset space-y-3 p-4" aria-label={choiceSet.question}>
-      <p
-        className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} text-sm text-hp`}
-        style={CHATBOT_CONVERSATION_CONTENT_STYLE}
-      >
-        {choiceSet.question}
-      </p>
       <div className="flex flex-wrap gap-2">
         {choiceSet.choices.map((choice) => {
           const isSelected = selectedIds.includes(choice.id)
