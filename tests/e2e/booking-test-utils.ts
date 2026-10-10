@@ -62,7 +62,7 @@ export function e2eSlot(dayOffset: number, startHourUtc: number, durationHours =
 
 export function prismaForE2E() {
   const url = process.env.TURSO_DATABASE_URL
-  if (!url) throw new Error("TURSO_DATABASE_URL is required for e2e")
+  if (!url?.startsWith("file:")) throw new Error("E2E requires an isolated local file database")
   return new PrismaClient({
     adapter: new PrismaLibSql({ url, authToken: process.env.TURSO_AUTH_TOKEN }),
   })

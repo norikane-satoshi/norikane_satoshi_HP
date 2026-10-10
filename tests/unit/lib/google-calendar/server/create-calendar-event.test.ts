@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
@@ -27,11 +27,15 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 
 import {
   createCalendarEvent,
+  deleteCalendarEvent,
+  deleteCalendarEventWithAccessToken,
   getCalendarEvent,
   listManagedCalendarEvents,
   requestCalendarEventCancellation,
   updateCalendarEvent,
 } from "@/lib/google-calendar/server"
+
+afterEach(() => vi.unstubAllEnvs())
 
 const baseInput = {
   calendarId: "primary",
@@ -45,6 +49,11 @@ const baseInput = {
 
 describe("createCalendarEvent", () => {
   beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production")
+    vi.stubEnv("VERCEL", "1")
+    vi.stubEnv("VERCEL_ENV", "production")
+    vi.stubEnv("VITEST", "")
+    vi.stubEnv("BOOKING_EXTERNAL_WRITES", "")
     mocks.insert.mockReset()
     mocks.get.mockReset()
     mocks.list.mockReset()
@@ -53,6 +62,22 @@ describe("createCalendarEvent", () => {
     process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_ID = "client-id"
     process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET = "client-secret"
     process.env.GOOGLE_CALENDAR_REDIRECT_URI = "http://localhost/callback"
+  })
+
+  it("blocks every Calendar mutation with production credentials inherited by local next start", async () => {
+    vi.stubEnv("VERCEL", "")
+    const writes = [
+      () => createCalendarEvent(baseInput),
+      () => updateCalendarEvent({ ...baseInput, eventId: "event" }),
+      () => requestCalendarEventCancellation({ ...baseInput, eventId: "event", bookingGroupId: "group" }),
+      () => deleteCalendarEvent("event"),
+      () => deleteCalendarEventWithAccessToken({ ...baseInput, eventId: "event" }),
+    ]
+    for (const write of writes) await expect(write()).rejects.toMatchObject({ code: "booking_external_writes_disabled" })
+    expect(mocks.setCredentials).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.patch).not.toHaveBeenCalled()
+    expect(mocks.get).not.toHaveBeenCalled()
   })
 
   it("stamps extendedProperties.private with source only (no customer PII)", async () => {

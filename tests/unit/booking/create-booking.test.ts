@@ -21,6 +21,12 @@ function bookingInput(overrides: Partial<BookingApiInput> = {}): BookingApiInput
 
 async function loadCreateBooking() {
   vi.resetModules()
+  vi.stubEnv("NODE_ENV", "production")
+  vi.stubEnv("VERCEL", "1")
+  vi.stubEnv("VERCEL_ENV", "production")
+  vi.stubEnv("VITEST", "")
+  vi.stubEnv("BOOKING_EXTERNAL_WRITES", "")
+
   vi.stubEnv("GOOGLE_CALENDAR_BUSY_SOURCE_ID", "calendar_1")
 
   const createCalendarEvent = vi.fn().mockResolvedValue({ id: "gcal_1" })
@@ -187,6 +193,24 @@ describe("createBookingFromApiInput", () => {
     expect(service.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining(memo) }))
     expect(service.sendBookingConfirmedEmail).toHaveBeenCalledWith(expect.objectContaining({ memo }))
   })
+  it.each(["development", "test", "production"])("blocks %s verification before any durable booking or receipt", async (nodeEnv) => {
+    vi.stubEnv("NODE_ENV", nodeEnv)
+    vi.stubEnv("VERCEL", "")
+    const result = await service.createBookingFromApiInput({
+      input: bookingInput({ requestedDates: ["2026-06-10"] }),
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      userId: "real_local_user",
+      userEmail: "client@example.com",
+    })
+    expect(result).toEqual({ status: 503, body: { error: "booking_external_writes_disabled" } })
+    expect(service.prisma.bookingGroup.findUnique).not.toHaveBeenCalled()
+    expect(service.prisma.customer.upsert).not.toHaveBeenCalled()
+    expect(service.prisma.$transaction).not.toHaveBeenCalled()
+    expect(service.prisma.calendarToken.findUnique).not.toHaveBeenCalled()
+    expect(service.createCalendarEvent).not.toHaveBeenCalled()
+    expect(service.sendBookingConfirmedEmail).not.toHaveBeenCalled()
+  })
+
   it("returns the existing chatbot booking for the same idempotency key without repeating side effects", async () => {
     service.prisma.bookingGroup.findUnique.mockResolvedValueOnce({
       id: "group_existing",
