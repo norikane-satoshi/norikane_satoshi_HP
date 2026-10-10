@@ -3,18 +3,24 @@
 import { useEffect, useRef, useState } from "react"
 
 /**
- * v7 動画モジュール: 破綻の代表型 — 色のひっくり返り（現場でよく見る 2 例）
+ * v8 動画モジュール: 破綻の代表型 — 色のひっくり返り（0〜100% の外に出た値）
  *
  * viewBox 1600×900 (16:9)、モバイル 1000×1060。LOOP = 8s。
  *
- * 図は現象だけを見せ、仕組みの説明は本文（「破綻を管理する」）に任せる。
- *   1. LED の点とグロー: 一番鮮やかな中心から先に色がひっくり返る。周りのグローは青のまま。
- *   2. 黄色のグラデーション: 一番明るいところがマゼンタにひっくり返る。
+ * 本文（「破綻を管理する」）の「100% を超えた側はクリップ、0 を下回った側は後ろの処理で
+ * 予期しない挙動」に合わせて、2 つの側を 1 枚ずつ見せる。
  *
- * 絵の計算（RAW 現像の簡略モデル）:
- *   センサーの値（0〜1 で止まる）→ ホワイトバランス → 色を作る足し引き（3×3）
- *   → 表示（比率を保って明るさだけ圧縮）
- * 係数は一般的なカメラに近い例で、特定の機種の値ではない。
+ *   1. 100% を超える側（オレンジの光、露出を上げる）:
+ *      0〜1 を前提にした表示でチャンネルごとにクリップされる。R が先に止まり、
+ *      一番明るいところが平らになって、色味が黄色から白へ寄る。
+ *   2. 0 を下回る側（青い LED、彩度を上げる）:
+ *      彩度は RGB の平均を軸に上げる（明るさを保たない方式）。鮮やかな中心ほど
+ *      小さいチャンネルが先に 0 を下回り、輝度（Rec.709 の重み）も 0 以下になる。
+ *      後ろの「輝度を基準にする処理」（輝度で割ってトーンを付け、輝度が 0 以下なら 0 にする）
+ *      がそこを黒として扱い、中心から黒く抜ける。周りのグローは青のまま。
+ *
+ * 資料で確認できた崩れ方（黒く抜ける、合成の不具合など）に合わせた簡略モデルで、
+ * 特定のソフトの処理を再現したものではない。
  *
  * SSR 設計: SVG は t=0 の純関数。canvas の描画は useEffect 内のみ。
  * reducedMotion 時は u を REDUCED_MOTION_U で固定して静止画化する。
@@ -34,56 +40,13 @@ const TINT_FLIP = {
   curve: "rgb(160,70,70)",
 }
 
-
 export type Vec3 = [number, number, number]
-type Chan = "R" | "G" | "B"
-const CHANS: Chan[] = ["R", "G", "B"]
 
-// ---- 信号の流れ ---------------------------------------------------------------
+/** Rec.709 の輝度の重み。 */
+export const LUMA_WEIGHTS: Vec3 = [0.2126, 0.7152, 0.0722]
 
-/** ホワイトバランスのゲイン（センサーの値に掛ける）。 */
-export const WB_GAINS: Vec3 = [2.0, 1.0, 1.5]
-
-/** 色を作る足し引き（行の和は 1。グレーはグレーのまま）。 */
-export const COLOR_MATRIX: [Vec3, Vec3, Vec3] = [
-  [1.95, -0.83, -0.12],
-  [-0.18, 1.53, -0.35],
-  [0.03, -0.53, 1.5],
-]
-
-export const SENSOR_CEILING = 1
-
-function clampSensor(v: number) {
-  return v < 0 ? 0 : v > SENSOR_CEILING ? SENSOR_CEILING : v
-}
-
-function mix(v: Vec3): Vec3 {
-  const a = v[0] * WB_GAINS[0]
-  const b = v[1] * WB_GAINS[1]
-  const c = v[2] * WB_GAINS[2]
-  const m = COLOR_MATRIX
-  return [
-    m[0][0] * a + m[0][1] * b + m[0][2] * c,
-    m[1][0] * a + m[1][1] * b + m[1][2] * c,
-    m[2][0] * a + m[2][1] * b + m[2][2] * c,
-  ]
-}
-
-/** センサーの値（上限と 0 で止まる）→ ホワイトバランス → 足し引き。 */
-export function sensorToWorking(raw: Vec3): Vec3 {
-  return mix([clampSensor(raw[0]), clampSensor(raw[1]), clampSensor(raw[2])])
-}
-
-/** 表示: 一番大きいチャンネルで割った比率を保ち、明るさだけを圧縮する。0 未満は 0。 */
-export function toDisplay(lin: Vec3, lift = 1): Vec3 {
-  const r = lin[0] * lift
-  const g = lin[1] * lift
-  const b = lin[2] * lift
-  const n = Math.max(r, g, b)
-  if (n <= 0) return [0, 0, 0]
-  const t = 1 - Math.exp(-1.6 * n)
-  const c = (v: number) => (v <= 0 ? 0 : v >= n ? 1 : v / n)
-  return [c(r) * t, c(g) * t, c(b) * t]
+export function luminance(c: Vec3) {
+  return LUMA_WEIGHTS[0] * c[0] + LUMA_WEIGHTS[1] * c[1] + LUMA_WEIGHTS[2] * c[2]
 }
 
 /** 色相（度）。無彩色に近いときは null。 */
@@ -95,80 +58,104 @@ export function hueDeg(rgb: Vec3): number | null {
   return ((Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * 180) / Math.PI + 360) % 360
 }
 
-export function hueDistance(a: number | null, b: number | null) {
-  if (a == null || b == null) return 0
-  const d = Math.abs(a - b) % 360
-  return d > 180 ? 360 - d : d
+function clip01(v: number) {
+  return v < 0 ? 0 : v > 1 ? 1 : v
 }
 
-/** 起点から色相が 60° 以上ずれたら「ひっくり返り」。 */
-export const FLIP_HUE_DEG = 60
+const AMBIENT: Vec3 = [0.05, 0.05, 0.05]
 
-// ---- 2 つの絵 -----------------------------------------------------------------
-
-/** 光の色ごとのセンサーの値（変換後に狙いの色になるよう逆算し、最大を 1 にしたもの）。 */
-export const LED_SENSOR: Vec3 = [0.1921, 0.592, 1.0] // → 青い LED
-export const YELLOW_SENSOR: Vec3 = [0.586, 1.0, 0.2199] // → 黄色
-/** 周りの暗いグレー（変換後に 0.045 の無彩色）。 */
-const AMBIENT_SENSOR: Vec3 = [0.045 / 2.0, 0.045, 0.045 / 1.5]
-
-export function ledStrength(u: number) {
-  return 0.6 + 3.9 * u
+function gauss2(x: number, y: number, cx: number, cy: number, s: number) {
+  const dx = x - cx
+  const dy = y - cy
+  return Math.exp(-(dx * dx + dy * dy) / (s * s))
 }
-export function yellowStrength(u: number) {
-  return 0.7 + 4.3 * u
+
+// ---- 1. 100% を超える側 ------------------------------------------------------
+
+/** オレンジの光（作業用の値）。 */
+export const ORANGE: Vec3 = [1.0, 0.38, 0.07]
+
+export function clipExposure(u: number) {
+  return 0.55 + 2.6 * u
 }
+
 /** 座標は -1..1。 */
-export function ledProfile(x: number, y: number) {
-  const r2 = x * x + y * y
-  return Math.exp(-r2 / (0.16 * 0.16)) + 0.35 * Math.exp(-r2 / (0.55 * 0.55))
-}
-export function yellowProfile(x: number, y: number) {
-  const dy = y - 0.1
-  const r2 = x * x + dy * dy
-  return 0.8 * Math.exp(-r2 / (0.35 * 0.35)) + 0.45 * Math.exp(-r2 / (0.8 * 0.8))
+export function orangeProfile(x: number, y: number) {
+  return 0.75 * gauss2(x, y, 0, 0.05, 0.3) + 0.35 * gauss2(x, y, 0, 0.05, 0.75)
 }
 
-export function lightSensor(color: Vec3, strength: number, profile: number): Vec3 {
+export function clipLinear(profile: number, u: number): Vec3 {
+  const k = clipExposure(u) * profile
+  return [AMBIENT[0] + k * ORANGE[0], AMBIENT[1] + k * ORANGE[1], AMBIENT[2] + k * ORANGE[2]]
+}
+
+/** 0〜1 を前提にした表示: チャンネルごとにクリップする。 */
+export function clipDisplay(lin: Vec3): Vec3 {
+  return [clip01(lin[0]), clip01(lin[1]), clip01(lin[2])]
+}
+
+// ---- 2. 0 を下回る側 ---------------------------------------------------------
+
+/** 青い LED の芯（色域の外寄りで、小さいチャンネルがほぼ 0）と、周りのグロー。 */
+export const LED_CORE: Vec3 = [0.02, 0.05, 1.0]
+export const LED_GLOW: Vec3 = [0.12, 0.2, 0.62]
+
+export function ledSaturation(u: number) {
+  return 1 + 1.3 * u
+}
+
+export function ledLinear(x: number, y: number): Vec3 {
+  const c = 1.2 * gauss2(x, y, 0, 0, 0.16)
+  const g = 0.5 * gauss2(x, y, 0, 0, 0.6)
   return [
-    AMBIENT_SENSOR[0] + strength * profile * color[0],
-    AMBIENT_SENSOR[1] + strength * profile * color[1],
-    AMBIENT_SENSOR[2] + strength * profile * color[2],
+    AMBIENT[0] + c * LED_CORE[0] + g * LED_GLOW[0],
+    AMBIENT[1] + c * LED_CORE[1] + g * LED_GLOW[1],
+    AMBIENT[2] + c * LED_CORE[2] + g * LED_GLOW[2],
   ]
 }
 
-// ---- 調べる 1 点（プローブ） --------------------------------------------------
+/** 彩度を上げる（RGB の平均を軸にする方式。明るさは保たれない）。 */
+export function saturateAroundMean(c: Vec3, s: number): Vec3 {
+  const p = (c[0] + c[1] + c[2]) / 3
+  return [p + s * (c[0] - p), p + s * (c[1] - p), p + s * (c[2] - p)]
+}
 
-export type PanelId = "led" | "yellow"
+/**
+ * 後ろの「輝度を基準にする処理」: 輝度でトーンを付けて色の比率を保つ。
+ * 輝度が 0 以下なら 0（黒）として扱う。
+ */
+export function lumaBasedDisplay(c: Vec3): Vec3 {
+  const y = luminance(c)
+  if (y <= 0) return [0, 0, 0]
+  const t = (y * (1 + y / 4)) / (1 + y)
+  const k = t / y
+  return [clip01(c[0] * k), clip01(c[1] * k), clip01(c[2] * k)]
+}
 
-export type ProbeState = {
-  /**
-   * バーに出す値。センサーの値（上限や 0 で止まる前）にホワイトバランスを掛けたもの。
-   * この単位では無彩色が 3 本同じ長さになり、上限は色ごとに WB_GAINS の位置になる。
-   */
-  values: Vec3
+// ---- 状態（図の枠と説明文の強調、テスト用） ----------------------------------
+
+export type PanelId = "clip" | "negative"
+
+export type PanelState = {
+  /** 図の中心の値（作業用の値、加工後） */
+  center: Vec3
   display: Vec3
-  baseDisplay: Vec3
-  /** 端で止まった / 0 を下回ったチャンネル */
-  limited: Chan[]
-  flipped: boolean
+  /** 崩れが起きているか（クリップ: 中心のどれかのチャンネルが 1 を超える／負: 中心の輝度が 0 以下） */
+  broken: boolean
 }
 
-function withWb(raw: Vec3): Vec3 {
-  return [raw[0] * WB_GAINS[0], raw[1] * WB_GAINS[1], raw[2] * WB_GAINS[2]]
+export function panelState(panel: PanelId, u: number): PanelState {
+  if (panel === "clip") {
+    const center = clipLinear(orangeProfile(0, 0.05), u)
+    return { center, display: clipDisplay(center), broken: Math.max(...center) > 1 }
+  }
+  const center = saturateAroundMean(ledLinear(0, 0), ledSaturation(u))
+  return { center, display: lumaBasedDisplay(center), broken: luminance(center) <= 0 }
 }
 
-export function probeState(panel: PanelId, u: number): ProbeState {
-  const color = panel === "led" ? LED_SENSOR : YELLOW_SENSOR
-  const strength = panel === "led" ? ledStrength : yellowStrength
-  const prof = panel === "led" ? ledProfile(0, 0) : yellowProfile(0, 0.1)
-  const raw = lightSensor(color, strength(u), prof)
-  const raw0 = lightSensor(color, strength(0), prof)
-  const display = toDisplay(sensorToWorking(raw))
-  const baseDisplay = toDisplay(sensorToWorking(raw0))
-  const limited = CHANS.filter((_, i) => raw[i] >= SENSOR_CEILING)
-  const flipped = hueDistance(hueDeg(display), hueDeg(baseDisplay)) >= FLIP_HUE_DEG
-  return { values: withWb(raw), display, baseDisplay, limited, flipped }
+export function negativePixel(x: number, y: number, u: number) {
+  const c = saturateAroundMean(ledLinear(x, y), ledSaturation(u))
+  return { value: c, display: lumaBasedDisplay(c) }
 }
 
 // ---- canvas 描画 ---------------------------------------------------------------
@@ -187,30 +174,36 @@ function encode(v: number) {
   return SRGB_LUT[Math.max(0, Math.min(4095, Math.round(v * 4095)))]
 }
 
-let profileCache: { led: Float32Array; yellow: Float32Array } | null = null
-function profiles() {
-  if (profileCache) return profileCache
-  const led = new Float32Array(N * N)
-  const yellow = new Float32Array(N * N)
+let fieldCache: { orange: Float32Array; led: Float32Array } | null = null
+function fields() {
+  if (fieldCache) return fieldCache
+  const orange = new Float32Array(N * N)
+  const led = new Float32Array(N * N * 3)
   for (let iy = 0; iy < N; iy++) {
     for (let ix = 0; ix < N; ix++) {
       const x = (ix / (N - 1)) * 2 - 1
       const y = (iy / (N - 1)) * 2 - 1
-      led[iy * N + ix] = ledProfile(x, y)
-      yellow[iy * N + ix] = yellowProfile(x, y)
+      const p = iy * N + ix
+      orange[p] = orangeProfile(x, y)
+      const c = ledLinear(x, y)
+      led[p * 3] = c[0]
+      led[p * 3 + 1] = c[1]
+      led[p * 3 + 2] = c[2]
     }
   }
-  profileCache = { led, yellow }
-  return profileCache
+  fieldCache = { orange, led }
+  return fieldCache
 }
 
 function paintPanel(ctx: CanvasRenderingContext2D, img: ImageData, panel: PanelId, u: number) {
   const data = img.data
-  const prof = profiles()[panel]
-  const color = panel === "led" ? LED_SENSOR : YELLOW_SENSOR
-  const k = panel === "led" ? ledStrength(u) : yellowStrength(u)
+  const f = fields()
+  const s = ledSaturation(u)
   for (let p = 0; p < N * N; p++) {
-    const d = toDisplay(sensorToWorking(lightSensor(color, k, prof[p])))
+    const d =
+      panel === "clip"
+        ? clipDisplay(clipLinear(f.orange[p], u))
+        : lumaBasedDisplay(saturateAroundMean([f.led[p * 3], f.led[p * 3 + 1], f.led[p * 3 + 2]], s))
     data[p * 4] = encode(d[0])
     data[p * 4 + 1] = encode(d[1])
     data[p * 4 + 2] = encode(d[2])
@@ -248,7 +241,7 @@ type Layout = {
   panels: Record<PanelId, PanelLayout>
 }
 
-const PANEL_ORDER: PanelId[] = ["led", "yellow"]
+const PANEL_ORDER: PanelId[] = ["clip", "negative"]
 
 function desktopLayout(): Layout {
   const size = 540
@@ -305,7 +298,7 @@ function mobileLayout(): Layout {
     subX: 36,
     subY: 132,
     subFont: 25,
-    labelFont: 34,
+    labelFont: 30,
     captionFont: 28,
     lineGap: 40,
     panels,
@@ -317,23 +310,23 @@ const MOBILE = mobileLayout()
 
 export const FAILURE_MODES_MOBILE_ASPECT = `${MOBILE.w} / ${MOBILE.h}`
 
-/** 一行の説明。モバイルでは lines で折り返す。 */
+/** 見出しと説明。モバイルでは lines で折り返す。 */
 const PANEL_TEXT: Record<PanelId, { label: string; caption: string; lines: string[] }> = {
-  led: {
-    label: "LED の点とグロー",
-    caption: "中心から先に、色がひっくり返る",
-    lines: ["中心から先に、", "色がひっくり返る"],
+  clip: {
+    label: "100% を超える側：露出を上げる",
+    caption: "一番明るいところが平らになり、黄色から白へ寄る",
+    lines: ["一番明るいところが平らになり、", "黄色から白へ寄る"],
   },
-  yellow: {
-    label: "黄色のグラデーション",
-    caption: "一番明るいところが、マゼンタにひっくり返る",
-    lines: ["一番明るいところが、", "マゼンタにひっくり返る"],
+  negative: {
+    label: "0 を下回る側：彩度を上げる",
+    caption: "鮮やかな中心から黒く抜ける。周りのグローは青のまま",
+    lines: ["鮮やかな中心から黒く抜ける。", "周りのグローは青のまま"],
   },
 }
 
 function Panel({ layout, panel, u, isMobile }: { layout: Layout; panel: PanelId; u: number; isMobile: boolean }) {
   const p = layout.panels[panel]
-  const flipped = probeState(panel, u).flipped
+  const flipped = panelState(panel, u).broken
   const text = PANEL_TEXT[panel]
   const captionLines = isMobile ? text.lines : [text.caption]
   return (
@@ -393,8 +386,8 @@ export default function CorrectionFailureModes({
   const lastRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
   const canvasRefs = useRef<Record<PanelId, HTMLCanvasElement | null>>({
-    led: null,
-    yellow: null,
+    clip: null,
+    negative: null,
   })
   const imageRefs = useRef<Partial<Record<PanelId, ImageData>>>({})
 
@@ -469,7 +462,7 @@ export default function CorrectionFailureModes({
           色のひっくり返り
         </text>
         <text x={layout.subX} y={layout.subY} fontSize={layout.subFont} fontWeight={500} fill={TEXT_MUTED}>
-          鮮やかなところから先に、色がひっくり返る
+          0〜100% の外に出た値が、後ろの処理で崩れる
         </text>
         {PANEL_ORDER.map((id) => (
           <Panel key={id} layout={layout} panel={id} u={u} isMobile={Boolean(isMobile)} />
