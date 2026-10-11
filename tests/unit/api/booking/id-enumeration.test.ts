@@ -33,6 +33,9 @@ vi.mock("@/lib/google-calendar/server", () => ({
   updateCalendarEvent: vi.fn(),
 }))
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }))
+vi.mock("@/lib/booking/server/external-write-policy", () => ({
+  bookingExternalWritesEnabled: () => true,
+}))
 
 import { DELETE, PATCH } from "@/app/api/booking/[id]/route"
 

@@ -37,6 +37,9 @@ vi.mock("@/lib/google-calendar/server", () => ({
   getCalendarEvent: mocks.getCalendarEvent,
 }))
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }))
+vi.mock("@/lib/booking/server/external-write-policy", () => ({
+  bookingExternalWritesEnabled: () => true,
+}))
 
 function request(token = "secret") {
   return new NextRequest("http://localhost/api/cron/reconcile-pending-gcal", {
