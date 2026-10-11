@@ -90,7 +90,7 @@ describe("a question typed while a panel is shown", () => {
     expect(h.generate).toHaveBeenCalledOnce()
     expect(result.ui).toMatchObject({ kind: "duration-input" })
     expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります")
-    expect(result.assistantMessage.content).toContain("作品の尺を時間・分で入力してください。")
+    expect(result.assistantMessage.content).toContain(projectLengthChoices.question)
   })
 
   it("keeps a Tier 2 answer that came without structured UI", async () => {
@@ -99,7 +99,7 @@ describe("a question typed while a panel is shown", () => {
 
     expect(result.ui).toMatchObject({ kind: "duration-input" })
     expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります")
-    expect(result.assistantMessage.content).toContain("作品の尺を時間・分で入力してください。")
+    expect(result.assistantMessage.content).toContain(projectLengthChoices.question)
   })
 
   it("still shows only the panel prompt when the customer did not ask anything", async () => {
@@ -129,7 +129,7 @@ describe("a question typed while a panel is shown", () => {
 
     expect(result.assistantMessage.content).toContain("作業期間は尺と素材の状態で変わります。")
     expect(result.assistantMessage.content).not.toContain("教えていただけますでしょうか")
-    expect(result.assistantMessage.content).toContain("作品の尺を時間・分で入力してください。")
+    expect(result.assistantMessage.content).toContain(projectLengthChoices.question)
     expect(result.ui).toMatchObject({ kind: "duration-input" })
   })
 
@@ -152,7 +152,7 @@ describe("a question typed while a panel is shown", () => {
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
 
     expect(result.assistantMessage.content).not.toContain("どの媒体で使う予定ですか")
-    expect(result.assistantMessage.content).toContain("作品の尺を時間・分で入力してください。")
+    expect(result.assistantMessage.content).toContain(projectLengthChoices.question)
   })
 
   it("tells the model to answer without asking back while a panel waits", async () => {

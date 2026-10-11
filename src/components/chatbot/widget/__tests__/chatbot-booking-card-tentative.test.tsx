@@ -81,7 +81,7 @@ describe("ChatbotBookingCard 仮キープ表示", () => {
     renderCard({ defaultDueDate: "2026-12-31" })
     fireEvent.click(screen.getByLabelText("2026-12-01 選択可・仮キープあり"))
     fireEvent.click(screen.getByRole("button", { name: "この日程で次へ" }))
-    fireEvent.change(screen.getByLabelText("納期をカレンダーで選ぶ"), { target: { value: "2026-11-30" } })
+    fireEvent.change(screen.getByLabelText("納品希望日をカレンダーで選ぶ"), { target: { value: "2026-11-30" } })
     fireEvent.click(screen.getByRole("button", { name: "日程を選び直す" }))
 
     expect(screen.getByLabelText("2026-12-01 納期後・選択不可")).toBeDisabled()

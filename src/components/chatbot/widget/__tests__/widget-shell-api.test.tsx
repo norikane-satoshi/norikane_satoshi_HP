@@ -1826,7 +1826,7 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("Booking Order")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
-    fireEvent.click(screen.getByLabelText("納期は未定"))
+    fireEvent.click(screen.getByLabelText("納品希望日は未定"))
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 
@@ -1946,7 +1946,7 @@ describe("WidgetShell API wiring", () => {
 
     expect(await screen.findByText("Booking Order")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "日程はまだ決まっていない" }))
-    fireEvent.click(screen.getByLabelText("納期は未定"))
+    fireEvent.click(screen.getByLabelText("納品希望日は未定"))
     fireEvent.click(screen.getByLabelText(/予約内容に同意します/))
     fireEvent.click(screen.getByRole("button", { name: "予約内容を送信" }))
 

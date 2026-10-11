@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 
 import { auth } from "@/auth"
+import { validateConditionAnswers, type ConditionAnswer } from "@/lib/booking/domain/project-conditions"
 import { enforceBodyLimit } from "@/lib/api/server/body-limit"
 import {
   buildChatbotMessageAuditEvents,
@@ -54,6 +55,16 @@ const sessionMaxAgeSeconds = 7 * 24 * 60 * 60
 const clientUserMessageIdPattern =
   /^client_msg_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
+const conditionSubmissionSchema = z.object({
+  conditionId: z.string().min(1),
+  answer: z.custom<ConditionAnswer>(),
+}).strict().superRefine((submission, context) => {
+  const result = validateConditionAnswers({ [submission.conditionId]: submission.answer })
+  if (!result.success) {
+    for (const issue of result.issues) context.addIssue({ code: "custom", path: ["answer", issue.path], message: issue.message })
+  }
+})
+
 const chatbotMessageRequestSchema = z.object({
   message: z.string().trim().min(1).max(4000).refine((message) => deadlineFromMessage(message) === undefined || isValidDeadlineInput(deadlineFromMessage(message)!)),
   conversationId: z.string().trim().min(1).optional(),
@@ -62,6 +73,7 @@ const chatbotMessageRequestSchema = z.object({
   recoverClientUserMessageId: z.string().regex(clientUserMessageIdPattern).optional(),
   pendingRequestKind: z.enum(["message", "edit"]).optional(),
   clientSessionId: z.string().uuid().optional(),
+  conditionAnswer: conditionSubmissionSchema.optional(),
   jobContext: z.record(z.string(), z.unknown()).optional(),
   conversationState: z.record(z.string(), z.unknown()).optional(),
 })
@@ -149,6 +161,7 @@ export async function POST(request: NextRequest) {
         userId: session?.user?.id ?? null,
         message: parsed.data.message,
         editTargetMessageId: parsed.data.editTargetMessageId ?? null,
+        conditionAnswer: parsed.data.conditionAnswer ?? null,
         jobContext: parsed.data.jobContext ?? null,
         conversationState: parsed.data.conversationState ?? null,
       }),
@@ -169,6 +182,7 @@ export async function POST(request: NextRequest) {
               clientUserMessageId: parsed.data.clientUserMessageId,
               recoverClientUserMessageId: parsed.data.recoverClientUserMessageId,
               pendingRequestKind: parsed.data.pendingRequestKind,
+              conditionAnswer: parsed.data.conditionAnswer,
               jobContext: parsed.data.jobContext,
               conversationState: parsed.data.conversationState,
             },

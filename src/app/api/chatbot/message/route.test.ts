@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ChatbotConversation, ChatbotMessage } from "@/lib/chatbot/domain"
+import { projectLengthChoices } from "@/lib/chatbot/domain"
 import {
   assertChatbotLlmResponseContract,
   isChatbotLlmResponseContractError,
@@ -186,6 +187,7 @@ async function loadPost({
     scheduleChatbotAuditPersistence,
     scheduleDeferredChatbotAuditPersistence,
   }))
+  const hashChatbotMessagePayload = vi.fn(() => "payload_hash")
   vi.doMock("@/lib/chatbot/server/message-request-coordinator", () => ({
     ChatbotMessageCoordinationError: class ChatbotMessageCoordinationError extends Error {},
     appendChatbotMessageRequestUserMessage,
@@ -194,7 +196,7 @@ async function loadPost({
     finalizeChatbotMessageRequest,
     recoverChatbotMessageRequestUserMessage,
     replaceChatbotMessageRequestUserMessage,
-    hashChatbotMessagePayload: vi.fn(() => "payload_hash"),
+    hashChatbotMessagePayload,
     prismaChatbotMessageRequestStore: {
       load: vi.fn(),
       claimNew: vi.fn(),
@@ -208,6 +210,7 @@ async function loadPost({
 
   const route = await import("./route")
   return {
+    hashChatbotMessagePayload,
     POST: route.POST,
     GET: route.GET,
     warmChatbotDatabase,
@@ -1142,4 +1145,36 @@ it("rejects a blank explicit deadline while accepting ordinary chat", async () =
   const route = await loadPost()
   expect((await route.POST(request({ message: "納期: " }))).status).toBe(400)
   expect((await route.POST(request({ message: "相談です" }))).status).toBe(200)
+})
+
+it("saves the ID-bound composition through the public route and includes it in retry identity", async () => {
+  const submission = { conditionId: "project-length", answer: { status: "answered", composition: [{ name: "CM", count: 3, durationSeconds: 30 }] } }
+  const route = await loadPost({ existingConversation: conversation({
+    context: { sessionId: "session_1", activeChoices: { ...projectLengthChoices, question: "変更しても対応は変わらない質問文" }, conversationState: { conditionAnswers: {} } },
+    messages: [message("assistant", "変更しても対応は変わらない質問文")],
+  }) })
+  const response = await route.POST(request({ message: "CM 30秒×3本", conditionAnswer: submission }, "chatbot_session_id=session_1"))
+  expect(response.status).toBe(200)
+  expect(route.hashChatbotMessagePayload).toHaveBeenCalledWith(expect.objectContaining({ conditionAnswer: submission }))
+  expect(route.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
+    conversationState: expect.objectContaining({
+      conditionAnswers: expect.objectContaining({
+        "project-length": expect.objectContaining({ status: "answered", composition: submission.answer.composition, sourceMessageId: expect.any(String) }),
+      }),
+    }),
+    jobContext: expect.objectContaining({ projectLengthMinutes: 1.5 }),
+  }))
+})
+
+it.each([
+  { conditionId: "unknown-question", answer: { status: "unknown" } },
+  { conditionId: "project-length", answer: { composition: [{ count: 3, durationSeconds: -30 }] } },
+  { conditionId: "job-kind", answer: { selectedIds: ["invented-kind"] } },
+  { conditionId: "project-length", answer: null },
+])("rejects an invalid ID-bound answer before conversation mutation", async (conditionAnswer) => {
+  const route = await loadPost()
+  const response = await route.POST(request({ message: "テスト回答", conditionAnswer }))
+  expect(response.status).toBe(400)
+  expect(route.coordinateChatbotMessageRequest).not.toHaveBeenCalled()
+  expect(route.appendMessage).not.toHaveBeenCalled()
 })
