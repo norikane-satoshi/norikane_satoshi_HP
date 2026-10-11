@@ -69,7 +69,7 @@ export function ProjectConditionInput({ definition, answer, onChange }: {
       ) : null}
       {!["single", "date", "composition"].includes(definition.input) ? (
         <label className="inline-flex min-h-11 items-center gap-2 text-sm text-hp">
-          <input type="checkbox" checked={unknown} onChange={(event) => onChange(event.target.checked ? { status: "unknown" } : { status: "answered" })} />未定
+          <input type="checkbox" checked={unknown} onChange={(event) => onChange(event.target.checked ? { status: "unknown" } : { status: "answered" })} />{definition.options.find((option) => option.id === "undecided")?.label ?? "未定"}
         </label>
       ) : null}
     </div>
@@ -89,8 +89,8 @@ export function ProjectConditionCard({ definition, onSubmit }: {
     <section className="space-y-3 rounded-[12px] border border-white/55 bg-white/35 p-3" aria-label={`${definition.label}の入力`}>
       <ProjectConditionInput definition={definition} answer={answer} onChange={setAnswer} />
       <p className="text-xs leading-relaxed text-hp-muted" aria-live="polite">{display}</p>
-      {definition.input === "composition" ? (
-        <button type="button" className="glass-btn min-h-11 w-full px-3 text-sm" onClick={() => onSubmit(`${definition.label}: 未定`, { conditionId: definition.id, answer: { status: "unknown" } })}>未定で回答する</button>
+      {definition.input === "composition" || definition.options.some((option) => option.id === "undecided" && option.label === "スキップ") ? (
+        <button type="button" className="glass-btn min-h-11 w-full px-3 text-sm" onClick={() => onSubmit(`${definition.label}: 未定`, { conditionId: definition.id, answer: { status: "unknown" } })}>{definition.options.find((option) => option.id === "undecided")?.label === "スキップ" ? "スキップ" : "未定で回答する"}</button>
       ) : null}
       <button type="button" className="glass-btn min-h-11 w-full px-3 text-sm disabled:opacity-50" disabled={!hasAnswer} onClick={submit}>{definition.label}を回答する</button>
     </section>

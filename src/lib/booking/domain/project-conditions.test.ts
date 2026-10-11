@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 import { getProjectConditionDefinition, isConditionVisible, projectConditionDefinitions, projectConditionDetails, formatConditionAnswer, validateConditionAnswers, sanitizeConditionAnswers } from "./project-conditions"
 
-it("uses the same declarative deadline reason visibility in every output", () => {
+it("offers the optional reason for both dated and undecided delivery", () => {
   const definition = getProjectConditionDefinition("delivery-date-reason")!
-  expect(isConditionVisible(definition, {})).toBe(false)
-  expect(isConditionVisible(definition, { "desired-delivery-date": { status: "unknown" } })).toBe(false)
+  expect(isConditionVisible(definition, {})).toBe(true)
+  expect(isConditionVisible(definition, { "desired-delivery-date": { status: "unknown" } })).toBe(true)
   expect(isConditionVisible(definition, { "desired-delivery-date": { date: "2026-10-25" } })).toBe(true)
   expect(isConditionVisible(definition, { "desired-delivery-date": { status: "unknown" }, "delivery-date-reason": { text: "試写会" } })).toBe(true)
 })

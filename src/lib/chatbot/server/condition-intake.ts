@@ -9,6 +9,8 @@ const legacyFlags = {
   "work-site": "hasWorkSite", "material-timing": "hasMaterialTiming", "reference-urls": "hasReferenceUrls",
   "lecture-training-content": "hasLectureTrainingContent", "lecture-training-format": "hasLectureTrainingVenue",
   "lecture-training-software": "hasLectureTrainingSoftware", "production-options": "hasProductionOptions",
+  "desired-delivery-date": "hasDesiredSchedule",
+  "delivery-date-reason": "hasDesiredSchedule",
 } as const
 
 /** Compatibility facts are used only when the persisted question has no structured answer. */
@@ -29,6 +31,7 @@ export function isConditionAnswered(id: string, state: Partial<ConversationState
   if (answer) return answer.status === "unknown" || answer.status === "answered"
   if (id === "booking-final-confirmation") return state.bookingFinalConfirmation?.status === "confirmed" || state.bookingFinalConfirmation?.status === "supplemental-received"
   if (state.conditionAnswers !== undefined) return false
+  if ((id === "desired-delivery-date" || id === "delivery-date-reason") && state.bookingFinalConfirmation?.status === "confirmed") return true
   const flag = legacyFlags[id as keyof typeof legacyFlags]
   return flag ? state[flag] === true : false
 }

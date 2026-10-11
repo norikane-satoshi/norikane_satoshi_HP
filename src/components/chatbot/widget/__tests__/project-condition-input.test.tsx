@@ -40,3 +40,11 @@ it("records explicit cut counts including zero and rejects fractional counts", (
   fireEvent.click(screen.getByRole("button", { name: "修正カット数を回答する" }))
   expect(submit).toHaveBeenCalledWith("修正カット数: 0", { conditionId: "retouch-cut-count", answer: { status: "answered", number: 0 } })
 })
+
+
+it("allows skipping the optional delivery reason directly", () => {
+  const submit = vi.fn()
+  render(<ProjectConditionCard definition={getProjectConditionDefinition("delivery-date-reason")!} onSubmit={submit} />)
+  fireEvent.click(screen.getByRole("button", { name: "スキップ" }))
+  expect(submit).toHaveBeenCalledWith("納品希望日の理由: 未定", { conditionId: "delivery-date-reason", answer: { status: "unknown" } })
+})

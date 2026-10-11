@@ -4,7 +4,7 @@ import { confirmedBookingNote, unconfirmedBookingValue } from "@/lib/chatbot/dom
 import { matchChoiceAnswer } from "@/lib/chatbot/domain/choice-answer"
 import { conditionChoiceSet } from "@/lib/chatbot/domain/survey-choice"
 import type { ChoiceAnswer } from "@/lib/chatbot/domain/conversation"
-import { deadlineFromMessage, deadlineForScheduling, isValidDeadlineInput } from "@/lib/chatbot/domain/deadline"
+import { deadlineFromMessage, deadlineForScheduling, normalizeDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import {
   additionalWorkChoices,
   buildBookingConfirmationItems,
@@ -464,7 +464,9 @@ export async function handleChatbotMessage(
     (isExplicitChoiceSubmission(input.message) || input.conditionAnswer?.conditionId === "job-kind") &&
     applyActiveChoiceAnswer({ activeChoices: jobKindChoices, message: input.message, conditionAnswer: input.conditionAnswer }) !== null
   const activeChoices =
-    contextualizeStoredActiveChoices(conversation) ?? (isOpeningPanelAnswer ? jobKindChoices : undefined)
+    contextualizeStoredActiveChoices(conversation) ?? (isOpeningPanelAnswer ? jobKindChoices : undefined) ??
+    (deadlineFromMessage(input.message) !== undefined || /納期はいつごろ/u.test(findLastAssistantMessageContent(conversation.messages) ?? "")
+      ? conditionChoiceSet("desired-delivery-date") : undefined)
   const activeIntakeClarification = conversation.context.conversationState?.activeIntakeClarification
   let activeChoiceAnswer = applyActiveChoiceAnswer({
     activeChoices,
@@ -516,8 +518,8 @@ export async function handleChatbotMessage(
     knowledgeSnapshot,
   })
   const jobContext = durationContext.jobContext
-  const submittedDeadline = deadlineFromMessage(input.message)
-  const explicitDeadline = submittedDeadline && isValidDeadlineInput(submittedDeadline) ? submittedDeadline : undefined
+  const deadlineAnswer = activeChoiceAnswer?.conversationState.conditionAnswers?.["desired-delivery-date"]
+  const explicitDeadline = deadlineAnswer?.status === "unknown" ? "未定" : deadlineAnswer?.date
   if (explicitDeadline) jobContext.publicReleaseDate = explicitDeadline
   const previousAssistantMessage = findLastAssistantMessageContent(conversation.messages)
   const baseConversationState = applyMaterialHandoffAnswer({
@@ -620,7 +622,6 @@ export async function handleChatbotMessage(
     latestUserMessage: input.message,
     noteAccess,
     hasSubmittedBooking: Boolean(submittedBooking),
-    bookingCardIsNext,
   })
   const fallbackRoutingDecision = deterministicReply
     ? codeRoutingDecision
@@ -1385,7 +1386,9 @@ function reconcileConversationContextFromHistory(conversation: ChatbotConversati
     ...(conversation.context.jobContext ?? {}),
     ...recovered.jobContext,
   }
-  const deadline = conversation.messages.filter((message) => message.role === "user").map((message) => deadlineFromMessage(message.content)).filter((value) => value === "未定" || (value && /^\d{4}-\d{2}-\d{2}$/.test(value))).at(-1)
+  const storedDeadline = conversationState.conditionAnswers?.["desired-delivery-date"]
+  const legacyDeadline = conversationState.conditionAnswers === undefined ? conversation.messages.filter((message) => message.role === "user").map((message) => deadlineFromMessage(message.content)).flatMap((value) => value ? normalizeDeadlineInput(value) ?? [] : []).at(-1) : undefined
+  const deadline = storedDeadline?.status === "unknown" ? "未定" : storedDeadline?.date ?? legacyDeadline
   if (deadline) {
     jobContext.publicReleaseDate = deadline
     conversationState.hasDesiredSchedule = true
@@ -2004,22 +2007,11 @@ function decideDeterministicIntakeReply(input: {
   latestUserMessage: string
   noteAccess: CustomerFacingNoteAccess
   hasSubmittedBooking: boolean
-  bookingCardIsNext: boolean
 }): DeterministicIntakeReply | undefined {
   const fallback = input.fallbackRoutingDecision
   if (!input.previousAssistantMessage || input.hasSubmittedBooking) return undefined
-  const deadlineAnswer = deadlineFromMessage(input.latestUserMessage)
-  if (
-    input.bookingCardIsNext &&
-    fallback.kind === "continue" &&
-    /納期はいつごろ/u.test(input.previousAssistantMessage) &&
-    deadlineAnswer && isValidDeadlineInput(deadlineAnswer) &&
-    input.noteAccess.kind === "none" &&
-    !looksLikeCustomerQuestion(deadlineAnswer)
-  ) {
-    return { nextQuestion: fallback.nextQuestion, reason: "intake-answer" }
-  }
-  if (input.noteAccess.kind !== "none" || looksLikeCustomerQuestion(input.latestUserMessage)) return undefined
+  const consumedDeadline = isConfirmedChoiceAnswer(input.activeChoiceAnswer) && ["desired-delivery-date", "delivery-date-reason"].includes(input.activeChoiceAnswer.choiceSetId)
+  if (input.noteAccess.kind !== "none" || (!consumedDeadline && looksLikeCustomerQuestion(input.latestUserMessage))) return undefined
   if (fallback.kind === "to-email") {
     // The summary form copy replaces any model text, so a panel answer that lands here needs no model.
     return isConfirmedChoiceAnswer(input.activeChoiceAnswer)

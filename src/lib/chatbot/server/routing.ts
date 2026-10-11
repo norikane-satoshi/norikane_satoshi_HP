@@ -14,9 +14,9 @@ import {
   decideLectureTrainingRouting,
   isLectureTrainingInquiry,
 } from "@/lib/chatbot/server/lecture-training"
-import { buildBookingFinalConfirmationQuestion, desiredScheduleQuestion } from "@/lib/chatbot/server/flow-policy"
+import { buildBookingFinalConfirmationQuestion, getMissingBookingReadinessSlots } from "@/lib/chatbot/server/flow-policy"
 import type { ChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
-import { missingConditionPanels } from "./condition-intake"
+import { conditionChoiceSet } from "@/lib/chatbot/domain/survey-choice"
 
 export type RoutingDecisionInput = {
   jobContext: JobContext
@@ -104,21 +104,16 @@ function continueDecision(input: {
   now?: Date
 }): RoutingDecision {
   const { conversationState, jobContext, estimate } = input
-  const presentChoices = missingConditionPanels(conversationState, jobContext)[0]
-  if (presentChoices) return { kind: "continue", nextQuestion: presentChoices.question, presentChoices }
-
-  if (!conversationState.hasContactEmail || !conversationState.contactEmail) {
+  const nextSlot = getMissingBookingReadinessSlots(conversationState, { jobContext })[0]
+  if (nextSlot === "contact-email") {
     return {
       kind: "continue",
       nextQuestion: "ご連絡先メールを教えてください",
     }
   }
-
-  if (!conversationState.hasDesiredSchedule && conversationState.bookingFinalConfirmation?.status !== "confirmed") {
-    return {
-      kind: "continue",
-      nextQuestion: desiredScheduleQuestion,
-    }
+  if (nextSlot) {
+    const presentChoices = conditionChoiceSet(nextSlot)
+    return { kind: "continue", nextQuestion: presentChoices.question, presentChoices }
   }
 
   // Unsupported job kinds use the consultation summary after confirmation.

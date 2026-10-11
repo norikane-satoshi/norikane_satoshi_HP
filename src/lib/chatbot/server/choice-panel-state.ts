@@ -1,5 +1,5 @@
 import { parseProjectLengthMinutes } from "@/lib/chatbot/domain/project-length"
-import { isSelectableDeadline } from "@/lib/chatbot/domain/deadline"
+import { isSelectableDeadline, normalizeDeadlineInput } from "@/lib/chatbot/domain/deadline"
 import { getProjectConditionDefinition, validateConditionAnswers, type ConditionAnswer } from "@/lib/booking/domain/project-conditions"
 import { totalWorkCompositionMinutes, validWorkComposition, type WorkCompositionRow } from "@/lib/booking/domain/work-composition"
 import { isConditionAnswered } from "./condition-intake"
@@ -40,6 +40,17 @@ export function applyActiveChoiceAnswer(input: {
 }): ChoicePanelPatch | null {
   const id = input.activeChoices?.id
   const definition = id ? getProjectConditionDefinition(id) : undefined
+  if (!input.conditionAnswer && definition?.input === "date") {
+    const value = input.message.normalize("NFKC").replace(new RegExp(`^\\s*(?:${definition.label}|納期|選択)\\s*[:：]\\s*`, "u"), "").trim()
+    const normalized = normalizeDeadlineInput(value)
+    if (!normalized) return null
+    return applyActiveChoiceAnswer({ ...input, conditionAnswer: { conditionId: definition.id, answer: normalized === "未定" ? { status: "unknown" } : { date: normalized } } })
+  }
+  if (!input.conditionAnswer && id === "delivery-date-reason") {
+    const text = input.message.normalize("NFKC").replace(/^\s*(?:納品希望日の理由|選択)\s*[:：]\s*/u, "").trim()
+    if (!text || /[?？]/u.test(text)) return null
+    return applyActiveChoiceAnswer({ ...input, conditionAnswer: { conditionId: id, answer: /^(?:スキップ|なし|未定)$/u.test(text) ? { status: "unknown" } : { text } } })
+  }
   if (input.conditionAnswer) {
     if (!definition || input.conditionAnswer.conditionId !== id) return null
     const submitted = input.conditionAnswer.answer
@@ -50,7 +61,7 @@ export function applyActiveChoiceAnswer(input: {
     if (definition.input === "single" && selectedIds && selectedIds.length > 1) return null
     if (!unknown && definition.input === "composition" && (!submitted.composition || !validWorkComposition(submitted.composition))) return null
     if (!unknown && definition.input === "number" && (submitted.number === undefined || !Number.isSafeInteger(submitted.number) || submitted.number < 0)) return null
-    if (!unknown && definition.input === "date" && !submitted.date) return null
+    if (!unknown && definition.input === "date" && (!submitted.date || !isSelectableDeadline(submitted.date))) return null
     if (!unknown && definition.input === "text" && !submitted.text?.trim()) return null
     if (!unknown && (definition.input === "single" || definition.input === "multiple") && !selectedIds?.length) return null
     if (!unknown && definition.input === "dates" && (!submitted.dates?.length && !submitted.text?.trim())) return null
@@ -125,6 +136,7 @@ export function applyActiveChoiceAnswer(input: {
 function toStructuredValueState(id: string, answer: ConditionAnswer, unknown: boolean): Partial<ConversationState> {
   const value = unknown ? "未確認" : answer.text?.trim() ?? answer.date
   switch (id) {
+    case "desired-delivery-date": return { hasDesiredSchedule: true, bookingPrefill: { dueDate: unknown ? "未定" : answer.date } }
     case "delivery-format": return { hasDeliveryFormat: true, deliveryFormat: value }
     case "dcp-creator": return { hasDcpCreator: true, dcpCreator: value }
     case "material-timing": return { hasMaterialTiming: true, materialHandoff: { timing: value } }
@@ -145,19 +157,17 @@ function applyLegacyChoiceAnswer(input: {
   const textIntake = [
     { id: "delivery-format", label: "納品形式", flag: "hasDeliveryFormat", field: "deliveryFormat" },
     { id: "dcp-creator", label: "DCP作成担当", flag: "hasDcpCreator", field: "dcpCreator" },
-    { id: "material-timing", label: "素材が揃う日", flag: "hasMaterialTiming", field: "materialTiming" },
   ] as const
   const intake = textIntake.find((item) => input.activeChoices?.id === item.id)
   if (intake) {
     const value = input.message.normalize("NFKC").replace(new RegExp(`^(?:${intake.label}|選択)\\s*[:：]\\s*`, "u"), "").trim()
     if (!value || /[?？]/u.test(value)) return null
     const unknown = isExplicitUnknown(value)
-    if (intake.id === "material-timing" && !unknown && !isSelectableDeadline(value)) return null
     return {
       choiceSetId: intake.id, choiceId: unknown ? "undecided" : "explicit-text", choiceIds: [unknown ? "undecided" : "explicit-text"],
       conversationState: {
         [intake.flag]: true,
-        ...(intake.id === "material-timing" ? { materialHandoff: { timing: unknown ? "未確認" : value } } : { [intake.field]: unknown ? "未確認" : value }),
+        [intake.field]: unknown ? "未確認" : value,
         activeIntakeClarification: undefined,
         intakeClarifications: { [intake.id]: { status: unknown ? "unknown-but-acceptable" : "clear", reason: "explicit-answer", answerPreview: preview(value) } },
       },

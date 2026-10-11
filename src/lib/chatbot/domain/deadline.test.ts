@@ -1,5 +1,5 @@
 import { expect, it } from "vitest"
-import { deadlineForScheduling, deadlineFromMessage, isCalendarDate, isValidDeadlineInput, todayInJapan } from "./deadline"
+import { deadlineForScheduling, deadlineFromMessage, isCalendarDate, isValidDeadlineInput, todayInJapan, normalizeDeadlineInput } from "./deadline"
 it("validates actual calendar dates and JST boundaries", () => {
   const now = new Date("2026-09-29T15:00:00Z")
   expect(todayInJapan(now)).toBe("2026-09-30")
@@ -17,4 +17,15 @@ it("keeps undecided/free text out of calendar calculations", () => {
   expect(deadlineForScheduling("相談したい")).toBeUndefined()
   expect(deadlineForScheduling("10月末ごろ")).toBeUndefined()
   expect(deadlineForScheduling("2026-10-15")).toBe("2026-10-15")
+})
+
+
+it.each(["10/25", "10月25日", "2026/10/25", "2026-10-25"])("normalizes an explicit date %s", (value) => {
+  expect(normalizeDeadlineInput(value, new Date("2026-10-11T00:00:00Z"))).toBe("2026-10-25")
+})
+it.each(["未定", "まだ決まっていない", "相談したい"])("normalizes an undecided deadline %s", (value) => {
+  expect(normalizeDeadlineInput(value)).toBe("未定")
+})
+it.each(["2/30", "2026/02/30", "昨日", "10月末ごろ", "2026-10-10"])("rejects an invalid or past date %s", (value) => {
+  expect(normalizeDeadlineInput(value, new Date("2026-10-11T00:00:00Z"))).toBeUndefined()
 })

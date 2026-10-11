@@ -19,7 +19,17 @@ export function deadlineFromMessage(message: string): string | undefined {
 
 /** Customers choose a calendar date or explicitly leave it undecided. */
 export function isValidDeadlineInput(value: string, now = new Date()): boolean {
-  return value === "未定" || isSelectableDeadline(value, now)
+  return normalizeDeadlineInput(value, now) !== undefined
+}
+
+export function normalizeDeadlineInput(value: string, now = new Date()): string | undefined {
+  const text = value.normalize("NFKC").trim().replace(/[。.!！]+$/u, "")
+  if (/^(?:未定|まだ未定|まだ決まっていない|決まっていない|わからない|分からない|不明|相談したい)$/u.test(text)) return "未定"
+  const match = /^(?:(\d{4})[\/年-])?(\d{1,2})[\/月-](\d{1,2})日?$/u.exec(text)
+  if (!match) return undefined
+  const year = match[1] ?? todayInJapan(now).slice(0, 4)
+  const date = `${year}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`
+  return isSelectableDeadline(date, now) ? date : undefined
 }
 
 /** Free text stays in the summary; only an unambiguous date constrains availability. */

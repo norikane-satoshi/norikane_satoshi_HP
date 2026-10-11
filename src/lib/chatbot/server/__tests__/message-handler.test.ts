@@ -60,6 +60,8 @@ function recordedConversation(overrides: Partial<ChatbotConversation>): ChatbotC
     ["work-site", state.hasWorkSite, selected([job.workSite ?? "remote-grading"])],
     ["material-timing", state.hasMaterialTiming, unknown],
     ["reference-urls", state.hasReferenceUrls, unknown],
+    ["desired-delivery-date", state.hasDesiredSchedule, state.bookingPrefill?.dueDate && state.bookingPrefill.dueDate !== "未定" ? { status: "answered", date: state.bookingPrefill.dueDate } : unknown],
+    ["delivery-date-reason", state.hasDesiredSchedule, unknown],
   ]
   if (state.hasAdditionalWork && job.additionalWork?.some(id => ["retouch", "skin-retouch", "compositing"].includes(id))) entries.push(["retouch-cut-count", true, unknown])
   const messages: ChatbotMessage[] = []
@@ -4838,14 +4840,15 @@ describe("handleChatbotMessage user context", () => {
       harness.options,
     )
 
-    expect(result.routingDecision).toMatchObject({ kind: "continue", nextQuestion: expect.stringContaining("納期") })
-    expect(result.ui).toMatchObject({ kind: "none" })
-    expect(result.assistantMessage.content).toContain("納期")
+    expect(result.routingDecision).toMatchObject({ kind: "continue", presentChoices: { id: "desired-delivery-date" } })
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "desired-delivery-date" } })
+    expect(result.assistantMessage.content).toContain("納品希望日")
   })
 
-  it.each(["2026-10-15", "未定"])("advances to the booking card for a deadline answer %s without the LLM", async (deadline) => {
+  it.each(["2026-10-15", "未定"])("advances to the optional reason for a legacy deadline answer %s without the LLM", async (deadline) => {
     const harness = setup({
-      existingConversation: conversation({
+      existingConversation: recordedConversation({
+        context: { sessionId: "session_1", userId: "user_a", conversationState: baseProductionConversationState({ hasDesiredSchedule: false, hasContactEmail: true, contactEmail: "client@example.com" }), jobContext: { jobKind: "cm", finalMedium: "web", workSite: "remote-grading" } },
         messages: [message("assistant", "納期はいつごろをご希望ですか？ カレンダーで日付を選んでください。")],
       }),
     })
@@ -4881,7 +4884,8 @@ describe("handleChatbotMessage user context", () => {
 
     expect(harness.generate).not.toHaveBeenCalled()
     expect(result.tier).toBe("tier-0-deterministic-intake")
-    expect(result.ui).toMatchObject({ kind: "booking-card", bookingPrefill: { dueDate: deadline === "未定" ? undefined : deadline } })
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "delivery-date-reason" } })
+    expect(harness.repository.updateConversationRouting.mock.calls.at(-1)?.[0]?.conversationState?.conditionAnswers?.["desired-delivery-date"]).toMatchObject(deadline === "未定" ? { status: "unknown" } : { status: "answered", date: deadline })
   })
 
   it("consumes stored final medium choice and advances to the next slot", async () => {

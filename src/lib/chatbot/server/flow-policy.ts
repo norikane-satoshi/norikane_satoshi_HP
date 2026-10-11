@@ -291,8 +291,6 @@ export function inferChatbotFlowStep(input: {
   }
 }
 
-export const desiredScheduleQuestion = "納期はいつごろをご希望ですか？ 日付か未定を選んでください。日付を選んだ場合、理由があれば任意でご記入ください。"
-
 export function getMissingBookingReadinessSlots(
   conversationState: ConversationState,
   options: {
@@ -301,14 +299,11 @@ export function getMissingBookingReadinessSlots(
   } = {},
 ): BookingReadinessSlot[] {
   return [
-    ...missingConditionPanels(conversationState, options.jobContext).map((panel) => panel.id),
+    ...missingConditionPanels(conversationState, options.jobContext).map((panel) => ({ id: panel.id, order: getProjectConditionDefinition(panel.id)?.order ?? 0 })),
     conversationState.hasContactEmail && conversationState.contactEmail ? undefined
       : options.bookingPrefill?.contactEmail ? undefined
-        : "contact-email",
-    conversationState.hasDesiredSchedule || conversationState.bookingFinalConfirmation?.status === "confirmed"
-      ? undefined
-      : "desired-schedule",
-  ].filter((item): item is BookingReadinessSlot => Boolean(item))
+        : { id: "contact-email", order: 11.5 },
+  ].filter((item): item is { id: string; order: number } => Boolean(item)).sort((a, b) => a.order - b.order).map(({ id }) => id)
 }
 
 type BookingReadinessSlot = string
@@ -501,8 +496,6 @@ function buildMissingBookingReadinessQuestion(slot: ReturnType<typeof getMissing
   switch (slot) {
     case "contact-email":
       return "ご連絡先メールを教えてください"
-    case "desired-schedule":
-      return desiredScheduleQuestion
     default:
       throw new Error(`Unknown booking readiness slot: ${slot}`)
   }

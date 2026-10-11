@@ -1,5 +1,5 @@
 import { conditionChoiceSet } from "@/lib/chatbot/domain/survey-choice"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 
@@ -204,5 +204,36 @@ describe("job-kind panel shown before the first message", () => {
 describe("time choices", () => {
   it("offers the approved timing labels", () => {
     expect(materialTimingChoices.choices.map((choice) => choice.label)).toEqual(["未定"])
+  })
+})
+
+
+describe("delivery deadline condition intake", () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-10-11T00:00:00Z")) })
+  afterEach(() => { vi.useRealTimers() })
+  const ready = { ...beforeMaterials, hasMaterialTiming: true, hasReferenceUrls: true, hasContactEmail: true, contactEmail: "client@example.com", conditionAnswers: { ...beforeMaterials.conditionAnswers, "material-timing": { status: "unknown" as const }, "reference-urls": { status: "answered" as const, selectedIds: ["none"] } } }
+  it.each(["未定", "まだ決まっていない", "相談したい", "10/25", "10月25日", "2026/10/25", "納品希望日: 未定", "納期: 10/25"])("stores a typed deadline and offers its optional reason: %s", async (answer) => {
+    const panel = conditionChoiceSet("desired-delivery-date")
+    const h = harness(conversation({ messages: [msg("a1", "assistant", panelText(panel))], activeChoices: panel, conversationState: ready }))
+    const result = await handleChatbotMessage({ sessionId: "session_panels", message: answer }, h.options)
+    expect(h.generate).not.toHaveBeenCalled()
+    expect(persistedState(h).conditionAnswers?.[panel.id]).toMatchObject(/25/u.test(answer) ? { status: "answered", date: "2026-10-25", sourceMessageId: result.userMessage.id } : { status: "unknown", sourceMessageId: result.userMessage.id })
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "delivery-date-reason" } })
+  })
+  it.each([{ status: "unknown" as const }, { date: "2026-10-25" }])("uses the structured button answer instead of its display text: %j", async (answer) => {
+    const panel = conditionChoiceSet("desired-delivery-date")
+    const h = harness(conversation({ messages: [msg("a1", "assistant", panelText(panel))], activeChoices: panel, conversationState: ready }))
+    const result = await handleChatbotMessage({ sessionId: "session_panels", message: "Opaque button display", conditionAnswer: { conditionId: panel.id, answer } }, h.options)
+    expect(h.generate).not.toHaveBeenCalled()
+    expect(persistedState(h).conditionAnswers?.[panel.id]).toMatchObject(answer)
+    expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "delivery-date-reason" } })
+  })
+  it.each(["試写会に合わせたい", "スキップ"])("finishes the optional reason without repeating the deadline: %s", async (answer) => {
+    const panel = conditionChoiceSet("delivery-date-reason")
+    const h = harness(conversation({ messages: [msg("a1", "assistant", panelText(panel))], activeChoices: panel, conversationState: { ...ready, conditionAnswers: { ...ready.conditionAnswers, "desired-delivery-date": { status: "unknown" } } } }))
+    const result = await handleChatbotMessage({ sessionId: "session_panels", message: answer }, h.options)
+    expect(h.generate).not.toHaveBeenCalled()
+    expect(persistedState(h).conditionAnswers?.[panel.id]).toMatchObject(answer === "スキップ" ? { status: "unknown" } : { status: "answered", text: answer })
+    expect(result.ui).toMatchObject({ kind: "booking-card" })
   })
 })

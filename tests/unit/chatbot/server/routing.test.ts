@@ -169,11 +169,12 @@ describe("chatbot fallback router", () => {
 
     expect(result).toMatchObject({
       kind: "continue",
-      nextQuestion: "納期はいつごろをご希望ですか？ 日付か未定を選んでください。日付を選んだ場合、理由があれば任意でご記入ください。",
+      nextQuestion: "納品希望日を教えてください",
+      presentChoices: { id: "desired-delivery-date", input: "date" },
     })
-    if (result.kind === "continue") expect(result.presentChoices).toBeUndefined()
+    if (result.kind === "continue") expect(result.presentChoices?.choices).toContainEqual(expect.objectContaining({ id: "undecided" }))
     expect(getMissingBookingReadinessSlots(conversationState({ hasDesiredSchedule: false }), { jobContext: jobContext() }))
-      .toContain("desired-schedule")
+      .toEqual(["desired-delivery-date", "delivery-date-reason"])
   })
 
   it("does not reopen the deadline step for a previously confirmed booking", () => {
@@ -181,7 +182,7 @@ describe("chatbot fallback router", () => {
       hasDesiredSchedule: false,
       bookingFinalConfirmation: { status: "confirmed", confirmedAtTurn: 8 },
     })
-    expect(getMissingBookingReadinessSlots(state, { jobContext: jobContext() })).not.toContain("desired-schedule")
+    expect(getMissingBookingReadinessSlots(state, { jobContext: jobContext() })).not.toEqual(["desired-delivery-date", "delivery-date-reason"])
     expect(decideRoutingFallback({ jobContext: jobContext(), conversationState: state })).toMatchObject({
       kind: "continue",
       nextQuestion: expect.stringContaining("予約カード"),

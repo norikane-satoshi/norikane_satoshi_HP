@@ -242,6 +242,7 @@ afterEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 describe("POST /api/chatbot/message", () => {
@@ -1186,4 +1187,13 @@ it("reports failed database warmup as unavailable", async () => {
   expect(response.status).toBe(503)
   expect(response.headers.get("cache-control")).toBe("no-store")
   expect(await response.json()).toEqual({ error: "chatbot_database_unavailable" })
+})
+
+it.each(["未定", "まだ決まっていない", "相談したい", "10/25", "10月25日", "2026/10/25"])("accepts legacy prefixed delivery input %s at the API boundary", async (value) => {
+  vi.useFakeTimers({ toFake: ["Date"] })
+  vi.setSystemTime(new Date("2026-10-11T00:00:00Z"))
+  const route = await loadPost()
+  const response = await route.POST(request({ message: `納品希望日: ${value}` }))
+  expect(response.status).toBe(200)
+  expect(route.coordinateChatbotMessageRequest).toHaveBeenCalledOnce()
 })
