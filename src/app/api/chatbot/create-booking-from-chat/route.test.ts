@@ -39,6 +39,11 @@ function validChatBooking(overrides: Record<string, unknown> = {}) {
 
 async function loadPost(session: { user?: { id?: string; email?: string } } | null = null) {
   vi.resetModules()
+  vi.stubEnv("NODE_ENV", "production")
+  vi.stubEnv("VERCEL", "1")
+  vi.stubEnv("VERCEL_ENV", "production")
+  vi.stubEnv("VITEST", "")
+  vi.stubEnv("BOOKING_EXTERNAL_WRITES", "")
 
   const prisma = {
     user: {
@@ -107,6 +112,18 @@ afterEach(() => {
 })
 
 describe("POST /api/chatbot/create-booking-from-chat", () => {
+  it("blocks verification before public-user creation, booking, owner notifications or Slack", async () => {
+    const route = await loadPost()
+    vi.stubEnv("BOOKING_EXTERNAL_WRITES", "disabled")
+    const response = await route.POST(request(validChatBooking()))
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({ error: "booking_external_writes_disabled" })
+    expect(route.prisma.user.upsert).not.toHaveBeenCalled()
+    expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+    expect(route.sendChatbotBookingOwnerNotification).not.toHaveBeenCalled()
+    expect(route.sendChatbotSlackNotification).not.toHaveBeenCalled()
+  })
+
   it("shares unconfirmed facts across the stored booking and owner notification, ignoring legacy inferred memo", async () => {
     const route = await loadPost()
     const response = await route.POST(request(validChatBooking({
@@ -424,24 +441,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     expect(route.sendChatbotBookingOwnerNotification.mock.calls[0][0].memo.endsWith("初回相談")).toBe(true)
   })
 
-  it("returns the owner notification ID only in local development", async () => {
-    vi.stubEnv("NODE_ENV", "development")
-    vi.stubEnv("VERCEL", "")
-    vi.stubEnv("VERCEL_ENV", "development")
-    const route = await loadPost()
-
-    const response = await route.POST(request(validChatBooking()))
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      emailDebug: { chatbotOwnerNotificationId: "email_1" },
-    })
-  })
-
-  it("does not return the owner notification ID outside local development", async () => {
-    vi.stubEnv("NODE_ENV", "development")
-    vi.stubEnv("VERCEL", "1")
-    vi.stubEnv("VERCEL_ENV", "production")
+  it("does not return the owner notification ID in Production", async () => {
     const route = await loadPost()
 
     const response = await route.POST(request(validChatBooking()))
@@ -530,7 +530,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
     })
   })
 
-  it("keeps a check conversation's booking out of Slack while a manual or customer booking still posts", async () => {
+  it("rejects diagnostic bookings before production writes while customer bookings still post", async () => {
     vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "worker-secret")
     const { chatbotDiagnosticHeader, chatbotDiagnosticToken } = await import("@/lib/chatbot/server/diagnostic-request")
     const diagnostic = await loadPost()
@@ -539,12 +539,13 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
       request(validChatBooking(), "session_1", { [chatbotDiagnosticHeader]: chatbotDiagnosticToken()! }),
     )
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({ error: "booking_external_writes_disabled" })
+    expect(diagnostic.prisma.user.upsert).not.toHaveBeenCalled()
+    expect(diagnostic.createBookingFromApiInput).not.toHaveBeenCalled()
+    expect(diagnostic.sendChatbotBookingOwnerNotification).not.toHaveBeenCalled()
     expect(diagnostic.sendChatbotSlackNotification).not.toHaveBeenCalled()
-    const auditEvents = diagnostic.scheduleChatbotAuditPersistence.mock.calls.flatMap(([events]) => events)
-    expect(auditEvents).toContainEqual(
-      expect.objectContaining({ eventName: "slack_notification_completed", errorCode: "slack-skipped-diagnostic" }),
-    )
+    expect(diagnostic.scheduleChatbotAuditPersistence).not.toHaveBeenCalled()
 
     const manual = await loadPost()
     await manual.POST(request(validChatBooking(), "session_1", { [chatbotDiagnosticHeader]: "not-the-token" }))

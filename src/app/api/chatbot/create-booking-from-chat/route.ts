@@ -1,5 +1,7 @@
 import { PUBLIC_CHATBOT_BOOKING_USER_EMAIL } from "@/lib/booking/server/claim-chat-bookings"
 import { isCalendarDate, isValidDeadlineInput, todayInJapan } from "@/lib/chatbot/domain/deadline"
+import { bookingExternalWritesEnabled, BOOKING_EXTERNAL_WRITES_DISABLED } from "@/lib/booking/server/external-write-policy"
+
 import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 
@@ -38,7 +40,6 @@ import { getChatbotBuildSha } from "@/lib/chatbot/server/build-info"
 import {
   chatbotSlackAuditErrorCode,
   isChatbotDiagnosticRequest,
-  skipDiagnosticSlackNotification,
 } from "@/lib/chatbot/server/diagnostic-request"
 import { logPrivacySafeChatbotEvent } from "@/lib/chatbot/server/boundary-event-log"
 import { prisma } from "@/lib/prisma"
@@ -342,6 +343,10 @@ async function notifySlackBookingOrderSubmitted(input: {
 }
 
 export async function POST(request: NextRequest) {
+  if (!bookingExternalWritesEnabled() || isChatbotDiagnosticRequest(request.headers)) {
+    return NextResponse.json({ error: BOOKING_EXTERNAL_WRITES_DISABLED }, { status: 503 })
+  }
+
   let raw: unknown
   try {
     raw = await request.json()
@@ -487,10 +492,7 @@ export async function POST(request: NextRequest) {
         bookingGroupId,
         selectedSlotCount,
         ownerNotificationWarning: notificationWarning,
-        // Automated checks keep their bookings out of Slack; manual tests and customers still post.
-        notifier: isChatbotDiagnosticRequest(request.headers)
-          ? skipDiagnosticSlackNotification
-          : sendChatbotSlackNotification,
+        notifier: sendChatbotSlackNotification,
       })
     } else if (idempotentReplay) {
       slackAudit = {

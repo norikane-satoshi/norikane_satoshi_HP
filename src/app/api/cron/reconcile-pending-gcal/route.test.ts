@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { chatbotDiagnosticHeader, chatbotDiagnosticToken } from "@/lib/chatbot/server/diagnostic-request"
+
+afterEach(() => vi.unstubAllEnvs())
 
 const mocks = vi.hoisted(() => ({
   cleanupExpiredChatbotConversations: vi.fn(),
@@ -53,6 +56,12 @@ describe("GET /api/cron/reconcile-pending-gcal", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.unstubAllEnvs()
+    vi.stubEnv("NODE_ENV", "production")
+    vi.stubEnv("VERCEL", "1")
+    vi.stubEnv("VERCEL_ENV", "production")
+    vi.stubEnv("VITEST", "")
+    vi.stubEnv("BOOKING_EXTERNAL_WRITES", "")
+
     vi.stubEnv("CRON_SECRET", "secret")
     vi.stubEnv("GOOGLE_CALENDAR_BUSY_SOURCE_ID", "primary")
     mocks.getCachedCalendarAccessToken.mockResolvedValue({ token: "access-token" })
@@ -77,6 +86,28 @@ describe("GET /api/cron/reconcile-pending-gcal", () => {
       deletedInquiryCount: 1,
       unlinkedBookingGroupCount: 1,
     })
+  })
+
+  it("does not replay production intents during local verification", async () => {
+    vi.stubEnv("VERCEL", "")
+    const response = await GET(request())
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({ error: "booking_external_writes_disabled" })
+    expect(mocks.getCachedCalendarAccessToken).not.toHaveBeenCalled()
+    expect(mocks.prisma.bookingCalendarEvent.findMany).not.toHaveBeenCalled()
+    expect(mocks.prisma.bookingGroup.update).not.toHaveBeenCalled()
+    expect(mocks.cleanupExpiredChatbotConversations).not.toHaveBeenCalled()
+  })
+
+  it("does not replay production intents for authenticated diagnostic verification", async () => {
+    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "diagnostic-test-secret")
+    const diagnostic = request()
+    diagnostic.headers.set(chatbotDiagnosticHeader, chatbotDiagnosticToken()!)
+    const response = await GET(diagnostic)
+    expect(response.status).toBe(503)
+    expect(mocks.getCachedCalendarAccessToken).not.toHaveBeenCalled()
+    expect(mocks.prisma.bookingCalendarEvent.findMany).not.toHaveBeenCalled()
+    expect(mocks.cleanupExpiredChatbotConversations).not.toHaveBeenCalled()
   })
 
   it("returns cleanup summary from the daily reconcile cron", async () => {

@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+afterEach(() => vi.unstubAllEnvs())
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
@@ -165,6 +167,11 @@ function mockHappyPath() {
 
 describe("POST /api/booking", () => {
   beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production")
+    vi.stubEnv("VERCEL", "1")
+    vi.stubEnv("VERCEL_ENV", "production")
+    vi.stubEnv("VITEST", "")
+    vi.stubEnv("BOOKING_EXTERNAL_WRITES", "")
     vi.clearAllMocks()
     delete process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   })
@@ -530,7 +537,7 @@ describe("POST /api/booking", () => {
     const response = await POST(request(validBooking()))
 
     expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({ error: "INTERNAL_ERROR", detail: "db down" })
+    await expect(response.json()).resolves.toEqual({ error: "INTERNAL_ERROR" })
     error.mockRestore()
   })
 })
@@ -600,6 +607,11 @@ describe("POST /api/booking/conflicts", () => {
 
 describe("/api/booking/[id]", () => {
   beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production")
+    vi.stubEnv("VERCEL", "1")
+    vi.stubEnv("VERCEL_ENV", "production")
+    vi.stubEnv("VITEST", "")
+    vi.stubEnv("BOOKING_EXTERNAL_WRITES", "")
     vi.clearAllMocks()
     process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID = "calendar_1"
     mocks.findConflictingBookings.mockResolvedValue([])

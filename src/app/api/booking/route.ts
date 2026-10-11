@@ -1,3 +1,6 @@
+import { isChatbotDiagnosticRequest } from "@/lib/chatbot/server/diagnostic-request"
+import { bookingExternalWritesEnabled, BOOKING_EXTERNAL_WRITES_DISABLED } from "@/lib/booking/server/external-write-policy"
+
 import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/auth"
@@ -16,6 +19,10 @@ function responseForConflict(error: string) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!bookingExternalWritesEnabled() || isChatbotDiagnosticRequest(request.headers)) {
+    return NextResponse.json({ error: BOOKING_EXTERNAL_WRITES_DISABLED }, { status: 503 })
+  }
+
   const bodyLimit = enforceBodyLimit(request)
   if (bodyLimit) return bodyLimit
 

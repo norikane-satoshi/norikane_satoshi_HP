@@ -79,6 +79,12 @@ async function loadRoute(
   options: LoadRouteOptions = {},
 ) {
   vi.resetModules()
+  vi.stubEnv("NODE_ENV", "production")
+  vi.stubEnv("VERCEL", "1")
+  vi.stubEnv("VERCEL_ENV", "production")
+  vi.stubEnv("VITEST", "")
+  vi.stubEnv("BOOKING_EXTERNAL_WRITES", "")
+
   vi.stubEnv("BOOKING_CALENDAR_ADMIN_EMAIL", "admin@example.com")
   vi.stubEnv("GOOGLE_CALENDAR_BUSY_SOURCE_ID", "calendar_id_test")
 
@@ -147,6 +153,24 @@ afterEach(() => {
 })
 
 describe("/api/booking/[id] access control", () => {
+  it("blocks local PATCH and DELETE before loading or changing a real booking", async () => {
+    const route = await loadRoute({ user: { id: "owner_user" } }, createSlot({ customerUserId: "owner_user" }))
+    vi.stubEnv("VERCEL", "")
+    const responses = [
+      await route.PATCH(new NextRequest("http://localhost/api/booking/slot_1", {
+        method: "PATCH", body: JSON.stringify({ action: "update_details", projectTitle: "Test" }),
+      }), context()),
+      await route.DELETE(new NextRequest("http://localhost/api/booking/slot_1", { method: "DELETE" }), context()),
+    ]
+    for (const response of responses) {
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toEqual({ error: "booking_external_writes_disabled" })
+    }
+    expect(route.prisma.bookingTimeSlot.findUnique).not.toHaveBeenCalled()
+    expect(route.updateCalendarEvent).not.toHaveBeenCalled()
+    expect(route.cancelBookingGroupCalendarEvents).not.toHaveBeenCalled()
+  })
+
   it("returns 404 for another user's booking on GET/PATCH/DELETE", async () => {
     const route = await loadRoute(
       { user: { id: "other_user", email: "other@example.com" } },

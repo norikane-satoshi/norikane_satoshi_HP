@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test"
 
 import { bookingApiSchema } from "@/lib/booking/domain/api-schema"
-import { createBookingFromApiInput } from "@/lib/booking/server/create-booking"
 import {
   createBookingForUser,
   e2eCurrentWeekRange,
@@ -30,7 +29,7 @@ function displayDateKey(dateKey: string) {
 }
 
 test.describe("booking personal smoke", () => {
-  test("personal booking saves a date consultation request without creating a calendar event", async ({ page }) => {
+  test("verification rejects real booking writes and renders an isolated consultation receipt", async ({ page }) => {
     const prisma = prismaForE2E()
     const user = await upsertUser(prisma, testUserEmail, "E2E Satoshi")
     await prisma.bookingGroup.deleteMany({ where: { projectTitle: { startsWith: prefix } } })
@@ -40,29 +39,49 @@ test.describe("booking personal smoke", () => {
       start: existingSlot.start,
       end: existingSlot.end,
     })
+    const bookingCount = await prisma.bookingGroup.count()
+    const rejectedWrites = await Promise.all([
+      page.request.post("/api/booking", { data: {} }),
+      page.request.post("/api/chatbot/create-booking-from-chat", { data: {} }),
+      page.request.patch("/api/booking/verification-fixture", { data: {} }),
+      page.request.delete("/api/booking/verification-fixture"),
+    ])
+    for (const response of rejectedWrites) {
+      expect(response.status()).toBe(503)
+      expect(await response.json()).toEqual({ error: "booking_external_writes_disabled" })
+    }
+    expect(await prisma.bookingGroup.count()).toBe(bookingCount)
     await page.route("**/api/booking", async (route) => {
       if (route.request().method() !== "POST") {
         await route.fallback()
         return
       }
       const input = bookingApiSchema.parse(route.request().postDataJSON())
-      const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
-      delete process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
-      try {
-        const result = await createBookingFromApiInput({
-          input,
-          userId: user.id,
-          userEmail: user.email,
-        })
-        await route.fulfill({
-          status: result.status,
-          contentType: "application/json",
-          body: JSON.stringify(result.body),
-        })
-      } finally {
-        if (calendarId === undefined) delete process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
-        else process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID = calendarId
-      }
+      const customer = await prisma.customer.upsert({
+        where: { userId: user.id },
+        update: {},
+        create: { userId: user.id, displayName: input.contactName },
+      })
+      const requestedDates = input.requestedDates ?? []
+      const booking = await prisma.bookingGroup.create({ data: {
+        customerId: customer.id,
+        projectTitle: input.projectTitle,
+        contactName: input.contactName,
+        customerEmail: user.email,
+        status: "NEEDS_SCHEDULE",
+        memo: `${input.memo}\n希望日: ${requestedDates.map(displayDateKey).join("、")}`,
+      } })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "schedule_unselected",
+          bookingGroupId: booking.id,
+          bookingIds: [],
+          bookingStatus: "NEEDS_SCHEDULE",
+          scheduleStatus: "unscheduled",
+        }),
+      })
     })
 
     const authResponse = await page.goto("/api/dev/auth-bypass")

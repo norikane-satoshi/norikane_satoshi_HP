@@ -1,101 +1,57 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  FLIP_HUE_DEG,
-  LED_SENSOR,
-  WB_GAINS,
-  YELLOW_SENSOR,
   hueDeg,
-  hueDistance,
-  ledProfile,
-  ledStrength,
-  lightSensor,
-  probeState,
-  sensorToWorking,
-  toDisplay,
-  yellowProfile,
-  yellowStrength,
+  luminance,
+  negativePixel,
+  panelState,
+  saturateAroundMean,
   type Vec3,
 } from "@/components/notes/visuals/correction-failure-modes"
 
-const hueOf = (v: Vec3) => hueDeg(v)
-const probeStateGrey = (): Vec3 => {
-  const raw: Vec3 = [0.3 / WB_GAINS[0], 0.3 / WB_GAINS[1], 0.3 / WB_GAINS[2]]
-  return [raw[0] * WB_GAINS[0], raw[1] * WB_GAINS[1], raw[2] * WB_GAINS[2]]
-}
+describe("correction-failure-modes (0〜100% の外に出た値が後ろの処理で崩れる)", () => {
+  it("clip side: starts orange, then the centre clips channel by channel and drifts toward yellow / white", () => {
+    const start = panelState("clip", 0)
+    expect(start.broken).toBe(false)
+    const startHue = hueDeg(start.display) ?? 0
+    expect(startHue).toBeGreaterThan(10)
+    expect(startHue).toBeLessThan(35)
 
-function firstStep(panel: "led" | "yellow" | "black", pred: (u: number) => boolean) {
-  for (let step = 0; step <= 200; step++) {
-    const u = step / 200
-    if (pred(u)) return u
-  }
-  return -1
-}
-
-describe("correction-failure-modes (鮮やかなところから先に色がひっくり返る)", () => {
-  it("keeps grey grey through the colour conversion", () => {
-    const w = sensorToWorking([0.2 / 2, 0.2, 0.2 / 1.5])
-    for (const v of w) expect(v).toBeCloseTo(0.2, 6)
+    const end = panelState("clip", 1)
+    expect(end.broken).toBe(true)
+    expect(end.display[0]).toBe(1)
+    expect(end.display[1]).toBe(1)
+    const endHue = hueDeg(end.display) ?? 0
+    expect(endHue).toBeGreaterThan(50)
   })
 
-  it("shows white-balanced values, so the ceiling differs per channel and full clipping is not white", () => {
-    const end = probeState("yellow", 1)
-    expect(end.limited).toEqual(["R", "G", "B"])
-    const recorded = end.values.map((v, i) => Math.min(v, WB_GAINS[i]))
-    expect(recorded).toEqual([...WB_GAINS])
-    // 上限の高さが違う（G が一番低い）ので、全部止まっても R:G:B は揃わない
-    expect(WB_GAINS[1]).toBeLessThan(WB_GAINS[0])
-    expect(WB_GAINS[1]).toBeLessThan(WB_GAINS[2])
-    // 無彩色ならホワイトバランス後の 3 本は同じ長さ
-    const grey = probeStateGrey()
-    expect(grey[0]).toBeCloseTo(grey[1], 6)
-    expect(grey[2]).toBeCloseTo(grey[1], 6)
+  it("negative side: saturation pushes the small channels below 0 and the centre luminance to <= 0, so it goes black", () => {
+    const start = panelState("negative", 0)
+    expect(start.broken).toBe(false)
+    expect(luminance(start.center)).toBeGreaterThan(0)
+    expect(Math.max(...start.display)).toBeGreaterThan(0.3)
+
+    const end = panelState("negative", 1)
+    expect(end.broken).toBe(true)
+    expect(end.center[0]).toBeLessThan(0)
+    expect(end.center[1]).toBeLessThan(0)
+    expect(luminance(end.center)).toBeLessThanOrEqual(0)
+    expect(end.display).toEqual([0, 0, 0])
   })
 
-  it("LED: starts blue, B stops at the ceiling first, then only the centre flips to the magenta side", () => {
-    const start = probeState("led", 0)
-    expect(start.limited).toEqual([])
-    expect(hueOf(start.display)).toBeGreaterThan(200)
-    expect(hueOf(start.display)).toBeLessThan(250)
-
-    const firstLimit = firstStep("led", (u) => probeState("led", u).limited.length > 0)
-    expect(probeState("led", firstLimit).limited).toEqual(["B"])
-    const firstFlip = firstStep("led", (u) => probeState("led", u).flipped)
-    expect(firstFlip).toBeGreaterThan(firstLimit)
-
-    const end = probeState("led", 1)
-    expect(end.flipped).toBe(true)
-    const endHue = hueOf(end.display) ?? 0
-    expect(endHue).toBeGreaterThan(280)
-
-    // 周りのグローは青のまま
-    const glow = toDisplay(sensorToWorking(lightSensor(LED_SENSOR, ledStrength(1), ledProfile(0.5, 0))))
-    expect(hueOf(glow)).toBeGreaterThan(200)
-    expect(hueOf(glow)).toBeLessThan(250)
+  it("negative side: the less saturated glow stays blue", () => {
+    const glow = negativePixel(0.45, 0, 1)
+    expect(luminance(glow.value)).toBeGreaterThan(0)
+    const h = hueDeg(glow.display) ?? 0
+    expect(h).toBeGreaterThan(200)
+    expect(h).toBeLessThan(250)
   })
 
-  it("yellow: G stops at the ceiling before R, and the brightest part turns vivid magenta", () => {
-    const start = probeState("yellow", 0)
-    expect(start.limited).toEqual([])
-    const startHue = hueOf(start.display) ?? 0
-    expect(startHue).toBeGreaterThan(45)
-    expect(startHue).toBeLessThan(65)
-
-    const firstLimit = firstStep("yellow", (u) => probeState("yellow", u).limited.length > 0)
-    expect(probeState("yellow", firstLimit).limited).toEqual(["G"])
-
-    const end = probeState("yellow", 1)
-    expect(end.flipped).toBe(true)
-    const [r, g, b] = end.display
-    expect(r).toBeGreaterThan(g)
-    expect(b).toBeGreaterThan(g)
-    expect(hueDistance(hueOf(end.display), 330)).toBeLessThan(25)
-
-    // 外側は黄色のまま
-    const edge = toDisplay(
-      sensorToWorking(lightSensor(YELLOW_SENSOR, yellowStrength(1), yellowProfile(0.95, 0.1)))
-    )
-    expect(hueDistance(hueOf(edge), startHue)).toBeLessThan(FLIP_HUE_DEG)
+  it("saturation around the channel mean lowers Rec.709 luminance for a saturated blue (luma-pivot would not)", () => {
+    const blue: Vec3 = [0.02, 0.05, 1.0]
+    expect(luminance(saturateAroundMean(blue, 2))).toBeLessThan(luminance(blue))
+    const y = luminance(blue)
+    const lumaPivot = blue.map((v) => y + 2 * (v - y)) as Vec3
+    expect(luminance(lumaPivot)).toBeCloseTo(y, 10)
   })
-
 })

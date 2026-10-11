@@ -1,3 +1,6 @@
+import { bookingExternalWritesEnabled, BOOKING_EXTERNAL_WRITES_DISABLED } from "@/lib/booking/server/external-write-policy"
+import { isChatbotDiagnosticRequest } from "@/lib/chatbot/server/diagnostic-request"
+
 import { NextRequest, NextResponse } from "next/server"
 
 import { getCachedCalendarAccessToken } from "@/lib/booking/server/calendar-free-busy/google-token-cache"
@@ -167,6 +170,10 @@ export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  if (!bookingExternalWritesEnabled() || isChatbotDiagnosticRequest(request.headers)) {
+    return NextResponse.json({ error: BOOKING_EXTERNAL_WRITES_DISABLED }, { status: 503 })
   }
 
   const counters: ReconcileCounters = {

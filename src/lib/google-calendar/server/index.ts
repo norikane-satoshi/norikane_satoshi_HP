@@ -1,3 +1,5 @@
+import { assertBookingExternalWritesEnabled } from "@/lib/booking/server/external-write-policy"
+
 import { google } from "googleapis"
 
 import { calendarBookingSummary } from "@/lib/booking/domain/calendar-summary"
@@ -386,6 +388,7 @@ function getGoogleErrorStatus(error: unknown): number | null {
 }
 
 export async function createCalendarEvent(input: CalendarEventWriteInput): Promise<{ id: string }> {
+  assertBookingExternalWritesEnabled()
   const calendar = createCalendarWriteClient(input.accessToken)
   const start = input.dateOnly ? { date: input.start } : { dateTime: input.start }
   const end = input.dateOnly ? { date: input.end } : { dateTime: input.end }
@@ -468,6 +471,7 @@ export async function requestCalendarEventCancellation(input: {
   bookingGroupId: string
   accessToken: string
 }): Promise<void> {
+  assertBookingExternalWritesEnabled()
   const calendar = createCalendarWriteClient(input.accessToken)
   await calendar.events.patch({
     calendarId: input.calendarId,
@@ -543,6 +547,7 @@ export async function listManagedCalendarEvents(input: {
 }
 
 export async function updateCalendarEvent(input: CalendarEventUpdateInput): Promise<void> {
+  assertBookingExternalWritesEnabled()
   const calendar = createCalendarWriteClient(input.accessToken)
   const privateProperties: Record<string, string> = {}
   if (input.bookingGroupId) {
@@ -582,6 +587,7 @@ export async function updateCalendarEvent(input: CalendarEventUpdateInput): Prom
 }
 
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
+  assertBookingExternalWritesEnabled()
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   if (!calendarId) {
     console.warn(`[gcal delete skipped] eventId=${eventId} reason=missing_calendar_id`)
@@ -618,6 +624,7 @@ export async function deleteCalendarEventWithAccessToken(input: {
   eventId: string
   accessToken: string
 }): Promise<void> {
+  assertBookingExternalWritesEnabled()
   const calendar = createCalendarWriteClient(input.accessToken)
   try {
     await calendar.events.delete({

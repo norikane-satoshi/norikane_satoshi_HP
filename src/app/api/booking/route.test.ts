@@ -70,6 +70,12 @@ function conflictSlot(overrides: Record<string, unknown> = {}) {
 
 async function loadPost() {
   vi.resetModules()
+  vi.stubEnv("NODE_ENV", "production")
+  vi.stubEnv("VERCEL", "1")
+  vi.stubEnv("VERCEL_ENV", "production")
+  vi.stubEnv("VITEST", "")
+  vi.stubEnv("BOOKING_EXTERNAL_WRITES", "")
+
   vi.stubEnv("GOOGLE_CALENDAR_BUSY_SOURCE_ID", "calendar_1")
 
   const auth = vi.fn().mockResolvedValue({
@@ -166,6 +172,17 @@ afterEach(() => {
 })
 
 describe("POST /api/booking Saga", () => {
+  it("returns 503 for local verification before auth or DB writes", async () => {
+    const route = await loadPost()
+    vi.stubEnv("VERCEL", "")
+    const response = await route.POST(request(validBooking()))
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({ error: "booking_external_writes_disabled" })
+    expect(route.prisma.customer.upsert).not.toHaveBeenCalled()
+    expect(route.prisma.$transaction).not.toHaveBeenCalled()
+    expect(route.createCalendarEvent).not.toHaveBeenCalled()
+  })
+
   it("confirms without conflict and passes a sanitized Google Calendar event id", async () => {
     const route = await loadPost()
 

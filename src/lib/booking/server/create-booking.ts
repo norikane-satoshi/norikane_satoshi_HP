@@ -1,3 +1,5 @@
+import { bookingExternalWritesEnabled, BOOKING_EXTERNAL_WRITES_DISABLED } from "@/lib/booking/server/external-write-policy"
+
 import type { BookingApiInput } from "@/lib/booking/domain/api-schema"
 import { resolveConflictForFinalSubmit } from "@/lib/booking/domain/conflicts"
 import {
@@ -195,6 +197,10 @@ export async function createBookingFromApiInput({
   userEmail,
   requestedDateLabels,
 }: CreateBookingFromApiInputArgs): Promise<CreateBookingResult> {
+  if (!bookingExternalWritesEnabled()) {
+    return { body: { error: BOOKING_EXTERNAL_WRITES_DISABLED }, status: 503 }
+  }
+
   const slots = input.selectedSlots
   const primarySlot = slots[0]
   const hasSelectedSlots = slots.length > 0
