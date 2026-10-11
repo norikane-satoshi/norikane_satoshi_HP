@@ -86,7 +86,8 @@ type ChatbotFailureTaggedError = Error & {
 // Sent by the widget when it opens, so the instance that will take the first message has already
 // loaded this route and run its database queries once (a fresh instance otherwise adds 1-2 s).
 export async function GET() {
-  await warmChatbotDatabase()
+  const status = await warmChatbotDatabase()
+  if (status !== "warm") return NextResponse.json({ error: "chatbot_database_unavailable" }, { status: 503, headers: { "Cache-Control": "no-store" } })
   return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } })
 }
 

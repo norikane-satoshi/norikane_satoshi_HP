@@ -1178,3 +1178,12 @@ it.each([
   expect(route.coordinateChatbotMessageRequest).not.toHaveBeenCalled()
   expect(route.appendMessage).not.toHaveBeenCalled()
 })
+
+it("reports failed database warmup as unavailable", async () => {
+  const route = await loadPost()
+  route.warmChatbotDatabase.mockResolvedValueOnce("failed")
+  const response = await route.GET()
+  expect(response.status).toBe(503)
+  expect(response.headers.get("cache-control")).toBe("no-store")
+  expect(await response.json()).toEqual({ error: "chatbot_database_unavailable" })
+})
