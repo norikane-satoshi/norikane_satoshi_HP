@@ -66,6 +66,19 @@ the app. A Turso auth token is unnecessary for local SQLite.
 Existing local env files are not rewritten by this guard. If one still selects the production
 database, the local runtime rejects it until the operator explicitly selects an isolated target.
 
+## Local development with the Preview database
+
+Use the Development environment's dedicated Preview URL and matching token from the approved
+secret source for `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in the ignored `.env.local`.
+Leave `VERCEL` and `VERCEL_ENV` unset. Preserve unrelated local settings and never print either
+value. Local development then shares only disposable Preview conversation data, not customer
+records. Prefer SQLite above when independent fixtures are needed.
+
+After changing the local settings, check the database role with `getDatabaseTarget` and require
+`preview` (or `local` for SQLite). A safe environment pull can preserve an existing nonempty
+value when Vercel returns an empty encrypted value, so a successful pull alone does not prove
+that the old Production URL was replaced. The runtime guard must remain enabled.
+
 Diagnostics return `production` / `norikane-studio`, `preview` / `norikane-studio-preview`,
 `local` / `local-sqlite`, or `unknown` / `unknown`. Unrecognized dedicated remote databases are
 allowed and reported as `unknown`; arbitrary hosts, paths, query strings, and tokens are never
