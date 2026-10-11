@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process"
+import { getDatabaseTarget } from "../../database-target-policy.mjs"
 
 export type ChatbotBuildInfo = {
   commitSha: string
@@ -7,6 +8,7 @@ export type ChatbotBuildInfo = {
   buildTime: string
   commitShaSource: "env" | "git" | "unknown"
   expectedRefSource: "env" | "git" | "unknown"
+  database: ReturnType<typeof getDatabaseTarget>
 }
 
 const moduleLoadTime = new Date().toISOString()
@@ -37,6 +39,7 @@ export function getChatbotBuildInfo(): ChatbotBuildInfo {
     buildTime: firstNonEmptyEnv("CHATBOT_BUILD_TIME", "NEXT_PUBLIC_CHATBOT_BUILD_TIME") ?? moduleLoadTime,
     commitShaSource: envCommitSha ? "env" : moduleGitCommitSha ? "git" : "unknown",
     expectedRefSource: envExpectedRef ? "env" : moduleGitExpectedRef ? "git" : "unknown",
+    database: getDatabaseTarget(),
   }
 }
 

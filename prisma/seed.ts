@@ -1,9 +1,13 @@
 import { PrismaClient } from "@prisma/client"
 import { PrismaLibSql } from "@prisma/adapter-libsql"
+import { assertDatabaseTargetAllowed } from "../src/lib/database-target-policy.mjs"
+
+const url = process.env.TURSO_DATABASE_URL ?? process.env.PRISMA_MIGRATE_DATABASE_URL ?? "file:./dev.db"
+assertDatabaseTargetAllowed({ ...process.env, TURSO_DATABASE_URL: url })
 
 const prisma = new PrismaClient({
   adapter: new PrismaLibSql({
-    url: process.env.TURSO_DATABASE_URL ?? process.env.PRISMA_MIGRATE_DATABASE_URL ?? "file:./dev.db",
+    url,
     authToken: process.env.TURSO_AUTH_TOKEN,
   }),
 })

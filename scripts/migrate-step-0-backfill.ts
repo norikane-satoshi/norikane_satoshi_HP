@@ -4,6 +4,7 @@ import { createHash } from "node:crypto"
 import { PrismaClient } from "@prisma/client"
 import { PrismaLibSql } from "@prisma/adapter-libsql"
 import { config as loadDotenv } from "dotenv"
+import { assertDatabaseTargetAllowed } from "../src/lib/database-target-policy.mjs"
 
 loadDotenv({ path: ".env.local", override: false, quiet: true })
 loadDotenv({ path: ".env", override: false, quiet: true })
@@ -12,6 +13,7 @@ const DRY_RUN = process.argv.includes("--dry-run")
 const INVITATION_TTL_MS = 72 * 3600 * 1000
 
 function createPrismaClient(): PrismaClient {
+  assertDatabaseTargetAllowed()
   const url = process.env.TURSO_DATABASE_URL
   const authToken = process.env.TURSO_AUTH_TOKEN
   if (!url) {

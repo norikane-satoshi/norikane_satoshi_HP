@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { PrismaClient } from "@prisma/client"
 import { PrismaLibSql } from "@prisma/adapter-libsql"
+import { assertDatabaseTargetAllowed } from "./database-target-policy.mjs"
 
 declare global {
   // Next.js dev では HMR で module が再評価され、毎回 PrismaClient を作ると接続が増えていく。
@@ -17,6 +18,8 @@ function createPrismaClient(url: string | undefined, authToken: string | undefin
   const adapter = new PrismaLibSql({ url, authToken })
   return new PrismaClient({ adapter })
 }
+
+assertDatabaseTargetAllowed()
 
 const prismaUrl = process.env.TURSO_DATABASE_URL
 const prismaAuthToken = process.env.TURSO_AUTH_TOKEN

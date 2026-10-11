@@ -25,4 +25,13 @@ describe("local chatbot Prisma config", () => {
       url: "file:/tmp/dev.db",
     })
   })
+
+  it.each(["TURSO_DATABASE_URL", "PRISMA_MIGRATE_DATABASE_URL"])(
+    "rejects an inherited production URL in %s",
+    (key) => {
+      expect(() => resolveLocalPrismaConfig({
+        [key]: "libsql://norikane-studio-norituku.aws-ap-northeast-1.turso.io",
+      })).toThrow("production_database_access_disabled")
+    },
+  )
 })

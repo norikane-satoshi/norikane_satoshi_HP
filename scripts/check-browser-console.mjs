@@ -1,6 +1,7 @@
 import { chromium } from "playwright"
 import { config as loadDotenv } from "dotenv"
 import { createClient } from "@libsql/client"
+import { assertDatabaseTargetAllowed } from "../src/lib/database-target-policy.mjs"
 
 const [, , targetUrl, waitSecondsArg = "5", clickSelector] = process.argv
 
@@ -59,6 +60,7 @@ try {
   async function cleanupConsoleBookings() {
     loadDotenv({ path: ".env.local", override: false, quiet: true })
     loadDotenv({ path: ".env", override: false, quiet: true })
+    assertDatabaseTargetAllowed()
     const dbUrl = process.env.TURSO_DATABASE_URL
     if (!dbUrl) return
 

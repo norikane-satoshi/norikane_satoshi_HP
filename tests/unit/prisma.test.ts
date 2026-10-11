@@ -31,6 +31,8 @@ describe("Prisma client HMR cache", () => {
     vi.resetModules()
     vi.stubEnv("TURSO_DATABASE_URL", "libsql://database.example")
     vi.stubEnv("TURSO_AUTH_TOKEN", "token-one")
+    vi.stubEnv("VERCEL", "")
+    vi.stubEnv("VERCEL_ENV", "")
     delete prismaGlobal.__prisma
     delete prismaGlobal.__prismaConnectionFingerprint
     prismaMocks.adapters.length = 0
@@ -77,5 +79,31 @@ describe("Prisma client HMR cache", () => {
 
     expect(routeCopy.prisma).toBe(instrumentationCopy.prisma)
     expect(prismaMocks.adapters).toHaveLength(1)
+  })
+
+  it("rejects inherited production credentials before creating an adapter", async () => {
+    vi.stubEnv("NODE_ENV", "production")
+    vi.stubEnv("VERCEL", "1")
+    vi.stubEnv("VERCEL_ENV", "preview")
+    vi.stubEnv("TURSO_DATABASE_URL", "libsql://norikane-studio-norituku.aws-ap-northeast-1.turso.io")
+
+    await expect(import("@/lib/prisma")).rejects.toThrow("production_database_access_disabled")
+    expect(prismaMocks.adapters).toHaveLength(0)
+    expect(prismaGlobal.__prisma).toBeUndefined()
+  })
+
+  it("rejects a production client cached by a previously authorized runtime", async () => {
+    vi.stubEnv("NODE_ENV", "production")
+    vi.stubEnv("VERCEL", "1")
+    vi.stubEnv("VERCEL_ENV", "production")
+    vi.stubEnv("VITEST", "")
+    vi.stubEnv("TURSO_DATABASE_URL", "libsql://norikane-studio-norituku.aws-ap-northeast-1.turso.io")
+    const authorized = await import("@/lib/prisma")
+    vi.resetModules()
+    vi.stubEnv("VERCEL_ENV", "preview")
+
+    await expect(import("@/lib/prisma")).rejects.toThrow("production_database_access_disabled")
+    expect(prismaMocks.adapters).toHaveLength(1)
+    expect(prismaGlobal.__prisma).toBe(authorized.prisma)
   })
 })

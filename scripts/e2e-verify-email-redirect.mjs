@@ -2,9 +2,11 @@ import { chromium } from "playwright"
 import { config as loadDotenv } from "dotenv"
 import { createClient } from "@libsql/client"
 import { randomUUID, randomBytes } from "node:crypto"
+import { assertDatabaseTargetAllowed } from "../src/lib/database-target-policy.mjs"
 
 loadDotenv({ path: ".env.local", override: true })
 loadDotenv({ path: ".env", override: false })
+assertDatabaseTargetAllowed()
 
 const BASE = "http://localhost:41237"
 

@@ -56,4 +56,16 @@ describe("getChatbotBuildInfo", () => {
     expect(getChatbotBuildInfo()).toMatchObject({ commitSha: "stable-sha", expectedRef: "staging" })
     expect(execFileSync).toHaveBeenCalledTimes(2)
   })
+
+  it("reports the preview database identity without its URL or token", async () => {
+    vi.stubEnv("TURSO_DATABASE_URL", "libsql://norikane-studio-preview-norituku.aws-ap-northeast-1.turso.io?authToken=secret")
+    vi.stubEnv("TURSO_AUTH_TOKEN", "private-token")
+    const { GET } = await import("@/app/api/chatbot/build-info/route")
+    const info = await GET().json()
+
+    expect(info.database).toEqual({ role: "preview", identifier: "norikane-studio-preview" })
+    expect(JSON.stringify(info)).not.toContain("turso.io")
+    expect(JSON.stringify(info)).not.toContain("secret")
+    expect(JSON.stringify(info)).not.toContain("private-token")
+  })
 })
