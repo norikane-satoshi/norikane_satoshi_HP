@@ -1,5 +1,5 @@
 import { PUBLIC_CHATBOT_BOOKING_USER_EMAIL } from "@/lib/booking/server/claim-chat-bookings"
-import { isCalendarDate, isValidDeadlineInput, todayInJapan } from "@/lib/chatbot/domain/deadline"
+import { isCalendarDate, isValidDeadlineInput, normalizeDeadlineInput, todayInJapan } from "@/lib/chatbot/domain/deadline"
 import { bookingExternalWritesEnabled, BOOKING_EXTERNAL_WRITES_DISABLED } from "@/lib/booking/server/external-write-policy"
 
 import { NextResponse, type NextRequest } from "next/server"
@@ -406,15 +406,13 @@ export async function POST(request: NextRequest) {
     ? confirmedDetails.find((item) => item.label === "納品希望日")?.value
     : reviewed ? parsed.data.dueDate ?? confirmedDetails.find((item) => item.label === "納品希望日")?.value
       : confirmedDetails.find((item) => item.label === "納品希望日")?.value
-  parsed.data.dueDate = dueDate === unconfirmedBookingValue ? "未定" : dueDate ?? "未定"
+  const deadline = normalizeDeadlineInput(dueDate === unconfirmedBookingValue ? "未定" : dueDate ?? "未定")
+  if (!deadline) return NextResponse.json({ error: "invalid_request" }, { status: 400 })
+  parsed.data.dueDate = deadline
   confirmedDetails = confirmedDetails.map((item) => item.label === "納品希望日"
     ? { ...item, value: parsed.data.dueDate === "未定" ? unconfirmedBookingValue : parsed.data.dueDate } : item)
   parsed.data.memo = bookingDetailsMemo(reviewed ? parsed.data.memo ?? "" : customerNote, confirmedDetails)
 
-  const deadline = parsed.data.dueDate
-  if (!isValidDeadlineInput(deadline)) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 })
-  }
   if (deadline && isCalendarDate(deadline) && (
     normalizeSelectedSlots(parsed.data).some((slot) => todayInJapan(new Date(new Date(slot.end).getTime() - 1)) > deadline)
   )) {

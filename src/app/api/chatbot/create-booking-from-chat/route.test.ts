@@ -572,10 +572,38 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
 })
 
 
-it.each(["", "相談したい", "2026-02-30"])("rejects a deadline without a date or explicit undecided selection: %s", async (dueDate) => {
+it.each(["", "10月中", "2026-02-30"])("rejects a deadline without a date or explicit undecided selection: %s", async (dueDate) => {
   const route = await loadPost()
   const response = await route.POST(request(validChatBooking({ dueDate })))
   expect(response.status).toBe(400)
+  expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
+})
+
+it.each(["相談したい", "まだ決まっていない"])("stores an undecided deadline canonically and displays it as unconfirmed: %s", async (dueDate) => {
+  const route = await loadPost()
+  const response = await route.POST(request(validChatBooking({ dueDate })))
+  expect(response.status).toBe(200)
+  const input = route.createBookingFromApiInput.mock.calls[0][0].input
+  expect(input.dueDate).toBe("未定")
+  expect(input.memo).toContain("納品希望日: 未確認")
+  expect(input.memo).not.toContain(dueDate)
+  expect(route.sendChatbotBookingOwnerNotification).toHaveBeenCalledWith(expect.objectContaining({ memo: input.memo }))
+})
+
+it.each(["10/25", "10月25日", "2026/10/25"])("stores a date alias canonically: %s", async (dueDate) => {
+  const route = await loadPost()
+  const response = await route.POST(request(validChatBooking({ dueDate })))
+  expect(response.status).toBe(200)
+  const input = route.createBookingFromApiInput.mock.calls[0][0].input
+  expect(input.dueDate).toBe("2026-10-25")
+  expect(input.memo).toContain("納品希望日: 2026/10/25(日)")
+})
+
+it("applies the attendance deadline boundary after normalizing a date alias", async () => {
+  const route = await loadPost()
+  const response = await route.POST(request(validChatBooking({ dueDate: "6/9" })))
+  expect(response.status).toBe(400)
+  expect(await response.json()).toEqual({ error: "attendance_after_deadline" })
   expect(route.createBookingFromApiInput).not.toHaveBeenCalled()
 })
 
