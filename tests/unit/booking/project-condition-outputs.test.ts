@@ -42,6 +42,28 @@ const scenarios: Array<{ title: string; answers: ConditionAnswers; expected: str
     expected: ["作品構成: ライブ本編 1本 × 2時間 / メイキング 1本 × 20分", "尺: 2時間20分", "修正カット数: 未確認"],
     omitted: ["DCP必要性:", "DCP作成担当:"],
   },
+  {
+    title: "非表示になった旧回答",
+    answers: {
+      ...common, "final-medium": { selectedIds: ["cinema"] },
+      "dcp-required": { selectedIds: ["not-required"] }, "dcp-creator": { text: "以前の担当者" },
+      "additional-work": { selectedIds: ["none"] }, "retouch-cut-count": { number: 12 },
+    },
+    expected: ["DCP必要性: 不要"],
+    omitted: ["DCP作成担当:", "修正カット数:", "以前の担当者"],
+  },
+  {
+    title: "一部の尺が未定",
+    answers: { ...common, "project-length": { composition: [{ count: 2, durationSeconds: 30 }, { count: 1 }] } },
+    expected: ["尺: 未確認", "作品構成: 作品1 2本 × 30秒 / 作品2 1本 × 尺未確認"],
+    omitted: ["尺: 1分"],
+  },
+  {
+    title: "未定の尺を確定",
+    answers: { ...common, "project-length": { composition: [{ count: 2, durationSeconds: 30 }, { count: 1, durationSeconds: 20 }] } },
+    expected: ["尺: 1分20秒", "作品構成: 作品1 2本 × 30秒 / 作品2 1本 × 20秒"],
+    omitted: ["尺: 未確認"],
+  },
 ]
 
 describe("shared project conditions across booking outputs", () => {

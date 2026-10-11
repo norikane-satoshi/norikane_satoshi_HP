@@ -6056,3 +6056,28 @@ it("replays a legacy selection before editing and applies the normal selection h
     jobContext: expect.objectContaining({ finalMedium: "cinema" }),
   }))
 })
+
+
+it("retains all historical customer answers when the next answer uses a question ID", async () => {
+  const harness = setup({ existingConversation: conversation({
+    context: { sessionId: "session_1", userId: "user_a", activeChoices: finalMediumChoices },
+    messages: [
+      { ...message("assistant", jobKindChoices.question), id: "legacy_question_kind" },
+      { ...message("user", "選択: ドキュメンタリー"), id: "legacy_kind" },
+      { ...message("assistant", projectLengthChoices.question), id: "legacy_question_length" },
+      { ...message("user", "尺: 0時間18分"), id: "legacy_length" },
+      { ...message("assistant", finalMediumChoices.question), id: "legacy_question_medium" },
+    ],
+  }) })
+  await handleChatbotMessage({
+    sessionId: "session_1", userId: "user_a", message: "選択: 劇場公開",
+    conditionAnswer: { conditionId: "final-medium", answer: { selectedIds: ["cinema"] } },
+  }, harness.options)
+  expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
+    conversationState: expect.objectContaining({ conditionAnswers: expect.objectContaining({
+      "job-kind": expect.objectContaining({ selectedIds: ["documentary"], sourceMessageId: "legacy_kind" }),
+      "project-length": expect.objectContaining({ composition: [{ count: 1, durationSeconds: 1080 }], sourceMessageId: "legacy_length" }),
+      "final-medium": expect.objectContaining({ selectedIds: ["cinema"] }),
+    }) }),
+  }))
+})
