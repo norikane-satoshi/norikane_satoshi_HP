@@ -10,14 +10,14 @@ records `slack-skipped-diagnostic`, which audit completeness and the live harnes
 boundary completing; any other Slack failure still fails them.
 
 - Header: `x-chatbot-diagnostic`
-- Value: hex HMAC-SHA256 of `chatbot-diagnostic-request` keyed with `CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN`
-  (the same value the production app uses for the hosted worker; it is in `.env.local`).
+- Value: hex HMAC-SHA256 of `chatbot-diagnostic-request` keyed with `CHATBOT_DIAGNOSTIC_TOKEN`
+  (set on the production app and in `.env.local`).
 
 `scripts/chatbot/verify-known-regressions-live.ts` and `scripts/chatbot/verify-endurance-live.ts`
 send it automatically when that variable is set. For other scripts:
 
 ```sh
-node -e 'const c=require("node:crypto");process.stdout.write(c.createHmac("sha256",process.env.CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN).update("chatbot-diagnostic-request").digest("hex"))'
+node -e 'const c=require("node:crypto");process.stdout.write(c.createHmac("sha256",process.env.CHATBOT_DIAGNOSTIC_TOKEN).update("chatbot-diagnostic-request").digest("hex"))'
 ```
 
 The booking mutation endpoints also reject diagnostic requests on Production. Local and preview

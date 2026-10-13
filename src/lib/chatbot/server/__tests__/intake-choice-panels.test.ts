@@ -65,7 +65,7 @@ function harness(existing: ChatbotConversation) {
   const generate = vi.fn(async () => ({
     rawText: raw,
     displayEnvelope: createChatbotLlmDisplayEnvelope(raw),
-    tier: chatbotLlmTierIds.tier1HostedChromeNotionAi,
+    tier: chatbotLlmTierIds.tier2GeminiFlash,
   }))
   const repository = {
     loadOrCreateConversationBySessionId: vi.fn(async () => existing),

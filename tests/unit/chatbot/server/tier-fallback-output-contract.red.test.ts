@@ -4,24 +4,14 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 
 import { jobKindChoices, type ChatbotConversation, type ChatbotMessage, type ConversationState } from "@/lib/chatbot/domain"
 import {
-  ChatbotLlmError,
   defaultLlmTierOrder,
-  type ChatbotLlmClient,
   type ChatbotLlmResponse,
   type ChatbotLlmTier,
 } from "@/lib/chatbot/server/llm-client"
-import { createTier3FormFallbackClient } from "@/lib/chatbot/server/llm-clients/tier3-form-fallback"
-import {
-  createChatbotLlmTierOrchestrator,
-  type TierAttemptEvent,
-} from "@/lib/chatbot/server/llm-orchestrator"
 import { handleChatbotMessage } from "@/lib/chatbot/server/message-handler"
 import { createChatbotLlmDisplayEnvelope } from "@/lib/chatbot/server/llm-response-normalizer"
 import { createStaticChatbotKnowledgeSnapshot } from "@/lib/chatbot/server/notion-knowledge-sync"
-import {
-  invalidChoiceSetRegressionCorpus,
-  tierFallbackOutputContractIncident,
-} from "../../../fixtures/chatbot/tier-fallback-output-contract-corpus"
+import { invalidChoiceSetRegressionCorpus } from "../../../fixtures/chatbot/tier-fallback-output-contract-corpus"
 
 function emptyConversationState(): ConversationState {
   return {
@@ -43,22 +33,6 @@ function llmResponse(tier: ChatbotLlmTier, rawText: string): ChatbotLlmResponse 
     rawText,
     displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
     tier,
-  }
-}
-
-function fakeClient(input: {
-  tier: ChatbotLlmTier
-  response?: ChatbotLlmResponse
-  error?: Error
-}): ChatbotLlmClient {
-  return {
-    tier: input.tier,
-    isHealthy: vi.fn().mockResolvedValue(true),
-    generate: vi.fn(async () => {
-      if (input.error) throw input.error
-      if (!input.response) throw new Error("missing fake response")
-      return input.response
-    }),
   }
 }
 
@@ -128,82 +102,6 @@ function readJsonLogs(calls: ReadonlyArray<ReadonlyArray<unknown>>): Array<Recor
 afterEach(() => {
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
-})
-
-describe("lower-tier response without structured UI", () => {
-  it("repairs a Tier2 body-only response with the deterministic intake UI without demoting to Tier3", async () => {
-    const incident = tierFallbackOutputContractIncident
-    vi.stubEnv("NODE_ENV", "production")
-    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined)
-    const harness = handlerHarness(incident.tier2RawText)
-    const orchestratorFactory = (onTierAttempt?: (event: TierAttemptEvent) => void) =>
-      createChatbotLlmTierOrchestrator({
-        clients: [
-          fakeClient({
-            tier: "tier-1-hosted-chrome-notion-ai",
-            error: new ChatbotLlmError({
-              message: "Hosted Tier1 was rate limited.",
-              code: "rate-limit",
-              tier: "tier-1-hosted-chrome-notion-ai",
-              isRetryable: true,
-            }),
-          }),
-          fakeClient({
-            tier: "tier-2-gemini-flash",
-            response: llmResponse("tier-2-gemini-flash", incident.tier2RawText),
-          }),
-          createTier3FormFallbackClient(),
-        ],
-        onTierAttempt,
-      })
-    const result = await handleChatbotMessage(
-      {
-        requestId: incident.requestId,
-        sessionId: "regression_session",
-        message: incident.userMessage,
-        conversationState: emptyConversationState(),
-      },
-      { ...harness.options, orchestratorFactory },
-    )
-    const boundaryEvent = readJsonLogs(consoleInfo.mock.calls).find(
-      (event) =>
-        event.requestId === incident.requestId &&
-        event.boundary === "llm-output-contract",
-    )
-
-    expect.soft(result).toMatchObject({
-      tier: incident.expected.tier,
-      assistantMessage: {
-        content: "内容を確認しました。続けて相談内容を送ってください。",
-      },
-      ui: {
-        kind: "direct-contact-card",
-        reason: "pricing",
-      },
-    })
-    expect.soft(boundaryEvent).toMatchObject({
-      requestId: incident.requestId,
-      boundary: "llm-output-contract",
-      decision: "reject-and-regenerate-structured-ui",
-      reason: incident.expected.boundaryReason,
-    })
-    expect.soft(result.auditEvidence.tierAttempts).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        tier: "tier-2-gemini-flash",
-        phase: "generate",
-        result: "failure",
-        errorCode: "invalid-output",
-        errorReason: incident.expected.boundaryReason,
-        repairAttempted: true,
-      }),
-      expect.objectContaining({
-        tier: "tier-2-gemini-flash",
-        phase: "generate",
-        result: "success",
-        repairAttempted: true,
-      }),
-    ]))
-  })
 })
 
 describe("invalid choice-set contract", () => {

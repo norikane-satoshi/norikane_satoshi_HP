@@ -12,18 +12,18 @@ describe("chatbot LLM client interface", () => {
   it("keeps ChatbotLlmError fields and Error inheritance", () => {
     const cause = new Error("upstream refused the request")
     const error = new ChatbotLlmError({
-      message: "Notion AI browser tier timed out",
+      message: "Gemini tier timed out",
       code: "timeout",
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       isRetryable: true,
       cause,
     })
 
     expect(error).toBeInstanceOf(Error)
     expect(error.name).toBe("ChatbotLlmError")
-    expect(error.message).toBe("Notion AI browser tier timed out")
+    expect(error.message).toBe("Gemini tier timed out")
     expect(error.code).toBe("timeout")
-    expect(error.tier).toBe("tier-1-hosted-chrome-notion-ai")
+    expect(error.tier).toBe("tier-2-gemini-flash")
     expect(error.isRetryable).toBe(true)
     expect(error.cause).toBe(cause)
   })

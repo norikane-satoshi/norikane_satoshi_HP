@@ -350,21 +350,8 @@ export class Tier2GeminiFlashClient implements ChatbotLlmClient {
 export function createTier2GeminiFlashClient(
   overrides: Tier2GeminiFlashClientOptions = {},
 ): Tier2GeminiFlashClient {
-  const env = readGeminiEnv()
-
   return new Tier2GeminiFlashClient({
-    apiKey: env.CHATBOT_TIER2_GEMINI_API_KEY ?? env.GEMINI_API_KEY,
-    modelName: env.CHATBOT_TIER2_GEMINI_MODEL ?? tier2GeminiFlashDefaults.modelName,
-    baseUrl: env.CHATBOT_TIER2_GEMINI_BASE_URL ?? tier2GeminiFlashDefaults.baseUrl,
-    requestTimeoutMs: parsePositiveInteger(
-      env.CHATBOT_TIER2_GEMINI_TIMEOUT_MS,
-      tier2GeminiFlashDefaults.requestTimeoutMs,
-    ),
-    healthCheckTimeoutMs: parsePositiveInteger(
-      env.CHATBOT_TIER2_GEMINI_HEALTH_TIMEOUT_MS,
-      tier2GeminiFlashDefaults.healthCheckTimeoutMs,
-    ),
-    enabled: parseEnabled(env.CHATBOT_TIER2_GEMINI_ENABLED),
+    apiKey: process.env.GEMINI_API_KEY ?? readLocalEnvFile().GEMINI_API_KEY,
     ...overrides,
   })
 }
@@ -508,20 +495,6 @@ function globalFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init)
 }
 
-function readGeminiEnv(): Record<string, string | undefined> {
-  const localEnv = readLocalEnvFile()
-  const names = [
-    "CHATBOT_TIER2_GEMINI_API_KEY",
-    "GEMINI_API_KEY",
-    "CHATBOT_TIER2_GEMINI_MODEL",
-    "CHATBOT_TIER2_GEMINI_BASE_URL",
-    "CHATBOT_TIER2_GEMINI_TIMEOUT_MS",
-    "CHATBOT_TIER2_GEMINI_HEALTH_TIMEOUT_MS",
-    "CHATBOT_TIER2_GEMINI_ENABLED",
-  ] as const
-  return Object.fromEntries(names.map((name) => [name, process.env[name] ?? localEnv[name]]))
-}
-
 function readLocalEnvFile(): Record<string, string | undefined> {
   try {
     return parseEnvFile(readFileSync(join(process.cwd(), ".env.local"), "utf8"))
@@ -548,17 +521,6 @@ function parseEnvFile(raw: string): Record<string, string | undefined> {
     env[key] = value
   }
   return env
-}
-
-function parseEnabled(value: string | undefined): boolean {
-  if (!value) return tier2GeminiFlashDefaults.enabled
-  return !["false", "0", "off"].includes(value.trim().toLowerCase())
-}
-
-function parsePositiveInteger(value: string | undefined, fallback: number): number {
-  if (!value) return fallback
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
 function normalizeNonnegativeInteger(value: number | undefined, fallback: number): number {

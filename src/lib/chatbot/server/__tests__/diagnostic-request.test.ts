@@ -14,20 +14,20 @@ const headersWith = (value?: string) => new Headers(value === undefined ? {} : {
 
 describe("isChatbotDiagnosticRequest", () => {
   it("recognizes the token derived from the server's worker secret", () => {
-    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "worker-secret")
-    const token = createHmac("sha256", "worker-secret").update("chatbot-diagnostic-request").digest("hex")
+    vi.stubEnv("CHATBOT_DIAGNOSTIC_TOKEN", "diagnostic-secret")
+    const token = createHmac("sha256", "diagnostic-secret").update("chatbot-diagnostic-request").digest("hex")
 
     expect(chatbotDiagnosticToken()).toBe(token)
     expect(isChatbotDiagnosticRequest(headersWith(token))).toBe(true)
   })
 
   it("treats everything else as a real conversation, so manual tests and customers still reach Slack", () => {
-    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "worker-secret")
+    vi.stubEnv("CHATBOT_DIAGNOSTIC_TOKEN", "diagnostic-secret")
     expect(isChatbotDiagnosticRequest(headersWith())).toBe(false)
     expect(isChatbotDiagnosticRequest(headersWith("guess"))).toBe(false)
-    expect(isChatbotDiagnosticRequest(headersWith("worker-secret"))).toBe(false)
+    expect(isChatbotDiagnosticRequest(headersWith("diagnostic-secret"))).toBe(false)
 
-    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "")
+    vi.stubEnv("CHATBOT_DIAGNOSTIC_TOKEN", "")
     expect(isChatbotDiagnosticRequest(headersWith(""))).toBe(false)
   })
 })

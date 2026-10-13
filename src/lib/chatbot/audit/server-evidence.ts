@@ -6,7 +6,6 @@ import {
   chatbotAuditUiKindSchema,
   chatbotServerAuditEventSchema,
   type ChatbotStoredAuditEvent,
-  type ChatbotAuditStageTimings,
   type ChatbotMessageIntegrity,
   type ChatbotSlackDeliveryEvidence,
 } from "@/lib/chatbot/audit/contract"
@@ -16,7 +15,6 @@ import {
   chatbotLlmTierIds,
   defaultLlmTierOrder,
   getChatbotLlmOutputContractRejection,
-  type ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
 import type { TierAttemptEvent } from "@/lib/chatbot/server/llm-orchestrator"
 
@@ -28,13 +26,6 @@ export type ChatbotTierAttemptAuditEvidence = {
   errorCode?: string
   errorReason?: string
   repairAttempted?: boolean
-  stageTimings?: ChatbotAuditStageTimings
-  threadEvidence?: {
-    hiddenFromChatList: boolean
-    hideVerificationResult: string
-    postHideInferenceVerified: boolean
-    threadVersion?: number
-  }
 }
 
 export type ChatbotMessageAuditEvidence = {
@@ -42,10 +33,6 @@ export type ChatbotMessageAuditEvidence = {
     conversationLoad: number
     contextPreparation: number
     tierHealthCheck: number
-    workerQueueWait: number
-    threadPreparation: number
-    threadHideVerification: number
-    notionInference: number
     responseNormalization: number
     conversationPersist: number
     slackNotification: number
@@ -89,8 +76,6 @@ export function buildChatbotMessageIntegrity(
 }
 
 export function summarizeTierAttemptForAudit(event: TierAttemptEvent): ChatbotTierAttemptAuditEvidence {
-  const threadEvidence = extractThreadEvidence(event.diagnostics)
-  const stageTimings = extractWorkerStageTimings(event.diagnostics)
   const success = event.outcome === "healthy" || event.outcome === "success"
   const errorReason = success ? undefined : safeErrorReason(event.error)
   return {
@@ -100,8 +85,6 @@ export function summarizeTierAttemptForAudit(event: TierAttemptEvent): ChatbotTi
     durationMs: toDuration(event.latencyMs),
     ...(!success ? { errorCode: safeErrorCode(event.error) } : {}),
     ...(errorReason ? { errorReason } : {}),
-    ...(stageTimings ? { stageTimings } : {}),
-    ...(threadEvidence ? { threadEvidence } : {}),
   }
 }
 
@@ -148,23 +131,7 @@ export function buildChatbotMessageAuditEvents(input: {
         : {}),
       fallbackUsed,
       retryAttempt: index + 1,
-      ...(attempt.stageTimings ? { stageTimings: attempt.stageTimings } : {}),
-        ...(attempt.threadEvidence ? { threadEvidence: attempt.threadEvidence } : {}),
     })
-    if (attempt.threadEvidence) {
-      drafts.push({
-        eventName: "notion_thread_hidden_verified",
-        result:
-          attempt.threadEvidence.hiddenFromChatList &&
-          attempt.threadEvidence.hideVerificationResult === "verified" &&
-          attempt.threadEvidence.postHideInferenceVerified
-            ? "success"
-            : "failure",
-        tier: attempt.tier,
-        retryAttempt: index + 1,
-        threadEvidence: attempt.threadEvidence,
-      })
-    }
   })
 
   drafts.push(
@@ -219,14 +186,6 @@ export function buildChatbotMessageAuditEvents(input: {
       createdAt: input.createdAt,
     })
   })
-}
-
-function extractWorkerStageTimings(
-  diagnostics: ChatbotLlmResponse["diagnostics"] | undefined,
-): ChatbotAuditStageTimings | undefined {
-  const root = asRecord(diagnostics)
-  const parsed = chatbotAuditStageTimingsSchema.safeParse(root?.workerStageDurations)
-  return parsed.success && Object.keys(parsed.data).length > 0 ? parsed.data : undefined
 }
 
 export function buildChatbotBookingAuditEvents(input: {
@@ -286,7 +245,7 @@ export function buildChatbotBookingAuditEvents(input: {
   })
 }
 
-// Rank = position in the active tier order; tiers outside it (e.g. the retired Tier1) have no rank.
+// Rank = position in the active tier order (Tier0, then the LLM tiers in fallback order).
 const tierRanks: ReadonlyMap<ChatbotTierAttemptAuditEvidence["tier"], number> = new Map(
   [chatbotLlmTierIds.tier0DeterministicIntake, ...defaultLlmTierOrder].map((tier, index) => [tier, index]),
 )
@@ -343,26 +302,6 @@ export function buildChatbotOperationFailureAuditEvent(input: {
     buildSha: input.buildSha,
     createdAt: input.createdAt,
   })
-}
-
-function extractThreadEvidence(
-  diagnostics: ChatbotLlmResponse["diagnostics"] | undefined,
-): ChatbotTierAttemptAuditEvidence["threadEvidence"] | undefined {
-  const root = asRecord(diagnostics)
-  const thread = asRecord(root?.conversationThread)
-  if (!thread) return undefined
-  if (typeof thread.hiddenFromChatList !== "boolean") return undefined
-  if (typeof thread.hideVerificationResult !== "string") return undefined
-  if (typeof thread.postHideInferenceVerified !== "boolean") return undefined
-
-  return {
-    hiddenFromChatList: thread.hiddenFromChatList,
-    hideVerificationResult: safeCode(thread.hideVerificationResult),
-    postHideInferenceVerified: thread.postHideInferenceVerified,
-    ...(typeof thread.threadVersion === "number" && Number.isInteger(thread.threadVersion) && thread.threadVersion > 0
-      ? { threadVersion: thread.threadVersion }
-      : {}),
-  }
 }
 
 function safeErrorCode(error: TierAttemptEvent["error"]): string {

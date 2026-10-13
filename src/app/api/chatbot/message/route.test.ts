@@ -73,7 +73,7 @@ async function loadPost({
   llmResponse = {
     rawText: "最終媒体を教えてください",
     displayEnvelope: createChatbotLlmDisplayEnvelope("最終媒体を教えてください"),
-    tier: "tier-1-hosted-chrome-notion-ai" as const,
+    tier: "tier-2-gemini-flash" as const,
   },
 }: {
   session?: { user?: { id?: string; email?: string } } | null
@@ -266,7 +266,7 @@ describe("POST /api/chatbot/message", () => {
     const route = await loadPost({
       llmResponse: {
         rawText: item.rawText,
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
     })
 
@@ -1103,7 +1103,7 @@ describe("POST /api/chatbot/message", () => {
   })
 
   it("keeps a diagnostic conversation out of Slack and every other conversation in it", async () => {
-    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "worker-secret")
+    vi.stubEnv("CHATBOT_DIAGNOSTIC_TOKEN", "diagnostic-secret")
     const { chatbotDiagnosticHeader, chatbotDiagnosticToken } = await import("@/lib/chatbot/server/diagnostic-request")
     const diagnostic = await loadPost()
     await diagnostic.POST(

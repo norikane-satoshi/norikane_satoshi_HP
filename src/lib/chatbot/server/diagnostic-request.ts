@@ -13,7 +13,7 @@ import type { ChatbotSlackNotificationResult } from "./slack-notifier"
 export const chatbotDiagnosticHeader = "x-chatbot-diagnostic"
 
 export function chatbotDiagnosticToken(
-  secret = process.env.CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN,
+  secret = process.env.CHATBOT_DIAGNOSTIC_TOKEN,
 ): string | undefined {
   if (!secret) return undefined
   return createHmac("sha256", secret).update("chatbot-diagnostic-request").digest("hex")

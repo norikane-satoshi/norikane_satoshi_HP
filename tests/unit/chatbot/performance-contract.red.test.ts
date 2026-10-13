@@ -15,8 +15,8 @@ describe("chatbot performance contract", () => {
       allowedRegressionRatio: 1.2,
       minimumHeadroomMs: 250,
       samples: [
-        { totalServer: 54_000, notionInference: 53_000 },
-        { totalServer: 52_000, notionInference: 51_000 },
+        { totalServer: 54_000, contextPreparation: 53_000 },
+        { totalServer: 52_000, contextPreparation: 51_000 },
       ],
     })).toThrow("performance_baseline_requires_five_samples")
   })
@@ -28,18 +28,18 @@ describe("chatbot performance contract", () => {
       allowedRegressionRatio: 1.2,
       minimumHeadroomMs: 250,
       samples: [
-        { totalServer: 50_000, notionInference: 48_000, conversationLoad: 10 },
-        { totalServer: 51_000, notionInference: 49_000, conversationLoad: 12 },
-        { totalServer: 52_000, notionInference: 50_000, conversationLoad: 11 },
-        { totalServer: 53_000, notionInference: 51_000, conversationLoad: 13 },
-        { totalServer: 54_000, notionInference: 52_000, conversationLoad: 14 },
+        { totalServer: 50_000, contextPreparation: 48_000, conversationLoad: 10 },
+        { totalServer: 51_000, contextPreparation: 49_000, conversationLoad: 12 },
+        { totalServer: 52_000, contextPreparation: 50_000, conversationLoad: 11 },
+        { totalServer: 53_000, contextPreparation: 51_000, conversationLoad: 13 },
+        { totalServer: 54_000, contextPreparation: 52_000, conversationLoad: 14 },
       ],
     })
 
     expect(baseline.stages.totalServer).toMatchObject({ p50Ms: 52_000, p95Ms: 54_000 })
     expect(evaluateChatbotPerformanceObservation({
       baseline,
-      stageTimings: { totalServer: 70_000, notionInference: 51_000, conversationLoad: 13 },
+      stageTimings: { totalServer: 70_000, contextPreparation: 51_000, conversationLoad: 13 },
     })).toEqual({
       status: "regressed",
       violations: ["totalServer"],
@@ -79,51 +79,51 @@ describe("chatbot performance contract", () => {
       measuredAt: "2026-08-20T15:11:30.377Z",
       allowedRegressionRatio: 1.2,
       minimumHeadroomMs: 1000,
-      samples: Array.from({ length: 5 }, () => ({ totalServer: 30_000, notionInference: 25_000 })),
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 30_000, contextPreparation: 25_000 })),
     })
 
     expect(evaluateChatbotPerformanceWindow({
       baseline,
-      samples: Array.from({ length: 5 }, () => ({ totalServer: 40_000, notionInference: 25_000 })),
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 40_000, contextPreparation: 25_000 })),
     })).toEqual({
       status: "regressed",
       sampleCount: 5,
       violations: ["totalServer"],
-      observedP95Ms: { notionInference: 25_000, totalServer: 40_000 },
+      observedP95Ms: { contextPreparation: 25_000, totalServer: 40_000 },
     })
   })
 
-  it("evaluates Tier 1 and Tier 2 samples against separate performance baselines", () => {
-    const tier1Baseline = calibrateChatbotPerformanceBaseline({
-      buildSha: "tier1-baseline",
+  it("evaluates Tier 0 and Tier 2 samples against separate performance baselines", () => {
+    const tier0Baseline = calibrateChatbotPerformanceBaseline({
+      buildSha: "tier0-baseline",
       measuredAt: "2026-08-20T15:11:30.377Z",
       allowedRegressionRatio: 1.2,
       minimumHeadroomMs: 1000,
-      samples: Array.from({ length: 5 }, () => ({ totalServer: 34_000, notionInference: 26_000 })),
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 600, contextPreparation: 20 })),
     })
     const tier2Baseline = calibrateChatbotPerformanceBaseline({
       buildSha: "tier2-baseline",
       measuredAt: "2026-08-23T12:40:28.820Z",
       allowedRegressionRatio: 1.2,
       minimumHeadroomMs: 1000,
-      samples: Array.from({ length: 5 }, () => ({ totalServer: 7_500, notionInference: 0 })),
+      samples: Array.from({ length: 5 }, () => ({ totalServer: 7_500, contextPreparation: 0 })),
     })
 
     expect(evaluateChatbotPerformanceScenarios({
       baselines: {
-        "tier-1-hosted-chrome-notion-ai": tier1Baseline,
+        "tier-0-deterministic-intake": tier0Baseline,
         "tier-2-gemini-flash": tier2Baseline,
       },
       samples: Array.from({ length: 5 }, () => ({
         tier: "tier-2-gemini-flash",
-        stageTimings: { totalServer: 8_000, notionInference: 0 },
+        stageTimings: { totalServer: 8_000, contextPreparation: 0 },
       })),
     })).toEqual({
       status: "within-budget",
       sampleCount: 5,
       violations: [],
       scenarios: {
-        "tier-1-hosted-chrome-notion-ai": {
+        "tier-0-deterministic-intake": {
           status: "insufficient-data",
           sampleCount: 0,
           violations: ["sample-count"],
@@ -133,13 +133,13 @@ describe("chatbot performance contract", () => {
           status: "within-budget",
           sampleCount: 5,
           violations: [],
-          observedP95Ms: { notionInference: 0, totalServer: 8_000 },
+          observedP95Ms: { contextPreparation: 0, totalServer: 8_000 },
         },
       },
     })
   })
 
-  it("does not let fast Tier 2 samples hide a Tier 1 regression", () => {
+  it("does not let fast Tier 0 samples hide a Tier 2 regression", () => {
     const baseline = calibrateChatbotPerformanceBaseline({
       buildSha: "baseline",
       measuredAt: "2026-08-20T15:11:30.377Z",
@@ -150,26 +150,26 @@ describe("chatbot performance contract", () => {
 
     expect(evaluateChatbotPerformanceScenarios({
       baselines: {
-        "tier-1-hosted-chrome-notion-ai": baseline,
+        "tier-0-deterministic-intake": baseline,
         "tier-2-gemini-flash": baseline,
       },
       samples: [
         ...Array.from({ length: 5 }, () => ({
-          tier: "tier-1-hosted-chrome-notion-ai",
+          tier: "tier-2-gemini-flash",
           stageTimings: { totalServer: 20_000 },
         })),
         ...Array.from({ length: 5 }, () => ({
-          tier: "tier-2-gemini-flash",
+          tier: "tier-0-deterministic-intake",
           stageTimings: { totalServer: 5_000 },
         })),
       ],
     })).toMatchObject({
       status: "regressed",
       sampleCount: 10,
-      violations: ["tier-1-hosted-chrome-notion-ai:totalServer"],
+      violations: ["tier-2-gemini-flash:totalServer"],
       scenarios: {
-        "tier-1-hosted-chrome-notion-ai": { status: "regressed" },
-        "tier-2-gemini-flash": { status: "within-budget" },
+        "tier-0-deterministic-intake": { status: "within-budget" },
+        "tier-2-gemini-flash": { status: "regressed" },
       },
     })
   })

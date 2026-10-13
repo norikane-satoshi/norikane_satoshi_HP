@@ -13,7 +13,6 @@ import {
 export const chatbotLlmTierIds = {
   /** Server-authored reply for intake turns fully decided by code; no model is called. */
   tier0DeterministicIntake: "tier-0-deterministic-intake",
-  tier1HostedChromeNotionAi: "tier-1-hosted-chrome-notion-ai",
   tier2GeminiFlash: "tier-2-gemini-flash",
   tier3FormFallback: "tier-3-form-fallback",
 } as const
@@ -23,7 +22,6 @@ export type ChatbotLlmTier = (typeof chatbotLlmTierIds)[keyof typeof chatbotLlmT
 const chatbotLlmTiers = Object.values(chatbotLlmTierIds)
 
 export type ChatbotLlmOutputContractRejectionReason =
-  | "missing-structured-ui"
   | "choice-set-id-not-allowlisted"
   | "choice-set-question-missing"
   | "choice-set-question-too-long"
@@ -38,8 +36,6 @@ export type ChatbotLlmOutputContractRejection = {
 
 export type ChatbotLlmRequest = {
   requestId?: string
-  /** Opaque server-side id used only to keep hosted Notion AI threads isolated per consultation. */
-  conversationId?: string
   systemPrompt: string
   messages: ReadonlyArray<{ role: ChatbotMessageRole; content: string }>
   conversationState: ConversationState
@@ -47,7 +43,7 @@ export type ChatbotLlmRequest = {
   latestUserMessage?: string
   temperature?: number
   maxOutputTokens?: number
-  /** The server shows its own panel this turn, so a reply without structured UI is expected. */
+  /** The server shows its own panel this turn, so a panel the model improvises is set aside. */
   structuredUiFromCode?: boolean
 }
 
@@ -171,24 +167,6 @@ export function assertChatbotLlmResponseContract(
       reason: uiPayload.reason,
     })
   }
-  if (requiresStructuredUi(record.tier) && uiPayload.kind === "none" && !options.structuredUiFromCode) {
-    const error = outputContractError(record.tier, {
-      boundary: "llm-output-contract",
-      decision: "reject-and-regenerate-structured-ui",
-      reason: "missing-structured-ui",
-    })
-    const displayText = typeof envelope.displayText === "string" ? envelope.displayText.trim() : ""
-    if (displayText && envelope.defaultDenied === false) rejectedDisplayTexts.set(error, displayText)
-    throw error
-  }
-}
-
-// The reply text of a response rejected only for missing structured UI. Kept outside the error's
-// cause so the rejection log never carries model text.
-const rejectedDisplayTexts = new WeakMap<ChatbotLlmError, string>()
-
-export function getRejectedDisplayText(error: unknown): string | undefined {
-  return error instanceof ChatbotLlmError ? rejectedDisplayTexts.get(error) : undefined
 }
 
 export function isChatbotLlmResponseContractError(error: unknown): error is ChatbotLlmError {
@@ -203,17 +181,6 @@ export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
   chatbotLlmTierIds.tier2GeminiFlash,
   chatbotLlmTierIds.tier3FormFallback,
 ] as const
-
-export function requiresStructuredUi(tier: ChatbotLlmTier): boolean {
-  return tierOutputPolicies[tier].structuredUi === "required"
-}
-
-const tierOutputPolicies: Record<ChatbotLlmTier, { structuredUi: "optional" | "required" }> = {
-  [chatbotLlmTierIds.tier0DeterministicIntake]: { structuredUi: "optional" },
-  [chatbotLlmTierIds.tier1HostedChromeNotionAi]: { structuredUi: "optional" },
-  [chatbotLlmTierIds.tier2GeminiFlash]: { structuredUi: "required" },
-  [chatbotLlmTierIds.tier3FormFallback]: { structuredUi: "optional" },
-}
 
 export function getChatbotLlmOutputContractRejection(
   error: unknown,
@@ -306,7 +273,6 @@ function validateDisplayEnvelopeUiPayload(
 
 function isOutputContractRejectionReason(value: unknown): value is ChatbotLlmOutputContractRejectionReason {
   return (
-    value === "missing-structured-ui" ||
     value === "choice-set-id-not-allowlisted" ||
     value === "choice-set-question-missing" ||
     value === "choice-set-question-too-long" ||

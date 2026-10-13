@@ -45,7 +45,7 @@ describe("audit schema diagnostics", () => {
     if (result.success) throw new Error("expected rejection")
     expect(describeFailureForAudit(result.error)).toBe("ZodError:unknown:redacted:invalid_type")
     expect(summarizeTierAttemptForAudit({
-      tier: "tier-1-hosted-chrome-notion-ai", phase: "generate", outcome: "error",
+      tier: "tier-2-gemini-flash", phase: "generate", outcome: "error",
       error: result.error, latencyMs: 1,
     }).errorReason).toBe("ZodError:unknown:redacted:invalid_type")
   })

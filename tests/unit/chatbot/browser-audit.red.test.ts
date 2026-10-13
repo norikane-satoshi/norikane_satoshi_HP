@@ -22,7 +22,7 @@ describe("chatbot browser audit acknowledgement", () => {
       correlationId,
       conversationId: "conv_private",
       result: "success",
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       uiKind: "choice-panel",
       phase: "render",
       durationMs: 18,

@@ -41,7 +41,7 @@ function rejectionFor(rawText: string) {
 
 describe("shared chatbot LLM output contract", () => {
   it("creates display text and structured UI payload at the same boundary", () => {
-    const result = response("tier-1-hosted-chrome-notion-ai", choicePanel())
+    const result = response("tier-2-gemini-flash", choicePanel())
 
     expect(result.displayEnvelope).toMatchObject({
       displayText: "案件を確認します。",
@@ -52,29 +52,21 @@ describe("shared chatbot LLM output contract", () => {
     })
   })
 
-  it("accepts a Tier1 body response", () => {
+  it("accepts a Tier3 body response", () => {
     expect(() =>
       assertChatbotLlmResponseContract(
-        response("tier-1-hosted-chrome-notion-ai", "<customer_reply>相談内容を確認しました。</customer_reply>"),
+        response("tier-3-form-fallback", "<customer_reply>相談内容を確認しました。</customer_reply>"),
       ),
     ).not.toThrow()
   })
 
-  it("accepts a Tier2 body response", () => {
-    expect(() =>
-      assertChatbotLlmResponseContract(
-        response("tier-1-hosted-chrome-notion-ai", "<customer_reply>相談内容を確認しました。</customer_reply>"),
-      ),
-    ).not.toThrow()
-  })
-
-  it("accepts a Tier3 response with a valid choice panel", () => {
+  it("accepts a Tier2 response with a valid choice panel", () => {
     expect(() =>
       assertChatbotLlmResponseContract(response("tier-2-gemini-flash", choicePanel())),
     ).not.toThrow()
   })
 
-  it("accepts a Tier3 response with a booking card", () => {
+  it("accepts a Tier2 response with a booking card", () => {
     const rawText =
       '<customer_reply>候補日を確認します。\n{"tool":"show_booking_card","args":{}}</customer_reply>'
     expect(() =>
@@ -82,11 +74,8 @@ describe("shared chatbot LLM output contract", () => {
     ).not.toThrow()
   })
 
-  it("rejects a Tier2 body-only response for deterministic same-tier UI repair", () => {
-    expect(rejectionFor("<customer_reply>相談内容を確認しました。</customer_reply>")).toMatchObject({
-      decision: "reject-and-regenerate-structured-ui",
-      reason: "missing-structured-ui",
-    })
+  it("accepts a Tier2 body response without structured UI", () => {
+    expect(rejectionFor("<customer_reply>相談内容を確認しました。</customer_reply>")).toBeUndefined()
   })
 
   it("rejects a choice panel with an unregistered id", () => {

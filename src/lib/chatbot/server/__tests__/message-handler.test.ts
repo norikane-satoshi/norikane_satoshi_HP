@@ -200,7 +200,7 @@ function setup(overrides: {
   const generate = vi.fn().mockResolvedValue({
     rawText: customerReply("返信です"),
     displayEnvelope: createChatbotLlmDisplayEnvelope(customerReply("返信です")),
-    tier: "tier-1-hosted-chrome-notion-ai",
+    tier: "tier-2-gemini-flash",
   })
   const slackNotifier = vi.fn().mockResolvedValue({ status: "skipped", reason: "disabled" })
   const userContextLoader = vi.fn().mockResolvedValue(userContext())
@@ -345,7 +345,6 @@ describe("handleChatbotMessage user context", () => {
     })
     expect(harness.generate).toHaveBeenCalledWith(
       expect.objectContaining({
-        conversationId: "conv_1",
         systemPrompt: expect.stringContaining("本人だけの過去要約"),
       }),
     )
@@ -389,7 +388,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ご相談ありがとうございます。まず案件の種別を教えてください。下の選択肢から選んでください。- ライブ - CM - MV - その他"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -431,7 +430,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ライブ配信の尺を選んでください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     try {
@@ -593,7 +592,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply(JSON.stringify({ tool: "show_choice_panel", args: {
         id: "project-length", question: "尺の区分を選んでください", choices: [{ id: "approx", label: "90分前後" }],
-      } })), tier: "tier-1-hosted-chrome-notion-ai",
+      } })), tier: "tier-2-gemini-flash",
     })
     const result = await handleChatbotMessage({
       sessionId: "session_1", userId: "user_a", message: "尺を相談したいです",
@@ -655,7 +654,7 @@ describe("handleChatbotMessage user context", () => {
           choices,
         },
       })}`),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -732,7 +731,7 @@ describe("handleChatbotMessage user context", () => {
         "- 劇場・イベント上映",
         "- 未定・相談したい",
       ].join("\n")),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     try {
@@ -783,7 +782,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("最終媒体を教えてください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     try {
@@ -851,7 +850,7 @@ describe("handleChatbotMessage user context", () => {
           ],
         },
       })),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     try {
@@ -965,7 +964,7 @@ describe("handleChatbotMessage user context", () => {
           choices: labels.map((label, index) => ({ id: `${jobKind.replace(/[^a-z0-9]/g, "-")}-medium-${index + 1}`, label })),
         },
       })),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -1008,7 +1007,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply([`${question}。`, "選択肢:", ...labels.map((label) => `- ${label}`)].join("\n")),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -1049,7 +1048,7 @@ describe("handleChatbotMessage user context", () => {
         "- 素材量を確認します。",
         "- 追加作業の有無で日数が変わります。",
       ].join("\n")),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -1080,7 +1079,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('公開先の相談ですね。{"tool":"show_choice_panel","args":{"id":"final-medium","question":"想定している公開先を教えてください","selectionMode":"single","allowFreeText":true,"choices":[{"id":"tv-broadcast","label":"地上波・BS／CS放送"},{"id":"streaming-drama","label":"配信プラットフォーム"},{"id":"web-public","label":"Web公開"},{"id":"theater-event","label":"劇場・イベント上映"}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -1254,7 +1253,7 @@ describe("handleChatbotMessage user context", () => {
         harness.options,
       )
 
-      expect(result.tier).toBe("tier-1-hosted-chrome-notion-ai")
+      expect(result.tier).toBe("tier-2-gemini-flash")
       expect(result.ui).toEqual({ kind: "none" })
       expect(harness.generate).toHaveBeenCalledOnce()
     },
@@ -1314,7 +1313,7 @@ describe("handleChatbotMessage user context", () => {
         ],
       }),
     })
-    harness.generate.mockResolvedValue({ rawText: customerReply("再生成後の返信です"), tier: "tier-1-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("再生成後の返信です"), tier: "tier-2-gemini-flash" })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
 
     await handleChatbotMessage(
@@ -1349,7 +1348,7 @@ describe("handleChatbotMessage user context", () => {
       threadTs: "1700000000.000100",
       userMessage: "編集後の相談",
       assistantResponse: expect.any(String),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     }))
     expect(harness.repository.updateConversationSlackThreadTs).not.toHaveBeenCalled()
   })
@@ -1364,7 +1363,7 @@ describe("handleChatbotMessage user context", () => {
         ],
       }),
     })
-    harness.generate.mockResolvedValue({ rawText: customerReply("復元後の返信です"), tier: "tier-1-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("復元後の返信です"), tier: "tier-2-gemini-flash" })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
 
     await handleChatbotMessage(
@@ -1407,7 +1406,7 @@ describe("handleChatbotMessage user context", () => {
         ],
       }),
     })
-    harness.generate.mockResolvedValue({ rawText: customerReply("再生成後の返信です"), tier: "tier-1-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("再生成後の返信です"), tier: "tier-2-gemini-flash" })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000100" })
 
     await handleChatbotMessage(
@@ -1707,7 +1706,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("メールアドレスの末尾が途中で切れているようです。正しいメールアドレスを教えてください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -1732,7 +1731,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"ライブ2.5h 消し物・肌修正・観客の顔ぼかし30カット以上、リモートでも立ち会いでも相談","contactName":"テスト太郎","contactEmail":"client@example.jp","companyName":"テスト株式会社","dueDate":"2026-07-31"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -1774,7 +1773,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -1823,7 +1822,7 @@ describe("handleChatbotMessage user context", () => {
     )
     expect(harness.slackNotifier).toHaveBeenCalledWith(
       expect.objectContaining({
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
         uiKind: "booking-card",
         flowStep: "booking-card",
         bookingProgress: true,
@@ -1859,7 +1858,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -1926,7 +1925,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         "user says there are no additional concerns. confirmed facts are ready, so proceed to the booking card.",
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -1979,7 +1978,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('候補を出します。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-10"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2025,7 +2024,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('{"tool":"show_booking_card","args":{"projectTitle":"ライブ案件","contactName":"山田太郎","contactEmail":"client@example.com"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2084,7 +2083,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ご連絡ありがとうございます。則兼からメールでご連絡します。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2128,7 +2127,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ありがとうございます。それでは、このまま受付完了として進めます。則兼からご登録のメールアドレス宛にご連絡いたしますので、今しばらくお待ちください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2183,7 +2182,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("承知いたしました。これまでのご相談内容をもとに、則兼との相談・確認に進むための予約候補カードを作成します。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2254,7 +2253,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("候補を確認します。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2328,7 +2327,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("候補を確認します。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2364,7 +2363,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("必要な確認を続けます。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     await handleChatbotMessage(
@@ -2420,7 +2419,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("次に、素材をいつ頃お渡しいただけそうかを教えてください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2463,7 +2462,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ありがとうございます。この内容で進めます。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2483,7 +2482,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("田中テストさま、ありがとうございます。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2539,7 +2538,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"Old User","contactEmail":"old@example.com","memo":"案件種別: ライブ / 最終媒体: ライブ"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2592,7 +2591,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         '{"tool":"show_booking_card","args":{"projectTitle":"ライブ案件","contactEmail":"example.com","memo":"メール: client@example.jp\\n氏名: 別名\\n会社名: 別会社\\n共有事項: 当日立ち会い希望"}}',
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2648,7 +2647,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("承知いたしました。これまでのご相談内容をもとに、予約候補カードを作成します。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2693,7 +2692,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ありがとうございます。内容を整理できました。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2739,7 +2738,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('予約内容は届いています。追加の確認もこのまま送れます。{"tool":"show_booking_card","args":{"projectTitle":"案件T","contactName":"山田太郎","contactEmail":"client@example.com"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2749,7 +2748,7 @@ describe("handleChatbotMessage user context", () => {
 
     expect(result.ui).toEqual({ kind: "none" })
     expect(result.routingDecision).toBeUndefined()
-    expect(result.tier).toBe("tier-1-hosted-chrome-notion-ai")
+    expect(result.tier).toBe("tier-2-gemini-flash")
     expect(result.assistantMessage.content).toContain("予約内容は届いています")
     expect(harness.candidateWindowFinder).not.toHaveBeenCalled()
     expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(
@@ -2799,7 +2798,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ありがとうございます。こちらで受け取れています。気になることがあればいつでも送ってください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -2818,7 +2817,7 @@ describe("handleChatbotMessage user context", () => {
         }),
       }),
     )
-    expect(result.tier).toBe("tier-1-hosted-chrome-notion-ai")
+    expect(result.tier).toBe("tier-2-gemini-flash")
     expect(result.ui).toEqual({ kind: "none" })
     expect(result.assistantMessage.content).toContain("ありがとうございます")
     expect(result.assistantMessage.content).toContain("気になることがあれば")
@@ -2883,7 +2882,7 @@ describe("handleChatbotMessage user context", () => {
       })
       harness.generate.mockResolvedValueOnce({
         rawText: customerReply(item.reply),
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       })
 
       const result = await handleChatbotMessage(
@@ -2929,7 +2928,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("最近の映画なら、じっくり見られる作品がおすすめです。好きなジャンルはありますか？"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3032,7 +3031,7 @@ describe("handleChatbotMessage user context", () => {
       })
       harness.generate.mockResolvedValueOnce({
         rawText: customerReply(leakedReply),
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       })
 
       const result = await handleChatbotMessage(
@@ -3074,7 +3073,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("予約候補カードは作成済みです。則兼からご登録のメールアドレス宛にご連絡いたします。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3145,7 +3144,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3164,7 +3163,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("予約候補カードに進める前に、最後に一点だけ確認させてください。ほかに伝えておきたいことや不安な点はありますか。なければ「なし」とお返事ください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3231,7 +3230,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3280,7 +3279,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('納品形式も補足に入れます。 {"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3338,7 +3337,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ありがとうございます。名前も気に入ってもらえてうれしいです。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3387,7 +3386,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: 'user said "追加で聞きたいことがあります". I should answer naturally.',
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3408,7 +3407,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("のりかね映像設計室の相談窓口として動いています"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3544,7 +3543,7 @@ describe("handleChatbotMessage user context", () => {
       harness.generate.mockResolvedValueOnce({
         rawText:
           customerReply("受付内容の整理：ライブ案件です。納品形式も教えてください。追加で確認したいことがあります。"),
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       })
 
       const result = await handleChatbotMessage(
@@ -3580,7 +3579,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("受付内容の整理：MV案件です。納品形式も教えてください。追加で確認したいことがあります。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3616,11 +3615,11 @@ describe("handleChatbotMessage user context", () => {
     )
   })
 
-  it("forces contextual project length choices when Tier1 asks the duration as free text", async () => {
+  it("forces contextual project length choices when the model asks the duration as free text", async () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("まず、1話あたりの尺はどのくらいを想定されていますか？"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3659,7 +3658,7 @@ describe("handleChatbotMessage user context", () => {
       const harness = setup()
       harness.generate.mockResolvedValueOnce({
         rawText: customerReply("スタジオ利用も含めて整理できます。"),
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       })
 
       const result = await handleChatbotMessage(
@@ -3703,7 +3702,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("メールアドレスをもう一度教えてください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       proposedRoutingDecision: {
         kind: "to-booking-inline",
         suggestedSlots: [
@@ -3741,7 +3740,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("詳細は担当者が確認します。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3770,7 +3769,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("料金は本人が確認します。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -3947,7 +3946,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("カラーグレーディングの因数分解は公開予定のノートです。作品意図を観客の印象へ翻訳する考え方を扱う予定です。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
     const snapshot = createStaticChatbotKnowledgeSnapshot("2026-06-22T01:10:34.550Z")
     snapshot.noteKnowledge = [
@@ -3973,7 +3972,7 @@ describe("handleChatbotMessage user context", () => {
       },
     )
 
-    expect(result.tier).toBe("tier-1-hosted-chrome-notion-ai")
+    expect(result.tier).toBe("tier-2-gemini-flash")
     expect(result.assistantMessage.content).toContain("公開予定のノート")
     expect(harness.generate).toHaveBeenCalled()
     const prompt = harness.generate.mock.calls[0]?.[0].systemPrompt
@@ -4014,7 +4013,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ライブ2時間半なら通常7〜8日が目安です。3日以内も内容と素材状況を整理して相談できますが、この場では確約しません。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4085,7 +4084,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ライブ2時間半規模の工程目安は17〜20日です。素材の受け渡し方法を教えてください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4117,7 +4116,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ライブ2時間半なら通常7〜9日が目安です。素材状況や追加作業が重い場合は前後するので、受け渡し状況も確認させてください。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4158,7 +4157,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ありがとうございます。内容を整理しました。案件種類・尺: ライブ 2時間半。所要日数の目安は17〜20日です。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4258,7 +4257,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply(rawText),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4328,7 +4327,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("ライブ60分・追加作業なしのカラーグレーディングでしたら、4日程度が目安です。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4377,7 +4376,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("希望開始日 2026-07-01、希望納期 2026-07-10で承知しました。基本工程ラインは0.5〜1日が目安です。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4435,7 +4434,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply("ライブ2時間半の基本工程に加え、観客ぼかしの作業量によって変動します。基本工程（17〜20日）に対し、ぼかし作業の規模次第で延びる可能性があります。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4507,7 +4506,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("素材状況を踏まえると、基本工程は17〜20日を見ておくとよさそうです。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4625,7 +4624,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply(rawText),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4704,7 +4703,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("素材状況を踏まえると、工程目安は17〜20日です。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -4760,7 +4759,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply(`案件種別を確認します。 ${JSON.stringify({ tool: "show_choice_panel", args: jobKindChoices })}`),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     await handleChatbotMessage(
@@ -4804,7 +4803,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("相談内容を整理して送信できます。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -5004,7 +5003,7 @@ describe("handleChatbotMessage user context", () => {
       rawText: customerReply(
         '追加作業を選んでください。 {"tool":"show_choice_panel","args":{"id":"additional-work","question":"追加作業を選んでください","selectionMode":"multiple","choices":[{"id":"color-grading","label":"カラーグレーディング"},{"id":"retouch","label":"消し物"}]}}',
       ),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -5333,7 +5332,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","contactEmail":"client@example.com","companyName":"Example","dueDate":"2026-07-10"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -5393,7 +5392,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('{"tool":"show_booking_card","args":{"projectTitle":"CM案件","contactName":"山田太郎","companyName":"Example","dueDate":"2026-07-31"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -5441,7 +5440,7 @@ describe("handleChatbotMessage user context", () => {
     harness.generate.mockResolvedValueOnce({
       rawText:
         customerReply('候補を確認します。 {"tool":"show_booking_card","args":{"projectTitle":"DaVinci Resolve 講習","contactEmail":"client@example.com","dueDate":"2026-07-10"}}'),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -5476,7 +5475,7 @@ describe("handleChatbotMessage user context", () => {
     const harness = setup()
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("講習内容を整理します。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     const result = await handleChatbotMessage(
@@ -5503,7 +5502,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("posts the first Slack conversation notification as a parent message and saves the returned thread ts", async () => {
     const harness = setup()
-    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-2-gemini-flash" })
     harness.slackNotifier.mockResolvedValueOnce({ status: "sent", ts: "1700000000.000100" })
 
     await handleChatbotMessage(
@@ -5532,7 +5531,7 @@ describe("handleChatbotMessage user context", () => {
         context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
       }),
     })
-    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-2-gemini-flash" })
     harness.slackNotifier.mockResolvedValueOnce({ status: "sent", ts: "1700000000.000200" })
 
     await handleChatbotMessage(
@@ -5549,7 +5548,7 @@ describe("handleChatbotMessage user context", () => {
 
   it("creates separate Slack parent posts for separate sessions", async () => {
     const harness = setup({ existingConversation: null, isolatedConversation: null })
-    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-2-gemini-flash" })
     harness.slackNotifier
       .mockResolvedValueOnce({ status: "sent", ts: "1700000000.000100" })
       .mockResolvedValueOnce({ status: "sent", ts: "1700000000.000200" })
@@ -5639,7 +5638,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("通常応答です。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       diagnostics: {
         attemptCount: 2,
         maxAttempts: 3,
@@ -5665,13 +5664,13 @@ describe("handleChatbotMessage user context", () => {
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
 
     await handleChatbotMessage(
-      { sessionId: "session_1", userId: "user_a", message: "Tier1 retry diagnostics" },
+      { sessionId: "session_1", userId: "user_a", message: "retry diagnostics" },
       harness.options,
     )
 
     expect(harness.slackNotifier).toHaveBeenCalledWith(expect.objectContaining({
       kind: "conversation",
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       retryDiagnostics: {
         attemptCount: 2,
         maxAttempts: 3,
@@ -5710,7 +5709,7 @@ describe("handleChatbotMessage user context", () => {
     })
     harness.generate.mockResolvedValueOnce({
       rawText: customerReply("復旧応答です。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
 
@@ -5736,7 +5735,7 @@ describe("handleChatbotMessage user context", () => {
   it("returns the chatbot response when Slack notification fails", async () => {
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const harness = setup()
-    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-1-hosted-chrome-notion-ai" })
+    harness.generate.mockResolvedValue({ rawText: customerReply("返信です"), tier: "tier-2-gemini-flash" })
     harness.slackNotifier.mockResolvedValueOnce({ status: "failed", reason: "send-failed" })
 
     const result = await handleChatbotMessage(

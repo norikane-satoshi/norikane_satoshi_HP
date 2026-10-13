@@ -49,7 +49,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: `I need to ask for a project name one by one. ${opaqueBlob} 承知しました。納品形式は特になし、として整理します。最後にもう1点だけ確認させてください。案件名を教えていただけますでしょうか？`,
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
       {
         routingDecision: {
@@ -72,7 +72,7 @@ describe("normalizeChatbotLlmResponse", () => {
       {
         rawText:
           'user said "特にないですー" (no particular preferences) regarding delivery format/distribution. I need to check what\'s still missing before show_booking_card. 案件名と担当者名が最も重要なので、まずこれらを聞こう。\n承りました。納品形式はお任せとして進めます。ほかに気になる点がなければ、作品名を教えていただけますか？',
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
       {
         routingDecision: {
@@ -110,7 +110,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText,
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
       {
         routingDecision: {
@@ -154,7 +154,7 @@ describe("normalizeChatbotLlmResponse", () => {
       const normalized = normalizeChatbotLlmResponse(
         {
           rawText,
-          tier: "tier-1-hosted-chrome-notion-ai",
+          tier: "tier-2-gemini-flash",
         },
         {
           routingDecision: {
@@ -174,7 +174,7 @@ describe("normalizeChatbotLlmResponse", () => {
       rawText: customerReply(
         "ありがとうございます。まずは方向性を一緒に整理しましょう。ご希望の納期はいつ頃でしょうか？",
       ),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     expect(normalized.content).toBe(
@@ -187,7 +187,7 @@ describe("normalizeChatbotLlmResponse", () => {
       rawText: customerReply(
         "Web CMのご相談、承りました。参考として https://norikane.studio/notes/color-grading もご覧いただけます。まず尺を教えてください。",
       ),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     expect(normalized.content).toBe(
@@ -200,7 +200,7 @@ describe("normalizeChatbotLlmResponse", () => {
       {
         rawText:
           "The user said nothing in particular. I need to check what's still missing before show_booking_card, so I should ask for the project title next.",
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
       {
         routingDecision: {
@@ -217,7 +217,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: customerReply(`thinking signature ${"A".repeat(140)}`),
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
       {
         routingDecision: {
@@ -234,7 +234,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: customerReply("まず尺を教えてください。\nalmond-croissant-low"),
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
       {
         routingDecision: {
@@ -252,7 +252,7 @@ describe("normalizeChatbotLlmResponse", () => {
       {
         rawText:
           "Web CM案件。次は尺を確認。<lang primary=\"Web CMのご相談、承りました。\nまず尺を教えてください。</lang>",
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
       {
         routingDecision: {
@@ -270,7 +270,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: customerReply("ja-MVのカラーグレーディングですね。まず作品の尺を教えてください。"),
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
       {
         routingDecision: {
@@ -288,7 +288,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const normalized = normalizeChatbotLlmResponse(
       {
         rawText: customerReply("MV案件の新規相談。まず尺を確認する必要がある。まず作品の尺を教えてください。"),
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
       {
         routingDecision: {
@@ -305,7 +305,7 @@ describe("normalizeChatbotLlmResponse", () => {
   it("keeps code fences inside an explicit customer reply", () => {
     const normalized = normalizeChatbotLlmResponse({
       rawText: customerReply("例として、以下の形で送れます。\n```text\n作品名: 未定\n```"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     expect(normalized.content).toBe("例として、以下の形で送れます。\n```text\n作品名: 未定\n```")
@@ -315,7 +315,7 @@ describe("normalizeChatbotLlmResponse", () => {
     const tool = '{"tool":"show_choice_panel","args":{"id":"final-medium","question":"公開先を教えてください","choices":[{"id":"web","label":"Web公開"},{"id":"broadcast","label":"放送"}]}}'
     const normalized = normalizeChatbotLlmResponse({
       rawText: customerReply(`公開先を確認します。\n${tool}`),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
     })
 
     expect(normalized.content).toContain("公開先を確認します。")

@@ -531,7 +531,7 @@ describe("POST /api/chatbot/create-booking-from-chat", () => {
   })
 
   it("rejects diagnostic bookings before production writes while customer bookings still post", async () => {
-    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "worker-secret")
+    vi.stubEnv("CHATBOT_DIAGNOSTIC_TOKEN", "diagnostic-secret")
     const { chatbotDiagnosticHeader, chatbotDiagnosticToken } = await import("@/lib/chatbot/server/diagnostic-request")
     const diagnostic = await loadPost()
 

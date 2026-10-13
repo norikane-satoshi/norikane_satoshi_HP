@@ -60,28 +60,8 @@ export type WidgetUi =
 
 export type ChatbotResponseTier =
   | "tier-0-deterministic-intake"
-  | "tier-1-hosted-chrome-notion-ai"
   | "tier-2-gemini-flash"
   | "tier-3-form-fallback"
-
-export type ChatbotLifecycleDebug = {
-  conversationScopeHash?: string
-  threadIdHash?: string
-  threadVersion?: number
-  visibilityStatus?: string
-  alive?: boolean
-  deletedAt?: string
-  estimatedRetentionDeadline?: string
-  hiddenFromChatList?: boolean
-  hideAttemptCount?: number
-  hideVerificationResult?: string
-  postHideInferenceVerified?: boolean
-  threadRecordMissing?: boolean
-  retentionPurgeDetected?: boolean
-  threadReprovisioned?: boolean
-  contextRebuiltFromHpDb?: boolean
-  tierFallbackReason?: string
-}
 
 export type ChatbotAuditDebug = {
   schemaVersion: "1"
@@ -91,13 +71,6 @@ export type ChatbotAuditDebug = {
     | "conversationLoad"
     | "contextPreparation"
     | "tierHealthCheck"
-    | "workerQueueWait"
-    | "cdpTargetSession"
-    | "runtimeContextPreparation"
-    | "promptToFirstChunk"
-    | "responseStreaming"
-    | "outputValidation"
-    | "notionInference"
     | "responseNormalization"
     | "conversationPersist"
     | "slackNotification"
@@ -117,7 +90,6 @@ export type ChatbotMessageResponse = {
   customerDisplayName?: string
   inquiryPrefill?: InquiryFormPrefill
   clientBuildId?: string
-  debug?: ChatbotLifecycleDebug
   auditDebug?: ChatbotAuditDebug
 }
 

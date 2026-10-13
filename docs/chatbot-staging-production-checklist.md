@@ -50,7 +50,7 @@ The same guard also checks that generated `@prisma/client` schema contains the r
 
 Before any production reflection, compare `origin/master..origin/staging` and classify changes by surface:
 
-- chatbot runtime and repository state: API routes, server/domain code, widget state, choice panels, duration context, Notion knowledge sync, hosted Tier 1, local guard
+- chatbot runtime and repository state: API routes, server/domain code, widget state, choice panels, duration context, Notion knowledge sync, local guard
 - HP visual/UI: hero, profile, featured works, press section, notes visuals, typography, side peek
 - schema and ops: Prisma migrations, env examples, cron/revalidate, launchd/systemd templates, staging baseline guard
 - docs/tests: coverage that proves the above
@@ -74,15 +74,15 @@ Run the permanent live verifier once against the release target:
 pnpm chatbot:verify-fallback-customer-experience-live -- --base-url https://norikane.studio
 ```
 
-The command uses controlled failure injection and does not stop the hosted Tier 1 worker or the local preview server. It must prove all of the following in one pass:
+The tier order is Tier0 (deterministic intake, no model) → `tier-2-gemini-flash` → `tier-3-form-fallback`. The command uses controlled failure injection and does not stop the local preview server. It must prove all of the following in one pass:
 
-1. A Tier 1 health failure selects the real `tier-2-gemini-flash` client.
+1. The real `tier-2-gemini-flash` client answers.
 2. The real Gemini response contains the canary and satisfies the customer display contract with structured UI.
-3. Tier 1 and Tier 2 health failures select `tier-3-form-fallback` with the canonical inquiry-form guidance.
+3. A Tier 2 health failure selects `tier-3-form-fallback` with the canonical inquiry-form guidance.
 4. The real `/api/chatbot/submit-inquiry` route returns both `ok: true` and `delivered: true`; HTTP 200 alone is a failure.
 5. The unit and E2E suites prove the resulting `tier3-inquiry-form` is visible, submit targets `/api/chatbot/submit-inquiry`, success feedback is visible, and fallback Slack notifications use the current tier labels.
 6. The verifier report contains only tier labels and boolean contract evidence. It must not print API keys, email addresses, prompts, response bodies, or customer data.
 
-`tier-0-deterministic-intake` is not a fallback. It is the normal reply for intake turns that code fully decides (a confirmed choice-panel answer, or a required free-text intake answer that advanced the state); no model is called and the reply is the fixed next question. First messages, customer questions, knowledge answers, protective branches, and clarifications keep the Tier 1 path. A free-text answer to a shown panel is mapped by TypeSafe Jev only when `TYPESAFE_API_KEY` is set and the answer is confident; otherwise it goes to Tier 1.
+`tier-0-deterministic-intake` is not a fallback. It is the normal reply for intake turns that code fully decides (a confirmed choice-panel answer, or a required free-text intake answer that advanced the state); no model is called and the reply is the fixed next question. First messages, customer questions, knowledge answers, protective branches, and clarifications go to Tier 2. A free-text answer to a shown panel is mapped by TypeSafe Jev only when `TYPESAFE_API_KEY` is set and the answer is confident; otherwise it goes to Tier 2.
 
 The live command sends one clearly labelled canary notification to the operator. Record only the target SHA, execution time, tier results, delivery boolean, and the provider/message identifier when separately available. Never record the canary email body or credentials.

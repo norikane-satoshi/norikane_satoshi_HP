@@ -341,7 +341,7 @@ describeSqlite("message request coordinator SQLite integration", () => {
     const generate = vi.fn().mockResolvedValue({
       rawText,
       displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
-      tier: "tier-1-hosted-chrome-notion-ai" as const,
+      tier: "tier-2-gemini-flash" as const,
     })
     const baseOptions = {
       orchestratorFactory: () => ({ generate, isHealthy: vi.fn().mockResolvedValue(true) }),
@@ -460,7 +460,7 @@ describeSqlite("message request coordinator SQLite integration", () => {
       return {
         rawText,
         displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
-        tier: "tier-1-hosted-chrome-notion-ai" as const,
+        tier: "tier-2-gemini-flash" as const,
       }
     })
     const baseOptions = {
@@ -626,7 +626,7 @@ describeSqlite("message request coordinator SQLite integration", () => {
     const generate = vi.fn().mockResolvedValue({
       rawText,
       displayEnvelope: createChatbotLlmDisplayEnvelope(rawText),
-      tier: "tier-1-hosted-chrome-notion-ai" as const,
+      tier: "tier-2-gemini-flash" as const,
     })
     const baseOptions = {
       orchestratorFactory: () => ({ generate, isHealthy: vi.fn().mockResolvedValue(true) }),

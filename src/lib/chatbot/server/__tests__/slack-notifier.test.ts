@@ -60,7 +60,7 @@ describe("sendChatbotSlackNotification", () => {
         requestId: "req_1",
         conversationId: "conv_1",
         sessionId: "session_1",
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
         routingDecisionKind: "continue",
         uiKind: "choice-panel",
         choiceSetId: "booking-final-confirmation",
@@ -83,7 +83,7 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.thread_ts).toBeUndefined()
     expect(body.text).toContain("新しいチャット相談")
     expect(body.text).toContain("requestId: req_1")
-    expect(body.text).toContain("tier: Tier 1（Hosted Chrome / Notion AI） [tier-1-hosted-chrome-notion-ai]")
+    expect(body.text).toContain("tier: Tier 2（Gemini Flash） [tier-2-gemini-flash]")
     expect(body.text).toContain("ui: choice-panel")
     expect(body.text).toContain("choiceSetId: booking-final-confirmation")
     expect(body.text).toContain("flowStep: booking-final-confirmation")

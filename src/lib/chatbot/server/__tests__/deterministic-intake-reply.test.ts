@@ -41,7 +41,7 @@ function harness(existing: ChatbotConversation) {
   const generate = vi.fn(async () => ({
     rawText: raw,
     displayEnvelope: createChatbotLlmDisplayEnvelope(raw),
-    tier: chatbotLlmTierIds.tier1HostedChromeNotionAi,
+    tier: chatbotLlmTierIds.tier2GeminiFlash,
   }))
   const repository = {
     loadOrCreateConversationBySessionId: vi.fn(async () => existing),
@@ -130,7 +130,7 @@ describe("deterministic intake replies (Tier 0)", () => {
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいかかりますか？" }, h.options)
 
     expect(h.generate).toHaveBeenCalledOnce()
-    expect(result.tier).toBe(chatbotLlmTierIds.tier1HostedChromeNotionAi)
+    expect(result.tier).toBe(chatbotLlmTierIds.tier2GeminiFlash)
   })
 
   it("keeps the LLM for the first consultation message", async () => {
@@ -160,7 +160,7 @@ describe("deterministic intake replies (Tier 0)", () => {
 
     expect(h.options.choiceInterpreter).toHaveBeenCalledOnce()
     expect(h.generate).toHaveBeenCalledOnce()
-    expect(result.tier).toBe(chatbotLlmTierIds.tier1HostedChromeNotionAi)
+    expect(result.tier).toBe(chatbotLlmTierIds.tier2GeminiFlash)
   })
 
   it("does not ask the choice interpreter about explicit panel submissions", async () => {

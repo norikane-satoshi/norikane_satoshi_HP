@@ -821,7 +821,6 @@ export function WidgetShell({
         durationMs: Date.now() - debugStartedAt,
         requestId: payload.requestId,
         tier: payload.tier,
-        lifecycle: payload.debug,
         audit: payload.auditDebug,
       })
     } catch (error) {
@@ -1023,7 +1022,6 @@ export function WidgetShell({
         durationMs: Date.now() - debugStartedAt,
         requestId: payload.requestId,
         tier: payload.tier,
-        lifecycle: payload.debug,
         audit: payload.auditDebug,
       })
     } catch (error) {
@@ -1190,7 +1188,6 @@ export function WidgetShell({
         durationMs: Date.now() - debugStartedAt,
         requestId: payload.requestId,
         tier: payload.tier,
-        lifecycle: payload.debug,
         audit: payload.auditDebug,
       })
     } catch (error) {

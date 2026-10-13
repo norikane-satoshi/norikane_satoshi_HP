@@ -304,7 +304,7 @@ describe("ChatbotBookingCard", () => {
       jobContext,
       auditContext: {
         correlationId: "11111111-1111-4111-8111-111111111111",
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
         responseReceivedAt: performance.now(),
       },
       defaultContactEmail: "client@example.jp",

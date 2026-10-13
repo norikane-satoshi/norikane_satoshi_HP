@@ -100,7 +100,7 @@ describe("GET /api/cron/reconcile-pending-gcal", () => {
   })
 
   it("does not replay production intents for authenticated diagnostic verification", async () => {
-    vi.stubEnv("CHATBOT_HOSTED_NOTION_AI_WORKER_TOKEN", "diagnostic-test-secret")
+    vi.stubEnv("CHATBOT_DIAGNOSTIC_TOKEN", "diagnostic-test-secret")
     const diagnostic = request()
     diagnostic.headers.set(chatbotDiagnosticHeader, chatbotDiagnosticToken()!)
     const response = await GET(diagnostic)

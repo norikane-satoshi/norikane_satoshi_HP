@@ -7,7 +7,7 @@
 1. Main checkout の `master` を `git fetch origin && git merge --ff-only origin/master` で最新化する。
 2. 実装ごとに専用 branch / worktree を使う。
 3. 最小テスト、影響範囲テスト、実アプリ確認を順に行う。
-4. 統合後、main checkout から `repo:finish` の dry-run と apply を実行し、open handle がない clean な task worktree、local branch、同名の origin branch を同じ発注内で削除する。
+4. 統合後、task worktree・local branch・同名の origin branch を同じ発注内で削除する（下記）。
 5. `pnpm repo:hygiene -- --strict` を通して完了する。
 
 Claude Code は Stop hook で同じ検査を行う。CI は静的ポリシーと検査ロジックの回帰テストを行う。
@@ -16,30 +16,15 @@ Claude Code は Stop hook で同じ検査を行う。CI は静的ポリシーと
 
 ## Task branch の終了
 
-`repo:finish` は一度に明示した1ブランチだけを扱う。まず main checkout の `master` で dry-run する。
+統合先（`origin/master` または `origin/staging`）に含まれたことを確かめてから、main checkout で実行する。
 
 ```sh
-pnpm repo:finish -- codex/example-task --target=origin/master
+git merge-base --is-ancestor <branch> origin/master
+~/clawd/tools/ws/ws done <worktree>        # worktree と local branch を片付ける
+git push origin --delete <branch>
 ```
 
-出力された branch、commit、統合先、worktree、local/origin branch の対象が正しい場合だけ apply する。staging までの統合で終了する作業は `--target=origin/staging` を使う。
-
-```sh
-pnpm repo:finish -- codex/example-task --target=origin/master --apply
-```
-
-staging のみに新しい cleanup script が統合され、main checkout の `master` に未反映の場合は、main の旧 `pnpm repo:finish` を使わない。main checkout を cwd とする共通 `guarded_run.py` 内で、検証済み `origin/staging` の `scripts/repo-finish.mjs`、`scripts/repo-finish-lib.mjs`、`scripts/repo-hygiene-lib.mjs` を `git show` で取得し、`WORKSPACE_LIFECYCLE_BUILD_ROOT` の同じディレクトリへ保存する。その snapshot の `repo-finish.mjs` を `node` で起動し、`--target=origin/staging` の dry-run を確認してから、別の guard で同じ snapshot 手順と `--apply` を実行する。削除対象 worktree を cwd や実行 script の置き場にせず、snapshot は guard が正規回収する。
-
-片付け対象の登録情報は lifecycle の `lookup --repository <main> --branch <branch> --worktree <path>` で限定取得する。全 registry の列挙や応答サイズの上限拡張に依存せず、対象の一意性・所有者・branch binding は従来どおり検証する。
-
-apply は次の条件をすべて満たさなければ何も削除しない。
-
-- main checkout が clean な `master` で、`master == origin/master`
-- 対象 branch の local/origin 先端が一致し、指定した `origin/master` または `origin/staging` の祖先
-- task worktree の exact path・repository・branch・owner が共通 lifecycle registry に一意登録され、clean で open handle がない。RAID 上の登録済み worktree も同じ契約を使う
-- `master` / `staging` ではなく、構文上有効な明示 branch 名
-
-実行時は共通 lifecycle CLI で exact owner の finalize、worktree dispose、branch dispose を行い、最後に同名 origin branch を削除して全対象の不在を再確認する。共通 CLI の二重 audit・fingerprint・open handle 検査を使い、HP 独自の tree 走査や raw worktree 削除は行わない。remote の削除には確認済み先端への lease を付け、確認後に進んだ branch を削除しない。`repo:hygiene -- --strict` は、worktree を外したあとに残った統合済み local branch もエラーにする。歴史的な branch を一括削除する用途には使わない。
+`ws done` は未統合や作業中の worktree を消さない。歴史的な branch の一括削除には使わない。
 
 ## ローカル専用領域
 

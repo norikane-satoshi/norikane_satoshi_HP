@@ -308,7 +308,7 @@ describe("createChatbotLlmTierOrchestrator", () => {
     fetchSpy.mockRestore()
   })
 
-  it("accepts a Gemini reply without a panel when the server supplies the panel this turn", async () => {
+  it("accepts a Gemini reply without a panel, whether or not the server supplies one", async () => {
     const bodyOnly = llmResponse("tier-2-gemini-flash", "<customer_reply>作業期間は尺で変わります。</customer_reply>")
     const tier2 = fakeClient("tier-2-gemini-flash", { generateResult: bodyOnly })
     const attempts: TierAttemptEvent[] = []
@@ -318,15 +318,8 @@ describe("createChatbotLlmTierOrchestrator", () => {
     })
 
     await expect(orchestrator.generate(llmRequest({ structuredUiFromCode: true }))).resolves.toEqual(bodyOnly)
-    expect(attempts.filter((attempt) => attempt.phase === "generate").map((attempt) => attempt.outcome)).toEqual(["success"])
-  })
-
-  it("still rejects a Gemini reply without a panel when the server has none to show", async () => {
-    const bodyOnly = llmResponse("tier-2-gemini-flash", "<customer_reply>作業期間は尺で変わります。</customer_reply>")
-    const tier2 = fakeClient("tier-2-gemini-flash", { generateResult: bodyOnly })
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2] })
-
-    await expect(orchestrator.generate(llmRequest())).rejects.toMatchObject({ code: "invalid-output" })
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(bodyOnly)
+    expect(attempts.filter((attempt) => attempt.phase === "generate").map((attempt) => attempt.outcome)).toEqual(["success", "success"])
   })
 
   it("sets aside a panel the model improvised when the server supplies its own, without a failed attempt", async () => {

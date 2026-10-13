@@ -3,7 +3,7 @@
 import { Check, Copy, RefreshCw, X } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
-import type { ChatbotAuditDebug, ChatbotLifecycleDebug, ChatbotResponseTier, WidgetUi } from "./api"
+import type { ChatbotAuditDebug, ChatbotResponseTier, WidgetUi } from "./api"
 import type { WidgetDisplayMode } from "./useWidgetState"
 
 export type ChatbotDebugRequest = {
@@ -17,7 +17,6 @@ export type ChatbotDebugRequest = {
   stage?: string
   retryable?: boolean
   fallback?: string
-  lifecycle?: ChatbotLifecycleDebug
   audit?: ChatbotAuditDebug
 }
 
@@ -201,33 +200,10 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
     ["Conversation load", formatDuration(snapshot.lastRequest?.audit?.stageTimings.conversationLoad)],
     ["Context preparation", formatDuration(snapshot.lastRequest?.audit?.stageTimings.contextPreparation)],
     ["Tier health check", formatDuration(snapshot.lastRequest?.audit?.stageTimings.tierHealthCheck)],
-    ["Worker queue wait", formatDuration(snapshot.lastRequest?.audit?.stageTimings.workerQueueWait)],
-    ["CDP target session", formatDuration(snapshot.lastRequest?.audit?.stageTimings.cdpTargetSession)],
-    ["Runtime context preparation", formatDuration(snapshot.lastRequest?.audit?.stageTimings.runtimeContextPreparation)],
-    ["Prompt to first chunk", formatDuration(snapshot.lastRequest?.audit?.stageTimings.promptToFirstChunk)],
-    ["Response streaming", formatDuration(snapshot.lastRequest?.audit?.stageTimings.responseStreaming)],
-    ["Output validation", formatDuration(snapshot.lastRequest?.audit?.stageTimings.outputValidation)],
-    ["Notion inference", formatDuration(snapshot.lastRequest?.audit?.stageTimings.notionInference)],
     ["Response normalization", formatDuration(snapshot.lastRequest?.audit?.stageTimings.responseNormalization)],
     ["Conversation persist", formatDuration(snapshot.lastRequest?.audit?.stageTimings.conversationPersist)],
     ["Slack notification", formatDuration(snapshot.lastRequest?.audit?.stageTimings.slackNotification)],
     ["Total server", formatDuration(snapshot.lastRequest?.audit?.stageTimings.totalServer)],
-    ["Conversation scope hash", snapshot.lastRequest?.lifecycle?.conversationScopeHash],
-    ["Thread ID hash", snapshot.lastRequest?.lifecycle?.threadIdHash],
-    ["Thread version", snapshot.lastRequest?.lifecycle?.threadVersion],
-    ["Thread visibility", snapshot.lastRequest?.lifecycle?.visibilityStatus],
-    ["Thread alive", snapshot.lastRequest?.lifecycle?.alive],
-    ["Deleted at", snapshot.lastRequest?.lifecycle?.deletedAt],
-    ["Retention deadline", snapshot.lastRequest?.lifecycle?.estimatedRetentionDeadline],
-    ["Hidden from chat list", snapshot.lastRequest?.lifecycle?.hiddenFromChatList],
-    ["Hide attempts", snapshot.lastRequest?.lifecycle?.hideAttemptCount],
-    ["Hide verification", snapshot.lastRequest?.lifecycle?.hideVerificationResult],
-    ["Post-hide inference verified", snapshot.lastRequest?.lifecycle?.postHideInferenceVerified],
-    ["Thread record missing", snapshot.lastRequest?.lifecycle?.threadRecordMissing],
-    ["Retention purge detected", snapshot.lastRequest?.lifecycle?.retentionPurgeDetected],
-    ["Thread reprovisioned", snapshot.lastRequest?.lifecycle?.threadReprovisioned],
-    ["Context rebuilt from HP DB", snapshot.lastRequest?.lifecycle?.contextRebuiltFromHpDb],
-    ["Tier fallback reason", snapshot.lastRequest?.lifecycle?.tierFallbackReason],
     ["Completed at", snapshot.lastRequest?.completedAt],
     ["Client session present", snapshot.hasClientSession],
     ["Active UI", snapshot.activeUiKind],

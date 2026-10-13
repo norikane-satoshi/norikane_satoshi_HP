@@ -5,7 +5,6 @@ const stateContractSchema = z.object({
     "conversation",
     "conversation-state",
     "browser-ui",
-    "notion-thread-map",
     "booking-order",
     "audit",
     "notification",
@@ -39,13 +38,6 @@ export const chatbotStateContracts = [
     mayContainCustomerContent: true,
   },
   {
-    domain: "notion-thread-map",
-    authority: "hosted-worker.thread-store",
-    writers: ["tier-1-hosted-worker"],
-    retainedDays: 30,
-    mayContainCustomerContent: true,
-  },
-  {
     domain: "booking-order",
     authority: "hp-db.BookingGroup",
     writers: ["booking-service"],
@@ -71,7 +63,7 @@ export const chatbotStateContracts = [
 const stateFieldContractSchema = z.object({
   field: z.string().min(1),
   semanticKey: z.string().min(1),
-  role: z.enum(["canonical", "derived-projection", "derived-reference", "secret-reference"]),
+  role: z.enum(["canonical", "derived-projection", "derived-reference"]),
   authority: z.string().min(1),
   writer: z.string().min(1),
 }).strict()
@@ -127,13 +119,6 @@ export const chatbotStateFieldContracts = [
     writer: "booking-service",
   },
   {
-    field: "notion-thread-url",
-    semanticKey: "notion.thread-reference",
-    role: "secret-reference",
-    authority: "hosted-worker.thread-store",
-    writer: "tier-1-hosted-worker",
-  },
-  {
     field: "ChatbotAuditEvent",
     semanticKey: "audit.event",
     role: "canonical",
@@ -161,7 +146,7 @@ export function assertChatbotStateContracts(): void {
     ).length
     const referenceOnly = fields
       .filter((field) => field.semanticKey === semanticKey)
-      .every((field) => field.role === "derived-reference" || field.role === "secret-reference")
+      .every((field) => field.role === "derived-reference")
     if (!referenceOnly && canonicalCount !== 1) {
       throw new Error(`invalid_canonical_authority_count:${semanticKey}:${canonicalCount}`)
     }

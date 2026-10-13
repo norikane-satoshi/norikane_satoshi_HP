@@ -24,12 +24,6 @@
       "p95Ms": 685,
       "maxAllowedMs": 1685
     },
-    "notionInference": {
-      "sampleCount": 5,
-      "p50Ms": 0,
-      "p95Ms": 0,
-      "maxAllowedMs": 1000
-    },
     "responseNormalization": {
       "sampleCount": 5,
       "p50Ms": 1,

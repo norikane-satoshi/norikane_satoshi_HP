@@ -170,19 +170,13 @@ describe("chatbot machine-readable audit contract", () => {
       correlationId,
       conversationId: "conversation_private_1",
       result: "failure",
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       phase: "generate",
       durationMs: 54_000,
       errorCode: "timeout",
-      errorReason: "missing-structured-ui",
+      errorReason: "choice-set-id-not-allowlisted",
       retryAttempt: 1,
       fallbackUsed: true,
-      threadEvidence: {
-        hiddenFromChatList: true,
-        hideVerificationResult: "verified",
-        postHideInferenceVerified: true,
-        threadVersion: 2,
-      },
     })
 
     const stored = toStoredChatbotServerAuditEvent(serverEvent, {
@@ -194,7 +188,7 @@ describe("chatbot machine-readable audit contract", () => {
     expect(chatbotStoredAuditEventSchema.parse(stored)).toEqual(stored)
     expect(stored.conversationHash).toMatch(/^[a-f0-9]{64}$/)
     expect(stored.sequence).toBe(201)
-    expect(stored.errorReason).toBe("missing-structured-ui")
+    expect(stored.errorReason).toBe("choice-set-id-not-allowlisted")
     expect(stored).not.toHaveProperty("conversationId")
     expect(JSON.stringify(stored)).not.toContain("conversation_private_1")
   })
@@ -207,7 +201,7 @@ describe("chatbot machine-readable audit contract", () => {
       correlationId,
       conversationId: "conversation_private_1",
       result: "success",
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       tierAttemptCount: 1,
       finalTierConsistent: true,
     })).toThrow("response_normalized_requires_tier_integrity")
@@ -247,7 +241,7 @@ describe("chatbot machine-readable audit contract", () => {
         correlationId,
         conversationId: "conversation_private_1",
         result: "failure",
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
         phase: "generate",
         durationMs: 100,
         [key]: value,

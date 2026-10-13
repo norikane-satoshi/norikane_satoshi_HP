@@ -123,7 +123,7 @@ test.describe("root chatbot entry", () => {
             content: "追加作業を選んでください",
             createdAt: new Date("2026-05-28T00:00:00.000Z").toISOString(),
           },
-          tier: "tier-1-hosted-chrome-notion-ai",
+          tier: "tier-2-gemini-flash",
           ui: {
             kind: "choice-panel",
             choiceSet: {

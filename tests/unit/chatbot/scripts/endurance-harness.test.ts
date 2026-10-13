@@ -19,19 +19,10 @@ function successfulEvents(correlationId: string): EnduranceAuditEvent[] {
     {
       correlationId,
       eventName: "tier_attempt_completed",
-      result: "failure",
-      tier: "tier-1-hosted-chrome-notion-ai",
-      errorCode: "rate-limit",
-      buildSha,
-      sequence: 201,
-    },
-    {
-      correlationId,
-      eventName: "tier_attempt_completed",
       result: "success",
       tier: "tier-2-gemini-flash",
       buildSha,
-      sequence: 202,
+      sequence: 201,
     },
     {
       correlationId,
@@ -69,7 +60,7 @@ function passingInput(): EnduranceInput {
 }
 
 describe("chatbot endurance harness", () => {
-  it("accepts every turn when Tier 1 rate limits but Tier 2 completes all exact boundaries", () => {
+  it("accepts every turn when Tier 2 completes all exact boundaries", () => {
     expect(evaluateEnduranceRun(passingInput())).toMatchObject({
       ok: true,
       verdict: "passed",
@@ -96,7 +87,7 @@ describe("chatbot endurance harness", () => {
       sequence: 900,
     })
 
-    expect(evaluateEnduranceRun(input)).toMatchObject({ ok: true, auditEventCount: 18 })
+    expect(evaluateEnduranceRun(input)).toMatchObject({ ok: true, auditEventCount: 15 })
   })
 
   it("marks audit propagation delay as inconclusive rather than a product regression", () => {

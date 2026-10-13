@@ -10,7 +10,6 @@ function event(
   const retry = typeof input.retryAttempt === "number" ? input.retryAttempt : 1
   const defaultSequences: Record<string, number> = {
     request_received: 100,
-    notion_thread_hidden_verified: 250 + retry,
     response_normalized: 300,
     conversation_persisted: 400,
     slack_notification_completed: 500,
@@ -46,14 +45,9 @@ describe("chatbot audit completeness", () => {
     const result = evaluateChatbotAuditCompleteness([
       event("request_received"),
       event("tier_attempt_completed", "failure", {
-        tier: "tier-1-hosted-chrome-notion-ai",
-        phase: "generate",
-        retryAttempt: 1,
-      }),
-      event("tier_attempt_completed", "failure", {
         tier: "tier-2-gemini-flash",
         phase: "generate",
-        retryAttempt: 2,
+        retryAttempt: 1,
         errorCode: "invalid-output",
         errorReason: "choice-set-choice-count-out-of-range",
         repairAttempted: true,
@@ -61,7 +55,7 @@ describe("chatbot audit completeness", () => {
       event("tier_attempt_completed", "success", {
         tier: "tier-2-gemini-flash",
         phase: "generate",
-        retryAttempt: 3,
+        retryAttempt: 2,
         repairAttempted: true,
       }),
       event("response_normalized", "success", {
@@ -85,15 +79,10 @@ describe("chatbot audit completeness", () => {
   it("requires both booking render acknowledgements for a booking response", () => {
     const result = evaluateChatbotAuditCompleteness([
       event("request_received"),
-      event("tier_attempt_completed", "failure", {
-        tier: "tier-1-hosted-chrome-notion-ai",
-        phase: "generate",
-        retryAttempt: 1,
-      }),
       event("tier_attempt_completed", "success", {
         tier: "tier-2-gemini-flash",
         phase: "generate",
-        retryAttempt: 2,
+        retryAttempt: 1,
       }),
       event("response_normalized", "success", {
         tier: "tier-2-gemini-flash",
@@ -108,7 +97,7 @@ describe("chatbot audit completeness", () => {
 
     expect(result).toEqual({
       status: "pending",
-      eventCount: 7,
+      eventCount: 6,
       missingEvents: ["booking_prefill_rendered"],
       failedEvents: [],
       duplicateEvents: [],
@@ -121,19 +110,13 @@ describe("chatbot audit completeness", () => {
       event("request_received", "success", { sequence: 100 }),
       event("tier_attempt_completed", "success", {
         sequence: 201,
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
         phase: "generate",
         retryAttempt: 1,
-        threadEvidence: {
-          hiddenFromChatList: true,
-          hideVerificationResult: "verified",
-          postHideInferenceVerified: true,
-        },
       }),
-      event("notion_thread_hidden_verified", "success", { sequence: 251 }),
       event("response_normalized", "success", {
         sequence: 300,
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
         uiKind: "choice-panel",
         fallbackUsed: false,
         finalTierConsistent: true,
@@ -151,15 +134,10 @@ describe("chatbot audit completeness", () => {
   it("fails closed when any recorded boundary failed", () => {
     const result = evaluateChatbotAuditCompleteness([
       event("request_received"),
-      event("tier_attempt_completed", "failure", {
-        tier: "tier-1-hosted-chrome-notion-ai",
-        phase: "generate",
-        retryAttempt: 1,
-      }),
       event("tier_attempt_completed", "success", {
         tier: "tier-2-gemini-flash",
         phase: "generate",
-        retryAttempt: 2,
+        retryAttempt: 1,
       }),
       event("response_normalized", "success", {
         tier: "tier-2-gemini-flash",
@@ -177,11 +155,11 @@ describe("chatbot audit completeness", () => {
     })
   })
 
-  it("fails closed when Tier evidence is missing or a Tier 1 thread was not hidden", () => {
+  it("fails closed when Tier evidence is missing", () => {
     const missingAttempt = evaluateChatbotAuditCompleteness([
       event("request_received"),
       event("response_normalized", "success", {
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
         uiKind: "none",
         finalTierConsistent: true,
         tierSequenceValid: true,
@@ -191,24 +169,6 @@ describe("chatbot audit completeness", () => {
     ])
     expect(missingAttempt.status).toBe("pending")
     expect(missingAttempt.missingEvents).toContain("tier_attempt_completed")
-
-    const missingHide = evaluateChatbotAuditCompleteness([
-      event("request_received"),
-      event("tier_attempt_completed", "success", {
-        tier: "tier-1-hosted-chrome-notion-ai",
-        phase: "generate",
-        retryAttempt: 1,
-      }),
-      event("response_normalized", "success", {
-        tier: "tier-1-hosted-chrome-notion-ai",
-        uiKind: "none",
-        finalTierConsistent: true,
-        tierSequenceValid: true,
-      }),
-      event("conversation_persisted"),
-      event("slack_notification_completed"),
-    ])
-    expect(missingHide.missingEvents).toContain("notion_thread_hidden_verified")
   })
 
   it("rejects duplicate singleton boundaries, invalid order, and invalid Tier sequence", () => {
@@ -222,17 +182,11 @@ describe("chatbot audit completeness", () => {
       }),
       event("request_received", "success", { sequence: 100 }),
       event("request_received", "success", { sequence: 100 }),
-      event("tier_attempt_completed", "failure", {
-        sequence: 201,
-        tier: "tier-1-hosted-chrome-notion-ai",
-        phase: "generate",
-        retryAttempt: 1,
-      }),
       event("tier_attempt_completed", "success", {
-        sequence: 202,
+        sequence: 201,
         tier: "tier-2-gemini-flash",
         phase: "generate",
-        retryAttempt: 2,
+        retryAttempt: 1,
       }),
       event("conversation_persisted", "success", { sequence: 400 }),
       event("slack_notification_completed", "success", { sequence: 500 }),
@@ -249,15 +203,10 @@ describe("chatbot audit completeness", () => {
   it("requires a rendered success and an account-link check after Booking creation", () => {
     const result = evaluateChatbotAuditCompleteness([
       event("request_received"),
-      event("tier_attempt_completed", "failure", {
-        tier: "tier-1-hosted-chrome-notion-ai",
-        phase: "generate",
-        retryAttempt: 1,
-      }),
       event("tier_attempt_completed", "success", {
         tier: "tier-2-gemini-flash",
         phase: "generate",
-        retryAttempt: 2,
+        retryAttempt: 1,
       }),
       event("response_normalized", "success", {
         tier: "tier-2-gemini-flash",

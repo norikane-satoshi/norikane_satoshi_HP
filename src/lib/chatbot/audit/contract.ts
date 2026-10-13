@@ -32,7 +32,6 @@ export const chatbotServerAuditEventNames = [
   "slack_notification_completed",
   "booking_created",
   "customer_account_linked",
-  "notion_thread_hidden_verified",
   "operation_failed",
 ] as const
 
@@ -51,7 +50,6 @@ const buildShaSchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9._-]+$/i)
 
 export const chatbotAuditTierSchema = z.enum([
   "tier-0-deterministic-intake",
-  "tier-1-hosted-chrome-notion-ai",
   "tier-2-gemini-flash",
   "tier-3-form-fallback",
 ])
@@ -138,15 +136,6 @@ export const chatbotAuditStageTimingsSchema = z
     conversationLoad: durationSchema.optional(),
     contextPreparation: durationSchema.optional(),
     tierHealthCheck: durationSchema.optional(),
-    workerQueueWait: durationSchema.optional(),
-    cdpTargetSession: durationSchema.optional(),
-    runtimeContextPreparation: durationSchema.optional(),
-    promptToFirstChunk: durationSchema.optional(),
-    responseStreaming: durationSchema.optional(),
-    outputValidation: durationSchema.optional(),
-    threadPreparation: durationSchema.optional(),
-    threadHideVerification: durationSchema.optional(),
-    notionInference: durationSchema.optional(),
     responseNormalization: durationSchema.optional(),
     conversationPersist: durationSchema.optional(),
     slackNotification: durationSchema.optional(),
@@ -168,15 +157,6 @@ export const chatbotAuditStageTimingsSchema = z
   })
   .strict()
 
-export const chatbotAuditThreadEvidenceSchema = z
-  .object({
-    hiddenFromChatList: z.boolean(),
-    hideVerificationResult: safeCodeSchema,
-    postHideInferenceVerified: z.boolean(),
-    threadVersion: z.number().int().positive().optional(),
-  })
-  .strict()
-
 const sharedAuditFields = {
   schemaVersion: z.literal(chatbotAuditSchemaVersion),
   eventId: eventIdSchema,
@@ -194,7 +174,6 @@ const sharedAuditFields = {
   prefillFields: z.array(bookingPrefillFieldAuditSchema).max(bookingPrefillFieldNames.length).optional(),
   memoCoverage: chatbotMemoCoverageSchema.optional(),
   stageTimings: chatbotAuditStageTimingsSchema.optional(),
-  threadEvidence: chatbotAuditThreadEvidenceSchema.optional(),
   messageIntegrity: messageIntegritySchema.optional(),
   tierAttemptCount: z.number().int().nonnegative().optional(),
   finalTierConsistent: z.boolean().optional(),
@@ -332,7 +311,7 @@ export const chatbotStoredAuditEventSchema = z
   .object({
     ...sharedAuditFields,
     eventName: z.enum(chatbotAuditEventNames),
-    source: z.enum(["browser", "server", "hosted-worker"]),
+    source: z.enum(["browser", "server"]),
     sequence: z.number().int().nonnegative().max(10_000),
     conversationHash: conversationHashSchema,
     buildSha: buildShaSchema,

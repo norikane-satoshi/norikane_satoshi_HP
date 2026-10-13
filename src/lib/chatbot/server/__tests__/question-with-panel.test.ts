@@ -40,7 +40,7 @@ function harness(
   existing: ChatbotConversation,
   reply: { raw: string; tier: (typeof chatbotLlmTierIds)[keyof typeof chatbotLlmTierIds] } = {
     raw: "<customer_reply>LLM本文</customer_reply>",
-    tier: chatbotLlmTierIds.tier1HostedChromeNotionAi,
+    tier: chatbotLlmTierIds.tier2GeminiFlash,
   },
 ) {
   const generate = vi.fn(async () => ({
@@ -84,7 +84,7 @@ const answer = "<customer_reply>作業期間は尺と素材の状態で変わり
 
 describe("a question typed while a panel is shown", () => {
   it("shows the model's answer above the panel prompt instead of dropping it", async () => {
-    const h = harness(projectLengthPanelConversation(), { raw: answer, tier: chatbotLlmTierIds.tier1HostedChromeNotionAi })
+    const h = harness(projectLengthPanelConversation(), { raw: answer, tier: chatbotLlmTierIds.tier2GeminiFlash })
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
 
     expect(h.generate).toHaveBeenCalledOnce()
@@ -103,7 +103,7 @@ describe("a question typed while a panel is shown", () => {
   })
 
   it("still shows only the panel prompt when the customer did not ask anything", async () => {
-    const h = harness(projectLengthPanelConversation(), { raw: answer, tier: chatbotLlmTierIds.tier1HostedChromeNotionAi })
+    const h = harness(projectLengthPanelConversation(), { raw: answer, tier: chatbotLlmTierIds.tier2GeminiFlash })
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "よろしくお願いします" }, h.options)
 
     expect(result.assistantMessage.content).not.toContain("作業期間は尺と素材の状態で変わります")
@@ -136,7 +136,7 @@ describe("a question typed while a panel is shown", () => {
   it("drops a closing request phrased without a question mark", async () => {
     const h = harness(projectLengthPanelConversation(), {
       raw: "<customer_reply>作業期間は尺と素材の状態で変わります。\nご予定の本数も教えてください。</customer_reply>",
-      tier: chatbotLlmTierIds.tier1HostedChromeNotionAi,
+      tier: chatbotLlmTierIds.tier2GeminiFlash,
     })
     const result = await handleChatbotMessage({ sessionId: "session_det", message: "作業期間はどれくらいですか？" }, h.options)
 

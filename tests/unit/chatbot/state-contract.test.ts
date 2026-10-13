@@ -56,11 +56,6 @@ describe("chatbot canonical state contract", () => {
         role: "derived-reference",
         authority: "hp-db.BookingGroup.chatConversationId",
       }),
-      expect.objectContaining({
-        field: "notion-thread-url",
-        role: "secret-reference",
-        authority: "hosted-worker.thread-store",
-      }),
     ]))
   })
 })

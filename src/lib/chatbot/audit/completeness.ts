@@ -56,7 +56,6 @@ export function evaluateChatbotAuditCompleteness(
   const required = [
     ...baseRequiredEvents,
     "tier_attempt_completed",
-    ...(response?.tier === "tier-1-hosted-chrome-notion-ai" ? ["notion_thread_hidden_verified"] : []),
     ...(response?.uiKind === "choice-panel" ? ["choice_panel_rendered"] : []),
     ...(response?.uiKind === "booking-card" ? ["booking_card_rendered", "booking_prefill_rendered"] : []),
     ...(response?.uiKind === "tier3-inquiry-form" ? ["fallback_ui_rendered"] : []),
@@ -181,9 +180,6 @@ function isExpectedFallbackFailure(
         (candidate.sequence ?? -1) > (event.sequence ?? Number.MAX_SAFE_INTEGER),
       )
   }
-  if (event.eventName === "notion_thread_hidden_verified") {
-    return finalTier !== "tier-1-hosted-chrome-notion-ai"
-  }
   if (event.eventName === "slack_notification_completed") {
     return event.errorCode === chatbotDiagnosticSlackSkipErrorCode
   }
@@ -218,7 +214,6 @@ function expectedSequence(event: CompletenessEvent): number {
   switch (event.eventName) {
     case "request_received": return 100
     case "tier_attempt_completed": return (event.phase === "health-check" ? 150 : 200) + retry
-    case "notion_thread_hidden_verified": return 250 + retry
     case "response_normalized": return 300
     case "conversation_persisted": return 400
     case "slack_notification_completed": return 500

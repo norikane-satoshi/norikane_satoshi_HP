@@ -32,26 +32,6 @@ function choicePanelRawText(input: {
   })}</customer_reply>`
 }
 
-// Pure data with no test-runner dependency so unit, API, and E2E suites can share it.
-export const tierFallbackOutputContractIncident = {
-  id: "incident-2026-08-02-tier2-body-only",
-  requestId: "84c20d6d-261c-4020-8585-731ba880edda",
-  userMessage:
-    "商業映画のカラーグレーディングを相談したいです。尺は60分です。費用感を教えてください。",
-  observed: {
-    tier: "tier-2-gemini-flash",
-    ui: "none",
-    flowStep: "conversation",
-    bookingProgress: false,
-  },
-  tier2RawText:
-    "<customer_reply>のりかね映像設計室の事務担当です。商業映画のカラーグレーディングですね。費用は条件で変わるため、詳細をお聞かせい</customer_reply>",
-  expected: {
-    tier: "tier-2-gemini-flash",
-    boundaryReason: "missing-structured-ui",
-  },
-} as const
-
 const tooManyChoices = Array.from({ length: 11 }, (_, index) => ({
   label: `候補${index + 1}`,
   id: `candidate-${index + 1}`,

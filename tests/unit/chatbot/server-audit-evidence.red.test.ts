@@ -105,41 +105,6 @@ describe("chatbot server audit evidence", () => {
     })
   })
 
-  it("rejects a sequence that still attempts the retired Tier 1", () => {
-    const events = buildChatbotMessageAuditEvents({
-      requestId: correlationId,
-      conversationId: "conversation_private_1",
-      buildSha: "abc123",
-      createdAt: "2026-08-23T00:00:00.000Z",
-      finalTier: "tier-2-gemini-flash",
-      uiKind: "choice-panel",
-      stageTimings: {},
-      tierAttempts: [
-        {
-          tier: "tier-1-hosted-chrome-notion-ai",
-          phase: "health-check",
-          result: "failure",
-          durationMs: 250,
-          errorCode: "rate-limit",
-        },
-        {
-          tier: "tier-2-gemini-flash",
-          phase: "generate",
-          result: "success",
-          durationMs: 1_700,
-        },
-      ],
-      slack: slackSuccessEvidence,
-      messageIntegrity: buildChatbotMessageIntegrity(["user", "assistant"]),
-    })
-
-    expect(events.find((event) => event.eventName === "response_normalized")).toMatchObject({
-      result: "failure",
-      tierSequenceValid: false,
-      errorCode: "tier-sequence-invalid",
-    })
-  })
-
   it("preserves a same-tier deterministic repair as a failed attempt followed by repaired success", () => {
     const events = buildChatbotMessageAuditEvents({
       requestId: correlationId,
@@ -194,59 +159,29 @@ describe("chatbot server audit evidence", () => {
 
   it("reduces a Tier attempt to an allowlisted, privacy-safe fact", () => {
     const evidence = summarizeTierAttemptForAudit({
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       phase: "generate",
       outcome: "error",
       latencyMs: 54_000,
       error: new ChatbotLlmError({
         message: "customer text and secret prompt",
         code: "timeout",
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
         isRetryable: true,
       }),
       diagnostics: {
         endpoint: "/private/endpoint",
-        workerStageDurations: {
-          workerQueueWait: 12,
-          cdpTargetSession: 20,
-          runtimeContextPreparation: 40,
-          promptToFirstChunk: 100,
-          responseStreaming: 50,
-          outputValidation: 5,
-        },
-        conversationThread: {
-          threadId: "private-thread-id",
-          hiddenFromChatList: true,
-          hideVerificationResult: "verified",
-          postHideInferenceVerified: true,
-          threadVersion: 2,
-        },
       },
     })
 
     expect(evidence).toEqual({
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       phase: "generate",
       result: "failure",
       durationMs: 54_000,
       errorCode: "timeout",
-      stageTimings: {
-        workerQueueWait: 12,
-        cdpTargetSession: 20,
-        runtimeContextPreparation: 40,
-        promptToFirstChunk: 100,
-        responseStreaming: 50,
-        outputValidation: 5,
-      },
-      threadEvidence: {
-        hiddenFromChatList: true,
-        hideVerificationResult: "verified",
-        postHideInferenceVerified: true,
-        threadVersion: 2,
-      },
     })
     expect(JSON.stringify(evidence)).not.toContain("customer text")
-    expect(JSON.stringify(evidence)).not.toContain("private-thread-id")
     expect(JSON.stringify(evidence)).not.toContain("private/endpoint")
   })
 
@@ -264,7 +199,7 @@ describe("chatbot server audit evidence", () => {
         cause: {
           boundary: "llm-output-contract",
           decision: "reject-and-regenerate-structured-ui",
-          reason: "missing-structured-ui",
+          reason: "choice-set-id-not-allowlisted",
         },
       }),
     })
@@ -275,7 +210,7 @@ describe("chatbot server audit evidence", () => {
       result: "failure",
       durationMs: 1_050,
       errorCode: "invalid-output",
-      errorReason: "missing-structured-ui",
+      errorReason: "choice-set-id-not-allowlisted",
     })
     expect(JSON.stringify(evidence)).not.toContain("customer text")
   })

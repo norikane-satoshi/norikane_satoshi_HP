@@ -20,7 +20,7 @@ describe("privacy-safe chatbot operational log", () => {
       userAgent: "Mozilla/5.0 (iPhone) private-device",
       latestUserMessagePreview: "client@example.jp secret customer sentence",
       systemPrompt: "secret prompt",
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       latencyMs: 54000,
       incident: false,
     })
@@ -30,7 +30,7 @@ describe("privacy-safe chatbot operational log", () => {
     expect(payload).toMatchObject({
       event: "chatbot_test_boundary",
       requestId: "11111111-1111-4111-8111-111111111111",
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       latencyMs: 54000,
       incident: false,
       clientClass: "mobile",

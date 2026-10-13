@@ -147,7 +147,7 @@ function checkLocalState() {
     isAncestor,
   });
   for (const { branch, target } of integratedBranches) {
-    errors.push(`integrated local branch should be finished: pnpm repo:finish -- ${branch} --target=${target} --apply`);
+    errors.push(`integrated local branch should be finished (${target}): git branch -d ${branch} && git push origin --delete ${branch}`);
   }
 
   const envPath = path.join(mainRoot, ".env.local");

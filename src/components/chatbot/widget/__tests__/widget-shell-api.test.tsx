@@ -227,7 +227,7 @@ describe("WidgetShell API wiring", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(await screen.findByText("最終媒体を選んでください")).toBeInTheDocument()
-    expect(document.body).not.toHaveTextContent(/Local debug|Notion AI|Tier|\bmodel\b/i)
+    expect(document.body).not.toHaveTextContent(/Local debug|Gemini|Tier|\bmodel\b/i)
   })
 
   it("suppresses two submits dispatched before React can render the busy state", async () => {
@@ -268,7 +268,7 @@ describe("WidgetShell API wiring", () => {
           events: [{
             eventName: "tier_attempt_completed",
             tier: "tier-2-gemini-flash",
-            errorReason: "missing-structured-ui",
+            errorReason: "choice-set-id-not-allowlisted",
           }],
         }))
       }
@@ -279,32 +279,13 @@ describe("WidgetShell API wiring", () => {
           assistantMessage,
           tier: "tier-2-gemini-flash",
           ui: { kind: "none" },
-          debug: {
-            conversationScopeHash: "scope123abcd",
-            threadIdHash: "thread123abc",
-            threadVersion: 3,
-            visibilityStatus: "hidden",
-            alive: false,
-            deletedAt: "2026-08-08T01:00:00.000Z",
-            estimatedRetentionDeadline: "2026-09-07T01:00:00.000Z",
-            hiddenFromChatList: true,
-            hideAttemptCount: 1,
-            hideVerificationResult: "verified",
-            postHideInferenceVerified: true,
-            threadRecordMissing: false,
-            retentionPurgeDetected: false,
-            threadReprovisioned: false,
-            contextRebuiltFromHpDb: false,
-            tierFallbackReason: "notion-thread-hide-verification-failed",
-          },
           auditDebug: {
             schemaVersion: "1",
             persistenceStatus: "scheduled",
             eventCount: 6,
             stageTimings: {
               conversationLoad: 10,
-              workerQueueWait: 12,
-              promptToFirstChunk: 100,
+              contextPreparation: 12,
               totalServer: 210,
             },
           },
@@ -325,16 +306,11 @@ describe("WidgetShell API wiring", () => {
     expect(await within(panel).findByText("debug-sha")).toBeInTheDocument()
     expect(within(panel).getByText("request-debug-1")).toBeInTheDocument()
     expect(within(panel).getByText("tier-2-gemini-flash")).toBeInTheDocument()
-    expect(within(panel).getByText("scope123abcd")).toBeInTheDocument()
-    expect(within(panel).getByText("thread123abc")).toBeInTheDocument()
-    expect(within(panel).getByText("verified")).toBeInTheDocument()
-    expect(within(panel).getByText("notion-thread-hide-verification-failed")).toBeInTheDocument()
     expect(await within(panel).findByText("complete")).toBeInTheDocument()
-    expect(within(panel).getByText("Worker queue wait").parentElement).toHaveTextContent("12 ms")
-    expect(within(panel).getByText("Prompt to first chunk").parentElement).toHaveTextContent("100 ms")
+    expect(within(panel).getByText("Context preparation").parentElement).toHaveTextContent("12 ms")
     expect(within(panel).getByText("Total server").parentElement).toHaveTextContent("210 ms")
     expect(within(panel).getByText("Tier error reasons").parentElement).toHaveTextContent(
-      "tier-2-gemini-flash:missing-structured-ui",
+      "tier-2-gemini-flash:choice-set-id-not-allowlisted",
     )
     expect(panel).not.toHaveTextContent("conv_debug")
     expect(panel).not.toHaveTextContent("/tmp/debug-worktree")
@@ -776,7 +752,7 @@ describe("WidgetShell API wiring", () => {
           ...assistantMessage,
           content: "私はのーちゃんです。",
         },
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
         ui: { kind: "none" },
       }),
     )
@@ -2058,7 +2034,7 @@ describe("WidgetShell API wiring", () => {
               content: "候補日を確認しました。\n下の予約カードから選択してください。",
               createdAt: "2026-05-26T00:00:03.000Z",
             },
-            tier: "tier-1-hosted-chrome-notion-ai",
+            tier: "tier-2-gemini-flash",
             ui: {
               kind: "booking-card",
               suggestedSlots: [slot],

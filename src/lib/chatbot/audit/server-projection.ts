@@ -38,7 +38,7 @@ export function toStoredChatbotServerAuditEvent(
   metadata: {
     buildSha: string
     createdAt: string
-    source: "server" | "hosted-worker"
+    source: "server"
   },
 ): ChatbotStoredAuditEvent {
   const { conversationId, ...safeEvent } = event
@@ -62,7 +62,6 @@ export function chatbotAuditEventSequence(
   switch (event.eventName) {
     case "request_received": return 100
     case "tier_attempt_completed": return (event.phase === "health-check" ? 150 : 200) + retry
-    case "notion_thread_hidden_verified": return 250 + retry
     case "response_normalized": return 300
     case "conversation_persisted": return 400
     case "slack_notification_completed": return 500

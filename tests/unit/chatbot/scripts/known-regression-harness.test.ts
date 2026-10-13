@@ -10,30 +10,17 @@ const buildSha = "abc123"
 const firstRequestId = "11111111-1111-4111-8111-111111111111"
 const editRequestId = "22222222-2222-4222-8222-222222222222"
 
-function successfulEvents(
-  correlationId: string,
-  tier: "tier-1-hosted-chrome-notion-ai" | "tier-2-gemini-flash",
-): KnownRegressionAuditEvent[] {
+function successfulEvents(correlationId: string): KnownRegressionAuditEvent[] {
+  const tier = "tier-2-gemini-flash"
   return [
     { correlationId, eventName: "request_received", result: "success", buildSha, sequence: 100 },
-    ...(tier === "tier-2-gemini-flash"
-      ? [{
-          correlationId,
-          eventName: "tier_attempt_completed",
-          result: "failure",
-          tier: "tier-1-hosted-chrome-notion-ai",
-          errorCode: "rate-limit",
-          buildSha,
-          sequence: 201,
-        }]
-      : []),
     {
       correlationId,
       eventName: "tier_attempt_completed",
       result: "success",
       tier,
       buildSha,
-      sequence: tier === "tier-2-gemini-flash" ? 202 : 201,
+      sequence: 201,
     },
     {
       correlationId,
@@ -73,14 +60,14 @@ function successfulRun(): KnownRegressionInput {
     },
     auditObservationComplete: true,
     auditEvents: [
-      ...successfulEvents(firstRequestId, "tier-2-gemini-flash"),
-      ...successfulEvents(editRequestId, "tier-2-gemini-flash"),
+      ...successfulEvents(firstRequestId),
+      ...successfulEvents(editRequestId),
     ],
   }
 }
 
 describe("known chatbot regression harness", () => {
-  it("accepts an expected Tier 1 rate-limit fallback when Tier 2 and every boundary succeed", () => {
+  it("accepts a run when Tier 2 and every boundary succeed", () => {
     expect(evaluateKnownRegressionRun(successfulRun())).toMatchObject({
       ok: true,
       violations: [],
@@ -108,7 +95,7 @@ describe("known chatbot regression harness", () => {
 
     expect(report.ok).toBe(true)
     expect(report.violations).toEqual([])
-    expect(report.auditEventCount).toBe(12)
+    expect(report.auditEventCount).toBe(10)
   })
 
   it("reports delayed audit persistence as inconclusive instead of a product regression", () => {

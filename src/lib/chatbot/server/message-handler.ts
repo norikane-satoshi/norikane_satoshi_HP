@@ -34,7 +34,6 @@ import {
   tier3FormFallbackCustomerText,
   formatUserChatbotContextForPrompt,
   getChatbotLlmOutputContractRejection,
-  getRejectedDisplayText,
   linkConversationToUser,
   loadOrCreateConversationBySessionId,
   loadUserChatbotContext,
@@ -64,7 +63,6 @@ import {
 import { applyActiveChoiceAnswer, isSatisfiedChoicePanel, type ConditionSubmission } from "@/lib/chatbot/server/choice-panel-state"
 import { buildConversationState } from "@/lib/chatbot/server/conversation-state"
 import { missingConditionPanels, retainConditionAnswers, visibleConditionAnswers } from "./condition-intake"
-import { requiresStructuredUi } from "@/lib/chatbot/server/llm-client"
 import { chatbotSlackAuditErrorCode } from "@/lib/chatbot/server/diagnostic-request"
 import {
   buildWorkflowPromptContext,
@@ -159,24 +157,6 @@ export type ChatbotMessageApiResult = {
   ui: ChatbotMessageUi
   customerDisplayName?: string
   inquiryPrefill: InquiryFormPrefill
-  debug?: {
-    conversationScopeHash?: string
-    threadIdHash?: string
-    threadVersion?: number
-    visibilityStatus?: string
-    alive?: boolean
-    deletedAt?: string
-    estimatedRetentionDeadline?: string
-    hiddenFromChatList?: boolean
-    hideAttemptCount?: number
-    hideVerificationResult?: string
-    postHideInferenceVerified?: boolean
-    threadRecordMissing?: boolean
-    retentionPurgeDetected?: boolean
-    threadReprovisioned?: boolean
-    contextRebuiltFromHpDb?: boolean
-    tierFallbackReason?: string
-  }
 }
 
 export type ChatbotMessageHandlerResult = ChatbotMessageApiResult & {
@@ -632,7 +612,6 @@ export async function handleChatbotMessage(
     orchestrator,
     request: {
       requestId: input.requestId,
-      conversationId: conversation.id,
       systemPrompt,
       messages: buildLlmMessages(conversation.messages, userMessage),
       conversationState,
@@ -851,7 +830,6 @@ export async function handleChatbotMessage(
           jobContext,
         }
       : undefined
-  const lifecycleDebug = summarizeChatbotLifecycleDebug(llmResponse.diagnostics)
   const publicResult: ChatbotMessageApiResult = {
     conversationId: conversation.id,
     userMessage: {
@@ -868,7 +846,6 @@ export async function handleChatbotMessage(
       ? { customerDisplayName: persistedConversationState.customerName }
       : {}),
     inquiryPrefill,
-    ...(lifecycleDebug ? { debug: lifecycleDebug } : {}),
   }
 
   if (options.finalizeMessage) {
@@ -945,69 +922,6 @@ export async function handleChatbotMessage(
       ]),
     },
   }
-}
-
-function summarizeChatbotLifecycleDebug(
-  diagnostics: unknown,
-): NonNullable<ChatbotMessageApiResult["debug"]> | undefined {
-  const source = asDebugRecord(diagnostics)
-  if (!source) return undefined
-  const thread = asDebugRecord(source.conversationThread)
-  const debug: NonNullable<ChatbotMessageApiResult["debug"]> = {}
-  const safeCode = (value: unknown, length: number = 120): string | undefined =>
-    typeof value === "string" && new RegExp(`^[a-z0-9][a-z0-9_.:-]{0,${length - 1}}$`, "i").test(value)
-      ? value
-      : undefined
-  const assignBoolean = (key: keyof typeof debug, value: unknown) => {
-    if (typeof value === "boolean") Object.assign(debug, { [key]: value })
-  }
-  const assignInteger = (key: keyof typeof debug, value: unknown) => {
-    if (Number.isInteger(value) && Number(value) >= 0) Object.assign(debug, { [key]: Number(value) })
-  }
-  if (thread) {
-    const scopeHash = safeCode(thread.scopeHash, 12)
-    const threadIdHash = safeCode(thread.threadIdHash, 12)
-    if (scopeHash?.length === 12) debug.conversationScopeHash = scopeHash
-    if (threadIdHash?.length === 12) debug.threadIdHash = threadIdHash
-    assignInteger("threadVersion", thread.threadVersion)
-    const visibilityStatus = safeCode(thread.visibilityStatus)
-    if (visibilityStatus) debug.visibilityStatus = visibilityStatus
-    assignBoolean("alive", thread.alive)
-    if (typeof thread.deletedAt === "string" && Number.isFinite(Date.parse(thread.deletedAt))) {
-      debug.deletedAt = thread.deletedAt
-    }
-    if (
-      typeof thread.estimatedRetentionDeadline === "string" &&
-      Number.isFinite(Date.parse(thread.estimatedRetentionDeadline))
-    ) {
-      debug.estimatedRetentionDeadline = thread.estimatedRetentionDeadline
-    }
-    assignBoolean("hiddenFromChatList", thread.hiddenFromChatList)
-    assignInteger("hideAttemptCount", thread.hideAttemptCount)
-    const hideVerificationResult = safeCode(thread.hideVerificationResult)
-    if (hideVerificationResult) debug.hideVerificationResult = hideVerificationResult
-    assignBoolean("postHideInferenceVerified", thread.postHideInferenceVerified)
-    assignBoolean("threadRecordMissing", thread.threadRecordMissing)
-    assignBoolean("retentionPurgeDetected", thread.retentionPurgeDetected)
-    assignBoolean("threadReprovisioned", thread.threadReprovisioned)
-    assignBoolean("contextRebuiltFromHpDb", thread.contextRebuiltFromHpDb)
-  }
-  const lifecycleFallback = Array.isArray(source.tierFallbacks)
-    ? source.tierFallbacks.map(asDebugRecord).find((entry) => safeCode(entry?.lifecycleFailureCode))
-    : undefined
-  const fallbackReason = safeCode(lifecycleFallback?.lifecycleFailureCode)
-  if (fallbackReason) {
-    debug.tierFallbackReason = fallbackReason
-    debug.visibilityStatus = safeCode(lifecycleFallback?.visibilityStatus) ?? "hide-verification-failed"
-    debug.hideVerificationResult = safeCode(lifecycleFallback?.hideVerificationResult) ?? "api-failed"
-  }
-  return Object.keys(debug).length > 0 ? debug : undefined
-}
-
-function asDebugRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined
 }
 
 function shouldUseFallbackRouting(input: {
@@ -1877,7 +1791,7 @@ async function generateContractedLlmResponse(input: {
   fallbackRoutingDecision: RoutingDecision
   keepCustomerAnswer: boolean
 }): Promise<ChatbotLlmResponse> {
-  // A reply to the customer's question stays; only the missing panel is regenerated by code.
+  // A reply to the customer's question stays; only the off-contract panel is regenerated by code.
   const withPanelFromCode = (
     tier: ChatbotLlmResponse["tier"],
     replyText: string | undefined,
@@ -1907,21 +1821,16 @@ async function generateContractedLlmResponse(input: {
     })
     // Expected when the server shows its own panel: handled like the rejection below, minus the failure.
     const modelPanel = response.displayEnvelope.uiPayload
-    if (
-      input.request.structuredUiFromCode &&
-      (modelPanel.kind === "invalid" || (requiresStructuredUi(response.tier) && modelPanel.kind === "none"))
-    ) {
+    if (input.request.structuredUiFromCode && modelPanel.kind === "invalid") {
       const envelope = response.displayEnvelope
       const replyText = envelope.defaultDenied ? undefined : envelope.displayText.trim() || undefined
       const rejection = {
         boundary: "llm-output-contract",
         decision: "reject-and-regenerate-structured-ui",
-        reason: modelPanel.kind === "invalid" ? modelPanel.reason : "missing-structured-ui",
+        reason: modelPanel.reason,
       } as const
       // Logged for monitoring only; the attempt itself succeeded.
-      if (modelPanel.kind === "invalid") {
-        logChatbotLlmOutputContractRejection({ requestId: input.request.requestId, tier: response.tier, rejection })
-      }
+      logChatbotLlmOutputContractRejection({ requestId: input.request.requestId, tier: response.tier, rejection })
       return withPanelFromCode(response.tier, replyText, rejection)
     }
     return response
@@ -1934,7 +1843,7 @@ async function generateContractedLlmResponse(input: {
         tier: error.tier,
         rejection,
       })
-      return withPanelFromCode(error.tier, getRejectedDisplayText(error), rejection)
+      return withPanelFromCode(error.tier, undefined, rejection)
     }
     // Tier 3 renders the inquiry form, so the reply has to describe the form rather than repeat
     // the routing question, which asked customers to choose from options that never appeared.
@@ -2686,27 +2595,6 @@ function summarizeChatbotRetryDiagnostics(diagnostics: unknown): ChatbotRetryDia
   }
   const attempts = summarizeRetryAttempts(source.attempts)
   if (attempts.length > 0) summary.attempts = attempts
-
-  const lifecycleFallback = Array.isArray(source.tierFallbacks)
-    ? source.tierFallbacks.find((entry) => {
-        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false
-        return typeof (entry as Record<string, unknown>).lifecycleFailureCode === "string"
-      }) as Record<string, unknown> | undefined
-    : undefined
-  if (lifecycleFallback) {
-    const safeCode = (value: unknown): string | undefined =>
-      typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,119}$/i.test(value) ? value : undefined
-    const fallbackReason = safeCode(lifecycleFallback.lifecycleFailureCode)
-    if (fallbackReason) {
-      summary.threadLifecycle = {
-        visibilityStatus: safeCode(lifecycleFallback.visibilityStatus) ?? "hide-verification-failed",
-        hideVerificationResult:
-          safeCode(lifecycleFallback.hideVerificationResult) ??
-          (lifecycleFallback.lifecycleStage === "verify-chat-list" ? "chat-list-present" : "api-failed"),
-        fallbackReason,
-      }
-    }
-  }
 
   return Object.keys(summary).length > 0 ? summary : undefined
 }
