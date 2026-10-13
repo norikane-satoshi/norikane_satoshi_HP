@@ -13,6 +13,8 @@ import {
 import { toStoredChatbotServerAuditEvent } from "@/lib/chatbot/audit/server-projection"
 import {
   ChatbotLlmError,
+  chatbotLlmTierIds,
+  defaultLlmTierOrder,
   getChatbotLlmOutputContractRejection,
   type ChatbotLlmResponse,
 } from "@/lib/chatbot/server/llm-client"
@@ -118,12 +120,11 @@ export function buildChatbotMessageAuditEvents(input: {
   const uiKind = parseChatbotAuditSchema("chatbotAuditUiKindSchema", chatbotAuditUiKindSchema, input.uiKind)
   const stageTimings = parseChatbotAuditSchema("chatbotAuditStageTimingsSchema", chatbotAuditStageTimingsSchema, input.stageTimings)
   const fallbackUsed =
-    input.finalTier !== "tier-1-hosted-chrome-notion-ai" && input.finalTier !== "tier-0-deterministic-intake"
+    input.finalTier !== chatbotLlmTierIds.tier0DeterministicIntake && input.finalTier !== defaultLlmTierOrder[0]
   const generateAttempts = input.tierAttempts.filter((attempt) => attempt.phase === "generate")
   const successfulGenerateAttempts = generateAttempts.filter((attempt) => attempt.result === "success")
   const finalTierConsistent = successfulGenerateAttempts.length === 1 &&
-    successfulGenerateAttempts[0].tier === input.finalTier &&
-    (input.finalTier !== "tier-1-hosted-chrome-notion-ai" || !fallbackUsed)
+    successfulGenerateAttempts[0].tier === input.finalTier
   const tierSequenceValid = validateTierSequence(input.tierAttempts, input.finalTier)
   const drafts: Array<Record<string, unknown>> = [
     {
@@ -285,20 +286,22 @@ export function buildChatbotBookingAuditEvents(input: {
   })
 }
 
-const tierRanks = {
-  "tier-0-deterministic-intake": 0,
-  "tier-1-hosted-chrome-notion-ai": 1,
-  "tier-2-gemini-flash": 2,
-  "tier-3-form-fallback": 3,
-} as const
+// Rank = position in the active tier order; tiers outside it (e.g. the retired Tier1) have no rank.
+const tierRanks: ReadonlyMap<ChatbotTierAttemptAuditEvidence["tier"], number> = new Map(
+  [chatbotLlmTierIds.tier0DeterministicIntake, ...defaultLlmTierOrder].map((tier, index) => [tier, index]),
+)
 
 function validateTierSequence(
   attempts: ChatbotTierAttemptAuditEvidence[],
   finalTier: ChatbotTierAttemptAuditEvidence["tier"],
 ): boolean {
   if (attempts.length === 0) return false
-  const finalRank = tierRanks[finalTier]
-  const ranks = attempts.map((attempt) => tierRanks[attempt.tier])
+  const finalRank = tierRanks.get(finalTier)
+  const ranks = attempts.flatMap((attempt) => {
+    const rank = tierRanks.get(attempt.tier)
+    return rank === undefined ? [] : [rank]
+  })
+  if (finalRank === undefined || ranks.length !== attempts.length) return false
   const nondecreasing = ranks.every((rank, index) => index === 0 || rank >= ranks[index - 1])
   const successfulGenerates = attempts.filter(
     (attempt) => attempt.phase === "generate" && attempt.result === "success",
@@ -310,7 +313,7 @@ function validateTierSequence(
     finalAttempt.result === "success" &&
     finalAttempt.tier === finalTier
   const everyTierReached = Array.from({ length: finalRank }, (_, index) => index + 1)
-    .every((rank) => ranks.includes(rank as 1 | 2 | 3))
+    .every((rank) => ranks.includes(rank))
   return nondecreasing && oneFinalSuccess && everyTierReached
 }
 

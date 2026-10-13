@@ -97,7 +97,7 @@ describe("sendChatbotSlackNotification", () => {
         sessionId: "session_2",
         tier: "tier-3-form-fallback",
         threadTs: "1710000000.000100",
-        issueReasons: ["tier2-gemini-fallback", "tier3-form-fallback"],
+        issueReasons: ["tier3-form-fallback"],
         retryDiagnostics: {
           attemptCount: 3,
           maxAttempts: 3,
@@ -125,8 +125,7 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("retryReasons: server-error,server-error")
     expect(body.text).toContain("fallbackReason: budget-exhausted")
     expect(body.text).toContain("retryExhausted: true")
-    expect(body.text).toContain("内容: Tier 1からTier 2（Gemini Flash）へフォールバック")
-    expect(body.text).toContain("内容: Tier 2でもAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え")
+    expect(body.text).toContain("内容: Tier 2（Gemini Flash）でAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え")
   })
 
   it("shows the privacy-safe same-tier Gemini model fallback in Slack", async () => {
@@ -172,7 +171,7 @@ describe("sendChatbotSlackNotification", () => {
         requestId: "req_hidden_failure",
         conversationId: "conv_hidden_failure",
         tier: "tier-2-gemini-flash",
-        issueReasons: ["tier2-gemini-fallback"],
+        issueReasons: ["message-server-handler-failed"],
         retryDiagnostics: {
           threadLifecycle: {
             visibilityStatus: "hide-verification-failed",

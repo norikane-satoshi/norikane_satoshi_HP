@@ -5599,31 +5599,34 @@ describe("handleChatbotMessage user context", () => {
     expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
       kind: "issue",
       threadTs: "1700000000.000100",
-      issueReasons: ["tier2-gemini-fallback", "tier3-form-fallback"],
+      issueReasons: ["tier3-form-fallback"],
     }))
   })
 
-  it("does not post a problem notification for successful tier1 responses", async () => {
+  it("does not post a problem notification for successful Gemini responses", async () => {
     const harness = setup({
       existingConversation: conversation({
         context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
       }),
     })
     harness.generate.mockResolvedValueOnce({
-      rawText: customerReply("通常応答です。"),
-      tier: "tier-1-hosted-chrome-notion-ai",
+      rawText: customerReply(JSON.stringify({
+        tool: "show_choice_panel",
+        args: jobKindChoices,
+      })),
+      tier: "tier-2-gemini-flash",
     })
     harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
 
     await handleChatbotMessage(
-      { sessionId: "session_1", userId: "user_a", message: "Tier1通常応答" },
+      { sessionId: "session_1", userId: "user_a", message: "Gemini通常応答" },
       harness.options,
     )
 
     expect(harness.slackNotifier).toHaveBeenCalledTimes(1)
     expect(harness.slackNotifier).toHaveBeenCalledWith(expect.objectContaining({
       kind: "conversation",
-      tier: "tier-1-hosted-chrome-notion-ai",
+      tier: "tier-2-gemini-flash",
       threadTs: "1700000000.000100",
     }))
   })
@@ -5727,34 +5730,6 @@ describe("handleChatbotMessage user context", () => {
       kind: "conversation",
       pendingRecovery: true,
       pendingRequestKind: "message",
-    }))
-  })
-
-  it("posts a problem notification when a response falls below hosted tier1", async () => {
-    const harness = setup({
-      existingConversation: conversation({
-        context: { sessionId: "session_1", userId: "user_a", slackThreadTs: "1700000000.000100" },
-      }),
-    })
-    harness.generate.mockResolvedValueOnce({
-      rawText: customerReply(JSON.stringify({
-        tool: "show_choice_panel",
-        args: jobKindChoices,
-      })),
-      tier: "tier-2-gemini-flash",
-    })
-    harness.slackNotifier.mockResolvedValue({ status: "sent", ts: "1700000000.000200" })
-
-    await handleChatbotMessage(
-      { sessionId: "session_1", userId: "user_a", message: "Tier2に落ちるケース" },
-      harness.options,
-    )
-
-    expect(harness.slackNotifier).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      kind: "issue",
-      threadTs: "1700000000.000100",
-      tier: "tier-2-gemini-flash",
-      issueReasons: ["tier2-gemini-fallback"],
     }))
   })
 

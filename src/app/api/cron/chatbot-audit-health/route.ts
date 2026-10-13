@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import tier1BaselineData from "@/lib/chatbot/audit/performance-baseline-tier1.json"
 import tier2BaselineData from "@/lib/chatbot/audit/performance-baseline-tier2.json"
 import { chatbotAuditStageTimingsSchema } from "@/lib/chatbot/audit/contract"
 import {
@@ -15,7 +14,6 @@ export const dynamic = "force-dynamic"
 
 const minimumSampleCount = 5
 const baselines = {
-  "tier-1-hosted-chrome-notion-ai": chatbotPerformanceBaselineSchema.parse(tier1BaselineData),
   "tier-2-gemini-flash": chatbotPerformanceBaselineSchema.parse(tier2BaselineData),
 }
 type PerformanceTier = keyof typeof baselines

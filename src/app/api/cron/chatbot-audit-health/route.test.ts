@@ -28,7 +28,7 @@ function request(token = "secret") {
 function event(
   totalServer: number,
   buildSha = "current-build",
-  tier = "tier-1-hosted-chrome-notion-ai",
+  tier = "tier-2-gemini-flash",
 ) {
   return {
     buildSha,
@@ -75,7 +75,7 @@ describe("GET /api/cron/chatbot-audit-health", () => {
       ok: false,
       status: "regressed",
       sampleCount: 5,
-      violations: ["tier-1-hosted-chrome-notion-ai:totalServer"],
+      violations: ["tier-2-gemini-flash:totalServer"],
     })
   })
 
@@ -98,10 +98,10 @@ describe("GET /api/cron/chatbot-audit-health", () => {
     })
   })
 
-  it("evaluates Tier 2 fallback samples against the Tier 2 baseline", async () => {
+  it("evaluates Gemini samples against the Tier 2 baseline", async () => {
     mocks.findMany.mockResolvedValue(Array.from(
       { length: 5 },
-      () => event(8_000, "current-build", "tier-2-gemini-flash"),
+      () => event(8_000),
     ))
 
     const response = await GET(request())
@@ -112,10 +112,6 @@ describe("GET /api/cron/chatbot-audit-health", () => {
       status: "within-budget",
       sampleCount: 5,
       scenarios: {
-        "tier-1-hosted-chrome-notion-ai": {
-          status: "insufficient-data",
-          sampleCount: 0,
-        },
         "tier-2-gemini-flash": {
           status: "within-budget",
           sampleCount: 5,

@@ -26,7 +26,86 @@ const slackSuccessEvidence = {
 }
 
 describe("chatbot server audit evidence", () => {
-  it("accepts a fallback sequence when Tier 1 is rejected by its health check", () => {
+  it("accepts Gemini as the primary tier without marking it as a fallback", () => {
+    const events = buildChatbotMessageAuditEvents({
+      requestId: correlationId,
+      conversationId: "conversation_private_1",
+      buildSha: "abc123",
+      createdAt: "2026-08-23T00:00:00.000Z",
+      finalTier: "tier-2-gemini-flash",
+      uiKind: "choice-panel",
+      stageTimings: {},
+      tierAttempts: [
+        {
+          tier: "tier-2-gemini-flash",
+          phase: "health-check",
+          result: "success",
+          durationMs: 120,
+        },
+        {
+          tier: "tier-2-gemini-flash",
+          phase: "generate",
+          result: "success",
+          durationMs: 1_700,
+        },
+      ],
+      slack: slackSuccessEvidence,
+      messageIntegrity: buildChatbotMessageIntegrity(["user", "assistant"]),
+    })
+
+    expect(events.find((event) => event.eventName === "response_normalized")).toMatchObject({
+      result: "success",
+      fallbackUsed: false,
+      finalTierConsistent: true,
+      tierSequenceValid: true,
+      tier: "tier-2-gemini-flash",
+    })
+  })
+
+  it("accepts a fallback sequence when Tier 2 is rejected by its health check", () => {
+    const events = buildChatbotMessageAuditEvents({
+      requestId: correlationId,
+      conversationId: "conversation_private_1",
+      buildSha: "abc123",
+      createdAt: "2026-08-23T00:00:00.000Z",
+      finalTier: "tier-3-form-fallback",
+      uiKind: "tier3-inquiry-form",
+      stageTimings: {},
+      tierAttempts: [
+        {
+          tier: "tier-2-gemini-flash",
+          phase: "health-check",
+          result: "failure",
+          durationMs: 250,
+          errorCode: "rate-limit",
+        },
+        {
+          tier: "tier-3-form-fallback",
+          phase: "health-check",
+          result: "success",
+          durationMs: 1,
+        },
+        {
+          tier: "tier-3-form-fallback",
+          phase: "generate",
+          result: "success",
+          durationMs: 1,
+        },
+      ],
+      slack: slackSuccessEvidence,
+      messageIntegrity: buildChatbotMessageIntegrity(["user", "assistant"]),
+    })
+
+    expect(events.find((event) => event.eventName === "response_normalized")).toMatchObject({
+      result: "success",
+      fallbackUsed: true,
+      finalTierConsistent: true,
+      tierSequenceValid: true,
+      tier: "tier-3-form-fallback",
+    })
+  })
+
+  it("rejects a sequence that still attempts the retired Tier 1", () => {
     const events = buildChatbotMessageAuditEvents({
       requestId: correlationId,
       conversationId: "conversation_private_1",
@@ -45,15 +124,9 @@ describe("chatbot server audit evidence", () => {
         },
         {
           tier: "tier-2-gemini-flash",
-          phase: "health-check",
-          result: "success",
-          durationMs: 300,
-        },
-        {
-          tier: "tier-2-gemini-flash",
           phase: "generate",
           result: "success",
-          durationMs: 2_500,
+          durationMs: 1_700,
         },
       ],
       slack: slackSuccessEvidence,
@@ -61,10 +134,9 @@ describe("chatbot server audit evidence", () => {
     })
 
     expect(events.find((event) => event.eventName === "response_normalized")).toMatchObject({
-      result: "success",
-      finalTierConsistent: true,
-      tierSequenceValid: true,
-      tier: "tier-2-gemini-flash",
+      result: "failure",
+      tierSequenceValid: false,
+      errorCode: "tier-sequence-invalid",
     })
   })
 
@@ -78,13 +150,6 @@ describe("chatbot server audit evidence", () => {
       uiKind: "choice-panel",
       stageTimings: {},
       tierAttempts: [
-        {
-          tier: "tier-1-hosted-chrome-notion-ai",
-          phase: "generate",
-          result: "failure",
-          durationMs: 20,
-          errorCode: "rate-limit",
-        },
         {
           tier: "tier-2-gemini-flash",
           phase: "generate",
@@ -227,19 +292,17 @@ describe("chatbot server audit evidence", () => {
         conversationLoad: 10,
         contextPreparation: 20,
         tierHealthCheck: 30,
-        notionInference: 54_000,
         responseNormalization: 40,
         conversationPersist: 50,
         slackNotification: 60,
-        totalServer: 54_210,
+        totalServer: 390,
       },
       tierAttempts: [
         {
-          tier: "tier-1-hosted-chrome-notion-ai" as const,
-          phase: "generate" as const,
-          result: "failure" as const,
-          durationMs: 54_000,
-          errorCode: "timeout",
+          tier: "tier-2-gemini-flash" as const,
+          phase: "health-check" as const,
+          result: "success" as const,
+          durationMs: 30,
         },
         {
           tier: "tier-2-gemini-flash" as const,
@@ -268,7 +331,7 @@ describe("chatbot server audit evidence", () => {
     expect(first.every((event) => event.correlationId === correlationId)).toBe(true)
     expect(first.find((event) => event.eventName === "response_normalized")).toMatchObject({
       tier: "tier-2-gemini-flash",
-      fallbackUsed: true,
+      fallbackUsed: false,
       tierAttemptCount: 2,
       finalTierConsistent: true,
       tierSequenceValid: true,
@@ -292,7 +355,7 @@ describe("chatbot server audit evidence", () => {
       conversationId: "conversation_private_1",
       buildSha: "abc123",
       createdAt: "2026-08-20T00:00:00.000Z",
-      finalTier: "tier-1-hosted-chrome-notion-ai",
+      finalTier: "tier-2-gemini-flash",
       uiKind: "none",
       stageTimings: {},
       tierAttempts: [],
@@ -318,18 +381,18 @@ describe("chatbot server audit evidence", () => {
       conversationId: "conversation_private_1",
       buildSha: "abc123",
       createdAt: "2026-08-20T00:00:00.000Z",
-      finalTier: "tier-1-hosted-chrome-notion-ai",
+      finalTier: "tier-2-gemini-flash",
       uiKind: "none",
       stageTimings: {},
       tierAttempts: [
         {
-          tier: "tier-1-hosted-chrome-notion-ai",
+          tier: "tier-2-gemini-flash",
           phase: "generate",
           result: "success",
           durationMs: 20,
         },
         {
-          tier: "tier-2-gemini-flash",
+          tier: "tier-3-form-fallback",
           phase: "generate",
           result: "failure",
           durationMs: 20,

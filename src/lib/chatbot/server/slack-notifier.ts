@@ -461,10 +461,8 @@ function formatIssueReasonLines(reasons: string[] | undefined): string[] {
 
 function formatIssueReason(reason: string): string {
   switch (reason) {
-    case "tier2-gemini-fallback":
-      return "Tier 1からTier 2（Gemini Flash）へフォールバック"
     case "tier3-form-fallback":
-      return "Tier 2でもAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え"
+      return "Tier 2（Gemini Flash）でAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え"
     case "booking-owner-email-send-failed":
       return "予約通知メールの送信に失敗"
     default:
@@ -475,7 +473,7 @@ function formatIssueReason(reason: string): string {
 }
 
 function formatIssueTitle(reasons: string[] | undefined): string {
-  return reasons?.some((reason) => reason === "tier2-gemini-fallback" || reason === "tier3-form-fallback")
+  return reasons?.some((reason) => reason === "tier3-form-fallback")
     ? "チャット応答がフォールバックしました"
     : "応答でエラーが出ました"
 }

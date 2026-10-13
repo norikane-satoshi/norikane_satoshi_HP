@@ -208,7 +208,7 @@ describe("sendChatbotSlackNotification", () => {
         tier: "tier-3-form-fallback",
         bookingProgress: true,
         threadTs: "1700000000.000100",
-        issueReasons: ["tier2-gemini-fallback", "tier3-form-fallback"],
+        issueReasons: ["tier3-form-fallback"],
       },
       { env: enabledEnv, fetcher },
     )
@@ -220,8 +220,7 @@ describe("sendChatbotSlackNotification", () => {
     expect(body.text).toContain("requestId: req_issue")
     expect(body.text).toContain("tier: Tier 3（問い合わせフォーム） [tier-3-form-fallback]")
     expect(body.text).toContain("bookingProgress: true")
-    expect(body.text).toContain("内容: Tier 1からTier 2（Gemini Flash）へフォールバック")
-    expect(body.text).toContain("内容: Tier 2でもAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え")
+    expect(body.text).toContain("内容: Tier 2（Gemini Flash）でAI応答を完了できず、Tier 3（問い合わせフォーム）へ切り替え")
     expectRemovedLabelsAbsent(body.text)
     expect(body.text).not.toMatch(/Chatbot issue/i)
     expect(body.text).not.toContain("⚠️")
