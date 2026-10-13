@@ -20,7 +20,7 @@ Default mode compares against the last intentionally verified `origin/staging` b
 
 Keep this check read-only. Do not replace the exact path allowlist with wildcards; update the default baseline only after `origin/staging` has intentionally advanced and the default diff has been reviewed.
 
-For chatbot staging operations, the repository JSON-state contract, `turnCount` derivation rule, local-only `41238` entrypoint handling, and staging-to-production audit checklist live in `docs/chatbot-staging-production-checklist.md`.
+For chatbot staging operations, the repository JSON-state contract, `turnCount` derivation rule, and staging-to-production audit checklist live in `docs/chatbot-staging-production-checklist.md`.
 
 ## CI Secrets
 

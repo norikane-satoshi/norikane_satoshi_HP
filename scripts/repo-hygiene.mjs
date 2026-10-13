@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { classifyCleanWorktree, findIntegratedLocalBranches, isExemptWorktreePath, parseEnvDocument, parseWorktreePorcelain, readServingWorktreeState } from "./repo-hygiene-lib.mjs";
+import { classifyCleanWorktree, findIntegratedLocalBranches, parseEnvDocument, parseWorktreePorcelain } from "./repo-hygiene-lib.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
@@ -118,9 +118,8 @@ function checkLocalState() {
   if (pruneCandidates) errors.push("stale worktree metadata exists; run git worktree prune after inspection");
 
   const attachedBranches = new Set(worktrees.map((worktree) => worktree.branch).filter(Boolean));
-  const servingState = readServingWorktreeState();
   for (const worktree of worktrees) {
-    if (isExemptWorktreePath(worktree.path, mainRoot)) continue;
+    if (worktree.path === mainRoot) continue;
     if (!fs.existsSync(worktree.path)) {
       errors.push(`registered worktree is missing: ${worktree.path}`);
       continue;
@@ -133,7 +132,7 @@ function checkLocalState() {
     const integrated = ["origin/master", "origin/staging"].some((reference) =>
       isAncestor(worktree.head, reference),
     );
-    const result = classifyCleanWorktree(worktree, { integrated, servingState });
+    const result = classifyCleanWorktree(worktree, { integrated });
     ({ errors, info })[result.level].push(result.message);
   }
 

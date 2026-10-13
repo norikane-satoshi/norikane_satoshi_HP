@@ -178,7 +178,8 @@ async function submitInquiry(baseUrl: string): Promise<InquiryResult> {
 function readBaseUrl(argv: string[]): string {
   const index = argv.indexOf("--base-url")
   const value = index >= 0 ? argv[index + 1]?.trim() : undefined
-  return value || "http://localhost:41238"
+  if (!value) throw new Error("missing_base_url")
+  return value
 }
 
 async function main(): Promise<void> {

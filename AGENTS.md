@@ -126,13 +126,13 @@ Start a verification dev server only when the current task needs it; no dev serv
 
 ## 本番反映ルール（チャットボット・予約カレンダー）
 
-AI チャットボットと予約カレンダーの実装は、検証済み変更を `localhost:41238` だけで止めず、`master` / Vercel Production まで反映し、Production URL と顧客導線で確認できる状態を既定の完了条件にする。破壊的変更、secret / env 更新、DB migration、外部サービス設定変更、不可逆または高コストな操作は、master / Production 反映前にさとしさんの明示確認を取る。
+AI チャットボットと予約カレンダーの実装は、検証済み変更を `master` / Vercel Production まで反映し、Production URL と顧客導線で確認できる状態を既定の完了条件にする。破壊的変更、secret / env 更新、DB migration、外部サービス設定変更、不可逆または高コストな操作は、master / Production 反映前にさとしさんの明示確認を取る。
 
 ユーザーに見える HP の文章（Hero の一言コピー、見出し、本文、キャッチコピー等）は、さとしさんの明示指示なしに追加・削除・書き換えない。
 
 ## staging 統合ルール
 
-今後この HP の修正が lint・typecheck・対象 unit test を通過し、専用作業ブランチへ commit されたら、staging 統合について次を実行する。ローカルプレビューは、そのタスクで必要な場合に限る。
+今後この HP の修正が lint・typecheck・対象 unit test を通過し、専用作業ブランチへ commit されたら、staging 統合について次を実行する。
 
 1. `origin` を fetch し、作業 commit を最新 `origin/staging` 上へ競合なく載せられることを確認する。作業ブランチが遅れているだけなら最新 `origin/staging` へ rebase し、競合が起きた場合は rebase を中止して push せず、さとしさんへ判断を戻す。
 2. `origin/staging` が統合後 HEAD の祖先であること、baseline の祖先関係、diff allowlist を確認し、通常の fast-forward push だけで `origin/staging` を前進させる。force push / reset / staging 直作業は禁止する。

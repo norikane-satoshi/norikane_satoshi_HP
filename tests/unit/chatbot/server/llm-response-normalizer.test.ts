@@ -66,7 +66,7 @@ describe("normalizeChatbotLlmResponse", () => {
   })
 
   it("falls back instead of extracting readable first-person / user-narration monologue prepended to the reply", () => {
-    // Real 41238 leak: readable English+Japanese internal monologue concatenated in
+    // Real leak: readable English+Japanese internal monologue concatenated in
     // front of the customer reply, with no base64 / thinking-signature blob.
     const normalized = normalizeChatbotLlmResponse(
       {

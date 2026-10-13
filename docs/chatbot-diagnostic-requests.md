@@ -6,15 +6,14 @@ post to Slack. Send the header below with every request to `POST /api/chatbot/me
 posts skipped. Booking requests return HTTP 503 (`booking_external_writes_disabled`) before creating
 a customer, booking, Calendar/Notion hold, receipt, owner email or Slack notification. For message
 requests, the audit event `slack_notification_completed`
-records `slack-skipped-diagnostic`, which audit completeness and the live harnesses treat as that
-boundary completing; any other Slack failure still fails them.
+records `slack-skipped-diagnostic`, which audit completeness treats as that
+boundary completing; any other Slack failure still fails it.
 
 - Header: `x-chatbot-diagnostic`
 - Value: hex HMAC-SHA256 of `chatbot-diagnostic-request` keyed with `CHATBOT_DIAGNOSTIC_TOKEN`
   (set on the production app and in `.env.local`).
 
-`scripts/chatbot/verify-known-regressions-live.ts` and `scripts/chatbot/verify-endurance-live.ts`
-send it automatically when that variable is set. For other scripts:
+To compute the value:
 
 ```sh
 node -e 'const c=require("node:crypto");process.stdout.write(c.createHmac("sha256",process.env.CHATBOT_DIAGNOSTIC_TOKEN).update("chatbot-diagnostic-request").digest("hex"))'
