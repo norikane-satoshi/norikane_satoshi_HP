@@ -29,7 +29,6 @@ import {
   appendMessage,
   assertChatbotLlmResponseContract,
   createChatbotLlmTierOrchestrator,
-  createTier1HostedChromeNotionAiClient,
   createTier2GeminiFlashClient,
   createTier3FormFallbackClient,
   tier3FormFallbackCustomerText,
@@ -931,14 +930,6 @@ export async function handleChatbotMessage(
     ? slackNotification
     : await slackNotification
   stageTimings.tierHealthCheck = sumAttemptDurations(tierAttempts, "health-check")
-  const tier1WorkerTimings = tierAttempts.find(
-    (attempt) => attempt.phase === "generate" && attempt.tier === "tier-1-hosted-chrome-notion-ai" && attempt.stageTimings,
-  )?.stageTimings
-  if (tier1WorkerTimings) Object.assign(stageTimings, tier1WorkerTimings)
-  stageTimings.notionInference = sumTierGenerateDurations(
-    tierAttempts,
-    "tier-1-hosted-chrome-notion-ai",
-  )
   stageTimings.totalServer = elapsedMs(totalServerStartedAt, now())
 
   return {
@@ -1221,18 +1212,6 @@ function sumAttemptDurations(
     180_000,
     attempts
       .filter((attempt) => attempt.phase === phase)
-      .reduce((total, attempt) => total + attempt.durationMs, 0),
-  )
-}
-
-function sumTierGenerateDurations(
-  attempts: ChatbotTierAttemptAuditEvidence[],
-  tier: ChatbotTierAttemptAuditEvidence["tier"],
-): number {
-  return Math.min(
-    180_000,
-    attempts
-      .filter((attempt) => attempt.phase === "generate" && attempt.tier === tier)
       .reduce((total, attempt) => total + attempt.durationMs, 0),
   )
 }
@@ -1882,7 +1861,6 @@ function createDefaultChatbotLlmOrchestrator(
   onTierAttempt?: (event: TierAttemptEvent) => void,
 ): ChatbotLlmTierOrchestrator {
   const clients: ChatbotLlmClient[] = [
-    createTier1HostedChromeNotionAiClient(),
     createTier2GeminiFlashClient(),
     createTier3FormFallbackClient(),
   ]

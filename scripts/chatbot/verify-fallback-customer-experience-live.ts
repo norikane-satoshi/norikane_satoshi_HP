@@ -59,7 +59,7 @@ export async function verifyFallbackCustomerExperience(
   options: VerificationOptions,
 ): Promise<SafeFallbackReport> {
   const tier2Result = await createChatbotLlmTierOrchestrator({
-    clients: [unavailableClient("tier-1-hosted-chrome-notion-ai"), options.tier2Client, options.tier3Client],
+    clients: [options.tier2Client, options.tier3Client],
   }).generate(fallbackRequest())
 
   if (tier2Result.tier !== "tier-2-gemini-flash") throw new Error("tier2_fallback_not_selected")
@@ -72,7 +72,6 @@ export async function verifyFallbackCustomerExperience(
 
   const tier3Result = await createChatbotLlmTierOrchestrator({
     clients: [
-      unavailableClient("tier-1-hosted-chrome-notion-ai"),
       unavailableClient("tier-2-gemini-flash"),
       options.tier3Client,
     ],

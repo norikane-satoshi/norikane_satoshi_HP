@@ -4,7 +4,6 @@ import { ChatbotLlmError, defaultLlmTierOrder } from "@/lib/chatbot/server/llm-c
 import type { ChatbotLlmTier } from "@/lib/chatbot/server/llm-client"
 
 const expectedDefaultLlmTierOrder = [
-  "tier-1-hosted-chrome-notion-ai",
   "tier-2-gemini-flash",
   "tier-3-form-fallback",
 ] as const satisfies ReadonlyArray<ChatbotLlmTier>

@@ -29,8 +29,6 @@
     "db:backfill:step0": "tsx scripts/migrate-step-0-backfill.ts",
     "e2e:resend:real-send": "tsx scripts/e2e-resend-real-send.mjs",
     "chatbot:local-tier-guard": "tsx scripts/chatbot/local-tier-guard.ts",
-    "chatbot:hosted-tier1-heartbeat": "tsx scripts/chatbot/hosted-tier1-heartbeat.ts",
-    "chatbot:verify-hidden-thread-live": "tsx scripts/chatbot/verify-hidden-notion-thread-live.ts",
     "chatbot:verify-fallback-customer-experience-live": "tsx scripts/chatbot/verify-fallback-customer-experience-live.ts",
     "chatbot:verify-known-regressions-live": "tsx scripts/chatbot/verify-known-regressions-live.ts",
     "chatbot:verify-endurance-live": "tsx scripts/chatbot/verify-endurance-live.ts",

@@ -172,7 +172,6 @@ async function loadPost({
     normalizeChatbotLlmChoiceSet,
     loadUserChatbotContext,
     formatUserChatbotContextForPrompt,
-    createTier1HostedChromeNotionAiClient: vi.fn(() => ({ tier: "tier-1-hosted-chrome-notion-ai" })),
     createTier2GeminiFlashClient: vi.fn(() => ({ tier: "tier-2-gemini-flash" })),
     createTier3FormFallbackClient: vi.fn(() => ({ tier: "tier-3-form-fallback" })),
     createChatbotLlmTierOrchestrator: vi.fn(() => ({

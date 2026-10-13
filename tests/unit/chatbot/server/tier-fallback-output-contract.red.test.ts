@@ -253,9 +253,8 @@ describe("invalid choice-set contract", () => {
 })
 
 describe("canonical production tier order", () => {
-  it("keeps the order exactly Tier1 hosted -> Tier2 Gemini -> Tier3 form", () => {
+  it("keeps the order exactly Tier2 Gemini -> Tier3 form", () => {
     expect(defaultLlmTierOrder).toEqual([
-      "tier-1-hosted-chrome-notion-ai",
       "tier-2-gemini-flash",
       "tier-3-form-fallback",
     ])

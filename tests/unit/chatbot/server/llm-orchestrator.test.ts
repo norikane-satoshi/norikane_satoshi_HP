@@ -110,102 +110,55 @@ describe("createChatbotLlmTierOrchestrator", () => {
     const result = z.object({ customer_reply: z.string() }).safeParse({ customer_reply: null })
     if (result.success) throw new Error("expected rejection")
     const attempts: TierAttemptEvent[] = []
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { generateError: result.error })
     const tier2 = fakeClient("tier-2-gemini-flash", { generateError: result.error })
     const tier3 = fakeClient("tier-3-form-fallback")
     const orchestrator = createChatbotLlmTierOrchestrator({
-      clients: [tier1, tier2, tier3], onTierAttempt: (attempt) => attempts.push(attempt),
+      clients: [tier2, tier3], onTierAttempt: (attempt) => attempts.push(attempt),
     })
     await expect(orchestrator.generate(llmRequest())).resolves.toMatchObject({ tier: "tier-3-form-fallback" })
     expect(attempts.filter((attempt) => attempt.phase === "generate").map((attempt) => attempt.outcome))
-      .toEqual(["error", "error", "success"])
+      .toEqual(["error", "success"])
   })
 
-  it("returns the new tier 1 hosted response when it succeeds", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai")
+  it("returns the Gemini response when it succeeds", async () => {
     const tier2 = fakeClient("tier-2-gemini-flash")
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
-
-    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
-      llmResponse("tier-1-hosted-chrome-notion-ai"),
-    )
-    expect(tier1.generate).toHaveBeenCalledOnce()
-    expect(tier2.generate).not.toHaveBeenCalled()
-  })
-
-  it("tries the new tier 2 Gemini client when tier 1 is unhealthy", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { healthy: false })
-    const tier2 = fakeClient("tier-2-gemini-flash")
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
+    const tier3 = fakeClient("tier-3-form-fallback")
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2, tier3] })
 
     await expect(orchestrator.generate(llmRequest())).resolves.toEqual(llmResponse("tier-2-gemini-flash"))
-    expect(tier1.generate).not.toHaveBeenCalled()
     expect(tier2.generate).toHaveBeenCalledOnce()
+    expect(tier3.generate).not.toHaveBeenCalled()
   })
 
-  it("tries tier 2 after tier 1 generation fails", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", {
-      generateError: llmError("tier-1-hosted-chrome-notion-ai"),
-    })
-    const tier2 = fakeClient("tier-2-gemini-flash")
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
-
-    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(llmResponse("tier-2-gemini-flash"))
-    expect(tier1.generate).toHaveBeenCalledOnce()
-    expect(tier2.generate).toHaveBeenCalledOnce()
-  })
-
-  it("carries a sanitized Tier 1 hidden-thread failure into the successful fallback response", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", {
-      generateError: llmError("tier-1-hosted-chrome-notion-ai", {
-        code: "connection",
-        cause: {
-          lifecycleFailureCode: "notion-thread-hide-verification-failed",
-          lifecycleStage: "verify-chat-list",
-          threadUrl: "https://app.notion.com/chat?t=must-not-leak",
-          cookie: "must-not-leak",
-        },
-      }),
-    })
-    const tier2 = fakeClient("tier-2-gemini-flash")
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
-
-    const response = await orchestrator.generate(llmRequest())
-
-    expect(response).toMatchObject({
-      tier: "tier-2-gemini-flash",
-      diagnostics: {
-        tierFallbacks: [
-          {
-            tier: "tier-1-hosted-chrome-notion-ai",
-            phase: "generate",
-            errorCode: "connection",
-            lifecycleFailureCode: "notion-thread-hide-verification-failed",
-            lifecycleStage: "verify-chat-list",
-          },
-        ],
-      },
-    })
-    expect(JSON.stringify(response.diagnostics)).not.toContain("must-not-leak")
-  })
-
-  it("uses tier 3 form fallback when tiers 1 and 2 are unhealthy", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { healthy: false })
+  it("uses the form fallback when Gemini is unhealthy", async () => {
     const tier2 = fakeClient("tier-2-gemini-flash", { healthy: false })
     const tier3 = fakeClient("tier-3-form-fallback")
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2, tier3] })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2, tier3] })
 
     await expect(orchestrator.generate(llmRequest())).resolves.toEqual(llmResponse("tier-3-form-fallback"))
+    expect(tier2.generate).not.toHaveBeenCalled()
+    expect(tier3.generate).toHaveBeenCalledOnce()
+  })
+
+  it("uses the form fallback after Gemini generation fails", async () => {
+    const tier2 = fakeClient("tier-2-gemini-flash", {
+      generateError: llmError("tier-2-gemini-flash"),
+    })
+    const tier3 = fakeClient("tier-3-form-fallback")
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2, tier3] })
+
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(llmResponse("tier-3-form-fallback"))
+    expect(tier2.generate).toHaveBeenCalledOnce()
     expect(tier3.generate).toHaveBeenCalledOnce()
   })
 
   it.each([
-    ["missing display envelope", { rawText: "broken", tier: "tier-1-hosted-chrome-notion-ai" }],
+    ["missing display envelope", { rawText: "broken", tier: "tier-2-gemini-flash" }],
     [
       "missing raw text",
       {
         displayEnvelope: createChatbotLlmDisplayEnvelope("broken"),
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
     ],
     [
@@ -213,17 +166,17 @@ describe("createChatbotLlmTierOrchestrator", () => {
       {
         rawText: "broken",
         displayEnvelope: { text: "broken", source: "unknown", defaultDenied: false, fallbackApplied: false, reasons: [] },
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-2-gemini-flash",
       },
     ],
   ])("falls back when a tier returns contract-invalid output: %s", async (_label, invalidResponse) => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", {
+    const tier2 = fakeClient("tier-2-gemini-flash", {
       generateResult: invalidResponse as ChatbotLlmResponse,
     })
     const tier3 = fakeClient("tier-3-form-fallback", {
       generateResult: llmResponse("tier-3-form-fallback", "<customer_reply>フォームへ切り替えます。</customer_reply>"),
     })
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier3] })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2, tier3] })
 
     await expect(orchestrator.generate(llmRequest())).resolves.toMatchObject({
       tier: "tier-3-form-fallback",
@@ -231,53 +184,51 @@ describe("createChatbotLlmTierOrchestrator", () => {
     })
   })
 
-  it("accepts the new shared tier response envelope", () => {
-    expect(() => assertChatbotLlmResponseContract(llmResponse("tier-1-hosted-chrome-notion-ai"))).not.toThrow()
+  it("accepts the shared tier response envelope", () => {
+    expect(() => assertChatbotLlmResponseContract(llmResponse("tier-2-gemini-flash"))).not.toThrow()
   })
 
   it("throws with the last configured tier when no client succeeds", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { healthy: false })
     const tier2 = fakeClient("tier-2-gemini-flash", { healthy: false })
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
+    const tier3 = fakeClient("tier-3-form-fallback", { healthy: false })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2, tier3] })
 
     await expect(orchestrator.generate(llmRequest())).rejects.toMatchObject({
       code: "unknown",
-      tier: "tier-2-gemini-flash",
+      tier: "tier-3-form-fallback",
       isRetryable: false,
     })
   })
 
   it("honors a custom tier order", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai")
     const tier2 = fakeClient("tier-2-gemini-flash")
     const tier3 = fakeClient("tier-3-form-fallback")
     const orchestrator = createChatbotLlmTierOrchestrator({
-      clients: [tier1, tier2, tier3],
-      tierOrder: ["tier-2-gemini-flash", "tier-3-form-fallback"],
+      clients: [tier2, tier3],
+      tierOrder: ["tier-3-form-fallback"],
     })
 
-    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(llmResponse("tier-2-gemini-flash"))
-    expect(tier1.isHealthy).not.toHaveBeenCalled()
-    expect(tier3.isHealthy).not.toHaveBeenCalled()
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(llmResponse("tier-3-form-fallback"))
+    expect(tier2.isHealthy).not.toHaveBeenCalled()
   })
 
   it("emits health-check and generation events", async () => {
     const events: TierAttemptEvent[] = []
     const diagnostics = { endpoint: "/generate", attemptCount: 2 }
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", {
-      generateResult: llmResponse("tier-1-hosted-chrome-notion-ai", "復旧しました", diagnostics),
+    const tier3 = fakeClient("tier-3-form-fallback", {
+      generateResult: llmResponse("tier-3-form-fallback", "復旧しました", diagnostics),
     })
     const orchestrator = createChatbotLlmTierOrchestrator({
-      clients: [tier1],
+      clients: [tier3],
       onTierAttempt: (event) => events.push(event),
     })
 
     await orchestrator.generate(llmRequest())
 
     expect(events).toEqual([
-      expect.objectContaining({ tier: "tier-1-hosted-chrome-notion-ai", phase: "health-check", outcome: "healthy" }),
+      expect.objectContaining({ tier: "tier-3-form-fallback", phase: "health-check", outcome: "healthy" }),
       expect.objectContaining({
-        tier: "tier-1-hosted-chrome-notion-ai",
+        tier: "tier-3-form-fallback",
         phase: "generate",
         outcome: "success",
         diagnostics,
@@ -287,15 +238,15 @@ describe("createChatbotLlmTierOrchestrator", () => {
 
   it("emits a client health error without blocking fallback", async () => {
     const events: TierAttemptEvent[] = []
-    const healthError = llmError("tier-1-hosted-chrome-notion-ai", {
-      message: "Hosted Notion AI worker URL or token is not configured.",
+    const healthError = llmError("tier-2-gemini-flash", {
+      message: "Gemini API key is not configured.",
       code: "auth",
       isRetryable: false,
     })
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { healthy: false, healthError })
+    const tier2 = fakeClient("tier-2-gemini-flash", { healthy: false, healthError })
     const tier3 = fakeClient("tier-3-form-fallback")
     const orchestrator = createChatbotLlmTierOrchestrator({
-      clients: [tier1, tier3],
+      clients: [tier2, tier3],
       onTierAttempt: (event) => events.push(event),
     })
 
@@ -304,67 +255,34 @@ describe("createChatbotLlmTierOrchestrator", () => {
   })
 
   it("ignores observer errors", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai")
+    const tier3 = fakeClient("tier-3-form-fallback")
     const orchestrator = createChatbotLlmTierOrchestrator({
-      clients: [tier1],
+      clients: [tier3],
       onTierAttempt: () => {
         throw new Error("observer failed")
       },
     })
 
-    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
-      llmResponse("tier-1-hosted-chrome-notion-ai"),
-    )
+    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(llmResponse("tier-3-form-fallback"))
   })
 
   it("returns true when any ordered tier is healthy", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { healthy: false })
-    const tier2 = fakeClient("tier-2-gemini-flash")
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
+    const tier2 = fakeClient("tier-2-gemini-flash", { healthy: false })
+    const tier3 = fakeClient("tier-3-form-fallback")
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2, tier3] })
 
     await expect(orchestrator.isHealthy()).resolves.toBe(true)
   })
 
   it("returns false when every ordered tier is unhealthy", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { healthy: false })
     const tier2 = fakeClient("tier-2-gemini-flash", { healthy: false })
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
+    const tier3 = fakeClient("tier-3-form-fallback", { healthy: false })
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier2, tier3] })
 
     await expect(orchestrator.isHealthy()).resolves.toBe(false)
   })
 
-  it("still attempts hosted tier 1 when its health probe times out", async () => {
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", {
-      healthPromise: new Promise<boolean>(() => undefined),
-    })
-    const tier2 = fakeClient("tier-2-gemini-flash")
-    const orchestrator = createChatbotLlmTierOrchestrator({
-      clients: [tier1, tier2],
-      healthCheckTimeoutMs: 1,
-    })
-
-    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
-      llmResponse("tier-1-hosted-chrome-notion-ai"),
-    )
-    expect(tier1.generate).toHaveBeenCalledOnce()
-  })
-
-  it("still attempts hosted tier 1 after a retryable connection health error", async () => {
-    const healthError = llmError("tier-1-hosted-chrome-notion-ai", {
-      code: "connection",
-      isRetryable: true,
-    })
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai", { healthy: false, healthError })
-    const tier2 = fakeClient("tier-2-gemini-flash")
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1, tier2] })
-
-    await expect(orchestrator.generate(llmRequest())).resolves.toEqual(
-      llmResponse("tier-1-hosted-chrome-notion-ai"),
-    )
-    expect(tier1.generate).toHaveBeenCalledOnce()
-  })
-
-  it("skips a non-hosted tier when its health check times out", async () => {
+  it("skips a tier when its health check times out", async () => {
     const tier2 = fakeClient("tier-2-gemini-flash", {
       healthPromise: new Promise<boolean>(() => undefined),
     })
@@ -380,8 +298,8 @@ describe("createChatbotLlmTierOrchestrator", () => {
 
   it("does not call a network transport directly", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch")
-    const tier1 = fakeClient("tier-1-hosted-chrome-notion-ai")
-    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier1] })
+    const tier3 = fakeClient("tier-3-form-fallback")
+    const orchestrator = createChatbotLlmTierOrchestrator({ clients: [tier3] })
 
     await orchestrator.generate(llmRequest())
     await orchestrator.isHealthy()

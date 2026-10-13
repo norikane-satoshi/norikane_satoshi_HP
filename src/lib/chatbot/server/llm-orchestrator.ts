@@ -96,7 +96,7 @@ export function createChatbotLlmTierOrchestrator(
 
         lastAttemptedTier = tier
         const health = await checkClientHealth(client)
-        if (!health.healthy && !shouldAttemptGenerateAfterUnhealthyHealth(client, health.error)) {
+        if (!health.healthy) {
           const fallback = summarizeTierFallback(client.tier, "health-check", health.error)
           if (fallback) tierFallbacks.push(fallback)
           continue
@@ -191,20 +191,6 @@ function safeDiagnosticCode(value: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function shouldAttemptGenerateAfterUnhealthyHealth(
-  client: ChatbotLlmClient,
-  error: ChatbotLlmError | Error | undefined,
-): boolean {
-  if (client.tier !== chatbotLlmTierIds.tier1HostedChromeNotionAi) return false
-  if (!error) return false
-
-  if (error instanceof ChatbotLlmError) {
-    return error.isRetryable && (error.code === "timeout" || error.code === "connection")
-  }
-
-  return /health check timed out/i.test(error.message)
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

@@ -76,10 +76,6 @@ export type {
   TierAttemptEvent,
 } from "@/lib/chatbot/server/llm-orchestrator"
 export {
-  createTier1HostedChromeNotionAiClient,
-  Tier1HostedChromeNotionAiClient,
-} from "@/lib/chatbot/server/llm-clients/tier1-hosted-chrome-notion-ai"
-export {
   createTier2GeminiFlashClient,
   Tier2GeminiFlashClient,
 } from "@/lib/chatbot/server/llm-clients/tier2-gemini-flash"

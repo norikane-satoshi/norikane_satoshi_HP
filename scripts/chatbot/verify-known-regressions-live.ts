@@ -11,7 +11,6 @@ loadDotenv({ path: ".env.local", override: false, quiet: true })
 loadDotenv({ path: ".env", override: false, quiet: true })
 
 const acceptedTierSchema = z.enum([
-  "tier-1-hosted-chrome-notion-ai",
   "tier-2-gemini-flash",
   "tier-3-form-fallback",
 ])

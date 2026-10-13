@@ -200,7 +200,6 @@ export function isChatbotLlmResponseContractError(error: unknown): error is Chat
  * tiers fail.
  */
 export const defaultLlmTierOrder: ReadonlyArray<ChatbotLlmTier> = [
-  chatbotLlmTierIds.tier1HostedChromeNotionAi,
   chatbotLlmTierIds.tier2GeminiFlash,
   chatbotLlmTierIds.tier3FormFallback,
 ] as const
