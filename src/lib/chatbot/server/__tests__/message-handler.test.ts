@@ -4844,7 +4844,7 @@ describe("handleChatbotMessage user context", () => {
     expect(result.assistantMessage.content).toContain("納品希望日")
   })
 
-  it.each(["2026-10-15", "未定"])("advances to the optional reason for a legacy deadline answer %s without the LLM", async (deadline) => {
+  it.each(["2099-10-15", "未定"])("advances to the optional reason for a legacy deadline answer %s without the LLM", async (deadline) => {
     const harness = setup({
       existingConversation: recordedConversation({
         context: { sessionId: "session_1", userId: "user_a", conversationState: baseProductionConversationState({ hasDesiredSchedule: false, hasContactEmail: true, contactEmail: "client@example.com" }), jobContext: { jobKind: "cm", finalMedium: "web", workSite: "remote-grading" } },
@@ -6016,10 +6016,10 @@ describe("a release date is not a question about the notes", () => {
 
 it("persists a selected deadline as the summary and booking prefill source", async () => {
   const harness = setup()
-  await handleChatbotMessage({ sessionId: "session_1", userId: "user_a", message: "納期: 2026-10-15" }, harness.options)
+  await handleChatbotMessage({ sessionId: "session_1", userId: "user_a", message: "納期: 2099-10-15" }, harness.options)
   expect(harness.repository.updateConversationRouting).toHaveBeenCalledWith(expect.objectContaining({
-    conversationState: expect.objectContaining({ hasDesiredSchedule: true, bookingPrefill: expect.objectContaining({ dueDate: "2026-10-15" }) }),
-    jobContext: expect.objectContaining({ publicReleaseDate: "2026-10-15" }),
+    conversationState: expect.objectContaining({ hasDesiredSchedule: true, bookingPrefill: expect.objectContaining({ dueDate: "2099-10-15" }) }),
+    jobContext: expect.objectContaining({ publicReleaseDate: "2099-10-15" }),
   }))
 })
 

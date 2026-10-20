@@ -19,6 +19,7 @@ import {
 } from "@/lib/booking/server/calendar-event-lifecycle"
 import {
   sendBookingConfirmedEmail,
+  sendBookingOwnerNotification,
   type BookingEmailArgs,
 } from "@/lib/booking/server/email"
 import {
@@ -130,19 +131,17 @@ async function sendCustomerReceipt(
   to: string | null,
   bookingGroupId: string,
   scheduleLabel: string,
+  lineUserId: string | null,
 ) {
-  if (input.entryPoint === "line_liff" && input.lineUserId) {
+  if (lineUserId) {
     const result = await sendLineBookingReceipt({
-      bookingGroupId,
-      lineUserId: input.lineUserId,
-      replyToken: input.lineReplyToken,
+      lineUserId,
       projectTitle: input.projectTitle,
       scheduleLabel,
     })
     if (!result.ok) {
       logPrivacySafeChatbotEvent({
         event: "booking_line_receipt_failed",
-        method: result.method,
         status: result.status,
         errorCode: "line_receipt_failed",
       })
@@ -151,6 +150,37 @@ async function sendCustomerReceipt(
   }
 
   await sendTentativeHoldEmail(input, to, bookingGroupId)
+}
+
+/** The LINE user of a LINE-login account. The LINE login and Messaging API channels share one provider, so it is also the push target. */
+async function findLineUserId(userId: string): Promise<string | null> {
+  const account = await prisma.account.findFirst({
+    where: { userId, provider: "line" },
+    select: { providerAccountId: true },
+  })
+  return account?.providerAccountId ?? null
+}
+
+/** Tells the owner about a booking sent from the web or LINE calendar. The chatbot route sends its own. */
+async function notifyOwner(input: BookingApiInput, bookingGroupId: string, contactEmail: string | null) {
+  const viaLine = input.entryPoint === "line_liff"
+  try {
+    await sendBookingOwnerNotification({
+      subject: `【${viaLine ? "LINE" : "Web"}予約通知】${input.projectTitle}`,
+      replyTo: contactEmail ?? undefined,
+      lines: [
+        `${viaLine ? "公式LINEの予約カレンダー" : "HPの予約カレンダー"}から申し込みがありました。`,
+        "",
+        createDescription({ ...input, sessionEmail: contactEmail ?? "" }),
+        `予約番号: ${bookingGroupId}`,
+      ],
+    })
+  } catch (error) {
+    logPrivacySafeChatbotEvent({
+      event: "booking_owner_notification_failed",
+      errorCode: operationalErrorCode(error),
+    })
+  }
 }
 
 async function refreshStoredCalendarToken() {
@@ -208,6 +238,7 @@ export async function createBookingFromApiInput({
   const calendarId = process.env.GOOGLE_CALENDAR_BUSY_SOURCE_ID
   const teamId = input.teamId ?? null
   const requestedDateSelection = hasSelectedSlots ? null : getRequestedDateSelection(input)
+  const lineUserId = input.entryPoint === "line_liff" ? await findLineUserId(userId) : null
   const storedMemo = [originatedFrom === "chatbot" || !hasSelectedSlots ? `希望日: ${scheduleLabel}` : undefined, input.memo]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
@@ -265,7 +296,7 @@ export async function createBookingFromApiInput({
           phone: nullable(input.phone),
           dueDate: nullable(input.dueDate),
           originatedFrom: originatedFrom ?? input.entryPoint ?? "web",
-          lineUserId: input.entryPoint === "line_liff" ? input.lineUserId ?? null : null,
+          lineUserId,
           chatbotIdempotencyKey: idempotencyKey ?? null,
           timeSlots: {
             create: slots.map((slot) => ({
@@ -313,6 +344,7 @@ export async function createBookingFromApiInput({
   }
 
   const bookingIds = bookingGroup.timeSlots.map((slot) => slot.id)
+  if (originatedFrom !== "chatbot") await notifyOwner(input, bookingGroup.id, userEmail)
 
   const confirmBooking = async (gcalEventId?: string | null) => {
     await prisma.bookingGroup.update({
@@ -331,7 +363,7 @@ export async function createBookingFromApiInput({
 
   if (!hasSelectedSlots) {
     if (!calendarId || !requestedDateSelection?.dates.length) {
-      await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+      await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, lineUserId)
       return {
         body: {
           status: "schedule_unselected",
@@ -358,7 +390,7 @@ export async function createBookingFromApiInput({
         },
       })
       if (!allCalendarEventSyncsSucceeded(results)) {
-        await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+        await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, lineUserId)
         return {
           body: {
             status: "pending_reconcile",
@@ -397,7 +429,7 @@ export async function createBookingFromApiInput({
       }
     }
 
-    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, lineUserId)
     return {
       body: {
         status: "schedule_unselected",
@@ -414,7 +446,7 @@ export async function createBookingFromApiInput({
   if (!calendarId) {
     await confirmBooking(null)
     invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+    await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, lineUserId)
     logPrivacySafeChatbotEvent({
       event: "booking_calendar_write_skipped",
       reason: "missing_calendar_id",
@@ -491,7 +523,7 @@ export async function createBookingFromApiInput({
   }
 
   invalidateCalendarFreeBusyCacheForUser(userId, teamId)
-  await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel)
+  await sendCustomerReceipt(input, userEmail, bookingGroup.id, scheduleLabel, lineUserId)
 
   return {
     body: {

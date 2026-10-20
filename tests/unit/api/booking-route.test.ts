@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   isTeamMember: vi.fn(),
   invalidateCalendarFreeBusyCacheForUser: vi.fn(),
   sendBookingConfirmedEmail: vi.fn(),
+  sendBookingOwnerNotification: vi.fn(),
   sendLineBookingReceipt: vi.fn(),
   refreshCalendarAccessToken: vi.fn(),
   createCalendarEvent: vi.fn(),
@@ -19,6 +20,9 @@ const mocks = vi.hoisted(() => ({
   calendarEventRows: [] as Array<Record<string, unknown>>,
   prisma: {
     $transaction: vi.fn(),
+    account: {
+      findFirst: vi.fn(),
+    },
     customer: {
       upsert: vi.fn(),
     },
@@ -70,7 +74,10 @@ vi.mock("@/lib/booking/server/calendar-event-lifecycle", async (importOriginal) 
     cancelBookingGroupCalendarEvents: mocks.cancelBookingGroupCalendarEvents,
   }
 })
-vi.mock("@/lib/booking/server/email", () => ({ sendBookingConfirmedEmail: mocks.sendBookingConfirmedEmail }))
+vi.mock("@/lib/booking/server/email", () => ({
+  sendBookingConfirmedEmail: mocks.sendBookingConfirmedEmail,
+  sendBookingOwnerNotification: mocks.sendBookingOwnerNotification,
+}))
 vi.mock("@/lib/line/messaging", () => ({ sendLineBookingReceipt: mocks.sendLineBookingReceipt }))
 vi.mock("@/lib/google-calendar/server", () => ({
   CALENDAR_TOKEN_USER_ID: "satoshi-calendar-owner",
@@ -144,7 +151,9 @@ function mockHappyPath() {
     return row ?? {}
   })
   mocks.sendBookingConfirmedEmail.mockResolvedValue({ skipped: true })
-  mocks.sendLineBookingReceipt.mockResolvedValue({ ok: true, method: "push" })
+  mocks.sendLineBookingReceipt.mockResolvedValue({ ok: true })
+  mocks.sendBookingOwnerNotification.mockResolvedValue({ skipped: true })
+  mocks.prisma.account.findFirst.mockResolvedValue(null)
   mocks.prisma.calendarToken.findUnique.mockResolvedValue({
     refreshToken: "refresh_token",
   })
@@ -297,10 +306,10 @@ describe("POST /api/booking", () => {
     mocks.auth.mockResolvedValue({
       user: { id: "line_user_1", email: null },
     })
+    mocks.prisma.account.findFirst.mockResolvedValue({ providerAccountId: "Uline123" })
 
     const response = await POST(request(validBooking({
       entryPoint: "line_liff",
-      lineUserId: "Uline123",
       sessionEmail: "client@example.com",
     })))
 
@@ -315,7 +324,6 @@ describe("POST /api/booking", () => {
       }),
     )
     expect(mocks.sendLineBookingReceipt).toHaveBeenCalledWith(expect.objectContaining({
-      bookingGroupId: "group_1",
       lineUserId: "Uline123",
       scheduleLabel: "2099/06/10(水) 10:00 - 2099/06/10(水) 11:00",
     }))
@@ -328,6 +336,7 @@ describe("POST /api/booking", () => {
     mocks.auth.mockResolvedValue({
       user: { id: "line_user_1", email: null },
     })
+    mocks.prisma.account.findFirst.mockResolvedValue({ providerAccountId: "Uline123" })
     mocks.prisma.bookingGroup.create.mockResolvedValue({
       id: "group_1",
       timeSlots: [],
@@ -335,7 +344,6 @@ describe("POST /api/booking", () => {
 
     const response = await POST(request(validBooking({
       entryPoint: "line_liff",
-      lineUserId: "Uline123",
       sessionEmail: "",
       selectedSlots: [],
       requestedDates: ["2099-06-10"],
@@ -357,7 +365,6 @@ describe("POST /api/booking", () => {
       }),
     )
     expect(mocks.sendLineBookingReceipt).toHaveBeenCalledWith(expect.objectContaining({
-      bookingGroupId: "group_1",
       lineUserId: "Uline123",
       scheduleLabel: "2099/06/10(水)",
     }))
@@ -372,15 +379,15 @@ describe("POST /api/booking", () => {
     mocks.auth.mockResolvedValue({
       user: { id: "line_user_1", email: null },
     })
+    mocks.prisma.account.findFirst.mockResolvedValue({ providerAccountId: "Uline123" })
     mocks.prisma.bookingGroup.create.mockResolvedValue({
       id: "group_1",
       timeSlots: [],
     })
-    mocks.sendLineBookingReceipt.mockResolvedValue({ ok: false, method: "push", status: 401, error: "invalid token" })
+    mocks.sendLineBookingReceipt.mockResolvedValue({ ok: false, status: 401, error: "invalid token" })
 
     const response = await POST(request(validBooking({
       entryPoint: "line_liff",
-      lineUserId: "Uline123",
       sessionEmail: "",
       selectedSlots: [],
       requestedDates: ["2099-06-10"],
@@ -390,7 +397,6 @@ describe("POST /api/booking", () => {
     const log = JSON.parse(String(info.mock.calls[0]?.[0]))
     expect(log).toEqual({
       event: "booking_line_receipt_failed",
-      method: "push",
       status: 401,
       errorCode: "line_receipt_failed",
     })
@@ -400,11 +406,63 @@ describe("POST /api/booking", () => {
     vi.unstubAllEnvs()
   })
 
+  it("ignores a LINE user id sent by the browser and uses only the signed-in LINE account", async () => {
+    mockHappyPath()
+    mocks.auth.mockResolvedValue({
+      user: { id: "google_user_1", email: null },
+    })
+
+    const response = await POST(request(validBooking({
+      entryPoint: "line_liff",
+      lineUserId: "Uattacker",
+      sessionEmail: "client@example.com",
+    })))
+
+    expect(response.status).toBe(200)
+    expect(mocks.prisma.account.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: "google_user_1", provider: "line" },
+    }))
+    expect(mocks.prisma.bookingGroup.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lineUserId: null }) }),
+    )
+    expect(mocks.sendLineBookingReceipt).not.toHaveBeenCalled()
+    expect(mocks.sendBookingConfirmedEmail).toHaveBeenCalled()
+  })
+
+  it.each([
+    { name: "web", body: {}, subject: "【Web予約通知】Color grading", first: "HPの予約カレンダーから申し込みがありました。" },
+    { name: "LINE", body: { entryPoint: "line_liff" }, subject: "【LINE予約通知】Color grading", first: "公式LINEの予約カレンダーから申し込みがありました。" },
+  ])("notifies the owner of a $name booking", async ({ body, subject, first }) => {
+    mockHappyPath()
+
+    const response = await POST(request(validBooking(body)))
+
+    expect(response.status).toBe(200)
+    expect(mocks.sendBookingOwnerNotification).toHaveBeenCalledTimes(1)
+    const args = mocks.sendBookingOwnerNotification.mock.calls[0][0]
+    expect(args.subject).toBe(subject)
+    expect(args.replyTo).toBe("satoshi@example.com")
+    expect(args.lines[0]).toBe(first)
+    expect(args.lines.join("\n")).toContain("案件名: Color grading")
+    expect(args.lines.join("\n")).toContain("予約番号: group_1")
+  })
+
+  it("keeps the booking when the owner notification fails", async () => {
+    mockHappyPath()
+    mocks.sendBookingOwnerNotification.mockRejectedValue(new Error("resend down"))
+
+    const response = await POST(request(validBooking()))
+
+    expect(response.status).toBe(200)
+    expect(mocks.prisma.bookingGroup.create).toHaveBeenCalled()
+  })
+
   it("keeps normal web bookings blocked when the authenticated session has no email", async () => {
     mockHappyPath()
     mocks.auth.mockResolvedValue({
       user: { id: "line_user_1", email: null },
     })
+    mocks.prisma.account.findFirst.mockResolvedValue({ providerAccountId: "Uline123" })
 
     const response = await POST(request(validBooking()))
 

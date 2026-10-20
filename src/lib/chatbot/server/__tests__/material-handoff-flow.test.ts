@@ -36,7 +36,7 @@ const jobContext: JobContext = {
 }
 
 describe("material ready date", () => {
-  it.each(["2026-10-15", "未定"])("stores only an explicit ready date or unknown: %s", (answer) => {
+  it.each(["2099-10-15", "未定"])("stores only an explicit ready date or unknown: %s", (answer) => {
     const result = applyMaterialHandoffAnswer({ conversationState: readyState(), previousAssistantMessage: "編集確定版の素材が揃う日を選んでください。", latestUserMessage: `素材が揃う日: ${answer}` })
     expect(result).toMatchObject({ hasMaterialTiming: true, materialHandoff: { timing: answer === "未定" ? "未確認" : answer } })
     expect(result.hasMaterialDetails).toBe(false)

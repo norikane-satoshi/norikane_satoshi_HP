@@ -31,7 +31,6 @@ type BookingSectionProps = {
   initialRange?: { start: string; end: string }
   monthSkeleton?: ReactNode
   entryPoint?: "web" | "line_liff"
-  lineUserId?: string
 }
 
 type TeamOption = {
@@ -105,7 +104,6 @@ export function BookingSection({
   initialRange,
   monthSkeleton,
   entryPoint = "web",
-  lineUserId,
 }: BookingSectionProps) {
   const defaultFormData = useMemo(() => createDefaultBookingFormData(userEmail), [userEmail])
   const [step, setStep] = useState<BookingStep>("calendar")
@@ -281,7 +279,6 @@ export function BookingSection({
         body: JSON.stringify({
           ...formData,
           entryPoint,
-          lineUserId: entryPoint === "line_liff" ? lineUserId : undefined,
           teamId: selectedTeamId,
           selectedSlots,
           requestedDates: requestedDateSelection?.dates ?? [],

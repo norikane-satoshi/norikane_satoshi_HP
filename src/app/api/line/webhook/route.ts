@@ -1,11 +1,8 @@
 import crypto from "node:crypto"
 import { NextResponse, type NextRequest } from "next/server"
 
-import {
-  getLineBookingLiffUrl,
-  getLineMessagingChannelAccessToken,
-  getLineWebhookChannelSecret,
-} from "@/lib/line/env"
+import { getLineBookingLiffUrl, getLineWebhookChannelSecret } from "@/lib/line/env"
+import { replyLineText } from "@/lib/line/messaging"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -39,28 +36,9 @@ function shouldReplyWithBookingLink(event: LineWebhookEvent): event is LineWebho
 }
 
 async function replyWithBookingLink(replyToken: string): Promise<void> {
-  const accessToken = getLineMessagingChannelAccessToken()
-  if (!accessToken) return
-
-  const response = await fetch("https://api.line.me/v2/bot/message/reply", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      replyToken,
-      messages: [
-        {
-          type: "text",
-          text: `予約カレンダーはこちらです。\n${getLineBookingLiffUrl()}`,
-        },
-      ],
-    }),
-  })
-
-  if (!response.ok) {
-    console.warn("LINE reply failed", { status: response.status })
+  const result = await replyLineText(replyToken, `予約カレンダーはこちらです。\n${getLineBookingLiffUrl()}`)
+  if (!result.ok) {
+    console.warn("LINE reply failed", { status: result.status ?? result.error })
   }
 }
 

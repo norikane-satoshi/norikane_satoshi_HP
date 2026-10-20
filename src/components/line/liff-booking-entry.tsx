@@ -10,7 +10,6 @@ import type { CalendarBookingFromApi } from "@/lib/booking/server/calendar-free-
 import type { CalendarBusyEventWithBuffer } from "@/lib/google-calendar/server"
 
 type LiffProfile = {
-  userId: string
   displayName: string
 }
 
@@ -93,12 +92,7 @@ export function LiffBookingEntry({
           setState({
             status: "ready",
             inClient,
-            profile: profile
-              ? {
-                  userId: profile.userId,
-                  displayName: profile.displayName,
-                }
-              : null,
+            profile: profile ? { displayName: profile.displayName } : null,
           })
         }
       } catch {
@@ -201,7 +195,6 @@ export function LiffBookingEntry({
           initialBookings={initialBookings}
           initialTentativeDateKeys={initialTentativeDateKeys}
           initialRange={initialRange}
-          lineUserId={state.status === "ready" ? state.profile?.userId : undefined}
           monthSkeleton={monthSkeleton}
           redirectUnauthenticated={false}
         />

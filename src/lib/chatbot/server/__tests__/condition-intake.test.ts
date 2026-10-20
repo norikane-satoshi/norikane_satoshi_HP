@@ -15,7 +15,7 @@ describe("stable condition intake", () => {
 
   it.each([
     ["text", { text: "Customer note" }], ["number", { number: 4 }],
-    ["date", { date: "2026-10-15" }], ["dates", { dates: ["2026-10-15", "2026-10-16"] as string[] }],
+    ["date", { date: "2099-10-15" }], ["dates", { dates: ["2099-10-15", "2099-10-16"] as string[] }],
   ] as const)("generates and saves a new %s question from its definition alone", (input, answer) => {
     const definitions = projectConditionDefinitions as unknown as (ProjectConditionDefinition & { chatIntake?: boolean; order?: number })[]
     definitions.push({ id: "new-question", question: "New question copy", label: "New", input, options: [], chatIntake: true, order: -1 })

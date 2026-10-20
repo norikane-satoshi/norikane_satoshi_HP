@@ -370,7 +370,7 @@ describe("booking email sender", () => {
     const customer = { to: "client@example.com", projectTitle: "確認用短編", bookingGroupId: "test_receipt", workScopes: [], memo, ...schedule }
     // A stale caller cannot reintroduce the retired estimate-based schedule.
     await sendBookingConfirmedEmail({ ...customer, ...{ scheduleLines: ["仕込み: 2026-10-18"] } })
-    await sendChatbotBookingOwnerNotification({ ...schedule, bookingGroupId: "test_receipt", projectTitle: "確認用短編", contactName: "テスト", contactEmail: "client@example.com", memo, ...{ scheduleLines: ["仕込み: 2026-10-18"] } })
+    await sendChatbotBookingOwnerNotification({ ...schedule, bookingGroupId: "test_receipt", projectTitle: "確認用短編", contactName: "テスト", contactEmail: "client@example.com", memo, submittedAt: "2026-07-01T00:00:00.000Z", ...{ scheduleLines: ["仕込み: 2026-10-18"] } })
     const [receipt, owner] = mocks.send.mock.calls.map(([message]) => message)
     expect(receipt.replyTo).toBe("norikane.satoshi@gmail.com")
     const customerConditions = receipt.text.slice(receipt.text.indexOf("案件種別:"), receipt.text.indexOf("\n\nこのメールは"))

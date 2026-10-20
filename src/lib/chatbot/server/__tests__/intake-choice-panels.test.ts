@@ -114,7 +114,7 @@ describe("structured condition persistence and editing", () => {
     const lengthPanel = conditionChoiceSet("project-length")
     const kindPanel = conditionChoiceSet("job-kind")
     const h = harness(conversation({ messages: [msg("kind", "user", "Opaque kind"), msg("a1", "assistant", "changed question copy"), msg("length", "user", "Opaque composition"), msg("a2", "assistant", "changed material copy"), msg("future", "user", "Opaque material")], activeChoices: referenceUrlChoices, conversationState: {
-      conditionAnswers: { "job-kind": { status: "answered", selectedIds: ["cm"], sourceMessageId: "kind" }, "project-length": { status: "answered", composition: [{ count: 1, durationSeconds: 90 }], sourceMessageId: "length" }, "material-timing": { status: "answered", date: "2026-10-15", sourceMessageId: "future" } },
+      conditionAnswers: { "job-kind": { status: "answered", selectedIds: ["cm"], sourceMessageId: "kind" }, "project-length": { status: "answered", composition: [{ count: 1, durationSeconds: 90 }], sourceMessageId: "length" }, "material-timing": { status: "answered", date: "2099-10-15", sourceMessageId: "future" } },
       choiceAnswers: { kind: { choiceSet: kindPanel, selectedIds: ["cm"], selectedLabels: ["Web CM / CM"] }, length: { choiceSet: lengthPanel, selectedIds: [], selectedLabels: [] }, future: { choiceSet: materialTimingChoices, selectedIds: [], selectedLabels: [] } },
     } }))
     await handleChatbotMessage({ sessionId: "session_panels", message: "New opaque composition", editTargetMessageId: "length", clientUserMessageId: "edited-length", conditionAnswer: { conditionId: "project-length", answer: { composition: [{ count: 2, durationSeconds: 60 }] } } }, h.options)
@@ -143,7 +143,7 @@ describe("delivery and material date intake", () => {
     expect(result.ui).toMatchObject({ kind: "choice-panel", choiceSet: { id: "material-timing" } })
   })
 
-  it.each(["2026-10-15", "未定"])("records the material date without the LLM: %s", async (answer) => {
+  it.each(["2099-10-15", "未定"])("records the material date without the LLM: %s", async (answer) => {
     const h = harness(conversation({ messages: [msg("a1", "assistant", panelText(materialTimingChoices))], activeChoices: materialTimingChoices, conversationState: beforeMaterials }))
     await handleChatbotMessage({ sessionId: "session_panels", message: `素材が揃う日: ${answer}` }, h.options)
     expect(h.generate).not.toHaveBeenCalled()

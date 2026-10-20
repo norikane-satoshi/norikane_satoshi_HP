@@ -23,7 +23,6 @@ type BookingClientShellProps = {
   initialRange?: { start: string; end: string }
   callbackUrl?: string
   entryPoint?: "web" | "line_liff"
-  lineUserId?: string
   redirectUnauthenticated?: boolean
 }
 
@@ -41,7 +40,6 @@ export function BookingClientShell({
   initialRange,
   callbackUrl = "/booking",
   entryPoint = "web",
-  lineUserId,
   redirectUnauthenticated = true,
 }: BookingClientShellProps) {
   const [session, setSession] = useState<SessionPayload | null>(initialSession ?? null)
@@ -87,7 +85,6 @@ export function BookingClientShell({
       userEmail={session.user?.email ?? ""}
       isCalendarAdmin={isCalendarAdmin}
       entryPoint={entryPoint}
-      lineUserId={lineUserId}
       initialBusy={initialBusy}
       initialBookings={initialBookings}
       initialTentativeDateKeys={initialTentativeDateKeys}

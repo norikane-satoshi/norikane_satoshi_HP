@@ -110,7 +110,7 @@ function paragraphsToHtml(lines: string[]): string {
 }
 
 async function sendBookingEmail(args: {
-  tag: "tentative_hold" | "time_changed" | "chatbot_owner"
+  tag: "tentative_hold" | "time_changed" | "owner_notification"
   to: string
   replyTo?: string
   subject: string
@@ -138,7 +138,7 @@ function signatureLines(): string[] {
   return ["", COMPANY_NAME, SITE_URL]
 }
 
-function getChatbotBookingOwnerEmail(): string {
+function getBookingOwnerEmail(): string {
   return process.env.CHATBOT_BOOKING_OWNER_EMAIL?.trim() || DEFAULT_CHATBOT_BOOKING_OWNER_EMAIL
 }
 
@@ -217,13 +217,16 @@ export async function sendChatbotBookingOwnerNotification(
   args: ChatbotBookingOwnerNotificationArgs,
 ): Promise<BookingEmailResult> {
   const content = buildChatbotBookingOwnerNotification(args)
-  return sendBookingEmail({
-    tag: "chatbot_owner",
-    to: getChatbotBookingOwnerEmail(),
-    replyTo: args.contactEmail,
-    subject: content.subject,
-    lines: content.lines,
-  })
+  return sendBookingOwnerNotification({ subject: content.subject, lines: content.lines, replyTo: args.contactEmail })
+}
+
+/** Sends a booking notice to the owner. */
+export async function sendBookingOwnerNotification(args: {
+  subject: string
+  lines: string[]
+  replyTo?: string
+}): Promise<BookingEmailResult> {
+  return sendBookingEmail({ tag: "owner_notification", to: getBookingOwnerEmail(), ...args })
 }
 
 export function buildBookingConfirmedEmail(args: BookingEmailArgs) {
@@ -259,7 +262,7 @@ export async function sendBookingConfirmedEmail(args: BookingEmailArgs): Promise
   return sendBookingEmail({
     tag: "tentative_hold",
     to: args.to,
-    replyTo: getChatbotBookingOwnerEmail(),
+    replyTo: getBookingOwnerEmail(),
     ...buildBookingConfirmedEmail(args),
   })
 }
