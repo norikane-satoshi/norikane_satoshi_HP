@@ -6,7 +6,7 @@
 // `prisma migrate` が管理する _prisma_migrations テーブルは file: 側に閉じる。
 //
 // 使い方:
-//   npx tsx scripts/turso-migrate-deploy.ts            # .env.local の TURSO_* に対して実行
+//   pnpm db:migrate:turso            # .env.local の TURSO_* に対して実行
 //   PRISMA_MIGRATE_DATABASE_URL=... 等は無視。常に TURSO_DATABASE_URL を見る。
 
 import { readFile, readdir } from "node:fs/promises"

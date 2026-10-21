@@ -20,7 +20,7 @@
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
-    "postinstall": "node --version && prisma generate",
+    "postinstall": "prisma generate",
     "db:migrate:turso": "tsx scripts/turso-migrate-deploy.ts",
     "db:backfill:booking-calendar-events": "tsx scripts/backfill-booking-calendar-events.ts",
     "db:backfill:step0": "tsx scripts/migrate-step-0-backfill.ts",

@@ -9,7 +9,7 @@
  * stdout には 1 slug 1 行 JSON で {slug, sha256, byteSize, route, status} を出力する。
  *
  * 前提: dev server が http://localhost:41237 で起動していること。
- *   起動していない場合は明確なエラーで停止する (npm run dev を促す)。
+ *   起動していない場合は明確なエラーで停止する (pnpm dev を促す)。
  *
  * 使い方:
  *   node scripts/diagrams/render-preview.mjs [--slug <slug>...]
@@ -69,7 +69,7 @@ async function ensureDevServer() {
   } catch (e) {
     throw new Error(
       `dev server not reachable at ${DEV_BASE}.\n` +
-        `Start it with:  npm run dev\n` +
+        `Start it with:  pnpm dev\n` +
         `(error: ${e.message})`,
     )
   }
@@ -81,7 +81,7 @@ async function loadPlaywright() {
     return mod
   } catch {
     throw new Error(
-      "playwright is not installed. Run: npm install --save-dev playwright && npx playwright install chromium",
+      "playwright is not installed. Run: pnpm add --save-dev playwright && pnpm exec playwright install chromium",
     )
   }
 }
