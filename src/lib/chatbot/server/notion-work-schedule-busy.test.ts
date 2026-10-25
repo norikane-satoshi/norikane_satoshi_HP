@@ -80,4 +80,45 @@ describe("notion work schedule busy reader", () => {
       }),
     ).resolves.toEqual(["2026-07-16", "2026-07-17"])
   })
+
+  it("bounds distinct cached ranges and reclaims expired entries while retaining live results", async () => {
+    const now = Date.parse("2026-07-01T00:00:00.000Z")
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now)
+    const range = (index: number) => ({
+      from: "2026-07-01T00:00:00.000Z",
+      to: new Date(Date.parse("2026-08-01T00:00:00.000Z") + index).toISOString(),
+    })
+
+    try {
+      for (let index = 0; index < 33; index += 1) {
+        await getNotionWorkScheduleBusyIntervals(range(index))
+      }
+      expect(mocks.query).toHaveBeenCalledTimes(33)
+      await getNotionWorkScheduleBusyIntervals(range(32))
+      expect(mocks.query).toHaveBeenCalledTimes(33)
+      await getNotionWorkScheduleBusyIntervals(range(0))
+      expect(mocks.query).toHaveBeenCalledTimes(34)
+
+      clearNotionWorkScheduleBusyCacheForTests()
+      mocks.query.mockClear()
+      await getNotionWorkScheduleBusyIntervals(range(0))
+      clock.mockReturnValue(now + 30_000)
+      await getNotionWorkScheduleBusyIntervals(range(1))
+      clock.mockReturnValue(now + 120_000)
+      await getNotionWorkScheduleBusyIntervals(range(0))
+      expect(mocks.query).toHaveBeenCalledTimes(3)
+
+      clock.mockReturnValue(now + 150_000)
+      for (let index = 2; index < 33; index += 1) {
+        await getNotionWorkScheduleBusyIntervals(range(index))
+      }
+      const queryCount = mocks.query.mock.calls.length
+      await getNotionWorkScheduleBusyIntervals(range(0))
+      expect(mocks.query).toHaveBeenCalledTimes(queryCount)
+      await getNotionWorkScheduleBusyIntervals(range(1))
+      expect(mocks.query).toHaveBeenCalledTimes(queryCount + 1)
+    } finally {
+      clock.mockRestore()
+    }
+  })
 })

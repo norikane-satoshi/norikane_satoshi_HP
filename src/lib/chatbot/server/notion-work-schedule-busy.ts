@@ -12,6 +12,7 @@ const SCHEDULED_AT_PROPERTY = "実施予定日"
 const TASK_TYPE_PROPERTY = "タスク種別"
 const TENTATIVE_TASK_TYPE = "仮押さえ"
 const CACHE_TTL_MS = 120_000
+const MAX_CACHE_ENTRIES = 32
 const DAY_MS = 24 * 60 * 60 * 1000
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 const MAX_QUERY_PAGES = 10
@@ -60,10 +61,18 @@ export async function getNotionWorkScheduleBusyIntervals(args: {
     .filter((interval): interval is BusyInterval => interval !== null)
     .filter((interval) => overlaps(interval, from, to))
 
+  const writeTime = Date.now()
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt <= writeTime) cache.delete(key)
+  }
   cache.set(cacheKey, {
     expiresAt: now + CACHE_TTL_MS,
     value: intervals,
   })
+  if (cache.size > MAX_CACHE_ENTRIES) {
+    const oldestKey = cache.keys().next().value
+    if (oldestKey !== undefined) cache.delete(oldestKey)
+  }
 
   return intervals
 }
