@@ -1,4 +1,5 @@
 import NextAuth, { CredentialsSignin } from "next-auth"
+import type { AdapterUser } from "next-auth/adapters"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
 import Line from "next-auth/providers/line"
@@ -14,6 +15,7 @@ import { getLineLoginChannelId, getLineLoginChannelSecret } from "@/lib/line/env
 import { prisma } from "@/lib/prisma"
 import { getTokenVersion } from "@/lib/auth/server/token-version-cache"
 import { markVerifiedGoogleEmail } from "@/lib/auth/server/verified-google-email"
+import { verifyEmail } from "@/lib/auth/server/verify-email"
 
 class InvalidCredentialsError extends CredentialsSignin {
   code = "invalid_credentials"
@@ -32,7 +34,17 @@ const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  adapter: PrismaAdapter(prisma),
+  adapter: {
+    ...PrismaAdapter(prisma),
+    async updateUser({ id, ...data }) {
+      if (!data.emailVerified) return prisma.user.update({ where: { id }, data }) as Promise<AdapterUser>
+      const [, user] = await prisma.$transaction([
+        verifyEmail({ id }, data.emailVerified),
+        prisma.user.update({ where: { id }, data }),
+      ])
+      return user as AdapterUser
+    },
+  },
   session: {
     strategy: "jwt",
     maxAge: SESSION_MAX_AGE_SECONDS,
@@ -110,7 +122,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.tv = user.tokenVersion ?? 0
       }
       if (trigger === "update" && token.sub) {
-        token.tv = await getTokenVersion(token.sub)
+        const current = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { tokenVersion: true },
+        })
+        if (!current || (token.tv ?? 0) !== current.tokenVersion) return null
       }
       return token
     },

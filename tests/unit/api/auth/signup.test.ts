@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
     user: {
       findUnique: vi.fn(),
       create: vi.fn(),
-      update: vi.fn(),
+      updateMany: vi.fn(),
     },
     verificationToken: {
       deleteMany: vi.fn(),
@@ -83,6 +83,26 @@ describe("POST /api/auth/signup rate limits", () => {
     expect(mocks.limitByIp).toHaveBeenCalledWith("signupIp", expect.any(NextRequest))
     expect(mocks.rateLimited).toHaveBeenCalledWith("signupEmail", "email:satoshi@example.com")
     expect(mocks.prisma.user.create).toHaveBeenCalled()
+  })
+
+  it("only replaces passwords while the account is still unverified", async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue({ id: "user_1", name: null, emailVerified: null })
+    mocks.prisma.user.updateMany.mockResolvedValue({ count: 1 })
+    const POST = await loadPost()
+    expect((await POST(request({ email: "owner@example.com", password: "password123" }))).status).toBe(200)
+    expect(mocks.prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: "user_1", emailVerified: null },
+      data: { passwordHash: "hashed_password", name: null },
+    })
+  })
+
+  it("does not send another signup link if verification won the concurrent update", async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue({ id: "user_1", name: null, emailVerified: null })
+    mocks.prisma.user.updateMany.mockResolvedValue({ count: 0 })
+    const POST = await loadPost()
+    expect((await POST(request({ email: "owner@example.com", password: "password123" }))).status).toBe(200)
+    expect(mocks.sendVerificationEmail).not.toHaveBeenCalled()
+    expect(mocks.prisma.verificationToken.create).not.toHaveBeenCalled()
   })
 
   it("returns 429 when the signup IP limit is exceeded", async () => {

@@ -55,10 +55,11 @@ export async function POST(request: NextRequest) {
         data: { email: normalizedEmail, passwordHash, name: name ?? null },
       })
     } else if (!user.emailVerified) {
-      user = await prisma.user.update({
-        where: { id: user.id },
+      const updated = await prisma.user.updateMany({
+        where: { id: user.id, emailVerified: null },
         data: { passwordHash, name: name ?? user.name },
       })
+      if (!updated.count) return NextResponse.json({ ok: true })
     } else {
       await timingSafeCompare(password, user.passwordHash)
       return NextResponse.json({ ok: true })

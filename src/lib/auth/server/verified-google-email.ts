@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from "next-auth"
-import { prisma } from "@/lib/prisma"
+import { verifyEmail } from "@/lib/auth/server/verify-email"
 
 type SignInEvent = Parameters<NonNullable<NonNullable<NextAuthConfig["events"]>["signIn"]>>[0]
 
@@ -9,9 +9,5 @@ export async function markVerifiedGoogleEmail({ user, account, profile }: SignIn
   if (!user.id || !user.email || typeof profile.email !== "string") return
   if (user.email.trim().toLowerCase() !== profile.email.trim().toLowerCase()) return
 
-  // Guard against a changed address and preserve any existing verification timestamp.
-  await prisma.user.updateMany({
-    where: { id: user.id, email: user.email, emailVerified: null },
-    data: { emailVerified: new Date() },
-  })
+  await verifyEmail({ id: user.id, email: user.email })
 }

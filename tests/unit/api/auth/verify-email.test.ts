@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
       delete: vi.fn(),
     },
     user: {
-      update: vi.fn(),
+      updateMany: vi.fn(),
     },
     $transaction: vi.fn(),
   },
@@ -45,7 +45,7 @@ describe("GET /api/auth/verify-email/[token] rate limits", () => {
       token: "token_1",
       expires: new Date("2026-05-20T00:10:00.000Z"),
     })
-    mocks.prisma.user.update.mockResolvedValue({})
+    mocks.prisma.user.updateMany.mockResolvedValue({})
     mocks.prisma.verificationToken.delete.mockResolvedValue({})
     mocks.prisma.$transaction.mockResolvedValue([])
   })
@@ -60,6 +60,10 @@ describe("GET /api/auth/verify-email/[token] rate limits", () => {
     const response = await GET(request(), ctx())
 
     expect(response.status).toBe(303)
+    expect(mocks.prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { email: "satoshi@example.com", emailVerified: null },
+      data: { emailVerified: new Date(), passwordHash: null },
+    })
     expect(response.headers.get("location")).toContain("/login?verified=1")
     expect(mocks.limitByIp).toHaveBeenCalledWith("verifyEmailIp", expect.any(NextRequest))
     expect(mocks.prisma.verificationToken.findUnique).toHaveBeenCalledWith({

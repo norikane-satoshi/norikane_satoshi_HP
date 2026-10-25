@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { verifyEmail } from "@/lib/auth/server/verify-email"
 import { limitByIp } from "@/lib/rate-limit/server"
 
 type RouteContext = {
@@ -34,10 +35,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   }
 
   await prisma.$transaction([
-    prisma.user.update({
-      where: { email: record.identifier },
-      data: { emailVerified: new Date() },
-    }),
+    verifyEmail({ email: record.identifier }),
     prisma.verificationToken.delete({ where: { token } }),
   ])
 

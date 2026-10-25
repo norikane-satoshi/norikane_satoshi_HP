@@ -1,8 +1,8 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import type { NextAuthConfig } from "next-auth"
 
-const mocks = vi.hoisted(() => ({ updateMany: vi.fn(), nextAuth: vi.fn((config: unknown) => ({ config })) }))
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { updateMany: mocks.updateMany } } }))
+const mocks = vi.hoisted(() => ({ updateMany: vi.fn(), update: vi.fn(), findUnique: vi.fn(), transaction: vi.fn(), nextAuth: vi.fn((config: unknown) => ({ config })) }))
+vi.mock("@/lib/prisma", () => ({ prisma: { user: { updateMany: mocks.updateMany, update: mocks.update, findUnique: mocks.findUnique }, $transaction: mocks.transaction } }))
 vi.mock("next-auth", () => ({ CredentialsSignin: class extends Error {}, default: mocks.nextAuth }))
 vi.mock("@auth/prisma-adapter", () => ({ PrismaAdapter: vi.fn(() => ({})) }))
 import { markVerifiedGoogleEmail } from "@/lib/auth/server/verified-google-email"
@@ -31,7 +31,7 @@ describe("verified Google sign-in", () => {
     await markVerifiedGoogleEmail(event())
     expect(mocks.updateMany).toHaveBeenCalledWith({
       where: { id: "user_1", email: "owner@example.com", emailVerified: null },
-      data: { emailVerified: new Date("2026-09-29T12:00:00Z") },
+      data: { emailVerified: new Date("2026-09-29T12:00:00Z"), passwordHash: null },
     })
   })
   it.each([false, undefined, null, "true", 1])("ignores email_verified=%s", async (verified) => {
@@ -60,5 +60,47 @@ describe("verified Google sign-in", () => {
     const config = configuredAuth
     expect(config.events?.signIn).toBe(markVerifiedGoogleEmail)
     expect(config.providers).toEqual(expect.arrayContaining([expect.objectContaining({ id: "resend", type: "email" })]))
+  })
+})
+
+
+describe("Auth.js verification and session callbacks", () => {
+  it("uses the same guarded verification for magic-link adapter updates", async () => {
+    mocks.update.mockResolvedValue({ id: "user_1", emailVerified: new Date(), passwordHash: null })
+    mocks.transaction.mockImplementation((operations: Promise<unknown>[]) => Promise.all(operations))
+    const user = await configuredAuth.adapter!.updateUser!({ id: "user_1", emailVerified: new Date() })
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: { id: "user_1", emailVerified: null },
+      data: { emailVerified: new Date(), passwordHash: null },
+    })
+    expect(user).toMatchObject({ passwordHash: null })
+    expect(mocks.transaction).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not clear passwords for non-verification adapter changes", async () => {
+    await configuredAuth.adapter!.updateUser!({ id: "user_1", name: "Updated" })
+    expect(mocks.updateMany).not.toHaveBeenCalled()
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "user_1" }, data: { name: "Updated" } })
+  })
+
+  it.each([0, 2, undefined])("discards a session update with a revoked token version %s", async (tv) => {
+    mocks.findUnique.mockResolvedValue({ tokenVersion: 3 })
+    const jwt = configuredAuth.callbacks!.jwt!
+    const result = await jwt({ token: { sub: "user_1", tv }, trigger: "update" } as Parameters<typeof jwt>[0])
+    expect(result).toBeNull()
+    expect(mocks.findUnique).toHaveBeenCalledWith({ where: { id: "user_1" }, select: { tokenVersion: true } })
+  })
+
+  it("preserves a current token during session update", async () => {
+    mocks.findUnique.mockResolvedValue({ tokenVersion: 3 })
+    const jwt = configuredAuth.callbacks!.jwt!
+    const token = { sub: "user_1", tv: 3 }
+    expect(await jwt({ token, trigger: "update" } as Parameters<typeof jwt>[0])).toEqual(token)
+  })
+
+  it("discards a session update for a deleted user", async () => {
+    mocks.findUnique.mockResolvedValue(null)
+    const jwt = configuredAuth.callbacks!.jwt!
+    expect(await jwt({ token: { sub: "deleted", tv: 0 }, trigger: "update" } as Parameters<typeof jwt>[0])).toBeNull()
   })
 })
