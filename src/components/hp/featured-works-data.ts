@@ -421,3 +421,31 @@ export function calculateClipWindow(
     playSeconds: safeMaxPlaySeconds,
   }
 }
+
+export type HeroClip = {
+  videoId: string
+  startSeconds: number
+  title: string
+  client?: string
+  /** 字幕帯や黒帯を画面外へ出すための拡大率。既定は HERO_DEFAULT_ZOOM。 */
+  zoom?: number
+}
+
+/** ヒーローで 1 本あたりに流す秒数。 */
+export const HERO_CLIP_SECONDS = 10
+export const HERO_DEFAULT_ZOOM = 1.18
+
+/**
+ * ヒーローで順に流す場面。開始秒は予告編の自動サムネイル（再生位置の 1/4・1/2・3/4）の
+ * うち文字の入らない画から逆算した推定値なので、見て差し替える前提で持つ。
+ */
+export const HERO_CLIPS: readonly HeroClip[] = [
+  { videoId: "-2kSMEiw0wA", startSeconds: 63, title: "時計館の殺人", client: "hulu", zoom: 1.42 },
+  { videoId: "aiPpSEcNLTk", startSeconds: 50, title: "福山雅治ライブフィルム「月光」", client: "松竹配給" },
+  { videoId: "GiqkQel2CeU", startSeconds: 5, title: "ゲキ×シネ『紅鬼物語』", client: "ヴィレッヂ" },
+  { videoId: "wkbmPAATsJI", startSeconds: 61, title: "ライブ映像作品", client: "配信", zoom: 1.36 },
+  { videoId: "4bGU94xjC-A", startSeconds: 10, title: "十角館の殺人", client: "hulu", zoom: 1.42 },
+  { videoId: "Eo2IIH-w3h8", startSeconds: 13, title: "CM" },
+  { videoId: "N7c7ZaVXjvk", startSeconds: 102, title: "MV" },
+  { videoId: "G_3xr5desOo", startSeconds: 581, title: "ライブ映像作品", client: "配信" },
+]

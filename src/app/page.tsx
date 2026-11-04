@@ -1,13 +1,12 @@
 import type { Metadata } from "next"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, ArrowUpRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
-import { PressDialog } from "@/components/hp/press-section"
-import { ProfilePhoto } from "@/components/hp/profile-photo"
-import { ProfileToolBadges } from "@/components/hp/profile-tool-badges"
-import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
+import { PressList } from "@/components/hp/press-section"
+import { SectionHeading } from "@/components/hp/section-heading"
+import { SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
   DAVINCI_RESOLVE_TRAINING_URL,
@@ -28,36 +27,6 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image" },
 }
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
-  )
-}
-
-function YoutubeIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
-      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-    </svg>
-  )
-}
-
-function InstagramIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
-      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z" />
-    </svg>
-  )
-}
-
-const socialIcons = {
-  X: XIcon,
-  YouTube: YoutubeIcon,
-  Instagram: InstagramIcon,
-} as const
 
 async function listPublishedNotesForHome() {
   try {
@@ -88,7 +57,7 @@ function renderIntroTextWithTrainerLink() {
         href={DAVINCI_RESOLVE_TRAINING_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline text-inherit underline decoration-current decoration-1 underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
+        className="hp-text-link"
       >
         {DAVINCI_RESOLVE_TRAINER_TEXT}
       </a>
@@ -97,196 +66,145 @@ function renderIntroTextWithTrainerLink() {
   )
 }
 
-function ProfileForeground() {
+function ProfileSection() {
+  const { profile } = hpPublicContent
   return (
-    <div className="hp-grid hp-profile-grid min-w-0">
-      {/* Left: profile photo + social links */}
-      <div className="hp-profile-sidebar flex min-w-0 max-w-full flex-col items-center gap-5 @[680px]/profile:items-start">
-        <ProfilePhoto />
-        <div className="min-w-0 text-center @[680px]/profile:text-left">
-          <p className="text-sm text-hp-muted">{hpPublicContent.profile.name}</p>
-          <p className="hp-compact-text mt-1 text-base font-semibold text-hp md:text-lg">
-            {hpPublicContent.profile.title}
-          </p>
-        </div>
-        <ProfileToolBadges tools={hpPublicContent.profile.tools} />
-        <div className="mt-1 flex items-center justify-center gap-3 @[680px]/profile:justify-start">
-          {hpPublicContent.profile.socialLinks.map(({ label, href }) => {
-            const Icon = socialIcons[label]
-            return (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="glass-btn glass-btn--profile-social flex h-10 w-10 items-center justify-center text-hp"
-                aria-label={label}
-              >
-                <Icon className="h-4 w-4" />
-              </a>
-            )
-          })}
-          <PressDialog />
-        </div>
-      </div>
-
-      {/* Right: career timeline */}
-      <div className="hp-profile-main">
-        <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-          Career
-        </p>
-        <div className="hp-career-list">
-          {hpPublicContent.profile.timeline.map((item) => (
-            <div
-              key={item.year}
-              className="hp-career-item"
-            >
-              <span
-                className="hp-career-year font-[var(--font-inter)] text-sm font-bold"
-                style={{ color: "var(--hp-color-accent)" }}
-              >
-                {item.year}
-              </span>
-              <div className="hp-career-body">
-                <p className="hp-compact-text text-sm font-semibold text-hp md:text-base">
-                  {item.event}
-                </p>
-                <p className="hp-body mt-2 text-base text-hp-muted">
-                  {item.detail}
-                </p>
-              </div>
+    <section id="profile" className="hp-surface-band scroll-mt-24 md:scroll-mt-28">
+      <div className="hp-section-shell hp-section-pad">
+        <SectionHeading index="04" latin="Profile" label={profile.sectionTitle} />
+        <div className="mt-[clamp(2.5rem,5vw,4.5rem)] flex flex-wrap gap-x-[clamp(2.5rem,6vw,6rem)] gap-y-12">
+          <div className="flex min-w-0 max-w-[32.5rem] flex-[1_1_18.75rem] flex-col gap-7">
+            <div className="relative aspect-[4/5] overflow-hidden bg-[var(--bg-base)]">
+              <Image
+                src="/hp/profile-portrait.jpg"
+                alt={profile.name}
+                fill
+                sizes="(max-width: 768px) 92vw, 520px"
+                className="object-cover"
+              />
             </div>
-          ))}
+            <div className="flex flex-col gap-2">
+              <p className="text-[clamp(1.875rem,2.8vw,2.5rem)] font-medium tracking-[0.1em] text-hp">
+                {profile.name}
+              </p>
+              <p className="hp-body text-[0.9375rem] tracking-[0.06em] text-hp-muted">
+                {profile.title}
+              </p>
+            </div>
+            <p className="font-[var(--font-inter)] text-xs leading-loose tracking-[0.12em] text-hp-muted">
+              {profile.tools.join(" · ")}
+            </p>
+            <ul className="flex flex-wrap gap-x-7 font-[var(--font-inter)] text-[0.8125rem] tracking-[0.1em]">
+              {profile.socialLinks.map(({ label, href }) => (
+                <li key={label}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hp-plain-link inline-flex min-h-11 items-center gap-1.5"
+                  >
+                    {label}
+                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="min-w-0 flex-[2_1_32.5rem]">
+            <p className="hp-eyebrow mb-3">Career</p>
+            <ol>
+              {profile.timeline.map((item) => (
+                <li key={item.year} className="hp-rule-top grid grid-cols-[minmax(5.25rem,8.75rem)_minmax(0,1fr)] gap-x-6 gap-y-3 py-8">
+                  <span className="hp-latin-numeral">{item.year}</span>
+                  <div className="flex flex-col gap-3">
+                    <h3 className="break-normal text-[clamp(1.125rem,1.5vw,1.375rem)] font-medium leading-relaxed tracking-[0.06em] text-hp">
+                      {item.event}
+                    </h3>
+                    <p className="hp-body text-[0.9375rem] leading-[2.05] tracking-[0.04em] text-hp-muted">
+                      {item.detail}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   )
 }
-
-const NOTE_CARD_CLASS_NAME =
-  "group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note p-7 md:p-9"
-const NOTE_CARD_STYLE = { width: "min(90vw, 460px)", minHeight: 260 }
 
 export default async function HomePage() {
   const noteCards = buildHomeNoteCards(await listPublishedNotesForHome())
   return (
-    <div className="hp-section-stack">
+    <div className="hp-noir-page" data-hp-theme="noir">
       <HeroSection />
 
-      {/* Intro */}
-      <section className="hp-section-shell hp-grid">
-        <p className="hp-body hp-intro-measure text-base text-hp md:text-lg">
-          {renderIntroTextWithTrainerLink()}
-        </p>
+      <section className="hp-section-shell hp-section-pad flex flex-wrap gap-x-16 gap-y-8">
+        <div className="flex flex-[1_1_13.75rem] flex-col gap-3 text-sm tracking-[0.16em] text-hp-muted">
+          <span className="font-[var(--font-inter)] text-xs tracking-[0.2em]">01</span>
+          <span>{SITE_COMPANY_NAME}</span>
+        </div>
+        <p className="hp-intro-text flex-[3_1_32.5rem]">{renderIntroTextWithTrainerLink()}</p>
       </section>
 
-      {/* Philosophy — horizontal scroll notes */}
-      <section
-        id="philosophy"
-        className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
-      >
-        <div className="hp-grid">
-          <div className="hp-section-heading hp-section-title-stack">
-            <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
-              ノート
-            </h2>
-          </div>
-        </div>
-
-        <div
-          className="mt-[var(--hp-space-4)] mx-[calc(var(--hp-section-padding-x)*-1)] overflow-x-auto"
-          style={{
-            WebkitMaskImage:
-              "linear-gradient(to right, transparent 0, black var(--hp-section-padding-x), black calc(100% - var(--hp-section-padding-x)), transparent 100%)",
-            maskImage:
-              "linear-gradient(to right, transparent 0, black var(--hp-section-padding-x), black calc(100% - var(--hp-section-padding-x)), transparent 100%)",
-          }}
-        >
-          <div className="flex snap-x snap-mandatory items-stretch gap-4 px-[var(--hp-section-padding-x)] pb-4 md:gap-5">
-            {noteCards.map((note) => {
-              const cardBody = (
-                <>
-                  {note.thumbnailSrc ? (
-                    <div
-                      className="relative mb-5 aspect-video w-full overflow-hidden rounded-[12px] border border-white/55 bg-white/40"
-                      data-hp-note-thumbnail={note.key}
-                    >
-                      <Image
-                        src={note.thumbnailSrc}
-                        alt=""
-                        fill
-                        sizes="(max-width: 768px) 90vw, 460px"
-                        className="object-cover"
-                      />
-                    </div>
-                  ) : null}
-                  <div className="flex items-baseline gap-3">
-                    <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
-                      {note.label}
-                    </span>
-                  </div>
-                  <h3
-                    className="hp-heading mt-3 text-lg font-semibold text-hp md:text-2xl"
-                  >
-                    {note.title}
-                  </h3>
-                  <div className="mt-auto pt-6 flex justify-end">
-                    <ArrowRight
-                      className="h-5 w-5 transition-transform group-hover:translate-x-1"
-                      style={{ color: "var(--hp-color-accent)" }}
-                    />
-                  </div>
-                </>
-              )
-              return note.external ? (
-                <a
-                  key={note.key}
-                  href={note.href}
-                  className={NOTE_CARD_CLASS_NAME}
-                  style={NOTE_CARD_STYLE}
-                  data-hp-note-card="external"
-                >
-                  {cardBody}
-                </a>
-              ) : (
-                <Link
-                  key={note.key}
-                  href={note.href}
-                  className={NOTE_CARD_CLASS_NAME}
-                  style={NOTE_CARD_STYLE}
-                  data-hp-note-card="note"
-                >
-                  {cardBody}
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Profile */}
-      <section
-        id="profile"
-        className="hp-section-shell scroll-mt-24 md:scroll-mt-28"
-      >
-        <div className="@container/profile">
-          <div className="glass-card glass-card--hp-profile p-8 md:p-10 xl:p-12">
-            <div className="hp-section-title-stack">
-              <h2 className="hp-heading text-2xl font-semibold text-hp md:text-3xl">
-                {hpPublicContent.profile.sectionTitle}
-              </h2>
-            </div>
-            <div className="mt-[var(--hp-space-4)]">
-              <ProfileForeground />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="hp-section-shell">
+      <section id="works" className="scroll-mt-24 pb-[clamp(6rem,10vw,10rem)] md:scroll-mt-28">
         <FeaturedWorks />
       </section>
 
+      <section
+        id="philosophy"
+        className="hp-section-shell scroll-mt-24 pb-[clamp(6rem,10vw,10rem)] md:scroll-mt-28"
+      >
+        <SectionHeading index="03" latin="Notes" label="ノート" />
+        <div className="mt-[clamp(2.25rem,4vw,3.5rem)] grid grid-cols-1 md:grid-cols-2 gap-x-[clamp(1.5rem,3vw,3rem)] gap-y-[clamp(2.25rem,4vw,3.5rem)]">
+          {noteCards.map((note) => {
+            const cardBody = (
+              <>
+                <div className="relative aspect-video overflow-hidden bg-[var(--hp-color-surface-raised)]">
+                  {note.thumbnailSrc ? (
+                    <Image
+                      src={note.thumbnailSrc}
+                      alt=""
+                      fill
+                      sizes="(max-width: 768px) 92vw, 640px"
+                      className="hp-media-zoom object-cover"
+                      data-hp-note-thumbnail={note.key}
+                    />
+                  ) : null}
+                </div>
+                <span className="hp-eyebrow">{note.label}</span>
+                <h3 className="break-normal text-[clamp(1.1875rem,1.6vw,1.5rem)] font-medium leading-[1.75] tracking-[0.04em] text-hp">
+                  {note.title}
+                </h3>
+                <ArrowRight className="hp-arrow-nudge h-5 w-5 text-hp" strokeWidth={1.25} aria-hidden="true" />
+              </>
+            )
+            return note.external ? (
+              <a
+                key={note.key}
+                href={note.href}
+                className="hp-note-card group"
+                data-hp-note-card="external"
+              >
+                {cardBody}
+              </a>
+            ) : (
+              <Link key={note.key} href={note.href} className="hp-note-card group" data-hp-note-card="note">
+                {cardBody}
+              </Link>
+            )
+          })}
+        </div>
+      </section>
+
+      <ProfileSection />
+
+      <section id="press" className="hp-section-shell hp-section-pad scroll-mt-24 md:scroll-mt-28">
+        <SectionHeading index="05" latin="Talks & Press" label="登壇・掲載" />
+        <PressList />
+      </section>
     </div>
   )
 }
