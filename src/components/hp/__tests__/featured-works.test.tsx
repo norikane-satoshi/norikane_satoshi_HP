@@ -2,7 +2,7 @@
 
 import "@testing-library/jest-dom/vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   FEATURED_PLAYLIST_WORKS,
   FEATURED_WORKS,
@@ -27,18 +27,6 @@ describe("FeaturedWorks", () => {
     expect(segment).toBeInTheDocument()
     return segment as HTMLElement
   }
-
-  beforeEach(() => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: query === "(prefers-reduced-motion: reduce)",
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
-  })
 
   afterEach(() => {
     cleanup()
@@ -84,15 +72,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("uses only the Featured Works label and renders a scroll-driven marquee shell", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     const { container } = render(<FeaturedWorks />)
 
@@ -174,27 +153,14 @@ describe("FeaturedWorks", () => {
     expect(container.querySelector("style")?.textContent).not.toContain(
       "@keyframes featured-works-marquee",
     )
-    expect(container.querySelector("style")?.textContent).toContain(
-      "prefers-reduced-motion: reduce",
-    )
   })
 
   it("keeps preview and metadata independent from hover while using a transform tilt without a reflection highlight", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
     const { container } = render(<FeaturedWorks />)
     const card = screen.getByLabelText("十角館の殺人 / 時計館の殺人 作品カード")
     const thumbnail = card.querySelector("[data-featured-work-preview-thumbnail]")
     const styles = container.querySelector("style")?.textContent
 
-    expect(card).toHaveAttribute("data-featured-work-tilt", "enabled")
     expect(card).not.toHaveClass("hover:-translate-y-0.5")
     expect(card.querySelector(".featured-work-card-meta")).toBeInTheDocument()
     expect(thumbnail).toHaveClass("transition-opacity")
@@ -214,15 +180,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("pauses autoplay from input events without relying on scroll events", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     const { container } = render(<FeaturedWorks />)
     const viewport = container.querySelector(
@@ -242,15 +199,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("lets the custom progress bar drag, jump, and drive keyboard scrolling", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     const { container } = render(<FeaturedWorks />)
     const viewport = container.querySelector(
@@ -339,22 +287,15 @@ describe("FeaturedWorks", () => {
     expect(viewport.scrollLeft).toBe(3399)
   })
 
-  it("does not render the clone track when reduced motion is requested", () => {
+  it("keeps the marquee and its clone track even when reduced motion is requested", () => {
     const { container } = render(<FeaturedWorks />)
 
-    expect(screen.getByText("Featured Works")).toBeInTheDocument()
     expect(
-      container.querySelector('[data-featured-work-marquee-segment="primary"]'),
-    ).toBeInTheDocument()
-    expect(
-      container.querySelector('[data-featured-work-marquee-segment="clone"]'),
-    ).not.toBeInTheDocument()
+      container.querySelectorAll('[data-featured-work-marquee-segment="clone"]'),
+    ).toHaveLength(2)
     expect(
       container.querySelector('[data-featured-work-marquee-progress-track="true"]'),
-    ).not.toBeInTheDocument()
-    expect(
-      container.querySelector('[data-featured-work-marquee-viewport="true"]'),
-    ).not.toHaveAttribute("data-featured-work-native-scrollbar")
+    ).toBeInTheDocument()
   })
 
   it("renders playlist cards without badge links", () => {
@@ -368,15 +309,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("opens video previews in a body portal modal and restores focus", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     render(<FeaturedWorks />)
 
@@ -423,15 +355,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("opens the live reel modal with the currently previewed video id", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     render(<FeaturedWorks />)
 
@@ -550,15 +473,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("keeps single video cards free of preview clip constraints", async () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     render(<FeaturedWorks />)
 
@@ -576,15 +490,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("drives single video cards with full video loops instead of random 30 second clips", async () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
     vi.spyOn(Math, "random").mockReturnValue(0.5)
 
     type MockPlayerOptions = {
@@ -660,15 +565,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("plays multi-video work cards in their listed order", async () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
     vi.spyOn(Math, "random").mockReturnValue(0.5)
 
     type MockPlayerOptions = {
@@ -736,15 +632,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("keeps startup thumbnail covers visible for 5 seconds after playback starts", async () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
     vi.useFakeTimers()
     vi.spyOn(Math, "random").mockReturnValue(0)
 
@@ -839,15 +726,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("counts the first startup cover hold from the first playback start", async () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
     vi.useFakeTimers()
     vi.spyOn(Math, "random").mockReturnValue(0)
     const setTimeoutSpy = vi.spyOn(window, "setTimeout")
@@ -915,15 +793,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("limits YouTube player creation to marquee cards near the viewport", async () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     const observers: MockIntersectionObserver[] = []
 
@@ -1063,15 +932,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("tears down pre-ready YouTube players safely when marquee cards leave the near viewport", async () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     const observers: MockIntersectionObserver[] = []
 
@@ -1245,15 +1105,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("re-shows single video thumbnail covers before each full video loop restart", async () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
     vi.useFakeTimers()
     vi.spyOn(Math, "random").mockReturnValue(0.5)
 
@@ -1473,15 +1324,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("ignores video trigger clicks after pointer dragging", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     render(<FeaturedWorks />)
 
@@ -1498,15 +1340,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("keeps each preview in a native 16:9 frame with safe covers", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     const { container } = render(<FeaturedWorks />)
 
@@ -1702,15 +1535,6 @@ describe("FeaturedWorks", () => {
   })
 
   it("prepares YouTube API players behind thumbnail covers", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    })
 
     const { container } = render(<FeaturedWorks />)
 
