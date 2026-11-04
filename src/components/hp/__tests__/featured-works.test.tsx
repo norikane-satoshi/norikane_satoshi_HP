@@ -632,23 +632,23 @@ describe("FeaturedWorks", () => {
 
     await waitFor(() => {
       const player = players.find(
-        (item) => item.options.videoId === "-2kSMEiw0wA",
+        (item) => item.options.videoId === "aiPpSEcNLTk",
       )
       expect(player).toBeDefined()
       expect(player?.options.playerVars).toMatchObject({
         loop: 1,
-        playlist: "-2kSMEiw0wA",
+        playlist: "aiPpSEcNLTk",
       })
       expect(player?.seekTo).not.toHaveBeenCalled()
     })
 
     const player = players.find(
-      (item) => item.options.videoId === "-2kSMEiw0wA",
+      (item) => item.options.videoId === "aiPpSEcNLTk",
     )
 
-    const card = screen.getByLabelText("十角館の殺人 / 時計館の殺人 作品カード")
+    const card = screen.getByLabelText("福山雅治ライブフィルム「言霊の幸わう夏」「月光」 作品カード")
     const media = card.querySelector(
-      '[data-featured-work-current-video-id="-2kSMEiw0wA"]',
+      '[data-featured-work-current-video-id="aiPpSEcNLTk"]',
     )
     expect(media).toHaveAttribute("data-featured-work-clip-start", "0")
     expect(media).toHaveAttribute("data-featured-work-clip-seconds", "90")
@@ -657,6 +657,82 @@ describe("FeaturedWorks", () => {
 
     expect(player?.seekTo).toHaveBeenCalledTimes(1)
     expect(player?.seekTo).toHaveBeenLastCalledWith(0, true)
+  })
+
+  it("plays multi-video work cards in their listed order", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    })
+    vi.spyOn(Math, "random").mockReturnValue(0.5)
+
+    type MockPlayerOptions = {
+      videoId?: string
+      playerVars?: Record<string, string | number>
+      events?: {
+        onReady?: (event: { target: MockPlayer }) => void
+        onStateChange?: (event: { data: number; target: MockPlayer }) => void
+      }
+    }
+
+    const players: MockPlayer[] = []
+
+    class MockPlayer {
+      readonly options: MockPlayerOptions
+      readonly mute = vi.fn()
+      readonly stopVideo = vi.fn()
+      readonly destroy = vi.fn()
+      readonly getDuration = vi.fn(() => 90)
+      readonly seekTo = vi.fn()
+      readonly loadVideoById = vi.fn()
+      readonly playVideo = vi.fn()
+
+      constructor(_element: HTMLElement, options: MockPlayerOptions) {
+        this.options = options
+        players.push(this)
+        queueMicrotask(() => {
+          options.events?.onReady?.({ target: this })
+        })
+      }
+    }
+
+    window.YT = {
+      Player: MockPlayer,
+      PlayerState: {
+        ENDED: 0,
+        PLAYING: 1,
+      },
+    }
+
+    render(<FeaturedWorks />)
+
+    for (const work of FEATURED_WORKS.filter((item) => item.videos)) {
+      const [first, second] = work.videos ?? []
+      await waitFor(() => {
+        expect(
+          players.find((item) => item.options.videoId === first?.videoId),
+        ).toBeDefined()
+      })
+      const player = players.find(
+        (item) => item.options.videoId === first?.videoId,
+      )
+      await waitFor(() => {
+        expect(player?.mute).toHaveBeenCalled()
+      })
+      act(() => {
+        player?.options.events?.onStateChange?.({ data: 0, target: player })
+      })
+      expect(player?.loadVideoById).toHaveBeenLastCalledWith(second?.videoId)
+      act(() => {
+        player?.options.events?.onStateChange?.({ data: 0, target: player })
+      })
+      expect(player?.loadVideoById).toHaveBeenLastCalledWith(first?.videoId)
+    }
   })
 
   it("keeps startup thumbnail covers visible for 5 seconds after playback starts", async () => {
@@ -1294,7 +1370,7 @@ describe("FeaturedWorks", () => {
     })
 
     const singleCard = screen.getByLabelText(
-      "十角館の殺人 / 時計館の殺人 作品カード",
+      "福山雅治ライブフィルム「言霊の幸わう夏」「月光」 作品カード",
     )
     const singleObserver = observers.find(
       (observer) =>
@@ -1309,11 +1385,11 @@ describe("FeaturedWorks", () => {
     })
 
     const player = players.find(
-      (item) => item.options.videoId === "-2kSMEiw0wA",
+      (item) => item.options.videoId === "aiPpSEcNLTk",
     )
     expect(player).toBeDefined()
     const card = player?.element.closest(
-      '[data-featured-work-card="十角館の殺人 / 時計館の殺人"]',
+      '[data-featured-work-card="福山雅治ライブフィルム「言霊の幸わう夏」「月光」"]',
     ) as HTMLElement | null
     expect(card).toBeInTheDocument()
 
@@ -1326,7 +1402,7 @@ describe("FeaturedWorks", () => {
     }
     const expectSingleCover = (state: "preparing" | "playing") => {
       expect(
-        card?.querySelector('[data-featured-work-current-video-id="-2kSMEiw0wA"]'),
+        card?.querySelector('[data-featured-work-current-video-id="aiPpSEcNLTk"]'),
       ).toHaveAttribute("data-featured-work-preview-media", state)
       expect(
         card?.querySelector(
@@ -1341,7 +1417,7 @@ describe("FeaturedWorks", () => {
     const firstThumbnail = getSingleThumbnail()
     const firstThumbnailSrc = firstThumbnail.getAttribute("src")
     expect(firstThumbnailSrc).toMatch(
-      /^https:\/\/i\.ytimg\.com\/vi\/-2kSMEiw0wA\/hq[123]\.jpg$/,
+      /^https:\/\/i\.ytimg\.com\/vi\/aiPpSEcNLTk\/hq[123]\.jpg$/,
     )
 
     act(() => {
@@ -1360,10 +1436,10 @@ describe("FeaturedWorks", () => {
     })
     const secondThumbnailSrc = getSingleThumbnail().getAttribute("src")
     expect(secondThumbnailSrc).toMatch(
-      /^https:\/\/i\.ytimg\.com\/vi\/-2kSMEiw0wA\/hq[123]\.jpg$/,
+      /^https:\/\/i\.ytimg\.com\/vi\/aiPpSEcNLTk\/hq[123]\.jpg$/,
     )
     expect(firstThumbnailSrc).toMatch(
-      /^https:\/\/i\.ytimg\.com\/vi\/-2kSMEiw0wA\/hq[123]\.jpg$/,
+      /^https:\/\/i\.ytimg\.com\/vi\/aiPpSEcNLTk\/hq[123]\.jpg$/,
     )
 
     act(() => {

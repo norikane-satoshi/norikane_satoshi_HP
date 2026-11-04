@@ -1484,7 +1484,20 @@ function FeaturedWorkCard({
       onPointerMove={(event) => updateFeaturedWorkTilt(event, prefersReducedMotion)}
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        {work.youtubeId ? (
+        {work.videos && work.videos.length > 1 ? (
+          <PreviewFrame>
+            <PlaylistSurface
+              videos={work.videos}
+              title={work.title}
+              modalLabel={`${work.title} の動画をモーダルで再生`}
+              ordered
+              shouldPlayVideo={shouldPlayVideo}
+              prefersReducedMotion={prefersReducedMotion}
+              clone={clone}
+              onOpenVideo={onOpenVideo}
+            />
+          </PreviewFrame>
+        ) : work.youtubeId ? (
           <PreviewFrame>
             <VideoSurface
               videoId={work.youtubeId}
@@ -1534,27 +1547,28 @@ function FeaturedWorkCard({
   )
 }
 
-function PlaylistWorkCard({
-  work,
-  shouldStartVideo,
+function PlaylistSurface({
+  videos,
+  title,
+  modalLabel,
+  ordered = false,
+  shouldPlayVideo,
   prefersReducedMotion,
-  clone = false,
-  segmentStart,
+  clone,
   onOpenVideo,
 }: {
-  work: FeaturedPlaylistWork
-  shouldStartVideo: boolean
+  videos: readonly FeaturedWorkPreviewVideo[]
+  title: string
+  modalLabel: string
+  ordered?: boolean
+  shouldPlayVideo: boolean
   prefersReducedMotion: boolean
-  clone?: boolean
-  segmentStart?: "primary" | "clone-before" | "clone-after"
+  clone: boolean
   onOpenVideo: (
     video: ActiveVideoModal,
     triggerElement: HTMLButtonElement,
   ) => void
 }) {
-  const [cardRef, isNearViewport] = useNearMarqueeViewport<HTMLDivElement>(
-    shouldStartVideo && !prefersReducedMotion,
-  )
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
   const playerReadyRef = useRef(false)
@@ -1562,14 +1576,12 @@ function PlaylistWorkCard({
   const clipRef = useRef<ClipWindow | null>(null)
   const timerRef = useRef<number | null>(null)
   const coverTimerRef = useRef<number | null>(null)
-  const previewVideoRef = useRef<FeaturedWorkPreviewVideo>(work.videos[0])
+  const previewVideoRef = useRef<FeaturedWorkPreviewVideo>(videos[0])
   const [previewVideo, setPreviewVideo] = useState<FeaturedWorkPreviewVideo>(
-    work.videos[0],
+    videos[0],
   )
   const [activeClip, setActiveClip] = useState<ClipWindow | null>(null)
   const [isCoverVisible, setIsCoverVisible] = useState(true)
-  const playlistVideoIds = work.videos.map((video) => video.videoId).join(",")
-  const shouldPlayVideo = shouldStartVideo && isNearViewport
   const isPreviewReady = !isCoverVisible
 
   useEffect(() => {
@@ -1614,15 +1626,16 @@ function PlaylistWorkCard({
 
     let cancelled = false
 
+    const refillQueue = () =>
+      ordered
+        ? [...videos]
+        : shuffleVideoIds(videos, Math.random, previewVideoRef.current)
+
     const nextVideo = () => {
       if (queueRef.current.length === 0) {
-        queueRef.current = shuffleVideoIds(
-          work.videos,
-          Math.random,
-          previewVideoRef.current,
-        )
+        queueRef.current = refillQueue()
       }
-      return queueRef.current.shift() ?? work.videos[0]
+      return queueRef.current.shift() ?? videos[0]
     }
 
     const playNext = () => {
@@ -1724,7 +1737,7 @@ function PlaylistWorkCard({
       }
 
       playerReadyRef.current = false
-      queueRef.current = shuffleVideoIds(work.videos)
+      queueRef.current = ordered ? [...videos] : shuffleVideoIds(videos)
       const firstVideo = nextVideo()
       previewVideoRef.current = firstVideo
       setPreviewVideo(firstVideo)
@@ -1759,7 +1772,7 @@ function PlaylistWorkCard({
       clearNextTimer()
       clearCoverTimer()
     }
-  }, [prefersReducedMotion, shouldPlayVideo, work.videos])
+  }, [ordered, prefersReducedMotion, shouldPlayVideo, videos])
 
   useEffect(() => {
     return () => {
@@ -1774,6 +1787,79 @@ function PlaylistWorkCard({
       playerReadyRef.current = false
     }
   }, [])
+
+  return (
+    <>
+      {shouldPlayVideo && !prefersReducedMotion ? (
+        <div
+          className={`featured-work-preview-media pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
+            isPreviewReady ? "opacity-100" : "opacity-0"
+          }`}
+          aria-hidden="true"
+          data-featured-work-preview-media={
+            isPreviewReady ? "playing" : "preparing"
+          }
+          data-featured-work-current-video-id={previewVideo.videoId}
+          data-featured-work-clip-start={activeClip?.startSeconds}
+          data-featured-work-clip-seconds={activeClip?.playSeconds}
+          data-featured-work-loop-start={previewVideo.loopStart}
+          data-featured-work-loop-end={previewVideo.loopEnd}
+          data-featured-work-clip-range-start={previewVideo.clipRangeStart}
+          data-featured-work-clip-range-end={previewVideo.clipRangeEnd}
+          data-featured-work-clip-exclude-start={previewVideo.clipExcludeStart}
+          data-featured-work-clip-exclude-end={previewVideo.clipExcludeEnd}
+        >
+          <div
+            ref={playerHostRef}
+            title={`${title} preview`}
+            className="h-full w-full"
+          />
+        </div>
+      ) : null}
+      <PreviewThumbnail
+        videoId={previewVideo.videoId}
+        isVisible={!isPreviewReady}
+      />
+      <VideoOpenButton
+        label={modalLabel}
+        clone={clone}
+        onOpen={(triggerElement) => {
+          onOpenVideo(
+            {
+              videoId: previewVideo.videoId,
+              label: modalLabel,
+            },
+            triggerElement,
+          )
+        }}
+      />
+    </>
+  )
+}
+
+function PlaylistWorkCard({
+  work,
+  shouldStartVideo,
+  prefersReducedMotion,
+  clone = false,
+  segmentStart,
+  onOpenVideo,
+}: {
+  work: FeaturedPlaylistWork
+  shouldStartVideo: boolean
+  prefersReducedMotion: boolean
+  clone?: boolean
+  segmentStart?: "primary" | "clone-before" | "clone-after"
+  onOpenVideo: (
+    video: ActiveVideoModal,
+    triggerElement: HTMLButtonElement,
+  ) => void
+}) {
+  const [cardRef, isNearViewport] = useNearMarqueeViewport<HTMLDivElement>(
+    shouldStartVideo && !prefersReducedMotion,
+  )
+  const playlistVideoIds = work.videos.map((video) => video.videoId).join(",")
+  const shouldPlayVideo = shouldStartVideo && isNearViewport
 
   return (
     <div
@@ -1791,44 +1877,14 @@ function PlaylistWorkCard({
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <PreviewFrame>
-          {shouldPlayVideo && !prefersReducedMotion ? (
-            <div
-              className={`featured-work-preview-media pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
-                isPreviewReady ? "opacity-100" : "opacity-0"
-              }`}
-              aria-hidden="true"
-              data-featured-work-preview-media={
-                isPreviewReady ? "playing" : "preparing"
-              }
-              data-featured-work-current-video-id={previewVideo.videoId}
-              data-featured-work-clip-start={activeClip?.startSeconds}
-              data-featured-work-clip-seconds={activeClip?.playSeconds}
-              data-featured-work-loop-start={previewVideo.loopStart}
-              data-featured-work-loop-end={previewVideo.loopEnd}
-              data-featured-work-clip-range-start={previewVideo.clipRangeStart}
-              data-featured-work-clip-range-end={previewVideo.clipRangeEnd}
-              data-featured-work-clip-exclude-start={previewVideo.clipExcludeStart}
-              data-featured-work-clip-exclude-end={previewVideo.clipExcludeEnd}
-            >
-              <div ref={playerHostRef} className="h-full w-full" />
-            </div>
-          ) : null}
-          <PreviewThumbnail
-            videoId={previewVideo.videoId}
-            isVisible={!isPreviewReady}
-          />
-          <VideoOpenButton
-            label={`${work.title}をモーダルで再生`}
+          <PlaylistSurface
+            videos={work.videos}
+            title={work.title}
+            modalLabel={`${work.title}をモーダルで再生`}
+            shouldPlayVideo={shouldPlayVideo}
+            prefersReducedMotion={prefersReducedMotion}
             clone={clone}
-            onOpen={(triggerElement) => {
-              onOpenVideo(
-                {
-                  videoId: previewVideo.videoId,
-                  label: `${work.title}をモーダルで再生`,
-                },
-                triggerElement,
-              )
-            }}
+            onOpenVideo={onOpenVideo}
           />
         </PreviewFrame>
         <div className="featured-work-card-meta mt-4">

@@ -20,6 +20,19 @@ export const PRESS_CATEGORIES: PressCategory[] = [
     title: "登壇・セミナー",
     items: [
       {
+        period: "2026年10月",
+        title:
+          "プロフェッショナルから学ぶ DaVinci Resolve カラーグレーディングトレーニング（ブラックマジックデザイン）",
+        description:
+          "ブラックマジックデザイン主催の有償トレーニングで講師を担当。東京のオフィスでの講義と Zoom 配信を組み合わせ、コンフォーム、カラーマッチ、ルック作り、カラーパネルの使い方、AI アシスタントと DaVinci Resolve の連携までを 1 日かけて実演・解説した。",
+        links: [
+          {
+            label: "https://z8qcm.hp.peraichi.com/",
+            href: "https://z8qcm.hp.peraichi.com/",
+          },
+        ],
+      },
+      {
         period: "2024年11月",
         title: "Inter BEE 2024 / Imagica EMS スペシャルデイ（幕張メッセ）",
         description:
