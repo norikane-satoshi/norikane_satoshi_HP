@@ -138,6 +138,7 @@ describe("featured works data", () => {
       "fStjAoAOlbQ",
       "vchw9jvBntI",
       "cQwaCzcZNIk",
+      "W62KLHgaF-Q",
     ])
     expect(FEATURED_PLAYLIST_WORKS[1]?.videos).toEqual(
       expect.arrayContaining([
@@ -174,7 +175,7 @@ describe("featured works data", () => {
   })
 
   it("prevents playlist cycle boundary repeats when the next shuffle starts with the previous last item", () => {
-    const videos = FEATURED_PLAYLIST_WORKS[1]?.videos ?? []
+    const videos = ["a", "b", "c", "d"]
     const randomValues = [0.99, 0.99, 0.99, 0.5]
     const shuffled = shuffleVideoIds(
       videos,

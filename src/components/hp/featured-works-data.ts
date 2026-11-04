@@ -147,6 +147,7 @@ export const FEATURED_PLAYLIST_WORKS: FeaturedPlaylistWork[] = [
       { videoId: "fStjAoAOlbQ" },
       { videoId: "vchw9jvBntI", loopStart: 295, loopEnd: 325 },
       { videoId: "cQwaCzcZNIk" },
+      { videoId: "W62KLHgaF-Q" },
     ],
   },
   {

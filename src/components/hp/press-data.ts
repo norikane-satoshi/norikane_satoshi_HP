@@ -27,8 +27,8 @@ export const PRESS_CATEGORIES: PressCategory[] = [
           "ブラックマジックデザイン主催の有償トレーニングで講師を担当。東京のオフィスでの講義と Zoom 配信を組み合わせ、コンフォーム、カラーマッチ、ルック作り、カラーパネルの使い方、AI アシスタントと DaVinci Resolve の連携までを 1 日かけて実演・解説した。",
         links: [
           {
-            label: "https://z8qcm.hp.peraichi.com/",
-            href: "https://z8qcm.hp.peraichi.com/",
+            label: "https://jp.pronews.com/news/202610141019791446.html",
+            href: "https://jp.pronews.com/news/202610141019791446.html",
           },
         ],
       },
@@ -39,8 +39,8 @@ export const PRESS_CATEGORIES: PressCategory[] = [
           "Blackmagic Design DaVinci Resolve シアターに登壇。「The Creative Color Grading：DRAMA — カラーグレーディングの分解とリライティング」として、ドラマ作品のカラーグレーディングを構成要素に分解し、リライティングの手法を実演解説した。",
         links: [
           {
-            label: "https://bmduser.jp/eve_detail.php?id=95",
-            href: "https://bmduser.jp/eve_detail.php?id=95",
+            label: "https://www.imagica-ems.co.jp/event/interbee_241114/",
+            href: "https://www.imagica-ems.co.jp/event/interbee_241114/",
           },
         ],
       },
@@ -76,8 +76,8 @@ export const PRESS_CATEGORIES: PressCategory[] = [
           "DaVinci Resolve 認定トレーナーとして、他ソフトからのコンフォーム・ショットマッチング・クリエイティブグレーディングなど実務テクニックを少人数セミナーで指導した。",
         links: [
           {
-            label: "https://bmduser.jp/eve_detail.php?id=127",
-            href: "https://bmduser.jp/eve_detail.php?id=127",
+            label: "https://jp.pronews.com/news/202504221602598281.html",
+            href: "https://jp.pronews.com/news/202504221602598281.html",
           },
         ],
       },
@@ -133,8 +133,8 @@ export const PRESS_CATEGORIES: PressCategory[] = [
           "「100年後の火星」を描くドラマの VFX／ポストプロダクション工程に参加し、各部署と連携して世界観を映像化した（公式ブログで制作の舞台裏が紹介）。",
         links: [
           {
-            label: "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pz9aJoZRyz/",
-            href: "https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pz9aJoZRyz/",
+            label: "https://web.archive.org/web/20251220222008/https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pz9aJoZRyz/",
+            href: "https://web.archive.org/web/20251220222008/https://www.nhk.jp/g/ts/54KJPL1QGM/blog/bl/p987Er5pz4/bp/pz9aJoZRyz/",
           },
         ],
       },
