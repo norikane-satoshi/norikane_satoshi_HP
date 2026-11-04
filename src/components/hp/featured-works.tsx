@@ -1972,20 +1972,20 @@ export function FeaturedWorks() {
       </div>
 
       <div
-        className="relative mt-6 -mx-8 md:-mx-10 xl:-mx-12"
+        className="relative mt-6"
         data-featured-work-marquee-shell
       >
         <div
           id={marqueeViewportId}
           ref={marqueeRef}
-          className="featured-work-content-viewport relative overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
+          className="featured-work-content-viewport relative mx-[calc(50%-50vw)] overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
           aria-label="Featured Works"
           tabIndex={0}
           data-featured-work-marquee-viewport="true"
           data-featured-work-native-scrollbar="hidden"
         >
           <div
-            className="relative flex w-max gap-0 px-8 pb-4 md:px-10 xl:px-12"
+            className="relative flex w-max gap-0 pb-4"
             data-featured-work-marquee-track="continuous"
           >
               <div

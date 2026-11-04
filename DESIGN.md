@@ -272,6 +272,7 @@ The internal anchor remains `/#philosophy` for compatibility, but the visible UI
 | `1280px+` | Full spacing, wider section padding |
 
 Horizontal scroll cards are intentional for notes and featured works. Do not convert them into dense grids without a design review.
+The featured works row spans the full window width; its heading and progress bar stay inside the page shell.
 
 ## 6. Page-specific guidance
 
@@ -297,6 +298,7 @@ Do not add glass cards over the hero unless specifically requested.
 
 Notes are horizontally scrolling `.glass-card` links.
 Use `Note 01`, `Note 02`, etc. with Inter / compact tracking.
+All note cards share one size, including external articles; thumbnails are 16:9.
 
 ### 6.4 Note article pages
 

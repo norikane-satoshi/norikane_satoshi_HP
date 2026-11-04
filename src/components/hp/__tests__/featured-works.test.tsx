@@ -128,7 +128,8 @@ describe("FeaturedWorks", () => {
     expect(track).toHaveClass("gap-0")
     expect(track).not.toHaveClass("gap-4")
     expect(track).not.toHaveClass("md:gap-5")
-    expect(track).toHaveClass("px-8")
+    expect(track).not.toHaveClass("px-8")
+    expect(viewport).toHaveClass("mx-[calc(50%-50vw)]")
     expect(track).not.toHaveClass("will-change-transform")
     expect(track?.textContent).toContain("火星の女王")
     expect(primary.querySelectorAll("[data-featured-work-card]")).toHaveLength(

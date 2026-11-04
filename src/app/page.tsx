@@ -163,6 +163,10 @@ function ProfileForeground() {
   )
 }
 
+const NOTE_CARD_CLASS_NAME =
+  "group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note p-7 md:p-9"
+const NOTE_CARD_STYLE = { width: "min(90vw, 460px)", minHeight: 260 }
+
 export default async function HomePage() {
   const noteCards = buildHomeNoteCards(await listPublishedNotesForHome())
   return (
@@ -199,15 +203,7 @@ export default async function HomePage() {
           }}
         >
           <div className="flex snap-x snap-mandatory items-stretch gap-4 px-[var(--hp-section-padding-x)] pb-4 md:gap-5">
-            {noteCards.map((note, idx) => {
-              const isFeatured = idx === 0
-              const cardClassName = `group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note ${
-                isFeatured ? "p-7 md:p-9" : "p-6 md:p-7"
-              }`
-              const cardStyle = {
-                width: isFeatured ? "min(90vw, 460px)" : "min(84vw, 340px)",
-                minHeight: isFeatured ? 260 : 200,
-              }
+            {noteCards.map((note) => {
               const cardBody = (
                 <>
                   {note.thumbnailSrc ? (
@@ -219,7 +215,7 @@ export default async function HomePage() {
                         src={note.thumbnailSrc}
                         alt=""
                         fill
-                        sizes={isFeatured ? "(max-width: 768px) 90vw, 460px" : "(max-width: 768px) 84vw, 340px"}
+                        sizes="(max-width: 768px) 90vw, 460px"
                         className="object-cover"
                       />
                     </div>
@@ -230,9 +226,7 @@ export default async function HomePage() {
                     </span>
                   </div>
                   <h3
-                    className={`hp-heading mt-3 font-semibold text-hp ${
-                      isFeatured ? "text-lg md:text-2xl" : "text-base md:text-lg"
-                    }`}
+                    className="hp-heading mt-3 text-lg font-semibold text-hp md:text-2xl"
                   >
                     {note.title}
                   </h3>
@@ -248,8 +242,8 @@ export default async function HomePage() {
                 <a
                   key={note.key}
                   href={note.href}
-                  className={cardClassName}
-                  style={cardStyle}
+                  className={NOTE_CARD_CLASS_NAME}
+                  style={NOTE_CARD_STYLE}
                   data-hp-note-card="external"
                 >
                   {cardBody}
@@ -258,8 +252,8 @@ export default async function HomePage() {
                 <Link
                   key={note.key}
                   href={note.href}
-                  className={cardClassName}
-                  style={cardStyle}
+                  className={NOTE_CARD_CLASS_NAME}
+                  style={NOTE_CARD_STYLE}
                   data-hp-note-card="note"
                 >
                   {cardBody}
