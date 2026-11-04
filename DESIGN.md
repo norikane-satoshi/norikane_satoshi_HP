@@ -44,7 +44,7 @@ replaces the light contract.
 - No glass cards on noir pages. Separate content with whitespace and 1px rules (`--hp-color-rule`, `.hp-rule-top`,
   `.hp-rule-bottom`, `.hp-section-heading-row`).
 - Section heading: `SectionHeading` (`src/components/hp/section-heading.tsx`) — a large Latin title in `.hp-latin-display`
-  plus a numbered Japanese label.
+  over a rule. No section numbers or side labels.
 - Raised band: `.hp-surface-band` (profile).
 - Links: `.hp-text-link` inside prose, `.hp-plain-link` with an `ArrowUpRight` icon for external lists.
 
