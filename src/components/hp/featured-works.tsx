@@ -198,24 +198,6 @@ function loadYouTubeIframeApi() {
   return youtubeApiPromise
 }
 
-function usePrefersReducedMotion() {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
-
-  useEffect(() => {
-    const query = window.matchMedia?.("(prefers-reduced-motion: reduce)")
-    if (!query) {
-      return
-    }
-
-    const syncPreference = () => setPrefersReducedMotion(query.matches)
-    syncPreference()
-    query.addEventListener("change", syncPreference)
-    return () => query.removeEventListener("change", syncPreference)
-  }, [])
-
-  return prefersReducedMotion
-}
-
 function useHasEnteredViewport<T extends HTMLElement>() {
   const ref = useRef<T | null>(null)
   const [hasEnteredViewport, setHasEnteredViewport] = useState(
@@ -347,11 +329,10 @@ function useScrollableMarquee(
   viewportRef: RefObject<HTMLDivElement | null>,
   progressTrackRef: RefObject<HTMLDivElement | null>,
   progressThumbRef: RefObject<HTMLDivElement | null>,
-  enabled: boolean,
 ) {
   useEffect(() => {
     const viewport = viewportRef.current
-    if (!viewport || !enabled) {
+    if (!viewport) {
       return
     }
 
@@ -647,7 +628,7 @@ function useScrollableMarquee(
       delete viewport.dataset.featuredWorkMarqueeState
       delete viewport.dataset.featuredWorkMarqueeIdleMs
     }
-  }, [enabled, progressThumbRef, progressTrackRef, viewportRef])
+  }, [progressThumbRef, progressTrackRef, viewportRef])
 }
 
 function PreviewFrame({
@@ -1128,7 +1109,6 @@ function VideoSurface({
   clipExcludeEnd,
   title,
   isActive,
-  prefersReducedMotion,
   clone,
   onOpenVideo,
 }: {
@@ -1141,7 +1121,6 @@ function VideoSurface({
   clipExcludeEnd?: number
   title: string
   isActive: boolean
-  prefersReducedMotion: boolean
   clone: boolean
   onOpenVideo: (
     video: ActiveVideoModal,
@@ -1165,7 +1144,7 @@ function VideoSurface({
   const coverTimerRef = useRef<number | null>(null)
   const [activeClip, setActiveClip] = useState<ClipWindow | null>(null)
   const [isCoverVisible, setIsCoverVisible] = useState(true)
-  const shouldPlay = isActive && !prefersReducedMotion
+  const shouldPlay = isActive
   const isPreviewReady = !isCoverVisible
 
   useEffect(() => {
@@ -1423,12 +1402,7 @@ function VideoSurface({
 
 function updateFeaturedWorkTilt(
   event: React.PointerEvent<HTMLDivElement>,
-  prefersReducedMotion: boolean,
 ) {
-  if (prefersReducedMotion) {
-    return
-  }
-
   const bounds = event.currentTarget.getBoundingClientRect()
   const x = Math.min(
     Math.max((event.clientX - bounds.left) / Math.max(bounds.width, 1), 0),
@@ -1452,14 +1426,12 @@ function updateFeaturedWorkTilt(
 function FeaturedWorkCard({
   work,
   shouldStartVideo,
-  prefersReducedMotion,
   clone = false,
   segmentStart,
   onOpenVideo,
 }: {
   work: FeaturedWork
   shouldStartVideo: boolean
-  prefersReducedMotion: boolean
   clone?: boolean
   segmentStart?: "primary" | "clone-before" | "clone-after"
   onOpenVideo: (
@@ -1468,7 +1440,7 @@ function FeaturedWorkCard({
   ) => void
 }) {
   const [cardRef, isNearViewport] = useNearMarqueeViewport<HTMLDivElement>(
-    shouldStartVideo && !prefersReducedMotion,
+    shouldStartVideo,
   )
   const shouldPlayVideo = shouldStartVideo && isNearViewport
 
@@ -1479,9 +1451,8 @@ function FeaturedWorkCard({
       aria-label={clone ? undefined : `${work.title} 作品カード`}
       data-featured-work-card={work.title}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
-      data-featured-work-tilt={prefersReducedMotion ? "disabled" : "enabled"}
       data-featured-work-marquee-segment-start={segmentStart}
-      onPointerMove={(event) => updateFeaturedWorkTilt(event, prefersReducedMotion)}
+      onPointerMove={updateFeaturedWorkTilt}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         {work.videos && work.videos.length > 1 ? (
@@ -1492,7 +1463,6 @@ function FeaturedWorkCard({
               modalLabel={`${work.title} の動画をモーダルで再生`}
               ordered
               shouldPlayVideo={shouldPlayVideo}
-              prefersReducedMotion={prefersReducedMotion}
               clone={clone}
               onOpenVideo={onOpenVideo}
             />
@@ -1509,7 +1479,6 @@ function FeaturedWorkCard({
               clipExcludeEnd={work.clipExcludeEnd}
               title={work.title}
               isActive={shouldPlayVideo}
-              prefersReducedMotion={prefersReducedMotion}
               clone={clone}
               onOpenVideo={onOpenVideo}
             />
@@ -1553,7 +1522,6 @@ function PlaylistSurface({
   modalLabel,
   ordered = false,
   shouldPlayVideo,
-  prefersReducedMotion,
   clone,
   onOpenVideo,
 }: {
@@ -1562,7 +1530,6 @@ function PlaylistSurface({
   modalLabel: string
   ordered?: boolean
   shouldPlayVideo: boolean
-  prefersReducedMotion: boolean
   clone: boolean
   onOpenVideo: (
     video: ActiveVideoModal,
@@ -1611,7 +1578,7 @@ function PlaylistSurface({
       }, STARTUP_COVER_HOLD_MS)
     }
 
-    if (!shouldPlayVideo || prefersReducedMotion) {
+    if (!shouldPlayVideo) {
       clearNextTimer()
       clearCoverTimer()
       window.setTimeout(() => {
@@ -1772,7 +1739,7 @@ function PlaylistSurface({
       clearNextTimer()
       clearCoverTimer()
     }
-  }, [ordered, prefersReducedMotion, shouldPlayVideo, videos])
+  }, [ordered, shouldPlayVideo, videos])
 
   useEffect(() => {
     return () => {
@@ -1790,7 +1757,7 @@ function PlaylistSurface({
 
   return (
     <>
-      {shouldPlayVideo && !prefersReducedMotion ? (
+      {shouldPlayVideo ? (
         <div
           className={`featured-work-preview-media pointer-events-none absolute inset-0 h-full w-full rounded-none transition-opacity duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
             isPreviewReady ? "opacity-100" : "opacity-0"
@@ -1840,14 +1807,12 @@ function PlaylistSurface({
 function PlaylistWorkCard({
   work,
   shouldStartVideo,
-  prefersReducedMotion,
   clone = false,
   segmentStart,
   onOpenVideo,
 }: {
   work: FeaturedPlaylistWork
   shouldStartVideo: boolean
-  prefersReducedMotion: boolean
   clone?: boolean
   segmentStart?: "primary" | "clone-before" | "clone-after"
   onOpenVideo: (
@@ -1856,7 +1821,7 @@ function PlaylistWorkCard({
   ) => void
 }) {
   const [cardRef, isNearViewport] = useNearMarqueeViewport<HTMLDivElement>(
-    shouldStartVideo && !prefersReducedMotion,
+    shouldStartVideo,
   )
   const playlistVideoIds = work.videos.map((video) => video.videoId).join(",")
   const shouldPlayVideo = shouldStartVideo && isNearViewport
@@ -1871,9 +1836,8 @@ function PlaylistWorkCard({
       data-featured-work-playlist-video-count={work.videos.length}
       data-featured-work-playlist-video-ids={playlistVideoIds}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
-      data-featured-work-tilt={prefersReducedMotion ? "disabled" : "enabled"}
       data-featured-work-marquee-segment-start={segmentStart}
-      onPointerMove={(event) => updateFeaturedWorkTilt(event, prefersReducedMotion)}
+      onPointerMove={updateFeaturedWorkTilt}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <PreviewFrame>
@@ -1882,7 +1846,6 @@ function PlaylistWorkCard({
             title={work.title}
             modalLabel={`${work.title}をモーダルで再生`}
             shouldPlayVideo={shouldPlayVideo}
-            prefersReducedMotion={prefersReducedMotion}
             clone={clone}
             onOpenVideo={onOpenVideo}
           />
@@ -1901,19 +1864,16 @@ function PlaylistWorkCard({
 }
 
 export function FeaturedWorks() {
-  const prefersReducedMotion = usePrefersReducedMotion()
   const marqueeViewportId = useId()
   const [marqueeRef, hasEnteredViewport] = useHasEnteredViewport<HTMLDivElement>()
   const [activeVideo, setActiveVideo] = useState<ActiveVideoModal | null>(null)
   const progressTrackRef = useRef<HTMLDivElement | null>(null)
   const progressThumbRef = useRef<HTMLDivElement | null>(null)
   const videoTriggerRef = useRef<HTMLElement | null>(null)
-  const shouldRenderCloneTrack = !prefersReducedMotion
   useScrollableMarquee(
     marqueeRef,
     progressTrackRef,
     progressThumbRef,
-    shouldRenderCloneTrack,
   )
 
   const openVideo = useCallback(
@@ -1938,7 +1898,6 @@ export function FeaturedWorks() {
           key={`${clone ? "clone" : "primary"}-${work.youtubeId ?? work.officialUrl}`}
           work={work}
           shouldStartVideo={hasEnteredViewport}
-          prefersReducedMotion={prefersReducedMotion}
           clone={clone}
           segmentStart={index === 0 ? segmentStart : undefined}
           onOpenVideo={openVideo}
@@ -1949,7 +1908,6 @@ export function FeaturedWorks() {
           key={`${clone ? "clone" : "primary"}-${work.title}`}
           work={work}
           shouldStartVideo={hasEnteredViewport}
-          prefersReducedMotion={prefersReducedMotion}
           clone={clone}
           onOpenVideo={openVideo}
         />
@@ -1995,16 +1953,6 @@ export function FeaturedWorks() {
           }
         }
 
-        @media (prefers-reduced-motion: reduce) {
-          .featured-work-transparent-card {
-            transition: none;
-          }
-
-          .featured-work-transparent-card:active {
-            transform: none;
-          }
-        }
-
         [data-featured-work-marquee-segment] {
           display: contents;
         }
@@ -2015,17 +1963,6 @@ export function FeaturedWorks() {
 
         [data-featured-work-native-scrollbar="hidden"]::-webkit-scrollbar {
           display: none;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          [data-featured-work-marquee-viewport="true"] {
-            overflow-x: auto;
-            scrollbar-width: auto;
-          }
-
-          [data-featured-work-marquee-viewport="true"]::-webkit-scrollbar {
-            display: initial;
-          }
         }
       `}</style>
       <div className="hp-grid">
@@ -2045,15 +1982,12 @@ export function FeaturedWorks() {
           aria-label="Featured Works"
           tabIndex={0}
           data-featured-work-marquee-viewport="true"
-          data-featured-work-native-scrollbar={
-            shouldRenderCloneTrack ? "hidden" : undefined
-          }
+          data-featured-work-native-scrollbar="hidden"
         >
           <div
             className="relative flex w-max gap-0 px-8 pb-4 md:px-10 xl:px-12"
             data-featured-work-marquee-track="continuous"
           >
-            {shouldRenderCloneTrack ? (
               <div
                 className="contents"
                 aria-hidden="true"
@@ -2062,14 +1996,12 @@ export function FeaturedWorks() {
               >
                 {renderCards(true, "clone-before")}
               </div>
-            ) : null}
             <div
               className="contents"
               data-featured-work-marquee-segment="primary"
             >
               {renderCards(false, "primary")}
             </div>
-            {shouldRenderCloneTrack ? (
               <div
                 className="contents"
                 aria-hidden="true"
@@ -2078,10 +2010,8 @@ export function FeaturedWorks() {
               >
                 {renderCards(true, "clone-after")}
               </div>
-            ) : null}
           </div>
         </div>
-        {shouldRenderCloneTrack ? (
           <div
             ref={progressTrackRef}
             className="h-1 w-full cursor-pointer overflow-hidden rounded-full bg-white/60"
@@ -2101,7 +2031,6 @@ export function FeaturedWorks() {
               data-featured-work-marquee-progress-thumb="true"
             />
           </div>
-        ) : null}
       </div>
       <FeaturedWorkVideoDialog
         activeVideo={activeVideo}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -94,16 +94,6 @@ describe("HP three-hue color fields", () => {
   })
 
   it("renders hero abstract art while keeping Mars and Featured Works card shells transparent", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        addEventListener: vi.fn(),
-        matches: query === "(prefers-reduced-motion: reduce)",
-        media: query,
-        removeEventListener: vi.fn(),
-      })),
-    })
-
     const hero = render(<HeroSection />)
     const heroSection = hero.container.querySelector("#home")
     const heroArt = hero.container.querySelector('[data-hp-abstract-art="hero"]')
@@ -127,8 +117,8 @@ describe("HP three-hue color fields", () => {
     expect(marsCard).not.toHaveClass("glass-card-sm")
     expect(marsCard).not.toHaveClass("glass-refraction-edge")
     expect(marsCard).not.toHaveClass("glass-distortion-surface")
-    expect(screen.getByText("火星の女王")).toBeInTheDocument()
-    expect(screen.getByText("NHK100周年記念ドラマ")).toBeInTheDocument()
+    expect(within(marsCard).getByText("火星の女王")).toBeInTheDocument()
+    expect(within(marsCard).getByText("NHK100周年記念ドラマ")).toBeInTheDocument()
     works.unmount()
   })
 })
