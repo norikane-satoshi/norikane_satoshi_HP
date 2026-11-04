@@ -72,7 +72,7 @@ function ProfileSection() {
   return (
     <section id="profile" className="hp-surface-band scroll-mt-24 md:scroll-mt-28">
       <div className="hp-section-shell hp-section-pad">
-        <SectionHeading index="03" latin="Profile" label={profile.sectionTitle} />
+        <SectionHeading latin="Profile" />
         <div className="mt-[clamp(2.5rem,5vw,4.5rem)] flex flex-wrap gap-x-[clamp(2.5rem,6vw,6rem)] gap-y-12">
           <div className="flex min-w-0 max-w-[32.5rem] flex-[1_1_18.75rem] flex-col gap-7">
             <ProfilePhoto />
@@ -149,7 +149,7 @@ export default async function HomePage() {
         id="philosophy"
         className="hp-section-shell scroll-mt-24 pb-[clamp(6rem,10vw,10rem)] md:scroll-mt-28"
       >
-        <SectionHeading index="02" latin="Notes" label="ノート" />
+        <SectionHeading latin="Notes" />
         <div className="mt-[clamp(2.25rem,4vw,3.5rem)] grid grid-cols-1 md:grid-cols-2 gap-x-[clamp(1.5rem,3vw,3rem)] gap-y-[clamp(2.25rem,4vw,3.5rem)]">
           {noteCards.map((note) => {
             const cardBody = (
