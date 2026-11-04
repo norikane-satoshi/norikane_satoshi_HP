@@ -1750,7 +1750,7 @@ export function FeaturedWorks() {
         }
       `}</style>
       <div className="hp-section-shell">
-        <SectionHeading index="02" latin="Featured Works" label="作品" />
+        <SectionHeading index="01" latin="Featured Works" label="作品" />
       </div>
 
       <div

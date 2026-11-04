@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { cleanup, render, screen, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
 import { PRESS_CATEGORIES } from "@/components/hp/press-data"
-import { PressList } from "@/components/hp/press-section"
+import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
+import { PressDialog } from "@/components/hp/press-section"
 
 function getLinkText(label: string, href: string) {
   if (!/^https?:\/\//.test(label)) return label
@@ -12,13 +13,52 @@ function getLinkText(label: string, href: string) {
   return host === "web.archive.org" ? "web.archive.org（保存版）" : host
 }
 
-describe("PressList", () => {
+function openDialog() {
+  render(<PressDialog />)
+  fireEvent.click(screen.getByRole("button", { name: "登壇・掲載" }))
+  return screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
+}
+
+describe("PressDialog", () => {
   afterEach(() => {
     cleanup()
   })
 
-  it("lists the three SSOT categories and every press item on the page", () => {
-    render(<PressList />)
+  it("keeps the list closed until the profile button opens it in a noir modal", () => {
+    render(<PressDialog />)
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    const trigger = screen.getByRole("button", { name: "登壇・掲載" })
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog")
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
+    expect(trigger).toHaveAttribute("aria-expanded", "true")
+    expect(dialog.parentElement).toHaveAttribute("data-hp-theme", "noir")
+    expect(dialog.parentElement).toHaveStyle({ zIndex: String(HP_MODAL_OVERLAY_Z_INDEX) })
+  })
+
+  it("closes with Escape and backdrop click", () => {
+    const dialog = openDialog()
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "登壇・掲載" }))
+    fireEvent.mouseDown(screen.getByRole("dialog").parentElement!)
+    expect(dialog).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("opens from the #press hash used by the navigation", () => {
+    window.location.hash = "#press"
+    render(<PressDialog />)
+    expect(screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })).toBeInTheDocument()
+    cleanup()
+    expect(window.location.hash).toBe("")
+  })
+
+  it("lists the three SSOT categories and every press item", () => {
+    const dialog = openDialog()
 
     expect(PRESS_CATEGORIES.map((category) => category.title)).toEqual([
       "登壇・セミナー",
@@ -28,7 +68,7 @@ describe("PressList", () => {
     expect(PRESS_CATEGORIES.flatMap((category) => category.items)).toHaveLength(10)
 
     for (const category of PRESS_CATEGORIES) {
-      const section = screen.getByRole("region", { name: category.title })
+      const section = within(dialog).getByRole("region", { name: category.title })
       for (const item of category.items) {
         expect(within(section).getByRole("heading", { name: item.title })).toBeInTheDocument()
         expect(within(section).getByText(item.description)).toBeInTheDocument()
@@ -37,9 +77,9 @@ describe("PressList", () => {
   })
 
   it("orders items in each category from newest to oldest", () => {
-    render(<PressList />)
+    const dialog = openDialog()
 
-    const seminar = screen.getByRole("region", { name: "登壇・セミナー" })
+    const seminar = within(dialog).getByRole("region", { name: "登壇・セミナー" })
     const periods = within(seminar)
       .getAllByRole("listitem")
       .map((item) => item.querySelector("p")?.textContent)
@@ -83,13 +123,13 @@ describe("PressList", () => {
   })
 
   it("opens every external link in a new isolated tab and shows URL labels as the domain", () => {
-    render(<PressList />)
+    const dialog = openDialog()
 
     for (const category of PRESS_CATEGORIES) {
       for (const item of category.items) {
         for (const link of item.links) {
           const text = getLinkText(link.label, link.href)
-          const anchor = screen.getByRole("link", {
+          const anchor = within(dialog).getByRole("link", {
             name: `${item.title} ${text}を新しいタブで開く`,
           })
 
