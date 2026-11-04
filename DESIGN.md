@@ -109,7 +109,7 @@ Fonts are loaded in `src/app/layout.tsx`.
 | Role | Font | Variable | Weights |
 |---|---|---|---|
 | Japanese default and headings | Noto Serif JP | `--font-mincho` (also `--font-sans` / `--font-heading`) | 400, 500, 600, 700 |
-| Japanese UI and note headings | Noto Sans JP | `--font-gothic` | 300, 400, 500, 600, 700 |
+| Japanese UI and note headings | Noto Sans JP | `--font-gothic` | 400, 500, 600, 700 |
 | Latin brand / display emphasis | Inter | `--font-inter` (also `--font-display`) | 400, 600, 700 |
 | Code / counters / small technical labels | Geist Mono | `--font-geist-mono` | default |
 

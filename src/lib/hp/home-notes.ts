@@ -10,9 +10,9 @@ export type HomeNoteCard = {
   publishedAt: string
 }
 
-/** Notion のノート（slug）ごとのサムネイル。記事内の図の背景画像を使う。 */
+/** Notion のノート（slug）ごとのサムネイル。 */
 export const NOTE_THUMBNAILS: Readonly<Record<string, string>> = {
-  correction: "/notes/diagrams/correction-factor-map.webp",
+  correction: "/notes/thumbnails/correction.webp",
 }
 
 /** サイト外に掲載した記事。ノート欄に Notion のノートと並べて出す。 */
