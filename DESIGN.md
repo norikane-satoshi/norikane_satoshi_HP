@@ -30,7 +30,23 @@ The tone should be:
 
 Keywords: `light glassmorphism`, `aurora gradient`, `frosted white cards`, `lavender base`, `quiet professional`, `colorist portfolio`, `text-first`.
 
-Avoid: dark cinematic UI, neon, heavy gradients, heavy shadows, cyberpunk, Apple-like over-animation, loud SaaS landing pages.
+Avoid: neon, heavy gradients, heavy shadows, cyberpunk, Apple-like over-animation, loud SaaS landing pages.
+
+### 1.1 Noir theme (migration in progress)
+
+The site is moving to a dark, editorial "noir" look (decided 2026-11-05). The home page uses it now; other pages
+(note articles, booking, chatbot, LINE) keep the light glass look until they are migrated, then this section
+replaces the light contract.
+
+- Scope: an element with `data-hp-theme="noir"` switches the tokens for itself and for the shared header and footer.
+  The token values live only in the `[data-hp-theme="noir"]` block in `globals.css`.
+- Look: ink ground (`--bg-base`), ivory text, no accent hue. Colour comes from the work stills and videos.
+- No glass cards on noir pages. Separate content with whitespace and 1px rules (`--hp-color-rule`, `.hp-rule-top`,
+  `.hp-rule-bottom`, `.hp-section-heading-row`).
+- Section heading: `SectionHeading` (`src/components/hp/section-heading.tsx`) — a large Latin title in `.hp-latin-display`
+  plus a numbered Japanese label.
+- Raised band: `.hp-surface-band` (profile).
+- Links: `.hp-text-link` inside prose, `.hp-plain-link` with an `ArrowUpRight` icon for external lists.
 
 ## 2. Canonical design tokens
 
@@ -110,7 +126,8 @@ Fonts are loaded in `src/app/layout.tsx`.
 |---|---|---|---|
 | Japanese default and headings | Noto Serif JP | `--font-mincho` (also `--font-sans` / `--font-heading`) | 400, 500, 600, 700 |
 | Japanese UI and note headings | Noto Sans JP | `--font-gothic` | 400, 500, 600, 700 |
-| Latin brand / display emphasis | Inter | `--font-inter` (also `--font-display`) | 400, 600, 700 |
+| Latin display headings (noir) | Instrument Serif | `--font-latin-display` (also `--font-display`) | 400, normal + italic |
+| Latin labels, numbers, eyebrows | Inter | `--font-inter` | 400, 600, 700 |
 | Code / counters / small technical labels | Geist Mono | `--font-geist-mono` | default |
 
 ### 3.1 Japanese UI rules
@@ -247,13 +264,13 @@ Older notes may mention `px-4 md:px-8 xl:px-12`; the current implementation uses
 
 ### 5.2 Current site structure
 
-The home page is a one-page portfolio with anchored sections:
+The home page is a one-page portfolio with anchored sections, in this order:
 
-- `/` top / Hero
-- `/#profile` profile
+- `/` Hero
+- `/#works` featured works (display label: 作品)
 - `/#philosophy` notes (display label: ノート)
-- `/#contact` contact
-- schedule / password-gated calendar section
+- `/#profile` profile
+- `/#press` talks and press (display label: 登壇・掲載)
 
 Only note articles are individual pages:
 
@@ -271,8 +288,8 @@ The internal anchor remains `/#philosophy` for compatibility, but the visible UI
 | `768px–1279px` | Two-column profile layout, desktop nav |
 | `1280px+` | Full spacing, wider section padding |
 
-Horizontal scroll cards are intentional for notes and featured works. Do not convert them into dense grids without a design review.
-The featured works row spans the full window width; its heading and progress bar stay inside the page shell.
+Featured works is a horizontal, auto-scrolling row that spans the full window width; its heading and progress bar stay inside the page shell.
+Do not convert it into a grid without a design review.
 
 ## 6. Page-specific guidance
 
@@ -281,24 +298,29 @@ The featured works row spans the full window width; its heading and progress bar
 The header uses `.glass-bar`, not a floating neumorphic nav.
 It is fixed at the top and spans the full width.
 
-- Brand block: avatar + `NCS GRADING` + `Norikane Colour Studio Grading`
-- Desktop nav: inline links
-- Active indicator: small purple dot
+- Brand block: the logo image; on noir pages it is inverted through `--hp-logo-filter`
+- Desktop nav: 作品 / ノート / プロフィール / 登壇・掲載 (plus 予約カレンダー when booking is enabled)
+- Active indicator: small dot in `--hp-color-accent`
 - Mobile nav: hamburger, then `.glass-bar` dropdown
 
 ### 6.2 Hero
 
-Hero is the only intentionally darker / high-contrast section.
-It uses a full-viewport purple visual field and white text.
-It should remain restrained and cinematic only in the sense of spacious composition, not dark UI throughout the site.
+The hero fills the viewport with muted trailer footage of the works. `HERO_CLIPS` in
+`src/components/hp/featured-works-data.ts` is the only list of scenes; each plays for `HERO_CLIP_SECONDS` (10 s)
+with a short dip to black between scenes, and pauses while the hero is off screen or the tab is hidden.
+Pick scenes without burned-in text; `zoom` pushes letterbox bars and captions out of frame.
+Text on the hero uses `--hp-color-on-media`; the scene title and client show at the top right.
 
-Do not add glass cards over the hero unless specifically requested.
+The hero keeps moving even when the OS asks for reduced motion (the owner's instruction, 2026-11-04);
+elements that must keep their transitions carry `.hp-motion-keep`.
+
+Do not add cards over the hero.
 
 ### 6.3 Notes list
 
-Notes are horizontally scrolling `.glass-card` links.
-Use `Note 01`, `Note 02`, etc. with Inter / compact tracking.
-All note cards share one size, including external articles; thumbnails are 16:9.
+Notes are a two-column grid (one column on phones) of `.hp-note-card` links: a 16:9 thumbnail, an eyebrow
+(`Note 01`, `Note 02`, … or the outlet name), the title and an arrow.
+All note cards share one size, including external articles. `src/lib/hp/home-notes.ts` holds thumbnails and external articles.
 
 ### 6.4 Note article pages
 

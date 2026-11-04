@@ -1,56 +1,25 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
+import { cleanup, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
-import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
-import { PRESS_CATEGORIES, PressDialog } from "@/components/hp/press-section"
+import { PRESS_CATEGORIES } from "@/components/hp/press-data"
+import { PressList } from "@/components/hp/press-section"
 
-describe("PressSection", () => {
+function getLinkText(label: string, href: string) {
+  if (!/^https?:\/\//.test(label)) return label
+  const host = new URL(href).hostname.replace(/^www\./, "")
+  return host === "web.archive.org" ? "web.archive.org（保存版）" : host
+}
+
+describe("PressList", () => {
   afterEach(() => {
     cleanup()
   })
 
-  it("renders the profile trigger as an icon-only social badge", () => {
-    render(<PressDialog />)
+  it("lists the three SSOT categories and every press item on the page", () => {
+    render(<PressList />)
 
-    const trigger = screen.getByRole("button", { name: "実績" })
-
-    expect(trigger).toHaveClass("glass-btn--profile-social")
-    expect(trigger).toHaveAttribute("title", "実績")
-    expect(trigger).not.toHaveTextContent("実績")
-    expect(trigger).toHaveClass("w-[4.5rem]")
-
-    const icons = Array.from(trigger.querySelectorAll("svg"))
-    expect(icons).toHaveLength(2)
-    expect(icons[0]).toHaveAttribute("fill", "currentColor")
-    expect(icons[1]).toHaveAttribute("fill", "currentColor")
-  })
-
-  it("uses the popover token for the dialog entry transition", () => {
-    const globalsCss = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8")
-
-    expect(globalsCss).toContain(".press-dialog-surface")
-    expect(globalsCss).toContain("--motion-duration-popover")
-    expect(globalsCss).toContain("transform: scale(0.97)")
-    expect(globalsCss).toContain("@starting-style")
-  })
-
-  it("opens the three SSOT categories and nine press items in a modal dialog", () => {
-    render(<PressDialog />)
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("button", { name: "実績" }))
-
-    const dialog = screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
-
-    expect(within(dialog).getByRole("heading", { name: "登壇・メディア掲載 / 実績" })).toBeInTheDocument()
-    expect(dialog.parentElement).toHaveStyle({
-      zIndex: String(HP_MODAL_OVERLAY_Z_INDEX),
-    })
     expect(PRESS_CATEGORIES.map((category) => category.title)).toEqual([
       "登壇・セミナー",
       "メディア掲載・事例紹介",
@@ -59,13 +28,23 @@ describe("PressSection", () => {
     expect(PRESS_CATEGORIES.flatMap((category) => category.items)).toHaveLength(10)
 
     for (const category of PRESS_CATEGORIES) {
-      expect(within(dialog).getByRole("heading", { name: category.title })).toBeInTheDocument()
+      const section = screen.getByRole("region", { name: category.title })
       for (const item of category.items) {
-        expect(within(dialog).getAllByText(item.period).length).toBeGreaterThan(0)
-        expect(within(dialog).getByRole("heading", { name: item.title })).toBeInTheDocument()
-        expect(within(dialog).getByText(item.description)).toBeInTheDocument()
+        expect(within(section).getByRole("heading", { name: item.title })).toBeInTheDocument()
+        expect(within(section).getByText(item.description)).toBeInTheDocument()
       }
     }
+  })
+
+  it("orders items in each category from newest to oldest", () => {
+    render(<PressList />)
+
+    const seminar = screen.getByRole("region", { name: "登壇・セミナー" })
+    const periods = within(seminar)
+      .getAllByRole("listitem")
+      .map((item) => item.querySelector("p")?.textContent)
+
+    expect(periods).toEqual(["2026年10月", "2025年5月", "2024年11月", "2024年11月", "2024年9月"])
   })
 
   it("keeps the Jukkakukan media item as one item with the two specified links", () => {
@@ -103,44 +82,23 @@ describe("PressSection", () => {
     expect(jukkakukan?.description).not.toContain("DIカラリスト")
   })
 
-  it("opens every external link in a new isolated tab", () => {
-    render(<PressDialog />)
-    fireEvent.click(screen.getByRole("button", { name: "実績" }))
+  it("opens every external link in a new isolated tab and shows URL labels as the domain", () => {
+    render(<PressList />)
 
-    const dialog = screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
+    for (const category of PRESS_CATEGORIES) {
+      for (const item of category.items) {
+        for (const link of item.links) {
+          const text = getLinkText(link.label, link.href)
+          const anchor = screen.getByRole("link", {
+            name: `${item.title} ${text}を新しいタブで開く`,
+          })
 
-    const expectedLinks = PRESS_CATEGORIES.flatMap((category) =>
-      category.items.flatMap((item) =>
-        item.links.map((link) => ({
-          ...link,
-          itemTitle: item.title,
-        })),
-      ),
-    )
-
-    for (const link of expectedLinks) {
-      const anchor = within(dialog).getByRole("link", {
-        name: `${link.itemTitle} ${link.label}を新しいタブで開く`,
-      })
-
-      expect(anchor).toHaveAttribute("href", link.href)
-      expect(anchor).toHaveAttribute("target", "_blank")
-      expect(anchor).toHaveAttribute("rel", "noopener noreferrer")
+          expect(anchor).toHaveAttribute("href", link.href)
+          expect(anchor).toHaveAttribute("target", "_blank")
+          expect(anchor).toHaveAttribute("rel", "noopener noreferrer")
+          expect(anchor).toHaveTextContent(text)
+        }
+      }
     }
-  })
-
-  it("closes with Escape and backdrop click", () => {
-    render(<PressDialog />)
-
-    fireEvent.click(screen.getByRole("button", { name: "実績" }))
-    expect(screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })).toBeInTheDocument()
-
-    fireEvent.keyDown(document, { key: "Escape" })
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("button", { name: "実績" }))
-    const dialog = screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
-    fireEvent.mouseDown(dialog.parentElement!)
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 })

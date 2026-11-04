@@ -9,13 +9,14 @@ import { isBookingEnabled } from "@/lib/feature-flags"
 import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
 import { SITE_BRAND_NAME } from "@/lib/site-brand"
 
-type SectionId = "home" | "profile" | "philosophy" | "schedule"
+type SectionId = "home" | "works" | "philosophy" | "profile" | "press" | "schedule"
 type NavItem = { href: string; label: string; sectionId: SectionId }
 
 const baseNavItems: NavItem[] = [
-  { href: "/", label: "ホーム", sectionId: "home" as const },
-  { href: "/#philosophy", label: "ノート", sectionId: "philosophy" as const },
-  { href: "/#profile", label: "プロフィール", sectionId: "profile" as const },
+  { href: "/#works", label: "作品", sectionId: "works" },
+  { href: "/#philosophy", label: "ノート", sectionId: "philosophy" },
+  { href: "/#profile", label: "プロフィール", sectionId: "profile" },
+  { href: "/#press", label: "登壇・掲載", sectionId: "press" },
 ]
 
 const bookingNavItem: NavItem = {
@@ -111,7 +112,7 @@ export function NavHeader() {
             width={832}
             height={141}
             sizes="(max-width: 767px) 220px, 260px"
-            className="h-[clamp(36px,5vw,44px)] w-auto object-contain"
+            className="hp-nav-logo h-[clamp(36px,5vw,44px)] w-auto object-contain"
             priority
           />
         </Link>
@@ -137,7 +138,7 @@ export function NavHeader() {
 
         {/* Mobile hamburger */}
         <button
-          className="md:hidden rounded-xl border border-neutral-300 p-2 text-black transition-colors hover:bg-neutral-100"
+          className="md:hidden rounded-xl border border-[var(--hp-color-rule)] p-2 text-hp transition-colors hover:bg-[var(--hp-color-surface)]"
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label={mobileOpen ? "メニューを閉じる" : "メニューを開く"}
         >
@@ -150,7 +151,7 @@ export function NavHeader() {
         <div className="md:hidden">
           <ul
             className="glass-bar flex flex-col gap-1 px-6 py-3"
-            style={{ borderTop: "1px solid rgba(0, 0, 0, 0.06)" }}
+            style={{ borderTop: "1px solid var(--hp-nav-border)" }}
           >
             {navItems.map((item) => {
               const isActive = activeSection === item.sectionId
@@ -159,7 +160,7 @@ export function NavHeader() {
                   <Link
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
-                    className="hp-nav-link flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium hover:bg-black/5"
+                    className="hp-nav-link flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium hover:bg-[var(--hp-color-surface)]"
                     aria-current={isActive ? "location" : undefined}
                   >
                     <span className="hp-nav-dot" aria-hidden="true" />

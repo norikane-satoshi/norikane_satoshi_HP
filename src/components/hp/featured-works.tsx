@@ -12,7 +12,7 @@ import {
   type RefObject,
 } from "react"
 import { createPortal } from "react-dom"
-import { X } from "lucide-react"
+import { ArrowUpRight, X } from "lucide-react"
 import {
   FEATURED_PLAYLIST_WORKS,
   FEATURED_WORKS,
@@ -27,70 +27,27 @@ import {
   type FeaturedWorkLink,
   type YouTubeThumbnailVariantSelection,
 } from "@/components/hp/featured-works-data"
-import { MARS_ABSTRACT_COVER_BACKGROUND } from "@/components/hp/hero-deep-surface"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
-
-type YouTubePlayerStateChangeEvent = {
-  data: number
-  target: YouTubePlayer
-}
-
-type YouTubePlayerErrorEvent = {
-  data: number
-  target: YouTubePlayer
-}
-
-type YouTubePlayer = {
-  mute?: () => void
-  playVideo?: () => void
-  stopVideo?: () => void
-  destroy?: () => void
-  getDuration?: () => number
-  seekTo?: (seconds: number, allowSeekAhead: boolean) => void
-  loadVideoById?: (
-    videoId:
-      | string
-      | { videoId: string; startSeconds?: number; endSeconds?: number },
-  ) => void
-}
+import { SectionHeading } from "@/components/hp/section-heading"
+import {
+  callReadyPlayerMethod,
+  getBackgroundPlayerVars,
+  getReadyPlayerDuration,
+  loadYouTubeIframeApi,
+  stopAndDestroyPlayer,
+  type YouTubePlayer,
+  type YouTubePlayerStateChangeEvent,
+} from "@/components/hp/youtube-iframe"
 
 type ActiveVideoModal = {
   videoId: string
   label: string
 }
 
-type YouTubePlayerConstructor = new (
-  element: HTMLElement,
-  options: {
-    videoId?: string
-    playerVars?: Record<string, string | number>
-    events?: {
-      onReady?: (event: { target: YouTubePlayer }) => void
-      onStateChange?: (event: YouTubePlayerStateChangeEvent) => void
-      onError?: (event: YouTubePlayerErrorEvent) => void
-    }
-  },
-) => YouTubePlayer
-
-declare global {
-  interface Window {
-    YT?: {
-      Player: YouTubePlayerConstructor
-      PlayerState: {
-        ENDED: number
-        PLAYING: number
-      }
-    }
-    onYouTubeIframeAPIReady?: () => void
-  }
-}
-
 type YouTubePlayerVarsOptions = {
   loop?: boolean
 }
 
-let youtubeApiPromise: Promise<void> | null = null
-const YOUTUBE_ORIGIN = "https://www.youtube.com"
 const STARTUP_COVER_HOLD_MS = 5000
 const MARQUEE_LOOP_SECONDS = 72
 const MARQUEE_INPUT_IDLE_MS = 1300
@@ -161,41 +118,6 @@ export function getFeaturedWorkMarqueeProgressBarGeometry({
     thumbWidth,
     thumbTranslateX,
   }
-}
-
-function loadYouTubeIframeApi() {
-  if (typeof window === "undefined") {
-    return Promise.resolve()
-  }
-
-  if (!document.querySelector(`link[rel="preconnect"][href="${YOUTUBE_ORIGIN}"]`)) {
-    const preconnect = document.createElement("link")
-    preconnect.rel = "preconnect"
-    preconnect.href = YOUTUBE_ORIGIN
-    preconnect.crossOrigin = "anonymous"
-    document.head.appendChild(preconnect)
-  }
-
-  if (window.YT?.Player) {
-    return Promise.resolve()
-  }
-
-  youtubeApiPromise ??= new Promise((resolve) => {
-    const previousReady = window.onYouTubeIframeAPIReady
-    window.onYouTubeIframeAPIReady = () => {
-      previousReady?.()
-      resolve()
-    }
-
-    if (!document.querySelector(`script[src="${YOUTUBE_ORIGIN}/iframe_api"]`)) {
-      const script = document.createElement("script")
-      script.src = `${YOUTUBE_ORIGIN}/iframe_api`
-      script.async = true
-      document.head.appendChild(script)
-    }
-  })
-
-  return youtubeApiPromise
 }
 
 function useHasEnteredViewport<T extends HTMLElement>() {
@@ -634,18 +556,14 @@ function useScrollableMarquee(
 function PreviewFrame({
   children,
   abstractCover = false,
-  background,
 }: {
   children: ReactNode
   abstractCover?: boolean
-  background?: string
 }) {
   return (
     <div
-      className="relative -mx-4 -mt-4 aspect-video overflow-hidden rounded-none md:-mx-5 md:-mt-5"
+      className="relative aspect-video overflow-hidden bg-[var(--hp-color-surface-raised)]"
       data-featured-work-abstract-cover={abstractCover ? "true" : undefined}
-      data-hp-color-field={abstractCover ? "cinematic-neutral" : undefined}
-      style={background ? { background } : undefined}
     >
       {children}
     </div>
@@ -718,61 +636,38 @@ function PreviewThumbnail({
   )
 }
 
-function WorkLinkBadges({
+function WorkLinks({
   links,
   workTitle,
   clone = false,
   hideYouTube = false,
-  layout = "inline",
 }: {
   links: FeaturedWorkLink[]
   workTitle: string
   clone?: boolean
   hideYouTube?: boolean
-  layout?: "inline" | "two-row"
 }) {
   const visibleLinks = hideYouTube
     ? links.filter((link) => link.label !== "YouTube")
     : links
 
-  const renderBadge = (link: FeaturedWorkLink) => (
-    <a
-      key={`${link.label}:${link.url}`}
-      href={link.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      tabIndex={clone ? -1 : undefined}
-      className="glass-badge px-2.5 py-1 text-[0.64rem] leading-none transition-colors hover:bg-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-      aria-label={clone ? undefined : `${workTitle} ${link.label}を新しいタブで開く`}
-      data-featured-work-link-badge={link.label}
-    >
-      {link.label}
-    </a>
-  )
-
-  if (layout === "two-row") {
-    return (
-      <div
-        className="flex flex-col items-end justify-end gap-1.5"
-        data-featured-work-link-badges="inline"
-        data-featured-work-link-badges-layout="two-row"
-      >
-        <div className="flex justify-end gap-1.5" data-featured-work-link-badge-row="top">
-          {visibleLinks.slice(0, 2).map(renderBadge)}
-        </div>
-        <div className="flex justify-end gap-1.5" data-featured-work-link-badge-row="bottom">
-          {visibleLinks.slice(2).map(renderBadge)}
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div
-      className="flex flex-wrap justify-end gap-1.5"
-      data-featured-work-link-badges="inline"
-    >
-      {visibleLinks.map(renderBadge)}
+    <div className="flex flex-wrap gap-x-5" data-featured-work-links="inline">
+      {visibleLinks.map((link) => (
+        <a
+          key={`${link.label}:${link.url}`}
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          tabIndex={clone ? -1 : undefined}
+          className="hp-plain-link inline-flex min-h-11 items-center gap-1 font-[var(--font-inter)] text-xs tracking-[0.08em]"
+          aria-label={clone ? undefined : `${workTitle} ${link.label}を新しいタブで開く`}
+          data-featured-work-link={link.label}
+        >
+          {link.label}
+          <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+        </a>
+      ))}
     </div>
   )
 }
@@ -1012,46 +907,6 @@ function getPlayableDuration(durationSeconds: number) {
     : 30
 }
 
-function callReadyPlayerMethod(
-  player: YouTubePlayer | null,
-  isReady: boolean,
-  method: Exclude<keyof YouTubePlayer, "getDuration">,
-  ...args: unknown[]
-) {
-  if (!isReady || !player) {
-    return false
-  }
-
-  const playerMethod = player[method]
-  if (typeof playerMethod !== "function") {
-    return false
-  }
-
-  try {
-    ;(playerMethod as (...methodArgs: unknown[]) => unknown).apply(player, args)
-    return true
-  } catch {
-    return false
-  }
-}
-
-function getReadyPlayerDuration(player: YouTubePlayer, isReady: boolean) {
-  if (!isReady || typeof player.getDuration !== "function") {
-    return 0
-  }
-
-  try {
-    return player.getDuration()
-  } catch {
-    return 0
-  }
-}
-
-function stopAndDestroyPlayer(player: YouTubePlayer | null, isReady: boolean) {
-  callReadyPlayerMethod(player, isReady, "stopVideo")
-  callReadyPlayerMethod(player, isReady, "destroy")
-}
-
 export function getPreviewClipWindow(
   video: FeaturedWorkPreviewVideo,
   durationSeconds: number,
@@ -1079,16 +934,7 @@ export function getYouTubePlayerVars(
   const shouldLoop = options.loop ?? Boolean(videoId)
 
   return {
-    autoplay: 1,
-    controls: 0,
-    disablekb: 1,
-    fs: 0,
-    iv_load_policy: 3,
-    modestbranding: 1,
-    mute: 1,
-    origin: window.location.origin,
-    playsinline: 1,
-    rel: 0,
+    ...getBackgroundPlayerVars(),
     ...(shouldLoop && videoId ? { loop: 1, playlist: videoId } : {}),
     ...(fixedClip
       ? {
@@ -1400,29 +1246,6 @@ function VideoSurface({
   )
 }
 
-function updateFeaturedWorkTilt(
-  event: React.PointerEvent<HTMLDivElement>,
-) {
-  const bounds = event.currentTarget.getBoundingClientRect()
-  const x = Math.min(
-    Math.max((event.clientX - bounds.left) / Math.max(bounds.width, 1), 0),
-    1,
-  )
-  const y = Math.min(
-    Math.max((event.clientY - bounds.top) / Math.max(bounds.height, 1), 0),
-    1,
-  )
-
-  event.currentTarget.style.setProperty(
-    "--featured-work-tilt-x",
-    `${(0.5 - y) * 3}deg`,
-  )
-  event.currentTarget.style.setProperty(
-    "--featured-work-tilt-y",
-    `${(x - 0.5) * 3}deg`,
-  )
-}
-
 function FeaturedWorkCard({
   work,
   shouldStartVideo,
@@ -1447,12 +1270,11 @@ function FeaturedWorkCard({
   return (
     <div
       ref={cardRef}
-      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
+      className="featured-work-card group flex shrink-0 flex-col"
       aria-label={clone ? undefined : `${work.title} 作品カード`}
       data-featured-work-card={work.title}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
       data-featured-work-marquee-segment-start={segmentStart}
-      onPointerMove={updateFeaturedWorkTilt}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         {work.videos && work.videos.length > 1 ? (
@@ -1484,31 +1306,24 @@ function FeaturedWorkCard({
             />
           </PreviewFrame>
         ) : (
-          <PreviewFrame abstractCover background={MARS_ABSTRACT_COVER_BACKGROUND}>
-            <div className="absolute inset-0 z-10 flex flex-wrap content-end items-end justify-end gap-1.5 p-3 md:p-4">
-              <WorkLinkBadges
-                links={work.links}
-                workTitle={work.title}
-                clone={clone}
-                layout="two-row"
-              />
-            </div>
+          <PreviewFrame abstractCover>
+            <p className="absolute inset-0 flex items-center justify-center text-[clamp(1.75rem,3vw,2.75rem)] tracking-[0.24em] text-hp-muted">
+              {work.title}
+            </p>
           </PreviewFrame>
         )}
-        <div className="featured-work-card-meta mt-4">
-          <p className="text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
+        <div className="featured-work-card-meta mt-5 flex flex-col gap-1">
+          <p className="text-[clamp(1.0625rem,1.35vw,1.25rem)] font-medium leading-relaxed tracking-[0.04em] text-hp">
             {work.title}
           </p>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <p className="text-xs text-hp-muted md:text-sm">{work.client}</p>
-            {work.youtubeId ? (
-              <WorkLinkBadges
-                links={work.links}
-                workTitle={work.title}
-                clone={clone}
-                hideYouTube
-              />
-            ) : null}
+          <div className="flex flex-wrap items-center gap-x-5 text-[0.8125rem] tracking-[0.08em] text-hp-muted">
+            <p>{work.client}</p>
+            <WorkLinks
+              links={work.links}
+              workTitle={work.title}
+              clone={clone}
+              hideYouTube={Boolean(work.youtubeId)}
+            />
           </div>
         </div>
       </div>
@@ -1829,7 +1644,7 @@ function PlaylistWorkCard({
   return (
     <div
       ref={cardRef}
-      className="featured-work-transparent-card group flex shrink-0 flex-col overflow-hidden rounded-none p-4 md:p-5"
+      className="featured-work-card group flex shrink-0 flex-col"
       aria-label={clone ? undefined : `${work.title}のランダムループ再生カード`}
       data-featured-work-card={work.title}
       data-featured-work-playlist-card={work.title}
@@ -1837,7 +1652,6 @@ function PlaylistWorkCard({
       data-featured-work-playlist-video-ids={playlistVideoIds}
       data-featured-work-video-near-viewport={isNearViewport ? "true" : "false"}
       data-featured-work-marquee-segment-start={segmentStart}
-      onPointerMove={updateFeaturedWorkTilt}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <PreviewFrame>
@@ -1850,12 +1664,12 @@ function PlaylistWorkCard({
             onOpenVideo={onOpenVideo}
           />
         </PreviewFrame>
-        <div className="featured-work-card-meta mt-4">
-          <p className="text-sm font-semibold leading-snug text-hp md:text-[0.95rem]">
+        <div className="featured-work-card-meta mt-5 flex flex-col gap-1">
+          <p className="text-[clamp(1.0625rem,1.35vw,1.25rem)] font-medium leading-relaxed tracking-[0.04em] text-hp">
             {work.title}
           </p>
           {work.client ? (
-            <p className="mt-3 text-xs text-hp-muted md:text-sm">{work.client}</p>
+            <p className="text-[0.8125rem] leading-[2.75rem] tracking-[0.08em] text-hp-muted">{work.client}</p>
           ) : null}
         </div>
       </div>
@@ -1918,39 +1732,9 @@ export function FeaturedWorks() {
   return (
     <div className="hp-featured-works-block">
       <style>{`
-        .featured-work-transparent-card {
-          --featured-work-tilt-x: 0deg;
-          --featured-work-tilt-y: 0deg;
-          box-shadow: none;
-          isolation: isolate;
-          outline: 1px solid transparent;
-          outline-offset: -1px;
-          position: relative;
-          transition:
-            outline-color 150ms var(--ease-out-strong),
-            box-shadow 150ms var(--ease-out-strong),
-            transform var(--motion-duration-press) var(--ease-out-strong);
-          width: min(72vw, 260px);
-        }
-
-        .featured-work-transparent-card:is(:hover, :focus-within) {
-          box-shadow: var(--hp-shadow-soft);
-          outline-color: var(--glass-border);
-          transform: perspective(800px) rotateX(var(--featured-work-tilt-x)) rotateY(var(--featured-work-tilt-y));
-        }
-
-        .featured-work-transparent-card:active {
-          transform: scale(0.985);
-        }
-
-        .featured-work-transparent-card:hover:active {
-          transform: perspective(800px) rotateX(var(--featured-work-tilt-x)) rotateY(var(--featured-work-tilt-y)) scale(0.985);
-        }
-
-        @media (min-width: 1280px) {
-          .featured-work-transparent-card {
-            width: 390px;
-          }
+        .featured-work-card {
+          margin-right: clamp(1rem, 1.8vw, 1.75rem);
+          width: clamp(17.5rem, 34vw, 32.5rem);
         }
 
         [data-featured-work-marquee-segment] {
@@ -1965,20 +1749,18 @@ export function FeaturedWorks() {
           display: none;
         }
       `}</style>
-      <div className="hp-grid">
-        <p className="hp-section-heading text-xs uppercase tracking-[0.22em] text-hp-muted">
-          Featured Works
-        </p>
+      <div className="hp-section-shell">
+        <SectionHeading index="02" latin="Featured Works" label="作品" />
       </div>
 
       <div
-        className="relative mt-6"
+        className="relative mt-[clamp(2.25rem,4vw,3.5rem)]"
         data-featured-work-marquee-shell
       >
         <div
           id={marqueeViewportId}
           ref={marqueeRef}
-          className="featured-work-content-viewport relative mx-[calc(50%-50vw)] overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
+          className="featured-work-content-viewport relative overflow-x-auto overflow-y-hidden pb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
           aria-label="Featured Works"
           tabIndex={0}
           data-featured-work-marquee-viewport="true"
@@ -2012,24 +1794,26 @@ export function FeaturedWorks() {
               </div>
           </div>
         </div>
-          <div
-            ref={progressTrackRef}
-            className="h-1 w-full cursor-pointer overflow-hidden rounded-full bg-white/60"
-            data-featured-work-marquee-progress-track="true"
-          >
+          <div className="hp-section-shell mt-4">
             <div
-              ref={progressThumbRef}
-              className="h-full touch-none rounded-full bg-[var(--hp-color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
-              role="scrollbar"
-              tabIndex={0}
-              aria-label="Featured Works scrollbar"
-              aria-controls={marqueeViewportId}
-              aria-orientation="horizontal"
-              aria-valuemin={0}
-              aria-valuemax={1000}
-              aria-valuenow={0}
-              data-featured-work-marquee-progress-thumb="true"
-            />
+              ref={progressTrackRef}
+              className="h-[2px] w-full cursor-pointer bg-[var(--hp-color-rule)]"
+              data-featured-work-marquee-progress-track="true"
+            >
+              <div
+                ref={progressThumbRef}
+                className="h-full touch-none bg-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
+                role="scrollbar"
+                tabIndex={0}
+                aria-label="Featured Works scrollbar"
+                aria-controls={marqueeViewportId}
+                aria-orientation="horizontal"
+                aria-valuemin={0}
+                aria-valuemax={1000}
+                aria-valuenow={0}
+                data-featured-work-marquee-progress-thumb="true"
+              />
+            </div>
           </div>
       </div>
       <FeaturedWorkVideoDialog

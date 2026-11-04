@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Serif_JP, Noto_Sans_JP, Inter, Geist_Mono } from "next/font/google";
+import { Instrument_Serif, Noto_Serif_JP, Noto_Sans_JP, Inter, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import "@/components/booking/booking-calendar.css";
@@ -26,6 +26,14 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   weight: ["400", "600", "700"],
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  variable: "--font-latin-display",
+  weight: "400",
+  style: ["normal", "italic"],
   display: "swap",
 });
 
@@ -56,7 +64,7 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${notoSerifJP.variable} ${notoSansJP.variable} ${inter.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${notoSerifJP.variable} ${notoSansJP.variable} ${inter.variable} ${instrumentSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <NavHeader />
@@ -65,7 +73,7 @@ export default function RootLayout({
         </main>
         <footer
           className="px-6 py-8 text-center text-sm text-hp-muted"
-          style={{ background: "rgba(248, 246, 255, 0.85)", borderTop: "1px solid rgba(255,255,255,0.6)" }}
+          style={{ background: "var(--hp-footer-bg)", borderTop: "1px solid var(--hp-footer-border)" }}
         >
           <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-center gap-3 md:flex-row md:gap-6">
             <p>&copy; 2026 {SITE_COMPANY_NAME}. All rights reserved.</p>

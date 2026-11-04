@@ -129,7 +129,6 @@ describe("FeaturedWorks", () => {
     expect(track).not.toHaveClass("gap-4")
     expect(track).not.toHaveClass("md:gap-5")
     expect(track).not.toHaveClass("px-8")
-    expect(viewport).toHaveClass("mx-[calc(50%-50vw)]")
     expect(track).not.toHaveClass("will-change-transform")
     expect(track?.textContent).toContain("火星の女王")
     expect(primary.querySelectorAll("[data-featured-work-card]")).toHaveLength(
@@ -156,28 +155,20 @@ describe("FeaturedWorks", () => {
     )
   })
 
-  it("keeps preview and metadata independent from hover while using a transform tilt without a reflection highlight", () => {
+  it("keeps cards flat without tilt and sizes them from the viewport width", () => {
     const { container } = render(<FeaturedWorks />)
     const card = screen.getByLabelText("十角館の殺人 / 時計館の殺人 作品カード")
     const thumbnail = card.querySelector("[data-featured-work-preview-thumbnail]")
     const styles = container.querySelector("style")?.textContent
 
-    expect(card).not.toHaveClass("hover:-translate-y-0.5")
+    expect(card).toHaveClass("featured-work-card")
     expect(card.querySelector(".featured-work-card-meta")).toBeInTheDocument()
     expect(thumbnail).toHaveClass("transition-opacity")
-    expect(styles).toContain("outline-color 150ms var(--ease-out-strong)")
-    expect(styles).toContain("transform: scale(0.985)")
-    expect(styles).not.toContain(".featured-work-transparent-card::before")
-    expect(styles).not.toContain("var(--hp-color-accent-focus-ring)")
-    expect(styles).not.toContain("--featured-work-reflection-x")
-    expect(styles).toContain("rotateX(var(--featured-work-tilt-x))")
-    expect(styles).toContain("rotateY(var(--featured-work-tilt-y))")
-    expect(styles).toContain("width: 390px")
+    expect(styles).toContain("width: clamp(17.5rem, 34vw, 32.5rem)")
+    expect(styles).not.toContain("--featured-work-tilt-x")
 
     fireEvent.pointerMove(card, { clientX: 120, clientY: 80 })
-    expect(card).not.toHaveStyle("--featured-work-reflection-x: 120px")
-    expect(card).toHaveStyle("--featured-work-tilt-x: -1.5deg")
-    expect(card).toHaveStyle("--featured-work-tilt-y: 1.5deg")
+    expect(card.getAttribute("style")).toBeNull()
   })
 
   it("pauses autoplay from input events without relying on scroll events", () => {
@@ -1379,13 +1370,9 @@ describe("FeaturedWorks", () => {
     for (const frame of previewFrames) {
       expect(frame).toHaveClass("aspect-video")
       expect(frame).toHaveClass("overflow-hidden")
-      expect(frame).toHaveClass("-mt-4")
-      expect(frame).toHaveClass("-mx-4")
-      expect(frame).toHaveClass("rounded-none")
-      expect(frame).not.toHaveClass("rounded-t-[12px]")
+      expect(frame).not.toHaveClass("-mt-4")
       expect(frame).not.toHaveClass("rounded-[12px]")
       expect(frame).not.toHaveClass("border")
-      expect(frame).not.toHaveClass("bg-white/35")
     }
 
     for (const thumbnail of thumbnailCovers) {
@@ -1400,139 +1387,58 @@ describe("FeaturedWorks", () => {
 
     for (const work of FEATURED_WORKS) {
       const card = screen.getByLabelText(`${work.title} 作品カード`)
-      expect(card).toHaveClass("overflow-hidden")
-      expect(card).toHaveClass("featured-work-transparent-card")
-      expect(card).toHaveClass("rounded-none")
+      expect(card).toHaveClass("featured-work-card")
       expect(card).not.toHaveClass("glass-card-sm")
-      expect(card).not.toHaveClass("glass-refraction-edge")
-      expect(card).not.toHaveClass("glass-distortion-surface")
     }
     const liveReelCard = screen.getByLabelText("ライブ映像作品のランダムループ再生カード")
-    expect(liveReelCard).toHaveClass("overflow-hidden")
-    expect(liveReelCard).toHaveClass("featured-work-transparent-card")
-    expect(liveReelCard).toHaveClass("rounded-none")
+    expect(liveReelCard).toHaveClass("featured-work-card")
     expect(liveReelCard).not.toHaveClass("glass-card-sm")
-    expect(liveReelCard).not.toHaveClass("glass-refraction-edge")
-    expect(liveReelCard).not.toHaveClass("glass-distortion-surface")
   })
 
-  it("places video work badge groups inline with clients", () => {
+  it("shows work links as text links beside the client, without the YouTube link", () => {
     const { container } = render(<FeaturedWorks />)
 
-    for (const work of FEATURED_WORKS.filter((item) => item.youtubeId)) {
+    for (const work of FEATURED_WORKS) {
       const card = screen.getByLabelText(`${work.title} 作品カード`)
-      const badges = card.querySelector('[data-featured-work-link-badges="inline"]')
-      expect(badges).toBeInTheDocument()
-      expect(badges).toHaveClass("flex")
-      expect(badges).toHaveClass("justify-end")
-      expect(badges?.querySelector('[data-featured-work-link-badge="YouTube"]')).toBeNull()
-      expect(badges).not.toHaveClass("absolute")
-      expect(badges).not.toHaveClass("mt-3")
-      expect(badges).not.toHaveClass("bottom-2")
-      expect(badges).not.toHaveClass("right-2")
-      expect(badges).not.toHaveClass("z-30")
-
-      const title = Array.from(card.querySelectorAll("p")).find(
-        (element) => element.textContent === work.title,
-      )
+      const links = card.querySelector('[data-featured-work-links="inline"]')
       const client = Array.from(card.querySelectorAll("p")).find(
         (element) => element.textContent === work.client,
       )
-      const meta = title?.parentElement
-      const metaRow = title?.nextElementSibling
-      expect(title).toBeInTheDocument()
       expect(client).toBeInTheDocument()
-      expect(meta).toHaveClass("featured-work-card-meta")
-      expect(metaRow).toBe(client?.parentElement)
-      expect(badges?.parentElement).toBe(client?.parentElement)
-      expect(metaRow).toHaveClass("mt-3")
-      expect(metaRow).toHaveClass("flex")
+      expect(links?.parentElement).toBe(client?.parentElement)
+      if (work.youtubeId) {
+        expect(links?.querySelector('[data-featured-work-link="YouTube"]')).toBeNull()
+      }
+
+      for (const link of work.links.filter((item) => !work.youtubeId || item.label !== "YouTube")) {
+        const anchor = links?.querySelector(`[data-featured-work-link="${link.label}"]`)
+        expect(anchor).toHaveAttribute("href", link.url)
+        expect(anchor).toHaveAttribute("target", "_blank")
+        expect(anchor).toHaveAttribute("rel", "noopener noreferrer")
+        expect(anchor).toHaveAttribute("aria-label", `${work.title} ${link.label}を新しいタブで開く`)
+      }
     }
 
     const primary = getPrimarySegment(container)
-    const badgeGroups = primary.querySelectorAll("[data-featured-work-link-badges]")
-    expect(badgeGroups).toHaveLength(FEATURED_WORKS.length)
+    expect(primary.querySelectorAll("[data-featured-work-links]")).toHaveLength(FEATURED_WORKS.length)
     expect(
       screen
         .getByLabelText("ライブ映像作品のランダムループ再生カード")
-        .querySelector("[data-featured-work-link-badges]"),
+        .querySelector("[data-featured-work-links]"),
     ).toBeNull()
   })
 
-  it("places Mars badges inside an abstract cover without media", () => {
-    const { container } = render(<FeaturedWorks />)
-    const mars = FEATURED_WORKS.find((work) => work.title === "火星の女王")
-    expect(mars).toBeDefined()
-
+  it("shows Mars as a titled abstract cover without media", () => {
+    render(<FeaturedWorks />)
     const card = screen.getByLabelText("火星の女王 作品カード")
-    const abstractCover = card.querySelector(
-      '[data-featured-work-abstract-cover="true"]',
-    )
-    const badges = abstractCover?.querySelector(
-      '[data-featured-work-link-badges="inline"]',
-    )
-    const title = Array.from(card.querySelectorAll("p")).find(
-      (element) => element.textContent === "火星の女王",
-    )
-    const client = Array.from(card.querySelectorAll("p")).find(
-      (element) => element.textContent === mars?.client,
-    )
-    const metaRow = title?.nextElementSibling
+    const abstractCover = card.querySelector('[data-featured-work-abstract-cover="true"]')
 
     expect(abstractCover).toHaveClass("aspect-video")
-    expect(abstractCover).toHaveClass("overflow-hidden")
-    expect(abstractCover).toHaveClass("-mt-4")
-    expect(abstractCover).toHaveClass("-mx-4")
-    expect(abstractCover).toHaveClass("rounded-none")
-    expect(abstractCover).not.toHaveClass("rounded-t-[12px]")
+    expect(abstractCover).toHaveTextContent("火星の女王")
     expect(abstractCover?.querySelector("img")).toBeNull()
-    expect(abstractCover?.querySelector('[data-featured-work-preview-media]')).toBeNull()
-    expect(abstractCover?.querySelector("iframe")).toBeNull()
-    expect(abstractCover).toHaveAttribute("data-hp-color-field", "cinematic-neutral")
-    expect(abstractCover?.querySelector('[data-hp-abstract-art="mars"]')).toBeNull()
-    expect(badges).toBeInTheDocument()
-    expect(badges).toHaveAttribute("data-featured-work-link-badges-layout", "two-row")
-    expect(title).toBeInTheDocument()
-    expect(abstractCover?.nextElementSibling).toBe(title?.parentElement)
-    expect(client).toBeInTheDocument()
-    expect(metaRow).toBe(client?.parentElement)
-    expect(metaRow?.querySelector("[data-featured-work-link-badges]")).toBeNull()
-
-    for (const link of mars?.links ?? []) {
-      const badge = abstractCover?.querySelector(
-        `[data-featured-work-link-badge="${link.label}"]`,
-      )
-      expect(badge).toHaveAttribute("href", link.url)
-      expect(badge).toHaveAttribute("target", "_blank")
-      expect(badge).toHaveAttribute("rel", "noopener noreferrer")
-      expect(badge).toHaveAttribute(
-        "aria-label",
-        `火星の女王 ${link.label}を新しいタブで開く`,
-      )
-    }
-
-    expect((mars?.links ?? []).map((link) => link.label)).toEqual([
-      "公式ホームページ",
-    ])
-
-    const rows = badges?.querySelectorAll("[data-featured-work-link-badge-row]")
-    expect(rows).toHaveLength(2)
-    expect(rows?.[0]).toHaveAttribute("data-featured-work-link-badge-row", "top")
-    expect(rows?.[1]).toHaveAttribute("data-featured-work-link-badge-row", "bottom")
-    expect(
-      Array.from(rows?.[0]?.querySelectorAll("[data-featured-work-link-badge]") ?? [])
-        .map((badge) => badge.textContent),
-    ).toEqual(["公式ホームページ"])
-    expect(
-      Array.from(rows?.[1]?.querySelectorAll("[data-featured-work-link-badge]") ?? [])
-        .map((badge) => badge.textContent),
-    ).toEqual([])
-
-    expect(
-      getPrimarySegment(container).querySelectorAll(
-        '[data-featured-work-abstract-cover="true"]',
-      ),
-    ).toHaveLength(1)
+    expect(abstractCover?.querySelector("[data-featured-work-preview-media]")).toBeNull()
+    expect(abstractCover?.querySelector("a")).toBeNull()
+    expect(card.querySelector('[data-featured-work-link="公式ホームページ"]')).toBeInTheDocument()
   })
 
   it("prepares YouTube API players behind thumbnail covers", () => {

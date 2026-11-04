@@ -53,67 +53,40 @@ describe("NavHeader navigation", () => {
     vi.restoreAllMocks()
   })
 
-  it("keeps labels and destinations while ordering navigation as home notes profile", () => {
+  const NAV_LABELS = ["作品", "ノート", "プロフィール", "登壇・掲載"]
+  const NAV_HREFS = ["/#works", "/#philosophy", "/#profile", "/#press"]
+
+  function readItems(items: Element[]) {
+    return items.map((item) => [item.textContent?.trim(), item.querySelector("a")?.getAttribute("href")])
+  }
+
+  it("orders navigation as works, notes, profile, press on desktop and mobile", () => {
     const { container } = render(<NavHeader />)
 
-    const desktopItems = Array.from(
-      container.querySelectorAll("ul.hidden.md\\:flex > li"),
-    )
-    expect(desktopItems.map((item) => item.textContent?.trim())).toEqual([
-      "ホーム",
-      "ノート",
-      "プロフィール",
-    ])
-    expect(desktopItems[0]?.querySelector("a")).toHaveAttribute("href", "/")
-    expect(desktopItems[1]?.querySelector("a")).toHaveAttribute(
-      "href",
-      "/#philosophy",
-    )
-    expect(desktopItems[2]?.querySelector("a")).toHaveAttribute("href", "/#profile")
+    const expected = NAV_LABELS.map((label, index) => [label, NAV_HREFS[index]])
+    const desktopItems = Array.from(container.querySelectorAll("ul.hidden.md\\:flex > li"))
+    expect(readItems(desktopItems)).toEqual(expected)
     expect(screen.queryByRole("button", { name: "お問い合わせ" })).not.toBeInTheDocument()
 
     screen.getByRole("button", { name: "メニューを開く" }).click()
     const mobileMenu = Array.from(container.querySelectorAll("header ul")).at(-1)
-    const mobileItems = Array.from(mobileMenu?.querySelectorAll("li") ?? [])
-    expect(mobileItems.map((item) => item.textContent?.trim())).toEqual([
-      "ホーム",
-      "ノート",
-      "プロフィール",
-    ])
-    expect(mobileItems[0]?.querySelector("a")).toHaveAttribute("href", "/")
-    expect(mobileItems[1]?.querySelector("a")).toHaveAttribute(
-      "href",
-      "/#philosophy",
-    )
-    expect(mobileItems[2]?.querySelector("a")).toHaveAttribute("href", "/#profile")
-    expect(screen.queryByRole("button", { name: "お問い合わせ" })).not.toBeInTheDocument()
+    expect(readItems(Array.from(mobileMenu?.querySelectorAll("li") ?? []))).toEqual(expected)
   })
 
-  it("shows the booking calendar link after profile when booking is enabled", () => {
+  it("shows the booking calendar link last when booking is enabled", () => {
     featureFlags.isBookingEnabled.mockReturnValue(true)
 
     const { container } = render(<NavHeader />)
 
-    const desktopItems = Array.from(
-      container.querySelectorAll("ul.hidden.md\\:flex > li"),
-    )
-    expect(desktopItems.map((item) => item.textContent?.trim())).toEqual([
-      "ホーム",
-      "ノート",
-      "プロフィール",
-      "予約カレンダー",
-    ])
-    expect(desktopItems[3]?.querySelector("a")).toHaveAttribute("href", "/#schedule")
+    const expected = [
+      ...NAV_LABELS.map((label, index) => [label, NAV_HREFS[index]]),
+      ["予約カレンダー", "/#schedule"],
+    ]
+    const desktopItems = Array.from(container.querySelectorAll("ul.hidden.md\\:flex > li"))
+    expect(readItems(desktopItems)).toEqual(expected)
 
     screen.getByRole("button", { name: "メニューを開く" }).click()
     const mobileMenu = Array.from(container.querySelectorAll("header ul")).at(-1)
-    const mobileItems = Array.from(mobileMenu?.querySelectorAll("li") ?? [])
-    expect(mobileItems.map((item) => item.textContent?.trim())).toEqual([
-      "ホーム",
-      "ノート",
-      "プロフィール",
-      "予約カレンダー",
-    ])
-    expect(mobileItems[3]?.querySelector("a")).toHaveAttribute("href", "/#schedule")
+    expect(readItems(Array.from(mobileMenu?.querySelectorAll("li") ?? []))).toEqual(expected)
   })
 })
