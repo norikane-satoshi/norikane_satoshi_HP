@@ -1,5 +1,16 @@
-import { ArrowUpRight } from "lucide-react"
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
+import { ArrowUpRight, X } from "lucide-react"
+import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { PRESS_CATEGORIES, type PressItem, type PressLink } from "@/components/hp/press-data"
+
+const focusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",")
 
 /** 「2026年10月」「2024年」を並べ替え用の数値（年×100＋月）にする。 */
 function getPeriodSortKey(period: string) {
@@ -20,26 +31,26 @@ function sortByPeriod(items: readonly PressItem[]) {
 }
 
 /** 登壇・掲載の一覧。カテゴリごとに新しい順で並べる。 */
-export function PressList() {
+function PressList() {
   return (
     <div className="flex flex-col">
       {PRESS_CATEGORIES.map((category) => (
         <section
           key={category.title}
           aria-labelledby={`press-${category.title}`}
-          className="mt-[clamp(2.5rem,4.5vw,4rem)] flex flex-wrap gap-x-16 gap-y-4"
+          className="flex flex-wrap gap-x-12 gap-y-2 [&+&]:mt-10"
         >
           <h3
             id={`press-${category.title}`}
-            className="flex-[1_1_13.75rem] break-normal pt-6 text-[0.9375rem] font-medium tracking-[0.16em] text-hp-muted"
+            className="flex-[1_1_10rem] break-normal pt-6 text-[0.9375rem] font-medium tracking-[0.16em] text-hp-muted"
           >
             {category.title}
           </h3>
-          <ul className="min-w-0 flex-[3_1_35rem]">
+          <ul className="min-w-0 flex-[3_1_30rem]">
             {sortByPeriod(category.items).map((item) => (
               <li
                 key={`${item.period}-${item.title}`}
-                className="hp-rule-bottom grid grid-cols-[minmax(5.25rem,7.5rem)_minmax(0,1fr)] gap-x-5 gap-y-2 py-6"
+                className="hp-rule-bottom grid gap-x-5 gap-y-2 py-6 sm:grid-cols-[minmax(5.25rem,7.5rem)_minmax(0,1fr)]"
                 data-press-item
               >
                 <p className="pt-1 font-[var(--font-inter)] text-xs tracking-[0.1em] text-hp-muted">
@@ -72,5 +83,131 @@ export function PressList() {
         </section>
       ))}
     </div>
+  )
+}
+
+/**
+ * プロフィール欄の「登壇・掲載」ボタンと、その一覧を出すモーダル。
+ * URL が #press のときも開く（ナビの「登壇・掲載」から来た場合）。
+ */
+export function PressDialog() {
+  const [open, setOpen] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const close = useCallback(() => setOpen(false), [])
+
+  useEffect(() => {
+    const openFromHash = () => {
+      if (window.location.hash === "#press") setOpen(true)
+    }
+    openFromHash()
+    window.addEventListener("hashchange", openFromHash)
+    return () => window.removeEventListener("hashchange", openFromHash)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+
+    const previousOverflow = document.body.style.overflow
+    const previousActiveElement =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const triggerElement = triggerRef.current
+    document.body.style.overflow = "hidden"
+    closeButtonRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        close()
+        return
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return
+
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector))
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!first || !last) {
+        event.preventDefault()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener("keydown", handleKeyDown)
+      if (window.location.hash === "#press") {
+        history.replaceState(null, "", window.location.pathname + window.location.search)
+      }
+      if (previousActiveElement?.isConnected) {
+        previousActiveElement.focus()
+      } else {
+        triggerElement?.focus()
+      }
+    }
+  }, [close, open])
+
+  const dialog =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            data-hp-theme="noir"
+            className="fixed inset-0 flex items-center justify-center bg-[rgba(5,5,5,0.78)] p-4 md:p-8"
+            style={{ zIndex: HP_MODAL_OVERLAY_Z_INDEX }}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) close()
+            }}
+          >
+            <div
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="登壇・メディア掲載 / 実績"
+              className="press-dialog-surface flex max-h-[min(86vh,820px)] w-full max-w-5xl flex-col overflow-hidden border border-[var(--hp-color-rule)] bg-[var(--bg-base)] p-6 md:p-10"
+            >
+              <div className="hp-section-heading-row !flex-nowrap !items-start">
+                <h2 className="text-[clamp(1.25rem,2vw,1.75rem)] font-medium tracking-[0.08em] text-hp">
+                  登壇・メディア掲載 / 実績
+                </h2>
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  className="hp-plain-link flex h-11 w-11 shrink-0 items-center justify-center"
+                  aria-label="実績ダイアログを閉じる"
+                  onClick={close}
+                >
+                  <X className="h-5 w-5" strokeWidth={1.25} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="overflow-y-auto pr-1 md:pr-2">
+                <PressList />
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="hp-plain-link inline-flex min-h-11 items-center gap-1.5 [font-family:var(--font-mincho),serif]"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        登壇・掲載
+        <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      {dialog}
+    </>
   )
 }

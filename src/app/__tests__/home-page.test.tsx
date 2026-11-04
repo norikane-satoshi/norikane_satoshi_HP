@@ -37,18 +37,18 @@ describe("HomePage", () => {
     cleanup()
   })
 
-  it("renders the noir page with sections in works, notes, profile, press order", async () => {
+  it("renders the noir page with sections in works, notes, profile order", async () => {
     const { container } = render(await HomePage())
 
     const page = container.firstElementChild
     expect(page).toHaveAttribute("data-hp-theme", "noir")
     expect(
       Array.from(container.querySelectorAll("section[id]"), (section) => section.id),
-    ).toEqual(["works", "philosophy", "profile", "press"])
+    ).toEqual(["works", "philosophy", "profile"])
     expect(screen.getByTestId("featured-works")).toBeInTheDocument()
     expect(screen.getByRole("heading", { level: 2, name: "Notes" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { level: 2, name: "Profile" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { level: 2, name: "Talks & Press" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { level: 2, name: "Talks & Press" })).not.toBeInTheDocument()
     expect(container.querySelector("#schedule")).not.toBeInTheDocument()
   })
 
@@ -97,6 +97,13 @@ describe("HomePage", () => {
     for (const { label, href } of hpPublicContent.profile.socialLinks) {
       expect(within(profile).getByRole("link", { name: label })).toHaveAttribute("href", href)
     }
+    expect(within(profile).getByRole("button", { name: "登壇・掲載" })).toHaveAttribute(
+      "aria-haspopup",
+      "dialog",
+    )
+    expect(
+      within(profile).getByRole("button", { name: "プロフィール写真を拡大表示" }),
+    ).toBeInTheDocument()
   })
 
   it("renders the DaVinci Resolve certified trainer intro text as a direct official link", async () => {

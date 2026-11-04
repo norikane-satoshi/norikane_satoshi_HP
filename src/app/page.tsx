@@ -4,9 +4,10 @@ import Link from "next/link"
 import { ArrowRight, ArrowUpRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
 import { HeroSection } from "@/components/hp/hero-section"
-import { PressList } from "@/components/hp/press-section"
+import { PressDialog } from "@/components/hp/press-section"
+import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { SectionHeading } from "@/components/hp/section-heading"
-import { SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
+import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
   DAVINCI_RESOLVE_TRAINING_URL,
@@ -71,18 +72,10 @@ function ProfileSection() {
   return (
     <section id="profile" className="hp-surface-band scroll-mt-24 md:scroll-mt-28">
       <div className="hp-section-shell hp-section-pad">
-        <SectionHeading index="04" latin="Profile" label={profile.sectionTitle} />
+        <SectionHeading index="03" latin="Profile" label={profile.sectionTitle} />
         <div className="mt-[clamp(2.5rem,5vw,4.5rem)] flex flex-wrap gap-x-[clamp(2.5rem,6vw,6rem)] gap-y-12">
           <div className="flex min-w-0 max-w-[32.5rem] flex-[1_1_18.75rem] flex-col gap-7">
-            <div className="relative aspect-[4/5] overflow-hidden bg-[var(--bg-base)]">
-              <Image
-                src="/hp/profile-portrait.jpg"
-                alt={profile.name}
-                fill
-                sizes="(max-width: 768px) 92vw, 520px"
-                className="object-cover"
-              />
-            </div>
+            <ProfilePhoto />
             <div className="flex flex-col gap-2">
               <p className="text-[clamp(1.875rem,2.8vw,2.5rem)] font-medium tracking-[0.1em] text-hp">
                 {profile.name}
@@ -108,6 +101,9 @@ function ProfileSection() {
                   </a>
                 </li>
               ))}
+              <li>
+                <PressDialog />
+              </li>
             </ul>
           </div>
 
@@ -141,12 +137,8 @@ export default async function HomePage() {
     <div className="hp-noir-page" data-hp-theme="noir">
       <HeroSection />
 
-      <section className="hp-section-shell hp-section-pad flex flex-wrap gap-x-16 gap-y-8">
-        <div className="flex flex-[1_1_13.75rem] flex-col gap-3 text-sm tracking-[0.16em] text-hp-muted">
-          <span className="font-[var(--font-inter)] text-xs tracking-[0.2em]">01</span>
-          <span>{SITE_COMPANY_NAME}</span>
-        </div>
-        <p className="hp-intro-text flex-[3_1_32.5rem]">{renderIntroTextWithTrainerLink()}</p>
+      <section className="hp-section-shell hp-section-pad">
+        <p className="hp-intro-text">{renderIntroTextWithTrainerLink()}</p>
       </section>
 
       <section id="works" className="scroll-mt-24 pb-[clamp(6rem,10vw,10rem)] md:scroll-mt-28">
@@ -157,7 +149,7 @@ export default async function HomePage() {
         id="philosophy"
         className="hp-section-shell scroll-mt-24 pb-[clamp(6rem,10vw,10rem)] md:scroll-mt-28"
       >
-        <SectionHeading index="03" latin="Notes" label="ノート" />
+        <SectionHeading index="02" latin="Notes" label="ノート" />
         <div className="mt-[clamp(2.25rem,4vw,3.5rem)] grid grid-cols-1 md:grid-cols-2 gap-x-[clamp(1.5rem,3vw,3rem)] gap-y-[clamp(2.25rem,4vw,3.5rem)]">
           {noteCards.map((note) => {
             const cardBody = (
@@ -201,10 +193,6 @@ export default async function HomePage() {
 
       <ProfileSection />
 
-      <section id="press" className="hp-section-shell hp-section-pad scroll-mt-24 md:scroll-mt-28">
-        <SectionHeading index="05" latin="Talks & Press" label="登壇・掲載" />
-        <PressList />
-      </section>
     </div>
   )
 }

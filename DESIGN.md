@@ -270,7 +270,10 @@ The home page is a one-page portfolio with anchored sections, in this order:
 - `/#works` featured works (display label: 作品)
 - `/#philosophy` notes (display label: ノート)
 - `/#profile` profile
-- `/#press` talks and press (display label: 登壇・掲載)
+- `/#press` opens the talks and press modal (display label: 登壇・掲載); it is not a page section
+
+Keep the page short: detailed lists open from a button in a modal (talks and press, the enlarged profile photo)
+instead of being laid out on the page. A long page discourages reading.
 
 Only note articles are individual pages:
 
