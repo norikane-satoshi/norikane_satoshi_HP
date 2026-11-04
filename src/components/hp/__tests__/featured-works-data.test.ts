@@ -28,6 +28,7 @@ describe("featured works data", () => {
       expect.objectContaining({
         title: "十角館の殺人 / 時計館の殺人",
         youtubeId: "-2kSMEiw0wA",
+        videos: [{ videoId: "-2kSMEiw0wA" }, { videoId: "4bGU94xjC-A" }],
         officialUrl: "https://www.hulu.jp/static/tokeikannosatsujin/",
         links: [
           {
@@ -57,7 +58,8 @@ describe("featured works data", () => {
       }),
       expect.objectContaining({
         title: "ゲキ×シネシリーズ",
-        youtubeId: "GiqkQel2CeU",
+        youtubeId: "ajSVtbyX9gE",
+        videos: [{ videoId: "ajSVtbyX9gE" }, { videoId: "GiqkQel2CeU" }],
         officialUrl: "https://www.geki-cine.jp/",
         links: [
           {
@@ -66,7 +68,7 @@ describe("featured works data", () => {
           },
           {
             label: "YouTube",
-            url: "https://www.youtube.com/watch?v=GiqkQel2CeU",
+            url: "https://www.youtube.com/watch?v=ajSVtbyX9gE",
           },
         ],
       }),
@@ -108,6 +110,9 @@ describe("featured works data", () => {
       "R92a65tojVg",
       "y0g6UCE0Pzg",
       "H_z2HYsx53o",
+      "wkbmPAATsJI",
+      "7yXzwJUuXnI",
+      "I2K5UtUIHD0",
     ])
     expect(LIVE_REEL_VIDEOS).toEqual(
       expect.arrayContaining([
@@ -127,7 +132,7 @@ describe("featured works data", () => {
       "CM",
       "MV",
     ])
-    expect(FEATURED_PLAYLIST_WORKS[0]?.videos).toHaveLength(10)
+    expect(FEATURED_PLAYLIST_WORKS[0]?.videos).toHaveLength(13)
     expect(FEATURED_PLAYLIST_WORKS[1]?.videos.map((video) => video.videoId)).toEqual([
       "Eo2IIH-w3h8",
       "fStjAoAOlbQ",

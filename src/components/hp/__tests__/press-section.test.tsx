@@ -56,7 +56,7 @@ describe("PressSection", () => {
       "メディア掲載・事例紹介",
       "紹介動画制作",
     ])
-    expect(PRESS_CATEGORIES.flatMap((category) => category.items)).toHaveLength(9)
+    expect(PRESS_CATEGORIES.flatMap((category) => category.items)).toHaveLength(10)
 
     for (const category of PRESS_CATEGORIES) {
       expect(within(dialog).getByRole("heading", { name: category.title })).toBeInTheDocument()

@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { FeaturedWorks } from "@/components/hp/featured-works"
@@ -11,6 +12,7 @@ import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
   DAVINCI_RESOLVE_TRAINING_URL,
 } from "@/lib/hp/davinci-trainer"
+import { buildHomeNoteCards } from "@/lib/hp/home-notes"
 import { hpPublicContent } from "@/lib/hp/public-content"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
@@ -162,9 +164,7 @@ function ProfileForeground() {
 }
 
 export default async function HomePage() {
-  const notes = await listPublishedNotesForHome()
-  // listPublishedNotes returns created_time ascending; feature the latest note first.
-  const orderedNotes = [...notes].reverse()
+  const noteCards = buildHomeNoteCards(await listPublishedNotesForHome())
   return (
     <div className="hp-section-stack">
       <HeroSection />
@@ -199,23 +199,34 @@ export default async function HomePage() {
           }}
         >
           <div className="flex snap-x snap-mandatory items-stretch gap-4 px-[var(--hp-section-padding-x)] pb-4 md:gap-5">
-            {orderedNotes.map((note, idx) => {
+            {noteCards.map((note, idx) => {
               const isFeatured = idx === 0
-              return (
-                <Link
-                  key={note.id}
-                  href={`/notes/${note.slug}`}
-                  className={`group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note ${
-                    isFeatured ? "p-7 md:p-9" : "p-6 md:p-7"
-                  }`}
-                  style={{
-                    width: isFeatured ? "min(90vw, 460px)" : "min(84vw, 340px)",
-                    minHeight: isFeatured ? 260 : 200,
-                  }}
-                >
+              const cardClassName = `group flex shrink-0 snap-start flex-col glass-card-sm glass-card-sm--hp-note ${
+                isFeatured ? "p-7 md:p-9" : "p-6 md:p-7"
+              }`
+              const cardStyle = {
+                width: isFeatured ? "min(90vw, 460px)" : "min(84vw, 340px)",
+                minHeight: isFeatured ? 260 : 200,
+              }
+              const cardBody = (
+                <>
+                  {note.thumbnailSrc ? (
+                    <div
+                      className="relative mb-5 aspect-video w-full overflow-hidden rounded-[12px] border border-white/55 bg-white/40"
+                      data-hp-note-thumbnail={note.key}
+                    >
+                      <Image
+                        src={note.thumbnailSrc}
+                        alt=""
+                        fill
+                        sizes={isFeatured ? "(max-width: 768px) 90vw, 460px" : "(max-width: 768px) 84vw, 340px"}
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : null}
                   <div className="flex items-baseline gap-3">
                     <span className="font-[var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.18em] text-hp-muted">
-                      {`Note ${String(idx + 1).padStart(2, "0")}`}
+                      {note.label}
                     </span>
                   </div>
                   <h3
@@ -231,6 +242,27 @@ export default async function HomePage() {
                       style={{ color: "var(--hp-color-accent)" }}
                     />
                   </div>
+                </>
+              )
+              return note.external ? (
+                <a
+                  key={note.key}
+                  href={note.href}
+                  className={cardClassName}
+                  style={cardStyle}
+                  data-hp-note-card="external"
+                >
+                  {cardBody}
+                </a>
+              ) : (
+                <Link
+                  key={note.key}
+                  href={note.href}
+                  className={cardClassName}
+                  style={cardStyle}
+                  data-hp-note-card="note"
+                >
+                  {cardBody}
                 </Link>
               )
             })}

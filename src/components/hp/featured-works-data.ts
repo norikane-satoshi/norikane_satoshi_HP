@@ -2,6 +2,8 @@ export type FeaturedWork = {
   title: string
   client: string
   youtubeId?: string
+  /** 複数の動画を並べた順に切り替えて流す。先頭は youtubeId と同じ動画にする。 */
+  videos?: readonly FeaturedWorkPreviewVideo[]
   loopStart?: number
   loopEnd?: number
   clipRangeStart?: number
@@ -50,6 +52,7 @@ export const FEATURED_WORKS: FeaturedWork[] = [
     title: "十角館の殺人 / 時計館の殺人",
     client: "hulu",
     youtubeId: "-2kSMEiw0wA",
+    videos: [{ videoId: "-2kSMEiw0wA" }, { videoId: "4bGU94xjC-A" }],
     officialUrl: "https://www.hulu.jp/static/tokeikannosatsujin/",
     links: [
       {
@@ -81,7 +84,8 @@ export const FEATURED_WORKS: FeaturedWork[] = [
   {
     title: "ゲキ×シネシリーズ",
     client: "ヴィレッヂ",
-    youtubeId: "GiqkQel2CeU",
+    youtubeId: "ajSVtbyX9gE",
+    videos: [{ videoId: "ajSVtbyX9gE" }, { videoId: "GiqkQel2CeU" }],
     officialUrl: "https://www.geki-cine.jp/",
     links: [
       {
@@ -90,7 +94,7 @@ export const FEATURED_WORKS: FeaturedWork[] = [
       },
       {
         label: "YouTube",
-        url: "https://www.youtube.com/watch?v=GiqkQel2CeU",
+        url: "https://www.youtube.com/watch?v=ajSVtbyX9gE",
       },
     ],
   },
@@ -123,6 +127,9 @@ export const LIVE_REEL_VIDEOS = [
   { videoId: "R92a65tojVg", loopStart: 0, loopEnd: 30 },
   { videoId: "y0g6UCE0Pzg", loopStart: 50, loopEnd: 80 },
   { videoId: "H_z2HYsx53o" },
+  { videoId: "wkbmPAATsJI" },
+  { videoId: "7yXzwJUuXnI" },
+  { videoId: "I2K5UtUIHD0" },
 ] as const
 
 export const LIVE_REEL_VIDEO_IDS = LIVE_REEL_VIDEOS.map((video) => video.videoId)
