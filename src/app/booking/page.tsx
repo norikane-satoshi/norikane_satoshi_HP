@@ -53,7 +53,7 @@ export default async function BookingPage() {
   })
 
   return (
-    <section data-hp-theme="noir" className="hp-section-shell py-12 md:py-16">
+    <section className="hp-section-shell py-12 md:py-16">
       <div>
         <div className="hp-section-heading-row">
           <div>

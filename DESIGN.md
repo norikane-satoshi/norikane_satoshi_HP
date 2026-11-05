@@ -28,19 +28,18 @@ The tone should be:
 - controlled and spacious, not decorative for its own sake
 - visually rich enough to feel current, but never noisy
 
-Keywords: `light glassmorphism`, `aurora gradient`, `frosted white cards`, `lavender base`, `quiet professional`, `colorist portfolio`, `text-first`.
+Keywords (light contract, superseded by §1.1 noir): `light glassmorphism`, `aurora gradient`, `frosted white cards`, `lavender base`, `quiet professional`, `colorist portfolio`, `text-first`.
 
 Avoid: neon, heavy gradients, heavy shadows, cyberpunk, Apple-like over-animation, loud SaaS landing pages.
 
-### 1.1 Noir theme (migration in progress)
+### 1.1 Noir theme (whole site, 2026-11-05)
 
-The site is moving to a dark, editorial "noir" look (decided 2026-11-05). The home page, note articles, booking pages
-(`/booking`, history, settings, edit), the LINE booking page, login and signup use it now. The privacy, terms and
-public availability pages keep the light glass look until they are migrated, then this section replaces the light
-contract.
+Every page uses the dark, editorial "noir" look. It overrides the light glass contract in the rest of this file;
+the light values in `:root` stay only as fallbacks for the shared `glass-*` utilities.
 
-- Scope: an element with `data-hp-theme="noir"` switches the tokens for itself and for the shared header and footer.
-  The token values live only in the `[data-hp-theme="noir"]` block in `globals.css`.
+- Scope: `data-hp-theme="noir"` is set once on `<main>` in `src/app/layout.tsx`; the shared header, footer and
+  chatbot follow it through `body:has(...)`. A dialog portalled outside `<main>` sets `data-hp-theme="noir"` on its
+  own overlay. The token values live only in the `[data-hp-theme="noir"]` block in `globals.css`.
 - Look: ink ground (`--bg-base`), ivory text, no accent hue. Colour comes from the work stills and videos.
 - No glass cards on noir pages. Separate content with whitespace and 1px rules (`--hp-color-rule`, `.hp-rule-top`,
   `.hp-rule-bottom`, `.hp-section-heading-row`).
@@ -405,7 +404,6 @@ A UI change fails L1 if any of these are true:
 - Uses `neu-*` classes or `--neu-*` tokens
 - Adds new color tokens without updating this file and `globals.css`
 - Uses Tailwind default heavy shadows such as `shadow-lg`, `shadow-xl` for primary surfaces
-- Adds dark sections to a page that is not a noir page
 - Breaks the canonical width/padding shell
 - Uses fonts other than Noto Serif JP, Noto Sans JP, Inter, Geist Mono
 - Bakes text into diagram images
@@ -449,7 +447,6 @@ L3 should not mean more effects. For this site, L3 means clarity, restraint, and
 
 - Do not use the retired neumorphism system.
 - Do not add `--neu-*`, `.neu-raised`, `.neu-inset`, `.neu-btn`, `.neu-input`.
-- Do not use dark UI on pages that are not noir pages.
 - Do not add new aurora colors.
 - Do not use thick borders or default Tailwind heavy shadows.
 - Do not nest blur-heavy cards.
