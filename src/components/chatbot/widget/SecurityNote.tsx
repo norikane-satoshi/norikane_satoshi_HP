@@ -136,7 +136,8 @@ function LegalModal({ kind, onClose }: { kind: LegalModalKind | null; onClose: (
   const title = kind === "privacy" ? "プライバシーポリシー" : "利用規約"
   return createPortal(
     <div
-      className="fixed inset-0 flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
+      className="fixed inset-0 flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 noir:bg-[rgba(0,0,0,0.62)] md:p-8"
+      data-hp-chatbot-root=""
       style={{ zIndex: HP_MODAL_OVERLAY_Z_INDEX }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
@@ -147,7 +148,7 @@ function LegalModal({ kind, onClose }: { kind: LegalModalKind | null; onClose: (
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="glass-card flex max-h-[min(82vh,760px)] w-full max-w-4xl flex-col overflow-hidden p-6 md:p-8 xl:p-10"
+        className="glass-card noir:bg-[var(--hp-chat-surface)] flex max-h-[min(82vh,760px)] w-full max-w-4xl flex-col overflow-hidden p-6 md:p-8 xl:p-10"
       >
         <div className="flex justify-end">
           <button

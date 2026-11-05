@@ -75,7 +75,8 @@ export function LineBookingBadge() {
     ? createPortal(
         <div
           data-testid="line-qr-overlay"
-          className="fixed inset-0 flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 md:p-8"
+          className="fixed inset-0 flex items-center justify-center bg-[rgba(8,4,24,0.42)] p-4 noir:bg-[rgba(0,0,0,0.62)] md:p-8"
+          data-hp-chatbot-root=""
           style={{ zIndex: HP_MODAL_OVERLAY_Z_INDEX }}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) close()
@@ -86,7 +87,7 @@ export function LineBookingBadge() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="line-qr-dialog-title"
-            className="glass-card press-dialog-surface w-full max-w-sm p-6 text-center md:p-8"
+            className="glass-card press-dialog-surface noir:bg-[var(--hp-chat-surface)] w-full max-w-sm p-6 text-center md:p-8"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 text-left">

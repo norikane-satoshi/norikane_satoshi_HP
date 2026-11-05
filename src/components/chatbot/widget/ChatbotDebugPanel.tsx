@@ -215,7 +215,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
 
   return (
     <section
-      className="max-h-[240px] overflow-y-auto border-b border-[var(--glass-border)] bg-white/35 px-5 py-3"
+      className="max-h-[240px] overflow-y-auto border-b border-[var(--glass-border)] bg-white/35 px-5 py-3 noir:bg-[var(--hp-chat-fill)]"
       aria-label="チャットボット診断情報"
       data-chatbot-debug="open"
     >
@@ -271,7 +271,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
           {copyState === "copied" ? "診断JSONをコピーしました。" : "診断JSONをコピーできませんでした。"}
         </p>
       ) : null}
-      <dl className="mt-3 grid grid-cols-[max-content,minmax(0,1fr)] gap-x-3 gap-y-1 rounded-[12px] border border-white/55 bg-white/40 p-3 font-[var(--font-geist-mono)] text-[10px] leading-relaxed">
+      <dl className="mt-3 grid grid-cols-[max-content,minmax(0,1fr)] gap-x-3 gap-y-1 glass-subpanel rounded-[12px] p-3 font-[var(--font-geist-mono)] text-[10px] leading-relaxed">
         {rows.map(([label, value]) => (
           <div key={label} className="contents">
             <dt className="text-hp-muted">{label}</dt>
