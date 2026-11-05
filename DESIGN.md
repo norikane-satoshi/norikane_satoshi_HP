@@ -274,8 +274,11 @@ The home page is a one-page portfolio with anchored sections, in this order:
 - `/#profile` profile
 - `/#press` opens the talks and press modal (the Talks & Press badge in the profile); it is not a page section
 
-Keep the page short: detailed lists open from a button in a modal (talks and press, the enlarged profile photo)
+Keep the page short: detailed lists open from a button in a modal (talks and press, the biography)
 instead of being laid out on the page. A long page discourages reading.
+
+The profile photo opens the biography: a full-screen view with the profile photo dimmed underneath and the
+chronological story on top (`src/components/hp/biography-data.ts`). The story is written in the first person (私).
 
 Only note articles are individual pages:
 
