@@ -442,7 +442,7 @@ export const HERO_DEFAULT_ZOOM = 1.18
 export const HERO_CLIPS: readonly HeroClip[] = [
   { videoId: "-2kSMEiw0wA", startSeconds: 63, title: "時計館の殺人", client: "hulu", zoom: 1.42 },
   { videoId: "aiPpSEcNLTk", startSeconds: 50, title: "福山雅治ライブフィルム「月光」", client: "松竹配給" },
-  { videoId: "GiqkQel2CeU", startSeconds: 5, title: "ゲキ×シネ『紅鬼物語』", client: "ヴィレッヂ" },
+  { videoId: "ajSVtbyX9gE", startSeconds: 8, title: "ゲキ×シネ『爆烈忠臣蔵』", client: "ヴィレッヂ", zoom: 1.36 },
   { videoId: "wkbmPAATsJI", startSeconds: 61, title: "ライブ映像作品", client: "配信", zoom: 1.36 },
   { videoId: "4bGU94xjC-A", startSeconds: 10, title: "十角館の殺人", client: "hulu", zoom: 1.42 },
   { videoId: "Eo2IIH-w3h8", startSeconds: 13, title: "CM" },

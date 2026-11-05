@@ -95,12 +95,14 @@ describe("HomePage", () => {
     }
     expect(within(profile).getByText(hpPublicContent.profile.title)).toBeInTheDocument()
     for (const { label, href } of hpPublicContent.profile.socialLinks) {
-      expect(within(profile).getByRole("link", { name: label })).toHaveAttribute("href", href)
+      const badge = within(profile).getByRole("link", { name: label })
+      expect(badge).toHaveAttribute("href", href)
+      expect(badge).toHaveClass("hp-icon-badge")
+      expect(badge.querySelector("svg")).toBeInTheDocument()
     }
-    expect(within(profile).getByRole("button", { name: "登壇・掲載" })).toHaveAttribute(
-      "aria-haspopup",
-      "dialog",
-    )
+    const pressBadge = within(profile).getByRole("button", { name: "登壇・掲載" })
+    expect(pressBadge).toHaveAttribute("aria-haspopup", "dialog")
+    expect(pressBadge).toHaveClass("hp-icon-badge")
     expect(
       within(profile).getByRole("button", { name: "プロフィール写真を拡大表示" }),
     ).toBeInTheDocument()

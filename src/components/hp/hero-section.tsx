@@ -202,10 +202,6 @@ export function HeroSection() {
             className="hp-motion-keep font-[var(--font-inter)] text-xs tracking-[0.12em] transition-opacity duration-700"
             style={{ opacity: isVideoVisible ? 1 : 0 }}
           >
-            <span className="tabular-nums">
-              {String(clipIndex + 1).padStart(2, "0")} / {String(HERO_CLIPS.length).padStart(2, "0")}
-            </span>
-            <span className="mx-3 inline-block h-px w-6 translate-y-[-3px] bg-current align-middle opacity-60" />
             {clip.title}
             {clip.client ? ` / ${clip.client}` : ""}
           </p>

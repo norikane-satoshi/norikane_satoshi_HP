@@ -327,11 +327,29 @@ body:has([data-hp-theme="noir"]) {
     background: var(--hp-color-surface-raised);
   }
   .hp-intro-text {
-    font-size: clamp(1.1875rem, 1.85vw, 1.75rem);
+    font-size: clamp(1rem, 1.35vw, 1.25rem);
     font-weight: 400;
     letter-spacing: 0.05em;
-    line-height: 2.05;
-    max-width: 62.5rem;
+    line-height: 2.1;
+    max-width: 50rem;
+  }
+  /* プロフィール欄の公式アイコンのバッジ（SNS と登壇・掲載）。 */
+  .hp-icon-badge {
+    align-items: center;
+    border: 1px solid var(--hp-color-rule);
+    border-radius: 999px;
+    color: var(--text-primary);
+    display: inline-flex;
+    gap: 0.25rem;
+    height: 2.75rem;
+    justify-content: center;
+    min-width: 2.75rem;
+    padding-inline: 0.75rem;
+    transition: background-color var(--motion-duration-press) var(--ease-out-strong), border-color var(--motion-duration-press) var(--ease-out-strong);
+  }
+  .hp-icon-badge:hover {
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    border-color: var(--text-muted);
   }
   .hp-rule-top {
     border-top: 1px solid var(--hp-color-rule);
