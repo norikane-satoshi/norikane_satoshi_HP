@@ -10,7 +10,7 @@ import { getVisualConfig, type VisualConfig } from "@/lib/notes/domain/visuals"
  * 役割:
  *   - slug から種別 (video / static / placeholder) を判定し、
  *     対応する描画モジュールを dynamic import で読み込む。
- *   - 動画モジュールには再生制御 (在画判定 / タブ可視性 / reduced-motion) を
+ *   - 動画モジュールには再生制御 (在画判定 / タブ可視性) を
  *     付与した状態で `isPlaying` を渡す。各モジュールは isPlaying=false の間
  *     アニメーションを停止し、初期フレームを表示する。
  *   - 静止画モジュールは常時表示。視界連動も reduced-motion も対象外。
@@ -24,7 +24,7 @@ import { getVisualConfig, type VisualConfig } from "@/lib/notes/domain/visuals"
 export type VideoVisualProps = {
   isPlaying: boolean
   isMobile?: boolean
-  /** prefers-reduced-motion: reduce が有効な環境では true。アニメ層を mount しない判断に使う */
+  /** 現在は常に false（図は reduced-motion 設定に関係なく動かす）。モジュール側の静止画分岐は残してある */
   reducedMotion: boolean
 }
 
@@ -214,10 +214,10 @@ function PlaceholderBox({ aspect, label }: { aspect: string; label: string }) {
 /**
  * 動画ビジュアル用の再生制御ラッパー。
  *
- * isPlaying = inView (≥25% 可視) ∧ documentVisible ∧ ¬reducedMotion
+ * isPlaying = inView (≥25% 可視) ∧ documentVisible（reduced-motion 設定には従わない）
  *
- * reduced-motion: 各モジュールはアニメ層を mount せず、初期フレームの
- * 静止画として描画する責任を持つ (= isPlaying=false の状態をそのまま使う)。
+ * 画面外やタブが隠れているときは isPlaying=false になり、各モジュールは
+ * その時点のフレームで止まる。
  * VisualSkeleton はサーバ側からは出ない (ssr:false) ため初期表示は空白になるが、
  * VisualSkeleton の loading で隙間を埋めて、hydration 後に Module が差し替わる。
  */
@@ -236,7 +236,6 @@ function VideoStage({
   const [inView, setInView] = useState(false)
   const [docVisible, setDocVisible] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
-  const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
     const el = wrapRef.current
@@ -261,14 +260,6 @@ function VideoStage({
   }, [])
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
-    const update = () => setReducedMotion(mq.matches)
-    update()
-    mq.addEventListener("change", update)
-    return () => mq.removeEventListener("change", update)
-  }, [])
-
-  useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)")
     const update = () => setIsMobile(mq.matches)
     update()
@@ -276,7 +267,10 @@ function VideoStage({
     return () => mq.removeEventListener("change", update)
   }, [])
 
-  const isPlaying = inView && docVisible && !reducedMotion
+  // 図は説明のためのアニメーションなので、OS の「視差効果を減らす」設定に関係なく動かす
+  // （Featured Works・Hero と同じ扱い。2026-11-05 則兼さん指示）。
+  const reducedMotion = false
+  const isPlaying = inView && docVisible
   const stageAspect = isMobile && mobileAspect ? mobileAspect : aspect
 
   return (
