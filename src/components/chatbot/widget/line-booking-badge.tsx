@@ -87,7 +87,7 @@ export function LineBookingBadge() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="line-qr-dialog-title"
-            className="glass-card press-dialog-surface [--glass-bg:var(--bg-base)] noir:[--glass-bg:var(--hp-chat-surface)] w-full max-w-sm p-6 text-center md:p-8"
+            className="glass-card press-dialog-surface [--glass-bg:var(--bg-base)] noir:[--glass-bg:var(--hp-noir-surface)] w-full max-w-sm p-6 text-center md:p-8"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 text-left">

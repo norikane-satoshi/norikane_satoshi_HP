@@ -66,11 +66,11 @@ export default async function BookingHistoryPage() {
   const bookings = await listBookingHistoryForUser(userId)
 
   return (
-    <section className="mx-auto w-full max-w-[1440px] px-4 py-12 md:px-8 md:py-16 xl:px-12">
-      <div className="glass-card p-8 md:p-10 xl:p-14">
-        <div className="booking-history__page-head">
+    <section data-hp-theme="noir" className="hp-section-shell py-12 md:py-16">
+      <div>
+        <div className="booking-history__page-head hp-section-heading-row">
           <div>
-            <h1 className="text-3xl font-bold text-hp md:text-4xl">予約一覧</h1>
+            <h1 className="hp-heading text-3xl font-medium text-hp md:text-4xl xl:text-5xl">予約一覧</h1>
           </div>
           <Link className="booking-history__back glass-flat" href="/booking">
             カレンダーに戻る

@@ -92,19 +92,19 @@ function LoginCard() {
       : `/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`
 
   return (
-    <div className="glass-card p-8 md:p-10">
-      <h1 className="text-3xl font-bold text-hp md:text-4xl">ログイン</h1>
+    <div>
+      <h1 className="hp-heading text-3xl font-medium text-hp md:text-4xl">ログイン</h1>
       <p className="mt-3 text-sm text-hp-muted">
         ご登録のメールアドレスとパスワード、またはソーシャルログインでサインインしてください。
       </p>
 
       {verified === "1" && (
-        <p className="mt-6 text-sm text-emerald-500" role="status">
+        <p className="mt-6 text-sm text-emerald-400" role="status">
           メールアドレスの認証が完了しました。ログインしてください
         </p>
       )}
       {verifyError === "invalid_or_expired" && (
-        <p className="mt-6 text-sm text-red-500" role="alert">
+        <p className="mt-6 text-sm text-red-400" role="alert">
           認証リンクが無効か期限切れです。お手数ですがもう一度サインアップから登録メールを送信してください
         </p>
       )}
@@ -145,7 +145,7 @@ function LoginCard() {
         </div>
 
         {errorMessage && (
-          <p className="text-sm text-red-500" role="alert">
+          <p className="text-sm text-red-400" role="alert">
             {errorMessage}
           </p>
         )}
@@ -193,7 +193,7 @@ function LoginCard() {
             </p>
           )}
           {magicLinkErrorMessage && (
-            <p className="text-sm text-red-500" role="alert">
+            <p className="text-sm text-red-400" role="alert">
               {magicLinkErrorMessage}
             </p>
           )}
@@ -249,7 +249,7 @@ function LoginCard() {
 
 export default function LoginPage() {
   return (
-    <section className="mx-auto w-full max-w-[480px] px-4 md:px-8 py-12 md:py-16">
+    <section data-hp-theme="noir" className="mx-auto w-full max-w-[480px] px-6 py-12 md:px-10 md:py-16">
       <Suspense fallback={null}>
         <LoginCard />
       </Suspense>

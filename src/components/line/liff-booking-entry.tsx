@@ -146,13 +146,13 @@ export function LiffBookingEntry({
   }, [hpSession?.user?.id, hpSessionLoaded, state])
 
   return (
-    <section className="mx-auto w-full max-w-[1440px] px-4 py-12 md:px-8 md:py-16 xl:px-12">
-      <div className="glass-card p-8 md:p-10 xl:p-14">
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+    <section data-hp-theme="noir" className="hp-section-shell py-12 md:py-16">
+      <div>
+        <div className="hp-section-heading-row mb-10">
           <div>
             <h1
               aria-label="LINE予約カレンダー"
-              className="text-4xl font-bold text-hp md:text-5xl xl:text-6xl"
+              className="hp-heading text-3xl font-medium text-hp md:text-4xl xl:text-5xl"
             >
               予約カレンダー
             </h1>

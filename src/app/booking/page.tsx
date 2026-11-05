@@ -53,11 +53,11 @@ export default async function BookingPage() {
   })
 
   return (
-    <section className="mx-auto w-full max-w-[1440px] px-4 md:px-8 xl:px-12 py-12 md:py-16">
-      <div className="glass-card p-8 md:p-10 xl:p-14">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <section data-hp-theme="noir" className="hp-section-shell py-12 md:py-16">
+      <div>
+        <div className="hp-section-heading-row">
           <div>
-            <h1 className="text-4xl font-bold text-hp md:text-5xl xl:text-6xl">
+            <h1 className="hp-heading text-3xl font-medium text-hp md:text-4xl xl:text-5xl">
               予約カレンダー
             </h1>
           </div>
@@ -79,7 +79,7 @@ export default async function BookingPage() {
             </Link>
           </div>
         </div>
-        <div className="mt-8">
+        <div className="mt-10">
           <BookingClientShell
             isCalendarAdmin={isCalendarAdmin}
             initialSession={session}

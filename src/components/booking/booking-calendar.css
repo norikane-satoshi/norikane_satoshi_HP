@@ -76,12 +76,12 @@
 
 .booking-calendar__action-button--primary {
   background: var(--hp-color-accent);
-  color: var(--glass-bg);
+  color: var(--hp-color-calendar-on-strong);
   border-color: var(--hp-color-accent);
 }
 
 .booking-calendar__action-button--primary:hover:not(:disabled) {
-  color: var(--glass-bg);
+  color: var(--hp-color-calendar-on-strong);
   filter: brightness(1.05);
 }
 
@@ -796,12 +796,12 @@
 
 .booking-calendar[data-availability-status-blocks="true"] .booking-calendar__locked-date .fc-daygrid-day-frame {
   border-color: color-mix(in srgb, var(--hp-color-accent) 40%, var(--glass-border));
-  background: color-mix(in srgb, var(--hp-color-accent) 12%, rgba(255, 255, 255, 0.34));
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, var(--hp-calendar-status-surface, rgba(255, 255, 255, 0.34)));
 }
 
 .booking-calendar[data-availability-status-blocks="true"] .booking-calendar__tentative-date .fc-daygrid-day-frame {
   border-color: color-mix(in srgb, #d9a514 36%, var(--glass-border));
-  background: color-mix(in srgb, #f7d86a 18%, rgba(255, 255, 255, 0.46));
+  background: color-mix(in srgb, #f7d86a 18%, var(--hp-calendar-status-surface, rgba(255, 255, 255, 0.46)));
 }
 
 .booking-calendar[data-availability-status-blocks="true"] .booking-calendar__today-date .fc-daygrid-day-frame {
@@ -809,7 +809,7 @@
 }
 
 .booking-calendar[data-availability-status-blocks="true"] .booking-calendar__today-date:not(.booking-calendar__locked-date):not(.booking-calendar__tentative-date) .fc-daygrid-day-frame {
-  background: color-mix(in srgb, var(--hp-color-calendar-today) 12%, rgba(255, 255, 255, 0.46));
+  background: color-mix(in srgb, var(--hp-color-calendar-today) 12%, var(--hp-calendar-status-surface, rgba(255, 255, 255, 0.46)));
 }
 
 .booking-calendar .booking-calendar__locked-date .booking-calendar__day-number {
@@ -1567,4 +1567,39 @@
 .booking-calendar__logout-button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/*
+ * 墨色。上の規則は明るい地を前提に「灰を混ぜて沈める」ので、暗い地では過去日や週末が逆に明るく浮く。
+ * 墨色では過去日を地に溶かし、週末の色付けをやめ、選んだ日をいちばん強く見せる。
+ */
+[data-hp-theme="noir"] .booking-calendar .fc {
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: rgba(236, 230, 220, 0.04);
+  --fc-highlight-color: rgba(236, 230, 220, 0.12);
+}
+
+[data-hp-theme="noir"] .booking-calendar .booking-calendar__weekend:not(.booking-calendar__locked-date, .booking-calendar__tentative-date, .booking-calendar__selected-date, .booking-calendar__past-or-today-date) .fc-daygrid-day-frame,
+[data-hp-theme="noir"] .booking-calendar .booking-calendar__weekend.fc-timegrid-col:not(.booking-calendar__today-date) {
+  background: var(--glass-bg);
+}
+
+[data-hp-theme="noir"] .booking-calendar .booking-calendar__past-or-today-date:not(.booking-calendar__today-date) .fc-daygrid-day-frame {
+  border-color: color-mix(in srgb, var(--glass-border) 55%, transparent);
+  background: transparent;
+}
+
+[data-hp-theme="noir"] .booking-calendar .booking-calendar__today-date .fc-daygrid-day-frame,
+[data-hp-theme="noir"] .booking-calendar .fc-timegrid-col.booking-calendar__today-date {
+  border-color: color-mix(in srgb, var(--hp-color-calendar-today) 45%, transparent);
+  background: var(--glass-bg);
+}
+
+[data-hp-theme="noir"] .booking-calendar .booking-calendar__selected-date .fc-daygrid-day-frame {
+  border-color: var(--hp-color-calendar-candidate);
+  background: color-mix(in srgb, var(--hp-color-calendar-candidate) 18%, var(--glass-bg));
+}
+
+[data-hp-theme="noir"] .booking-calendar .fc-theme-standard .fc-popover {
+  background: var(--hp-noir-surface);
 }
