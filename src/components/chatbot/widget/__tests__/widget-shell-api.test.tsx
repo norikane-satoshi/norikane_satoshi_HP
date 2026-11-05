@@ -1227,7 +1227,7 @@ describe("WidgetShell API wiring", () => {
     expect(jumpButton).not.toHaveClass("top-1/2")
     expect(jumpButton).not.toHaveClass("-translate-y-1/2")
     expect(jumpButton).toHaveStyle({
-      background: "rgba(255, 255, 255, 0.42)",
+      background: "var(--hp-chat-latest-bg, rgba(255, 255, 255, 0.42))",
       backdropFilter: "blur(18px) saturate(140%)",
     })
     const chevron = jumpButton.querySelector("svg")

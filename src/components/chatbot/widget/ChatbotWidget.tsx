@@ -327,6 +327,7 @@ export function ChatbotWidget() {
     <aside
       role="complementary"
       aria-label="AI 相談窓口"
+      data-hp-chatbot-root=""
       hidden={!isReady}
       className={asideClassName}
       style={asideStyle}

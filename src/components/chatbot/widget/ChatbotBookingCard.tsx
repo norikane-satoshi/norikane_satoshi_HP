@@ -232,7 +232,7 @@ function BookingCompletionView({ booking }: { booking: BookingCompletionSummary 
       </div>
 
       {needsSchedule ? (
-        <div className="space-y-3 rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-4">
+        <div className="glass-subpanel space-y-3 rounded-[var(--hp-radius-sm)] p-4">
           <p
             className={`${CHATBOT_CONVERSATION_CONTENT_CLASS_NAME} text-sm font-medium text-hp`}
             style={CHATBOT_CONVERSATION_CONTENT_STYLE}
@@ -290,7 +290,7 @@ function isValidEmail(value: string): boolean {
 
 function RequiredMark() {
   return (
-    <span className="ml-1 font-semibold text-red-500" aria-hidden="true">
+    <span className="ml-1 font-semibold text-red-500 noir:text-red-400" aria-hidden="true">
       必須
     </span>
   )
@@ -698,7 +698,7 @@ export function ChatbotBookingCard({
           <legend className="text-sm font-semibold text-hp">
             {getProjectConditionDefinition("preferred-dates")?.label}（任意）
           </legend>
-          <div className="rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3" aria-label="仮キープ候補のカレンダー選択">
+          <div className="glass-subpanel rounded-[var(--hp-radius-sm)] p-3" aria-label="仮キープ候補のカレンダー選択">
             <div className="mb-3 flex items-center justify-between gap-3">
               <button
                 type="button"
@@ -722,7 +722,7 @@ export function ChatbotBookingCard({
             </div>
             <div className="mb-3 flex min-h-4 items-center justify-end gap-3">
               {monthLoadError ? (
-                <p className="text-xs text-red-500" role="alert">{monthLoadError}</p>
+                <p className="text-xs text-red-500 noir:text-red-400" role="alert">{monthLoadError}</p>
               ) : null}
             </div>
             <div
@@ -754,8 +754,8 @@ export function ChatbotBookingCard({
                       type="button"
                       disabled
                       className={[
-                        "relative min-h-11 cursor-default overflow-hidden rounded-[var(--hp-radius-calendar-cell)] border border-[var(--text-muted)] bg-[var(--text-muted)] px-1.5 py-2 text-xs text-white/95 opacity-85",
-                        selected ? "ring-2 ring-[var(--hp-color-accent-focus-ring)] ring-offset-1 ring-offset-white/60" : "",
+                        "relative min-h-11 cursor-default overflow-hidden rounded-[var(--hp-radius-calendar-cell)] border border-[var(--text-muted)] bg-[var(--text-muted)] px-1.5 py-2 text-xs text-white/95 opacity-85 noir:border-[color-mix(in_srgb,var(--text-muted)_22%,transparent)] noir:bg-[color-mix(in_srgb,var(--text-muted)_10%,transparent)] noir:text-hp-muted noir:opacity-100",
+                        selected ? "ring-2 ring-[var(--hp-color-accent-focus-ring)] ring-offset-1 ring-offset-white/60 noir:ring-offset-transparent" : "",
                       ].join(" ")}
                       data-calendar-state="busy"
                       data-selected={selected ? "true" : undefined}
@@ -763,7 +763,7 @@ export function ChatbotBookingCard({
                       aria-disabled="true"
                     >
                       <span className="block font-semibold">{formatCalendarDayLabel(dateKey)}</span>
-                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 rotate-[-28deg] rounded-full bg-white/80" aria-hidden="true" />
+                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 rotate-[-28deg] rounded-full bg-white/80 noir:bg-[color-mix(in_srgb,var(--text-muted)_70%,transparent)]" aria-hidden="true" />
                     </button>
                   )
                 }
@@ -777,10 +777,10 @@ export function ChatbotBookingCard({
                       className={[
                         "relative min-h-11 cursor-default rounded-[var(--hp-radius-calendar-cell)] border px-1.5 py-2 text-xs transition",
                         selected
-                          ? "border-[var(--hp-color-accent)] bg-[var(--hp-color-accent)] font-bold text-white ring-2 ring-[var(--hp-color-accent-focus-ring)]/35 ring-inset"
+                          ? "border-[var(--hp-color-accent)] bg-[var(--hp-color-accent)] font-bold text-white ring-2 ring-[var(--hp-color-accent-focus-ring)]/35 ring-inset noir:text-[var(--hp-color-calendar-on-strong)]"
                           : past
-                            ? "border-white/45 bg-white/30 text-hp-muted opacity-45"
-                            : "border-white/55 bg-white/35 text-hp-muted opacity-70",
+                            ? "border-white/45 bg-white/30 text-hp-muted opacity-45 noir:border-[var(--hp-glass-subpanel-border)] noir:bg-transparent"
+                            : "border-white/55 bg-white/35 text-hp-muted opacity-70 noir:border-[var(--hp-glass-subpanel-border)] noir:bg-[var(--hp-glass-subpanel-bg)]",
                       ].join(" ")}
                       data-calendar-state={past ? "past" : afterDeadline ? "after-deadline" : "free-unstartable"}
                       data-selected={selected ? "true" : undefined}
@@ -799,8 +799,8 @@ export function ChatbotBookingCard({
                     className={[
                       "min-h-11 rounded-[var(--hp-radius-calendar-cell)] border px-1.5 py-2 text-xs transition-[transform,box-shadow,opacity,background-color,border-color,color] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97]",
                       selected
-                        ? "border-[var(--hp-color-accent)] bg-[var(--hp-color-accent)] font-bold text-white ring-2 ring-[var(--hp-color-accent-focus-ring)]/35 ring-inset"
-                        : "border-white/65 bg-white/55 text-hp hover:-translate-y-0.5 hover:scale-[1.02] hover:border-[var(--hp-color-accent)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--hp-color-accent-focus-ring)]/45 hover:ring-inset focus-visible:border-[var(--hp-color-accent)] focus-visible:ring-2 focus-visible:ring-[var(--hp-color-accent-focus-ring)]/45 focus-visible:ring-inset",
+                        ? "border-[var(--hp-color-accent)] bg-[var(--hp-color-accent)] font-bold text-white ring-2 ring-[var(--hp-color-accent-focus-ring)]/35 ring-inset noir:text-[var(--hp-color-calendar-on-strong)]"
+                        : "border-white/65 bg-white/55 text-hp noir:border-[var(--hp-chat-edge)] noir:bg-[var(--hp-chat-fill)] noir:hover:bg-[var(--hp-chat-fill-hover)] hover:-translate-y-0.5 hover:scale-[1.02] hover:border-[var(--hp-color-accent)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--hp-color-accent-focus-ring)]/45 hover:ring-inset focus-visible:border-[var(--hp-color-accent)] focus-visible:ring-2 focus-visible:ring-[var(--hp-color-accent-focus-ring)]/45 focus-visible:ring-inset",
                     ].join(" ")}
                     data-selected={selected ? "true" : undefined}
                     data-calendar-state={tentative ? "tentative" : "startable"}
@@ -867,7 +867,7 @@ export function ChatbotBookingCard({
         </>
         ) : (
         <>
-        <dl className="space-y-2 rounded-[var(--hp-radius-sm)] border border-white/55 bg-white/35 p-3 text-sm" aria-label="送信する内容">
+        <dl className="glass-subpanel space-y-2 rounded-[var(--hp-radius-sm)] p-3 text-sm" aria-label="送信する内容">
           {displayedReviewDetails.map((item) => (
             <div key={item.label}>
               <dt className="text-xs font-semibold text-hp-muted">{item.label}</dt>
@@ -934,7 +934,7 @@ export function ChatbotBookingCard({
             />
           </label>
           {contactEmailErrorVisible ? (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="text-xs text-red-500 noir:text-red-400" role="alert">
               メールの形式を確認してください
             </p>
           ) : null}
@@ -992,7 +992,7 @@ export function ChatbotBookingCard({
         </label>
 
         {errorMessage ? (
-          <p className="text-sm text-red-500" role="alert">
+          <p className="text-sm text-red-500 noir:text-red-400" role="alert">
             {errorMessage}
           </p>
         ) : null}

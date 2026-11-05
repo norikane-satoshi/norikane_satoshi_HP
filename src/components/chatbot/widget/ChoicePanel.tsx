@@ -66,7 +66,7 @@ export function ChoicePanel({ choiceSet, onSelect, allowMultiple = false, initia
               className={[
                 "glass-btn inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold",
                 isSelected
-                  ? "border-[var(--hp-color-accent)] bg-white/75 text-hp ring-2 ring-[var(--hp-color-chatbot-choice-ring)]"
+                  ? "border-[var(--hp-color-accent)] bg-white/75 noir:bg-[var(--hp-chat-fill-hover)] text-hp ring-2 ring-[var(--hp-color-chatbot-choice-ring)]"
                   : "text-hp-muted",
               ].join(" ")}
               aria-pressed={isSelected}

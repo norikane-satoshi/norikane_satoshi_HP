@@ -86,7 +86,7 @@ export function ProjectConditionCard({ definition, onSubmit }: {
   const submit = () => onSubmit(`${definition.label}: ${answer.status === "unknown" ? "未定" : display}`, { conditionId: definition.id, answer })
 
   return (
-    <section className="space-y-3 rounded-[12px] border border-white/55 bg-white/35 p-3" aria-label={`${definition.label}の入力`}>
+    <section className="glass-subpanel space-y-3 rounded-[12px] p-3" aria-label={`${definition.label}の入力`}>
       <ProjectConditionInput definition={definition} answer={answer} onChange={setAnswer} />
       <p className="text-xs leading-relaxed text-hp-muted" aria-live="polite">{display}</p>
       {definition.input === "composition" || definition.options.some((option) => option.id === "undecided" && option.label === "スキップ") ? (

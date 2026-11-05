@@ -31,7 +31,7 @@ function NumberWheel({ label, value, max, disabled, onChange }: {
 
   return (
     <div className="relative sm:hidden">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-1 top-10 h-10 rounded-lg border-y border-white/70 bg-white/40" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-1 top-10 h-10 rounded-lg border-y border-white/70 bg-white/40 noir:border-[var(--hp-chat-edge)] noir:bg-[var(--hp-chat-fill)]" />
       <div
         ref={ref}
         role="listbox"
@@ -83,7 +83,7 @@ export function ProjectDurationInput({ initialMinutes, initialSeconds, initialUn
 
   function field(label: string, value: string, max: number, change: (value: string) => void) {
     return (
-      <div className="min-w-0 flex-1 rounded-xl border border-white/55 bg-white/35 px-2 py-1">
+      <div className="glass-subpanel min-w-0 flex-1 rounded-xl px-2 py-1">
         <p className="text-center text-xs font-medium text-hp-muted">{label}</p>
         <button type="button" aria-label={`${label}を1増やす`} disabled={unknown || Number(value) >= max} className="flex h-11 w-full items-center justify-center text-hp-muted disabled:opacity-35" onClick={() => change(String(Math.min(max, Number(value || 0) + 1)))}>
           <ChevronUp className="h-4 w-4" aria-hidden="true" />

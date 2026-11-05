@@ -35,7 +35,7 @@ Avoid: neon, heavy gradients, heavy shadows, cyberpunk, Apple-like over-animatio
 ### 1.1 Noir theme (migration in progress)
 
 The site is moving to a dark, editorial "noir" look (decided 2026-11-05). The home page and note articles use it now;
-other pages (booking, chatbot, LINE) keep the light glass look until they are migrated, then this section
+other pages (booking, LINE) keep the light glass look until they are migrated, then this section
 replaces the light contract.
 
 - Scope: an element with `data-hp-theme="noir"` switches the tokens for itself and for the shared header and footer.
@@ -47,6 +47,12 @@ replaces the light contract.
   over a rule. No section numbers or side labels.
 - Raised band: `.hp-surface-band` (profile).
 - Links: `.hp-text-link` inside prose, `.hp-plain-link` with an `ArrowUpRight` icon for external lists.
+- Chatbot (2026-11-05): the widget is shared by every page, so it follows the page under it. Its root and its
+  portalled dialogs carry `data-hp-chatbot-root`; on a noir page they take the noir tokens plus the chatbot block in
+  `globals.css` (`body:has([data-hp-theme="noir"]) [data-hp-chatbot-root]`). The shared `glass-*` utilities read
+  `--hp-glass-*` variables there and fall back to their light values elsewhere. Inner blocks use `.glass-subpanel`.
+  Utilities that only apply on the noir chatbot use the `noir:` variant. Selected dates are ivory with ink text;
+  busy dates are a faint muted fill with a strike, not a solid grey block.
 - Profile SNS links are `.hp-icon-badge` buttons with the official icons in their brand colours; the talks and press
   button is a `.hp-icon-badge` with the microphone-and-page icon and the words Talks & Press.
 
@@ -79,7 +85,7 @@ Do not invent parallel tokens unless the user explicitly asks for a design-syste
 | `--hp-color-calendar-control-bg` | `rgba(255, 255, 255, 0.52)` | Calendar control fill |
 | `--hp-color-calendar-control-hover-bg` | `rgba(255, 255, 255, 0.72)` | Calendar control hover fill |
 | `--hp-color-calendar-on-strong` | `#fff` | Text on strong calendar states |
-| `--hp-color-chatbot-shell-bg` | `rgba(255, 255, 255, 0.72)` | Chatbot shell fill |
+| `--hp-color-chatbot-shell-bg` | `rgba(255, 255, 255, 0.72)` (noir chatbot: `rgba(20, 19, 17, 0.92)`) | Chatbot shell fill (also `.glass-card--chat-frost`) |
 | `--hp-color-chatbot-choice-ring` | `rgba(54, 111, 204, 0.22)` | Chatbot choice ring |
 | `--hp-radius-sm` | `16px` | Small cards, inputs, tags, buttons |
 | `--hp-radius` | `20px` | Standard cards and figure shells |
