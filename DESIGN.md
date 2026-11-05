@@ -271,7 +271,7 @@ The home page is a one-page portfolio with anchored sections, in this order:
 - `/#works` featured works (display label: 作品)
 - `/#philosophy` notes (display label: ノート)
 - `/#profile` profile
-- `/#press` opens the talks and press modal (display label: 登壇・掲載); it is not a page section
+- `/#press` opens the talks and press modal (the Talks & Press badge in the profile); it is not a page section
 
 Keep the page short: detailed lists open from a button in a modal (talks and press, the enlarged profile photo)
 instead of being laid out on the page. A long page discourages reading.
@@ -303,7 +303,7 @@ The header uses `.glass-bar`, not a floating neumorphic nav.
 It is fixed at the top and spans the full width.
 
 - Brand block: the logo image; on noir pages it is inverted through `--hp-logo-filter`
-- Desktop nav: 作品 / ノート / プロフィール / 登壇・掲載 (plus 予約カレンダー when booking is enabled)
+- Desktop nav: 作品 / ノート / プロフィール (plus 予約カレンダー when booking is enabled)
 - Active indicator: small dot in `--hp-color-accent`
 - Mobile nav: hamburger, then `.glass-bar` dropdown
 

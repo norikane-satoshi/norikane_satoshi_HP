@@ -331,7 +331,6 @@ body:has([data-hp-theme="noir"]) {
     font-weight: 400;
     letter-spacing: 0.05em;
     line-height: 2.1;
-    max-width: 50rem;
   }
   /* プロフィール欄の公式アイコンのバッジ（SNS と登壇・掲載）。 */
   .hp-icon-badge {

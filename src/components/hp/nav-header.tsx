@@ -9,14 +9,13 @@ import { isBookingEnabled } from "@/lib/feature-flags"
 import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
 import { SITE_BRAND_NAME } from "@/lib/site-brand"
 
-type SectionId = "home" | "works" | "philosophy" | "profile" | "press" | "schedule"
+type SectionId = "home" | "works" | "philosophy" | "profile" | "schedule"
 type NavItem = { href: string; label: string; sectionId: SectionId }
 
 const baseNavItems: NavItem[] = [
   { href: "/#works", label: "作品", sectionId: "works" },
   { href: "/#philosophy", label: "ノート", sectionId: "philosophy" },
   { href: "/#profile", label: "プロフィール", sectionId: "profile" },
-  { href: "/#press", label: "登壇・掲載", sectionId: "press" },
 ]
 
 const bookingNavItem: NavItem = {
