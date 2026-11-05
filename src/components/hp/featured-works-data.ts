@@ -447,6 +447,8 @@ export const HERO_DEFAULT_ZOOM = 1.18
  * うち文字の入らない画から逆算した推定値なので、見て差し替える前提で持つ。
  */
 export const HERO_CLIPS: readonly HeroClip[] = [
+  // 左上に NHK のロゴが焼き込まれているので、拡大で画面の外へ出す。
+  { videoId: "Ti-f3lNV52k", startSeconds: 8, title: "火星の女王", client: "NHK100周年記念ドラマ", zoom: 1.5 },
   { videoId: "-2kSMEiw0wA", startSeconds: 63, title: "時計館の殺人", client: "hulu", zoom: 1.42 },
   { videoId: "aiPpSEcNLTk", startSeconds: 50, title: "福山雅治ライブフィルム「月光」", client: "松竹配給" },
   { videoId: "ajSVtbyX9gE", startSeconds: 8, title: "ゲキ×シネ『爆烈忠臣蔵』", client: "ヴィレッヂ", zoom: 1.36 },
