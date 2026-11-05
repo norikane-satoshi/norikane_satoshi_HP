@@ -31,6 +31,7 @@ const HOLD_END = 3.5
 const FADE_DUR = 0.2
 const IDEAL_FADE_IN = 0.6
 const IDEAL_FADE_OUT = 0.2
+const ENTRANCE_DUR = 1
 
 const NUM_OPS = 5
 const SAMPLES = 96
@@ -237,7 +238,7 @@ function computeAnimState(t: number): AnimState {
     const tIn = t - HOLD_START
     return {
       phase: "forward",
-      P: clamp01(tIn / FORWARD_DUR),
+      P: easeInOutCubic(clamp01(tIn / FORWARD_DUR)),
       Q: 0,
       t,
       tInPhase: tIn,
@@ -249,7 +250,7 @@ function computeAnimState(t: number): AnimState {
     return {
       phase: "backward",
       P: 1,
-      Q: clamp01(tIn / BACKWARD_DUR),
+      Q: easeInOutCubic(clamp01(tIn / BACKWARD_DUR)),
       t,
       tInPhase: tIn,
       tEnd: 0,
@@ -377,6 +378,27 @@ function buildIdealPolyline(
     points.push(`${sx.toFixed(2)},${sy.toFixed(2)}`)
   }
   return points.join(" ")
+}
+
+const RESIDUE_FILL = "rgb(226,176,104)"
+
+function buildResiduePath(
+  curves: { fnR: (x: number) => number; fnG: (x: number) => number; fnB: (x: number) => number },
+  plotX: number,
+  plotY: number,
+  plotW: number,
+  plotH: number,
+): string {
+  const top: string[] = []
+  const base: string[] = []
+  for (let i = 0; i <= SAMPLES; i++) {
+    const x = i / SAMPLES
+    const y = (curves.fnR(x) + curves.fnG(x) + curves.fnB(x)) / 3
+    const sx = (plotX + x * plotW).toFixed(2)
+    top.push(`${sx},${yToScreen(y, plotY, plotH).toFixed(2)}`)
+    base.push(`${sx},${yToScreen(x, plotY, plotH).toFixed(2)}`)
+  }
+  return `M ${top.join(" L ")} L ${base.reverse().join(" L ")} Z`
 }
 
 function fmt3(n: number): string {
@@ -746,18 +768,22 @@ function CellPlot({
   idealOpacity,
   curveBuilds,
   clipId,
+  residueOpacity,
 }: {
   cellX: number
   showIdeal: boolean
   idealOpacity: number
   curveBuilds: { fnR: (x: number) => number; fnG: (x: number) => number; fnB: (x: number) => number }
   clipId: string
+  residueOpacity: number
 }) {
   const plotXAbs = cellX + PLOT_X_LOCAL
   const polyR = buildPolyline(curveBuilds.fnR, plotXAbs, PLOT_Y, PLOT_W, PLOT_H)
   const polyG = buildPolyline(curveBuilds.fnG, plotXAbs, PLOT_Y, PLOT_W, PLOT_H)
   const polyB = buildPolyline(curveBuilds.fnB, plotXAbs, PLOT_Y, PLOT_W, PLOT_H)
   const idealPoints = buildIdealPolyline(plotXAbs, PLOT_Y, PLOT_W, PLOT_H)
+  // 戻しきれなかった量 (RGB 平均と y = x の差) を面で塗る。くすみとして積もる部分。
+  const residuePath = buildResiduePath(curveBuilds, plotXAbs, PLOT_Y, PLOT_W, PLOT_H)
 
   // Phase 32-AT: Y_MIN=0, Y_MAX=1.0 (y=0 が plot 下端、y=1 が plot 上端)
   const yOneScreen = yToScreen(1, PLOT_Y, PLOT_H)
@@ -821,11 +847,14 @@ function CellPlot({
       </text>
 
       <g clipPath={`url(#${clipId})`}>
+        {residueOpacity > 0.001 ? (
+          <path d={residuePath} fill={RESIDUE_FILL} fillOpacity={residueOpacity} />
+        ) : null}
         {showIdeal && (
           <polyline
             points={idealPoints}
             fill="none"
-            stroke="rgba(13,12,11,0.85)"
+            stroke="rgba(236,230,220,0.85)"
             strokeWidth={2.2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -833,6 +862,12 @@ function CellPlot({
             opacity={idealOpacity}
           />
         )}
+        {/* 発光 (暗い地の上で線が光って見えるよう、ぼかした太線を下に敷く) */}
+        <g style={{ mixBlendMode: "screen" }} opacity={0.4} filter="url(#cr-glow)">
+          <polyline points={polyR} fill="none" stroke={RGB_R} strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" />
+          <polyline points={polyG} fill="none" stroke={RGB_G} strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" />
+          <polyline points={polyB} fill="none" stroke={RGB_B} strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" />
+        </g>
         <g style={{ mixBlendMode: "screen" }}>
           <polyline
             data-correction-reversibility-curve="r"
@@ -957,8 +992,12 @@ function Cell({
   clipId,
   rgbFormula,
   badgeOps,
+  residueOpacity,
+  enter,
 }: {
   cellX: number
+  residueOpacity: number
+  enter: number
   title: string
   tint: typeof TINT_GAMMA
   showIdeal: boolean
@@ -970,7 +1009,7 @@ function Cell({
 }) {
   const cx = cellX + CELL_W / 2
   return (
-    <g>
+    <g opacity={enter} transform={`translate(0 ${((1 - enter) * 24).toFixed(2)})`}>
       <CellBackground cellX={cellX} border={tint.border} bg={tint.bg} />
       <text
         x={cx}
@@ -991,6 +1030,7 @@ function Cell({
         idealOpacity={idealOpacity}
         curveBuilds={curveBuilds}
         clipId={clipId}
+        residueOpacity={residueOpacity}
       />
 
       <Badge cx={cx} cy={BADGE_CY} kind="initial" opacity={badgeOps.initial} />
@@ -1131,6 +1171,8 @@ export default function CorrectionReversibility({
   reducedMotion: boolean
 }) {
   const [animT, setAnimT] = useState(0)
+  // 図が初めて画面に入ってからの時間 (登場アニメーション用、ENTRANCE_DUR で頭打ち)
+  const [shown, setShown] = useState(0)
   const lastRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
 
@@ -1148,6 +1190,7 @@ export default function CorrectionReversibility({
       const dt = (now - lastRef.current) / 1000
       lastRef.current = now
       setAnimT((prev) => (prev + dt) % LOOP)
+      setShown((prev) => Math.min(ENTRANCE_DUR, prev + dt))
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
@@ -1156,6 +1199,9 @@ export default function CorrectionReversibility({
       rafRef.current = null
     }
   }, [isPlaying, reducedMotion])
+
+  const enterLeft = reducedMotion ? 1 : 1 - Math.pow(1 - clamp01(shown / 0.7), 3)
+  const enterRight = reducedMotion ? 1 : 1 - Math.pow(1 - clamp01((shown - 0.15) / 0.7), 3)
 
   const state: AnimState = reducedMotion
     ? {
@@ -1255,6 +1301,15 @@ export default function CorrectionReversibility({
 
   const badgeOps = badgeOpacities(state)
 
+  // 戻しきれなかった量の面: 戻し終えたあとに現れて脈打つ (戻せた左セルでは面がほぼ 0 になる)
+  let residueOpacity = 0
+  if (reducedMotion) residueOpacity = 0.3
+  else if (state.phase === "hold-end") {
+    const fadeIn = clamp01(state.tEnd / 0.6)
+    const fadeOut = clamp01((HOLD_END - state.tEnd) / 0.4)
+    residueOpacity = (0.3 + 0.1 * Math.sin(state.tEnd * Math.PI * 1.6)) * fadeIn * fadeOut
+  }
+
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -1262,6 +1317,9 @@ export default function CorrectionReversibility({
       preserveAspectRatio="xMidYMid meet"
     >
       <defs>
+        <filter id="cr-glow" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur stdDeviation={5} />
+        </filter>
         <clipPath id="cr-plot-left">
           <rect x={PLOT_X_LOCAL} y={PLOT_Y} width={PLOT_W} height={PLOT_H} />
         </clipPath>
@@ -1292,6 +1350,8 @@ export default function CorrectionReversibility({
         clipId="cr-plot-left"
         rgbFormula={{ r: leftFormulaR, g: leftFormulaG, b: leftFormulaB }}
         badgeOps={badgeOps}
+        residueOpacity={residueOpacity}
+        enter={enterLeft}
       />
       <Cell
         cellX={CELL_W + GAP}
@@ -1307,6 +1367,8 @@ export default function CorrectionReversibility({
           b: rightFormulaB,
         }}
         badgeOps={badgeOps}
+        residueOpacity={residueOpacity}
+        enter={enterRight}
       />
     </svg>
   )

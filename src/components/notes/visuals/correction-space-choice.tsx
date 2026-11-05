@@ -28,11 +28,16 @@ import { useEffect, useRef, useState } from "react"
  * △ が入った専用シンボルとして SVG で組む。useState のみで初期 render は
  * 閉じた状態。SSR safe / curve 描画の純関数性は維持。
  *
+ * 動き (2026-11-05 リッチ化): 登場時にセルが左から浮かび上がり、3 空間で同じノブを
+ * 「上げて止め、下げて止め、中立へ戻す」。止まる位置でわずかに行き過ぎる。
+ * 1 を超えた部分の曲線だけ赤く光らせ、はみ出した瞬間を目立たせる。
+ *
  * reducedMotion 時はパラメータを range 中央値で固定して静止画化する
  * (Log: b=0 / Linear: a=1.25 / Gamma: a=1.25)。
  */
 
-const LOOP = 6.5
+const LOOP = 8
+const ENTRANCE_DUR = 1.4
 const W = 1600
 const H = 500
 const CELL_W = W / 3
@@ -97,11 +102,33 @@ const VERDICT_COLOR: Record<Verdict, string> = {
   ng: "rgb(216,121,137)",
 }
 
+function easeInOutCubic(x: number) {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2
+}
+// 止まる位置でわずかに行き過ぎて戻る (手で回したノブの感触)。
+function easeOutBack(x: number) {
+  const c1 = 1.2
+  const c3 = c1 + 1
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2)
+}
+/**
+ * 3 つの空間で同じノブを同時に回す。0..1 の「回し量」を返す
+ * (0 = 中立、+1 = 上げきり、−1 = 下げきり)。上げて止め、下げて止め、中立へ戻る。
+ */
+function knobAmount(t: number) {
+  if (t < 1.4) return easeOutBack(t / 1.4)
+  if (t < 3.0) return 1
+  if (t < 4.6) return 1 - 2 * easeOutBack((t - 3.0) / 1.6)
+  if (t < 6.2) return -1
+  if (t < 7.6) return -1 + easeInOutCubic((t - 6.2) / 1.4)
+  return 0
+}
 function paramA(t: number) {
-  return 1.25 + 0.75 * Math.sin((2 * Math.PI * t) / LOOP)
+  const k = knobAmount(t)
+  return k >= 0 ? 1 + 0.9 * k : 1 + 0.5 * k
 }
 function paramB(t: number) {
-  return 0.3 * Math.sin((2 * Math.PI * t) / LOOP)
+  return 0.28 * knobAmount(t)
 }
 const GAMMA_FIXED = 2.4
 
@@ -425,10 +452,12 @@ function Cell({
   spec,
   t,
   reducedMotion,
+  enter,
 }: {
   spec: CellSpec
   t: number
   reducedMotion: boolean
+  enter: number
 }) {
   const p = reducedMotion ? spec.reducedValue : spec.param(t)
   const cellX = spec.cellX
@@ -443,9 +472,15 @@ function Cell({
   const refEndX = plotX + (refEndNorm / PLOT_X_MAX) * PLOT_W
   const refEndY = plotY + PLOT_H - (refEndNorm / PLOT_Y_MAX) * PLOT_H
   const xOneScreen = plotX + (1.0 / PLOT_X_MAX) * PLOT_W
+  const overRangeId = `${spec.clipId}-over`
 
   return (
-    <g>
+    <g opacity={enter} transform={`translate(0 ${((1 - enter) * 24).toFixed(2)})`}>
+      <defs>
+        <clipPath id={overRangeId}>
+          <rect x={plotX} y={plotY} width={PLOT_W} height={ySignalTop - plotY} />
+        </clipPath>
+      </defs>
       {/* セル背景 */}
       <rect
         x={cellX + 18}
@@ -554,10 +589,42 @@ function Cell({
 
       {/* 入出力カーブ */}
       <g clipPath={`url(#${spec.clipId})`}>
+        {/* 発光 (暗い地の上で線が光って見えるよう、ぼかした太線を下に敷く) */}
         <polyline
           points={polyPoints}
           fill="none"
           stroke={spec.tint.curve}
+          strokeOpacity={0.4}
+          strokeWidth={10}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter="url(#csc-glow)"
+        />
+        <polyline
+          points={polyPoints}
+          fill="none"
+          stroke={spec.tint.curve}
+          strokeWidth={3.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+      {/* 1 を超えた部分だけ赤く光らせ、はみ出した瞬間を目立たせる */}
+      <g clipPath={`url(#${overRangeId})`}>
+        <polyline
+          points={polyPoints}
+          fill="none"
+          stroke="rgb(236,110,110)"
+          strokeOpacity={0.55}
+          strokeWidth={12}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter="url(#csc-glow)"
+        />
+        <polyline
+          points={polyPoints}
+          fill="none"
+          stroke="rgb(240,140,140)"
           strokeWidth={3.6}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -616,6 +683,9 @@ export default function CorrectionSpaceChoice({
   reducedMotion: boolean
 }) {
   const [animT, setAnimT] = useState(0)
+  // 図が初めて画面に入ってからの時間 (登場アニメーション用)。登場中はノブを中立のまま待つ
+  const [shown, setShown] = useState(0)
+  const shownRef = useRef(0)
   const [physicsTooltipOpen, setPhysicsTooltipOpen] = useState(false)
   const lastRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -633,7 +703,12 @@ export default function CorrectionSpaceChoice({
       if (lastRef.current == null) lastRef.current = now
       const dt = (now - lastRef.current) / 1000
       lastRef.current = now
-      setAnimT((prev) => (prev + dt) % LOOP)
+      if (shownRef.current < ENTRANCE_DUR) {
+        shownRef.current = Math.min(ENTRANCE_DUR, shownRef.current + dt)
+        setShown(shownRef.current)
+      } else {
+        setAnimT((a) => (a + dt) % LOOP)
+      }
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
@@ -644,6 +719,8 @@ export default function CorrectionSpaceChoice({
   }, [isPlaying, reducedMotion])
 
   const t = animT
+  const enterOf = (i: number) =>
+    reducedMotion ? 1 : 1 - Math.pow(1 - Math.min(1, Math.max(0, (shown - i * 0.15) / 0.7)), 3)
   const logCell = CELLS.find((c) => c.hasPhysicsTooltip)
 
   return (
@@ -653,6 +730,9 @@ export default function CorrectionSpaceChoice({
       preserveAspectRatio="xMidYMid meet"
     >
       <defs>
+        <filter id="csc-glow" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur stdDeviation={6} />
+        </filter>
         {CELLS.map((spec) => {
           const plotX = spec.cellX + PLOT_X
           return (
@@ -677,12 +757,13 @@ export default function CorrectionSpaceChoice({
         />
       ))}
 
-      {CELLS.map((spec) => (
+      {CELLS.map((spec, i) => (
         <Cell
           key={spec.clipId}
           spec={spec}
           t={t}
           reducedMotion={reducedMotion}
+          enter={enterOf(i)}
         />
       ))}
 
