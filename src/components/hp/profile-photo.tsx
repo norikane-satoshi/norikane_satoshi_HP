@@ -171,31 +171,34 @@ export function ProfilePhoto() {
                           {chapter.period ?? ""}
                         </p>
                         <div className="flex min-w-0 flex-col gap-5">
-                          <h3 className="text-[clamp(1.25rem,2.2vw,1.5rem)] font-medium tracking-[0.08em] break-normal">
-                            {chapter.title}
-                          </h3>
-                          <div className="flex flex-col gap-4 text-[0.98rem] leading-[2.15] tracking-[0.05em] text-hp-muted">
-                            {chapter.paragraphs.map((parts, index) => (
-                              <BiographyParagraph key={index} parts={parts} />
-                            ))}
-                          </div>
-                          {chapter.image ? (
-                            <figure className="mt-3 flex flex-col gap-3">
-                              <Image
-                                src={chapter.image.src}
-                                alt={chapter.image.alt}
-                                width={chapter.image.width}
-                                height={chapter.image.height}
-                                sizes="(max-width: 768px) 88vw, 520px"
-                                className="h-auto w-full"
-                              />
-                              {chapter.image.caption ? (
-                                <figcaption className="text-[0.8125rem] tracking-[0.06em] text-hp-muted">
-                                  {chapter.image.caption}
-                                </figcaption>
-                              ) : null}
-                            </figure>
+                          {chapter.title ? (
+                            <h3 className="text-[clamp(1.25rem,2.2vw,1.5rem)] font-medium tracking-[0.08em] break-normal">
+                              {chapter.title}
+                            </h3>
                           ) : null}
+                          <div className="flex flex-col gap-4 text-[0.98rem] leading-[2.15] tracking-[0.05em] text-hp-muted">
+                            {chapter.body.map((block, index) =>
+                              block.type === "paragraph" ? (
+                                <BiographyParagraph key={index} parts={block.parts} />
+                              ) : (
+                                <figure key={index} className="my-3 flex flex-col gap-3">
+                                  <Image
+                                    src={block.src}
+                                    alt={block.alt}
+                                    width={block.width}
+                                    height={block.height}
+                                    sizes="(max-width: 768px) 88vw, 520px"
+                                    className="h-auto w-full"
+                                  />
+                                  {block.caption ? (
+                                    <figcaption className="text-[0.8125rem] tracking-[0.06em]">
+                                      {block.caption}
+                                    </figcaption>
+                                  ) : null}
+                                </figure>
+                              ),
+                            )}
+                          </div>
                         </div>
                       </li>
                     ))}
