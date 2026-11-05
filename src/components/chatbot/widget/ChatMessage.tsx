@@ -650,7 +650,7 @@ export function ChatMessage({
               </button>
               <button
                 type="button"
-                className="glass-btn inline-flex h-8 items-center gap-1 border-red-300 px-3 text-xs font-semibold text-red-700 focus-visible:outline-red-400 noir:border-red-400/50 noir:text-red-300"
+                className="glass-btn inline-flex h-8 items-center gap-1 border-red-400/50 px-3 text-xs font-semibold text-red-300 focus-visible:outline-red-400"
                 onClick={confirmSaveEdit}
                 disabled={editingDisabled || resolvingChoice || !trimmedDraft || trimmedDraft === content.trim()}
               >

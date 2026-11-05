@@ -1739,7 +1739,7 @@ export function WidgetShell({
             onClick={scrollToLatest}
           className="glass-badge absolute bottom-4 left-1/2 z-20 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center border border-[var(--glass-border)] p-0 text-[var(--hp-color-accent)] shadow-[var(--glass-shadow)] transition-[transform,box-shadow,opacity] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]"
             style={{
-              background: "var(--hp-chat-latest-bg, rgba(255, 255, 255, 0.42))",
+              background: "var(--hp-color-chatbot-latest-bg)",
               backdropFilter: "blur(18px) saturate(140%)",
               WebkitBackdropFilter: "blur(18px) saturate(140%)",
             }}

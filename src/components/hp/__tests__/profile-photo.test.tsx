@@ -24,7 +24,6 @@ describe("ProfilePhoto", () => {
     expect(dialog.parentElement).toHaveStyle({
       zIndex: String(HP_MODAL_OVERLAY_Z_INDEX),
     })
-    expect(dialog.parentElement).toHaveAttribute("data-hp-theme", "noir")
     expect(screen.getByRole("heading", { name: "丸亀に生まれる" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "白A（SIRO-A）" })).toHaveAttribute(
       "href",

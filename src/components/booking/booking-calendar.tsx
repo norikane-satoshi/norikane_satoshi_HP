@@ -2147,8 +2147,6 @@ export function BookingCalendar({
 
   const dayCellClassNames = (arg: DayCellContentArg): string[] => {
     const classes: string[] = []
-    const day = arg.date.getDay()
-    if (day === 0 || day === 6) classes.push("booking-calendar__weekend")
     const dateKey = toDateKey(arg.date)
     const selectedDates = selectedDateSelection?.dates ?? []
     const unavailable = !isSelectableMonthDateKey(dateKey)

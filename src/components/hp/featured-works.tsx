@@ -809,7 +809,6 @@ function FeaturedWorkVideoDialog({
 
   return createPortal(
     <div
-      data-hp-theme="noir"
       className="fixed inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.62)] p-4 md:p-8"
       style={{
         zIndex: HP_MODAL_OVERLAY_Z_INDEX,

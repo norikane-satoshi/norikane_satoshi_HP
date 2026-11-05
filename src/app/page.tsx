@@ -183,7 +183,7 @@ function ProfileSection() {
 export default async function HomePage() {
   const noteCards = buildHomeNoteCards(await listPublishedNotesForHome())
   return (
-    <div className="hp-noir-page">
+    <div>
       <HeroSection />
 
       <section className="hp-section-shell hp-section-pad">

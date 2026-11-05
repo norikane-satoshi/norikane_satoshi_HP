@@ -415,7 +415,7 @@ describe("ChatbotBookingCard", () => {
     const requiredMarks = within(bookingOrder).getAllByText("必須")
     expect(requiredMarks).toHaveLength(4)
     requiredMarks.forEach((mark) => {
-      expect(mark).toHaveClass("text-red-500")
+      expect(mark).toHaveClass("text-red-400")
     })
     expect(screen.getByLabelText("案件名")).toBeRequired()
     expect(screen.getByLabelText("氏名")).toBeRequired()
@@ -445,7 +445,7 @@ describe("ChatbotBookingCard", () => {
     renderCard()
 
     const dateCell = screen.getByRole("button", { name: "2026-06-10 選択可" })
-    expect(dateCell).toHaveClass("hover:bg-white/85")
+    expect(dateCell).toHaveClass("hover:bg-[var(--hp-color-fill-hover)]")
     expect(dateCell).toHaveClass("hover:scale-[1.02]")
     expect(dateCell).toHaveClass("active:scale-[0.97]")
     expect(dateCell).toHaveClass("hover:ring-2")
@@ -474,7 +474,7 @@ describe("ChatbotBookingCard", () => {
     expect(pastCell).toBeDisabled()
     expect(pastCell).toHaveAttribute("data-calendar-state", "past")
     expect(pastCell).toHaveClass("cursor-default")
-    expect(pastCell).not.toHaveClass("hover:bg-white/85")
+    expect(pastCell).not.toHaveClass("hover:bg-[var(--hp-color-fill-hover)]")
     expect(pastCell).not.toHaveClass("hover:ring-2")
 
     pastCell.focus()
@@ -741,14 +741,14 @@ describe("ChatbotBookingCard", () => {
     const june10 = screen.getByRole("button", { name: "2026-06-10 空き・開始不可" })
 
     expect(june14).toHaveAttribute("data-calendar-state", "startable")
-    expect(june14).toHaveClass("hover:bg-white/85")
+    expect(june14).toHaveClass("hover:bg-[var(--hp-color-fill-hover)]")
     expect(june17).toHaveAttribute("data-calendar-state", "startable")
     expect(june18).toHaveAttribute("data-calendar-state", "startable")
     expect(june12).toBeDisabled()
     expect(june12).toHaveAttribute("data-calendar-state", "busy")
     expect(june10).toBeDisabled()
     expect(june10).toHaveAttribute("data-calendar-state", "past")
-    expect(june10).not.toHaveClass("hover:bg-white/85")
+    expect(june10).not.toHaveClass("hover:bg-[var(--hp-color-fill-hover)]")
 
     fireEvent.click(june14)
     fireEvent.click(june17)

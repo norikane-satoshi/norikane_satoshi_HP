@@ -65,7 +65,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--hp-color-accent);
+  border: 1px solid var(--hp-color-border-strong);
   padding: 12px 14px;
   color: var(--text-primary);
 }
@@ -608,7 +608,7 @@ button.booking-form__slot-pill:focus-visible {
 
 .booking-form__callout {
   min-width: 0;
-  border: 1px solid var(--hp-color-accent);
+  border: 1px solid var(--hp-color-border-strong);
   padding: 12px 14px;
   color: var(--text-primary);
   font-size: 0.875rem;
@@ -865,10 +865,4 @@ button.booking-form__slot-pill:focus-visible {
   .booking-settings__button {
     width: 100%;
   }
-}
-
-/* 墨色では注意書きの枠をアイボリー全開にせず、罫線と同じ強さにする。 */
-[data-hp-theme="noir"] .booking-form__callout,
-[data-hp-theme="noir"] .admin-reconnect-banner {
-  border-color: var(--hp-noir-edge-strong);
 }
