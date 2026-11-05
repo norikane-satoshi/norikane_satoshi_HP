@@ -35,7 +35,7 @@ function matchesMobileHintMedia() {
 
 function ShortcutKeycap({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-[6px] border border-white/65 bg-white/45 noir:border-[var(--hp-chat-edge)] noir:bg-[var(--hp-chat-fill)] px-1.5 text-[10px] font-semibold leading-none text-hp">
+    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-[6px] border border-white/65 bg-white/45 noir:border-[var(--hp-noir-edge)] noir:bg-[var(--hp-noir-fill)] px-1.5 text-[10px] font-semibold leading-none text-hp">
       <span className="inline-flex items-center justify-center opacity-60">{children}</span>
     </span>
   )

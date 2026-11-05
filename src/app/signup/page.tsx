@@ -60,8 +60,8 @@ function SignupCard() {
 
   if (sentTo) {
     return (
-      <div className="glass-card p-8 md:p-10 text-center">
-        <h1 className="text-3xl font-bold text-hp md:text-4xl">確認メールを送信しました</h1>
+      <div className="text-center">
+        <h1 className="hp-heading text-3xl font-medium text-hp md:text-4xl">確認メールを送信しました</h1>
         <p className="mt-6 text-sm text-hp-muted">
           <span className="text-hp font-medium">{sentTo}</span>{" "}
           に確認メールを送信しました。
@@ -79,8 +79,8 @@ function SignupCard() {
   }
 
   return (
-    <div className="glass-card p-8 md:p-10">
-      <h1 className="text-3xl font-bold text-hp md:text-4xl">新規登録</h1>
+    <div>
+      <h1 className="hp-heading text-3xl font-medium text-hp md:text-4xl">新規登録</h1>
       <p className="mt-3 text-sm text-hp-muted">
         メールアドレスとパスワードでアカウントを作成するか、ソーシャルログインから始められます。
       </p>
@@ -140,7 +140,7 @@ function SignupCard() {
         </div>
 
         {errorMessage && (
-          <p className="text-sm text-red-500" role="alert">
+          <p className="text-sm text-red-400" role="alert">
             {errorMessage}
           </p>
         )}
@@ -196,7 +196,7 @@ function SignupCard() {
 
 export default function SignupPage() {
   return (
-    <section className="mx-auto w-full max-w-[480px] px-4 md:px-8 py-12 md:py-16">
+    <section data-hp-theme="noir" className="mx-auto w-full max-w-[480px] px-6 py-12 md:px-10 md:py-16">
       <Suspense fallback={null}>
         <SignupCard />
       </Suspense>

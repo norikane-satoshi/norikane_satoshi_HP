@@ -31,7 +31,7 @@ function NumberWheel({ label, value, max, disabled, onChange }: {
 
   return (
     <div className="relative sm:hidden">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-1 top-10 h-10 rounded-lg border-y border-white/70 bg-white/40 noir:border-[var(--hp-chat-edge)] noir:bg-[var(--hp-chat-fill)]" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-1 top-10 h-10 rounded-lg border-y border-white/70 bg-white/40 noir:border-[var(--hp-noir-edge)] noir:bg-[var(--hp-noir-fill)]" />
       <div
         ref={ref}
         role="listbox"

@@ -148,7 +148,7 @@ function LegalModal({ kind, onClose }: { kind: LegalModalKind | null; onClose: (
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="glass-card [--glass-bg:var(--bg-base)] noir:[--glass-bg:var(--hp-chat-surface)] flex max-h-[min(82vh,760px)] w-full max-w-4xl flex-col overflow-hidden p-6 md:p-8 xl:p-10"
+        className="glass-card [--glass-bg:var(--bg-base)] noir:[--glass-bg:var(--hp-noir-surface)] flex max-h-[min(82vh,760px)] w-full max-w-4xl flex-col overflow-hidden p-6 md:p-8 xl:p-10"
       >
         <div className="flex justify-end">
           <button

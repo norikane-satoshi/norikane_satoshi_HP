@@ -800,7 +800,7 @@ export function ChatbotBookingCard({
                       "min-h-11 rounded-[var(--hp-radius-calendar-cell)] border px-1.5 py-2 text-xs transition-[transform,box-shadow,opacity,background-color,border-color,color] duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] active:scale-[0.97]",
                       selected
                         ? "border-[var(--hp-color-accent)] bg-[var(--hp-color-accent)] font-bold text-white ring-2 ring-[var(--hp-color-accent-focus-ring)]/35 ring-inset noir:text-[var(--hp-color-calendar-on-strong)]"
-                        : "border-white/65 bg-white/55 text-hp noir:border-[var(--hp-chat-edge)] noir:bg-[var(--hp-chat-fill)] noir:hover:bg-[var(--hp-chat-fill-hover)] hover:-translate-y-0.5 hover:scale-[1.02] hover:border-[var(--hp-color-accent)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--hp-color-accent-focus-ring)]/45 hover:ring-inset focus-visible:border-[var(--hp-color-accent)] focus-visible:ring-2 focus-visible:ring-[var(--hp-color-accent-focus-ring)]/45 focus-visible:ring-inset",
+                        : "border-white/65 bg-white/55 text-hp noir:border-[var(--hp-noir-edge)] noir:bg-[var(--hp-noir-fill)] noir:hover:bg-[var(--hp-noir-fill-hover)] hover:-translate-y-0.5 hover:scale-[1.02] hover:border-[var(--hp-color-accent)] hover:bg-white/85 hover:ring-2 hover:ring-[var(--hp-color-accent-focus-ring)]/45 hover:ring-inset focus-visible:border-[var(--hp-color-accent)] focus-visible:ring-2 focus-visible:ring-[var(--hp-color-accent-focus-ring)]/45 focus-visible:ring-inset",
                     ].join(" ")}
                     data-selected={selected ? "true" : undefined}
                     data-calendar-state={tentative ? "tentative" : "startable"}

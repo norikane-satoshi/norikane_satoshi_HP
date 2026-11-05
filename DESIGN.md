@@ -34,9 +34,10 @@ Avoid: neon, heavy gradients, heavy shadows, cyberpunk, Apple-like over-animatio
 
 ### 1.1 Noir theme (migration in progress)
 
-The site is moving to a dark, editorial "noir" look (decided 2026-11-05). The home page and note articles use it now;
-other pages (booking, LINE) keep the light glass look until they are migrated, then this section
-replaces the light contract.
+The site is moving to a dark, editorial "noir" look (decided 2026-11-05). The home page, note articles, booking pages
+(`/booking`, history, settings, edit), the LINE booking page, login and signup use it now. The privacy, terms and
+public availability pages keep the light glass look until they are migrated, then this section replaces the light
+contract.
 
 - Scope: an element with `data-hp-theme="noir"` switches the tokens for itself and for the shared header and footer.
   The token values live only in the `[data-hp-theme="noir"]` block in `globals.css`.
@@ -47,6 +48,10 @@ replaces the light contract.
   over a rule. No section numbers or side labels.
 - Raised band: `.hp-surface-band` (profile).
 - Links: `.hp-text-link` inside prose, `.hp-plain-link` with an `ArrowUpRight` icon for external lists.
+- Booking pages: no outer glass card. The page is `.hp-section-shell` with a `.hp-section-heading-row` title row;
+  the calendar, side panel and form keep their own panels. On noir, the shared `glass-*` utilities read the
+  `--hp-glass-*` values from the noir block, the calendar tokens switch to ivory (today, selected), past days sink
+  into the ground, weekends are not tinted, and `color-scheme: dark` gives dark native controls.
 - Chatbot (2026-11-05): the widget is shared by every page, so it follows the page under it. Its root and its
   portalled dialogs carry `data-hp-chatbot-root`; on a noir page they take the noir tokens plus the chatbot block in
   `globals.css` (`body:has([data-hp-theme="noir"]) [data-hp-chatbot-root]`). The shared `glass-*` utilities read

@@ -40,7 +40,7 @@
 
 .booking-progress__dot--reached {
   background: var(--hp-color-accent);
-  color: var(--glass-bg);
+  color: var(--hp-color-calendar-on-strong);
 }
 
 .booking-progress__line {
@@ -469,7 +469,7 @@
 
 .booking-footer__primary {
   background: var(--hp-color-accent);
-  color: var(--glass-bg);
+  color: var(--hp-color-calendar-on-strong);
 }
 
 .booking-footer__primary:disabled {
@@ -865,4 +865,10 @@ button.booking-form__slot-pill:focus-visible {
   .booking-settings__button {
     width: 100%;
   }
+}
+
+/* 墨色では注意書きの枠をアイボリー全開にせず、罫線と同じ強さにする。 */
+[data-hp-theme="noir"] .booking-form__callout,
+[data-hp-theme="noir"] .admin-reconnect-banner {
+  border-color: var(--hp-noir-edge-strong);
 }
