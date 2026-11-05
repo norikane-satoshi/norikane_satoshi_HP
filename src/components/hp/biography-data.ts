@@ -106,6 +106,7 @@ export const BIOGRAPHY_CHAPTERS: BiographyChapter[] = [
       p(
         "映像に興味を持ったきっかけは、映像ゼミの 3ds Max の授業です。モデリング、リギング、アニメーション、ライティング、撮影、まで行える映像作りの魅力に惹かれました。",
       ),
+      p({ text: "フェイシャルリギング　メイキング", href: "https://vimeo.com/norikane/for-seitoku" }),
       p(
         "卒業制作では実写合成の映像作品『",
         { text: "オトシカク", href: "https://www.youtube.com/watch?v=mJcyWAcEMMc" },
