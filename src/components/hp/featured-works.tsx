@@ -553,18 +553,9 @@ function useScrollableMarquee(
   }, [progressThumbRef, progressTrackRef, viewportRef])
 }
 
-function PreviewFrame({
-  children,
-  abstractCover = false,
-}: {
-  children: ReactNode
-  abstractCover?: boolean
-}) {
+function PreviewFrame({ children }: { children: ReactNode }) {
   return (
-    <div
-      className="relative aspect-video overflow-hidden bg-[var(--hp-color-surface-raised)]"
-      data-featured-work-abstract-cover={abstractCover ? "true" : undefined}
-    >
+    <div className="relative aspect-video overflow-hidden bg-[var(--hp-color-surface-raised)]">
       {children}
     </div>
   )
@@ -573,9 +564,11 @@ function PreviewFrame({
 function PreviewThumbnail({
   videoId,
   isVisible,
+  fixed = false,
 }: {
   videoId: string
   isVisible: boolean
+  fixed?: boolean
 }) {
   const previousVisibleRef = useRef(isVisible)
   const previousVideoIdRef = useRef(videoId)
@@ -615,12 +608,11 @@ function PreviewThumbnail({
     }
   }, [isVisible, videoId])
 
+  const variant = useDefaultThumbnail ? "default" : fixed ? "maxres" : thumbnailSelection.variant
+
   return (
     <img
-      src={getYouTubeThumbnailUrl(
-        videoId,
-        useDefaultThumbnail ? "default" : thumbnailSelection.variant,
-      )}
+      src={getYouTubeThumbnailUrl(videoId, variant)}
       alt=""
       className={`featured-work-preview-thumbnail pointer-events-none absolute inset-0 z-20 h-full w-full rounded-none object-cover transition-opacity duration-[var(--motion-duration-press)] ease-[var(--ease-out-strong)] ${
         isVisible ? "opacity-100" : "opacity-0"
@@ -629,9 +621,7 @@ function PreviewThumbnail({
       decoding="async"
       onError={() => setFallbackThumbnailKey(thumbnailKey)}
       data-featured-work-preview-thumbnail={isVisible ? "visible" : "hidden"}
-      data-featured-work-preview-thumbnail-variant={
-        useDefaultThumbnail ? "default" : thumbnailSelection.variant
-      }
+      data-featured-work-preview-thumbnail-variant={variant}
     />
   )
 }
@@ -948,6 +938,7 @@ export function getYouTubePlayerVars(
 
 function VideoSurface({
   videoId,
+  fixedThumbnail,
   loopStart,
   loopEnd,
   clipRangeStart,
@@ -960,6 +951,7 @@ function VideoSurface({
   onOpenVideo,
 }: {
   videoId: string
+  fixedThumbnail?: boolean
   loopStart?: number
   loopEnd?: number
   clipRangeStart?: number
@@ -1229,7 +1221,7 @@ function VideoSurface({
           />
         </div>
       ) : null}
-      <PreviewThumbnail videoId={videoId} isVisible={!isPreviewReady} />
+      <PreviewThumbnail videoId={videoId} isVisible={!isPreviewReady} fixed={fixedThumbnail} />
       <VideoOpenButton
         label={`${title} の動画をモーダルで再生`}
         clone={clone}
@@ -1290,10 +1282,11 @@ function FeaturedWorkCard({
               onOpenVideo={onOpenVideo}
             />
           </PreviewFrame>
-        ) : work.youtubeId ? (
+        ) : (
           <PreviewFrame>
             <VideoSurface
               videoId={work.youtubeId}
+              fixedThumbnail={work.fixedThumbnail}
               loopStart={work.loopStart}
               loopEnd={work.loopEnd}
               clipRangeStart={work.clipRangeStart}
@@ -1306,12 +1299,6 @@ function FeaturedWorkCard({
               onOpenVideo={onOpenVideo}
             />
           </PreviewFrame>
-        ) : (
-          <PreviewFrame abstractCover>
-            <p className="absolute inset-0 flex items-center justify-center text-[clamp(1.75rem,3vw,2.75rem)] tracking-[0.24em] text-hp-muted">
-              {work.title}
-            </p>
-          </PreviewFrame>
         )}
         <div className="featured-work-card-meta mt-5 flex flex-col gap-1">
           <p className="text-[clamp(1.0625rem,1.35vw,1.25rem)] font-medium leading-relaxed tracking-[0.04em] text-hp">
@@ -1323,7 +1310,7 @@ function FeaturedWorkCard({
               links={work.links}
               workTitle={work.title}
               clone={clone}
-              hideYouTube={Boolean(work.youtubeId)}
+              hideYouTube
             />
           </div>
         </div>
@@ -1710,7 +1697,7 @@ export function FeaturedWorks() {
     <>
       {FEATURED_WORKS.map((work, index) => (
         <FeaturedWorkCard
-          key={`${clone ? "clone" : "primary"}-${work.youtubeId ?? work.officialUrl}`}
+          key={`${clone ? "clone" : "primary"}-${work.youtubeId}`}
           work={work}
           shouldStartVideo={hasEnteredViewport}
           clone={clone}

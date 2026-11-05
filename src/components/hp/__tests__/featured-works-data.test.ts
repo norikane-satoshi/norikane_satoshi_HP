@@ -16,6 +16,10 @@ describe("featured works data", () => {
     expect(FEATURED_WORKS).toEqual([
       expect.objectContaining({
         title: "火星の女王",
+        youtubeId: "Ti-f3lNV52k",
+        fixedThumbnail: true,
+        loopStart: 6,
+        loopEnd: 104,
         officialUrl:
           "https://www.web.nhk/tv/an/kaseinojoo/pl/series-tep-54KJPL1QGM",
         links: [
@@ -89,7 +93,6 @@ describe("featured works data", () => {
         ],
       }),
     ])
-    expect(FEATURED_WORKS[0]).not.toHaveProperty("youtubeId")
     expect(FEATURED_WORKS[0]?.links.map((link) => link.label)).toEqual([
       "公式ホームページ",
     ])

@@ -1,7 +1,9 @@
 export type FeaturedWork = {
   title: string
   client: string
-  youtubeId?: string
+  youtubeId: string
+  /** 再生前の表紙を、ランダムな場面ではなく動画の公式サムネイルに固定する。 */
+  fixedThumbnail?: boolean
   /** 複数の動画を並べた順に切り替えて流す。先頭は youtubeId と同じ動画にする。 */
   videos?: readonly FeaturedWorkPreviewVideo[]
   loopStart?: number
@@ -39,6 +41,11 @@ export const FEATURED_WORKS: FeaturedWork[] = [
   {
     title: "火星の女王",
     client: "NHK100周年記念ドラマ",
+    // NHKスクエアのブルーレイ PR。6〜104 秒が本編映像（それ以降はタイトルと商品告知）。
+    youtubeId: "Ti-f3lNV52k",
+    fixedThumbnail: true,
+    loopStart: 6,
+    loopEnd: 104,
     officialUrl:
       "https://www.web.nhk/tv/an/kaseinojoo/pl/series-tep-54KJPL1QGM",
     links: [
@@ -188,9 +195,9 @@ export type YouTubeThumbnailVariantSelection = {
 
 export function getYouTubeThumbnailUrl(
   videoId: string,
-  variant: YouTubeThumbnailVariant | "default" = "default",
+  variant: YouTubeThumbnailVariant | "default" | "maxres" = "default",
 ) {
-  const fileName = variant === "default" ? "hqdefault" : `hq${variant}`
+  const fileName = variant === "default" ? "hqdefault" : variant === "maxres" ? "maxresdefault" : `hq${variant}`
   return `https://i.ytimg.com/vi/${videoId}/${fileName}.jpg`
 }
 
