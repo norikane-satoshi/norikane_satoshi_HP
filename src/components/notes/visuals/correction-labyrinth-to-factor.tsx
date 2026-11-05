@@ -34,6 +34,25 @@ const MAX_STACK = 3 // カメラ列の chip 数
 const COL_H = HEADER_OFFSET + MAX_STACK * (CHIP_H + STACK_GAP) + 8 // 60 + 192 + 8 = 260
 
 const FALL_DUR = 1.6
+const LAND_BOUNCE = 0.55
+
+/** その列に chip が着地した直後ほど 1 に近い値 (列の縁を光らせる強さ)。 */
+function columnFlash(col: number, t: number) {
+  let v = 0
+  for (const card of CARDS) {
+    if (card.col !== col) continue
+    const dt = t - (card.fallStart + FALL_DUR)
+    if (dt >= 0 && dt < 0.9) v = Math.max(v, 1 - dt / 0.9)
+  }
+  return v
+}
+
+/** 全 chip がそろった瞬間 (P1_END) から、粒度バーを左から右へ光が走る位置 (0..1)。走っていなければ null */
+function barSweep(t: number) {
+  const d = t - P1_END
+  if (d < 0 || d > 1.4) return null
+  return d / 1.4
+}
 
 // emit point Y: 上空中央やや前方 (Phase 0 swirl 中心 Y / Phase 3 吸い上げ先 Y、9 chip 共通)
 // X は chip 個別 (CardSpec.emitX、220〜1400) で横方向に分散させる。列順とは無関係に
@@ -176,6 +195,14 @@ function chipState(card: CardSpec, t: number): ChipState {
   // Phase 2: 静止 (10..15s)
   if (t >= P1_END) {
     return { cx: targetCX, cy: targetCY, scale: 1, opacity: 1 }
+  }
+
+  // 着地直後: 小さく 2 回弾んで止まる (LAND_BOUNCE 秒)
+  const landAt = card.fallStart + FALL_DUR
+  if (t >= landAt) {
+    const k = clamp01((t - landAt) / LAND_BOUNCE)
+    const bounce = -10 * Math.abs(Math.sin(k * Math.PI * 2)) * (1 - k) * (1 - k)
+    return { cx: targetCX, cy: targetCY + bounce, scale: 1, opacity: 1 }
   }
 
   // Phase 1: 落下 (chip 個別の fallStart から FALL_DUR 秒)
@@ -376,6 +403,14 @@ export default function CorrectionLabyrinthToFactor({
           <stop offset="0%" stopColor={ACCENT} stopOpacity={0.85} />
           <stop offset="100%" stopColor={ACCENT} stopOpacity={0.20} />
         </linearGradient>
+        <filter id="ltf-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation={8} />
+        </filter>
+        <linearGradient id="ltf-sweep" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="rgb(236,230,220)" stopOpacity={0} />
+          <stop offset="50%" stopColor="rgb(236,230,220)" stopOpacity={0.9} />
+          <stop offset="100%" stopColor="rgb(236,230,220)" stopOpacity={0} />
+        </linearGradient>
       </defs>
 
       {/* 上部 eyebrow + 細→粗 粒度バー */}
@@ -409,6 +444,17 @@ export default function CorrectionLabyrinthToFactor({
         粗
       </text>
       <rect x={80} y={175} width={1440} height={14} rx={7} ry={7} fill="url(#scope-axis-grad)" />
+      {(() => {
+        const sweep = barSweep(t)
+        if (sweep == null) return null
+        const sx = 80 + sweep * 1440
+        return (
+          <g opacity={Math.sin(sweep * Math.PI)}>
+            <rect x={sx - 140} y={175} width={280} height={14} fill="url(#ltf-sweep)" />
+            <rect x={sx - 140} y={170} width={280} height={24} fill="url(#ltf-sweep)" opacity={0.5} filter="url(#ltf-glow)" />
+          </g>
+        )
+      })()}
 
       {/* 列間の連結矢印 (4 本、列の中段) */}
       {COLUMNS.slice(0, 4).map((_, i) => {
@@ -440,8 +486,24 @@ export default function CorrectionLabyrinthToFactor({
       {COLUMNS.map((col, i) => {
         const x = COL_X[i]
         const cx = x + COL_W / 2
+        const flash = columnFlash(i, t)
         return (
           <g key={col.label}>
+            {flash > 0.01 ? (
+              <rect
+                x={x}
+                y={COL_TOP_Y}
+                width={COL_W}
+                height={COL_H}
+                rx={20}
+                ry={20}
+                fill="none"
+                stroke={ACCENT}
+                strokeOpacity={0.9 * flash}
+                strokeWidth={6}
+                filter="url(#ltf-glow)"
+              />
+            ) : null}
             <rect
               x={x}
               y={COL_TOP_Y}
