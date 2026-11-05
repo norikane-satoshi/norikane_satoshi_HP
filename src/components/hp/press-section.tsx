@@ -179,7 +179,6 @@ export function PressDialog() {
     open && typeof document !== "undefined"
       ? createPortal(
           <div
-            data-hp-theme="noir"
             className="fixed inset-0 flex items-center justify-center bg-[rgba(5,5,5,0.78)] p-4 md:p-8"
             style={{ zIndex: HP_MODAL_OVERLAY_Z_INDEX }}
             onMouseDown={(event) => {

@@ -34,7 +34,6 @@ describe("PressDialog", () => {
 
     const dialog = screen.getByRole("dialog", { name: "登壇・メディア掲載 / 実績" })
     expect(trigger).toHaveAttribute("aria-expanded", "true")
-    expect(dialog.parentElement).toHaveAttribute("data-hp-theme", "noir")
     expect(dialog.parentElement).toHaveStyle({ zIndex: String(HP_MODAL_OVERLAY_Z_INDEX) })
   })
 

@@ -155,7 +155,7 @@
   border: 1px solid var(--glass-border);
   border-radius: var(--hp-radius-sm);
   padding: 10px;
-  background: var(--hp-calendar-status-surface, rgba(255, 255, 255, 0.34));
+  background: var(--hp-calendar-status-surface);
   color: var(--text-primary);
   cursor: default;
 }
@@ -170,20 +170,16 @@
 
 .dayBusy {
   border-color: color-mix(in srgb, var(--hp-color-accent) 40%, var(--glass-border));
-  background: color-mix(in srgb, var(--hp-color-accent) 12%, var(--hp-calendar-status-surface, rgba(255, 255, 255, 0.34)));
+  background: color-mix(in srgb, var(--hp-color-accent) 12%, var(--hp-calendar-status-surface));
 }
 
 .dayTentative {
   border-color: color-mix(in srgb, #d9a514 36%, var(--glass-border));
-  background: color-mix(in srgb, #f7d86a 18%, var(--hp-calendar-status-surface, rgba(255, 255, 255, 0.46)));
+  background: color-mix(in srgb, #f7d86a 18%, var(--hp-calendar-status-surface));
 }
 
 .dayToday {
-  border-color: var(--hp-color-calendar-today);
-}
-
-.dayToday:not(.dayBusy):not(.dayTentative) {
-  background: color-mix(in srgb, var(--hp-color-calendar-today) 12%, var(--hp-calendar-status-surface, rgba(255, 255, 255, 0.46)));
+  border-color: color-mix(in srgb, var(--hp-color-calendar-today) 45%, transparent);
 }
 
 .dayBlockStart:not(.dayBlockEnd) {
@@ -378,13 +374,4 @@
     width: 12px;
     height: 12px;
   }
-}
-
-/* 墨色では今日の枠をアイボリー全開にせず、埋まりの日より目立たせない。 */
-:global([data-hp-theme="noir"]) .dayToday {
-  border-color: color-mix(in srgb, var(--hp-color-calendar-today) 45%, transparent);
-}
-
-:global([data-hp-theme="noir"]) .dayToday:not(.dayBusy):not(.dayTentative) {
-  background: var(--hp-calendar-status-surface);
 }

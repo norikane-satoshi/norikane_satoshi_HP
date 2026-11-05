@@ -68,8 +68,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <NavHeader />
-        {/* サイト全体が墨色（DESIGN.md §1.1）。ポータルで main の外に出すダイアログは自分で data-hp-theme を持つ。 */}
-        <main data-hp-theme="noir" className="flex-1 pt-24 md:pt-28 pb-16">
+        <main className="flex-1 pt-24 md:pt-28 pb-16">
           {children}
         </main>
         <footer

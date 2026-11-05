@@ -1,486 +1,116 @@
 # NCS Grading Design Contract
 
-This file is the source of truth for the visual design of `norikane-satoshi/norikane_satoshi_HP`.
-AI coding agents must read this before creating or modifying any UI.
+The visual design contract for `norikane-satoshi/norikane_satoshi_HP`. Agents read this before changing any UI.
 
-## 0. Role of this file
+`AGENTS.md` says how to work in the repository; this file says what the site looks like. The executable source of
+every token and utility is `src/app/globals.css`; this file names them and says when to use them, and never copies
+their values. When the two disagree, the implementation wins and this file is fixed.
 
-`AGENTS.md` explains how agents should work in this repository.
-`DESIGN.md` explains what the site should look and feel like.
+## 1. Theme: noir (whole site, 2026-11-05)
 
-When UI-related instructions conflict, follow this order:
+The site is the portfolio of Satoshi Norikane, colorist; the operating entity is 合同会社のりかね映像設計室
+(founded 2026-09-03). It has one theme: a dark, editorial "noir" look.
 
-1. Current implementation tokens in `src/app/globals.css`
-2. This `DESIGN.md`
-3. Component implementations in `src/components/**`
-4. Older Notion notes or historical design descriptions
+- Ink ground (`--bg-base`), ivory text (`--text-primary`, `--text-muted`), no accent hue. Colour comes from the
+  work stills and videos. `color-scheme: dark` gives dark native controls.
+- Separate content with whitespace and 1px rules (`--hp-color-rule`, `.hp-rule-top`, `.hp-rule-bottom`,
+  `.hp-section-heading-row`), not glass cards. Panels are used only where the UI needs one (calendar, forms, chatbot).
+- Calm, professional, text-first. Avoid neon, heavy gradients, heavy shadows, and loud SaaS landing-page patterns.
 
-The old neumorphism direction is retired. Do not reintroduce `neu-*` classes or `--neu-*` tokens.
+### 1.1 Tokens and utilities
 
-## 1. Visual theme and mood
+- Surfaces: `--glass-bg`, `--hp-color-surface-raised` (solid panel, dialogs), `--hp-color-fill` /
+  `--hp-color-fill-hover` (controls), `--hp-color-border` / `--hp-color-border-strong`.
+- Calendar: `--hp-color-calendar-*` (today and selected are ivory; selected text uses `--hp-color-calendar-on-strong`),
+  `--hp-calendar-status-surface`.
+- Chatbot: `--hp-color-chatbot-*`. `[data-hp-chatbot-root]` (the widget and its portalled dialogs) thins
+  `--glass-bg` because the chatbot stacks panels.
+- Utilities: `.glass-card`, `.glass-card-sm`, `.glass-btn`, `.glass-input`, `.glass-badge`, `.glass-bar`,
+  `.glass-inset`, `.glass-subpanel` (a block inside a panel; no extra blur), `.text-hp`, `.text-hp-muted`.
+- Do not add colour tokens, shadows, or fonts without updating this file and `globals.css` together.
+- Unavailable booking states use muted, text-derived neutrals (a faint fill and a strike), never the accent.
 
-The site is a personal portfolio for Satoshi Norikane / NCS Grading, a colorist; the operating entity is 合同会社のりかね映像設計室 (founded 2026-09-03).
-The tone should be:
-
-- light, calm, professional, editorial
-- text-first and trust-building rather than flashy
-- glassmorphism over a soft lavender aurora background
-- controlled and spacious, not decorative for its own sake
-- visually rich enough to feel current, but never noisy
-
-Keywords (light contract, superseded by §1.1 noir): `light glassmorphism`, `aurora gradient`, `frosted white cards`, `lavender base`, `quiet professional`, `colorist portfolio`, `text-first`.
-
-Avoid: neon, heavy gradients, heavy shadows, cyberpunk, Apple-like over-animation, loud SaaS landing pages.
-
-### 1.1 Noir theme (whole site, 2026-11-05)
-
-Every page uses the dark, editorial "noir" look. It overrides the light glass contract in the rest of this file;
-the light values in `:root` stay only as fallbacks for the shared `glass-*` utilities.
-
-- Scope: `data-hp-theme="noir"` is set once on `<main>` in `src/app/layout.tsx`; the shared header, footer and
-  chatbot follow it through `body:has(...)`. A dialog portalled outside `<main>` sets `data-hp-theme="noir"` on its
-  own overlay. The token values live only in the `[data-hp-theme="noir"]` block in `globals.css`.
-- Look: ink ground (`--bg-base`), ivory text, no accent hue. Colour comes from the work stills and videos.
-- No glass cards on noir pages. Separate content with whitespace and 1px rules (`--hp-color-rule`, `.hp-rule-top`,
-  `.hp-rule-bottom`, `.hp-section-heading-row`).
-- Section heading: `SectionHeading` (`src/components/hp/section-heading.tsx`) — a large Latin title in `.hp-latin-display`
-  over a rule. No section numbers or side labels.
-- Raised band: `.hp-surface-band` (profile).
-- Links: `.hp-text-link` inside prose, `.hp-plain-link` with an `ArrowUpRight` icon for external lists.
-- Booking pages: no outer glass card. The page is `.hp-section-shell` with a `.hp-section-heading-row` title row;
-  the calendar, side panel and form keep their own panels. On noir, the shared `glass-*` utilities read the
-  `--hp-glass-*` values from the noir block, the calendar tokens switch to ivory (today, selected), past days sink
-  into the ground, weekends are not tinted, and `color-scheme: dark` gives dark native controls.
-- Chatbot (2026-11-05): the widget is shared by every page, so it follows the page under it. Its root and its
-  portalled dialogs carry `data-hp-chatbot-root`; on a noir page they take the noir tokens plus the chatbot block in
-  `globals.css` (`body:has([data-hp-theme="noir"]) [data-hp-chatbot-root]`). The shared `glass-*` utilities read
-  `--hp-glass-*` variables there and fall back to their light values elsewhere. Inner blocks use `.glass-subpanel`.
-  Utilities that only apply on the noir chatbot use the `noir:` variant. Selected dates are ivory with ink text;
-  busy dates are a faint muted fill with a strike, not a solid grey block.
-- Profile SNS links are `.hp-icon-badge` buttons with the official icons in their brand colours; the talks and press
-  button is a `.hp-icon-badge` with the microphone-and-page icon and the words Talks & Press.
-
-## 2. Canonical design tokens
-
-The canonical token definitions live in `src/app/globals.css` under `:root`.
-Do not invent parallel tokens unless the user explicitly asks for a design-system migration.
-
-### 2.1 Core CSS variables
-
-| Token | Value | Role |
-|---|---:|---|
-| `--bg-base` | `#F4F6F9` | Page background base |
-| `--accent-primary` | `#366FCC` | Primary accent, active dots, glyphs, subtle highlights |
-| `--text-primary` | `#1C0F6E` | Main text color |
-| `--text-muted` | `#5A6473` | Secondary text color |
-| `--glass-bg` | `rgba(255, 255, 255, 0.62)` | Standard glass card fill |
-| `--glass-border` | `rgba(255, 255, 255, 0.66)` | Standard glass card border |
-| `--glass-shadow` | `var(--hp-shadow-soft)` | Standard glass card shadow alias |
-| `--hp-color-surface` | `var(--glass-bg)` | Semantic surface alias |
-| `--hp-color-border` | `var(--glass-border)` | Semantic border alias |
-| `--hp-color-accent` | `var(--accent-primary)` | Semantic accent alias |
-| `--hp-color-accent-focus-outline` | `var(--accent-primary)` | Focus outline accent |
-| `--hp-color-accent-focus-ring` | `var(--accent-primary)` | Focus ring accent |
-| `--hp-color-calendar-today` | `#B13F78` | Calendar today marker |
-| `--hp-color-calendar-candidate` | `#0F8A72` | Booking candidate selection |
-| `--hp-color-calendar-backdrop` | `rgba(28, 15, 110, 0.45)` | Calendar overlay backdrop |
-| `--hp-color-calendar-busy-tag-bg` | `rgba(255, 255, 255, 0.2)` | Busy tag fill |
-| `--hp-color-calendar-surface-muted` | `rgba(255, 255, 255, 0.35)` | Muted calendar surface |
-| `--hp-color-calendar-control-bg` | `rgba(255, 255, 255, 0.52)` | Calendar control fill |
-| `--hp-color-calendar-control-hover-bg` | `rgba(255, 255, 255, 0.72)` | Calendar control hover fill |
-| `--hp-color-calendar-on-strong` | `#fff` | Text on strong calendar states |
-| `--hp-color-chatbot-shell-bg` | `rgba(255, 255, 255, 0.72)` (noir chatbot: `rgba(20, 19, 17, 0.92)`) | Chatbot shell fill (also `.glass-card--chat-frost`) |
-| `--hp-color-chatbot-choice-ring` | `rgba(54, 111, 204, 0.22)` | Chatbot choice ring |
-| `--hp-radius-sm` | `16px` | Small cards, inputs, tags, buttons |
-| `--hp-radius` | `20px` | Standard cards and figure shells |
-| `--hp-radius-lg` | `24px` | Larger cards |
-| `--hp-radius-pill` | `9999px` | Pills and badges |
-| `--hp-radius-calendar-cell` | `12px` | Calendar cells |
-| `--hp-shadow-soft` | `0 8px 28px rgba(30,34,42,.06)` | Standard soft shadow |
-| `--hp-shadow-modal` | `0 14px 32px rgba(30,34,42,.08)` | Modal shadow |
-| `--hp-shadow-calendar-control-hover` | `0 4px 20px color-mix(in srgb, var(--hp-color-accent) 22%, transparent)` | Calendar control hover shadow |
-| `--hp-shadow-calendar-draft-active` | `0 0 0 2px color-mix(in srgb, var(--hp-color-accent) 24%, transparent), var(--glass-shadow)` | Active calendar draft ring and shadow |
-| `--ease-out-strong` | `cubic-bezier(0.23, 1, 0.32, 1)` | Standard entering and hover easing |
-| `--ease-in-out-strong` | `cubic-bezier(0.77, 0, 0.175, 1)` | Strong bidirectional easing |
-| `--ease-drawer` | `cubic-bezier(0.32, 0.72, 0, 1)` | Drawer easing |
-| `--motion-duration-fast` | `120ms` | Fast feedback |
-| `--motion-duration-press` | `160ms` | Press feedback |
-| `--motion-duration-popover` | `200ms` | Popover transition |
-| `--motion-duration-modal` | `300ms` | Modal transition |
-
-### 2.2 Aurora background tokens
-
-| Token | Value | Role |
-|---|---:|---|
-| `--aurora-purple` | `rgba(84, 117, 171, 0.16)` | Main muted blue-purple glow |
-| `--aurora-pink` | `rgba(178, 112, 150, 0.11)` | Warm soft glow |
-| `--aurora-sky` | `rgba(106, 138, 172, 0.10)` | Cool soft glow |
-
-The body background is:
-
-```css
-background-color: var(--bg-base);
-background-image:
-  radial-gradient(ellipse 78% 58% at 15% 40%, var(--aurora-purple) 0%, transparent 68%),
-  radial-gradient(ellipse 66% 52% at 85% 15%, var(--aurora-pink) 0%, transparent 62%),
-  radial-gradient(ellipse 72% 54% at 55% 85%, var(--aurora-sky) 0%, transparent 64%);
-background-attachment: fixed;
-```
-
-Do not add new aurora colors such as orange, teal, green, or neon cyan for this site.
-If older notes mention orange aurora, treat that as historical and superseded by the current implementation.
-
-## 3. Typography contract
+## 2. Typography
 
 Fonts are loaded in `src/app/layout.tsx`.
 
-| Role | Font | Variable | Weights |
-|---|---|---|---|
-| Japanese default and headings | Noto Serif JP | `--font-mincho` (also `--font-sans` / `--font-heading`) | 400, 500, 600, 700 |
-| Japanese UI and note headings | Noto Sans JP | `--font-gothic` | 400, 500, 600, 700 |
-| Latin display headings (noir) | Instrument Serif | `--font-latin-display` (also `--font-display`) | 400, normal + italic |
-| Latin labels, numbers, eyebrows | Inter | `--font-inter` | 400, 600, 700 |
-| Code / counters / small technical labels | Geist Mono | `--font-geist-mono` | default |
-
-### 3.1 Japanese UI rules
-
-This site is Japanese-first. Quality often breaks in text handling before it breaks in color.
-
-- Body Japanese text should use relaxed line-height: usually `leading-relaxed` or `md:leading-[1.75]`.
-- Do not add letter-spacing to normal Japanese body copy.
-- Use wide tracking only for short labels / eyebrow text: `tracking-[0.22em]` or `tracking-[0.28em]`.
-- Keep headings tight but readable: `tracking-tight` is OK for large display headings.
-- Avoid `break-all` as a blanket fix. Use it only for URLs or unavoidable technical strings.
-- Forms, tables, captions, and body prose must have separate density rules.
-
-### 3.2 Type hierarchy
-
-| Role | Typical class |
-|---|---|
-| Page title | `text-3xl md:text-4xl xl:text-5xl font-bold tracking-tight text-hp` |
-| Hero display | `text-5xl md:text-7xl xl:text-8xl font-bold leading-[0.95] tracking-tight text-white` |
-| Section heading | `text-2xl md:text-3xl font-semibold text-hp` |
-| Card heading | `text-base md:text-lg font-semibold text-hp` |
-| Body | `text-base md:text-lg leading-relaxed text-hp-muted` |
-| Small body | `text-xs md:text-sm leading-relaxed text-hp-muted` |
-| Eyebrow | `text-xs uppercase tracking-[0.22em] text-hp-muted` |
-| Technical counter | `font-[var(--font-geist-mono)] text-[10px] text-hp-muted` |
-
-## 4. Component styling contract
-
-Use the utility classes defined in `src/app/globals.css`.
-
-### 4.1 Standard surfaces
-
-#### `.glass-card`
-
-Use for main section cards, note cards, article wrappers, and major panels.
-
-```css
-background: var(--glass-bg);
-backdrop-filter: blur(24px) saturate(1.2);
--webkit-backdrop-filter: blur(24px) saturate(1.2);
-border: 1px solid var(--glass-border);
-box-shadow: var(--glass-shadow);
-border-radius: var(--hp-radius);
-```
-
-#### `.glass-card-sm`
-
-Use for smaller secondary cards inside a main section.
-
-```css
-background: rgba(255, 255, 255, 0.52);
-backdrop-filter: blur(12px);
-border: 1px solid rgba(255, 255, 255, 0.58);
-box-shadow: 0 4px 14px rgba(30, 34, 42, 0.06);
-border-radius: var(--hp-radius-sm);
-```
-
-#### `.glass-bar`
-
-Use for the fixed header and mobile menu.
-
-```css
-background: rgba(255, 255, 255, 0.85);
-backdrop-filter: blur(14px) saturate(140%);
-border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-box-shadow: 0 4px 20px rgba(28, 15, 110, 0.06);
-```
-
-#### `.glass-btn`
-
-Use for buttons and icon buttons.
-
-```css
-background: rgba(255, 255, 255, 0.52);
-backdrop-filter: blur(8px);
-border: 1px solid rgba(255, 255, 255, 0.65);
-border-radius: var(--hp-radius-sm);
-color: var(--text-primary);
-transition: background-color var(--motion-duration-press) var(--ease-out-strong), border-color var(--motion-duration-press) var(--ease-out-strong), box-shadow var(--motion-duration-press) var(--ease-out-strong), color var(--motion-duration-press) var(--ease-out-strong), opacity var(--motion-duration-press) var(--ease-out-strong), transform var(--motion-duration-press) var(--ease-out-strong), backdrop-filter var(--motion-duration-press) var(--ease-out-strong), -webkit-backdrop-filter var(--motion-duration-press) var(--ease-out-strong);
-```
-
-Hover increases the surface opacity and uses `0 2px 8px rgba(54, 111, 204, 0.14)`. The accent is the canonical `--hp-color-accent` alias; use `--hp-shadow-soft` for standard surface shadows rather than introducing a legacy purple shadow.
-Focus-visible uses the `--hp-color-accent-focus-outline` / `--hp-color-accent-focus-ring` accent (currently `--accent-primary`) with the implemented `rgba(54, 111, 204, 0.54)` outline and `rgba(54, 111, 204, 0.10)` ring. Active uses `scale(0.97)`.
-Do not create new button colors for primary/secondary states unless a full token migration is requested.
-
-#### `.glass-input`
-
-Use for input and textarea fields.
-
-Focus uses `--hp-color-accent-focus-ring` (currently `--accent-primary`): `border-color: rgba(54, 111, 204, 0.48)` and `box-shadow: 0 0 0 3px rgba(54, 111, 204, 0.10)`.
-
-#### `.glass-badge`
-
-Use for tool tags and compact labels.
-
-### 4.2 Nesting rule
-
-A parent `<article>` or major section may already be `.glass-card`.
-Do not stack multiple blur-heavy glass cards inside each other.
-Inside a glass parent, prefer:
-
-- `bg-white/35` or `bg-white/40`
-- `border border-white/55`
-- `rounded-[12px]`
-- no additional blur
-- minimal or no shadow
-
-This is especially important for note diagrams.
-
-## 5. Layout principles
-
-### 5.1 Page shell
-
-Use this shell for main content sections:
-
-```tsx
-<section className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14">
-  <div className="glass-card p-8 md:p-10 xl:p-14">
-    {/* content */}
-  </div>
-</section>
-```
-
-Canonical width and padding:
-
-| Item | Value |
-|---|---|
-| Max width | `max-w-[1440px]` |
-| Horizontal padding | `px-6 md:px-10 xl:px-14` |
-| Main top padding | `pt-24 md:pt-28` from `layout.tsx` |
-| Section spacing | `space-y-10 md:space-y-14` or local `mt-8/10/12` |
-
-Older notes may mention `px-4 md:px-8 xl:px-12`; the current implementation uses `px-6 md:px-10 xl:px-14` and that is the contract.
-
-### 5.2 Current site structure
-
-The home page is a one-page portfolio with anchored sections, in this order:
-
-- `/` Hero
-- `/#works` featured works (display label: 作品)
-- `/#philosophy` notes (display label: ノート)
-- `/#profile` profile
-- `/#press` opens the talks and press modal (the Talks & Press badge in the profile); it is not a page section
-
-Keep the page short: detailed lists open from a button in a modal (talks and press, the biography)
-instead of being laid out on the page. A long page discourages reading.
-
-The profile photo opens the biography: a full-screen view with the profile photo dimmed underneath and the
-chronological story on top (`src/components/hp/biography-data.ts`). The story is written in the first person (私).
-
-Only note articles are individual pages:
-
-- `/notes/correction`
-- `/notes/grading`
-- `/notes/filmlook`
-
-The internal anchor remains `/#philosophy` for compatibility, but the visible UI label is `ノート`.
-
-### 5.3 Responsive behavior
-
-| Breakpoint | Behavior |
-|---|---|
-| `<768px` | Single column, hamburger nav, horizontal scroll cards preserved |
-| `768px–1279px` | Two-column profile layout, desktop nav |
-| `1280px+` | Full spacing, wider section padding |
-
-Featured works is a horizontal, auto-scrolling row that spans the full window width; its heading and progress bar stay inside the page shell.
-Do not convert it into a grid without a design review.
-
-## 6. Page-specific guidance
-
-### 6.1 Header
-
-The header uses `.glass-bar`, not a floating neumorphic nav.
-It is fixed at the top and spans the full width.
-
-- Brand block: the logo image; on noir pages it is inverted through `--hp-logo-filter`
-- Desktop nav: 作品 / ノート / プロフィール (plus 予約カレンダー when booking is enabled)
-- Active indicator: small dot in `--hp-color-accent`
-- Mobile nav: hamburger, then `.glass-bar` dropdown
-
-### 6.2 Hero
-
-The hero fills the viewport with muted trailer footage of the works. `HERO_CLIPS` in
-`src/components/hp/featured-works-data.ts` is the only list of scenes; each plays for `HERO_CLIP_SECONDS` (10 s)
-with a short dip to black between scenes, and pauses while the hero is off screen or the tab is hidden.
-Pick scenes without burned-in text; `zoom` pushes letterbox bars and captions out of frame.
-Text on the hero uses `--hp-color-on-media`; the scene title and client show at the top right.
-
-The hero keeps moving even when the OS asks for reduced motion (the owner's instruction, 2026-11-04);
-elements that must keep their transitions carry `.hp-motion-keep`.
-
-Do not add cards over the hero.
-
-### 6.3 Notes list
-
-Notes are a two-column grid (one column on phones) of `.hp-note-card` links: a 16:9 thumbnail, an eyebrow
-(`Note 01`, `Note 02`, … or the outlet name), the title and an arrow.
-All note cards share one size, including external articles. `src/lib/hp/home-notes.ts` holds thumbnails and external articles.
-
-### 6.4 Note article pages
-
-Note articles are noir pages (`data-hp-theme="noir"`). The article is `.hp-note-article` with a `.hp-note-header`
-(eyebrow and title) and a `.hp-note-body`. Text is kept to a 46rem column; figures may be wider.
-No glass card around the article. Body copy is Mincho in `--text-muted`, headings are Gothic in `--text-primary`,
-and `h2` starts with a 1px rule.
-
-Article prose must be highly readable. Favor line-height and spacing over dense UI.
-Do not add heavy visual sections inside articles unless they support reading.
-
-## 7. Diagram design contract
-
-Diagrams in note articles are rendered by `src/components/notes/note-diagram.tsx` and configured in `src/lib/notes/diagrams.ts`.
-
-### 7.1 Two-layer model
-
-Diagrams use two layers:
-
-1. AI-generated or rendered background image in `public/notes/diagrams/<slug>.webp`
-2. Semantic labels, numbers, cards, and glyphs rendered in React / CSS
-
-Meaning must live in React/CSS, not inside generated images.
-Generated images must not contain Japanese text, English text, numbers, arrows, UI screenshots, logos, or labels.
-
-### 7.2 Figure shell
-
-`NoteVisual` figures use `.hp-note-figure`: a 1px rule above and below, no background and no border box.
-The v3 `NoteDiagram` (background-image diagrams) still uses the light shell; it is only used by unpublished notes
-and must be redrawn for noir before one of those notes is published.
-
-### 7.3 Diagram layouts
-
-Existing layout types:
-
-- `chaos-vs-structured` — left/right contrast
-- `centered-axes` — center concept + axes + hints
-- `horizontal-flow` — left-to-right process
-- `keypoint-row` — 2–5 equal key cards
-
-When adding a new diagram, first try to fit one of these layouts.
-Only add a new layout if the structure truly cannot be represented by the existing four.
-
-### 7.4 Diagram visual style
-
-- Drawn for the ink ground: text and lines in ivory (`rgba(236,230,220,a)`), panels as dark translucency,
-  category colours lightened so they read on ink (keep hue and saturation).
-- Density: spacious, readable in 5 seconds
-- Animated visuals play whenever they are on screen, even with the OS reduced-motion setting on (2026-11-05).
-- Motion: an entrance when the figure first comes into view (panels rise in, curves draw on); eased moves with a
-  short hold and a slight overshoot instead of plain sine loops; light up only what matters now; a soft glow under
-  lines on the ink ground. No red warning flashes or glows (the failure-modes figure keeps its simple loop). `correction-control-math.tsx` is the reference implementation.
-- Forbidden: neon, text baked into images, light panels inside a noir article
-
-## 8. Quality layers for AI agents
-
-Use a three-layer quality model, but adapt it to this repository.
-
-### L1 — Contract compliance (required everywhere)
-
-A UI change fails L1 if any of these are true:
-
-- Uses `neu-*` classes or `--neu-*` tokens
-- Adds new color tokens without updating this file and `globals.css`
-- Uses Tailwind default heavy shadows such as `shadow-lg`, `shadow-xl` for primary surfaces
-- Breaks the canonical width/padding shell
-- Uses fonts other than Noto Serif JP, Noto Sans JP, Inter, Geist Mono
-- Bakes text into diagram images
-- Makes Japanese body text cramped
-
-### L2 — Experience quality (important sections)
-
-Required for home, profile, contact, and note article pages:
-
-- spacing rhythm feels consistent
-- hover/focus states are clear but quiet
-- form errors explain what happened and what to do
-- mobile layout remains readable without zooming
-- horizontal scroll areas have enough padding and snap behavior
-- text hierarchy is obvious without relying on color alone
-
-### L3 — Signature moments (limited use)
-
-Only a few places should aim for L3:
-
-- Hero first impression
-- profile identity block
-- note diagrams
-- future portfolio / showreel sections
-
-L3 should not mean more effects. For this site, L3 means clarity, restraint, and memorable composition.
-
-## 9. Do / Don't
-
-### Do
-
-- Use `.glass-card`, `.glass-card-sm`, `.glass-btn`, `.glass-input`, `.glass-badge`, `.glass-bar`.
-- Use semantic colors: `text-hp`, `text-hp-muted`, `var(--accent-primary)`.
-- Use white translucency and thin borders for internal blocks.
-- Preserve the Japanese-first reading experience.
-- Keep CTA language calm and professional.
-- Reuse existing layouts before inventing new ones.
-- Update this file when the design system changes.
-
-### Don't
-
-- Do not use the retired neumorphism system.
-- Do not add `--neu-*`, `.neu-raised`, `.neu-inset`, `.neu-btn`, `.neu-input`.
-- Do not add new aurora colors.
-- Do not use thick borders or default Tailwind heavy shadows.
-- Do not nest blur-heavy cards.
-- Do not introduce new fonts.
-- Do not make Japanese body copy tight or overly letter-spaced.
-- Do not rely on color alone for meaning.
-- Do not turn the portfolio into a loud SaaS landing page.
-
-## 10. Agent implementation checklist
-
-Before modifying UI:
-
-- [ ] Read `DESIGN.md`
-- [ ] Check `src/app/globals.css` for existing tokens/utilities
-- [ ] Search for existing component patterns before creating new ones
-- [ ] Decide whether the change is L1, L2, or L3
+| Role | Font | Variable |
+|---|---|---|
+| Japanese default and headings | Noto Serif JP | `--font-mincho` (also `--font-sans` / `--font-heading`) |
+| Japanese UI and note headings | Noto Sans JP | `--font-gothic` |
+| Latin display headings | Instrument Serif | `--font-latin-display` (also `--font-display`) |
+| Latin labels, numbers, eyebrows | Inter | `--font-inter` |
+| Code and small technical labels | Geist Mono | `--font-geist-mono` |
+
+The site is Japanese-first:
+
+- Body text uses relaxed line-height; no letter-spacing on Japanese body copy.
+- Wide tracking only for short labels and eyebrows (`tracking-[0.22em]`).
+- No blanket `break-all`; only for URLs and technical strings.
+- Page titles: `.hp-heading` at `text-3xl md:text-4xl xl:text-5xl`, weight 500.
+
+## 3. Layout
+
+- Page shell: `.hp-section-shell` (max width 1440px, padding `px-6 md:px-10 xl:px-14`). Main top padding comes from
+  `layout.tsx`.
+- A page title sits in a `.hp-section-heading-row` (title and actions over a rule).
+- Responsive: one column under 768px with a hamburger menu; desktop nav from 768px; full spacing from 1280px.
+
+### 3.1 Site structure
+
+The home page is one page with anchored sections: Hero, `/#works` (作品), `/#philosophy` (ノート), `/#profile`.
+`/#press` opens the Talks & Press modal; it is not a section. Keep the page short: long lists open in a modal
+(Talks & Press, the biography).
+
+Individual pages: note articles (`/notes/<slug>`), booking (`/booking`, history, settings, edit), LINE booking
+(`/line/booking`), login, signup, privacy, terms, and the public availability calendar (`/availability-calendar`).
+
+## 4. Page guidance
+
+- Header: `.glass-bar`, fixed, full width. The logo is inverted through `--hp-logo-filter`. Desktop nav: 作品 /
+  ノート / プロフィール; the active item shows a small dot.
+- Hero: full-viewport muted trailer footage. `HERO_CLIPS` in `src/components/hp/featured-works-data.ts` is the only
+  list of scenes (10 s each, dip to black between). Pick scenes without burned-in text; `zoom` pushes letterbox and
+  captions out of frame. Text uses `--hp-color-on-media`. It keeps moving with reduced motion on (owner's instruction,
+  2026-11-04); elements that must keep transitions carry `.hp-motion-keep`. No cards over the hero.
+- Featured works: a full-width, auto-scrolling row of 16:9 YouTube previews (heading and progress bar stay in the
+  shell). Every work has a `youtubeId`; `loopStart`/`loopEnd` cut a video down to its clean part, and
+  `fixedThumbnail` pins the cover to the official thumbnail. Do not turn it into a grid without a design review.
+- Section headings: `SectionHeading` (`src/components/hp/section-heading.tsx`), a large Latin title in
+  `.hp-latin-display` over a rule. No section numbers.
+- Profile: `.hp-surface-band`. SNS links are `.hp-icon-badge` buttons with official icons in their brand colours;
+  Talks & Press is a `.hp-icon-badge` with the microphone-and-page icon. The profile photo opens the biography
+  (`src/components/hp/biography-data.ts`), written in the first person (私).
+- Links: `.hp-text-link` in prose, `.hp-plain-link` with an `ArrowUpRight` icon in external lists.
+- Notes list: a two-column grid (one on phones) of `.hp-note-card` links, all the same size, including external
+  articles. `src/lib/hp/home-notes.ts` holds thumbnails and external articles.
+- Note articles: `.hp-note-article` with `.hp-note-header` and `.hp-note-body`; text in a 46rem column, figures may be
+  wider. Body copy is Mincho in `--text-muted`, headings Gothic in `--text-primary`, `h2` starts with a 1px rule.
+- Booking pages: no outer card; the calendar, side panel and form keep their own panels. Past days sink into the
+  ground, weekends are not tinted.
+- Chatbot: the widget is shared by every page. Selected dates are ivory with ink text.
+
+## 5. Diagram contract
+
+Note figures are `NoteVisual` components in `src/components/notes/visuals/*.tsx` inside a `.hp-note-figure`
+(a 1px rule above and below, no box).
+
+- Drawn for the ink ground: text and lines in ivory, panels as dark translucency, category colours lightened to read
+  on ink (keep hue and saturation).
+- Readable in 5 seconds. Text, numbers, and glyphs are rendered in React/CSS, never baked into images.
+- Animated figures play whenever they are on screen, even with reduced motion on (2026-11-05).
+- Motion: an entrance when the figure first comes into view (panels rise in, curves draw on); eased moves with a short
+  hold and a slight overshoot; light up only what matters now; a soft glow under lines. No red warning flashes or
+  glows. `correction-control-math.tsx` is the reference implementation.
+
+The v3 `NoteDiagram` (`src/components/notes/note-diagram.tsx`, background images in `public/notes/diagrams/`) is
+still light and only used by unpublished notes; redraw it for noir before one of those notes is published.
+
+## 6. Checklist
 
 Before finishing UI work:
 
-- [ ] No `neu-*` or `--neu-*`
-- [ ] No unapproved colors or shadows
-- [ ] Header still uses `.glass-bar`
-- [ ] Main sections use the canonical shell
-- [ ] Japanese text is readable on mobile
-- [ ] Focus states are visible
-- [ ] Diagrams keep text in React/CSS, not in images
-- [ ] Run build/lint if code was changed
-
-## 11. Quick prompts for agents
-
-When asking an AI agent to build UI in this repo, use:
-
-> Follow `DESIGN.md`. Use the existing Glass Design System in `src/app/globals.css`. Do not use the retired neumorphism rules. Reuse `.glass-card`, `.glass-card-sm`, `.glass-btn`, `.glass-input`, `.glass-badge`, and `.glass-bar`. Keep Japanese text readable and use the canonical `max-w-[1440px] px-6 md:px-10 xl:px-14` shell.
-
-For diagrams:
-
-> Follow the diagram contract in `DESIGN.md`. Generate only soft background imagery; put all labels, numbers, cards, and glyphs in React/CSS through `note-diagram.tsx`. Draw for the noir ink ground (§7.4). No baked-in text or arrows.
+- Reuses existing tokens and utilities; no new colours, shadows, or fonts without updating this file.
+- Uses the page shell; Japanese text is readable on mobile; focus states are visible.
+- Meaning does not rely on colour alone.
+- Desktop and mobile checked; build, lint, and tests run.

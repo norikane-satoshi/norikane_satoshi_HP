@@ -107,7 +107,6 @@ export function ProfilePhoto() {
         <AnimatePresence>
           {open ? (
             <motion.div
-              data-hp-theme="noir"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}

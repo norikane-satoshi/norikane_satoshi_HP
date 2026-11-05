@@ -91,7 +91,7 @@ describe("ChatInput", () => {
     expect(screen.getByText("+")).toHaveClass("text-hp-muted/70")
     keycapContents.forEach((keycapContent) => {
       expect(keycapContent).toHaveClass("opacity-60")
-      expect(keycapContent?.parentElement).toHaveClass("border-white/65", "bg-white/45")
+      expect(keycapContent?.parentElement).toHaveClass("border-[var(--hp-color-border)]", "bg-[var(--hp-color-fill)]")
       expect(keycapContent?.parentElement).not.toHaveClass("opacity-60")
     })
   })

@@ -215,7 +215,7 @@ export function ChatbotDebugPanel({ snapshot, onClose }: ChatbotDebugPanelProps)
 
   return (
     <section
-      className="max-h-[240px] overflow-y-auto border-b border-[var(--glass-border)] bg-white/35 px-5 py-3 noir:bg-[var(--hp-noir-fill)]"
+      className="max-h-[240px] overflow-y-auto border-b border-[var(--glass-border)] bg-[var(--hp-color-fill)] px-5 py-3"
       aria-label="チャットボット診断情報"
       data-chatbot-debug="open"
     >

@@ -13,7 +13,7 @@ export function MinimizedBar({ onOpen, shouldShowAttention = false }: MinimizedB
       type="button"
       onClick={onOpen}
       className={[
-        "glass-btn pointer-events-auto noir:[--hp-glass-btn-bg:var(--hp-chat-latest-bg)] noir:[--hp-glass-btn-hover-bg:var(--hp-profile-tool-badge-hover-bg)] flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]",
+        "glass-btn pointer-events-auto bg-[var(--hp-color-chatbot-latest-bg)] hover:bg-[var(--hp-profile-tool-badge-hover-bg)] flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hp-color-accent-focus-outline)]",
         shouldShowAttention ? "chatbot-minimized-attention" : "",
       ].filter(Boolean).join(" ")}
       data-attention={shouldShowAttention ? "true" : "false"}

@@ -59,7 +59,7 @@ export async function generateMetadata(
 
 function UnpublishedNotePage() {
   return (
-    <div className="hp-noir-page">
+    <div>
       <div className="mx-auto w-full max-w-[1440px] px-6 pb-[clamp(5rem,10vw,8rem)] md:px-10 xl:px-14">
         <NotesBackLink label="公開中のノート一覧に戻る" />
         <article className="hp-note-article">
@@ -110,7 +110,7 @@ export default async function NotePage({ params }: PageProps) {
     index >= 0 ? `Note ${String(index + 1).padStart(2, "0")}` : "Note"
 
   return (
-    <div className="hp-noir-page">
+    <div>
       <div className="mx-auto w-full max-w-[1440px] px-6 pb-[clamp(5rem,10vw,8rem)] md:px-10 xl:px-14">
         <NotesBackLink label="ノート一覧に戻る" />
         <article className="hp-note-article">

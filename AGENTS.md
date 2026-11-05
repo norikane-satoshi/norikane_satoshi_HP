@@ -22,35 +22,7 @@ Before changing UI, layout, styling, copy placement, diagrams, or visual assets:
 2. Read `src/app/globals.css`.
 3. Read the component you are about to modify.
 
-`DESIGN.md` is the design contract. It supersedes older neumorphism notes. If `AGENTS.md` and `DESIGN.md` conflict on visual design, follow `DESIGN.md` and the actual tokens in `src/app/globals.css`.
-
-## Design source of truth
-
-The whole site uses the noir theme (`DESIGN.md` §1.1). `DESIGN.md` is the design contract; the `:root` values and utility implementations in `src/app/globals.css` are its executable source. Do not duplicate design-token values here.
-
-The retired `neu-*` / `--neu-*` system has no compatibility path. Do not reintroduce its classes or tokens.
-
-## Implementation rules
-
-- Use existing components and utilities before creating new styles.
-- Keep page shells consistent: `max-w-[1440px] px-6 md:px-10 xl:px-14`.
-- Keep Japanese body text readable; avoid cramped line-height or excessive letter-spacing.
-- `data-hp-theme="noir"` is set once on `<main>` in the root layout; do not add it to pages. Portalled dialogs outside `<main>` set it on their own overlay.
-- Do not add new color tokens, shadows, or fonts without updating `DESIGN.md` and `globals.css` together.
-- Avoid nested blur-heavy glass cards. Inside a glass parent, prefer `bg-white/35`, `bg-white/40`, `border-white/55`, and `rounded-[12px]` without additional blur.
-- Booking pages and new booking-adjacent UI use `glass-*` / `text-hp*` as canonical classes. Reservation unavailable states use muted text-derived neutrals, not the primary accent.
-
-## Diagram rules
-
-Note diagrams are governed by `DESIGN.md` and implemented through:
-
-- `src/components/notes/note-diagram.tsx`
-- `src/lib/notes/diagrams.ts`
-- `public/notes/diagrams/<slug>.webp`
-
-Generated images provide background mood only. All labels, numbers, cards, glyphs, and semantic structure must be rendered in React/CSS.
-
-Never bake Japanese text, English text, numbers, arrows, UI labels, or logos into diagram images.
+`DESIGN.md` is the design contract (one theme: noir); `src/app/globals.css` is its executable source. Do not copy design rules or token values into this file. The retired `neu-*` / `--neu-*` system has no compatibility path.
 
 ## Verification
 

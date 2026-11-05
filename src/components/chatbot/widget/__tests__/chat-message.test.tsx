@@ -46,7 +46,7 @@ describe("ChatMessage", () => {
     expect(screen.getByText("劇場公開作品です。")).toBeInTheDocument()
   })
 
-  it("keeps the user comment surface at a readable white glass opacity", () => {
+  it("keeps the user comment surface at a readable ivory tint", () => {
     const css = readFileSync("src/app/globals.css", "utf8")
 
     render(<ChatMessage role="user" content="劇場公開作品です。" />)
@@ -54,7 +54,7 @@ describe("ChatMessage", () => {
     const message = screen.getByText("劇場公開作品です。").closest("article")
     expect(message).toHaveAttribute("data-chatbot-user-message", "true")
     expect(css).toContain('.glass-flat[data-chatbot-user-message="true"]')
-    expect(css).toContain("background: rgba(255, 255, 255, 0.50);")
+    expect(css).toContain("background: rgba(236, 230, 220, 0.09);")
   })
 
   it("renders a user display name only when it is known", () => {
@@ -185,11 +185,11 @@ describe("ChatMessage", () => {
     const okButton = screen.getByRole("button", { name: "OK" })
 
     expect(confirmRegion).toHaveClass("bg-[color-mix(in_srgb,var(--hp-color-error)_10%,transparent)]")
-    expect(confirmRegion).not.toHaveClass("border-red-300")
+    expect(confirmRegion).not.toHaveClass("border-red-400/50")
     expect(warning).toHaveClass("text-hp")
     expect(warning).not.toHaveClass("text-red-600")
-    expect(okButton).toHaveClass("border-red-300")
-    expect(okButton).toHaveClass("text-red-700")
+    expect(okButton).toHaveClass("border-red-400/50")
+    expect(okButton).toHaveClass("text-red-300")
   })
 
   it("does not leave a mobile hint or enter edit mode after a short tap", () => {
