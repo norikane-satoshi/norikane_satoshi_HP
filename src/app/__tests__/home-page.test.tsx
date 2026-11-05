@@ -104,7 +104,7 @@ describe("HomePage", () => {
     expect(pressBadge).toHaveAttribute("aria-haspopup", "dialog")
     expect(pressBadge).toHaveClass("hp-icon-badge")
     expect(
-      within(profile).getByRole("button", { name: "プロフィール写真を拡大表示" }),
+      within(profile).getByRole("button", { name: "生い立ちを読む" }),
     ).toBeInTheDocument()
   })
 
