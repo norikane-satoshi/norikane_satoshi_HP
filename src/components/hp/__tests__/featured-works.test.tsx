@@ -17,7 +17,7 @@ import {
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 
 describe("FeaturedWorks", () => {
-  const embeddedWorkCount = FEATURED_WORKS.filter((work) => work.youtubeId).length
+  const embeddedWorkCount = FEATURED_WORKS.length
   const playlistWorkCount = FEATURED_PLAYLIST_WORKS.length
   const totalCardCount = FEATURED_WORKS.length + FEATURED_PLAYLIST_WORKS.length
   const getPrimarySegment = (container: HTMLElement) => {
@@ -468,14 +468,16 @@ describe("FeaturedWorks", () => {
 
     render(<FeaturedWorks />)
 
-    for (const work of FEATURED_WORKS.filter((item) => item.youtubeId)) {
+    for (const work of FEATURED_WORKS) {
       const card = screen.getByLabelText(`${work.title} 作品カード`)
       await waitFor(() => {
         expect(card.querySelector("[data-featured-work-current-video-id]")).toBeInTheDocument()
       })
       const media = card.querySelector("[data-featured-work-current-video-id]")
-      expect(media).not.toHaveAttribute("data-featured-work-loop-start")
-      expect(media).not.toHaveAttribute("data-featured-work-loop-end")
+      if (work.loopStart === undefined) {
+        expect(media).not.toHaveAttribute("data-featured-work-loop-start")
+        expect(media).not.toHaveAttribute("data-featured-work-loop-end")
+      }
       expect(media).not.toHaveAttribute("data-featured-work-clip-range-start")
       expect(media).not.toHaveAttribute("data-featured-work-clip-exclude-start")
     }
@@ -1345,27 +1347,17 @@ describe("FeaturedWorks", () => {
       '[data-featured-work-preview-thumbnail="visible"]',
     )
     const mediaCovers = primary.querySelectorAll("[data-featured-work-preview-media]")
-    const abstractCovers = primary.querySelectorAll(
-      '[data-featured-work-abstract-cover="true"]',
-    )
     const neutralPlaceholders = primary.querySelectorAll(
       "[data-featured-work-neutral-placeholder]",
     )
 
-    expect(previewFrames).toHaveLength(embeddedWorkCount + playlistWorkCount + 1)
-    expect(abstractCovers).toHaveLength(1)
+    expect(previewFrames).toHaveLength(embeddedWorkCount + playlistWorkCount)
     expect(cropFrames).toHaveLength(0)
     expect(scaledMedia).toHaveLength(0)
     expect(thumbnailCovers).toHaveLength(embeddedWorkCount + playlistWorkCount)
     expect(mediaCovers).toHaveLength(embeddedWorkCount + playlistWorkCount)
     expect(neutralPlaceholders).toHaveLength(0)
     expect(container.innerHTML).not.toContain("i.ytimg.com/vi/IQb3beIbE1I")
-
-    const marsCard = screen.getByLabelText("火星の女王 作品カード")
-    const marsFrame = marsCard.querySelector('[data-featured-work-abstract-cover="true"]')
-    expect(marsFrame).toHaveClass("aspect-video")
-    expect(marsCard.querySelector('[data-featured-work-preview-media]')).toBeNull()
-    expect(marsCard.querySelector("img")).toBeNull()
 
     for (const frame of previewFrames) {
       expect(frame).toHaveClass("aspect-video")
@@ -1428,17 +1420,13 @@ describe("FeaturedWorks", () => {
     ).toBeNull()
   })
 
-  it("shows Mars as a titled abstract cover without media", () => {
+  it("keeps Mars on its official thumbnail before playback", () => {
     render(<FeaturedWorks />)
     const card = screen.getByLabelText("火星の女王 作品カード")
-    const abstractCover = card.querySelector('[data-featured-work-abstract-cover="true"]')
-
-    expect(abstractCover).toHaveClass("aspect-video")
-    expect(abstractCover).toHaveTextContent("火星の女王")
-    expect(abstractCover?.querySelector("img")).toBeNull()
-    expect(abstractCover?.querySelector("[data-featured-work-preview-media]")).toBeNull()
-    expect(abstractCover?.querySelector("a")).toBeNull()
-    expect(card.querySelector('[data-featured-work-link="公式ホームページ"]')).toBeInTheDocument()
+    expect(card.querySelector("[data-featured-work-preview-thumbnail]")).toHaveAttribute(
+      "src",
+      "https://i.ytimg.com/vi/Ti-f3lNV52k/maxresdefault.jpg",
+    )
   })
 
   it("prepares YouTube API players behind thumbnail covers", () => {
