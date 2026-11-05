@@ -162,13 +162,13 @@ export function HeroSection() {
     >
       <div className="absolute inset-0" aria-hidden="true">
         <Image
-          src="/hp/hero-poster.jpg"
+          src="/hp/hero-poster-mars.jpg"
           alt=""
           fill
           priority
           sizes="100vw"
           className={`hp-motion-keep object-cover transition-opacity duration-[1200ms] ${hasStarted ? "opacity-0" : "opacity-100"}`}
-          style={{ objectPosition: "36% 50%" }}
+          style={{ objectPosition: "78% 50%" }}
         />
         <div
           className="hp-hero-video hp-motion-keep pointer-events-none absolute left-1/2 top-1/2 transition-opacity ease-out"
