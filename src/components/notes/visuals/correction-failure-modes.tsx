@@ -30,14 +30,14 @@ const LOOP = 8.0
 const REDUCED_MOTION_U = 0.85
 const N = 128
 
-const TEXT_PRIMARY = "rgba(28,15,110,0.95)"
-const TEXT_MUTED = "rgba(28,15,110,0.58)"
-const ALERT = "rgb(180,60,80)"
+const TEXT_PRIMARY = "rgba(236,230,220,0.95)"
+const TEXT_MUTED = "rgba(236,230,220,0.58)"
+const ALERT = "rgb(216,121,137)"
 
 const TINT_FLIP = {
-  border: "rgba(190,100,100,0.85)",
-  bg: "rgba(190,100,100,0.10)",
-  curve: "rgb(160,70,70)",
+  border: "rgba(207,129,129,0.85)",
+  bg: "rgba(207,129,129,0.10)",
+  curve: "rgb(206,131,131)",
 }
 
 export type Vec3 = [number, number, number]
@@ -348,7 +348,7 @@ function Panel({ layout, panel, u, isMobile }: { layout: Layout; panel: PanelId;
         height={p.image.size + 4}
         rx={10}
         fill="none"
-        stroke={flipped ? "rgba(180,60,80,0.85)" : "rgba(28,15,110,0.2)"}
+        stroke={flipped ? "rgba(216,121,137,0.85)" : "rgba(236,230,220,0.2)"}
         strokeWidth={flipped ? 3 : 1.5}
       />
       <text
@@ -456,7 +456,7 @@ export default function CorrectionFailureModes({
           width={layout.w - layout.inset * 2}
           height={layout.h - layout.inset * 2}
           rx={24}
-          fill="rgba(255,255,255,0.55)"
+          fill="rgba(13,12,11,0.55)"
         />
         <text x={layout.titleX} y={layout.titleY} fontSize={layout.titleFont} fontWeight={700} fill={TINT_FLIP.curve}>
           色のひっくり返り

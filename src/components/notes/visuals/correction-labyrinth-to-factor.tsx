@@ -49,8 +49,8 @@ const P2_END = 15
 const P3_END = 20
 
 const ACCENT = "rgb(139,127,255)"
-const TEXT_PRIMARY = "rgba(28,15,110,0.92)"
-const TEXT_MUTED = "rgba(107,95,168,0.85)"
+const TEXT_PRIMARY = "rgba(236,230,220,0.92)"
+const TEXT_MUTED = "rgba(149,140,196,0.85)"
 
 const COLUMNS = [
   { label: "フレーム単位", borderOp: 0.85, fillOp: 0.10 },
@@ -61,14 +61,14 @@ const COLUMNS = [
 ]
 
 const TINT_VIOLET = { border: "rgba(127,176,255,0.85)", bg: "rgba(127,176,255,0.10)", iconStroke: "rgba(80,129,210,0.92)" }
-const TINT_AMBER = { border: "rgba(214,162,108,0.85)", bg: "rgba(214,162,108,0.10)", iconStroke: "rgba(160,108,60,0.92)" }
-const TINT_CORAL = { border: "rgba(214,127,140,0.85)", bg: "rgba(214,127,140,0.10)", iconStroke: "rgba(160,75,90,0.92)" }
-const TINT_ROSE = { border: "rgba(214,140,180,0.85)", bg: "rgba(214,140,180,0.10)", iconStroke: "rgba(160,80,120,0.92)" }
-const TINT_SKY = { border: "rgba(120,165,225,0.85)", bg: "rgba(120,165,225,0.10)", iconStroke: "rgba(60,108,170,0.92)" }
-const TINT_TEAL = { border: "rgba(108,180,170,0.85)", bg: "rgba(108,180,170,0.10)", iconStroke: "rgba(50,120,115,0.92)" }
-const TINT_PLUM = { border: "rgba(170,120,200,0.85)", bg: "rgba(170,120,200,0.10)", iconStroke: "rgba(112,60,150,0.92)" }
-const TINT_LIME = { border: "rgba(150,180,90,0.85)", bg: "rgba(150,180,90,0.10)", iconStroke: "rgba(95,130,40,0.92)" }
-const TINT_INDIGO = { border: "rgba(110,120,210,0.85)", bg: "rgba(110,120,210,0.10)", iconStroke: "rgba(60,75,160,0.92)" }
+const TINT_AMBER = { border: "rgba(214,162,108,0.85)", bg: "rgba(214,162,108,0.10)", iconStroke: "rgba(212,167,125,0.92)" }
+const TINT_CORAL = { border: "rgba(214,127,140,0.85)", bg: "rgba(214,127,140,0.10)", iconStroke: "rgba(203,134,146,0.92)" }
+const TINT_ROSE = { border: "rgba(214,140,180,0.85)", bg: "rgba(214,140,180,0.10)", iconStroke: "rgba(200,137,168,0.92)" }
+const TINT_SKY = { border: "rgba(120,165,225,0.85)", bg: "rgba(120,165,225,0.10)", iconStroke: "rgba(123,162,214,0.92)" }
+const TINT_TEAL = { border: "rgba(108,180,170,0.85)", bg: "rgba(108,180,170,0.10)", iconStroke: "rgba(129,208,202,0.92)" }
+const TINT_PLUM = { border: "rgba(170,120,200,0.85)", bg: "rgba(170,120,200,0.10)", iconStroke: "rgba(175,127,209,0.92)" }
+const TINT_LIME = { border: "rgba(150,180,90,0.85)", bg: "rgba(150,180,90,0.10)", iconStroke: "rgba(180,219,118,0.92)" }
+const TINT_INDIGO = { border: "rgba(118,128,218,0.85)", bg: "rgba(118,128,218,0.10)", iconStroke: "rgba(125,138,212,0.92)" }
 
 type Tint = { border: string; bg: string; iconStroke: string }
 type IconKind =
@@ -308,7 +308,7 @@ function Icon({
             y={y + 7}
             width={11}
             height={14}
-            fill="rgba(0,0,0,0.20)"
+            fill="rgba(236,230,220,0.20)"
             stroke={stroke}
             strokeWidth={1}
           />
@@ -317,7 +317,7 @@ function Icon({
             y={y + 7}
             width={11}
             height={14}
-            fill="rgba(0,0,0,0.05)"
+            fill="rgba(236,230,220,0.05)"
             stroke={stroke}
             strokeWidth={1}
           />
@@ -462,14 +462,14 @@ export default function CorrectionLabyrinthToFactor({
               height={COL_H}
               rx={20}
               ry={20}
-              fill="rgba(255,255,255,0.45)"
+              fill="rgba(13,12,11,0.45)"
             />
             {/* 番号バッジ */}
             <circle
               cx={cx}
               cy={COL_TOP_Y - 48}
               r={18}
-              fill="rgba(255,255,255,0.85)"
+              fill="rgba(13,12,11,0.85)"
               stroke={ACCENT}
               strokeOpacity={col.borderOp}
               strokeWidth={1.6}
@@ -527,7 +527,7 @@ export default function CorrectionLabyrinthToFactor({
               height={CHIP_H}
               rx={20}
               ry={20}
-              fill="rgba(255,255,255,0.55)"
+              fill="rgba(13,12,11,0.55)"
             />
             <Icon
               kind={card.icon}

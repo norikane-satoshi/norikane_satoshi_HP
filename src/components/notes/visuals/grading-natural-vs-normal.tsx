@@ -15,11 +15,11 @@ const CROSS_X = W / 2
 const CROSS_Y = H / 2
 
 const CORNER_R = 18
-const BG_BASE = "#F8F6FF"
+const BG_BASE = "#161514"
 const ACCENT = "#7FB0FF"
-const TEXT_PRIMARY = "#1C0F6E"
-const GLASS_FILL = "rgba(255,255,255,0.65)"
-const GLASS_STROKE = "rgba(255,255,255,0.78)"
+const TEXT_PRIMARY = "#ECE6DC"
+const GLASS_FILL = "rgba(13,12,11,0.65)"
+const GLASS_STROKE = "rgba(13,12,11,0.78)"
 const AXIS_STROKE = "rgba(127,176,255,0.4)"
 
 const AXIS_W = 150
@@ -192,7 +192,7 @@ export default function GradingNaturalVsNormal() {
       <rect x={0} y={0} width={W} height={H} fill="url(#gnvn-aurora-purple)" />
       <rect x={0} y={0} width={W} height={H} fill="url(#gnvn-aurora-pink)" />
       <rect x={0} y={0} width={W} height={H} fill="url(#gnvn-aurora-sky)" />
-      <rect x={0} y={0} width={W} height={H} fill="rgba(28,15,110,0.025)" />
+      <rect x={0} y={0} width={W} height={H} fill="rgba(236,230,220,0.025)" />
 
       {QUADRANTS.map((q) => (
         <g key={q.href} transform={`translate(${q.x} ${q.y})`}>
@@ -203,15 +203,15 @@ export default function GradingNaturalVsNormal() {
               width={CELL_W}
               height={CELL_H}
               rx={CORNER_R}
-              fill="rgba(255,255,255,0.45)"
-              stroke="rgba(255,255,255,0.62)"
+              fill="rgba(13,12,11,0.45)"
+              stroke="rgba(13,12,11,0.62)"
               strokeWidth={1}
               filter="url(#gnvn-card-shadow)"
             />
           ) : null}
           <g clipPath="url(#gnvn-cell-clip)">
             <image href={q.href} x={0} y={0} width={CELL_W} height={CELL_H} preserveAspectRatio="xMidYMid slice" />
-            <rect x={0} y={0} width={CELL_W} height={CELL_H} fill={q.role === "hero" ? "rgba(127,176,255,0.04)" : "rgba(28,15,110,0.04)"} />
+            <rect x={0} y={0} width={CELL_W} height={CELL_H} fill={q.role === "hero" ? "rgba(127,176,255,0.04)" : "rgba(236,230,220,0.04)"} />
           </g>
           <rect
             x={0}
@@ -220,7 +220,7 @@ export default function GradingNaturalVsNormal() {
             height={CELL_H}
             rx={CORNER_R}
             fill="none"
-            stroke={q.role === "hero" ? ACCENT : "rgba(255,255,255,0.72)"}
+            stroke={q.role === "hero" ? ACCENT : "rgba(13,12,11,0.72)"}
             strokeWidth={q.role === "hero" ? 3 : 1}
             filter={q.role === "hero" ? "url(#gnvn-card-shadow)" : undefined}
           />

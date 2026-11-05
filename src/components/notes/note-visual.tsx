@@ -98,7 +98,7 @@ export function NoteVisual({ slug }: { slug: string }) {
         data-diagram-slug={config.slug}
         data-diagram-kind={config.kind}
         aria-label={config.alt}
-        className={`mx-auto my-12 overflow-hidden rounded-[16px] border border-white/55 bg-white/35 md:my-16 ${
+        className={`mx-auto my-12 overflow-hidden hp-note-figure md:my-16 ${
           isFailureModes ? "max-w-[72rem]" : "max-w-[58rem]"
         }`}
       >
@@ -110,7 +110,7 @@ export function NoteVisual({ slug }: { slug: string }) {
     return (
       <figure
         data-diagram-kind={config.kind}
-        className="mx-auto my-12 max-w-[58rem] overflow-hidden rounded-[16px] border border-white/55 bg-white/35 md:my-16"
+        className="mx-auto my-12 max-w-[58rem] overflow-hidden hp-note-figure md:my-16"
       >
         <VisualBody config={config} />
       </figure>
@@ -120,7 +120,7 @@ export function NoteVisual({ slug }: { slug: string }) {
     return (
       <figure
         data-diagram-kind={config.kind}
-        className="mx-auto my-6 max-w-[64rem] overflow-hidden rounded-[16px] border border-white/55 bg-white/35 md:my-8"
+        className="mx-auto my-6 max-w-[64rem] overflow-hidden hp-note-figure md:my-8"
       >
         <VisualBody config={config} />
       </figure>
@@ -129,7 +129,7 @@ export function NoteVisual({ slug }: { slug: string }) {
   return (
     <figure
       data-diagram-kind={config.kind}
-      className="mx-auto my-12 max-w-[58rem] overflow-hidden rounded-[16px] border border-white/55 bg-white/35 md:my-16"
+      className="mx-auto my-12 max-w-[58rem] overflow-hidden hp-note-figure md:my-16"
     >
       <VisualBody config={config} />
       <figcaption className="px-5 py-5 md:px-7 md:py-6">
@@ -143,7 +143,7 @@ export function NoteVisual({ slug }: { slug: string }) {
           {config.caption}
         </p>
         {config.intro ? (
-          <p className="mt-3 rounded-[12px] border border-white/55 bg-white/35 px-3 py-2 text-[12px] leading-relaxed text-hp md:text-[0.85rem]">
+          <p className="mt-3 rounded-[12px] border border-[var(--hp-color-rule)] px-3 py-2 text-[12px] leading-relaxed text-hp md:text-[0.85rem]">
             <span className="mr-1.5 inline-flex items-center rounded-full bg-[var(--hp-color-accent)]/15 px-1.5 py-0.5 font-[var(--font-geist-mono)] text-[10px] tracking-[0.2em] text-[var(--hp-color-accent)]">
               5SEC
             </span>
@@ -192,14 +192,14 @@ function VisualBody({ config }: { config: VisualConfig }) {
 
 function VisualSkeleton() {
   return (
-    <div className="h-full w-full animate-pulse bg-white/30" aria-hidden="true" />
+    <div className="h-full w-full animate-pulse bg-[var(--hp-color-surface-raised)]" aria-hidden="true" />
   )
 }
 
 function PlaceholderBox({ aspect, label }: { aspect: string; label: string }) {
   return (
     <div
-      className="relative flex w-full items-center justify-center bg-white/30"
+      className="relative flex w-full items-center justify-center bg-[var(--hp-color-surface-raised)]"
       style={{ aspectRatio: aspect }}
       role="img"
       aria-label={`${label} (準備中)`}
