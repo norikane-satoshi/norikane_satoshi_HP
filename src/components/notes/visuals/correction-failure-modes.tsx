@@ -23,9 +23,6 @@ import { useEffect, useRef, useState } from "react"
  * 特定のソフトの処理を再現したものではない。
  *
  * SSR 設計: SVG は t=0 の純関数。canvas の描画は useEffect 内のみ。
- * 動き (2026-11-05 リッチ化): ゆっくり上げ、上げきったところで一拍止めて崩れを見せ、
- * ゆっくり戻す。崩れた瞬間に面の縁を赤く強く光らせ、崩れている間は弱く光らせ続ける。
- *
  * reducedMotion 時は u を REDUCED_MOTION_U で固定して静止画化する。
  */
 
@@ -327,22 +324,9 @@ const PANEL_TEXT: Record<PanelId, { label: string; caption: string; lines: strin
   },
 }
 
-function Panel({
-  layout,
-  panel,
-  u,
-  t,
-  isMobile,
-}: {
-  layout: Layout
-  panel: PanelId
-  u: number
-  t: number
-  isMobile: boolean
-}) {
+function Panel({ layout, panel, u, isMobile }: { layout: Layout; panel: PanelId; u: number; isMobile: boolean }) {
   const p = layout.panels[panel]
   const flipped = panelState(panel, u).broken
-  const flash = breakFlash(panel, t, flipped)
   const text = PANEL_TEXT[panel]
   const captionLines = isMobile ? text.lines : [text.caption]
   return (
@@ -357,20 +341,6 @@ function Panel({
       >
         {text.label}
       </text>
-      {flash > 0.01 ? (
-        <rect
-          x={p.image.x - 4}
-          y={p.image.y - 4}
-          width={p.image.size + 8}
-          height={p.image.size + 8}
-          rx={12}
-          fill="none"
-          stroke={ALERT}
-          strokeOpacity={flash}
-          strokeWidth={10}
-          filter="url(#cfm-glow)"
-        />
-      ) : null}
       <rect
         x={p.image.x - 2}
         y={p.image.y - 2}
@@ -399,44 +369,8 @@ function Panel({
   )
 }
 
-function easeInOutCubic(x: number) {
-  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2
-}
-
-/**
- * 操作量 u の時間変化 (2026-11-05 リッチ化)。ゆっくり上げ、上げきったところで一拍止めて
- * 崩れを見せ、ゆっくり戻す。
- */
-const RISE_START = 0.6
-const RISE_END = 3.6
-const FALL_START = 5.4
-const FALL_END = 7.6
 function umphase(t: number) {
-  if (t < RISE_START) return 0
-  if (t < RISE_END) return easeInOutCubic((t - RISE_START) / (RISE_END - RISE_START))
-  if (t < FALL_START) return 1
-  if (t < FALL_END) return 1 - easeInOutCubic((t - FALL_START) / (FALL_END - FALL_START))
-  return 0
-}
-
-/** 上げていく途中で、その面が崩れ始める時刻 (秒)。崩れなければ null */
-function breakTime(panel: PanelId): number | null {
-  for (let t = RISE_START; t <= RISE_END; t += 0.01) {
-    if (panelState(panel, umphase(t)).broken) return t
-  }
-  return null
-}
-const BREAK_TIMES: Record<PanelId, number | null> = {
-  clip: breakTime("clip"),
-  negative: breakTime("negative"),
-}
-
-/** 崩れた瞬間に縁を強く光らせ、その後は弱く光らせ続ける (0..1) */
-function breakFlash(panel: PanelId, t: number, broken: boolean) {
-  const tb = BREAK_TIMES[panel]
-  if (!broken || tb == null) return 0
-  const since = t >= tb && t < FALL_END ? t - tb : 10
-  return 0.3 + 0.7 * Math.exp(-since / 0.45)
+  return 0.5 - 0.5 * Math.cos((2 * Math.PI * t) / LOOP)
 }
 
 export default function CorrectionFailureModes({
@@ -505,11 +439,6 @@ export default function CorrectionFailureModes({
         className="absolute inset-0 h-full w-full"
         preserveAspectRatio="xMidYMid meet"
       >
-        <defs>
-          <filter id="cfm-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation={9} />
-          </filter>
-        </defs>
         <rect
           x={layout.inset}
           y={layout.inset}
@@ -536,7 +465,7 @@ export default function CorrectionFailureModes({
           0〜100% の外に出た値が、後ろの処理で崩れる
         </text>
         {PANEL_ORDER.map((id) => (
-          <Panel key={id} layout={layout} panel={id} u={u} t={reducedMotion ? 99 : animT} isMobile={Boolean(isMobile)} />
+          <Panel key={id} layout={layout} panel={id} u={u} isMobile={Boolean(isMobile)} />
         ))}
       </svg>
       {PANEL_ORDER.map((id) => {

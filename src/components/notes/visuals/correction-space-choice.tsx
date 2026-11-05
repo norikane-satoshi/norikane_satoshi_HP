@@ -30,7 +30,6 @@ import { useEffect, useRef, useState } from "react"
  *
  * 動き (2026-11-05 リッチ化): 登場時にセルが左から浮かび上がり、3 空間で同じノブを
  * 「上げて止め、下げて止め、中立へ戻す」。止まる位置でわずかに行き過ぎる。
- * 1 を超えた部分の曲線だけ赤く光らせ、はみ出した瞬間を目立たせる。
  *
  * reducedMotion 時はパラメータを range 中央値で固定して静止画化する
  * (Log: b=0 / Linear: a=1.25 / Gamma: a=1.25)。
@@ -472,15 +471,9 @@ function Cell({
   const refEndX = plotX + (refEndNorm / PLOT_X_MAX) * PLOT_W
   const refEndY = plotY + PLOT_H - (refEndNorm / PLOT_Y_MAX) * PLOT_H
   const xOneScreen = plotX + (1.0 / PLOT_X_MAX) * PLOT_W
-  const overRangeId = `${spec.clipId}-over`
 
   return (
     <g opacity={enter} transform={`translate(0 ${((1 - enter) * 24).toFixed(2)})`}>
-      <defs>
-        <clipPath id={overRangeId}>
-          <rect x={plotX} y={plotY} width={PLOT_W} height={ySignalTop - plotY} />
-        </clipPath>
-      </defs>
       {/* セル背景 */}
       <rect
         x={cellX + 18}
@@ -604,27 +597,6 @@ function Cell({
           points={polyPoints}
           fill="none"
           stroke={spec.tint.curve}
-          strokeWidth={3.6}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </g>
-      {/* 1 を超えた部分だけ赤く光らせ、はみ出した瞬間を目立たせる */}
-      <g clipPath={`url(#${overRangeId})`}>
-        <polyline
-          points={polyPoints}
-          fill="none"
-          stroke="rgb(236,110,110)"
-          strokeOpacity={0.55}
-          strokeWidth={12}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          filter="url(#csc-glow)"
-        />
-        <polyline
-          points={polyPoints}
-          fill="none"
-          stroke="rgb(240,140,140)"
           strokeWidth={3.6}
           strokeLinecap="round"
           strokeLinejoin="round"
