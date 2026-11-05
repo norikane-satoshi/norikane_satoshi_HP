@@ -179,7 +179,7 @@
 }
 
 .dayToday {
-  border-color: color-mix(in srgb, var(--hp-color-calendar-today) 45%, transparent);
+  border-color: var(--hp-color-calendar-today);
 }
 
 .dayBlockStart:not(.dayBlockEnd) {

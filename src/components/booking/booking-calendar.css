@@ -784,8 +784,8 @@
 
 .booking-calendar .booking-calendar__today-date .fc-daygrid-day-frame,
 .booking-calendar .fc-timegrid-col.booking-calendar__today-date {
-  border-color: color-mix(in srgb, var(--hp-color-calendar-today) 45%, transparent);
-  background: var(--glass-bg);
+  border-color: var(--hp-color-calendar-today);
+  background: color-mix(in srgb, var(--hp-color-calendar-today) 10%, var(--glass-bg));
 }
 
 .booking-calendar .booking-calendar__today-date .booking-calendar__day-number {
@@ -1270,12 +1270,13 @@
   font-weight: 700;
 }
 
+.booking-month-skeleton__day--today {
+  border-color: var(--hp-color-calendar-today);
+  background: color-mix(in srgb, var(--hp-color-calendar-today) 10%, var(--glass-bg));
+}
+
 .booking-month-skeleton__day--today .booking-month-skeleton__day-number {
   color: var(--hp-color-calendar-today);
-  text-decoration-line: underline;
-  text-decoration-color: var(--hp-color-calendar-today);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
 }
 
 .booking-month-skeleton__events {

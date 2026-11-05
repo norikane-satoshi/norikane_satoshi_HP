@@ -21,8 +21,8 @@ The site is the portfolio of Satoshi Norikane, colorist; the operating entity is
 
 - Surfaces: `--glass-bg`, `--hp-color-surface-raised` (solid panel, dialogs), `--hp-color-fill` /
   `--hp-color-fill-hover` (controls), `--hp-color-border` / `--hp-color-border-strong`.
-- Calendar: `--hp-color-calendar-*` (today and selected are ivory; selected text uses `--hp-color-calendar-on-strong`),
-  `--hp-calendar-status-surface`.
+- Calendar: `--hp-color-calendar-*`, `--hp-calendar-status-surface`. Today is red (`--hp-color-calendar-today`, the
+  owner's instruction 2026-11-06; the only hue in the UI). Selected dates are ivory with `--hp-color-calendar-on-strong` text.
 - Chatbot: `--hp-color-chatbot-*`. `[data-hp-chatbot-root]` (the widget and its portalled dialogs) thins
   `--glass-bg` because the chatbot stacks panels.
 - Utilities: `.glass-card`, `.glass-card-sm`, `.glass-btn`, `.glass-input`, `.glass-badge`, `.glass-bar`,
