@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { ArrowUpRight, Mic, X } from "lucide-react"
+import { ArrowUpRight, X } from "lucide-react"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
 import { PRESS_CATEGORIES, type PressItem, type PressLink } from "@/components/hp/press-data"
 
@@ -11,6 +11,28 @@ const focusableSelector = [
   "button:not([disabled])",
   "[tabindex]:not([tabindex='-1'])",
 ].join(",")
+
+/** 登壇（マイク）と掲載（紙面）を並べたアイコン。lucide と同じ線の太さで描く。 */
+function TalksPressIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M10.5 4.5H4.2a1.2 1.2 0 0 0-1.2 1.2v12.6a1.2 1.2 0 0 0 1.2 1.2h6.3" />
+      <path d="M5.8 8.5h3.4M5.8 11.5h3.4M5.8 14.5h2.2" />
+      <rect x="14" y="3.5" width="5.2" height="9" rx="2.6" />
+      <path d="M12.3 10.6a4.3 4.3 0 0 0 8.6 0" />
+      <path d="M16.6 15v4.2M14.4 20.5h4.4" />
+    </svg>
+  )
+}
 
 /** 「2026年10月」「2024年」を並べ替え用の数値（年×100＋月）にする。 */
 function getPeriodSortKey(period: string) {
@@ -206,7 +228,7 @@ export function PressDialog() {
         title="登壇・掲載"
         onClick={() => setOpen(true)}
       >
-        <Mic className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} aria-hidden="true" />
+        <TalksPressIcon className="h-5 w-5 shrink-0" />
         <span className="hp-latin-italic ml-1.5 text-[1.0625rem]">Talks &amp; Press</span>
       </button>
       {dialog}

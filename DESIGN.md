@@ -47,7 +47,8 @@ replaces the light contract.
   over a rule. No section numbers or side labels.
 - Raised band: `.hp-surface-band` (profile).
 - Links: `.hp-text-link` inside prose, `.hp-plain-link` with an `ArrowUpRight` icon for external lists.
-- Profile SNS links and the talks and press button are `.hp-icon-badge` buttons with the official icons.
+- Profile SNS links are `.hp-icon-badge` buttons with the official icons in their brand colours; the talks and press
+  button is a `.hp-icon-badge` with the microphone-and-page icon and the words Talks & Press.
 
 ## 2. Canonical design tokens
 
