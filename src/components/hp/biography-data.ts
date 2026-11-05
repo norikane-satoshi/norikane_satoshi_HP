@@ -64,6 +64,13 @@ export const BIOGRAPHY_CHAPTERS: BiographyChapter[] = [
       p(
         "高校2年で、自己ベストが一気に伸びました。ゴールしたあとの、体が浮くような高揚感が体感としてまだ残っています。2008年、香川県立丸亀高等学校を卒業しました。",
       ),
+      {
+        type: "image",
+        src: "/hp/bio-track.jpg",
+        alt: "高校の陸上 800m のレースで走る則兼（ゼッケン669）",
+        width: 1600,
+        height: 1202,
+      },
     ],
   },
   {
