@@ -377,6 +377,7 @@ Only add a new layout if the structure truly cannot be represented by the existi
 - Drawn for the ink ground: text and lines in ivory (`rgba(236,230,220,a)`), panels as dark translucency,
   category colours lightened so they read on ink (keep hue and saturation).
 - Density: spacious, readable in 5 seconds
+- Animated visuals play whenever they are on screen, even with the OS reduced-motion setting on (2026-11-05).
 - Forbidden: neon, text baked into images, light panels inside a noir article
 
 ## 8. Quality layers for AI agents
