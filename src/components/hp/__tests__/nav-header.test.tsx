@@ -53,14 +53,14 @@ describe("NavHeader navigation", () => {
     vi.restoreAllMocks()
   })
 
-  const NAV_LABELS = ["作品", "ノート", "プロフィール", "登壇・掲載"]
-  const NAV_HREFS = ["/#works", "/#philosophy", "/#profile", "/#press"]
+  const NAV_LABELS = ["作品", "ノート", "プロフィール"]
+  const NAV_HREFS = ["/#works", "/#philosophy", "/#profile"]
 
   function readItems(items: Element[]) {
     return items.map((item) => [item.textContent?.trim(), item.querySelector("a")?.getAttribute("href")])
   }
 
-  it("orders navigation as works, notes, profile, press on desktop and mobile", () => {
+  it("orders navigation as works, notes, profile on desktop and mobile", () => {
     const { container } = render(<NavHeader />)
 
     const expected = NAV_LABELS.map((label, index) => [label, NAV_HREFS[index]])
