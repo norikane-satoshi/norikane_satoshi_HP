@@ -380,7 +380,7 @@ Only add a new layout if the structure truly cannot be represented by the existi
 - Animated visuals play whenever they are on screen, even with the OS reduced-motion setting on (2026-11-05).
 - Motion: an entrance when the figure first comes into view (panels rise in, curves draw on); eased moves with a
   short hold and a slight overshoot instead of plain sine loops; light up only what matters now; a soft glow under
-  lines on the ink ground. `correction-control-math.tsx` is the reference implementation.
+  lines on the ink ground. No red warning flashes or glows (the failure-modes figure keeps its simple loop). `correction-control-math.tsx` is the reference implementation.
 - Forbidden: neon, text baked into images, light panels inside a noir article
 
 ## 8. Quality layers for AI agents
