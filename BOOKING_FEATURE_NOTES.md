@@ -42,10 +42,6 @@ Phase 7：本番反映 + E2E
 
 Phase 8（後追い）：Apple Sign In 追加（屋号開業 + Apple Developer Program 加入後）
 
-## Glass Design System の順守
-
-ログイン UI、予約カレンダー UI とも `DESIGN.md` と `src/app/globals.css` の Glass Design System を使う。FullCalendar の標準テーマや shadcn のデフォルトテーマはそのまま使わず、既存の `glass-*` ユーティリティと HP トークンで統一する。カレンダーのセル、状態色、操作影は `--hp-radius-calendar-cell`、`--hp-color-calendar-*`、`--hp-shadow-calendar-*` を使い、月／週切替タブも既存のグラス面とアクセント状態で表現する。
-
 ## Next.js 16 の破壊的変更
 
 実装着手時は `node_modules/next/dist/docs/` の該当ガイドを必ず確認。`params` / `searchParams` は Promise 型で `await` する、`revalidateTag(tag, profile)` の第2引数推奨、Auth.js v5 の `auth()` ヘルパー呼び出し位置の調整など。

@@ -48,9 +48,7 @@ describe("FeaturedWorks", () => {
       expect(card.tagName).toBe("DIV")
       expect(card).not.toHaveAttribute("href")
 
-      const visibleLinks = work.youtubeId
-        ? work.links.filter((link) => link.label !== "YouTube")
-        : work.links
+      const visibleLinks = work.links.filter((link) => link.label !== "YouTube")
 
       for (const link of visibleLinks) {
         const badge = cardQueries.getByRole("link", {
@@ -61,13 +59,11 @@ describe("FeaturedWorks", () => {
         expect(badge).toHaveAttribute("rel", "noopener noreferrer")
       }
 
-      if (work.youtubeId) {
-        expect(
-          cardQueries.queryByRole("link", {
-            name: `${work.title} YouTubeを新しいタブで開く`,
-          }),
-        ).not.toBeInTheDocument()
-      }
+      expect(
+        cardQueries.queryByRole("link", {
+          name: `${work.title} YouTubeを新しいタブで開く`,
+        }),
+      ).not.toBeInTheDocument()
     }
   })
 
@@ -304,8 +300,7 @@ describe("FeaturedWorks", () => {
 
     render(<FeaturedWorks />)
 
-    const work = FEATURED_WORKS.find((item) => item.youtubeId)
-    expect(work?.youtubeId).toBeDefined()
+    const work = FEATURED_WORKS[0]
 
     const trigger = screen.getByRole("button", {
       name: `${work?.title} の動画をモーダルで再生`,
@@ -682,7 +677,7 @@ describe("FeaturedWorks", () => {
     )
 
     const previewLabels = [
-      ...FEATURED_WORKS.filter((work) => work.youtubeId).map(
+      ...FEATURED_WORKS.map(
         (work) => `${work.title} 作品カード`,
       ),
       ...FEATURED_PLAYLIST_WORKS.map(
@@ -1321,7 +1316,7 @@ describe("FeaturedWorks", () => {
 
     render(<FeaturedWorks />)
 
-    const work = FEATURED_WORKS.find((item) => item.youtubeId)
+    const work = FEATURED_WORKS[0]
     const trigger = screen.getByRole("button", {
       name: `${work?.title} の動画をモーダルで再生`,
     })
@@ -1398,11 +1393,9 @@ describe("FeaturedWorks", () => {
       )
       expect(client).toBeInTheDocument()
       expect(links?.parentElement).toBe(client?.parentElement)
-      if (work.youtubeId) {
-        expect(links?.querySelector('[data-featured-work-link="YouTube"]')).toBeNull()
-      }
+      expect(links?.querySelector('[data-featured-work-link="YouTube"]')).toBeNull()
 
-      for (const link of work.links.filter((item) => !work.youtubeId || item.label !== "YouTube")) {
+      for (const link of work.links.filter((item) => item.label !== "YouTube")) {
         const anchor = links?.querySelector(`[data-featured-work-link="${link.label}"]`)
         expect(anchor).toHaveAttribute("href", link.url)
         expect(anchor).toHaveAttribute("target", "_blank")

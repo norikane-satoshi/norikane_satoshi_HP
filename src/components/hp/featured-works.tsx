@@ -626,20 +626,17 @@ function PreviewThumbnail({
   )
 }
 
+/** YouTube はカード自体で再生するので、リンクには出さない。 */
 function WorkLinks({
   links,
   workTitle,
   clone = false,
-  hideYouTube = false,
 }: {
   links: FeaturedWorkLink[]
   workTitle: string
   clone?: boolean
-  hideYouTube?: boolean
 }) {
-  const visibleLinks = hideYouTube
-    ? links.filter((link) => link.label !== "YouTube")
-    : links
+  const visibleLinks = links.filter((link) => link.label !== "YouTube")
 
   return (
     <div className="flex flex-wrap gap-x-5" data-featured-work-links="inline">
@@ -1309,7 +1306,6 @@ function FeaturedWorkCard({
               links={work.links}
               workTitle={work.title}
               clone={clone}
-              hideYouTube
             />
           </div>
         </div>
