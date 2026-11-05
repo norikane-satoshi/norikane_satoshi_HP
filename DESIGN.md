@@ -74,7 +74,7 @@ Individual pages: note articles (`/notes/<slug>`), booking (`/booking`, history,
   captions out of frame. Text uses `--hp-color-on-media`. It keeps moving with reduced motion on (owner's instruction,
   2026-11-04); elements that must keep transitions carry `.hp-motion-keep`. No cards over the hero.
 - Featured works: a full-width, auto-scrolling row of 16:9 YouTube previews (heading and progress bar stay in the
-  shell). Every work has a `youtubeId`; `loopStart`/`loopEnd` cut a video down to its clean part, and
+  shell). A mouse drag anywhere in the section scrolls the row. Every work has a `youtubeId`; `loopStart`/`loopEnd` cut a video down to its clean part, and
   `fixedThumbnail` pins the cover to the official thumbnail. Do not turn it into a grid without a design review.
 - Section headings: `SectionHeading` (`src/components/hp/section-heading.tsx`), a large Latin title in
   `.hp-latin-display` over a rule. No section numbers.

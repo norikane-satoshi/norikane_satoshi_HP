@@ -275,6 +275,43 @@ describe("FeaturedWorks", () => {
     expect(viewport.scrollLeft).toBe(3399)
   })
 
+  it("scrolls by mouse drag anywhere in the section without opening a video", () => {
+    const { container } = render(
+      <section>
+        <FeaturedWorks />
+      </section>,
+    )
+    const section = container.querySelector("section") as HTMLElement
+    const viewport = container.querySelector(
+      '[data-featured-work-marquee-viewport="true"]',
+    ) as HTMLElement
+    Object.defineProperty(viewport, "clientWidth", { configurable: true, value: 600 })
+    Object.defineProperty(
+      container.querySelector('[data-featured-work-marquee-segment-start="primary"]'),
+      "offsetLeft",
+      { configurable: true, value: 1000 },
+    )
+    Object.defineProperty(
+      container.querySelector('[data-featured-work-marquee-segment-start="clone-after"]'),
+      "offsetLeft",
+      { configurable: true, value: 3400 },
+    )
+    section.setPointerCapture = vi.fn()
+    section.releasePointerCapture = vi.fn()
+    fireEvent(window, new Event("resize"))
+    const start = viewport.scrollLeft
+    const trigger = screen.getAllByRole("button", { name: /の動画をモーダルで再生/ })[0]
+
+    fireEvent.pointerDown(trigger, { pointerId: 7, pointerType: "mouse", button: 0, clientX: 400 })
+    fireEvent.pointerMove(trigger, { pointerId: 7, pointerType: "mouse", clientX: 280 })
+    expect(viewport.scrollLeft).toBe(start + 120)
+    expect(viewport).toHaveAttribute("data-featured-work-marquee-state", "paused")
+    fireEvent.pointerUp(trigger, { pointerId: 7, pointerType: "mouse", clientX: 280 })
+    fireEvent.click(trigger)
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
   it("keeps the marquee and its clone track even when reduced motion is requested", () => {
     const { container } = render(<FeaturedWorks />)
 

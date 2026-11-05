@@ -293,6 +293,9 @@ function useScrollableMarquee(
       thumbWidth: number
       trackWidth: number
     } | null = null
+    // セクションのどこを掴んでも横に送れる（マウス・ペン。タッチは横スクロールが元から効く）。
+    const section = viewport.closest("section") ?? viewport
+    let sectionDrag: { pointerId: number; startX: number; lastX: number; dragging: boolean } | null = null
 
     const setState = (state: "running" | "paused") => {
       viewport.dataset.featuredWorkMarqueeState = state
@@ -515,6 +518,69 @@ function useScrollableMarquee(
       setScrollProgress(travelWidth <= 0 ? 0 : translateX / travelWidth)
     }
 
+    const handleSectionPointerDown = (event: PointerEvent) => {
+      if (
+        event.pointerType === "touch" ||
+        event.button !== 0 ||
+        progressTrackRef.current?.contains(event.target as Node)
+      ) {
+        return
+      }
+      sectionDrag = { pointerId: event.pointerId, startX: event.clientX, lastX: event.clientX, dragging: false }
+    }
+
+    const handleSectionPointerMove = (event: PointerEvent) => {
+      if (!sectionDrag || sectionDrag.pointerId !== event.pointerId) {
+        return
+      }
+      if (!sectionDrag.dragging) {
+        if (Math.abs(event.clientX - sectionDrag.startX) <= VIDEO_OPEN_DRAG_THRESHOLD_PX) {
+          return
+        }
+        sectionDrag.dragging = true
+        section.setPointerCapture?.(event.pointerId)
+        section.style.cursor = "grabbing"
+        section.style.userSelect = "none"
+      }
+      if (!metrics) {
+        syncMetrics()
+      }
+      if (!metrics) {
+        return
+      }
+      pauseForInput()
+      virtualScrollLeft = getNormalizedMarqueeScrollLeft(
+        virtualScrollLeft - (event.clientX - sectionDrag.lastX),
+        metrics,
+      )
+      sectionDrag.lastX = event.clientX
+      viewport.scrollLeft = virtualScrollLeft
+      syncProgressBar()
+    }
+
+    const handleSectionPointerEnd = (event: PointerEvent) => {
+      if (!sectionDrag || sectionDrag.pointerId !== event.pointerId) {
+        return
+      }
+      if (sectionDrag.dragging) {
+        pauseForInput()
+        section.releasePointerCapture?.(event.pointerId)
+        section.style.cursor = ""
+        section.style.userSelect = ""
+        // ドラッグの終わりにカードの再生やリンクが反応しないようにする。
+        section.addEventListener("click", suppressClick, true)
+        window.setTimeout(() => section.removeEventListener("click", suppressClick, true), 0)
+      }
+      sectionDrag = null
+    }
+
+    const suppressClick = (event: Event) => {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    const preventNativeDrag = (event: DragEvent) => event.preventDefault()
+
     syncMetrics()
     const progressTrack = progressTrackRef.current
     const progressThumb = progressThumbRef.current
@@ -530,6 +596,11 @@ function useScrollableMarquee(
     progressThumb?.addEventListener("pointerup", handleThumbPointerEnd)
     progressThumb?.addEventListener("pointercancel", handleThumbPointerEnd)
     progressThumb?.addEventListener("keydown", handleThumbKeyDown)
+    section.addEventListener("pointerdown", handleSectionPointerDown)
+    section.addEventListener("pointermove", handleSectionPointerMove)
+    section.addEventListener("pointerup", handleSectionPointerEnd)
+    section.addEventListener("pointercancel", handleSectionPointerEnd)
+    section.addEventListener("dragstart", preventNativeDrag)
     window.addEventListener("resize", syncMetrics)
     animationFrame = window.requestAnimationFrame(step)
 
@@ -546,6 +617,11 @@ function useScrollableMarquee(
       progressThumb?.removeEventListener("pointerup", handleThumbPointerEnd)
       progressThumb?.removeEventListener("pointercancel", handleThumbPointerEnd)
       progressThumb?.removeEventListener("keydown", handleThumbKeyDown)
+      section.removeEventListener("pointerdown", handleSectionPointerDown)
+      section.removeEventListener("pointermove", handleSectionPointerMove)
+      section.removeEventListener("pointerup", handleSectionPointerEnd)
+      section.removeEventListener("pointercancel", handleSectionPointerEnd)
+      section.removeEventListener("dragstart", preventNativeDrag)
       window.removeEventListener("resize", syncMetrics)
       delete viewport.dataset.featuredWorkMarqueeState
       delete viewport.dataset.featuredWorkMarqueeIdleMs
