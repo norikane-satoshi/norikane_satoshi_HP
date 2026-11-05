@@ -30,8 +30,13 @@ type BookingMonthSkeletonProps = {
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"]
 const BOOKING_BUFFER_HOURS = 1
-function toDate(value: Date | string): Date {
-  return value instanceof Date ? new Date(value.getTime()) : new Date(value)
+/** JST の日付をその日の 0 時として返す。サーバー（UTC）で描画しても今日と月が日本時間に合う。 */
+function toJstDate(value: Date | string): Date {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" })
+    .format(new Date(value))
+    .split("-")
+    .map(Number)
+  return new Date(year, month - 1, day)
 }
 
 function startOfDay(value: Date): Date {
@@ -139,10 +144,10 @@ export function buildBookingMonthSkeletonDays(input: {
   initialBookings: CalendarBookingFromApi[]
   now: Date | string
 }): MonthSkeletonDay[] {
-  const current = toDate(input.now)
+  const current = toJstDate(input.now)
   const firstOfMonth = new Date(current.getFullYear(), current.getMonth(), 1)
   const gridStart = addDays(firstOfMonth, -firstOfMonth.getDay())
-  const todayKey = toDateKey(startOfDay(current))
+  const todayKey = toDateKey(current)
   const days: MonthSkeletonDay[] = []
 
   for (let index = 0; index < 42; index += 1) {
@@ -204,7 +209,7 @@ export function BookingMonthSkeleton({
   pending = false,
   showAvailabilityStatusBlocks = false,
 }: BookingMonthSkeletonProps) {
-  const current = toDate(now)
+  const current = toJstDate(now)
   const days = buildBookingMonthSkeletonDays({ initialBusy, initialBookings, now })
 
   return (

@@ -113,4 +113,14 @@ describe("BookingMonthSkeleton", () => {
     expect(html).toContain('data-date="2026-06-06"')
     expect(html).not.toContain('data-kind="lock"')
   })
+  it("marks today and the month in Japan time even when the server runs in UTC", () => {
+    const days = buildBookingMonthSkeletonDays({
+      initialBusy: [],
+      initialBookings: [],
+      now: "2026-10-31T20:00:00.000Z",
+    })
+
+    expect(days.find((day) => day.isToday)?.date).toBe("2026-11-01")
+    expect(days.filter((day) => day.isCurrentMonth)[0]?.date).toBe("2026-11-01")
+  })
 })
