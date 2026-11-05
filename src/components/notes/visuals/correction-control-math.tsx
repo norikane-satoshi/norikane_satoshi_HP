@@ -42,29 +42,29 @@ const TRACK_H = 10
 const VALUE_X = 372
 const VALUE_Y = 460
 
-const TEXT_PRIMARY = "rgba(28,15,110,0.95)"
+const TEXT_PRIMARY = "rgba(236,230,220,0.95)"
 const GRID = "rgba(127,176,255,0.18)"
 
 // 配色 (前作 correction-labyrinth-to-factor.tsx の TINT パレットと整合)
 const TINT_GAIN = {
   border: "rgba(214,127,140,0.85)",
   bg: "rgba(214,127,140,0.10)",
-  curve: "rgb(180,60,80)",
+  curve: "rgb(216,121,137)",
 }
 const TINT_GAMMA = {
   border: "rgba(108,180,170,0.85)",
   bg: "rgba(108,180,170,0.10)",
-  curve: "rgb(45,135,120)",
+  curve: "rgb(121,216,200)",
 }
 const TINT_OFFSET = {
   border: "rgba(214,162,108,0.85)",
   bg: "rgba(214,162,108,0.10)",
-  curve: "rgb(170,115,55)",
+  curve: "rgb(217,170,120)",
 }
 const TINT_LIFT = {
   border: "rgba(120,165,225,0.85)",
   bg: "rgba(120,165,225,0.10)",
-  curve: "rgb(55,108,180)",
+  curve: "rgb(118,161,219)",
 }
 
 type Tint = typeof TINT_GAIN
@@ -237,7 +237,7 @@ function Cell({
         height={CELL_H - 20}
         rx={20}
         ry={20}
-        fill="rgba(255,255,255,0.55)"
+        fill="rgba(13,12,11,0.55)"
       />
 
       {/* 1 行見出し: 原因名（カテゴリ） + 数式 */}
@@ -266,7 +266,7 @@ function Cell({
         height={PLOT_H}
         rx={4}
         ry={4}
-        fill="rgba(255,255,255,0.4)"
+        fill="rgba(13,12,11,0.4)"
         stroke={GRID}
         strokeWidth={1}
       />
@@ -291,7 +291,7 @@ function Cell({
         height={TRACK_H}
         rx={TRACK_H / 2}
         ry={TRACK_H / 2}
-        fill="rgba(255,255,255,0.7)"
+        fill="rgba(13,12,11,0.7)"
         stroke={spec.tint.border}
         strokeOpacity={0.55}
         strokeWidth={1.2}
@@ -301,7 +301,7 @@ function Cell({
         cy={knobCY}
         r={12}
         fill={spec.tint.curve}
-        stroke="rgba(255,255,255,0.95)"
+        stroke="rgba(13,12,11,0.95)"
         strokeWidth={2}
       />
 

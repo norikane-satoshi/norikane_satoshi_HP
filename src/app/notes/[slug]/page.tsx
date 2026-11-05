@@ -59,29 +59,35 @@ export async function generateMetadata(
 
 function UnpublishedNotePage() {
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 space-y-6">
-      <nav>
-        <Link
-          href="/#philosophy"
-          className="inline-flex items-center gap-2 text-sm text-hp-muted transition-colors hover:text-hp"
-        >
-          <span aria-hidden="true">←</span>
-          公開中のノート一覧に戻る
-        </Link>
-      </nav>
-      <article className="glass-card p-8 md:p-10 xl:p-14">
-        <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-          Note
-        </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-hp md:text-4xl xl:text-5xl">
-          このノートは現在公開していません
-        </h1>
-        <p className="mt-6 max-w-2xl text-sm leading-relaxed text-hp-muted md:text-base">
-          公開状態が切り替わったため、このURLのノート本文は表示していません。
-          現在公開中のノートは一覧から確認できます。
-        </p>
-      </article>
+    <div className="hp-noir-page" data-hp-theme="noir">
+      <div className="mx-auto w-full max-w-[1440px] px-6 pb-[clamp(5rem,10vw,8rem)] md:px-10 xl:px-14">
+        <NotesBackLink label="公開中のノート一覧に戻る" />
+        <article className="hp-note-article">
+          <header className="hp-note-header">
+            <p className="hp-eyebrow">Note</p>
+            <h1 className="hp-note-title mt-4 text-hp">このノートは現在公開していません</h1>
+          </header>
+          <p className="mx-auto mt-8 max-w-[46rem] text-sm leading-relaxed text-hp-muted md:text-base">
+            公開状態が切り替わったため、このURLのノート本文は表示していません。
+            現在公開中のノートは一覧から確認できます。
+          </p>
+        </article>
+      </div>
     </div>
+  )
+}
+
+function NotesBackLink({ label }: { label: string }) {
+  return (
+    <nav className="pt-[clamp(2rem,5vw,3.5rem)]">
+      <Link
+        href="/#philosophy"
+        className="hp-plain-link inline-flex items-center gap-2 text-sm text-hp-muted"
+      >
+        <span aria-hidden="true">←</span>
+        {label}
+      </Link>
+    </nav>
   )
 }
 
@@ -104,27 +110,19 @@ export default async function NotePage({ params }: PageProps) {
     index >= 0 ? `Note ${String(index + 1).padStart(2, "0")}` : "Note"
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-6 md:px-10 xl:px-14 space-y-6">
-      <nav>
-        <Link
-          href="/#philosophy"
-          className="hp-nav-link inline-flex items-center gap-2 rounded-[12px] px-1 py-1 text-sm transition-colors hover:text-hp"
-        >
-          <span aria-hidden="true">←</span>
-          ノート一覧に戻る
-        </Link>
-      </nav>
-      <article className="glass-card glass-card--hp-note-page p-8 md:p-10 xl:p-14">
-        <p className="text-xs uppercase tracking-[0.22em] text-hp-muted">
-          {label}
-        </p>
-        <h1 className="hp-heading hp-note-title mt-2 text-3xl font-bold text-hp md:text-4xl xl:text-5xl">
-          {note.title}
-        </h1>
-        <div className="mt-8">
-          <RenderBlocks blocks={note.blocks} slugIndex={slugIndex} />
-        </div>
-      </article>
+    <div className="hp-noir-page" data-hp-theme="noir">
+      <div className="mx-auto w-full max-w-[1440px] px-6 pb-[clamp(5rem,10vw,8rem)] md:px-10 xl:px-14">
+        <NotesBackLink label="ノート一覧に戻る" />
+        <article className="hp-note-article">
+          <header className="hp-note-header">
+            <p className="hp-eyebrow">{label}</p>
+            <h1 className="hp-heading hp-note-title mt-4 text-hp">{note.title}</h1>
+          </header>
+          <div className="hp-note-body">
+            <RenderBlocks blocks={note.blocks} slugIndex={slugIndex} />
+          </div>
+        </article>
+      </div>
     </div>
   )
 }

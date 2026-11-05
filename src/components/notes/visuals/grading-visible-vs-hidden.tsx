@@ -34,26 +34,26 @@ const TOOL_OFFSET_X = SUB_W + SUB_GAP
 const CARD_R = 14
 const CORNER_R = 18
 
-const BG_BASE = "#F8F6FF"
-const TEXT_PRIMARY = "#1C0F6E"
-const TEXT_MUTED = "#6B5FA8"
-const GLASS_FILL = "rgba(255,255,255,0.65)"
-const GLASS_STROKE = "rgba(255,255,255,0.78)"
-const PANEL_FILL = "rgba(255,255,255,0.55)"
-const PANEL_STROKE = "rgba(255,255,255,0.72)"
+const BG_BASE = "#161514"
+const TEXT_PRIMARY = "#ECE6DC"
+const TEXT_MUTED = "#958CC4"
+const GLASS_FILL = "rgba(13,12,11,0.65)"
+const GLASS_STROKE = "rgba(13,12,11,0.78)"
+const PANEL_FILL = "rgba(13,12,11,0.55)"
+const PANEL_STROKE = "rgba(13,12,11,0.72)"
 
 const AMBER = "rgb(200,146,58)"
-const TEAL = "rgb(46,140,132)"
-const MAGENTA = "rgb(176,82,160)"
-const NAVY = "rgb(58,90,170)"
+const TEAL = "rgb(120,216,208)"
+const MAGENTA = "rgb(204,133,192)"
+const NAVY = "rgb(121,148,215)"
 
 const FONT_FAMILY = "var(--font-noto-sans-jp), sans-serif"
 const MONO = "var(--font-geist-mono), ui-monospace, monospace"
 
 const RGB_CURVE_COLORS = {
-  R: "rgba(220,72,82,0.95)",
+  R: "rgba(233,104,112,0.95)",
   G: "rgba(56,168,108,0.95)",
-  B: "rgba(74,128,210,0.95)",
+  B: "rgba(111,156,226,0.95)",
 } as const
 
 type VisibleAxisKey = "curve" | "rgb"
@@ -204,7 +204,7 @@ function VisibleSectionSvg() {
       <rect x={0} y={0} width={VW} height={VH_TOP} fill="url(#gvh-aurora-purple)" />
       <rect x={0} y={0} width={VW} height={VH_TOP} fill="url(#gvh-aurora-pink)" />
       <rect x={0} y={0} width={VW} height={VH_TOP} fill="url(#gvh-aurora-sky)" />
-      <rect x={0} y={0} width={VW} height={VH_TOP} fill="rgba(28,15,110,0.025)" />
+      <rect x={0} y={0} width={VW} height={VH_TOP} fill="rgba(236,230,220,0.025)" />
 
       <rect
         x={COL_PAD - 14}
@@ -212,7 +212,7 @@ function VisibleSectionSvg() {
         width={VW - (COL_PAD - 14) * 2}
         height={VH_TOP - (SECTION_TOP_Y - 14) - (OUTER_PAD - 14)}
         rx={CORNER_R + 4}
-        fill="rgba(255,255,255,0.28)"
+        fill="rgba(13,12,11,0.28)"
         stroke="rgba(200,146,58,0.32)"
         strokeWidth={1.2}
       />
@@ -267,7 +267,7 @@ function HiddenSectionSvg() {
       <rect x={0} y={0} width={VW} height={VH_TOP} fill="url(#gvh-hidden-aurora-purple)" />
       <rect x={0} y={0} width={VW} height={VH_TOP} fill="url(#gvh-hidden-aurora-magenta)" />
       <rect x={0} y={0} width={VW} height={VH_TOP} fill="url(#gvh-hidden-aurora-sky)" />
-      <rect x={0} y={0} width={VW} height={VH_TOP} fill="rgba(28,15,110,0.025)" />
+      <rect x={0} y={0} width={VW} height={VH_TOP} fill="rgba(236,230,220,0.025)" />
 
       <rect
         x={COL_PAD - 14}
@@ -275,8 +275,8 @@ function HiddenSectionSvg() {
         width={VW - (COL_PAD - 14) * 2}
         height={VH_TOP - (SECTION_TOP_Y - 14) - (OUTER_PAD - 14)}
         rx={CORNER_R + 4}
-        fill="rgba(255,255,255,0.28)"
-        stroke="rgba(176,82,160,0.32)"
+        fill="rgba(13,12,11,0.28)"
+        stroke="rgba(204,133,192,0.32)"
         strokeWidth={1.2}
       />
 
@@ -412,7 +412,7 @@ function SectionHeader({
         x={x + 16 + badgeW / 2}
         y={y + HEADER_H / 2 + 6}
         textAnchor="middle"
-        fill="#FFFFFF"
+        fill="#0D0C0B"
         fontSize={20}
         fontWeight={700}
         fontFamily={FONT_FAMILY}
@@ -615,7 +615,7 @@ function CurveAxesBg({
         y1={innerY}
         x2={gx}
         y2={yB}
-        stroke="rgba(28,15,110,0.08)"
+        stroke="rgba(236,230,220,0.08)"
         strokeWidth={1}
       />,
     )
@@ -627,7 +627,7 @@ function CurveAxesBg({
         y1={gy}
         x2={xR}
         y2={gy}
-        stroke="rgba(28,15,110,0.08)"
+        stroke="rgba(236,230,220,0.08)"
         strokeWidth={1}
       />,
     )
@@ -641,14 +641,14 @@ function CurveAxesBg({
         width={innerW}
         height={innerH}
         rx={8}
-        fill="rgba(28,15,110,0.04)"
-        stroke="rgba(28,15,110,0.12)"
+        fill="rgba(236,230,220,0.04)"
+        stroke="rgba(236,230,220,0.12)"
         strokeWidth={1}
       />
       {grid}
       <path
         d={refPath}
-        stroke="rgba(28,15,110,0.22)"
+        stroke="rgba(236,230,220,0.22)"
         strokeWidth={1}
         strokeDasharray="4 6"
         fill="none"
@@ -691,7 +691,7 @@ function MasterCurveUI({ x, y }: { x: number; y: number }) {
       <text
         x={innerX + 8}
         y={yB - 6}
-        fill="rgba(28,15,110,0.45)"
+        fill="rgba(236,230,220,0.45)"
         fontSize={10}
         fontFamily={MONO}
       >
@@ -700,7 +700,7 @@ function MasterCurveUI({ x, y }: { x: number; y: number }) {
       <text
         x={xR - 28}
         y={innerY - 6}
-        fill="rgba(28,15,110,0.45)"
+        fill="rgba(236,230,220,0.45)"
         fontSize={10}
         fontFamily={MONO}
       >
@@ -785,7 +785,7 @@ function RgbCurvesUI({ x, y }: { x: number; y: number }) {
       <text
         x={innerX + 8}
         y={yB - 6}
-        fill="rgba(28,15,110,0.45)"
+        fill="rgba(236,230,220,0.45)"
         fontSize={10}
         fontFamily={MONO}
       >
@@ -794,7 +794,7 @@ function RgbCurvesUI({ x, y }: { x: number; y: number }) {
       <text
         x={xR - 28}
         y={innerY - 6}
-        fill="rgba(28,15,110,0.45)"
+        fill="rgba(236,230,220,0.45)"
         fontSize={10}
         fontFamily={MONO}
       >

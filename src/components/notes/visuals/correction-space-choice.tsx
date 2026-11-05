@@ -59,28 +59,28 @@ const VERDICT_Y = 422
 // 値 readout は pill 行の中心ベースラインに揃える
 const VALUE_Y = VERDICT_Y + PILL_H / 2 + 8 // 448
 
-const TEXT_PRIMARY = "rgba(28,15,110,0.95)"
-const TEXT_MUTED = "rgba(28,15,110,0.55)"
+const TEXT_PRIMARY = "rgba(236,230,220,0.95)"
+const TEXT_MUTED = "rgba(236,230,220,0.55)"
 const GRID = "rgba(127,176,255,0.18)"
-const REF_LINE = "rgba(28,15,110,0.30)"
+const REF_LINE = "rgba(236,230,220,0.30)"
 const OUT_OF_RANGE_FILL = "rgba(214,95,95,0.10)"
 const OUT_OF_RANGE_STROKE = "rgba(214,95,95,0.45)"
 
 // 配色 (前作 4 マーカーの TINT パレットと重複しない 3 色)
 const TINT_LOG = {
-  border: "rgba(170,115,75,0.85)",
-  bg: "rgba(170,115,75,0.10)",
-  curve: "rgb(135,80,40)",
+  border: "rgba(205,162,131,0.85)",
+  bg: "rgba(205,162,131,0.10)",
+  curve: "rgb(220,160,117)",
 }
 const TINT_LINEAR = {
-  border: "rgba(75,110,200,0.85)",
-  bg: "rgba(75,110,200,0.10)",
-  curve: "rgb(50,80,180)",
+  border: "rgba(118,146,219,0.85)",
+  bg: "rgba(118,146,219,0.10)",
+  curve: "rgb(114,139,222)",
 }
 const TINT_GAMMA = {
   border: "rgba(60,150,110,0.85)",
   bg: "rgba(60,150,110,0.10)",
-  curve: "rgb(35,120,80)",
+  curve: "rgb(116,221,171)",
 }
 
 type Tint = typeof TINT_LOG
@@ -92,9 +92,9 @@ const VERDICT_GLYPH: Record<Verdict, string> = {
   ng: "✗",
 }
 const VERDICT_COLOR: Record<Verdict, string> = {
-  ok: "rgb(35,120,80)",
-  warn: "rgb(170,115,75)",
-  ng: "rgb(180,60,80)",
+  ok: "rgb(116,221,171)",
+  warn: "rgb(205,162,131)",
+  ng: "rgb(216,121,137)",
 }
 
 function paramA(t: number) {
@@ -214,8 +214,8 @@ function VerdictPill({
         height={PILL_H}
         rx={PILL_H / 2}
         ry={PILL_H / 2}
-        fill="rgba(255,255,255,0.78)"
-        stroke="rgba(28,15,110,0.18)"
+        fill="rgba(13,12,11,0.78)"
+        stroke="rgba(236,230,220,0.18)"
         strokeWidth={1.2}
       />
       <text
@@ -302,7 +302,7 @@ function PhysicsAttentionBadge({
   const badgeCx = cellX + pillsAnchorX + PILL_W + 6 + badgeR
   const badgeCy = VERDICT_Y + PILL_H / 2
   const badgeFill = TINT_LOG.curve
-  const badgeText = "rgba(255,255,255,0.96)"
+  const badgeText = "rgba(13,12,11,0.96)"
 
   // ツールチップは verdict 行の上に展開 (下に寄せると VALUE_Y と被る)
   const tipX = Math.min(
@@ -333,7 +333,7 @@ function PhysicsAttentionBadge({
           cy={badgeCy}
           r={badgeR}
           fill={badgeFill}
-          stroke="rgba(255,255,255,0.85)"
+          stroke="rgba(13,12,11,0.85)"
           strokeWidth={1.4}
         />
         <text
@@ -361,14 +361,14 @@ function PhysicsAttentionBadge({
             height={PHYSICS_TOOLTIP_H}
             rx={10}
             ry={10}
-            fill="rgba(255,255,255,0.97)"
+            fill="rgba(13,12,11,0.97)"
             stroke={TINT_LOG.border}
             strokeWidth={1.2}
           />
           {/* 下向きポインター */}
           <polygon
             points={`${badgeCx - 8},${tipY + PHYSICS_TOOLTIP_H} ${badgeCx + 8},${tipY + PHYSICS_TOOLTIP_H} ${badgeCx},${tipY + PHYSICS_TOOLTIP_H + 8}`}
-            fill="rgba(255,255,255,0.97)"
+            fill="rgba(13,12,11,0.97)"
             stroke={TINT_LOG.border}
             strokeWidth={1.2}
           />
@@ -377,7 +377,7 @@ function PhysicsAttentionBadge({
             y1={tipY + PHYSICS_TOOLTIP_H}
             x2={badgeCx + 8}
             y2={tipY + PHYSICS_TOOLTIP_H}
-            stroke="rgba(255,255,255,0.97)"
+            stroke="rgba(13,12,11,0.97)"
             strokeWidth={1.6}
           />
           {/* 1 行目: ACEScは物理 ○ */}
@@ -466,7 +466,7 @@ function Cell({
         height={CELL_H - 36}
         rx={20}
         ry={20}
-        fill="rgba(255,255,255,0.55)"
+        fill="rgba(13,12,11,0.55)"
       />
 
       {/* Header */}
@@ -498,7 +498,7 @@ function Cell({
         height={PLOT_H}
         rx={6}
         ry={6}
-        fill="rgba(255,255,255,0.45)"
+        fill="rgba(13,12,11,0.45)"
         stroke={GRID}
         strokeWidth={1}
       />
@@ -525,7 +525,7 @@ function Cell({
         y={plotY + 22}
         textAnchor="end"
         fontSize={12}
-        fill="rgba(180,60,80,0.88)"
+        fill="rgba(216,121,137,0.88)"
         fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
       >
         out of range

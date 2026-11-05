@@ -53,25 +53,25 @@ const Y_MAX = 1.0
 const Y_MIN = 0
 const Y_RANGE = Y_MAX - Y_MIN
 
-const TEXT_PRIMARY = "rgba(28,15,110,0.95)"
-const TEXT_MUTED = "rgba(107,95,168,0.85)"
+const TEXT_PRIMARY = "rgba(236,230,220,0.95)"
+const TEXT_MUTED = "rgba(149,140,196,0.85)"
 const GRID = "rgba(127,176,255,0.18)"
 const Y_ONE_LINE = "rgba(127,176,255,0.32)"
 
 const TINT_GAMMA = {
-  title: "rgb(45,135,120)",
+  title: "rgb(121,216,200)",
   border: "rgba(108,180,170,0.85)",
   bg: "rgba(108,180,170,0.10)",
 }
 const TINT_LIFT = {
-  title: "rgb(55,108,180)",
+  title: "rgb(118,161,219)",
   border: "rgba(120,165,225,0.85)",
   bg: "rgba(120,165,225,0.10)",
 }
 
-const RGB_R = "rgba(220, 60, 60, 0.88)"
-const RGB_G = "rgba(60, 180, 80, 0.88)"
-const RGB_B = "rgba(60, 110, 220, 0.88)"
+const RGB_R = "rgba(235,102,102,0.88)"
+const RGB_G = "rgba(60,180,80,0.88)"
+const RGB_B = "rgba(102,143,235,0.88)"
 
 type Op = { kind: "add" | "pow" | "mul"; param: number }
 type Offsets = { lo: number; hi: number }[]
@@ -626,7 +626,7 @@ function Badge({
     }
   > = {
     initial: {
-      fill: "rgba(120,120,130,0.88)",
+      fill: "rgba(165,165,172,0.88)",
       text: "初期状態",
       icon: "circle",
       rx: 70,
@@ -644,7 +644,7 @@ function Badge({
       rx: 92,
     },
     "hold-end": {
-      fill: "rgba(120,120,130,0.88)",
+      fill: "rgba(165,165,172,0.88)",
       text: "復元結果",
       icon: "check",
       rx: 70,
@@ -659,20 +659,20 @@ function Badge({
       {cfg.icon === "play" && (
         <polygon
           points={`${iconCx - 6},${cy - 8} ${iconCx - 6},${cy + 8} ${iconCx + 6},${cy}`}
-          fill="white"
+          fill="#0D0C0B"
         />
       )}
       {cfg.icon === "rev" && (
         <polygon
           points={`${iconCx + 6},${cy - 8} ${iconCx + 6},${cy + 8} ${iconCx - 6},${cy}`}
-          fill="white"
+          fill="#0D0C0B"
         />
       )}
       {cfg.icon === "check" && (
         <polyline
           points={`${iconCx - 7},${cy + 1} ${iconCx - 1},${cy + 7} ${iconCx + 8},${cy - 6}`}
           fill="none"
-          stroke="white"
+          stroke="#0D0C0B"
           strokeWidth={2.6}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -684,7 +684,7 @@ function Badge({
           cy={cy}
           r={6}
           fill="none"
-          stroke="white"
+          stroke="#0D0C0B"
           strokeWidth={2}
         />
       )}
@@ -693,7 +693,7 @@ function Badge({
         y={cy + 1}
         fontSize={16}
         fontWeight={600}
-        fill="white"
+        fill="#0D0C0B"
         textAnchor="middle"
         dominantBaseline="middle"
         fontFamily="ui-sans-serif, system-ui, sans-serif"
@@ -734,7 +734,7 @@ function CellBackground({
         height={H - 12}
         rx={18}
         ry={18}
-        fill="rgba(255,255,255,0.55)"
+        fill="rgba(13,12,11,0.55)"
       />
     </>
   )
@@ -773,7 +773,7 @@ function CellPlot({
         height={PLOT_H}
         rx={4}
         ry={4}
-        fill="rgba(255,255,255,0.4)"
+        fill="rgba(13,12,11,0.4)"
         stroke={GRID}
         strokeWidth={1}
       />
@@ -825,7 +825,7 @@ function CellPlot({
           <polyline
             points={idealPoints}
             fill="none"
-            stroke="rgba(255,255,255,0.85)"
+            stroke="rgba(13,12,11,0.85)"
             strokeWidth={2.2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -887,7 +887,7 @@ function FormulaRGB({
     {
       label: "R",
       cell: rCell,
-      color: "rgb(195,55,55)",
+      color: "rgb(222,115,115)",
       cx: baseX + slotW * 0.5,
     },
     {
@@ -899,7 +899,7 @@ function FormulaRGB({
     {
       label: "B",
       cell: bCell,
-      color: "rgb(55,100,200)",
+      color: "rgb(114,148,223)",
       cx: baseX + slotW * 2.5,
     },
   ]

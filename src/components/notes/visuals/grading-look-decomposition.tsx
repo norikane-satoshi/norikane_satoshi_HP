@@ -7,14 +7,14 @@ const LOOP = 18
 const W = 1600
 const H = 500
 
-const TEXT_PRIMARY = "rgba(28,15,110,0.94)"
-const TEXT_MUTED = "rgba(107,95,168,0.84)"
-const CARD = "rgba(255,255,255,0.54)"
+const TEXT_PRIMARY = "rgba(236,230,220,0.94)"
+const TEXT_MUTED = "rgba(149,140,196,0.84)"
+const CARD = "rgba(13,12,11,0.54)"
 
-const MAGENTA = "rgb(192,74,142)"
-const NAVY = "rgb(42,79,143)"
+const MAGENTA = "rgb(214,122,175)"
+const NAVY = "rgb(116,154,220)"
 const AMBER = "rgb(200,146,58)"
-const TEAL = "rgb(46,140,132)"
+const TEAL = "rgb(120,216,208)"
 
 const CARD_X = 40
 const CARD_Y = 40
@@ -228,7 +228,7 @@ function TestPattern({ axis, amp }: { axis: Axis; amp: number }) {
             height={chipH}
             rx={6}
             fill={chipColor(axis.id, chip, amp)}
-            stroke="rgba(255,255,255,0.70)"
+            stroke="rgba(13,12,11,0.70)"
           />
         )
       })}
@@ -258,7 +258,7 @@ function AxisCard({
         height={CARD_H}
         rx={16}
         fill={active ? axis.color.replace("rgb", "rgba").replace(")", ",0.10)") : CARD}
-        stroke={active ? axis.color : "rgba(255,255,255,0.62)"}
+        stroke={active ? axis.color : "rgba(13,12,11,0.62)"}
         strokeOpacity={active ? 0.72 : 0.48}
       />
       <circle cx={x + 34} cy={KNOB_Y} r={12} fill={axis.color} />
@@ -274,7 +274,7 @@ function AxisCard({
         y1={SLIDER_Y}
         x2={rail.right}
         y2={SLIDER_Y}
-        stroke="rgba(28,15,110,0.18)"
+        stroke="rgba(236,230,220,0.18)"
         strokeWidth={10}
         strokeLinecap="round"
       />
@@ -283,7 +283,7 @@ function AxisCard({
         cy={SLIDER_Y}
         r={16}
         fill={axis.color}
-        stroke="white"
+        stroke="#0D0C0B"
         strokeWidth={3}
       />
     </g>
@@ -306,7 +306,7 @@ function ReducedFrame() {
               width={cardW}
               height={68}
               rx={18}
-              fill="rgba(255,255,255,0.64)"
+              fill="rgba(13,12,11,0.64)"
               stroke={axis.color}
               strokeOpacity={0.42}
             />
@@ -371,7 +371,7 @@ export default function GradingLookDecomposition({
       className="absolute inset-0 h-full w-full"
       preserveAspectRatio="xMidYMid meet"
     >
-      <rect x={0} y={0} width={W} height={H} fill="rgba(255,255,255,0.16)" />
+      <rect x={0} y={0} width={W} height={H} fill="rgba(13,12,11,0.16)" />
 
       {AXES.map((axis) => (
         <AxisCard
@@ -392,7 +392,7 @@ export default function GradingLookDecomposition({
             width={WORD_W}
             height={WORD_H}
             rx={22}
-            fill="rgba(255,255,255,0.72)"
+            fill="rgba(13,12,11,0.72)"
             stroke={axisById(activeAxis).color}
             strokeOpacity={0.6}
           />

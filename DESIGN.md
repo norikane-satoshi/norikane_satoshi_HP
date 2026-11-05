@@ -34,8 +34,8 @@ Avoid: neon, heavy gradients, heavy shadows, cyberpunk, Apple-like over-animatio
 
 ### 1.1 Noir theme (migration in progress)
 
-The site is moving to a dark, editorial "noir" look (decided 2026-11-05). The home page uses it now; other pages
-(note articles, booking, chatbot, LINE) keep the light glass look until they are migrated, then this section
+The site is moving to a dark, editorial "noir" look (decided 2026-11-05). The home page and note articles use it now;
+other pages (booking, chatbot, LINE) keep the light glass look until they are migrated, then this section
 replaces the light contract.
 
 - Scope: an element with `data-hp-theme="noir"` switches the tokens for itself and for the shared header and footer.
@@ -332,11 +332,10 @@ All note cards share one size, including external articles. `src/lib/hp/home-not
 
 ### 6.4 Note article pages
 
-Article pages use:
-
-```tsx
-<article className="glass-card p-8 md:p-10 xl:p-14">
-```
+Note articles are noir pages (`data-hp-theme="noir"`). The article is `.hp-note-article` with a `.hp-note-header`
+(eyebrow and title) and a `.hp-note-body`. Text is kept to a 46rem column; figures may be wider.
+No glass card around the article. Body copy is Mincho in `--text-muted`, headings are Gothic in `--text-primary`,
+and `h2` starts with a 1px rule.
 
 Article prose must be highly readable. Favor line-height and spacing over dense UI.
 Do not add heavy visual sections inside articles unless they support reading.
@@ -357,13 +356,9 @@ Generated images must not contain Japanese text, English text, numbers, arrows, 
 
 ### 7.2 Figure shell
 
-`NoteDiagram` uses:
-
-```tsx
-<figure className="my-8 overflow-hidden rounded-[16px] border border-white/55 bg-white/35 md:my-10">
-```
-
-Because the parent article is already `.glass-card`, the figure shell must not add another blur.
+`NoteVisual` figures use `.hp-note-figure`: a 1px rule above and below, no background and no border box.
+The v3 `NoteDiagram` (background-image diagrams) still uses the light shell; it is only used by unpublished notes
+and must be redrawn for noir before one of those notes is published.
 
 ### 7.3 Diagram layouts
 
@@ -379,11 +374,10 @@ Only add a new layout if the structure truly cannot be represented by the existi
 
 ### 7.4 Diagram visual style
 
-- Image base: `#F4F6F9`
-- Accent: `#366FCC`
-- Glow colors: `--aurora-purple`, `--aurora-pink`, `--aurora-sky`
+- Drawn for the ink ground: text and lines in ivory (`rgba(236,230,220,a)`), panels as dark translucency,
+  category colours lightened so they read on ink (keep hue and saturation).
 - Density: spacious, readable in 5 seconds
-- Forbidden: dark noir, cinematic black, neon, orange/teal extra aurora, text baked into image
+- Forbidden: neon, text baked into images, light panels inside a noir article
 
 ## 8. Quality layers for AI agents
 
@@ -396,7 +390,7 @@ A UI change fails L1 if any of these are true:
 - Uses `neu-*` classes or `--neu-*` tokens
 - Adds new color tokens without updating this file and `globals.css`
 - Uses Tailwind default heavy shadows such as `shadow-lg`, `shadow-xl` for primary surfaces
-- Adds dark sections outside the hero
+- Adds dark sections to a page that is not a noir page
 - Breaks the canonical width/padding shell
 - Uses fonts other than Noto Serif JP, Noto Sans JP, Inter, Geist Mono
 - Bakes text into diagram images
@@ -440,7 +434,7 @@ L3 should not mean more effects. For this site, L3 means clarity, restraint, and
 
 - Do not use the retired neumorphism system.
 - Do not add `--neu-*`, `.neu-raised`, `.neu-inset`, `.neu-btn`, `.neu-input`.
-- Do not use dark UI outside the hero.
+- Do not use dark UI on pages that are not noir pages.
 - Do not add new aurora colors.
 - Do not use thick borders or default Tailwind heavy shadows.
 - Do not nest blur-heavy cards.
@@ -477,4 +471,4 @@ When asking an AI agent to build UI in this repo, use:
 
 For diagrams:
 
-> Follow the diagram contract in `DESIGN.md`. Generate only soft background imagery; put all labels, numbers, cards, and glyphs in React/CSS through `note-diagram.tsx`. Use `#F4F6F9`, `#366FCC`, and the three aurora colors only. No baked-in text or arrows.
+> Follow the diagram contract in `DESIGN.md`. Generate only soft background imagery; put all labels, numbers, cards, and glyphs in React/CSS through `note-diagram.tsx`. Draw for the noir ink ground (§7.4). No baked-in text or arrows.

@@ -7,10 +7,10 @@ const LOOP = 14
 const W = 1600
 const H = 500
 const PURPLE = "#7FB0FF"
-const ACCENT_RED = "rgb(220,80,80)"
+const ACCENT_RED = "rgb(232,105,105)"
 const AXIS_STROKE = "rgba(127,176,255,0.4)"
-const GRAPH_FILL = "rgba(255,255,255,0.08)"
-const GRAPH_STROKE = "rgba(255,255,255,0.4)"
+const GRAPH_FILL = "rgba(13,12,11,0.08)"
+const GRAPH_STROKE = "rgba(13,12,11,0.4)"
 
 const GRAPH = { x: 100, y: 310, w: 260, h: 150 }
 const PREVIEW = { x: 520, y: 70, w: 1000, h: 400 }
@@ -197,7 +197,7 @@ function OrderPill({ t }: { t: number }) {
         textAnchor="middle"
         fontSize={20}
         fontWeight={760}
-        fill="white"
+        fill="#0D0C0B"
       >
         もう少し絵に立体感が欲しい
       </text>
@@ -246,7 +246,7 @@ function ToolBadges({ t }: { t: number }) {
               width={BADGE_W}
               height={BADGE_H}
               rx={BADGE_H / 2}
-              fill="rgba(24,20,56,0.82)"
+              fill="rgba(133,123,213,0.82)"
               stroke={PURPLE}
               strokeOpacity={0.85}
               strokeWidth={2}
@@ -257,7 +257,7 @@ function ToolBadges({ t }: { t: number }) {
               textAnchor="middle"
               fontSize={17}
               fontWeight={720}
-              fill="white"
+              fill="#0D0C0B"
             >
               {cand.label}
             </text>
@@ -331,7 +331,7 @@ function ToneCurveGraph({ shift, opacity }: { shift: number; opacity: number }) 
         textAnchor="middle"
         fontSize={12}
         fontWeight={620}
-        fill="rgba(255,255,255,0.78)"
+        fill="rgba(13,12,11,0.78)"
         letterSpacing="0.2em"
       >
         IN
@@ -342,7 +342,7 @@ function ToneCurveGraph({ shift, opacity }: { shift: number; opacity: number }) 
         textAnchor="middle"
         fontSize={12}
         fontWeight={620}
-        fill="rgba(255,255,255,0.78)"
+        fill="rgba(13,12,11,0.78)"
         letterSpacing="0.2em"
         transform={`rotate(-90 ${GRAPH.x - 18} ${GRAPH.y + GRAPH.h / 2})`}
       >
@@ -417,7 +417,7 @@ function ReferenceImage({
         height={PREVIEW.h}
         rx={20}
         fill="none"
-        stroke="rgba(255,255,255,0.16)"
+        stroke="rgba(13,12,11,0.16)"
         strokeWidth={6}
       />
       <rect
@@ -436,7 +436,7 @@ function ReferenceImage({
           cy={faceCy}
           rx={faceRx + 18}
           ry={faceRy + 20}
-          fill="rgba(220,80,80,0.16)"
+          fill="rgba(232,105,105,0.16)"
           stroke={ACCENT_RED}
           strokeWidth={2}
         />
@@ -475,7 +475,7 @@ function ConclusionPill({ t }: { t: number }) {
         textAnchor="middle"
         fontSize={18}
         fontWeight={780}
-        fill="white"
+        fill="#0D0C0B"
       >
         立体感を出そうとしたのに、顔は暗くなり、服と壁の境目も消えた
       </text>
@@ -532,7 +532,7 @@ export default function GradingMixVsSplit({ isPlaying, reducedMotion }: VideoVis
           <stop offset="100%" stopColor="rgba(110,174,210,0)" />
         </radialGradient>
       </defs>
-      <rect x={0} y={0} width={W} height={H} fill="rgba(255,255,255,0.16)" />
+      <rect x={0} y={0} width={W} height={H} fill="rgba(13,12,11,0.16)" />
       <rect x={0} y={0} width={W} height={H} fill="url(#gmvs-aurora-purple)" />
       <rect x={0} y={0} width={W} height={H} fill="url(#gmvs-aurora-pink)" />
       <rect x={0} y={0} width={W} height={H} fill="url(#gmvs-aurora-sky)" />

@@ -20,24 +20,24 @@ describe("note page typography scope", () => {
 
   it("applies Mincho to rendered note body copy under the note article", () => {
     expect(globals).toContain(
-      "article.glass-card--hp-note-page > div :where(p, li, blockquote)"
+      ".hp-note-body :where(p, li, blockquote)"
     )
     expect(globals).toMatch(
-      /article\.glass-card--hp-note-page > div :where\(p, li, blockquote\)\s*\{\s*font-family: var\(--font-mincho\), serif;\s*font-weight: 400;/
+      /\.hp-note-body :where\(p, li, blockquote\)\s*\{\s*font-family: var\(--font-mincho\), serif;\s*font-weight: 400;/
     )
     expect(layout).toMatch(/Noto_Sans_JP\(\{[\s\S]*weight: \["400", "500", "600", "700"\]/)
     expect(renderBlocks).toContain('className="font-semibold text-hp"')
     expect(globals).not.toMatch(
-      /article\.glass-card--hp-note-page\s*\{[^}]*font-family: var\(--font-gothic\)/
+      /\.hp-note-article\s*\{[^}]*font-family: var\(--font-gothic\)/
     )
   })
 
   it("applies Gothic to the note title and rendered note headings", () => {
     expect(globals).toContain(
-      "article.glass-card--hp-note-page :where(.hp-note-title, h2, h3, h4)"
+      ".hp-note-article :where(.hp-note-title, h2, h3, h4)"
     )
     expect(globals).toMatch(
-      /article\.glass-card--hp-note-page :where\(\.hp-note-title, h2, h3, h4\)\s*\{\s*font-family: var\(--font-gothic\), sans-serif;/
+      /\.hp-note-article :where\(\.hp-note-title, h2, h3, h4\)\s*\{\s*font-family: var\(--font-gothic\), sans-serif;/
     )
     expect(renderBlocks).toContain(
       'className="mt-10 mb-5 text-2xl font-semibold text-hp md:text-3xl"'

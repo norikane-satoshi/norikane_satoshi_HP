@@ -15,10 +15,10 @@ const PREVIEW_CX = PREVIEW_X + PREVIEW_W / 2
 
 const GRID = "rgba(127,176,255,0.16)"
 
-const MAGENTA = "rgb(192,74,142)"
-const NAVY = "rgb(42,79,143)"
+const MAGENTA = "rgb(214,122,175)"
+const NAVY = "rgb(116,154,220)"
 const AMBER = "rgb(200,146,58)"
-const TEAL = "rgb(46,140,132)"
+const TEAL = "rgb(120,216,208)"
 
 type AxisId = 1 | 2 | 3 | 4
 
@@ -312,7 +312,7 @@ function BottleShape({ bottle, pose }: { bottle: Bottle; pose: BottlePose }) {
         />
         <path
           d="M 28 52 C 28 36, 44 31, 54 24 L 54 9 L 86 9 L 86 24 C 96 31, 112 36, 112 52 L 112 118 C 112 132, 99 142, 70 142 C 41 142, 28 132, 28 118 Z"
-          fill="rgba(255,255,255,0.42)"
+          fill="rgba(13,12,11,0.42)"
           stroke={bottle.color}
           strokeOpacity={0.62}
           strokeWidth={3}
@@ -328,7 +328,7 @@ function BottleShape({ bottle, pose }: { bottle: Bottle; pose: BottlePose }) {
           fontFamily="var(--font-geist-mono), 'Notion Mono Editorial', monospace"
           fontSize={bottle.label.length > 4 ? 18 : 21}
           fontWeight={760}
-          fill="white"
+          fill="#0D0C0B"
         >
           {bottle.label}
         </text>
@@ -388,27 +388,27 @@ export default function GradingSecretPantry({
         <linearGradient id="sp-step-0-fill" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="rgb(176,182,187)" />
           <stop offset="52%" stopColor="rgb(128,136,143)" />
-          <stop offset="100%" stopColor="rgb(92,99,108)" />
+          <stop offset="100%" stopColor="rgb(161,167,175)" />
         </linearGradient>
         <linearGradient id="sp-step-1-fill" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="rgb(196,176,190)" />
-          <stop offset="48%" stopColor="rgb(145,119,151)" />
-          <stop offset="100%" stopColor="rgb(96,78,118)" />
+          <stop offset="48%" stopColor="rgb(176,156,181)" />
+          <stop offset="100%" stopColor="rgb(166,149,188)" />
         </linearGradient>
         <linearGradient id="sp-step-2-fill" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="rgb(161,136,158)" />
-          <stop offset="48%" stopColor="rgb(111,91,126)" />
-          <stop offset="100%" stopColor="rgb(65,58,86)" />
+          <stop offset="48%" stopColor="rgb(170,153,184)" />
+          <stop offset="100%" stopColor="rgb(159,150,187)" />
         </linearGradient>
         <linearGradient id="sp-step-3-fill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="rgb(202,181,167)" />
-          <stop offset="45%" stopColor="rgb(104,88,111)" />
-          <stop offset="100%" stopColor="rgb(40,46,70)" />
+          <stop offset="45%" stopColor="rgb(173,157,179)" />
+          <stop offset="100%" stopColor="rgb(142,153,194)" />
         </linearGradient>
         <linearGradient id="sp-step-4-fill" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="rgb(220,186,166)" />
-          <stop offset="45%" stopColor="rgb(132,92,126)" />
-          <stop offset="100%" stopColor="rgb(52,63,106)" />
+          <stop offset="45%" stopColor="rgb(185,151,180)" />
+          <stop offset="100%" stopColor="rgb(136,149,201)" />
         </linearGradient>
         <linearGradient id="sp-pour-1" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={MAGENTA} stopOpacity="0.45" />
@@ -428,7 +428,7 @@ export default function GradingSecretPantry({
         </linearGradient>
       </defs>
 
-      <rect x={0} y={0} width={W} height={H} fill="rgba(255,255,255,0.16)" />
+      <rect x={0} y={0} width={W} height={H} fill="rgba(13,12,11,0.16)" />
 
       <g>
         <Shelf side="left" />
@@ -440,7 +440,7 @@ export default function GradingSecretPantry({
           height={PREVIEW_H + 36}
           rx={26}
           fill="none"
-          stroke="rgba(255,255,255,0.62)"
+          stroke="rgba(13,12,11,0.62)"
         />
         <PreviewLayers t={t} reducedMotion={reducedMotion} />
         <rect
@@ -450,7 +450,7 @@ export default function GradingSecretPantry({
           height={PREVIEW_H}
           rx={20}
           fill="none"
-          stroke="rgba(255,255,255,0.78)"
+          stroke="rgba(13,12,11,0.78)"
           strokeWidth={2}
         />
         {bottleStates.map(({ bottle, pose, pourOpacity }) => {
