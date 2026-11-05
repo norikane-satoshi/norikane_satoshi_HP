@@ -50,7 +50,7 @@ export default async function PublicAvailabilityCalendarPage({ searchParams }: P
 
   return (
     <section className={styles.shell}>
-      <div className={`glass-card ${styles.card}`}>
+      <div className={styles.card}>
         <AvailabilityCalendarFrame
           currentHref={monthParam(currentMonth)}
           previousHref={monthParam(availability.prevMonth)}

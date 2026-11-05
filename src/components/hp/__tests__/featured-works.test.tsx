@@ -320,7 +320,7 @@ describe("FeaturedWorks", () => {
     expect(dialog.parentElement).toHaveClass(
       "fixed",
       "inset-0",
-      "bg-[rgba(8,4,24,0.42)]",
+      "bg-[rgba(0,0,0,0.62)]",
       "p-4",
       "md:p-8",
     )

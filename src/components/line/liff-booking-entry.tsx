@@ -146,7 +146,7 @@ export function LiffBookingEntry({
   }, [hpSession?.user?.id, hpSessionLoaded, state])
 
   return (
-    <section data-hp-theme="noir" className="hp-section-shell py-12 md:py-16">
+    <section className="hp-section-shell py-12 md:py-16">
       <div>
         <div className="hp-section-heading-row mb-10">
           <div>

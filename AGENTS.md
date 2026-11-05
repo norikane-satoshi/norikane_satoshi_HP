@@ -26,7 +26,7 @@ Before changing UI, layout, styling, copy placement, diagrams, or visual assets:
 
 ## Design source of truth
 
-The site is moving from the light Glass Design System to the noir theme (`DESIGN.md` §1.1). `DESIGN.md` is the design contract; the `:root` values and utility implementations in `src/app/globals.css` are its executable source. Do not duplicate design-token values here.
+The whole site uses the noir theme (`DESIGN.md` §1.1). `DESIGN.md` is the design contract; the `:root` values and utility implementations in `src/app/globals.css` are its executable source. Do not duplicate design-token values here.
 
 The retired `neu-*` / `--neu-*` system has no compatibility path. Do not reintroduce its classes or tokens.
 
@@ -35,7 +35,7 @@ The retired `neu-*` / `--neu-*` system has no compatibility path. Do not reintro
 - Use existing components and utilities before creating new styles.
 - Keep page shells consistent: `max-w-[1440px] px-6 md:px-10 xl:px-14`.
 - Keep Japanese body text readable; avoid cramped line-height or excessive letter-spacing.
-- Pages with `data-hp-theme="noir"` follow the noir theme; other pages keep the light glass design until they are migrated.
+- `data-hp-theme="noir"` is set once on `<main>` in the root layout; do not add it to pages. Portalled dialogs outside `<main>` set it on their own overlay.
 - Do not add new color tokens, shadows, or fonts without updating `DESIGN.md` and `globals.css` together.
 - Avoid nested blur-heavy glass cards. Inside a glass parent, prefer `bg-white/35`, `bg-white/40`, `border-white/55`, and `rounded-[12px]` without additional blur.
 - Booking pages and new booking-adjacent UI use `glass-*` / `text-hp*` as canonical classes. Reservation unavailable states use muted text-derived neutrals, not the primary accent.

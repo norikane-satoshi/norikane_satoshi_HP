@@ -196,7 +196,7 @@ function SignupCard() {
 
 export default function SignupPage() {
   return (
-    <section data-hp-theme="noir" className="mx-auto w-full max-w-[480px] px-6 py-12 md:px-10 md:py-16">
+    <section className="mx-auto w-full max-w-[480px] px-6 py-12 md:px-10 md:py-16">
       <Suspense fallback={null}>
         <SignupCard />
       </Suspense>

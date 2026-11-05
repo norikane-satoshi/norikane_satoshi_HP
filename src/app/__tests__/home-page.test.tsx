@@ -40,8 +40,6 @@ describe("HomePage", () => {
   it("renders the noir page with sections in works, notes, profile order", async () => {
     const { container } = render(await HomePage())
 
-    const page = container.firstElementChild
-    expect(page).toHaveAttribute("data-hp-theme", "noir")
     expect(
       Array.from(container.querySelectorAll("section[id]"), (section) => section.id),
     ).toEqual(["works", "philosophy", "profile"])

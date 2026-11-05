@@ -66,7 +66,7 @@ export default async function BookingHistoryPage() {
   const bookings = await listBookingHistoryForUser(userId)
 
   return (
-    <section data-hp-theme="noir" className="hp-section-shell py-12 md:py-16">
+    <section className="hp-section-shell py-12 md:py-16">
       <div>
         <div className="booking-history__page-head hp-section-heading-row">
           <div>

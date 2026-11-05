@@ -29,7 +29,7 @@ export default async function BookingEditPage({
   const isPast = currentSlot ? isBookingSlotPast(currentSlot.startTime) : false
 
   return (
-    <section data-hp-theme="noir" className="hp-section-shell py-12 md:py-16">
+    <section className="hp-section-shell py-12 md:py-16">
       <div>
         <div className="hp-section-heading-row">
           <h1 className="hp-heading text-3xl font-medium text-hp md:text-4xl xl:text-5xl">予約編集</h1>
