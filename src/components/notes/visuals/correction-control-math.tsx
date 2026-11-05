@@ -6,23 +6,27 @@ import { useEffect, useRef, useState } from "react"
  * v5 動画モジュール: 操作の数学 (オペとノブの対応) — 横一列 4 セル帯レイアウト
  *
  * viewBox 1600×500 (16:5) を 4 セル横並び (各 400×500) に分け、
- * ゲイン (赤系) / ガンマ (緑系) / オフセット (黄系) / リフト (青系) の
- * 4 ミニ図を独立位相で 6.5 秒ループさせる。
+ * ゲイン / ガンマ / オフセット / リフト の 4 ミニ図を並べる。
+ *
+ * 動きの構成 (2026-11-05 リッチ化):
+ *   1. 登場 (ENTRANCE 秒): 図が画面に入ったとき、セルが左から順に浮かび上がり、
+ *      曲線が左下から線を引くように描かれる。
+ *   2. ループ (LOOP 秒): ノブを 1 つずつ順番に回す。回しているセルだけが明るくなり、
+ *      値は「動かす → 少し止める → 反対へ動かす → 戻す」の順で、止まる位置で
+ *      わずかに行き過ぎてから落ち着く (手でノブを回した感触)。
+ *      曲線と基準線 (y = x) の間を薄く塗り、操作が効いている量を面で見せる。
  *
  * 各セルは縦 3 層構造:
  *   上段 — 「原因名（カテゴリ） 数式」を 1 行見出し
- *   中段 — 入出力トーンカーブ (補助要素は最小化)
+ *   中段 — 入出力トーンカーブ
  *   下段 — スライダーバー + 数値カウンター 1 行
  *
- *   ゲイン a(t)    = 1.25 + 0.75 · sin(2π t / 6.5)         ∈ [0.5, 2.0]
- *   ガンマ γ(t)    = 1.25 + 0.75 · sin(2π t / 6.5 + π/2)   ∈ [0.5, 2.0]
- *   オフセット b(t) = 0.3  · sin(2π t / 6.5 + π)            ∈ [-0.3, 0.3]
- *   リフト L(t)    = 0.25 + 0.25 · sin(2π t / 6.5 + 3π/2)  ∈ [0, 0.5]
- *
- * reducedMotion 時は各パラメータを range 中央値で固定して静止画化する。
+ * reducedMotion 時は登場を省き、各パラメータを中立値から少し動かした値で静止する。
  */
 
-const LOOP = 6.5
+const ENTRANCE = 1.6
+const SLOT = 2.8
+const LOOP = SLOT * 4
 const W = 1600
 const H = 500
 const CELL_W = 400
@@ -42,56 +46,48 @@ const TRACK_H = 10
 const VALUE_X = 372
 const VALUE_Y = 460
 
-const TEXT_PRIMARY = "rgba(236,230,220,0.95)"
-const GRID = "rgba(127,176,255,0.18)"
+const TEXT_PRIMARY = "rgba(236,230,220,0.92)"
+const TEXT_MUTED = "rgba(236,230,220,0.38)"
+const GRID = "rgba(236,230,220,0.12)"
 
-// 配色 (前作 correction-labyrinth-to-factor.tsx の TINT パレットと整合)
 const TINT_GAIN = {
-  border: "rgba(214,127,140,0.85)",
-  bg: "rgba(214,127,140,0.10)",
-  curve: "rgb(216,121,137)",
+  border: "rgba(222,133,149,0.85)",
+  bg: "rgba(222,133,149,0.10)",
+  curve: "rgb(236,128,146)",
 }
 const TINT_GAMMA = {
-  border: "rgba(108,180,170,0.85)",
-  bg: "rgba(108,180,170,0.10)",
-  curve: "rgb(121,216,200)",
+  border: "rgba(120,204,190,0.85)",
+  bg: "rgba(120,204,190,0.10)",
+  curve: "rgb(112,204,184)",
 }
 const TINT_OFFSET = {
-  border: "rgba(214,162,108,0.85)",
-  bg: "rgba(214,162,108,0.10)",
-  curve: "rgb(217,170,120)",
+  border: "rgba(222,174,116,0.85)",
+  bg: "rgba(222,174,116,0.10)",
+  curve: "rgb(226,176,104)",
 }
 const TINT_LIFT = {
-  border: "rgba(120,165,225,0.85)",
-  bg: "rgba(120,165,225,0.10)",
-  curve: "rgb(118,161,219)",
+  border: "rgba(132,172,236,0.85)",
+  bg: "rgba(132,172,236,0.10)",
+  curve: "rgb(132,172,236)",
 }
 
 type Tint = typeof TINT_GAIN
 
 type CellSpec = {
+  index: number
   cellX: number
   opLabel: string
   formula: string
   paramSymbol: "a" | "γ" | "b" | "L"
   tint: Tint
-  param: (t: number) => number
   curve: (x: number, p: number) => number
   range: [number, number]
+  neutral: number
+  /** ノブを回す順に通る 2 つの値 (中立 → first → second → 中立) */
+  first: number
+  second: number
   clipId: string
-}
-
-function paramGain(t: number) {
-  return 1.25 + 0.75 * Math.sin((2 * Math.PI * t) / LOOP)
-}
-function paramGamma(t: number) {
-  return 1.25 + 0.75 * Math.sin((2 * Math.PI * t) / LOOP + Math.PI / 2)
-}
-function paramOffset(t: number) {
-  return 0.3 * Math.sin((2 * Math.PI * t) / LOOP + Math.PI)
-}
-function paramLift(t: number) {
-  return 0.25 + 0.25 * Math.sin((2 * Math.PI * t) / LOOP + (3 * Math.PI) / 2)
+  glowId: string
 }
 
 function curveGain(x: number, a: number) {
@@ -110,73 +106,157 @@ function curveLift(x: number, l: number) {
 
 const CELLS: CellSpec[] = [
   {
+    index: 0,
     cellX: 0,
     opLabel: "ゲイン（乗算）",
     formula: "y = a · x",
     paramSymbol: "a",
     tint: TINT_GAIN,
-    param: paramGain,
     curve: curveGain,
     range: [0.5, 2.0],
+    neutral: 1,
+    first: 1.8,
+    second: 0.6,
     clipId: "ccm-clip-gain",
+    glowId: "ccm-glow-gain",
   },
   {
+    index: 1,
     cellX: CELL_W,
     opLabel: "ガンマ（べき乗）",
     formula: "y = x^γ",
     paramSymbol: "γ",
     tint: TINT_GAMMA,
-    param: paramGamma,
     curve: curveGamma,
     range: [0.5, 2.0],
+    neutral: 1,
+    first: 0.55,
+    second: 1.9,
     clipId: "ccm-clip-gamma",
+    glowId: "ccm-glow-gamma",
   },
   {
+    index: 2,
     cellX: CELL_W * 2,
     opLabel: "オフセット（加算）",
     formula: "y = x + b",
     paramSymbol: "b",
     tint: TINT_OFFSET,
-    param: paramOffset,
     curve: curveOffset,
     range: [-0.3, 0.3],
+    neutral: 0,
+    first: 0.24,
+    second: -0.24,
     clipId: "ccm-clip-offset",
+    glowId: "ccm-glow-offset",
   },
   {
+    index: 3,
     cellX: CELL_W * 3,
     opLabel: "リフト（合成）",
     formula: "y = x + L · (1 − x)",
     paramSymbol: "L",
     tint: TINT_LIFT,
-    param: paramLift,
     curve: curveLift,
     range: [0, 0.5],
+    neutral: 0,
+    first: 0.42,
+    second: 0.18,
     clipId: "ccm-clip-lift",
+    glowId: "ccm-glow-lift",
   },
 ]
 
-// 96 サンプルで polyline。極端値でも輪郭がガタつかないよう中庸を取る (仕様: 64〜96)。
 const SAMPLES = 96
-
-function buildPolyline(
-  curve: (x: number, p: number) => number,
-  p: number,
-  plotX: number,
-  plotY: number
-) {
-  const points: string[] = []
-  for (let i = 0; i <= SAMPLES; i++) {
-    const x = i / SAMPLES
-    const y = curve(x, p)
-    const sx = plotX + x * PLOT_W
-    const sy = plotY + PLOT_H - y * PLOT_H
-    points.push(`${sx.toFixed(2)},${sy.toFixed(2)}`)
-  }
-  return points.join(" ")
-}
 
 function clamp01(v: number) {
   return v < 0 ? 0 : v > 1 ? 1 : v
+}
+
+function easeInOutCubic(x: number) {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2
+}
+
+function easeOutCubic(x: number) {
+  return 1 - Math.pow(1 - x, 3)
+}
+
+// 止まる位置でわずかに行き過ぎて戻る (手で回したノブの感触)。
+function easeOutBack(x: number) {
+  const c1 = 1.2
+  const c3 = c1 + 1
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2)
+}
+
+/** スロット内の進行 (0..SLOT) からパラメータ値を返す。 */
+function slotValue(spec: CellSpec, u: number) {
+  const { neutral, first, second } = spec
+  // 0.00–0.70 neutral→first / 0.70–0.95 hold / 0.95–1.75 first→second / 1.75–2.05 hold / 2.05–2.65 second→neutral
+  if (u < 0.7) return neutral + (first - neutral) * easeOutBack(u / 0.7)
+  if (u < 0.95) return first
+  if (u < 1.75) return first + (second - first) * easeOutBack((u - 0.95) / 0.8)
+  if (u < 2.05) return second
+  if (u < 2.65) return second + (neutral - second) * easeInOutCubic((u - 2.05) / 0.6)
+  return neutral
+}
+
+type CellState = {
+  p: number
+  /** 0..1 — 回しているセルほど 1 */
+  focus: number
+  /** 0..1 — 登場アニメーションの進み (セルの浮き上がり) */
+  enter: number
+  /** 0..1 — 曲線を描き終えた割合 */
+  draw: number
+}
+
+function cellState(spec: CellSpec, elapsed: number, reducedMotion: boolean): CellState {
+  if (reducedMotion) {
+    return { p: spec.first, focus: 1, enter: 1, draw: 1 }
+  }
+  const delay = spec.index * 0.14
+  const enter = easeOutCubic(clamp01((elapsed - delay) / 0.7))
+  const draw = easeInOutCubic(clamp01((elapsed - delay - 0.35) / 0.9))
+  if (elapsed < ENTRANCE) {
+    return { p: spec.neutral, focus: 0.75, enter, draw }
+  }
+  const t = (elapsed - ENTRANCE) % LOOP
+  const slotStart = spec.index * SLOT
+  const u = t - slotStart
+  const active = u >= 0 && u < SLOT
+  const p = active ? slotValue(spec, u) : spec.neutral
+  // フォーカスはスロットの前後 0.3 秒で滑らかに切り替える
+  const fadeIn = clamp01((u + 0.3) / 0.3)
+  const fadeOut = clamp01((SLOT - u) / 0.3)
+  const focus = u > -0.3 && u < SLOT ? Math.min(fadeIn, fadeOut) : 0
+  return { p, focus, enter, draw }
+}
+
+function curvePoints(spec: CellSpec, p: number, plotX: number, draw: number) {
+  const points: [number, number][] = []
+  const last = Math.max(1, Math.round(SAMPLES * draw))
+  for (let i = 0; i <= last; i++) {
+    const x = i / SAMPLES
+    const y = spec.curve(x, p)
+    points.push([plotX + x * PLOT_W, PLOT_Y + PLOT_H - y * PLOT_H])
+  }
+  return points
+}
+
+function toPolyline(points: [number, number][]) {
+  return points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ")
+}
+
+/** 曲線と基準線 y = x の間の面 (操作が効いている量)。 */
+function toEffectArea(points: [number, number][], plotX: number) {
+  if (points.length < 2) return ""
+  const forward = points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
+  const back = [...points].reverse().map(([x]) => {
+    const nx = (x - plotX) / PLOT_W
+    const ny = PLOT_Y + PLOT_H - nx * PLOT_H
+    return `${x.toFixed(2)},${ny.toFixed(2)}`
+  })
+  return `M ${forward.join(" L ")} L ${back.join(" L ")} Z`
 }
 
 function knobScreenX(p: number, range: [number, number], cellX: number) {
@@ -194,30 +274,22 @@ function formatParamValue(symbol: CellSpec["paramSymbol"], p: number) {
   return p.toFixed(2)
 }
 
-function Cell({
-  spec,
-  t,
-  reducedMotion,
-}: {
-  spec: CellSpec
-  t: number
-  reducedMotion: boolean
-}) {
-  // reducedMotion: range の中央値で固定 (a=1.25 / γ=1.25 / b=0 / L=0.25)。
-  const p = reducedMotion
-    ? (spec.range[0] + spec.range[1]) / 2
-    : spec.param(t)
+function Cell({ spec, state }: { spec: CellSpec; state: CellState }) {
+  const { p, focus, enter, draw } = state
   const cellX = spec.cellX
-
   const plotX = cellX + PLOT_X
-  const plotY = PLOT_Y
-  const polyPoints = buildPolyline(spec.curve, p, plotX, plotY)
+  const points = curvePoints(spec, p, plotX, draw)
+  const poly = toPolyline(points)
+  const area = toEffectArea(points, plotX)
   const knobCX = knobScreenX(p, spec.range, cellX)
   const knobCY = TRACK_Y + TRACK_H / 2
+  const neutralX = knobScreenX(spec.neutral, spec.range, cellX)
+  const lit = 0.55 + 0.45 * focus
+  const lift = (1 - enter) * 26
 
   return (
-    <g>
-      {/* セル背景 (色カテゴリ識別) */}
+    <g opacity={enter} transform={`translate(0 ${lift.toFixed(2)})`}>
+      {/* セル背景 (色カテゴリ識別)。回しているセルだけ縁を明るくする */}
       <rect
         x={cellX + 10}
         y={10}
@@ -226,8 +298,9 @@ function Cell({
         rx={20}
         ry={20}
         fill={spec.tint.bg}
+        fillOpacity={0.6 + 0.4 * focus}
         stroke={spec.tint.border}
-        strokeOpacity={0.55}
+        strokeOpacity={0.25 + 0.5 * focus}
         strokeWidth={1.4}
       />
       <rect
@@ -240,83 +313,120 @@ function Cell({
         fill="rgba(13,12,11,0.55)"
       />
 
-      {/* 1 行見出し: 原因名（カテゴリ） + 数式 */}
-      <text
-        x={cellX + HEADER_X}
-        y={HEADER_Y}
-        fontSize={22}
-        fontWeight={700}
-      >
-        <tspan fill={spec.tint.curve}>{spec.opLabel}</tspan>
-        <tspan
-          dx={14}
-          fill={TEXT_PRIMARY}
-          fontWeight={600}
-          fontStyle="italic"
-        >
-          {spec.formula}
-        </tspan>
-      </text>
+      <g opacity={lit}>
+        {/* 1 行見出し: 原因名（カテゴリ） + 数式 */}
+        <text x={cellX + HEADER_X} y={HEADER_Y} fontSize={22} fontWeight={700}>
+          <tspan fill={spec.tint.curve}>{spec.opLabel}</tspan>
+          <tspan dx={14} fill={TEXT_PRIMARY} fontWeight={600} fontStyle="italic">
+            {spec.formula}
+          </tspan>
+        </text>
 
-      {/* plot 枠 (極めて薄い背景のみ。座標目盛り・軸ラベルは置かない) */}
-      <rect
-        x={plotX}
-        y={plotY}
-        width={PLOT_W}
-        height={PLOT_H}
-        rx={4}
-        ry={4}
-        fill="rgba(13,12,11,0.4)"
-        stroke={GRID}
-        strokeWidth={1}
-      />
-
-      {/* 入出力カーブ (plot 領域でクリップ) */}
-      <g clipPath={`url(#${spec.clipId})`}>
-        <polyline
-          points={polyPoints}
-          fill="none"
-          stroke={spec.tint.curve}
-          strokeWidth={3.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        {/* plot 枠と基準線 y = x (何もしないときの直線) */}
+        <rect
+          x={plotX}
+          y={PLOT_Y}
+          width={PLOT_W}
+          height={PLOT_H}
+          rx={4}
+          ry={4}
+          fill="rgba(255,255,255,0.02)"
+          stroke={GRID}
+          strokeWidth={1}
         />
+        <line
+          x1={plotX}
+          y1={PLOT_Y + PLOT_H}
+          x2={plotX + PLOT_W}
+          y2={PLOT_Y}
+          stroke={TEXT_MUTED}
+          strokeWidth={1}
+          strokeDasharray="4 7"
+        />
+
+        <g clipPath={`url(#${spec.clipId})`}>
+          {/* 操作が効いている量 (曲線と基準線の間) */}
+          <path d={area} fill={spec.tint.curve} fillOpacity={0.1 + 0.08 * focus} />
+          {/* 発光 (暗い地の上で線が光って見えるよう、ぼかした太線を下に敷く) */}
+          <polyline
+            points={poly}
+            fill="none"
+            stroke={spec.tint.curve}
+            strokeOpacity={0.35 * focus + 0.1}
+            strokeWidth={10}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter={`url(#${spec.glowId})`}
+          />
+          {/* 入出力カーブ */}
+          <polyline
+            points={poly}
+            fill="none"
+            stroke={spec.tint.curve}
+            strokeWidth={3.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
+
+        {/* スライダーバー (下段左)。中立位置に目盛りを置き、動いた量を帯で見せる */}
+        <rect
+          x={cellX + TRACK_X}
+          y={TRACK_Y}
+          width={TRACK_W}
+          height={TRACK_H}
+          rx={TRACK_H / 2}
+          ry={TRACK_H / 2}
+          fill="rgba(255,255,255,0.06)"
+          stroke={spec.tint.border}
+          strokeOpacity={0.45}
+          strokeWidth={1.2}
+        />
+        <rect
+          x={Math.min(neutralX, knobCX)}
+          y={TRACK_Y}
+          width={Math.abs(knobCX - neutralX)}
+          height={TRACK_H}
+          fill={spec.tint.curve}
+          fillOpacity={0.45}
+        />
+        <line
+          x1={neutralX}
+          y1={TRACK_Y - 4}
+          x2={neutralX}
+          y2={TRACK_Y + TRACK_H + 4}
+          stroke={TEXT_MUTED}
+          strokeWidth={1.2}
+        />
+        <circle
+          cx={knobCX}
+          cy={knobCY}
+          r={12 + 3 * focus}
+          fill={spec.tint.curve}
+          fillOpacity={0.18 * focus}
+        />
+        <circle
+          cx={knobCX}
+          cy={knobCY}
+          r={12}
+          fill={spec.tint.curve}
+          stroke="rgba(13,12,11,0.95)"
+          strokeWidth={2}
+        />
+
+        {/* 数値カウンター (下段右、ラベル無し) */}
+        <text
+          x={cellX + VALUE_X}
+          y={VALUE_Y}
+          textAnchor="end"
+          fill={TEXT_PRIMARY}
+          fontSize={22}
+          fontWeight={600}
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          {formatParamValue(spec.paramSymbol, p)}
+        </text>
       </g>
-
-      {/* スライダーバー (下段左) */}
-      <rect
-        x={cellX + TRACK_X}
-        y={TRACK_Y}
-        width={TRACK_W}
-        height={TRACK_H}
-        rx={TRACK_H / 2}
-        ry={TRACK_H / 2}
-        fill="rgba(13,12,11,0.7)"
-        stroke={spec.tint.border}
-        strokeOpacity={0.55}
-        strokeWidth={1.2}
-      />
-      <circle
-        cx={knobCX}
-        cy={knobCY}
-        r={12}
-        fill={spec.tint.curve}
-        stroke="rgba(13,12,11,0.95)"
-        strokeWidth={2}
-      />
-
-      {/* 数値カウンター (下段右、ラベル無し) */}
-      <text
-        x={cellX + VALUE_X}
-        y={VALUE_Y}
-        textAnchor="end"
-        fill={TEXT_PRIMARY}
-        fontSize={22}
-        fontWeight={600}
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-      >
-        {formatParamValue(spec.paramSymbol, p)}
-      </text>
     </g>
   )
 }
@@ -328,7 +438,8 @@ export default function CorrectionControlMath({
   isPlaying: boolean
   reducedMotion: boolean
 }) {
-  const [animT, setAnimT] = useState(0)
+  // 登場から数えた経過時間。初めて再生されたときに 0 から始まる。
+  const [elapsed, setElapsed] = useState(0)
   const lastRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
 
@@ -343,9 +454,13 @@ export default function CorrectionControlMath({
     }
     const tick = (now: number) => {
       if (lastRef.current == null) lastRef.current = now
-      const dt = (now - lastRef.current) / 1000
+      const dt = Math.min(0.1, (now - lastRef.current) / 1000)
       lastRef.current = now
-      setAnimT((prev) => (prev + dt) % LOOP)
+      setElapsed((prev) => {
+        const next = prev + dt
+        // 登場が済んだあとはループ内で回し続ける (数値が大きくなり続けないように)
+        return next >= ENTRANCE + LOOP ? next - LOOP : next
+      })
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
@@ -354,8 +469,6 @@ export default function CorrectionControlMath({
       rafRef.current = null
     }
   }, [isPlaying, reducedMotion])
-
-  const t = animT
 
   return (
     <svg
@@ -372,6 +485,18 @@ export default function CorrectionControlMath({
             </clipPath>
           )
         })}
+        {CELLS.map((spec) => (
+          <filter
+            key={spec.glowId}
+            id={spec.glowId}
+            x="-10%"
+            y="-10%"
+            width="120%"
+            height="120%"
+          >
+            <feGaussianBlur stdDeviation={6} />
+          </filter>
+        ))}
       </defs>
 
       {/* セル境界線 (横並び 3 本、薄め) */}
@@ -389,12 +514,7 @@ export default function CorrectionControlMath({
       ))}
 
       {CELLS.map((spec) => (
-        <Cell
-          key={spec.clipId}
-          spec={spec}
-          t={t}
-          reducedMotion={reducedMotion}
-        />
+        <Cell key={spec.clipId} spec={spec} state={cellState(spec, elapsed, reducedMotion)} />
       ))}
     </svg>
   )
