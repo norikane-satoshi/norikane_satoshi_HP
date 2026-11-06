@@ -160,7 +160,7 @@ function ProfileSection() {
             <p className="hp-eyebrow mb-3">Career</p>
             <ol>
               {profile.timeline.map((item) => (
-                <li key={item.year} className="hp-rule-top grid grid-cols-[minmax(5.25rem,8.75rem)_minmax(0,1fr)] gap-x-6 gap-y-3 py-8">
+                <li key={item.year} className="hp-rule-top grid grid-cols-[4rem_minmax(0,1fr)] gap-x-4 gap-y-3 py-8 md:grid-cols-[minmax(5.25rem,8.75rem)_minmax(0,1fr)] md:gap-x-6">
                   <span className="hp-latin-numeral">{item.year}</span>
                   <div className="flex flex-col gap-3">
                     <h3 className="break-normal text-[clamp(1.125rem,1.5vw,1.375rem)] font-medium leading-relaxed tracking-[0.06em] text-hp">
