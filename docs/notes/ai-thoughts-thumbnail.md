@@ -23,47 +23,26 @@
 - 柔らかい局所光、薄い面の重なり、細い輪郭、控えめな粒子をコードで加える。道具一つに琥珀色を置く。
 - `render.cjs` はローカルHPから書体を読み、採用する1枚を書き出す。画像生成に文字は描かせない。
 
-## 表示経路と確認範囲
+## 表示と記事設定
 
-- `src/lib/hp/home-notes.ts` の `NOTE_THUMBNAILS["ai-thoughts"]` が参照先。
-- 一覧は既存の `src/app/page.tsx` のカードを使い、記事タイトルはHTMLで表示する。
-- 公開された対象記事のOGP・Twitter画像は `src/app/notes/[slug]/page.tsx` が同じ対応表から取得する。
-- 前回のOGP配線は保持。採番、本文、公開条件、サイトのコピーは変更しない。
-- 記事が非公開のため、カード確認では実際のローカルHPのカードDOMを複製し、ブラウザ内だけで対象記事と採用画像を差し込む。
-- `notes-preview-1-desktop.png` がNotes一覧での確認画像。モバイル版と単独カード画像も同じ場所に保存する。
-- 撮影時だけ固定ヘッダーとチャットボタンを非表示にする。実装や公開状態の変更ではない。
+`src/lib/hp/home-notes.ts` の `NOTE_SETTINGS` が記事ごとの設定の正本。
+`ai-thoughts` は `kind: "column"`、採用画像の `thumbnailSrc`、`shareThumbnail: true` を持つ。
+種別省略はノート。新しいコラムは slug をキーとして `{ kind: "column" }` を追加し、
+画像がある場合は `thumbnailSrc`、その画像をOGPにも使う場合は `shareThumbnail: true` を指定する。
 
-## NOTE番号の調査
+一覧と記事ページは `getNoteLabel` を共用する。公開記事をNotion作成日時の古い順に並べ、
+ノートとコラムを別々に01から採番する。同時刻の場合はslug順で決める。
+新しく作成した記事を公開しても既存番号は変わらず、コラムはノートの番号を消費しない。
+カードの掲載順は外部記事を含めて新しい順のまま。番号は永続IDではなく、
+過去の作成日時を持つ記事の追加や既存記事の公開停止では変わり得る。
 
-撮影時に番号を書き換えた事実と、実装の採番規則は両方存在する。
+`/notes` は既存の一覧 `/#philosophy` へ転送する。
+公開条件はNotionのHP公開に従い、非公開中は一覧・本文・OGPに記事を出さない。
+`public/` の画像は記事非公開でも直URLで取得できる。
 
-- 前回の `v2/preview.cjs` はブラウザ内で対象記事を `Note 01`、既存カードを `Note 02` にしていた。
-- 一覧の `buildHomeNoteCards` は、Notionの作成日時の昇順の一覧を `.reverse()` し、
-  `index + 1` で番号を付ける。固定の記事番号ではない。
-- より新しく作成された記事を公開すると既存記事の一覧番号が繰り下がる。
-  公開した日時ではなく、Notionの作成日時が基準。外部記事はNOTEの採番に含まない。
-- `src/lib/hp/__tests__/home-notes.test.ts` の `numbers own notes from the newest one` にこの挙動の既存テストがある。
-- 記事ページ側は、昇順の `allNotes.findIndex()` で採番するため、一覧とは逆順。
-  複数記事の公開時には一覧と本文ページの番号が一致しない。
-- 判断待ちのため番号のコードは変更していない。
+## 検証
 
-## 引き渡し
-
-本依頼ではpush・staging統合・本番デプロイ・Notion変更をしない。
-未統合ブランチとworktreeは目視レビューのため保持する。
-公開反映と記事公開は別途指示を受けて実施し、公開後にカードとOGPを読み直す。
-`public/` の画像は記事非公開でもデプロイすれば直URLで取得できる。
-
-## 検証結果
-
-- 画像は1600×900。案1との画素差分は見出し領域だけで、それ以外は完全一致。
-- 確認用画像、リポジトリ画像、ローカルHTTP 200の配信バイトが一致。
-- 幅1440pxでカード幅約642px・2列、幅390pxで342px・1列。横はみ出しとページエラーなし。
-- 記事はローカルでも非公開表示、`noindex, nofollow`、OGP画像なし。公開後OGPの実配信は未検証。
-- アプリのコードと対応表は変更せず、直前のコミットで成功したビルドをローカル表示に使用。
-  画像と制作メモだけの変更のため、build・lint・typecheck・unit testは再実行していない。
-- 確認用サーバーは `http://127.0.0.1:41324`。ログは `v4/server.log`、PIDは `v4/server-process.txt`。
-  撮影終了後に停止済み。検証用シンボリックリンクも撤去済み。
-- 画像照合の詳細は `v4/image-verification.json`、カード確認は `v4/preview-results.json`。
-- `pnpm repo:hygiene -- --strict` は、この依頼の起動用worktree `c2o-20261122-210423-6db0` が残っているため不合格。
-  `ws done` は `running_process` / `open_handles` により保持した。依頼終了後の `ws done` で整理する。
+- `src/lib/hp/__tests__/home-notes.test.ts`: 古い順の採番、新規記事追加時の番号維持、
+  コラムの独立採番、同時刻の順序、画像ファイルの存在。
+- `tests/unit/notes/note-labels.test.tsx`: 実際のトップと記事ページのラベル一致、
+  公開後OGP画像、非公開中の一覧・本文・OGPの非表示。
