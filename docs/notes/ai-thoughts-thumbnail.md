@@ -1,68 +1,56 @@
-# 「AIで不安になる理由」サムネイル引き継ぎ
+# 「AIで不安になる理由」サムネイル
 
-対象: Notion IB_ノート [AIで不安になる理由](https://app.notion.com/p/41f13ee3141a81b2ab01eefc4eb8c5ab)、slug `ai-thoughts`。
+対象: [Notion IB_ノート](https://app.notion.com/p/41f13ee3141a81b2ab01eefc4eb8c5ab)、slug `ai-thoughts`。
 
-## 画像
+## 候補と推奨
 
-| 案 | ファイル | 意図 |
-| --- | --- | --- |
-| A（推奨） | `public/notes/thumbnails/ai-thoughts-a.png` | 近くの階段だけに落ちる光で、手の届く範囲の楽観と遠方への留保を表す。 |
-| B | `public/notes/thumbnails/ai-thoughts-b.png` | 規則的な折りと自由に開く紙の曲線で、自動化と価値創造の二つの使い方を表す。 |
+全案、文字・ロゴ・数字・UIのない1600×900 PNG。Codex内蔵画像生成で制作し、寸法だけを `sips` で統一。
+背景色は `src/app/globals.css` の `--bg-base` を参照し、暗い周辺と低彩度の暖色で地につなげている。
 
-両案ともPNG、1672×941 px（ほぼ16:9）。1600×900で指示した生成出力の実寸を保持。
-既存の `correction.webp` は1600×900、外部記事の画像は960×540。
-墨色、アイボリー、左側のゴシック調タイトル・右側の絵という既存構成を踏襲。
-文字は画像生成によるNoto Sans JP相当の表現で、厳密なフォント埋め込みではない。
-既存のタイトル以外のコピーは追加していない。
-内蔵画像生成を使用。従量課金の画像APIは使用していない。
+| 案 | 意図 |
+| --- | --- |
+| 1 手の届く範囲 | 手元の小さな光と遠い街の灯りで、自分の届く範囲の楽観と、外側への認識を表す。 |
+| 2 暗黙知が形になる | 水中でほどける墨の細い形で、言葉にならない知識が形になる過程を表す。 |
+| 3 前提を打ち壊す（推奨） | 並んだフィルムから一本だけ立ち上がる曲線で、反復する作業を超える価値創造を表す。 |
 
-確認用の同一PNG:
+推奨は3。小さなカードでも反復と逸脱を読み取りやすく、映画的な静物としてHPと調和する。
+これは制作側の推奨であり、本人の採用承認は未了。
 
-- `~/tmp/hp-thumb-ai-thoughts/ai-thoughts-a.png`
-- `~/tmp/hp-thumb-ai-thoughts/ai-thoughts-b.png`
+リポジトリには `public/notes/thumbnails/ai-thoughts-3.png` だけを収録する。
+確認用3案、生成プロンプト、デスクトップ・モバイルのカード表示画像は
+`~/tmp/hp-thumb-ai-thoughts/v2/` に保存する。
 
-## 表示経路と変更
+## 表示経路
 
-- `src/lib/notion/server/fetch-note.ts`: `HP公開=true`、日本語のノートを取得。Notionカバーは読み取らない。
-- `src/lib/hp/home-notes.ts`: `NOTE_THUMBNAILS["ai-thoughts"]` にA案のパスを追加。
-- `src/app/page.tsx`: 公開ノートをカード化し、`next/image`、`aspect-video`、`object-cover` で一覧表示。デスクトップ2列、スマートフォン1列。PNGはNext.jsの画像最適化経路で配信する。
-- `src/app/notes/[slug]/page.tsx`: 公開された `ai-thoughts` に限り、同じ対応表の画像をOpen GraphとTwitterに指定。ほかのノートのOGPは変更しない。
-- 非公開記事の本文・画像メタデータを公開する処理や、記事本文の先頭に画像を表示する処理は追加していない。
+- `src/lib/hp/home-notes.ts` の `NOTE_THUMBNAILS["ai-thoughts"]` が画像の正本。
+- `src/app/page.tsx` の既存カードが `next/image` で配信する。タイトルは画像外のHTMLで表示する。
+- `src/app/notes/[slug]/page.tsx` は公開された対象記事に限り、同じ対応表をOGP・Twitter画像に使う。
+- Notionカバーは使わない。記事の公開条件、本文、HPの文言は変更しない。
 
-## 会話側で反映するとき
+## 確認方法と会話側の作業
 
-1. 則兼さんにA/Bを確認してもらう。Bを選ぶ場合は `NOTE_THUMBNAILS["ai-thoughts"]` の末尾を `ai-thoughts-b.png` に変えるだけで、一覧とOGPの両方が切り替わる。
-2. この作業コミットを通常の統合手順で取り込み、目視GO後に本番へ反映する。未採用案を公開URLに置きたくなければ、そのPNGは確認用コピーを残して本番反映の対象から外す。`public/` 内の画像は記事が非公開でも、デプロイ後は直URLから取得できる。
-3. 記事公開の承認が出た時点で、対象Notionページの `HP公開` をYESにする。カバーの設定は不要。画像をNotionカバーに設定するだけではHP一覧には出ない。
-4. 既存のNotion→HP再検証経路で `notes` タグ、`/`、`/notes/ai-thoughts` を更新する（`src/app/api/revalidate/route.ts`）。独自の公開バイパスや新しい認証設定は不要。
-5. 本番の `/#philosophy` のカード、`/notes/ai-thoughts` の `og:image` / `twitter:image`、画像URLが200で取得できることを確認する。
+ローカルプレビューは実際のホームページのNotesカードDOMとCSSを使い、ブラウザ内だけで対象カードと候補画像を挿入する。
+公開前の記事の比較用表示であり、本番の公開表示や公開後OGPの実配信を確認したものではない。
+レビュー画像は `notes-preview-1-desktop.png` から `notes-preview-3-mobile.png`。
 
-今回の作業ではpush、staging統合、本番デプロイ、Notionの書き換えは行っていない。未統合の作業ブランチ・worktreeをレビュー用に保持する。
+1. 3案とカード表示を本人に見せ、採用案を確定する。
+2. 別案を選ぶ場合は確認用PNGを `public/notes/thumbnails/` へコピーし、対応表を変更して、3案目を外す。
+3. 目視GO後、配線取り込みと画像差し替えの両コミットを通常の統合手順で反映する。
+4. 記事公開も承認されたら、対象Notionページの `HP公開` を設定し、既存の再検証経路で `/` と `/notes/ai-thoughts` を更新する。
+5. 本番のカード・画像URL・記事の `og:image` / `twitter:image` を読み直す。
+
+この依頼ではpush・staging統合・本番デプロイ・Notion変更を行わない。未統合ブランチとworktreeはレビューのため保持する。
+`public/` の画像は、記事が非公開でもデプロイされれば直URLから取得できる。
 
 ## 検証
 
-- `pnpm build`、`pnpm typecheck` 成功。
-- `pnpm lint`: エラー0。既存の予約画面2か所に警告あり。
-- `pnpm test -- src/lib/hp/__tests__/home-notes.test.ts tests/unit/notes/fetch-note.test.ts`: この呼び出しでは対象指定が効かず全体が実行され、1886 passed / 12 skipped。追加の再実行はしていない。
-- ローカルの本番ビルドを1440px / 390px幅で表示し、既存カードのDOM複製へ2案を挿入した確認用表示を検査。2列 / 1列、画像ロード成功、横はみ出しなし。これは公開済み表示の証跡ではない。
-- 元の一覧には `ai-thoughts` が0件。記事URLは「このノートは現在公開していません」、`noindex, nofollow`、`og:image` 0件。公開判定を維持。
-- 両PNGのローカル配信はHTTP 200。確認用コピーとGit対象画像のSHA-256が一致。
-- 公開後のOGPの実配信とSNS側の表示確認は、公開承認後の反映担当が行う。
-
-表示確認の保存先: `/Volumes/8TB_RAID00/10_業務・開発・セミナー/20_AI開発/norikane_satoshi_HP/検証/ai-thoughts-thumbnail-20261122/`。
-検証サーバーは `http://127.0.0.1:41322`、PID 85284、ログは同フォルダの `server.log`。検証後に停止済み。
-
-## 生成プロンプト
-
-### A
-
-```text
-Use case: stylized-concept. Create a finished editorial thumbnail for a Japanese colorist's essay, landscape 16:9, requested 1600x900 PNG. Premium restrained noir design. Almost black ink ground #0D0C0B, ivory #ECE6DC and warm gray only, subtle matte paper/mineral textures, carefully controlled soft studio lighting. Left 45 percent typography, right 55 percent conceptual still-life. Very generous negative space, safe margins 6 percent. EXACT Japanese title in two lines: first line "AIで不安に", second line "なる理由". Large exceptionally legible ivory Japanese Gothic sans-serif similar to Noto Sans JP semibold, clean real Japanese glyphs, around 70 pixels at 1600 wide. Title is placed at left around vertical middle and readable at a small card size. No other text whatsoever. No logos, artist names, program names, school names, product names, subtitles, labels, borders or watermarks. No robot faces, glowing brains, circuit boards, neon, red, warning effects, blue tech gradients. Avoid a generic AI poster. Make a sophisticated thoughtful editorial artwork, quiet curiosity and measured optimism, not fear or danger. Scene: on the right a miniature abstract architectural space made of dark charcoal matte planes, three shallow broad steps illuminated only nearby by a narrow off-frame opening. A small wedge of soft warm ivory daylight falls across the near steps; the far space remains undefined and gently dark. No bright doorway into heaven, no tall ladder, no people. Clear beautiful geometric composition, one softly lit reachable area against an unknown distance. This illustrates optimism about what is within one's reach while acknowledging what lies beyond. Restrained realistic material presence, no hard glow. The architectural space is confined to the right half; left stays nearly flat ink behind title.
-```
-
-### B
-
-```text
-Use case: stylized-concept. Create a finished editorial thumbnail for a Japanese colorist's essay, landscape 16:9, requested 1600x900 PNG. Premium restrained noir design. Almost black ink ground #0D0C0B, ivory #ECE6DC and warm gray only, subtle matte paper/mineral textures, carefully controlled soft studio lighting. Left 45 percent typography, right 55 percent conceptual still-life. Very generous negative space, safe margins 6 percent. EXACT Japanese title in two lines: first line "AIで不安に", second line "なる理由". Large exceptionally legible ivory Japanese Gothic sans-serif similar to Noto Sans JP semibold, clean real Japanese glyphs, around 70 pixels at 1600 wide. Title is placed at left around vertical middle and readable at a small card size. No other text whatsoever. No logos, artist names, program names, school names, product names, subtitles, labels, borders or watermarks. No robot faces, glowing brains, circuit boards, neon, red, warning effects, blue tech gradients. Avoid a generic AI poster. Make a sophisticated thoughtful editorial artwork, quiet curiosity and measured optimism, not fear or danger. Scene: on the right, a gallery-like still-life of two continuous narrow ivory paper ribbons on a dark charcoal matte surface. One ribbon is folded into a precise short sequence of identical low accordion pleats, representing automation; beside it the other ribbon opens into one elegant spacious sculptural loop with a free tip, representing curiosity and creation. Both ribbons are tactile and realistic, with fine paper fiber and delicate soft natural shadows. Minimal museum art direction, composition immediately legible as repetition versus a new form, no charts or arrows. Keep sculpture entirely on right half; left stays nearly flat ink behind title.
-```
-
+- `pnpm build`、`pnpm typecheck`: 成功。
+- `pnpm lint`: エラー0、既存の予約画面2か所の警告のみ。
+- `pnpm exec vitest run src/lib/hp/__tests__/home-notes.test.ts src/app/__tests__/home-page.test.tsx tests/unit/notes/fetch-note.test.ts`: 3ファイル・13テスト成功。
+- PNG3点の寸法は1600×900。確認用の3案目とリポジトリの画像はSHA-256一致。
+- 推奨画像のローカル配信はHTTP 200。
+- 表示確認: 1440px幅で2列、390px幅で1列。比較用カードは画像内に文字を置かず、タイトルを既存HTMLのまま表示する。
+- プレビュー撮影では固定ヘッダーとチャットボタンを隠し、Notes欄とカードを撮影する。ソースコードや本番UIの変更ではない。
+- 検証用サーバー: `http://127.0.0.1:41323`、PID 91013。ログ・検証結果・再撮影スクリプトは確認用画像と同じフォルダに保存。
+- 全6表示で画像ロード成功、横はみ出しなし、ページエラー0。元の一覧には対象記事0件、記事URLは非公開表示・`noindex, nofollow`・OGP画像なしを確認。
+- 検証後、専用サーバーを停止。検証用の `node_modules` / `.env.local` シンボリックリンクも撤去する。
