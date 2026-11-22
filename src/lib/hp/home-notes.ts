@@ -7,7 +7,7 @@ export type HomeNoteCard = {
   label: string
   thumbnailSrc: string | null
   external: boolean
-  publishedAt: string
+  publishedAt?: string
 }
 
 export type NoteKind = "note" | "column"
@@ -16,14 +16,19 @@ type NoteSettings = {
   kind?: NoteKind
   thumbnailSrc?: string
   shareThumbnail?: boolean
+  publishedAt?: string
 }
 
 export const NOTE_SETTINGS: Readonly<Record<string, NoteSettings>> = {
-  correction: { thumbnailSrc: "/notes/thumbnails/correction.webp" },
+  correction: {
+    thumbnailSrc: "/notes/thumbnails/correction.webp",
+    publishedAt: "2026-04-23",
+  },
   "ai-thoughts": {
     kind: "column",
     thumbnailSrc: "/notes/thumbnails/ai-thoughts-diagram.png",
     shareThumbnail: true,
+    publishedAt: "2026-11-22",
   },
 }
 
@@ -53,17 +58,23 @@ export const EXTERNAL_NOTES: readonly Omit<HomeNoteCard, "external">[] = [
 /** Notion のノートと外部記事を、新しい順に並べたカード一覧にする。 */
 export function buildHomeNoteCards(notes: readonly NoteSummary[]): HomeNoteCard[] {
   const ownNotes = notes.map((note) => ({
-    key: note.id,
-    href: `/notes/${note.slug}`,
-    title: note.title,
-    label: getNoteLabel(note.slug, notes),
-    thumbnailSrc: NOTE_SETTINGS[note.slug]?.thumbnailSrc ?? null,
-    external: false,
-    publishedAt: note.createdTime.slice(0, 10),
+    sortDate: note.createdTime.slice(0, 10),
+    card: {
+      key: note.id,
+      href: `/notes/${note.slug}`,
+      title: note.title,
+      label: getNoteLabel(note.slug, notes),
+      thumbnailSrc: NOTE_SETTINGS[note.slug]?.thumbnailSrc ?? null,
+      external: false,
+      publishedAt: NOTE_SETTINGS[note.slug]?.publishedAt,
+    },
   }))
-  const externalNotes = EXTERNAL_NOTES.map((note) => ({ ...note, external: true }))
+  const externalNotes = EXTERNAL_NOTES.map((note) => ({
+    sortDate: note.publishedAt ?? "",
+    card: { ...note, external: true },
+  }))
 
-  return [...ownNotes, ...externalNotes].sort((a, b) =>
-    b.publishedAt.localeCompare(a.publishedAt),
-  )
+  return [...ownNotes, ...externalNotes]
+    .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
+    .map(({ card }) => card)
 }

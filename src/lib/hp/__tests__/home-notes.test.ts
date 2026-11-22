@@ -17,6 +17,17 @@ const correction = {
 }
 
 describe("buildHomeNoteCards", () => {
+  it("uses configured publication dates without treating Notion creation as publication", () => {
+    const column = { ...correction, id: "ai", slug: "ai-thoughts" }
+    const unconfigured = { ...correction, id: "new", slug: "new" }
+    const cards = buildHomeNoteCards([correction, column, unconfigured])
+
+    expect(cards.find((card) => card.key === correction.id)?.publishedAt).toBe("2026-04-23")
+    expect(cards.find((card) => card.key === "ai")?.publishedAt).toBe("2026-11-22")
+    expect(cards.find((card) => card.external)?.publishedAt).toBe("2026-08-15")
+    expect(cards.find((card) => card.key === "new")?.publishedAt).toBeUndefined()
+  })
+
   it("lists Notion notes and external articles newest first with thumbnails", () => {
     const cards = buildHomeNoteCards([correction])
 

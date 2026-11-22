@@ -38,7 +38,7 @@ describe("published article labels", () => {
     for (const [index, note] of notes.entries()) {
       vi.mocked(getPublishedNoteBySlug).mockResolvedValue({ ...note, blocks: [] })
       const page = render(await NotePage({ params: Promise.resolve({ slug: note.slug }) }))
-      const cardLabel = home.container.querySelector(`a[href="/notes/${note.slug}"] .hp-eyebrow`)
+      const cardLabel = home.container.querySelector(`a[href="/notes/${note.slug}"] .hp-eyebrow > span`)
       const pageLabel = page.container.querySelector(".hp-note-header .hp-eyebrow")
       expect(cardLabel).toHaveTextContent(labels[index])
       expect(pageLabel?.textContent).toBe(cardLabel?.textContent)
