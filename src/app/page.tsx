@@ -215,7 +215,14 @@ export default async function HomePage() {
                     />
                   ) : null}
                 </div>
-                <span className="hp-eyebrow">{note.label}</span>
+                <div className="hp-eyebrow flex items-baseline justify-between gap-4">
+                  <span>{note.label}</span>
+                  {note.publishedAt ? (
+                    <time dateTime={note.publishedAt} className="shrink-0">
+                      {note.publishedAt.replaceAll("-", ".")}
+                    </time>
+                  ) : null}
+                </div>
                 <h3 className="break-normal text-[clamp(1.1875rem,1.6vw,1.5rem)] font-medium leading-[1.75] tracking-[0.04em] text-hp">
                   {note.title}
                 </h3>

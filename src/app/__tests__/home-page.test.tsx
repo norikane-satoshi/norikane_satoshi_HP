@@ -62,6 +62,35 @@ describe("HomePage", () => {
     }
   })
 
+  it("renders publication dates for all configured cards and omits dates for other notes", async () => {
+    const base = {
+      createdTime: "2026-04-14T15:28:13.060Z",
+      lastEditedTime: "2026-11-22T00:00:00.000Z",
+    }
+    vi.mocked(listPublishedNotes).mockResolvedValueOnce([
+      { ...base, id: "correction", slug: "correction", title: "Correction" },
+      { ...base, id: "ai", slug: "ai-thoughts", title: "AI thoughts" },
+      { ...base, id: "undated", slug: "undated", title: "Undated note" },
+    ])
+    const { container } = render(await HomePage())
+
+    for (const [href, date] of [
+      ["/notes/correction", "2026-04-23"],
+      ["/notes/ai-thoughts", "2026-11-22"],
+      ["https://jp.pronews.com/review/202608150955772789.html", "2026-08-15"],
+    ]) {
+      const card = container.querySelector(`[data-hp-note-card][href="${href}"]`)
+      const time = card?.querySelector("time")
+      expect(time).toHaveAttribute("datetime", date)
+      expect(time).toHaveTextContent(date.replaceAll("-", "."))
+      expect(time?.parentElement).toHaveClass("hp-eyebrow")
+    }
+    const undated = container.querySelector('[data-hp-note-card][href="/notes/undated"]')
+    expect(undated).toHaveTextContent("Undated note")
+    expect(undated).toHaveTextContent("Note 02")
+    expect(undated?.querySelector("time")).toBeNull()
+  })
+
   it("keeps the home page available when the external notes query fails", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
     vi.mocked(listPublishedNotes).mockRejectedValueOnce(
