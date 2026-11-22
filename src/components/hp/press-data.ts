@@ -20,6 +20,18 @@ export const PRESS_CATEGORIES: PressCategory[] = [
     title: "登壇・セミナー",
     items: [
       {
+        period: "2026年11月",
+        title: "Inter BEE 2026 / ブラックマジックデザイン ブース（幕張メッセ）",
+        description:
+          "DaVinci Resolve Demonstration Theater で「DaVinci Resolve 21 デモンストレーション：AI時代のカラーグレーディング編」に登壇。DaVinci Resolve 21 の新機能を実演しながら、AI と組み合わせたカラーグレーディングの進め方を紹介した。",
+        links: [
+          {
+            label: "https://jp.pronews.com/news/202611101728798627.html",
+            href: "https://jp.pronews.com/news/202611101728798627.html",
+          },
+        ],
+      },
+      {
         period: "2026年10月",
         title:
           "プロフェッショナルから学ぶ DaVinci Resolve カラーグレーディングトレーニング（ブラックマジックデザイン）",
