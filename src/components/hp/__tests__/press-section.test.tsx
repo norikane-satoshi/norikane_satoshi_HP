@@ -64,7 +64,7 @@ describe("PressDialog", () => {
       "メディア掲載・事例紹介",
       "紹介動画制作",
     ])
-    expect(PRESS_CATEGORIES.flatMap((category) => category.items)).toHaveLength(10)
+    expect(PRESS_CATEGORIES.flatMap((category) => category.items)).toHaveLength(11)
 
     for (const category of PRESS_CATEGORIES) {
       const section = within(dialog).getByRole("region", { name: category.title })
@@ -83,7 +83,7 @@ describe("PressDialog", () => {
       .getAllByRole("listitem")
       .map((item) => item.querySelector("p")?.textContent)
 
-    expect(periods).toEqual(["2026年10月", "2025年5月", "2024年11月", "2024年11月", "2024年9月"])
+    expect(periods).toEqual(["2026年11月", "2026年10月", "2025年5月", "2024年11月", "2024年11月", "2024年9月"])
   })
 
   it("keeps the Jukkakukan media item as one item with the two specified links", () => {
