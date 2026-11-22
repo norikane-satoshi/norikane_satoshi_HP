@@ -8,6 +8,7 @@ import {
 } from "@/lib/notion/server/fetch-note"
 import { buildSlugIndex, RenderBlocks } from "@/lib/notion/server/render-blocks"
 import { SITE_BRAND_NAME } from "@/lib/site-brand"
+import { NOTE_THUMBNAILS } from "@/lib/hp/home-notes"
 
 export const revalidate = 3600
 
@@ -28,14 +29,19 @@ export async function generateMetadata(
   const { slug } = await params
   const note = await getPublishedNoteBySlug(slug)
   if (note) {
+    // Keep other notes' share previews unchanged until their images are approved.
+    const thumbnail = note.slug === "ai-thoughts" ? NOTE_THUMBNAILS[note.slug] : undefined
+    const images = thumbnail
+      ? [{ url: new URL(thumbnail, SITE_URL).toString(), alt: note.title }]
+      : undefined
     return {
       title: `${note.title} | ${SITE_BRAND_NAME}`,
       description: note.title,
       alternates: {
         canonical: new URL(`/notes/${note.slug}`, SITE_URL).toString(),
       },
-      openGraph: { title: note.title, type: "article" },
-      twitter: { card: "summary_large_image" },
+      openGraph: { title: note.title, type: "article", ...(images ? { images } : {}) },
+      twitter: { card: "summary_large_image", ...(images ? { images } : {}) },
     }
   }
 

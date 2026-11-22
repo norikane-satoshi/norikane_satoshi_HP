@@ -13,6 +13,7 @@ export type HomeNoteCard = {
 /** Notion のノート（slug）ごとのサムネイル。 */
 export const NOTE_THUMBNAILS: Readonly<Record<string, string>> = {
   correction: "/notes/thumbnails/correction.webp",
+  "ai-thoughts": "/notes/thumbnails/ai-thoughts-a.png",
 }
 
 /** サイト外に掲載した記事。ノート欄に Notion のノートと並べて出す。 */
