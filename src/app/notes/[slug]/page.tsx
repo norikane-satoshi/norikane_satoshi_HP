@@ -8,7 +8,7 @@ import {
 } from "@/lib/notion/server/fetch-note"
 import { buildSlugIndex, RenderBlocks } from "@/lib/notion/server/render-blocks"
 import { SITE_BRAND_NAME } from "@/lib/site-brand"
-import { NOTE_THUMBNAILS } from "@/lib/hp/home-notes"
+import { getNoteLabel, NOTE_SETTINGS } from "@/lib/hp/home-notes"
 
 export const revalidate = 3600
 
@@ -29,8 +29,8 @@ export async function generateMetadata(
   const { slug } = await params
   const note = await getPublishedNoteBySlug(slug)
   if (note) {
-    // Keep other notes' share previews unchanged until their images are approved.
-    const thumbnail = note.slug === "ai-thoughts" ? NOTE_THUMBNAILS[note.slug] : undefined
+    const settings = NOTE_SETTINGS[note.slug]
+    const thumbnail = settings?.shareThumbnail ? settings.thumbnailSrc : undefined
     const images = thumbnail
       ? [{ url: new URL(thumbnail, SITE_URL).toString(), alt: note.title }]
       : undefined
@@ -111,9 +111,7 @@ export default async function NotePage({ params }: PageProps) {
   }
 
   const slugIndex = buildSlugIndex(allNotes)
-  const index = allNotes.findIndex((n) => n.slug === note.slug)
-  const label =
-    index >= 0 ? `Note ${String(index + 1).padStart(2, "0")}` : "Note"
+  const label = getNoteLabel(note.slug, allNotes)
 
   return (
     <div>

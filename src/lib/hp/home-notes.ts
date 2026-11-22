@@ -10,10 +10,31 @@ export type HomeNoteCard = {
   publishedAt: string
 }
 
-/** Notion のノート（slug）ごとのサムネイル。 */
-export const NOTE_THUMBNAILS: Readonly<Record<string, string>> = {
-  correction: "/notes/thumbnails/correction.webp",
-  "ai-thoughts": "/notes/thumbnails/ai-thoughts-diagram.png",
+export type NoteKind = "note" | "column"
+
+type NoteSettings = {
+  kind?: NoteKind
+  thumbnailSrc?: string
+  shareThumbnail?: boolean
+}
+
+export const NOTE_SETTINGS: Readonly<Record<string, NoteSettings>> = {
+  correction: { thumbnailSrc: "/notes/thumbnails/correction.webp" },
+  "ai-thoughts": {
+    kind: "column",
+    thumbnailSrc: "/notes/thumbnails/ai-thoughts-diagram.png",
+    shareThumbnail: true,
+  },
+}
+
+export function getNoteLabel(slug: string, notes: readonly NoteSummary[]): string {
+  const kind = NOTE_SETTINGS[slug]?.kind ?? "note"
+  const sameKind = notes
+    .filter((note) => (NOTE_SETTINGS[note.slug]?.kind ?? "note") === kind)
+    .sort((a, b) => a.createdTime.localeCompare(b.createdTime) || a.slug.localeCompare(b.slug))
+  const index = sameKind.findIndex((note) => note.slug === slug)
+  const prefix = kind === "column" ? "Column" : "Note"
+  return index < 0 ? prefix : `${prefix} ${String(index + 1).padStart(2, "0")}`
 }
 
 /** サイト外に掲載した記事。ノート欄に Notion のノートと並べて出す。 */
@@ -31,18 +52,15 @@ export const EXTERNAL_NOTES: readonly Omit<HomeNoteCard, "external">[] = [
 
 /** Notion のノートと外部記事を、新しい順に並べたカード一覧にする。 */
 export function buildHomeNoteCards(notes: readonly NoteSummary[]): HomeNoteCard[] {
-  const ownNotes = [...notes]
-    // listPublishedNotes は作成日の古い順で返す。番号は新しいノートを 01 にする（従来どおり）。
-    .reverse()
-    .map((note, index) => ({
-      key: note.id,
-      href: `/notes/${note.slug}`,
-      title: note.title,
-      label: `Note ${String(index + 1).padStart(2, "0")}`,
-      thumbnailSrc: NOTE_THUMBNAILS[note.slug] ?? null,
-      external: false,
-      publishedAt: note.createdTime.slice(0, 10),
-    }))
+  const ownNotes = notes.map((note) => ({
+    key: note.id,
+    href: `/notes/${note.slug}`,
+    title: note.title,
+    label: getNoteLabel(note.slug, notes),
+    thumbnailSrc: NOTE_SETTINGS[note.slug]?.thumbnailSrc ?? null,
+    external: false,
+    publishedAt: note.createdTime.slice(0, 10),
+  }))
   const externalNotes = EXTERNAL_NOTES.map((note) => ({ ...note, external: true }))
 
   return [...ownNotes, ...externalNotes].sort((a, b) =>
