@@ -70,7 +70,11 @@ export function collectTree(node: ReactNode, output = new Set<string>()): Set<st
 
 export function translateTree(node: ReactNode, dictionary: Dictionary, locale: Language): ReactNode {
   if (locale === 'ja') return node
-  if (typeof node === 'string') return dictionary[node] ?? node
+  if (typeof node === 'string') {
+    if (dictionary[node]) return dictionary[node]
+    const label = node.match(/^([\s/|·]*)([\s\S]*?)(\s*)$/)
+    return label && dictionary[label[2]] ? label[1] + dictionary[label[2]] + label[3] : node
+  }
   if (Array.isArray(node)) return Children.map(node, (child) => translateTree(child, dictionary, locale))
   if (!isValidElement<Props>(node) || node.type === 'script' || node.type === 'style') return node
   const packed = packInline(node.props.children)

@@ -23,6 +23,11 @@ describe('public translation boundaries', () => {
     expect(html).toContain('&lt;script&gt;')
     expect(html).not.toContain('<script>')
   })
+  it('translates dynamically prefixed labels without splitting prose into partial matches', () => {
+    const dictionary = { 'NHK100周年記念ドラマ': 'NHK 100th Anniversary Drama' }
+    expect(renderToStaticMarkup(translateTree(<p>{' / NHK100周年記念ドラマ'}</p>, dictionary, 'en'))).toBe('<p> / NHK 100th Anniversary Drama</p>')
+    expect(renderToStaticMarkup(translateTree(<p>このNHK100周年記念ドラマを紹介</p>, dictionary, 'en'))).toBe('<p>このNHK100周年記念ドラマを紹介</p>')
+  })
   it('preserves Japanese markup exactly and never changes unsafe or out-of-scope links', () => {
     const node = <p>本文<Link href="/booking">予約</Link></p>
     expect(renderToStaticMarkup(translateTree(node, {}, 'ja'))).toBe(renderToStaticMarkup(node))
