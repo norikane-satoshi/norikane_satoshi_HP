@@ -23,6 +23,8 @@ export type FeaturedWorkLink = {
 
 export type FeaturedWorkPreviewVideo = {
   videoId: string
+  /** ヒーローで流すときに右上へ出す作品名。 */
+  title?: string
   loopStart?: number
   loopEnd?: number
   clipRangeStart?: number
@@ -31,10 +33,12 @@ export type FeaturedWorkPreviewVideo = {
   clipExcludeEnd?: number
 }
 
+export type FeaturedPlaylistVideo = FeaturedWorkPreviewVideo & { title: string }
+
 export type FeaturedPlaylistWork = {
   title: string
   client?: string
-  videos: readonly FeaturedWorkPreviewVideo[]
+  videos: readonly FeaturedPlaylistVideo[]
 }
 
 export const FEATURED_WORKS: FeaturedWork[] = [
@@ -123,21 +127,21 @@ export const FEATURED_WORKS: FeaturedWork[] = [
   },
 ]
 
-export const LIVE_REEL_VIDEOS = [
-  { videoId: "fEYJazIPxUg" },
-  { videoId: "G_3xr5desOo" },
-  { videoId: "ZorB-2mqe-U", clipExcludeStart: 367, clipExcludeEnd: 446 },
-  { videoId: "d7qo_ke4kqI" },
-  { videoId: "Nhv9GDVem5U", clipRangeStart: 0, clipRangeEnd: 291 },
-  { videoId: "heb1yJtreJg", clipRangeStart: 33, clipRangeEnd: 265 },
-  { videoId: "peWya9bxVXc", loopStart: 10, loopEnd: 40 },
-  { videoId: "R92a65tojVg", loopStart: 0, loopEnd: 30 },
-  { videoId: "y0g6UCE0Pzg", loopStart: 50, loopEnd: 80 },
-  { videoId: "H_z2HYsx53o" },
-  { videoId: "wkbmPAATsJI" },
-  { videoId: "7yXzwJUuXnI" },
-  { videoId: "I2K5UtUIHD0" },
-] as const
+export const LIVE_REEL_VIDEOS: readonly FeaturedPlaylistVideo[] = [
+  { videoId: "fEYJazIPxUg", title: "映画『JSB3 LIVE FILM / RISING SOUND』" },
+  { videoId: "G_3xr5desOo", title: "EXILE ATSUSHI + AI" },
+  { videoId: "ZorB-2mqe-U", title: "センラ ワンマンライブ 2025 -Brun-", clipExcludeStart: 367, clipExcludeEnd: 446 },
+  { videoId: "d7qo_ke4kqI", title: "My Hair is Bad アルティメットホームランツアー 日本武道館" },
+  { videoId: "Nhv9GDVem5U", title: "宮野真守 LIVE Blu-ray&DVD「DRESSING!」", clipRangeStart: 0, clipRangeEnd: 291 },
+  { videoId: "heb1yJtreJg", title: "日向坂46 デビューカウントダウンライブ!! in 横浜アリーナ", clipRangeStart: 33, clipRangeEnd: 265 },
+  { videoId: "peWya9bxVXc", title: "乃木坂46 8th YEAR BIRTHDAY LIVE", loopStart: 10, loopEnd: 40 },
+  { videoId: "R92a65tojVg", title: "乃木坂46 Mai Shiraishi Graduation Concert～Always beside you～", loopStart: 0, loopEnd: 30 },
+  { videoId: "y0g6UCE0Pzg", title: "ASUKA SAITO GRADUATION CONCERT", loopStart: 50, loopEnd: 80 },
+  { videoId: "H_z2HYsx53o", title: "REAL⇔FAKE 2nd Stage スペシャルイベント" },
+  { videoId: "wkbmPAATsJI", title: "EXILE「Gorgeous」" },
+  { videoId: "7yXzwJUuXnI", title: "志麻 SHIMA LIVE TOUR 2026 Alice" },
+  { videoId: "I2K5UtUIHD0", title: "EXILE ATSUSHI「Heart to Heart Part 2」" },
+]
 
 export const LIVE_REEL_VIDEO_IDS = LIVE_REEL_VIDEOS.map((video) => video.videoId)
 
@@ -150,24 +154,23 @@ export const FEATURED_PLAYLIST_WORKS: FeaturedPlaylistWork[] = [
   {
     title: "CM",
     videos: [
-      { videoId: "Eo2IIH-w3h8", clipRangeStart: 0, clipRangeEnd: 60 },
-      { videoId: "fStjAoAOlbQ" },
-      { videoId: "vchw9jvBntI", loopStart: 295, loopEnd: 325 },
-      { videoId: "cQwaCzcZNIk" },
-      { videoId: "W62KLHgaF-Q" },
+      { videoId: "Eo2IIH-w3h8", title: "Suzuki ERTIGA「Grow with Elegance.」", clipRangeStart: 0, clipRangeEnd: 60 },
+      { videoId: "fStjAoAOlbQ", title: "Repro ブランドムービー" },
+      { videoId: "cQwaCzcZNIk", title: "Suzuki XL7「Solid & Resilient」" },
+      { videoId: "W62KLHgaF-Q", title: "アールイズ・ウエディング『20年越しの約束』" },
     ],
   },
   {
     title: "MV",
     videos: [
-      { videoId: "Pgvb6t2oLqg", clipRangeStart: 0, clipRangeEnd: 244 },
-      { videoId: "N7c7ZaVXjvk", clipRangeStart: 0, clipRangeEnd: 205 },
-      { videoId: "q5prKAR8UpA" },
-      { videoId: "dbLARf2asG0" },
-      { videoId: "QzQrzX07VMY" },
-      { videoId: "EmjP3gJ_ALY" },
-      { videoId: "6qZwQdw88Aw" },
-      { videoId: "O8EynS4boVU", clipRangeStart: 0, clipRangeEnd: 165 },
+      { videoId: "Pgvb6t2oLqg", title: "Shuta Sueyoshi「SO-RE-NA」", clipRangeStart: 0, clipRangeEnd: 244 },
+      { videoId: "N7c7ZaVXjvk", title: "ジェジュン「Brava!!Brava!!Brava!!」", clipRangeStart: 0, clipRangeEnd: 205 },
+      { videoId: "q5prKAR8UpA", title: "かみやど『color』" },
+      { videoId: "dbLARf2asG0", title: "にしな「ダーリン」" },
+      { videoId: "QzQrzX07VMY", title: "小林愛香「Tough Heart」" },
+      { videoId: "EmjP3gJ_ALY", title: "吉井香奈恵『Answer』" },
+      { videoId: "6qZwQdw88Aw", title: "Travis Japan「BIG BANG BOY」" },
+      { videoId: "O8EynS4boVU", title: "倖田來未『4 MORE』", clipRangeStart: 0, clipRangeEnd: 165 },
     ],
   },
 ]
@@ -454,23 +457,32 @@ export const HERO_CLIPS: readonly HeroClip[] = [
   { videoId: "ajSVtbyX9gE", startSeconds: 8, title: "ゲキ×シネ『爆烈忠臣蔵』", client: "ヴィレッヂ", zoom: 1.36 },
   { videoId: "wkbmPAATsJI", startSeconds: 61, title: "EXILE「Gorgeous」", client: "Live Music Video", zoom: 1.36 },
   { videoId: "4bGU94xjC-A", startSeconds: 10, title: "十角館の殺人", client: "hulu", zoom: 1.42 },
+  { videoId: "-X5BMqt0m2c", startSeconds: 8, title: "リラックマと遊園地", client: "NETFLIX", zoom: 1.42 },
   { videoId: "Eo2IIH-w3h8", startSeconds: 13, title: "Suzuki ERTIGA「Grow with Elegance.」" },
-  { videoId: "N7c7ZaVXjvk", startSeconds: 102, title: "ジェジュン「Brava!!Brava!!Brava!!」" },
   { videoId: "G_3xr5desOo", startSeconds: 581, title: "EXILE ATSUSHI + AI", client: "LIVE TOUR 2025 “Heart to Heart” ～復活祭～" },
 ]
 
+/** 優先の場面を流し終えたあと、ヒーローで続けて流す作品カード（ライブ映像作品・CM・MV）の動画。 */
+export const HERO_EXTRA_VIDEOS: readonly FeaturedPlaylistVideo[] = FEATURED_PLAYLIST_WORKS.flatMap(
+  (work) => work.videos,
+).filter((video) => !HERO_CLIPS.some((clip) => clip.videoId === video.videoId))
+
 /**
- * 「ライブ映像作品」「CM」「MV」カードで流す 1 巡分の順番。ヒーローで流す動画を先に、
- * 残りを後にして、それぞれの中は混ぜる。
+ * HERO_EXTRA_VIDEOS の 1 本から流す場面を、再生してわかった動画の長さで決める。
+ * 範囲の指定がない動画は、冒頭のタイトルと末尾のロゴを避けて 10%〜85% の間から選ぶ。
  */
-export function getPlaylistRound<T extends { videoId: string }>(
-  videos: readonly T[],
+export function getHeroExtraClipWindow(
+  video: FeaturedWorkPreviewVideo,
+  durationSeconds: number,
   random: () => number = Math.random,
-  prevLastItem?: T,
-) {
-  const heroIds = new Set(HERO_CLIPS.map((clip) => clip.videoId))
-  const first = videos.filter((video) => heroIds.has(video.videoId))
-  const rest = videos.filter((video) => !heroIds.has(video.videoId))
-  if (first.length === 0) return shuffleVideoIds(rest, random, prevLastItem)
-  return [...shuffleVideoIds(first, random, prevLastItem), ...shuffleVideoIds(rest, random)]
+): ClipWindow {
+  if (video.loopStart !== undefined) {
+    return { startSeconds: video.loopStart, playSeconds: HERO_CLIP_SECONDS }
+  }
+  const hasConstraint =
+    video.clipRangeStart !== undefined || video.clipExcludeStart !== undefined
+  const constraint = hasConstraint
+    ? video
+    : { clipRangeStart: durationSeconds * 0.1, clipRangeEnd: durationSeconds * 0.85 }
+  return calculateClipWindow(durationSeconds, random, HERO_CLIP_SECONDS, constraint)
 }
