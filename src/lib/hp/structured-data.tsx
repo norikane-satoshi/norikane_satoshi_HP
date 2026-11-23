@@ -14,7 +14,6 @@ import {
 const ORGANIZATION_ID = `${SITE_URL}/#organization`
 const PERSON_ID = `${SITE_URL}/#person`
 
-/** 検索エンジン向けに、事業者と本人を日本語名・英語名の両方で伝える。 */
 export function buildSiteJsonLd() {
   return {
     "@context": "https://schema.org",
