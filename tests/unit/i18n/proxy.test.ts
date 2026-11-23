@@ -6,6 +6,14 @@ import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 
 const request = (path: string, headers: Record<string, string> = {}) => new NextRequest(`https://norikane.studio${path}`, { headers })
 describe('public locale request security', () => {
+  it('routes supported public locales to ISR and rejects direct internal URLs', async () => {
+    const localized = await proxy(request('/fr/privacy?utm_source=x'))
+    expect(localized.headers.get('location')).toBeNull()
+    expect(localized.headers.get('x-middleware-rewrite')).toBe('https://norikane.studio/i18n/fr/privacy?utm_source=x')
+    const internal = await proxy(request('/i18n/fr/privacy'))
+    expect(internal.headers.get('x-middleware-rewrite')).toBe('https://norikane.studio/_not-found')
+    expect(unstable_doesMiddlewareMatch({ config, url: '/i18n/fr/privacy' })).toBe(true)
+  })
   it('keeps booking authentication and never rewrites localized protected URLs', async () => {
     const booking = await proxy(request('/booking/history', { 'x-public-locale': 'en' }))
     expect(booking.headers.get('location')).toBe('https://norikane.studio/login?callbackUrl=%2Fbooking%2Fhistory')
@@ -31,7 +39,6 @@ describe('public locale request security', () => {
     const canonical = await proxy(request('/en/privacy'))
     expect(canonical.headers.get('x-middleware-request-x-public-translation-generate')).toBeNull()
     expect(canonical.headers.get('vary')).toBeNull()
-    expect((await proxy(request('/en/privacy?anything=1'))).headers.get('location')).toBe('https://norikane.studio/en/privacy')
   })
 })
 

@@ -32,6 +32,9 @@ const chatbotBuildId =
   "local";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    globalNotFound: true,
+  },
   allowedDevOrigins: ["127.0.0.1"],
   env: {
     NEXT_PUBLIC_CHATBOT_BUILD_ID: chatbotBuildId,

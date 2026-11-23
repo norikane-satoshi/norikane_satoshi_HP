@@ -10,7 +10,7 @@
 
 `TRANSLATION_GENERATION_ENABLED` は日次枠の利用方針が決まるまで false。翻訳 API を呼ばずに配信・保存設計を検証できる。生成再開は利用者の判断を受けてこの定数を変更する。再開後はページ生成後の after() で不足分を翻訳・照合する。言語別ページはビルド時に生成しないため、ビルドは翻訳 API に依存しない。
 
-クエリ付き言語 URL は proxy でクエリのない正規 URL に 307 転送する。そのリクエストではページ生成・翻訳・保存を開始しない。転送後の正規 URL は通常のページとして扱う。未対応言語、公開ページ以外、未公開ノートは原文取得までに 404 とし、翻訳ストアを読まない。
+クエリ付き言語 URL はクエリを保持し、クエリなしの URL と同じ ISR キャッシュを返す。クエリの違いによる生成・翻訳・保存は行わない。未対応言語、公開ページ以外、未公開ノートは原文取得までに 404 とし、翻訳ストアを読まない。言語別の catch-all は `src/app/i18n/[locale]` に置き、proxy が対応言語の公開 URL だけを内部 rewrite する。公開 URL・クエリ・ISR の周期は変えず、内部 URL への直接アクセスは 404 にする。これにより未存在 URL が言語 catch-all に吸い込まれず、`global-not-found.tsx` が `site-layout.tsx` と Next.js の標準 404 本文を組み合わせ、ステータス 404・日本語のナビ・フッターを返す。
 
 ## 訳の寿命と更新
 
@@ -34,6 +34,6 @@
 
 - `pnpm exec vitest run tests/unit/i18n tests/unit/hp/seo.test.ts`
 - `pnpm typecheck`、ESLint、`pnpm exec next build`（Vercel と同じ Turbopack）
-- ビルド後に `node scripts/i18n/verify-isr.mjs <検証保存先>`。ローカル Redis 代替 HTTP サーバーで SDK の no-store 通信を通し、初回生成と 2 回目の HIT・Redis 読み取り増分 0 を確認する。外部翻訳 API は呼ばない。
+- ビルド後に `node scripts/i18n/verify-isr.mjs <検証保存先>`。ローカル Redis 代替 HTTP サーバーで SDK の no-store 通信を通し、初回生成後のクエリ違いとクエリ付き初回アクセス後の正規 URL が同じキャッシュを使い、HIT・Redis 読み取り増分 0・書き込み 0・キャッシュファイルの追加 0 になることを確認する。外部翻訳 API は呼ばない。
 - staging の実レスポンスで日本語の事前生成、言語別ページのキャッシュ、予約保護、正規リンク、noindex と lang を確認する。
 - 訳文の通読と全言語の図の可読性確認は、生成再開後に行う。目視 GO までは master / Production に反映しない。
