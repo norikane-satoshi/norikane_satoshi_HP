@@ -13,13 +13,13 @@ describe('public locale request security', () => {
     expect(localized.headers.get('x-middleware-rewrite')).toBeNull()
     expect(localized.headers.get('x-middleware-request-x-public-locale')).toBeNull()
   })
-  it('allows only the fixed languages, honors choice, and sets hardened cookies', async () => {
+  it('allows only the fixed languages and honors the saved choice', async () => {
     const saved = await proxy(request('/privacy', { cookie: 'site_language=ja', 'accept-language': 'fr' }))
     expect(saved.headers.get('location')).toBeNull()
     const malicious = await proxy(request('/privacy?language=https://evil.test', { cookie: 'site_language=//evil.test' }))
     expect(malicious.headers.get('location')).toBeNull()
   })
-  it('does not redirect robots or headerless requests and strips spoofed generation headers', async () => {
+  it('does not redirect robots or headerless requests and never adds generation headers', async () => {
     for (const headers of [{} as Record<string, string>, { 'accept-language': 'fr', 'user-agent': 'Googlebot' }, { 'accept-language': 'fr', 'user-agent': 'Slackbot-LinkExpanding' }]) {
       const result = await proxy(request('/', headers))
       expect(result.headers.get('location')).toBeNull()

@@ -13,8 +13,9 @@ export function TranslationBoundary({ children }: { children: ReactNode; i18nBou
   return translateTree(children, dictionary, locale)
 }
 
-export function LanguageLinks() {
-  const pathname = usePathname() || '/'
+export function LanguageLinks({ pathname: canonicalPath }: { pathname?: string }) {
+  const currentPath = usePathname()
+  const pathname = canonicalPath ?? currentPath ?? '/'
   const parts = pathname.split('/')
   const current: Language = isLocale(parts[1]) ? parts[1] : 'ja'
   const path = current === 'ja' ? pathname : '/' + parts.slice(2).join('/')

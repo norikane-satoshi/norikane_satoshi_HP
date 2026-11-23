@@ -62,8 +62,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function SiteLayout({ children, locale = 'ja', dictionary = {} }: {
-  children: React.ReactNode; locale?: Language; dictionary?: Dictionary;
+export default function SiteLayout({ children, locale = 'ja', dictionary = {}, languagePath }: {
+  children: React.ReactNode; locale?: Language; dictionary?: Dictionary; languagePath?: string;
 }) {
   return (
     <html
@@ -91,7 +91,7 @@ export default function SiteLayout({ children, locale = 'ja', dictionary = {} }:
               </Link>
             </nav>
           </div>
-          <LanguageLinks />
+          <LanguageLinks pathname={languagePath} />
         </footer>, dictionary, locale)}
         </TranslationProvider>
         <ChatbotWidget />
