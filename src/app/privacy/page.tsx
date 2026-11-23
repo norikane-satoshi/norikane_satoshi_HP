@@ -4,6 +4,7 @@ import { PrivacyPolicyContent } from "@/components/hp/legal-content"
 export const metadata: Metadata = {
   title: "プライバシーポリシー | のりかね映像設計室",
   description: "のりかね映像設計室のプライバシーポリシーです。",
+  alternates: { canonical: "/privacy" },
 }
 
 export default function PrivacyPolicyPage() {

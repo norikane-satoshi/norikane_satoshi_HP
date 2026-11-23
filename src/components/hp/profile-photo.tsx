@@ -11,6 +11,7 @@ import {
   type BiographyText,
 } from "@/components/hp/biography-data"
 import { HP_MODAL_OVERLAY_Z_INDEX } from "@/components/hp/modal-layer"
+import { SITE_OWNER_NAME_EN } from "@/lib/site-brand"
 
 const FOCUSABLE_SELECTOR = "a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])"
 
@@ -154,7 +155,7 @@ export function ProfilePhoto() {
                 >
                   <header className="flex flex-col gap-5">
                     <p className="hp-eyebrow">Biography</p>
-                    <h2 className="hp-latin-display text-[clamp(3rem,8vw,5.5rem)]">Satoshi Norikane</h2>
+                    <h2 className="hp-latin-display text-[clamp(3rem,8vw,5.5rem)]">{SITE_OWNER_NAME_EN}</h2>
                     <p className="text-[1.0625rem] tracking-[0.08em] text-hp-muted">
                       則兼 智志　{BIOGRAPHY_LEAD}
                     </p>

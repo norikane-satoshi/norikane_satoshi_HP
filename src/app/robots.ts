@@ -1,15 +1,13 @@
 import type { MetadataRoute } from "next";
-
-const SITE_URL = "https://norikane.studio";
+import { SITE_URL } from "@/lib/site-brand";
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/booking", "/availability-calendar"],
+      disallow: ["/booking", "/availability-calendar", "/line/", "/login", "/signup"],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
-    host: SITE_URL,
   };
 }

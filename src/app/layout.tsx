@@ -6,7 +6,7 @@ import "@/components/booking/booking-calendar.css";
 import "@/components/booking/booking-section.css";
 import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
 import { NavHeader } from "@/components/hp/nav-header";
-import { SITE_BRAND_NAME, SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand";
+import { SITE_BRAND_NAME, SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE, SITE_URL } from "@/lib/site-brand";
 
 const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
@@ -43,13 +43,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://norikane.studio"),
+  metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
-  description: `${SITE_TAGLINE} ${SITE_BRAND_NAME} のポートフォリオサイト。`,
+  description: SITE_TAGLINE,
   openGraph: {
     title: SITE_TITLE,
     description: SITE_TAGLINE,
     type: "website",
+    siteName: SITE_BRAND_NAME,
+    locale: "ja_JP",
   },
   twitter: {
     card: "summary_large_image",
