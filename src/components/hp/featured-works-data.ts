@@ -452,9 +452,25 @@ export const HERO_CLIPS: readonly HeroClip[] = [
   { videoId: "-2kSMEiw0wA", startSeconds: 63, title: "時計館の殺人", client: "hulu", zoom: 1.42 },
   { videoId: "aiPpSEcNLTk", startSeconds: 50, title: "福山雅治ライブフィルム「月光」", client: "松竹配給" },
   { videoId: "ajSVtbyX9gE", startSeconds: 8, title: "ゲキ×シネ『爆烈忠臣蔵』", client: "ヴィレッヂ", zoom: 1.36 },
-  { videoId: "wkbmPAATsJI", startSeconds: 61, title: "ライブ映像作品", client: "配信", zoom: 1.36 },
+  { videoId: "wkbmPAATsJI", startSeconds: 61, title: "EXILE「Gorgeous」", client: "Live Music Video", zoom: 1.36 },
   { videoId: "4bGU94xjC-A", startSeconds: 10, title: "十角館の殺人", client: "hulu", zoom: 1.42 },
-  { videoId: "Eo2IIH-w3h8", startSeconds: 13, title: "CM" },
-  { videoId: "N7c7ZaVXjvk", startSeconds: 102, title: "MV" },
-  { videoId: "G_3xr5desOo", startSeconds: 581, title: "ライブ映像作品", client: "配信" },
+  { videoId: "Eo2IIH-w3h8", startSeconds: 13, title: "Suzuki ERTIGA「Grow with Elegance.」" },
+  { videoId: "N7c7ZaVXjvk", startSeconds: 102, title: "ジェジュン「Brava!!Brava!!Brava!!」" },
+  { videoId: "G_3xr5desOo", startSeconds: 581, title: "EXILE ATSUSHI + AI", client: "LIVE TOUR 2025 “Heart to Heart” ～復活祭～" },
 ]
+
+/**
+ * 「ライブ映像作品」「CM」「MV」カードで流す 1 巡分の順番。ヒーローで流す動画を先に、
+ * 残りを後にして、それぞれの中は混ぜる。
+ */
+export function getPlaylistRound<T extends { videoId: string }>(
+  videos: readonly T[],
+  random: () => number = Math.random,
+  prevLastItem?: T,
+) {
+  const heroIds = new Set(HERO_CLIPS.map((clip) => clip.videoId))
+  const first = videos.filter((video) => heroIds.has(video.videoId))
+  const rest = videos.filter((video) => !heroIds.has(video.videoId))
+  if (first.length === 0) return shuffleVideoIds(rest, random, prevLastItem)
+  return [...shuffleVideoIds(first, random, prevLastItem), ...shuffleVideoIds(rest, random)]
+}

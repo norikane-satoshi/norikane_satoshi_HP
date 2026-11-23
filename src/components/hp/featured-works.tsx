@@ -19,7 +19,7 @@ import {
   calculateClipWindow,
   getNextYouTubeThumbnailVariant,
   getYouTubeThumbnailUrl,
-  shuffleVideoIds,
+  getPlaylistRound,
   type ClipWindow,
   type FeaturedPlaylistWork,
   type FeaturedWorkPreviewVideo,
@@ -1470,7 +1470,7 @@ function PlaylistSurface({
     const refillQueue = () =>
       ordered
         ? [...videos]
-        : shuffleVideoIds(videos, Math.random, previewVideoRef.current)
+        : getPlaylistRound(videos, Math.random, previewVideoRef.current)
 
     const nextVideo = () => {
       if (queueRef.current.length === 0) {
@@ -1578,7 +1578,7 @@ function PlaylistSurface({
       }
 
       playerReadyRef.current = false
-      queueRef.current = ordered ? [...videos] : shuffleVideoIds(videos)
+      queueRef.current = ordered ? [...videos] : getPlaylistRound(videos)
       const firstVideo = nextVideo()
       previewVideoRef.current = firstVideo
       setPreviewVideo(firstVideo)

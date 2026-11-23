@@ -7,6 +7,7 @@ import {
   calculateClipWindow,
   getNextYouTubeThumbnailVariant,
   getYouTubeThumbnailUrl,
+  getPlaylistRound,
   shuffleVideoIds,
   shuffleYouTubeThumbnailVariants,
 } from "@/components/hp/featured-works-data"
@@ -190,6 +191,18 @@ describe("featured works data", () => {
     expect(new Set(shuffled)).toEqual(new Set(videos))
     expect(shuffled[0]).not.toBe(videos[0])
     expect(shuffled).toEqual([videos[2], videos[1], videos[0], videos[3]])
+  })
+
+  it("plays the hero videos of a playlist card before the rest in every round", () => {
+    const live = FEATURED_PLAYLIST_WORKS[0]!.videos
+    const round = getPlaylistRound(live)
+    const heroCount = live.filter((video) => ["wkbmPAATsJI", "G_3xr5desOo"].includes(video.videoId)).length
+
+    expect(heroCount).toBe(2)
+    expect(new Set(round.slice(0, heroCount).map((video) => video.videoId))).toEqual(
+      new Set(["wkbmPAATsJI", "G_3xr5desOo"]),
+    )
+    expect(new Set(round)).toEqual(new Set(live))
   })
 
   it("builds YouTube thumbnail URLs for generated hq frames and default fallback", () => {
