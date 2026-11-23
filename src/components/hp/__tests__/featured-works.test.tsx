@@ -435,7 +435,7 @@ describe("FeaturedWorks", () => {
     const fixedLoop = FEATURED_PLAYLIST_WORKS[0]?.videos.find(
       (video) => video.videoId === "peWya9bxVXc",
     )
-    expect(fixedLoop).toEqual({
+    expect(fixedLoop).toMatchObject({
       videoId: "peWya9bxVXc",
       loopStart: 10,
       loopEnd: 40,

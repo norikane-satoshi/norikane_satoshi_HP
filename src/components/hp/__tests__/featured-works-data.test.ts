@@ -7,8 +7,8 @@ import {
   calculateClipWindow,
   getNextYouTubeThumbnailVariant,
   getYouTubeThumbnailUrl,
-  getPlaylistRound,
   shuffleVideoIds,
+  HERO_EXTRA_VIDEOS,
   shuffleYouTubeThumbnailVariants,
 } from "@/components/hp/featured-works-data"
 
@@ -120,12 +120,12 @@ describe("featured works data", () => {
     ])
     expect(LIVE_REEL_VIDEOS).toEqual(
       expect.arrayContaining([
-        { videoId: "ZorB-2mqe-U", clipExcludeStart: 367, clipExcludeEnd: 446 },
-        { videoId: "Nhv9GDVem5U", clipRangeStart: 0, clipRangeEnd: 291 },
-        { videoId: "heb1yJtreJg", clipRangeStart: 33, clipRangeEnd: 265 },
-        { videoId: "peWya9bxVXc", loopStart: 10, loopEnd: 40 },
-        { videoId: "R92a65tojVg", loopStart: 0, loopEnd: 30 },
-        { videoId: "y0g6UCE0Pzg", loopStart: 50, loopEnd: 80 },
+        expect.objectContaining({ videoId: "ZorB-2mqe-U", clipExcludeStart: 367, clipExcludeEnd: 446 }),
+        expect.objectContaining({ videoId: "Nhv9GDVem5U", clipRangeStart: 0, clipRangeEnd: 291 }),
+        expect.objectContaining({ videoId: "heb1yJtreJg", clipRangeStart: 33, clipRangeEnd: 265 }),
+        expect.objectContaining({ videoId: "peWya9bxVXc", loopStart: 10, loopEnd: 40 }),
+        expect.objectContaining({ videoId: "R92a65tojVg", loopStart: 0, loopEnd: 30 }),
+        expect.objectContaining({ videoId: "y0g6UCE0Pzg", loopStart: 50, loopEnd: 80 }),
       ]),
     )
   })
@@ -140,14 +140,12 @@ describe("featured works data", () => {
     expect(FEATURED_PLAYLIST_WORKS[1]?.videos.map((video) => video.videoId)).toEqual([
       "Eo2IIH-w3h8",
       "fStjAoAOlbQ",
-      "vchw9jvBntI",
       "cQwaCzcZNIk",
       "W62KLHgaF-Q",
     ])
     expect(FEATURED_PLAYLIST_WORKS[1]?.videos).toEqual(
       expect.arrayContaining([
-        { videoId: "Eo2IIH-w3h8", clipRangeStart: 0, clipRangeEnd: 60 },
-        { videoId: "vchw9jvBntI", loopStart: 295, loopEnd: 325 },
+        expect.objectContaining({ videoId: "Eo2IIH-w3h8", clipRangeStart: 0, clipRangeEnd: 60 }),
       ]),
     )
     expect(FEATURED_PLAYLIST_WORKS[2]?.videos.map((video) => video.videoId)).toEqual([
@@ -162,9 +160,9 @@ describe("featured works data", () => {
     ])
     expect(FEATURED_PLAYLIST_WORKS[2]?.videos).toEqual(
       expect.arrayContaining([
-        { videoId: "Pgvb6t2oLqg", clipRangeStart: 0, clipRangeEnd: 244 },
-        { videoId: "N7c7ZaVXjvk", clipRangeStart: 0, clipRangeEnd: 205 },
-        { videoId: "O8EynS4boVU", clipRangeStart: 0, clipRangeEnd: 165 },
+        expect.objectContaining({ videoId: "Pgvb6t2oLqg", clipRangeStart: 0, clipRangeEnd: 244 }),
+        expect.objectContaining({ videoId: "N7c7ZaVXjvk", clipRangeStart: 0, clipRangeEnd: 205 }),
+        expect.objectContaining({ videoId: "O8EynS4boVU", clipRangeStart: 0, clipRangeEnd: 165 }),
       ]),
     )
   })
@@ -193,16 +191,12 @@ describe("featured works data", () => {
     expect(shuffled).toEqual([videos[2], videos[1], videos[0], videos[3]])
   })
 
-  it("plays the hero videos of a playlist card before the rest in every round", () => {
-    const live = FEATURED_PLAYLIST_WORKS[0]!.videos
-    const round = getPlaylistRound(live)
-    const heroCount = live.filter((video) => ["wkbmPAATsJI", "G_3xr5desOo"].includes(video.videoId)).length
-
-    expect(heroCount).toBe(2)
-    expect(new Set(round.slice(0, heroCount).map((video) => video.videoId))).toEqual(
-      new Set(["wkbmPAATsJI", "G_3xr5desOo"]),
-    )
-    expect(new Set(round)).toEqual(new Set(live))
+  it("names every playlist video and queues the non-hero ones after the hero clips", () => {
+    const videos = FEATURED_PLAYLIST_WORKS.flatMap((work) => work.videos)
+    expect(videos.every((video) => video.title.trim().length > 0)).toBe(true)
+    expect(HERO_EXTRA_VIDEOS.map((video) => video.videoId)).not.toContain("wkbmPAATsJI")
+    expect(HERO_EXTRA_VIDEOS.map((video) => video.videoId)).toContain("N7c7ZaVXjvk")
+    expect(HERO_EXTRA_VIDEOS).toHaveLength(videos.length - 3)
   })
 
   it("builds YouTube thumbnail URLs for generated hq frames and default fallback", () => {
