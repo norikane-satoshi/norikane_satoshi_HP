@@ -7,26 +7,19 @@ import { HeroSection } from "@/components/hp/hero-section"
 import { PressDialog } from "@/components/hp/press-section"
 import { ProfilePhoto } from "@/components/hp/profile-photo"
 import { SectionHeading } from "@/components/hp/section-heading"
-import { SITE_TAGLINE, SITE_TITLE } from "@/lib/site-brand"
 import {
   DAVINCI_RESOLVE_TRAINER_TEXT,
   DAVINCI_RESOLVE_TRAINING_URL,
 } from "@/lib/hp/davinci-trainer"
 import { buildHomeNoteCards } from "@/lib/hp/home-notes"
 import { hpPublicContent } from "@/lib/hp/public-content"
+import { buildSiteJsonLd, JsonLd } from "@/lib/hp/structured-data"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
 export const revalidate = 3600
 
 export const metadata: Metadata = {
-  title: SITE_TITLE,
-  description: SITE_TAGLINE,
-  openGraph: {
-    title: SITE_TITLE,
-    description: SITE_TAGLINE,
-    type: "website",
-  },
-  twitter: { card: "summary_large_image" },
+  alternates: { canonical: "/" },
 }
 
 function XIcon({ className }: { className?: string }) {
@@ -184,6 +177,7 @@ export default async function HomePage() {
   const noteCards = buildHomeNoteCards(await listPublishedNotesForHome())
   return (
     <div>
+      <JsonLd data={buildSiteJsonLd()} />
       <HeroSection />
 
       <section className="hp-section-shell hp-section-pad">

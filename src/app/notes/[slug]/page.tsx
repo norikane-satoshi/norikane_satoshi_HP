@@ -7,12 +7,12 @@ import {
   listPublishedNotes,
 } from "@/lib/notion/server/fetch-note"
 import { buildSlugIndex, RenderBlocks } from "@/lib/notion/server/render-blocks"
-import { SITE_BRAND_NAME } from "@/lib/site-brand"
+import { SITE_BRAND_NAME, SITE_URL } from "@/lib/site-brand"
 import { getNoteLabel, NOTE_SETTINGS } from "@/lib/hp/home-notes"
+import { buildNoteJsonLd, JsonLd } from "@/lib/hp/structured-data"
+import { extractNoteExcerpt } from "@/lib/notes/domain/excerpt"
 
 export const revalidate = 3600
-
-const SITE_URL = "https://norikane.studio"
 
 export async function generateStaticParams(): Promise<{ slug: string }[]> {
   const notes = await listPublishedNotes()
@@ -34,13 +34,14 @@ export async function generateMetadata(
     const images = thumbnail
       ? [{ url: new URL(thumbnail, SITE_URL).toString(), alt: note.title }]
       : undefined
+    const description = extractNoteExcerpt(note.blocks) || note.title
     return {
       title: `${note.title} | ${SITE_BRAND_NAME}`,
-      description: note.title,
+      description,
       alternates: {
         canonical: new URL(`/notes/${note.slug}`, SITE_URL).toString(),
       },
-      openGraph: { title: note.title, type: "article", ...(images ? { images } : {}) },
+      openGraph: { title: note.title, description, type: "article", ...(images ? { images } : {}) },
       twitter: { card: "summary_large_image", ...(images ? { images } : {}) },
     }
   }
@@ -112,9 +113,22 @@ export default async function NotePage({ params }: PageProps) {
 
   const slugIndex = buildSlugIndex(allNotes)
   const label = getNoteLabel(note.slug, allNotes)
+  const settings = NOTE_SETTINGS[note.slug]
 
   return (
     <div>
+      <JsonLd
+        data={buildNoteJsonLd({
+          slug: note.slug,
+          title: note.title,
+          description: extractNoteExcerpt(note.blocks) || note.title,
+          lastEditedTime: note.lastEditedTime,
+          publishedAt: settings?.publishedAt,
+          imageUrl: settings?.thumbnailSrc
+            ? new URL(settings.thumbnailSrc, SITE_URL).toString()
+            : undefined,
+        })}
+      />
       <div className="mx-auto w-full max-w-[1440px] px-6 pb-[clamp(5rem,10vw,8rem)] md:px-10 xl:px-14">
         <NotesBackLink label="ノート一覧に戻る" />
         <article className="hp-note-article">

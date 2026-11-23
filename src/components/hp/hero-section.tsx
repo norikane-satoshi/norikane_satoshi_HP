@@ -14,6 +14,7 @@ import {
   type YouTubePlayer,
 } from "@/components/hp/youtube-iframe"
 import { hpPublicContent } from "@/lib/hp/public-content"
+import { SITE_BRAND_NAME_EN } from "@/lib/site-brand"
 
 /** 場面の切り替えで暗転させる時間。 */
 const HERO_FADE_MS = 700
@@ -187,7 +188,7 @@ export function HeroSection() {
       <div className="hp-section-shell relative z-10 flex h-full flex-col justify-end pb-[clamp(2rem,5vw,4.5rem)]">
         <div className="flex flex-col gap-4 md:gap-5">
           <p className="hp-latin-italic text-lg text-[var(--hp-color-on-media-muted)] md:text-2xl">
-            Norikane Film Design Office
+            {SITE_BRAND_NAME_EN}
           </p>
           <h1 className="hp-display-heading text-[clamp(3.5rem,9.6vw,9.5rem)] font-medium tracking-[0.08em]">
             {hpPublicContent.hero.name}

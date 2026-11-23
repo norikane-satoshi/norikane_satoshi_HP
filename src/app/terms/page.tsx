@@ -4,6 +4,7 @@ import { TermsContent } from "@/components/hp/legal-content"
 export const metadata: Metadata = {
   title: "利用規約 | のりかね映像設計室",
   description: "のりかね映像設計室の利用規約です。",
+  alternates: { canonical: "/terms" },
 }
 
 export default function TermsPage() {
