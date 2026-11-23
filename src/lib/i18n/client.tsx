@@ -19,7 +19,7 @@ export function LanguageLinks() {
   const current: Language = isLocale(parts[1]) ? parts[1] : 'ja'
   const path = current === 'ja' ? pathname : '/' + parts.slice(2).join('/')
   if (!isPublicPath(path)) return null
-  return <nav aria-label="Language" className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-hp-muted">
+  return <nav aria-label="Language" className="mb-12 mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-hp-muted md:mb-0">
     {(['ja', ...LOCALES] as Language[]).map((locale) => <a key={locale} href={`${localizedPath(path, locale)}?language=${locale}`} lang={locale} hrefLang={locale} aria-current={locale === current ? 'page' : undefined} className="hover:underline">{LANGUAGE_LABELS[locale]}</a>)}
   </nav>
 }
