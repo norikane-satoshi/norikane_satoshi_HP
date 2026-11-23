@@ -74,7 +74,10 @@ if (mode === 'before') {
   const utmPage = await request(staging, '/fr?utm_source=x', 'utm-page')
   const canonical = await request(staging, '/fr/privacy', 'query-canonical')
   const query = await request(staging, '/fr/privacy?utm_source=cache-check', 'query-cache')
-  const baseline = JSON.parse(await fs.readFile(path.join(output, '../before/results.json'), 'utf8'))
+  const baseline = {}
+  for (const [name, pathname] of [['home', '/'], ['correction', '/notes/correction'], ['ai-thoughts', '/notes/ai-thoughts'], ['not-found', '/no-such-page']]) {
+    baseline[`production-${name}`] = await request('https://norikane.studio', pathname, `production-${name}`)
+  }
   results.verification = {
     brandedNotFound: results.notFound.every(result => result.pass),
     notFoundText: results.notFound[0].text === baseline['production-not-found'].text,

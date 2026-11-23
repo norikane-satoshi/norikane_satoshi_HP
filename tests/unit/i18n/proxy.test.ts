@@ -11,6 +11,7 @@ describe('public locale request security', () => {
     expect(localized.headers.get('location')).toBeNull()
     expect(localized.headers.get('x-middleware-rewrite')).toBe('https://norikane.studio/i18n/fr/privacy?utm_source=x')
     const internal = await proxy(request('/i18n/fr/privacy'))
+    expect(internal.status).toBe(404)
     expect(internal.headers.get('x-middleware-rewrite')).toBe('https://norikane.studio/_not-found')
     expect(unstable_doesMiddlewareMatch({ config, url: '/i18n/fr/privacy' })).toBe(true)
   })

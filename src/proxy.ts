@@ -6,7 +6,7 @@ export default async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   // Only locale rewrites may reach the internal ISR route.
   if (pathname === '/i18n' || pathname.startsWith('/i18n/')) {
-    return NextResponse.rewrite(new URL('/_not-found', request.url))
+    return NextResponse.rewrite(new URL('/_not-found', request.url), { status: 404 })
   }
   if (pathname !== '/booking' && !pathname.startsWith('/booking/')) {
     const parts = pathname.split('/')
