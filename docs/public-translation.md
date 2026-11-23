@@ -4,7 +4,7 @@
 
 ## 配信と生成
 
-日本語の画面は `src/app/(ja)` に置き、URL は変えない。日本語の root layout と言語別 catch-all の root layout は `site-layout.tsx` を共有する。言語・公開パスはルート params から取得し、ページと layout は headers・cookies・searchParams を読まない。日本語ページは従来の静的配信・ISR、言語別ページは空の generateStaticParams と 60 秒の ISR により初回アクセス時に生成し、以降はキャッシュを返す。Redis は言語別ページを生成・再検証するときだけ読む。独自の Vary や生成指示ヘッダーは使わない。
+日本語の画面は `src/app/(ja)` に置き、URL は変えない。日本語の root layout と言語別 catch-all の root layout は `site-layout.tsx` を共有する。言語・公開パスはルート params から取得し、ページと layout は headers・cookies・searchParams を読まない。日本語ページは従来の静的配信・ISR、言語別ページは空の generateStaticParams、force-static、60 秒の ISR により初回アクセス時に生成し、以降はキャッシュを返す。Redis SDK の no-store fetch が実行時にページを動的描画へ切り替えないよう force-static を明示する。Redis の読み取り自体はキャッシュせず、ページの生成・再検証時に最新の訳を読む。独自の Vary や生成指示ヘッダーは使わない。
 
 未生成のページは日本語・`lang=ja`・noindex。公開済みの訳があれば、原文の編集や翻訳版の更新中も index と対象言語を維持する。訳がない新しい文だけ原文で表示する。ナビ・フッターは共通文書 `@shell` として本文から分離する。
 
@@ -34,5 +34,6 @@
 
 - `pnpm exec vitest run tests/unit/i18n tests/unit/hp/seo.test.ts`
 - `pnpm typecheck`、ESLint、`pnpm exec next build`（Vercel と同じ Turbopack）
+- ビルド後に `node scripts/i18n/verify-isr.mjs <検証保存先>`。ローカル Redis 代替 HTTP サーバーで SDK の no-store 通信を通し、初回生成と 2 回目の HIT・Redis 読み取り増分 0 を確認する。外部翻訳 API は呼ばない。
 - staging の実レスポンスで日本語の事前生成、言語別ページのキャッシュ、予約保護、正規リンク、noindex と lang を確認する。
 - 訳文の通読と全言語の図の可読性確認は、生成再開後に行う。目視 GO までは master / Production に反映しない。

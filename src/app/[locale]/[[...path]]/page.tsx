@@ -7,6 +7,8 @@ import { OriginalLink, TranslationProvider } from '@/lib/i18n/client'
 import { SITE_URL } from '@/lib/site-brand'
 
 export const revalidate = 60
+// Redis uses no-store fetches; they must not opt this ISR route into dynamic rendering.
+export const dynamic = 'force-static'
 export function generateStaticParams() { return [] }
 export const maxDuration = 300
 type Props = { params: Promise<{ locale: string; path?: string[] }> }

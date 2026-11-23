@@ -65,7 +65,15 @@ if (mode === 'before') {
     const secure = got.status !== 200 || ['x-frame-options', 'x-content-type-options', 'strict-transport-security', 'content-security-policy-report-only', 'referrer-policy', 'permissions-policy'].every(k => got.headers[k])
     results.security.push({ name, status: got.status, location: actual, pass: got.status === status && (location ? actual === location || actual === staging + location : !actual) && Boolean(secure) })
   }
-  if (results.security.some(r => !r.pass)) process.exitCode = 1
+  const baseline = JSON.parse(await fs.readFile(path.join(output, '../before/results.json'), 'utf8'))
+  results.verification = {
+    japanesePrerender: ['home', 'correction', 'ai-thoughts', 'privacy', 'terms', 'login', 'signup', 'notes'].every(name => results[name].headers['x-nextjs-prerender'] === '1'),
+    localizedCache: results['en-first'].status === 200 && results['en-second'].status === 200 && [results['en-second'].headers['x-vercel-cache'], results['en-second'].headers['x-nextjs-cache']].includes('HIT'),
+    fallback: ['en-first', 'en-second'].every(name => results[name].lang === 'ja' && results[name].robots === 'noindex, follow'),
+    canonicalLinks: results['en-second'].links.length === 9 && results['en-second'].links.every(href => !href.includes('?')),
+    japaneseText: ['home', 'correction', 'ai-thoughts'].every(name => results[name].text === baseline[`production-${name}`].text),
+  }
+  if (results.security.some(r => !r.pass) || Object.values(results.verification).some(pass => !pass)) process.exitCode = 1
 }
 await fs.writeFile(path.join(output, 'results.json'), JSON.stringify(results, null, 2))
-console.log(JSON.stringify(Object.fromEntries(Object.entries(results).map(([key, value]) => [key, key === 'security' ? value : { ...value, text: undefined, headers: { cache: value.headers['x-vercel-cache'], prerender: value.headers['x-nextjs-prerender'], nextCache: value.headers['x-nextjs-cache'], age: value.headers.age } }])), null, 2))
+console.log(JSON.stringify(Object.fromEntries(Object.entries(results).map(([key, value]) => [key, ['security', 'verification'].includes(key) ? value : { ...value, text: undefined, headers: { cache: value.headers['x-vercel-cache'], prerender: value.headers['x-nextjs-prerender'], nextCache: value.headers['x-nextjs-cache'], age: value.headers.age } }])), null, 2))
