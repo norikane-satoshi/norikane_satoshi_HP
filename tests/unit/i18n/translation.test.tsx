@@ -45,6 +45,14 @@ describe('public translation boundaries', () => {
     expect(preferredLanguage('ja;q=0,fr')).toBe('fr')
     expect(languageAlternates('/privacy').fr).toBe('https://norikane.studio/fr/privacy')
   })
+  it('limits simultaneous documents across languages to one provider job', async () => {
+    const store = new MemoryStore()
+    const translate = vi.fn(async () => { await new Promise(resolve => setTimeout(resolve, 5)); return ['Translated'] })
+    await Promise.all(['en', 'fr', 'ko'].map(locale => generateTranslation({ path: '/', segments: ['本文'] }, locale as 'en' | 'fr' | 'ko', store, translate)))
+    expect(translate).toHaveBeenCalledTimes(2)
+    await generateTranslation({ path: '/', segments: ['本文'] }, 'fr', store, translate)
+    expect(translate).toHaveBeenCalledTimes(4)
+  })
   it('deduplicates concurrent generation, reviews before publishing, and invalidates changed Japanese', async () => {
     const store = new MemoryStore()
     const source = { path: '/', segments: ['本文'] }

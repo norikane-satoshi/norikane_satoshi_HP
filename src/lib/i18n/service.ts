@@ -20,9 +20,9 @@ export function documentKey(source: SourceDocument, locale: Locale) {
 }
 
 export function validateTranslation(source: string[], output: unknown): asserts output is string[] {
-  if (!Array.isArray(output) || output.length !== source.length) throw new Error('Translation segment count mismatch')
+  if (!Array.isArray(output) || output.length !== source.length) throw new Error(`Translation segment count mismatch: expected ${source.length}, received ${Array.isArray(output) ? output.length : 'non-array'}`)
   for (let i = 0; i < source.length; i++) {
-    if (typeof output[i] !== 'string' || !output[i].trim() || !validMarkers(source[i], output[i])) throw new Error('Invalid translation segment')
+    if (typeof output[i] !== 'string' || !output[i].trim() || !validMarkers(source[i], output[i])) throw new Error(`Invalid translation segment at index ${i}`)
     const markers = (text: string) => text.match(/\[\[(?:diagram|visual):[^\]]+\]\]/g) ?? []
     if (JSON.stringify(markers(source[i])) !== JSON.stringify(markers(output[i]))) throw new Error('Invalid diagram marker')
   }
@@ -32,7 +32,9 @@ export async function generateTranslation(source: SourceDocument, locale: Locale
   const key = documentKey(source, locale)
   if (await store.get(key) || await store.get(`${key}:cooldown`)) return
   const token = randomUUID()
-  if (!await store.lock(`${key}:lock`, token, 360)) return
+  const capacityKey = `public-i18n:model:${TRANSLATION_MODEL}:lock`
+  if (!await store.lock(capacityKey, token, 360)) return
+  if (!await store.lock(`${key}:lock`, token, 360)) { await store.unlock(capacityKey, token); return }
   try {
     if (await store.get(key)) return
     const draft = await translate(source.segments, locale)
@@ -47,9 +49,10 @@ export async function generateTranslation(source: SourceDocument, locale: Locale
     console.info('[PUBLIC_I18N_COMPLETE]', { path: source.path, locale, model: TRANSLATION_MODEL, calls: 2 })
   } catch (error) {
     await store.set(`${key}:cooldown`, true, 300)
-    console.error('[PUBLIC_I18N_GENERATION_FAILED]', { path: source.path, locale, errorName: error instanceof Error ? error.name : 'Error' })
+    console.error('[PUBLIC_I18N_GENERATION_FAILED]', { path: source.path, locale, reason: error instanceof Error && /^(Translation |Invalid |Incomplete )/.test(error.message) ? error.message : error instanceof Error ? error.name : 'Error' })
   } finally {
     await store.unlock(`${key}:lock`, token)
+    await store.unlock(capacityKey, token)
   }
 }
 
@@ -64,11 +67,15 @@ export const geminiTranslate: Translator = async (segments, locale, draft) => {
       contents: [{ role: 'user', parts: [{ text: JSON.stringify({ language: locale, source: segments,
         ...(draft ? { draft, task: 'Review the entire draft against the entire Japanese original. Correct mistranslations, omissions, unnatural phrasing, terminology and marker placement. Return the complete corrected translation array.' } : { task: 'Translate the complete document.' }),
       }) }] }],
-      generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 65536, thinkingConfig: { thinkingLevel: 'high' } },
+      generationConfig: { responseMimeType: 'application/json', responseJsonSchema: { type: 'array', items: { type: 'string' }, minItems: segments.length, maxItems: segments.length }, maxOutputTokens: 65536, thinkingConfig: { thinkingLevel: 'high' } },
     }),
   })
   if (!response.ok) {
-    console.error('[PUBLIC_I18N_PROVIDER_ERROR]', { status: response.status, model: TRANSLATION_MODEL })
+    const failure = await response.json().catch(() => ({}))
+    console.error('[PUBLIC_I18N_PROVIDER_ERROR]', { status: response.status, model: TRANSLATION_MODEL,
+      quota: failure.error?.details?.flatMap((detail: { violations?: { quotaMetric?: string; quotaId?: string; quotaValue?: string }[] }) =>
+        detail.violations?.map(({ quotaMetric, quotaId, quotaValue }) => ({ quotaMetric, quotaId, quotaValue })) ?? []),
+    })
     throw new Error('Translation provider failed')
   }
   const body = await response.json()

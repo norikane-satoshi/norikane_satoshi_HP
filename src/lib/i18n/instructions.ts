@@ -3,6 +3,7 @@ import { SITE_BRAND_NAME_EN, SITE_OWNER_NAME_EN } from '@/lib/site-brand'
 export const TRANSLATION_MODEL = 'gemini-3.5-flash'
 export const TRANSLATION_INSTRUCTIONS = `Translate the complete Japanese public document into the requested language, using the whole document as context.
 Preserve Satoshi Norikane's plain, direct voice. Do not add metaphors, emotional rhetoric, claims, facts or SEO embellishments. Keep first-person writing in first person.
+Use natural, concise prose, not literal Japanese syntax or inflated academic wording. For English, prefer "use of AI" over "AI utilization", "assets built up over time" over "stock assets", and the established management terms "exploitation" and "exploration" for 知の深化 and 知の探索 (explain their meanings as the original does). In film work, カット means shot, not an editing cut; べき乗 means exponentiation. Translate English privacy/terms labels consistently as "Privacy Policy" and "Terms of Use", and the original-link label as "Japanese original".
 Use film-industry terminology. Color correction and color grading are different processes; never conflate them.
 Brand: ${SITE_BRAND_NAME_EN}. Person: ${SITE_OWNER_NAME_EN}. Legal company: Norikane Film Design Office LLC.
 In Korean the person's name is 노리카네 사토시; in Traditional Chinese 則兼智志; in Simplified Chinese 则兼智志.
