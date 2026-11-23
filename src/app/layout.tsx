@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Instrument_Serif, Noto_Serif_JP, Noto_Sans_JP, Inter, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
@@ -7,6 +8,10 @@ import "@/components/booking/booking-section.css";
 import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
 import { NavHeader } from "@/components/hp/nav-header";
 import { SITE_BRAND_NAME, SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE, SITE_URL } from "@/lib/site-brand";
+import { LanguageLinks, TranslationProvider } from "@/lib/i18n/client";
+import { getLocalizedDocument } from "@/lib/i18n/documents";
+import { isLocale, isPublicPath } from "@/lib/i18n/locales";
+import { translateTree } from "@/lib/i18n/tree";
 
 const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
@@ -58,22 +63,29 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const requestHeaders = await headers();
+  const path = requestHeaders.get('x-public-path') ?? '/';
+  const requestedLocale = requestHeaders.get('x-public-locale');
+  const locale = isLocale(requestedLocale) && isPublicPath(path) ? requestedLocale : 'ja';
+  const document = locale === 'ja' ? null : await getLocalizedDocument(locale, path);
+  const dictionary = document?.dictionary ?? {};
   return (
     <html
-      lang="ja"
+      lang={locale}
       className={`${notoSerifJP.variable} ${notoSansJP.variable} ${inter.variable} ${instrumentSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <TranslationProvider value={{ locale: document?.ready ? locale : 'ja', dictionary }}>
         <NavHeader />
         <main className="flex-1 pt-24 md:pt-28 pb-16">
           {children}
         </main>
-        <footer
+        {translateTree(<footer
           className="px-6 py-8 text-center text-sm text-hp-muted"
           style={{ background: "var(--hp-footer-bg)", borderTop: "1px solid var(--hp-footer-border)" }}
         >
@@ -88,7 +100,9 @@ export default function RootLayout({
               </Link>
             </nav>
           </div>
-        </footer>
+          <LanguageLinks />
+        </footer>, dictionary, document?.ready ? locale : 'ja')}
+        </TranslationProvider>
         <ChatbotWidget />
       </body>
     </html>

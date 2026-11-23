@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm db:migrate:turso && next build",
+  "buildCommand": "pnpm db:migrate:turso && pnpm build",
   "regions": ["hnd1"],
   "crons": [
     {

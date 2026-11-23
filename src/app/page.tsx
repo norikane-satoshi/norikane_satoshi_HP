@@ -15,11 +15,12 @@ import { buildHomeNoteCards } from "@/lib/hp/home-notes"
 import { hpPublicContent } from "@/lib/hp/public-content"
 import { buildSiteJsonLd, JsonLd } from "@/lib/hp/structured-data"
 import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
+import { languageAlternates } from "@/lib/i18n/locales"
 
 export const revalidate = 3600
 
 export const metadata: Metadata = {
-  alternates: { canonical: "/" },
+  alternates: { canonical: "/", languages: languageAlternates('/') },
 }
 
 function XIcon({ className }: { className?: string }) {
