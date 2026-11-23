@@ -14,7 +14,7 @@ export function translationStore(): TranslationStore {
   const redis = new Redis({ url, token })
   return {
     get: <T>(key: string) => redis.get<T>(key),
-    set: async (key, value, seconds) => { await redis.set(key, value, { ex: seconds }) },
+    set: async (key, value, seconds) => { await redis.set(key, value, seconds === undefined ? {} : { ex: seconds }) },
     lock: async (key, value, seconds) => (await redis.set(key, value, { nx: true, ex: seconds })) === 'OK',
     unlock: async (key, value) => { await redis.eval("if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end", [key], [value]) },
   }

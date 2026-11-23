@@ -3,9 +3,11 @@ import { notFound } from 'next/navigation'
 import { getLocalizedDocument } from '@/lib/i18n/documents'
 import { isLocale, isPublicPath, languageAlternates, localizedPath } from '@/lib/i18n/locales'
 import { AUTO_TRANSLATION_NOTICE, LEGAL_NOTICE, ORIGINAL_LINK_LABEL } from '@/lib/i18n/instructions'
+import { OriginalLink, TranslationProvider } from '@/lib/i18n/client'
 import { SITE_URL } from '@/lib/site-brand'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
+export function generateStaticParams() { return [] }
 export const maxDuration = 300
 type Props = { params: Promise<{ locale: string; path?: string[] }> }
 
@@ -29,13 +31,13 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 
 export default async function LocalizedPage(props: Props) {
-  const { path, document } = await documentFor(props)
+  const { locale, path, document } = await documentFor(props)
   const notice = path === '/privacy' || path === '/terms' ? LEGAL_NOTICE : AUTO_TRANSLATION_NOTICE
-  return <>
+  return <TranslationProvider value={{ locale: document.ready ? locale : 'ja', dictionary: document.dictionary }}>
     {path !== '/' && <p className="hp-section-shell pt-6 text-xs text-hp-muted">
       {document.dictionary[notice] ?? notice}{' '}
-      <a href={`${path}?language=ja`} hrefLang="ja" lang="ja" className="underline underline-offset-4">{document.dictionary[ORIGINAL_LINK_LABEL] ?? ORIGINAL_LINK_LABEL}</a>
+      <OriginalLink path={path}>{document.dictionary[ORIGINAL_LINK_LABEL] ?? ORIGINAL_LINK_LABEL}</OriginalLink>
     </p>}
     {document.tree}
-  </>
+  </TranslationProvider>
 }

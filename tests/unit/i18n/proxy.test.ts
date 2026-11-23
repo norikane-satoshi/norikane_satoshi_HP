@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 vi.mock('next-auth/jwt', () => ({ getToken: vi.fn(async () => null) }))
-import proxy from '@/proxy'
+import proxy, { config } from '@/proxy'
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 
 const request = (path: string, headers: Record<string, string> = {}) => new NextRequest(`https://norikane.studio${path}`, { headers })
 describe('public locale request security', () => {
@@ -13,9 +14,6 @@ describe('public locale request security', () => {
     expect(localized.headers.get('x-middleware-request-x-public-locale')).toBeNull()
   })
   it('allows only the fixed languages, honors choice, and sets hardened cookies', async () => {
-    const selected = await proxy(request('/fr/privacy?language=ja'))
-    expect(selected.headers.get('location')).toBe('https://norikane.studio/privacy')
-    expect(selected.headers.get('set-cookie')).toMatch(/site_language=ja;.*Secure;.*SameSite=lax/)
     const saved = await proxy(request('/privacy', { cookie: 'site_language=ja', 'accept-language': 'fr' }))
     expect(saved.headers.get('location')).toBeNull()
     const malicious = await proxy(request('/privacy?language=https://evil.test', { cookie: 'site_language=//evil.test' }))
@@ -31,6 +29,13 @@ describe('public locale request security', () => {
       expect(result.headers.get('x-middleware-request-x-public-translation-generate')).toBeNull()
     }
     const canonical = await proxy(request('/en/privacy'))
-    expect(canonical.headers.get('x-middleware-request-x-public-translation-generate')).toBe('1')
+    expect(canonical.headers.get('x-middleware-request-x-public-translation-generate')).toBeNull()
+    expect(canonical.headers.get('vary')).toBeNull()
+    expect((await proxy(request('/en/privacy?anything=1'))).headers.get('location')).toBe('https://norikane.studio/en/privacy')
   })
+})
+
+it('matches public and protected page routes but not static images or unrelated endpoints', () => {
+  for (const url of ['/', '/privacy', '/notes/correction', '/en/notes/correction', '/booking', '/booking/history']) expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true)
+  for (const url of ['/images/profile.jpg', '/notes/diagrams/test.webp', '/notes/test.webp', '/icon.svg', '/_next/static/test.js', '/api/chatbot', '/login']) expect(unstable_doesMiddlewareMatch({ config, url })).toBe(false)
 })

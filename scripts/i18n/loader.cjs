@@ -5,6 +5,7 @@ const ts = require('typescript')
 module.exports = function (source) {
   const file = this.resourcePath.replaceAll('\\', '/')
   if (!/\/src\/(components\/(hp|notes)\/|lib\/notion\/server\/render-blocks\.tsx|app\/(page|privacy\/page|terms\/page)\.tsx)/.test(file) || !file.endsWith('.tsx') || file.includes('__tests__')) return source
+  if (!/^['" ]*use client['"];?/m.test(source)) return source
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let changed = false
   const result = ts.transform(sf, [(context) => {
@@ -15,6 +16,8 @@ module.exports = function (source) {
       const tag = opening.tagName.getText(sf)
       if (!/^[a-z]/.test(tag) && tag !== 'Link') return next
       if (['script', 'style', 'path', 'defs', 'linearGradient', 'stop', 'clipPath'].includes(tag)) return next
+      const hasText = ts.isJsxElement(next) && next.children.some(child => (ts.isJsxText(child) && child.text.trim()) || ts.isJsxExpression(child))
+      if (!hasText && tag !== 'a' && tag !== 'Link') return next
       changed = true
       const key = opening.attributes.properties.find((prop) => ts.isJsxAttribute(prop) && prop.name.getText(sf) === 'key')
       return ts.factory.createJsxElement(

@@ -3,8 +3,8 @@
 import "@testing-library/jest-dom/vitest"
 import { cleanup, render } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import HomePage from "@/app/page"
-import NotePage, { generateMetadata } from "@/app/notes/[slug]/page"
+import HomePage from "@/app/(ja)/page"
+import NotePage, { generateMetadata } from "@/app/(ja)/notes/[slug]/page"
 import { getNotePublicationStatusBySlug, getPublishedNoteBySlug, listPublishedNotes } from "@/lib/notion/server/fetch-note"
 
 vi.mock("@/components/hp/featured-works", () => ({ FeaturedWorks: () => null }))

@@ -1,20 +1,19 @@
 import 'server-only'
 import { cache, cloneElement, isValidElement, type ReactNode } from 'react'
 import { after } from 'next/server'
-import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
-import HomePage from '@/app/page'
-import NotePage from '@/app/notes/[slug]/page'
-import PrivacyPage, { metadata as privacyMetadata } from '@/app/privacy/page'
-import TermsPage, { metadata as termsMetadata } from '@/app/terms/page'
+import HomePage from '@/app/(ja)/page'
+import NotePage from '@/app/(ja)/notes/[slug]/page'
+import PrivacyPage, { metadata as privacyMetadata } from '@/app/(ja)/privacy/page'
+import TermsPage, { metadata as termsMetadata } from '@/app/(ja)/terms/page'
 import { getPublishedNoteBySlug } from '@/lib/notion/server/fetch-note'
 import { extractNoteExcerpt } from '@/lib/notes/domain/excerpt'
 import { BIOGRAPHY_CHAPTERS } from '@/components/hp/biography-data'
 import { SITE_BRAND_NAME, SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE } from '@/lib/site-brand'
-import { AUTO_TRANSLATION_NOTICE, LEGAL_NOTICE, ORIGINAL_LINK_LABEL } from './instructions'
+import { AUTO_TRANSLATION_NOTICE, LEGAL_NOTICE, ORIGINAL_LINK_LABEL, TRANSLATION_GENERATION_ENABLED } from './instructions'
 import sourceFiles from './source.generated.json'
 import { collectTree, translateTree, type Dictionary } from './tree'
-import { documentKey, generateTranslation, geminiTranslate, type TranslationRecord } from './service'
+import { readTranslation, generateTranslation, geminiTranslate, type SourceDocument } from './service'
 import { translationStore } from './redis'
 import { isLocale, isPublicPath, localizeHref, type Locale } from './locales'
 
@@ -80,9 +79,9 @@ export const getSourceDocument = cache(async (path: string) => {
   tree = await resolveServerTree(tree)
   const segments = collectTree(tree)
   structuredTree(tree, segments)
-  for (const text of [title, description, SITE_COMPANY_NAME, `© 2026 ${SITE_COMPANY_NAME}. All rights reserved.`, 'プライバシーポリシー', '利用規約', AUTO_TRANSLATION_NOTICE, LEGAL_NOTICE, ORIGINAL_LINK_LABEL]) segments.add(text)
+  for (const text of [title, description, AUTO_TRANSLATION_NOTICE, LEGAL_NOTICE, ORIGINAL_LINK_LABEL]) segments.add(text)
   for (const [file, strings] of Object.entries(sourceFiles)) {
-    const relevant = file.endsWith('/nav-header.tsx') || (path === '/' && (file.startsWith('src/components/hp/') || file.startsWith('src/lib/hp/')) && !file.endsWith('/legal-content.tsx')) ||
+    const relevant = (path === '/' && (file.startsWith('src/components/hp/') || file.startsWith('src/lib/hp/')) && !file.endsWith('/legal-content.tsx') && !file.endsWith('/nav-header.tsx')) ||
       (path.startsWith('/notes/') && ((file.includes('/visuals/') && noteText.includes(file.split('/').pop()!.replace('.tsx', ''))) || file.endsWith('/note-visual.tsx') || file.endsWith('/note-diagram.tsx') || file.endsWith('/diagrams.ts')))
     if (relevant) strings.forEach((text) => segments.add(text))
   }
@@ -94,23 +93,31 @@ export const getSourceDocument = cache(async (path: string) => {
   return { path, title, description, tree, segments: [...segments].filter((text) => text.trim()) }
 })
 
+async function loadTranslation(source: SourceDocument, locale: Locale) {
+  try {
+    const store = translationStore()
+    const record = await readTranslation(source, locale, store)
+    if (TRANSLATION_GENERATION_ENABLED && record.missing.length) {
+      after(() => generateTranslation(source, locale, store, geminiTranslate))
+    }
+    return record
+  } catch (error) {
+    console.error('[PUBLIC_I18N_READ_FAILED]', { path: source.path, locale, errorName: error instanceof Error ? error.name : 'Error' })
+    return { dictionary: {} as Dictionary, ready: false }
+  }
+}
+export const getLocalizedShell = cache(async (locale: Locale) => {
+  const segments = [SITE_COMPANY_NAME, `© 2026 ${SITE_COMPANY_NAME}. All rights reserved.`, 'プライバシーポリシー', '利用規約',
+    ...Object.entries(sourceFiles).filter(([file]) => file.endsWith('/nav-header.tsx')).flatMap(([, strings]) => strings)]
+  return loadTranslation({ path: '@shell', segments: [...new Set(segments)] }, locale)
+})
 export const getLocalizedDocument = cache(async (locale: Locale, path: string) => {
   if (!isLocale(locale)) notFound()
   const source = await getSourceDocument(path)
-  let record: TranslationRecord | null = null
-  try {
-    const store = translationStore()
-    record = await store.get<TranslationRecord>(documentKey(source, locale))
-    const requestHeaders = await headers()
-    if (!record && requestHeaders.get('x-public-translation-generate') === '1') {
-      after(() => generateTranslation(source, locale, store, geminiTranslate))
-    }
-  } catch (error) {
-    console.error('[PUBLIC_I18N_READ_FAILED]', { path, locale, errorName: error instanceof Error ? error.name : 'Error' })
-  }
-  const dictionary = record?.dictionary ?? {}
-  return { ...source, ready: Boolean(record), dictionary,
-    tree: record ? structuredTree(translateTree(source.tree, dictionary, locale), new Set(), dictionary, locale) : source.tree,
+  const record = await loadTranslation(source, locale)
+  const dictionary = record.dictionary
+  return { ...source, ready: record.ready, dictionary,
+    tree: record.ready ? structuredTree(translateTree(source.tree, dictionary, locale), new Set(), dictionary, locale) : source.tree,
     title: dictionary[source.title] ?? source.title, description: dictionary[source.description] ?? source.description,
   }
 })

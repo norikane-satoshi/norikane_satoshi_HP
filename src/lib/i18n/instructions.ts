@@ -1,5 +1,8 @@
 import { SITE_BRAND_NAME_EN, SITE_OWNER_NAME_EN } from '@/lib/site-brand'
 
+// Resume generation only after the owner chooses the daily quota policy.
+export const TRANSLATION_GENERATION_ENABLED = false
+export const TRANSLATION_VERSION = 1
 export const TRANSLATION_MODEL = 'gemini-3.5-flash'
 export const TRANSLATION_INSTRUCTIONS = `Translate the complete Japanese public document into the requested language, using the whole document as context.
 Preserve Satoshi Norikane's plain, direct voice. Do not add metaphors, emotional rhetoric, claims, facts or SEO embellishments. Keep first-person writing in first person.

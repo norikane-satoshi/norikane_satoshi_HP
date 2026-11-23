@@ -32,7 +32,7 @@ The site is the portfolio of Satoshi Norikane, colorist; the operating entity is
 
 ## 2. Typography
 
-Fonts are loaded in `src/app/layout.tsx`.
+Fonts are loaded in `src/lib/i18n/site-layout.tsx`.
 
 | Role | Font | Variable |
 |---|---|---|
