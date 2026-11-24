@@ -13,7 +13,7 @@ import { SITE_BRAND_NAME_EN, SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE } from 
 import { AUTO_TRANSLATION_NOTICE, LEGAL_NOTICE, ORIGINAL_LINK_LABEL, TRANSLATION_GENERATION_ENABLED } from './instructions'
 import sourceFiles from './source.generated.json'
 import { collectTree, translateTree, type Dictionary } from './tree'
-import { readTranslation, generateTranslation, geminiTranslate, type SourceDocument } from './service'
+import { readTranslation, generateTranslation, geminiTranslate, sourceSettled, type SourceDocument } from './service'
 import { translationStore } from './redis'
 import { isLocale, isPublicPath, localizeHref, type Locale } from './locales'
 
@@ -97,7 +97,7 @@ async function loadTranslation(source: SourceDocument, locale: Locale) {
   try {
     const store = translationStore()
     const record = await readTranslation(source, locale, store)
-    if (TRANSLATION_GENERATION_ENABLED && record.missing.length) {
+    if (TRANSLATION_GENERATION_ENABLED && record.missing.length && await sourceSettled(source, locale, store)) {
       after(() => generateTranslation(source, locale, store, geminiTranslate))
     }
     return record

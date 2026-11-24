@@ -46,8 +46,17 @@ export class PrepaidCreditsError extends TranslationError {
   constructor() { super('PrepaidCreditsError') }
 }
 export const modelCooldownKey = `public-i18n:model:${TRANSLATION_MODEL}:cooldown`
-const geminiRequestTimeoutMs = 260_000
-const modelLockSeconds = 600
+const geminiRequestTimeoutMs = 380_000
+const modelLockSeconds = 900
+const fingerprintOf = (source: SourceDocument, version: number) => createHash('sha256').update(JSON.stringify([version, source.segments])).digest('hex')
+
+// New or edited text is translated only after it has stayed unchanged for a day, so text still being edited is never paid for.
+export async function sourceSettled(source: SourceDocument, locale: Locale, store: TranslationStore, version = TRANSLATION_VERSION) {
+  const key = `${documentKey(source, locale)}:${fingerprintOf(source, version)}:seen`
+  const seen = await store.get<number>(key)
+  if (seen === null) await store.set(key, Date.now(), 30 * 86400)
+  return seen !== null && Date.now() - seen >= 86_400_000
+}
 
 export function validateTranslation(source: string[], output: unknown): asserts output is string[] {
   if (!Array.isArray(output) || output.length !== source.length) throw new TranslationError('InvalidTranslationError')
@@ -60,7 +69,7 @@ export function validateTranslation(source: string[], output: unknown): asserts 
 
 export async function generateTranslation(source: SourceDocument, locale: Locale, store: TranslationStore, translate: Translator, version = TRANSLATION_VERSION) {
   const key = documentKey(source, locale)
-  const fingerprint = createHash('sha256').update(JSON.stringify([version, source.segments])).digest('hex')
+  const fingerprint = fingerprintOf(source, version)
   const retryKey = `${key}:${fingerprint}:cooldown`
   const retry = await store.get<{ failures: number; until: number }>(retryKey)
   if (await store.get(modelCooldownKey) || (retry && Date.now() < retry.until)) return
@@ -127,6 +136,8 @@ export const geminiTranslate: Translator = async (segments, locale, draft, conte
     throw new TranslationError('ProviderError')
   }
   const body = await response.json()
+  const usage = body.usageMetadata ?? {}
+  console.info('[PUBLIC_I18N_USAGE]', { locale, step: draft ? 'review' : 'draft', input: usage.promptTokenCount, output: usage.candidatesTokenCount, thinking: usage.thoughtsTokenCount })
   const candidate = body.candidates?.[0]
   if (candidate?.finishReason !== 'STOP') throw new TranslationError('IncompleteTranslationError')
   const text = candidate.content?.parts?.filter((part: { thought?: boolean }) => !part.thought).map((part: { text?: string }) => part.text ?? '').join('')

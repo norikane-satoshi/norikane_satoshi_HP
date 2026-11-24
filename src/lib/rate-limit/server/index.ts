@@ -15,6 +15,7 @@ type RateLimitName =
   | "contactIp"
   | "cspReportIp"
   | "chatbotAuditSession"
+  | "chatbotMessageIp"
 
 type RateLimitConfig = {
   prefix: string
@@ -44,6 +45,8 @@ const RATE_LIMITS: Record<RateLimitName, RateLimitConfig> = {
   contactIp: { prefix: "contact:ip", tokens: 1, window: "5 m" },
   cspReportIp: { prefix: "csp:report:ip", tokens: 60, window: "1 m" },
   chatbotAuditSession: { prefix: "chatbot:audit:session", tokens: 120, window: "1 m" },
+  // Each chatbot message calls Gemini; this stops scripted floods from draining the shared prepaid balance.
+  chatbotMessageIp: { prefix: "chatbot:message:ip", tokens: 30, window: "10 m" },
 }
 
 const redis =
@@ -116,7 +119,7 @@ export async function rateLimited(
 export async function limitByIp(
   limiterName: Extract<
     RateLimitName,
-    "signupIp" | "forgotPasswordIp" | "verifyEmailIp" | "contactIp" | "cspReportIp"
+    "signupIp" | "forgotPasswordIp" | "verifyEmailIp" | "contactIp" | "cspReportIp" | "chatbotMessageIp"
   >,
   request: Request,
   message?: string,

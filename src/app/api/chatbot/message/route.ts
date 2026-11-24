@@ -42,6 +42,7 @@ import {
   updateConversationSlackThreadTs,
 } from "@/lib/chatbot/server"
 import { sendChatbotSlackNotification } from "@/lib/chatbot/server/slack-notifier"
+import { limitByIp } from "@/lib/rate-limit/server"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -100,6 +101,8 @@ export async function POST(request: NextRequest) {
   instanceFirstRequestPending = false
   const bodyLimit = enforceBodyLimit(request)
   if (bodyLimit) return bodyLimit
+  const messageLimit = await limitByIp("chatbotMessageIp", request, "too many chatbot messages")
+  if (messageLimit.limited) return messageLimit.response
 
   let raw: unknown
   const bodyParseStartedAt = Date.now()

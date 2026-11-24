@@ -10,7 +10,7 @@ export const revalidate = 60
 // Redis uses no-store fetches; they must not opt this ISR route into dynamic rendering.
 export const dynamic = 'force-static'
 export function generateStaticParams() { return [] }
-export const maxDuration = 550
+export const maxDuration = 800
 type Props = { params: Promise<{ locale: string; path?: string[] }> }
 
 async function documentFor({ params }: Props) {

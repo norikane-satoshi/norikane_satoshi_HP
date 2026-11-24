@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { collectTree, translateTree } from '@/lib/i18n/tree'
 import { isPublicPath, languageAlternates, localizeHref, preferredLanguage } from '@/lib/i18n/locales'
-import { geminiTranslate, DailyQuotaError, modelCooldownKey, readTranslation, segmentKey, documentKey, generateTranslation, validateTranslation, type TranslationStore } from '@/lib/i18n/service'
+import { geminiTranslate, DailyQuotaError, modelCooldownKey, readTranslation, segmentKey, documentKey, generateTranslation, sourceSettled, validateTranslation, type TranslationStore } from '@/lib/i18n/service'
 
 class MemoryStore implements TranslationStore {
   values = new Map<string, unknown>()
@@ -186,6 +186,22 @@ it('keeps provider timeouts local to the failed document and logs only the reaso
     expect(log.mock.calls).toEqual([['[PUBLIC_I18N_GENERATION_FAILED]', { path: source.path, locale: 'en', reason: 'TimeoutError' }]])
   } finally {
     log.mockRestore()
+  }
+})
+
+it('translates new or edited text only after it has stayed unchanged for a day', async () => {
+  const store = new MemoryStore()
+  const now = vi.spyOn(Date, 'now')
+  try {
+    now.mockReturnValue(0)
+    expect(await sourceSettled({ path: '/', segments: ['本文'] }, 'en', store)).toBe(false)
+    now.mockReturnValue(86_400_000 - 1)
+    expect(await sourceSettled({ path: '/', segments: ['本文'] }, 'en', store)).toBe(false)
+    now.mockReturnValue(86_400_000)
+    expect(await sourceSettled({ path: '/', segments: ['本文'] }, 'en', store)).toBe(true)
+    expect(await sourceSettled({ path: '/', segments: ['改稿'] }, 'en', store)).toBe(false)
+  } finally {
+    now.mockRestore()
   }
 })
 

@@ -1,6 +1,7 @@
 import { SITE_BRAND_NAME_EN, SITE_OWNER_NAME_EN } from '@/lib/site-brand'
 
-export const TRANSLATION_GENERATION_ENABLED = true
+// Only the live site translates; previews and local runs reuse stored translations and never call Gemini.
+export const TRANSLATION_GENERATION_ENABLED = process.env.VERCEL_ENV === 'production'
 export const TRANSLATION_VERSION = 2
 export const TRANSLATION_MODEL = 'gemini-4-neon'
 export const TRANSLATION_INSTRUCTIONS = `Translate the complete Japanese public document into the requested language, using the whole document as context.
