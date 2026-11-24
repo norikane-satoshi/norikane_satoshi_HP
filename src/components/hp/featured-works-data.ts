@@ -441,8 +441,6 @@ export type HeroClip = {
   client?: string
   /** 字幕帯や黒帯を画面外へ出すための拡大率。既定は HERO_DEFAULT_ZOOM。 */
   zoom?: number
-  /** 流す秒数。既定は HERO_CLIP_SECONDS。カットの切れ目で終えたいときに縮める。 */
-  seconds?: number
 }
 
 /** ヒーローで 1 本あたりに流す秒数。 */
@@ -462,7 +460,7 @@ export const HERO_CLIPS: readonly HeroClip[] = [
   { videoId: "4bGU94xjC-A", startSeconds: 35, title: "十角館の殺人", client: "hulu", zoom: 1.42 },
   { videoId: "-X5BMqt0m2c", startSeconds: 6, title: "リラックマと遊園地", client: "NETFLIX", zoom: 1.42 },
   { videoId: "Eo2IIH-w3h8", startSeconds: 15, title: "Suzuki ERTIGA「Grow with Elegance.」" },
-  { videoId: "d7qo_ke4kqI", startSeconds: 7838.1, seconds: 7.8, title: "My Hair is Bad アルティメットホームランツアー 日本武道館" },
+  { videoId: "d7qo_ke4kqI", startSeconds: 7837, title: "My Hair is Bad アルティメットホームランツアー 日本武道館" },
 ]
 
 /** 優先の場面を流し終えたあと、ヒーローで続けて流す作品カード（ライブ映像作品・CM・MV）の場面。 */

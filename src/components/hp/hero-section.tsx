@@ -33,7 +33,7 @@ function getClipLoadArg(clip: HeroClip) {
   return {
     videoId: clip.videoId,
     startSeconds: clip.startSeconds,
-    endSeconds: clip.startSeconds + (clip.seconds ?? HERO_CLIP_SECONDS) + 2,
+    endSeconds: clip.startSeconds + HERO_CLIP_SECONDS + 2,
   }
 }
 
@@ -96,7 +96,7 @@ function useHeroReel() {
         setIsVideoVisible(true)
         setHasStarted(true)
       }, HERO_REVEAL_DELAY_MS)
-      later(advance, (round[index].seconds ?? HERO_CLIP_SECONDS) * 1000)
+      later(advance, HERO_CLIP_SECONDS * 1000)
     }
 
     const setActive = (nextActive: boolean) => {
@@ -129,7 +129,7 @@ function useHeroReel() {
         playerVars: {
           ...getBackgroundPlayerVars(),
           start: first.startSeconds,
-          end: first.startSeconds + (first.seconds ?? HERO_CLIP_SECONDS) + 2,
+          end: first.startSeconds + HERO_CLIP_SECONDS + 2,
         },
         events: {
           onReady: (event) => {
