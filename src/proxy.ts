@@ -1,7 +1,45 @@
 import { getToken } from "next-auth/jwt"
 import { NextResponse, type NextRequest } from "next/server"
+import { LANGUAGE_COOKIE, isLanguage, isLocale, isPublicPath, localizedPath, preferredLanguage } from "@/lib/i18n/locales"
+import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
+
+function brandedNotFound(request: NextRequest) {
+  return NextResponse.rewrite(new URL('/_not-found', request.url), { status: 404 })
+}
 
 export default async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  // Only locale rewrites may reach the internal ISR route.
+  if (pathname === '/i18n' || pathname.startsWith('/i18n/')) {
+    return brandedNotFound(request)
+  }
+  if (pathname !== '/booking' && !pathname.startsWith('/booking/')) {
+    const parts = pathname.split('/')
+    const locale = isLocale(parts[1]) ? parts[1] : 'ja'
+    const path = locale === 'ja' ? pathname : '/' + parts.slice(2).join('/')
+    if (!isPublicPath(path)) return NextResponse.next()
+    const crawler = /bot|crawler|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|discord|slack|linkedin|twitter|pinterest/i.test(request.headers.get('user-agent') ?? '')
+    const saved = request.cookies.get(LANGUAGE_COOKIE)?.value
+    const language = isLanguage(saved) ? saved : preferredLanguage(request.headers.get('accept-language'))
+    if (locale === 'ja' && !crawler && language && language !== 'ja') {
+      const url = request.nextUrl.clone()
+      url.pathname = localizedPath(path, language)
+      const response = NextResponse.redirect(url, 307)
+      response.headers.set('Cache-Control', 'private, no-store')
+      return response
+    }
+    if (locale !== 'ja') {
+      // The static global 404 includes the site layout even before client hydration.
+      if (path.startsWith('/notes/')) {
+        const published = await listPublishedNotes().catch(() => null)
+        if (published && !published.some(note => note.slug === parts[3])) return brandedNotFound(request)
+      }
+      const url = request.nextUrl.clone()
+      url.pathname = `/i18n${pathname}`
+      return NextResponse.rewrite(url)
+    }
+    return NextResponse.next()
+  }
   const token = await getToken({
     req: request,
     secret: process.env.AUTH_SECRET,
@@ -16,5 +54,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/booking/:path*"],
+  matcher: ["/", "/privacy", "/terms", "/notes/:slug([a-z0-9-]+)", "/booking/:path*", "/i18n/:path*", "/(en|ko|zh-Hans|zh-Hant|es|fr|de|pt)/:path*"],
 }

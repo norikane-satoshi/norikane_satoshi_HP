@@ -11,6 +11,7 @@ import { SITE_BRAND_NAME, SITE_URL } from "@/lib/site-brand"
 import { getNoteLabel, NOTE_SETTINGS } from "@/lib/hp/home-notes"
 import { buildNoteJsonLd, JsonLd } from "@/lib/hp/structured-data"
 import { extractNoteExcerpt } from "@/lib/notes/domain/excerpt"
+import { languageAlternates } from "@/lib/i18n/locales"
 
 export const revalidate = 3600
 
@@ -40,6 +41,7 @@ export async function generateMetadata(
       description,
       alternates: {
         canonical: new URL(`/notes/${note.slug}`, SITE_URL).toString(),
+        languages: languageAlternates(`/notes/${note.slug}`),
       },
       openGraph: { title: note.title, description, type: "article", ...(images ? { images } : {}) },
       twitter: { card: "summary_large_image", ...(images ? { images } : {}) },

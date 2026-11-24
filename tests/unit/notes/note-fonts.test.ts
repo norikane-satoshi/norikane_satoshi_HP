@@ -3,7 +3,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 const root = process.cwd()
-const layout = readFileSync(join(root, "src/app/layout.tsx"), "utf8")
+const layout = readFileSync(join(root, "src/lib/i18n/site-layout.tsx"), "utf8")
 const globals = readFileSync(join(root, "src/app/globals.css"), "utf8")
 const renderBlocks = readFileSync(join(root, "src/lib/notion/server/render-blocks.tsx"), "utf8")
 

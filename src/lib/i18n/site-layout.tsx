@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Noto_Serif_JP, Noto_Sans_JP, Inter, Geist_Mono } from "next/font/google";
 import Link from "next/link";
-import "./globals.css";
+import "@/app/globals.css";
 import "@/components/booking/booking-calendar.css";
 import "@/components/booking/booking-section.css";
 import { ChatbotWidget } from "@/components/chatbot/widget/ChatbotWidget";
 import { NavHeader } from "@/components/hp/nav-header";
 import { SITE_BRAND_NAME, SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE, SITE_URL } from "@/lib/site-brand";
+import { LanguageLinks, TranslationProvider } from "@/lib/i18n/client";
+import type { Language } from "@/lib/i18n/locales";
+import type { Dictionary } from "@/lib/i18n/tree";
+import { translateTree } from "@/lib/i18n/tree";
 
 const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
@@ -58,22 +62,21 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function SiteLayout({ children, locale = 'ja', dictionary = {}, languagePath }: {
+  children: React.ReactNode; locale?: Language; dictionary?: Dictionary; languagePath?: string;
+}) {
   return (
     <html
-      lang="ja"
+      lang={locale}
       className={`${notoSerifJP.variable} ${notoSansJP.variable} ${inter.variable} ${instrumentSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <TranslationProvider value={{ locale: locale, dictionary }}>
         <NavHeader />
         <main className="flex-1 pt-24 md:pt-28 pb-16">
           {children}
         </main>
-        <footer
+        {translateTree(<footer
           className="px-6 py-8 text-center text-sm text-hp-muted"
           style={{ background: "var(--hp-footer-bg)", borderTop: "1px solid var(--hp-footer-border)" }}
         >
@@ -88,7 +91,9 @@ export default function RootLayout({
               </Link>
             </nav>
           </div>
-        </footer>
+          <LanguageLinks pathname={languagePath} />
+        </footer>, dictionary, locale)}
+        </TranslationProvider>
         <ChatbotWidget />
       </body>
     </html>

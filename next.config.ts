@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import { generate } from "./scripts/i18n/source.cjs";
+
+generate(__dirname);
 
 const cspReportOnly = [
   "default-src 'self';",
@@ -29,12 +32,22 @@ const chatbotBuildId =
   "local";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    globalNotFound: true,
+  },
   allowedDevOrigins: ["127.0.0.1"],
   env: {
     NEXT_PUBLIC_CHATBOT_BUILD_ID: chatbotBuildId,
   },
   turbopack: {
     root: __dirname,
+    rules: {
+      "*.tsx": { loaders: ["./scripts/i18n/loader.cjs"] },
+    },
+  },
+  webpack(config) {
+    config.module.rules.push({ test: /\.tsx$/, enforce: "pre", exclude: /node_modules/, use: [{ loader: require.resolve("./scripts/i18n/loader.cjs") }] });
+    return config;
   },
   async headers() {
     return [

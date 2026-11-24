@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation"
 import { Menu, X } from "lucide-react"
 import { isBookingEnabled } from "@/lib/feature-flags"
 import { PUBLIC_AVAILABILITY_ROUTE } from "@/lib/booking/domain/public-availability"
+import { isLocale } from "@/lib/i18n/locales"
 import { SITE_BRAND_NAME } from "@/lib/site-brand"
 
 type SectionId = "home" | "works" | "philosophy" | "profile" | "schedule"
@@ -25,7 +26,9 @@ const bookingNavItem: NavItem = {
 }
 
 export function NavHeader() {
-  const pathname = usePathname()
+  const requestedPath = usePathname()
+  const pathParts = requestedPath.split("/")
+  const pathname = isLocale(pathParts[1]) ? "/" + pathParts.slice(2).join("/") : requestedPath
   const isPublicAvailabilityPage = pathname === PUBLIC_AVAILABILITY_ROUTE
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<SectionId>("home")
