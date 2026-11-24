@@ -34,7 +34,7 @@ export type FeaturedWorkPreviewVideo = {
 export type FeaturedPlaylistVideo = FeaturedWorkPreviewVideo & {
   title: string
   /** ヒーローで流す場面。色のきれいな場面を選んで指定する。ない動画はヒーローで流さない。 */
-  hero?: { startSeconds: number; zoom?: number }
+  hero?: { startSeconds: number; aspect?: number }
 }
 
 export type FeaturedPlaylistWork = {
@@ -140,9 +140,9 @@ export const LIVE_REEL_VIDEOS: readonly FeaturedPlaylistVideo[] = [
   { videoId: "R92a65tojVg", title: "乃木坂46 Mai Shiraishi Graduation Concert～Always beside you～", hero: { startSeconds: 8 }, loopStart: 0, loopEnd: 30 },
   { videoId: "y0g6UCE0Pzg", title: "ASUKA SAITO GRADUATION CONCERT", loopStart: 50, loopEnd: 80 },
   { videoId: "H_z2HYsx53o", title: "REAL⇔FAKE 2nd Stage スペシャルイベント", hero: { startSeconds: 320 } },
-  { videoId: "wkbmPAATsJI", title: "EXILE「Gorgeous」", hero: { startSeconds: 150, zoom: 1.36 } },
+  { videoId: "wkbmPAATsJI", title: "EXILE「Gorgeous」", hero: { startSeconds: 150, aspect: 2.35 } },
   { videoId: "7yXzwJUuXnI", title: "志麻 SHIMA LIVE TOUR 2026 Alice", hero: { startSeconds: 136 } },
-  { videoId: "I2K5UtUIHD0", title: "EXILE ATSUSHI「Heart to Heart Part 2」", hero: { startSeconds: 161, zoom: 1.26 } },
+  { videoId: "I2K5UtUIHD0", title: "EXILE ATSUSHI「Heart to Heart Part 2」", hero: { startSeconds: 161, aspect: 2.23 } },
 ]
 
 export const LIVE_REEL_VIDEO_IDS = LIVE_REEL_VIDEOS.map((video) => video.videoId)
@@ -166,13 +166,13 @@ export const FEATURED_PLAYLIST_WORKS: FeaturedPlaylistWork[] = [
     title: "MV",
     videos: [
       { videoId: "Pgvb6t2oLqg", title: "Shuta Sueyoshi「SO-RE-NA」", hero: { startSeconds: 116 }, clipRangeStart: 0, clipRangeEnd: 244 },
-      { videoId: "N7c7ZaVXjvk", title: "ジェジュン「Brava!!Brava!!Brava!!」", hero: { startSeconds: 102, zoom: 1.32 }, clipRangeStart: 0, clipRangeEnd: 205 },
+      { videoId: "N7c7ZaVXjvk", title: "ジェジュン「Brava!!Brava!!Brava!!」", hero: { startSeconds: 102, aspect: 2.41 }, clipRangeStart: 0, clipRangeEnd: 205 },
       { videoId: "q5prKAR8UpA", title: "かみやど『color』", hero: { startSeconds: 222 } },
       { videoId: "dbLARf2asG0", title: "にしな「ダーリン」", hero: { startSeconds: 174 } },
       { videoId: "QzQrzX07VMY", title: "小林愛香「Tough Heart」", hero: { startSeconds: 49 } },
-      { videoId: "EmjP3gJ_ALY", title: "吉井香奈恵『Answer』", hero: { startSeconds: 140, zoom: 1.32 } },
-      { videoId: "6qZwQdw88Aw", title: "Travis Japan「BIG BANG BOY」", hero: { startSeconds: 154, zoom: 1.32 } },
-      { videoId: "O8EynS4boVU", title: "倖田來未『4 MORE』", hero: { startSeconds: 19 }, clipRangeStart: 0, clipRangeEnd: 165 },
+      { videoId: "EmjP3gJ_ALY", title: "吉井香奈恵『Answer』", hero: { startSeconds: 140, aspect: 2.35 } },
+      { videoId: "6qZwQdw88Aw", title: "Travis Japan「BIG BANG BOY」", hero: { startSeconds: 154, aspect: 2.35 } },
+      { videoId: "O8EynS4boVU", title: "倖田來未『4 MORE』", hero: { startSeconds: 19, aspect: 2 }, clipRangeStart: 0, clipRangeEnd: 165 },
     ],
   },
 ]
@@ -440,26 +440,26 @@ export type HeroClip = {
   startSeconds: number
   title: string
   client?: string
-  /** 字幕帯や黒帯を画面外へ出すための拡大率。既定は HERO_DEFAULT_ZOOM。 */
-  zoom?: number
+  /** 動画に焼き込まれた黒帯を除いた絵の横縦比。既定は 16:9。ヒーローの枠をこの比にする。 */
+  aspect?: number
 }
 
 /** ヒーローで 1 本あたりに流す秒数。 */
 export const HERO_CLIP_SECONDS = 10
-export const HERO_DEFAULT_ZOOM = 1.18
+export const HERO_DEFAULT_ASPECT = 16 / 9
 
 /**
  * ヒーローで先に流す優先の場面。開始秒は、YouTube の場面一覧（ストーリーボード）から
  * 色のきれいな 10 秒を選んだもの。作品カードの動画の場面は各動画の hero に持つ。
  */
 export const HERO_CLIPS: readonly HeroClip[] = [
-  { videoId: "Ti-f3lNV52k", startSeconds: 30, title: "火星の女王", client: "NHK100周年記念ドラマ", zoom: 1.5 },
-  { videoId: "-2kSMEiw0wA", startSeconds: 14, title: "時計館の殺人", client: "hulu", zoom: 1.42 },
-  { videoId: "aiPpSEcNLTk", startSeconds: 33, title: "福山雅治ライブフィルム「月光」", client: "松竹配給" },
-  { videoId: "ajSVtbyX9gE", startSeconds: 13, title: "ゲキ×シネ『爆烈忠臣蔵』", client: "ヴィレッヂ", zoom: 1.36 },
+  { videoId: "Ti-f3lNV52k", startSeconds: 30, title: "火星の女王", client: "NHK100周年記念ドラマ" },
+  { videoId: "-2kSMEiw0wA", startSeconds: 14, title: "時計館の殺人", client: "hulu", aspect: 2.39 },
+  { videoId: "aiPpSEcNLTk", startSeconds: 33, title: "福山雅治ライブフィルム「月光」", client: "松竹配給", aspect: 2.39 },
+  { videoId: "ajSVtbyX9gE", startSeconds: 13, title: "ゲキ×シネ『爆烈忠臣蔵』", client: "ヴィレッヂ" },
   { videoId: "y0g6UCE0Pzg", startSeconds: 50, title: "ASUKA SAITO GRADUATION CONCERT" },
-  { videoId: "4bGU94xjC-A", startSeconds: 35, title: "十角館の殺人", client: "hulu", zoom: 1.42 },
-  { videoId: "-X5BMqt0m2c", startSeconds: 6, title: "リラックマと遊園地", client: "NETFLIX", zoom: 1.42 },
+  { videoId: "4bGU94xjC-A", startSeconds: 35, title: "十角館の殺人", client: "hulu", aspect: 2.39 },
+  { videoId: "-X5BMqt0m2c", startSeconds: 6, title: "リラックマと遊園地", client: "NETFLIX" },
   { videoId: "Eo2IIH-w3h8", startSeconds: 15, title: "Suzuki ERTIGA「Grow with Elegance.」" },
   { videoId: "d7qo_ke4kqI", startSeconds: 7837.5, title: "My Hair is Bad アルティメットホームランツアー 日本武道館" },
 ]
@@ -468,7 +468,7 @@ export const HERO_CLIPS: readonly HeroClip[] = [
 export const HERO_EXTRA_CLIPS: readonly HeroClip[] = FEATURED_PLAYLIST_WORKS.flatMap((work) =>
   work.videos.flatMap(({ videoId, title, hero }) =>
     hero && !HERO_CLIPS.some((clip) => clip.videoId === videoId)
-      ? [{ videoId, title, startSeconds: hero.startSeconds, zoom: hero.zoom }]
+      ? [{ videoId, title, startSeconds: hero.startSeconds, aspect: hero.aspect }]
       : [],
   ),
 )

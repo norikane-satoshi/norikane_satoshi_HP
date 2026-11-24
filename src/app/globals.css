@@ -303,13 +303,11 @@
     background: linear-gradient(180deg, transparent, rgba(8, 7, 6, 0.6));
     color: var(--hp-color-on-media);
   }
+  /* 枠の横縦比は映す場面の絵の比（hero-section.tsx が style で渡す）。 */
   .hp-hero {
     container-type: size;
-    height: 100svh;
-    max-height: 68rem;
-    min-height: 38.75rem;
   }
-  /* 16:9 の動画で枠を覆う大きさにする（object-fit: cover と同じ考え方）。 */
+  /* 16:9 の動画で枠を覆う大きさにする。枠が絵の比なので、はみ出すのは焼き込まれた黒帯だけ。 */
   .hp-hero-video {
     height: max(100cqh, 56.25cqw);
     width: max(100cqw, 177.78cqh);
@@ -320,8 +318,9 @@
     position: absolute;
     width: 100%;
   }
-  .hp-hero-scrim {
-    background: linear-gradient(180deg, rgba(5, 5, 5, 0.55) 0%, rgba(5, 5, 5, 0) 24%, rgba(5, 5, 5, 0) 46%, rgba(5, 5, 5, 0.78) 100%);
+  /* 絵を暗くする幕は掛けないので、文字だけに影を付けて読めるようにする。 */
+  .hp-hero-text {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
   }
   .hp-nav-logo {
     filter: var(--hp-logo-filter);

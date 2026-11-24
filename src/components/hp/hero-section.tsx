@@ -5,7 +5,7 @@ import Image from "next/image"
 import {
   HERO_CLIPS,
   HERO_CLIP_SECONDS,
-  HERO_DEFAULT_ZOOM,
+  HERO_DEFAULT_ASPECT,
   HERO_EXTRA_CLIPS,
   shuffleVideoIds,
   type HeroClip,
@@ -55,11 +55,12 @@ type Slot = {
 function useHeroReel() {
   const rootRef = useRef<HTMLElement | null>(null)
   const hostRefs = [useRef<HTMLDivElement | null>(null), useRef<HTMLDivElement | null>(null)]
-  const [slotClips, setSlotClips] = useState<(HeroClip | null)[]>([HERO_CLIPS[0], null])
   const [playing, setPlaying] = useState([false, false])
   const [shown, setShown] = useState<number | null>(null)
   /** 右上に出す作品名。消えていく間も文字を残すため、見せた場面の作品を持ち続ける。 */
   const [caption, setCaption] = useState<HeroClip | null>(null)
+  /** 枠の横縦比。映す場面の絵の比に合わせ、黒帯も入れず絵も切らない。前の場面が消えてから切り替える。 */
+  const [aspect, setAspect] = useState(HERO_CLIPS[0].aspect ?? HERO_DEFAULT_ASPECT)
   const [hasStarted, setHasStarted] = useState(false)
 
   useEffect(() => {
@@ -109,7 +110,6 @@ function useHeroReel() {
       const slot = slots[i]
       slot.clip = clip
       slot.playingAt = null
-      setSlotClips((current) => current.map((c, j) => (j === i ? clip : c)))
       if (!slot.isReady) {
         slot.pending = clip
         return
@@ -129,6 +129,7 @@ function useHeroReel() {
       visible = i
       setShown(i)
       setCaption(slots[i].clip)
+      setAspect(slots[i].clip?.aspect ?? HERO_DEFAULT_ASPECT)
       setHasStarted(true)
       slots[other].dueAt = performance.now() + HERO_CLIP_MS + HERO_FADE_MS
       later(() => load(other, nextClip()), Math.max(0, HERO_CLIP_MS + HERO_FADE_MS - HERO_BUTTON_MS - HERO_LOAD_LEAD_MS))
@@ -229,17 +230,18 @@ function useHeroReel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return { rootRef, hostRefs, slotClips, playing, shown, caption, hasStarted }
+  return { rootRef, hostRefs, playing, shown, caption, aspect, hasStarted }
 }
 
 export function HeroSection() {
-  const { rootRef, hostRefs, slotClips, playing, shown, caption, hasStarted } = useHeroReel()
+  const { rootRef, hostRefs, playing, shown, caption, aspect, hasStarted } = useHeroReel()
 
   return (
     <section
       id="home"
       ref={rootRef}
-      className="hp-hero relative -mt-24 w-full overflow-hidden bg-black text-[var(--hp-color-on-media)] md:-mt-28"
+      className="hp-hero relative -mt-[calc(6rem-69px)] w-full overflow-hidden bg-black text-[var(--hp-color-on-media)] md:-mt-[calc(7rem-69px)]"
+      style={{ aspectRatio: aspect }}
       data-hp-hero-clip={caption?.videoId ?? ""}
     >
       <div className="absolute inset-0" aria-hidden="true">
@@ -250,7 +252,6 @@ export function HeroSection() {
           priority
           sizes="100vw"
           className={`hp-motion-keep object-cover transition-opacity duration-[1200ms] ${hasStarted ? "opacity-0" : "opacity-100"}`}
-          style={{ objectPosition: "78% 50%" }}
         />
         {hostRefs.map((hostRef, i) => (
           <div
@@ -259,7 +260,7 @@ export function HeroSection() {
             style={{
               opacity: shown === i ? 1 : 0,
               visibility: playing[i] ? "visible" : "hidden",
-              transform: `translate(-50%, -50%) scale(${slotClips[i]?.zoom ?? HERO_DEFAULT_ZOOM})`,
+              transform: "translate(-50%, -50%)",
               transitionDuration: `${HERO_FADE_MS}ms`,
             }}
             data-hp-hero-video={shown === i ? "visible" : "hidden"}
@@ -267,14 +268,13 @@ export function HeroSection() {
             <div ref={hostRef} className="h-full w-full" />
           </div>
         ))}
-        <div className="hp-hero-scrim absolute inset-0" />
       </div>
 
       <div className="hp-section-shell relative z-10 flex h-full flex-col justify-end pb-[clamp(2rem,5vw,4.5rem)]">
         <h1 className="sr-only">
           {hpPublicContent.hero.name} {hpPublicContent.hero.title}
         </h1>
-        <div className="absolute left-[var(--hp-section-padding-x)] top-[calc(69px+1.5rem)] flex flex-col gap-2 text-[var(--hp-color-on-media-muted)] md:left-auto md:right-[var(--hp-section-padding-x)] md:items-end">
+        <div className="hp-hero-text absolute left-[var(--hp-section-padding-x)] top-4 flex flex-col gap-1.5 text-[var(--hp-color-on-media-muted)] md:left-auto md:right-[var(--hp-section-padding-x)] md:top-6 md:items-end md:gap-2">
           <p className="text-sm tracking-[0.16em]">{hpPublicContent.hero.locationLine}</p>
           <p
             className="hp-motion-keep font-[var(--font-inter)] text-xs tracking-[0.12em] transition-opacity duration-700"
