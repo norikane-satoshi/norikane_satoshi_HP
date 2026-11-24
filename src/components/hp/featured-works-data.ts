@@ -131,7 +131,7 @@ export const FEATURED_WORKS: FeaturedWork[] = [
 
 export const LIVE_REEL_VIDEOS: readonly FeaturedPlaylistVideo[] = [
   { videoId: "fEYJazIPxUg", title: "映画『JSB3 LIVE FILM / RISING SOUND』" },
-  { videoId: "G_3xr5desOo", title: "EXILE ATSUSHI + AI", hero: { startSeconds: 130 } },
+  { videoId: "G_3xr5desOo", title: "EXILE ATSUSHI LIVE TOUR 2025 “Heart to Heart” ～復活祭～", hero: { startSeconds: 130 } },
   { videoId: "ZorB-2mqe-U", title: "センラ ワンマンライブ 2025 -Brun-", hero: { startSeconds: 125 }, clipExcludeStart: 367, clipExcludeEnd: 446 },
   { videoId: "d7qo_ke4kqI", title: "My Hair is Bad アルティメットホームランツアー 日本武道館" },
   { videoId: "Nhv9GDVem5U", title: "宮野真守 LIVE Blu-ray&DVD「DRESSING!」", hero: { startSeconds: 275 }, clipRangeStart: 0, clipRangeEnd: 291 },

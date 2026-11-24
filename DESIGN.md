@@ -69,9 +69,10 @@ Individual pages: note articles (`/notes/<slug>`), booking (`/booking`, history,
 
 - Header: `.glass-bar`, fixed, full width. The logo is inverted through `--hp-logo-filter`. Desktop nav: 作品 /
   ノート / プロフィール; the active item shows a small dot.
-- Hero: full-viewport muted trailer footage. `HERO_CLIPS` in `src/components/hp/featured-works-data.ts` is the only
-  list of scenes (10 s each, dip to black between). Pick scenes without burned-in text; `zoom` pushes letterbox and
-  captions out of frame. Text uses `--hp-color-on-media`. It keeps moving with reduced motion on (owner's instruction,
+- Hero: full-viewport muted footage, 10 s per scene with a dip to black. `HERO_CLIPS` (priority, fixed order) plays
+  first, then the playlist videos that carry `hero` in `src/components/hp/featured-works-data.ts`, shuffled. Pick the
+  most colourful 10 s without burned-in text; `zoom` pushes letterbox and captions out of frame. The only text is the
+  location line and the current work's name (the owner's name is not overlaid). Text uses `--hp-color-on-media`. It keeps moving with reduced motion on (owner's instruction,
   2026-11-04); elements that must keep transitions carry `.hp-motion-keep`. No cards over the hero.
 - Featured works: a full-width, auto-scrolling row of 16:9 YouTube previews (heading and progress bar stay in the
   shell). A mouse drag anywhere in the section scrolls the row. Every work has a `youtubeId`; `loopStart`/`loopEnd` cut a video down to its clean part, and
