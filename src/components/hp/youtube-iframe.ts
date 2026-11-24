@@ -17,6 +17,7 @@ export type YouTubePlayer = {
   stopVideo?: () => void
   destroy?: () => void
   getDuration?: () => number
+  unloadModule?: (module: string) => void
   seekTo?: (seconds: number, allowSeekAhead: boolean) => void
   loadVideoById?: (
     videoId:
@@ -55,6 +56,7 @@ declare global {
 export function getBackgroundPlayerVars() {
   return {
     autoplay: 1,
+    cc_load_policy: 0,
     controls: 0,
     disablekb: 1,
     fs: 0,

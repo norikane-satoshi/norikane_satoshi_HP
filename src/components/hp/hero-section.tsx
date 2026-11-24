@@ -48,6 +48,8 @@ function useHeroReel() {
   const [clip, setClip] = useState<HeroClip>(HERO_CLIPS[0])
   const [isVideoVisible, setIsVideoVisible] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
+  /** 再生中だけ映像を見せる。読み込み中や停止中に出る YouTube のボタンや待機の丸を見せない。 */
+  const [isPlaying, setIsPlaying] = useState(false)
 
   useEffect(() => {
     const root = rootRef.current
@@ -144,7 +146,14 @@ function useHeroReel() {
           },
           onStateChange: (event) => {
             if (!window.YT) return
-            if (event.data === window.YT.PlayerState.PLAYING) handlePlaying()
+            const playing = event.data === window.YT.PlayerState.PLAYING
+            setIsPlaying(playing)
+            if (playing) {
+              // 字幕は視聴者の設定で自動で出ることがあるので、場面ごとに外す。
+              callReadyPlayerMethod(event.target, true, "unloadModule", "captions")
+              callReadyPlayerMethod(event.target, true, "unloadModule", "cc")
+              handlePlaying()
+            }
             if (event.data === window.YT.PlayerState.ENDED && isActive) advance()
           },
           onError: () => {
@@ -163,11 +172,11 @@ function useHeroReel() {
     }
   }, [])
 
-  return { rootRef, hostRef, clip, isVideoVisible, hasStarted }
+  return { rootRef, hostRef, clip, isVideoVisible, isPlaying, hasStarted }
 }
 
 export function HeroSection() {
-  const { rootRef, hostRef, clip, isVideoVisible, hasStarted } = useHeroReel()
+  const { rootRef, hostRef, clip, isVideoVisible, isPlaying, hasStarted } = useHeroReel()
   const zoom = clip.zoom ?? HERO_DEFAULT_ZOOM
 
   return (
@@ -191,6 +200,7 @@ export function HeroSection() {
           className="hp-hero-video hp-motion-keep pointer-events-none absolute left-1/2 top-1/2 transition-opacity ease-out"
           style={{
             opacity: isVideoVisible ? 1 : 0,
+            visibility: isPlaying ? "visible" : "hidden",
             transform: `translate(-50%, -50%) scale(${zoom})`,
             transitionDuration: `${HERO_FADE_MS}ms`,
           }}
