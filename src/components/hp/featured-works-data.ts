@@ -134,7 +134,7 @@ export const LIVE_REEL_VIDEOS: readonly FeaturedPlaylistVideo[] = [
   { videoId: "G_3xr5desOo", title: "EXILE ATSUSHI + AI", hero: { startSeconds: 130 } },
   { videoId: "ZorB-2mqe-U", title: "センラ ワンマンライブ 2025 -Brun-", hero: { startSeconds: 125 }, clipExcludeStart: 367, clipExcludeEnd: 446 },
   { videoId: "d7qo_ke4kqI", title: "My Hair is Bad アルティメットホームランツアー 日本武道館" },
-  { videoId: "Nhv9GDVem5U", title: "宮野真守 LIVE Blu-ray&DVD「DRESSING!」", hero: { startSeconds: 225 }, clipRangeStart: 0, clipRangeEnd: 291 },
+  { videoId: "Nhv9GDVem5U", title: "宮野真守 LIVE Blu-ray&DVD「DRESSING!」", hero: { startSeconds: 275 }, clipRangeStart: 0, clipRangeEnd: 291 },
   { videoId: "heb1yJtreJg", title: "日向坂46 デビューカウントダウンライブ!! in 横浜アリーナ", hero: { startSeconds: 57 }, clipRangeStart: 33, clipRangeEnd: 265 },
   { videoId: "peWya9bxVXc", title: "乃木坂46 8th YEAR BIRTHDAY LIVE", hero: { startSeconds: 22 }, loopStart: 10, loopEnd: 40 },
   { videoId: "R92a65tojVg", title: "乃木坂46 Mai Shiraishi Graduation Concert～Always beside you～", hero: { startSeconds: 8 }, loopStart: 0, loopEnd: 30 },
@@ -171,7 +171,7 @@ export const FEATURED_PLAYLIST_WORKS: FeaturedPlaylistWork[] = [
       { videoId: "dbLARf2asG0", title: "にしな「ダーリン」", hero: { startSeconds: 174 } },
       { videoId: "QzQrzX07VMY", title: "小林愛香「Tough Heart」", hero: { startSeconds: 49 } },
       { videoId: "EmjP3gJ_ALY", title: "吉井香奈恵『Answer』", hero: { startSeconds: 140, zoom: 1.32 } },
-      { videoId: "6qZwQdw88Aw", title: "Travis Japan「BIG BANG BOY」", hero: { startSeconds: 252, zoom: 1.32 } },
+      { videoId: "6qZwQdw88Aw", title: "Travis Japan「BIG BANG BOY」", hero: { startSeconds: 154, zoom: 1.32 } },
       { videoId: "O8EynS4boVU", title: "倖田來未『4 MORE』", hero: { startSeconds: 19 }, clipRangeStart: 0, clipRangeEnd: 165 },
     ],
   },
@@ -460,7 +460,7 @@ export const HERO_CLIPS: readonly HeroClip[] = [
   { videoId: "4bGU94xjC-A", startSeconds: 35, title: "十角館の殺人", client: "hulu", zoom: 1.42 },
   { videoId: "-X5BMqt0m2c", startSeconds: 6, title: "リラックマと遊園地", client: "NETFLIX", zoom: 1.42 },
   { videoId: "Eo2IIH-w3h8", startSeconds: 15, title: "Suzuki ERTIGA「Grow with Elegance.」" },
-  { videoId: "d7qo_ke4kqI", startSeconds: 1330, title: "My Hair is Bad アルティメットホームランツアー 日本武道館" },
+  { videoId: "d7qo_ke4kqI", startSeconds: 7340, title: "My Hair is Bad アルティメットホームランツアー 日本武道館" },
 ]
 
 /** 優先の場面を流し終えたあと、ヒーローで続けて流す作品カード（ライブ映像作品・CM・MV）の場面。 */
