@@ -20,8 +20,11 @@ import { hpPublicContent } from "@/lib/hp/public-content"
 
 /** 場面の切り替えで暗転させる時間。 */
 const HERO_FADE_MS = 700
-/** 再生が始まってから映像を見せるまでの待ち時間。読み込み直後の YouTube 表示を隠す。 */
-const HERO_REVEAL_DELAY_MS = 900
+/**
+ * 再生が始まってから映像を見せるまでの待ち時間。YouTube は再生の始めに一時停止ボタンを
+ * 約 2 秒、画面中央に出すので、それが消えてから見せる。その分だけ早い位置から読み込む。
+ */
+const HERO_REVEAL_DELAY_MS = 2500
 /** 読み込んでからこの時間たっても再生が始まらない場面は飛ばす。回線や端末の制限で止まったままにしない。 */
 const HERO_STALL_MS = 8000
 
@@ -33,7 +36,7 @@ function getHeroRound(): HeroClip[] {
 function getClipLoadArg(clip: HeroClip) {
   return {
     videoId: clip.videoId,
-    startSeconds: clip.startSeconds,
+    startSeconds: clip.startSeconds - HERO_REVEAL_DELAY_MS / 1000,
     endSeconds: clip.startSeconds + HERO_CLIP_SECONDS + 2,
   }
 }
@@ -101,7 +104,7 @@ function useHeroReel() {
         setIsVideoVisible(true)
         setHasStarted(true)
       }, HERO_REVEAL_DELAY_MS)
-      later(advance, HERO_CLIP_SECONDS * 1000)
+      later(advance, HERO_REVEAL_DELAY_MS + HERO_CLIP_SECONDS * 1000)
     }
 
     const setActive = (nextActive: boolean) => {
@@ -133,7 +136,7 @@ function useHeroReel() {
         videoId: first.videoId,
         playerVars: {
           ...getBackgroundPlayerVars(),
-          start: first.startSeconds,
+          start: Math.floor(first.startSeconds - HERO_REVEAL_DELAY_MS / 1000),
           end: first.startSeconds + HERO_CLIP_SECONDS + 2,
         },
         events: {
