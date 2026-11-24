@@ -184,13 +184,6 @@
     text-wrap: balance;
     word-break: keep-all;
   }
-  .hp-display-heading {
-    letter-spacing: -0.025em;
-    line-height: 0.98;
-    overflow-wrap: normal;
-    text-wrap: balance;
-    word-break: keep-all;
-  }
   .hp-latin-display {
     font-family: var(--font-display), Georgia, serif;
     font-size: var(--hp-font-display);

@@ -17,12 +17,13 @@ import {
   type YouTubePlayer,
 } from "@/components/hp/youtube-iframe"
 import { hpPublicContent } from "@/lib/hp/public-content"
-import { SITE_BRAND_NAME_EN } from "@/lib/site-brand"
 
 /** 場面の切り替えで暗転させる時間。 */
 const HERO_FADE_MS = 700
 /** 再生が始まってから映像を見せるまでの待ち時間。読み込み直後の YouTube 表示を隠す。 */
 const HERO_REVEAL_DELAY_MS = 900
+/** 読み込んでからこの時間たっても再生が始まらない場面は飛ばす。回線や端末の制限で止まったままにしない。 */
+const HERO_STALL_MS = 8000
 
 /** 1 巡分の順番。優先の場面を並べた順に流し、そのあと作品カードの動画を混ぜて流す。 */
 function getHeroRound(): HeroClip[] {
@@ -86,12 +87,14 @@ function useHeroReel() {
         revealedIndex = -1
         setClip(round[index])
         callReadyPlayerMethod(player, isReady, "loadVideoById", getClipLoadArg(round[index]))
+        later(advance, HERO_STALL_MS)
       }, HERO_FADE_MS)
     }
 
     const handlePlaying = () => {
       if (revealedIndex === index || !isActive) return
       revealedIndex = index
+      clearTimers()
       later(() => {
         setIsVideoVisible(true)
         setHasStarted(true)
@@ -135,7 +138,9 @@ function useHeroReel() {
           onReady: (event) => {
             isReady = true
             callReadyPlayerMethod(event.target, true, "mute")
-            if (isActive) callReadyPlayerMethod(event.target, true, "playVideo")
+            if (!isActive) return
+            callReadyPlayerMethod(event.target, true, "playVideo")
+            later(advance, HERO_STALL_MS)
           },
           onStateChange: (event) => {
             if (!window.YT) return
@@ -197,17 +202,9 @@ export function HeroSection() {
       </div>
 
       <div className="hp-section-shell relative z-10 flex h-full flex-col justify-end pb-[clamp(2rem,5vw,4.5rem)]">
-        <div className="flex flex-col gap-4 md:gap-5">
-          <p className="hp-latin-italic text-lg text-[var(--hp-color-on-media-muted)] md:text-2xl">
-            {SITE_BRAND_NAME_EN}
-          </p>
-          <h1 className="hp-display-heading text-[clamp(3.5rem,9.6vw,9.5rem)] font-medium tracking-[0.08em]">
-            {hpPublicContent.hero.name}
-            <span className="mt-4 block text-[clamp(1.125rem,1.7vw,1.625rem)] font-normal tracking-[0.3em] text-[var(--hp-color-on-media-muted)] md:mt-6">
-              {hpPublicContent.hero.title}
-            </span>
-          </h1>
-        </div>
+        <h1 className="sr-only">
+          {hpPublicContent.hero.name} {hpPublicContent.hero.title}
+        </h1>
         <div className="absolute left-[var(--hp-section-padding-x)] top-[calc(69px+1.5rem)] flex flex-col gap-2 text-[var(--hp-color-on-media-muted)] md:left-auto md:right-[var(--hp-section-padding-x)] md:items-end">
           <p className="text-sm tracking-[0.16em]">{hpPublicContent.hero.locationLine}</p>
           <p
