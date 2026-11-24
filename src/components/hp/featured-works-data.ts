@@ -131,7 +131,7 @@ export const FEATURED_WORKS: FeaturedWork[] = [
 
 export const LIVE_REEL_VIDEOS: readonly FeaturedPlaylistVideo[] = [
   { videoId: "fEYJazIPxUg", title: "映画『JSB3 LIVE FILM / RISING SOUND』" },
-  { videoId: "G_3xr5desOo", title: "EXILE ATSUSHI LIVE TOUR 2025 “Heart to Heart” ～復活祭～", hero: { startSeconds: 130 } },
+  { videoId: "G_3xr5desOo", title: "EXILE ATSUSHI LIVE TOUR 2025 “Heart to Heart” ～復活祭～", hero: { startSeconds: 645 } },
   { videoId: "ZorB-2mqe-U", title: "センラ ワンマンライブ 2025 -Brun-", hero: { startSeconds: 125 }, clipExcludeStart: 367, clipExcludeEnd: 446 },
   { videoId: "d7qo_ke4kqI", title: "My Hair is Bad アルティメットホームランツアー 日本武道館" },
   { videoId: "Nhv9GDVem5U", title: "宮野真守 LIVE Blu-ray&DVD「DRESSING!」", hero: { startSeconds: 275 }, clipRangeStart: 0, clipRangeEnd: 291 },
@@ -141,8 +141,8 @@ export const LIVE_REEL_VIDEOS: readonly FeaturedPlaylistVideo[] = [
   { videoId: "y0g6UCE0Pzg", title: "ASUKA SAITO GRADUATION CONCERT", loopStart: 50, loopEnd: 80 },
   { videoId: "H_z2HYsx53o", title: "REAL⇔FAKE 2nd Stage スペシャルイベント", hero: { startSeconds: 320 } },
   { videoId: "wkbmPAATsJI", title: "EXILE「Gorgeous」", hero: { startSeconds: 150, zoom: 1.36 } },
-  { videoId: "7yXzwJUuXnI", title: "志麻 SHIMA LIVE TOUR 2026 Alice", hero: { startSeconds: 315 } },
-  { videoId: "I2K5UtUIHD0", title: "EXILE ATSUSHI「Heart to Heart Part 2」", hero: { startSeconds: 150, zoom: 1.26 } },
+  { videoId: "7yXzwJUuXnI", title: "志麻 SHIMA LIVE TOUR 2026 Alice", hero: { startSeconds: 136 } },
+  { videoId: "I2K5UtUIHD0", title: "EXILE ATSUSHI「Heart to Heart Part 2」", hero: { startSeconds: 161, zoom: 1.26 } },
 ]
 
 export const LIVE_REEL_VIDEO_IDS = LIVE_REEL_VIDEOS.map((video) => video.videoId)
