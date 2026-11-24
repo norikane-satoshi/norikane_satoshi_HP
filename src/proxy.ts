@@ -1,12 +1,17 @@
 import { getToken } from "next-auth/jwt"
 import { NextResponse, type NextRequest } from "next/server"
 import { LANGUAGE_COOKIE, isLanguage, isLocale, isPublicPath, localizedPath, preferredLanguage } from "@/lib/i18n/locales"
+import { listPublishedNotes } from "@/lib/notion/server/fetch-note"
+
+function brandedNotFound(request: NextRequest) {
+  return NextResponse.rewrite(new URL('/_not-found', request.url), { status: 404 })
+}
 
 export default async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   // Only locale rewrites may reach the internal ISR route.
   if (pathname === '/i18n' || pathname.startsWith('/i18n/')) {
-    return NextResponse.rewrite(new URL('/_not-found', request.url), { status: 404 })
+    return brandedNotFound(request)
   }
   if (pathname !== '/booking' && !pathname.startsWith('/booking/')) {
     const parts = pathname.split('/')
@@ -24,6 +29,11 @@ export default async function proxy(request: NextRequest) {
       return response
     }
     if (locale !== 'ja') {
+      // The static global 404 includes the site layout even before client hydration.
+      if (path.startsWith('/notes/')) {
+        const published = await listPublishedNotes().catch(() => null)
+        if (published && !published.some(note => note.slug === parts[3])) return brandedNotFound(request)
+      }
       const url = request.nextUrl.clone()
       url.pathname = `/i18n${pathname}`
       return NextResponse.rewrite(url)

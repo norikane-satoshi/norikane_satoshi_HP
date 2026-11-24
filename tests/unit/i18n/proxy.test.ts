@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 vi.mock('next-auth/jwt', () => ({ getToken: vi.fn(async () => null) }))
+vi.mock('@/lib/notion/server/fetch-note', () => ({ listPublishedNotes: vi.fn(async () => [{ slug: 'correction' }]) }))
 import proxy, { config } from '@/proxy'
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 
@@ -21,6 +22,16 @@ describe('public locale request security', () => {
     const localized = await proxy(request('/en/booking'))
     expect(localized.headers.get('x-middleware-rewrite')).toBeNull()
     expect(localized.headers.get('x-middleware-request-x-public-locale')).toBeNull()
+  })
+  it('serves the branded 404 for a missing localized note and keeps published notes on ISR', async () => {
+    const missing = await proxy(request('/en/notes/does-not-exist'))
+    expect(missing.status).toBe(404)
+    expect(missing.headers.get('x-middleware-rewrite')).toBe('https://norikane.studio/_not-found')
+    expect(missing.headers.get('location')).toBeNull()
+
+    const published = await proxy(request('/zh-Hans/notes/correction'))
+    expect(published.status).toBe(200)
+    expect(published.headers.get('x-middleware-rewrite')).toBe('https://norikane.studio/i18n/zh-Hans/notes/correction')
   })
   it('allows only the fixed languages and honors the saved choice', async () => {
     const saved = await proxy(request('/privacy', { cookie: 'site_language=ja', 'accept-language': 'fr' }))
