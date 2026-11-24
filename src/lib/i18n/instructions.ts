@@ -1,7 +1,6 @@
 import { SITE_BRAND_NAME_EN, SITE_OWNER_NAME_EN } from '@/lib/site-brand'
 
 export const TRANSLATION_GENERATION_ENABLED = true
-// Changing this re-translates every page in every language. Fix individual stored translations instead.
 export const TRANSLATION_VERSION = 2
 export const TRANSLATION_MODEL = 'gemini-4-neon'
 export const TRANSLATION_INSTRUCTIONS = `Translate the complete Japanese public document into the requested language, using the whole document as context.
