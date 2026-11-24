@@ -170,6 +170,25 @@ it('stops translation after HTTP 402 across pages and locales without reading th
   }
 })
 
+it('keeps provider timeouts local to the failed document and logs only the reason', async () => {
+  const store = new MemoryStore()
+  const source = { path: '/notes/correction', segments: ['本文'] }
+  const timeout = vi.fn(async () => { throw new DOMException('private network details', 'TimeoutError') })
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    await generateTranslation(source, 'en', store, timeout)
+    await generateTranslation(source, 'en', store, timeout)
+    await generateTranslation({ path: '/terms', segments: ['別文'] }, 'fr', store, async () => ['Texte'])
+
+    expect(timeout).toHaveBeenCalledTimes(1)
+    expect(await store.get(modelCooldownKey)).toBeNull()
+    expect(await store.get(documentKey({ path: '/terms', segments: ['別文'] }, 'fr'))).toMatchObject({ dictionary: { 別文: 'Texte' } })
+    expect(log.mock.calls).toEqual([['[PUBLIC_I18N_GENERATION_FAILED]', { path: source.path, locale: 'en', reason: 'TimeoutError' }]])
+  } finally {
+    log.mockRestore()
+  }
+})
+
 it('retains publication after a page initially uses only shared translations', async () => {
   const store = new MemoryStore()
   await generateTranslation({ path: '/', segments: ['共通'] }, 'en', store, async () => ['Shared'])

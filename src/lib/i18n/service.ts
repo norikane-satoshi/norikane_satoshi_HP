@@ -46,6 +46,8 @@ export class PrepaidCreditsError extends TranslationError {
   constructor() { super('PrepaidCreditsError') }
 }
 export const modelCooldownKey = `public-i18n:model:${TRANSLATION_MODEL}:cooldown`
+const geminiRequestTimeoutMs = 260_000
+const modelLockSeconds = 600
 
 export function validateTranslation(source: string[], output: unknown): asserts output is string[] {
   if (!Array.isArray(output) || output.length !== source.length) throw new TranslationError('InvalidTranslationError')
@@ -63,7 +65,7 @@ export async function generateTranslation(source: SourceDocument, locale: Locale
   if (await store.get(modelCooldownKey) || await store.get(retryKey)) return
   const token = randomUUID()
   const capacityKey = `public-i18n:model:${TRANSLATION_MODEL}:lock`
-  if (!await store.lock(capacityKey, token, 360)) return
+  if (!await store.lock(capacityKey, token, modelLockSeconds)) return
   try {
     if (await store.get(modelCooldownKey)) return
     const shared = await store.get<Dictionary>(segmentKey(locale, version)) ?? {}
@@ -89,7 +91,8 @@ export async function generateTranslation(source: SourceDocument, locale: Locale
   } catch (error) {
     const cooldown = error instanceof DailyQuotaError || error instanceof PrepaidCreditsError
     const reason = error instanceof TranslationError ? error.reason
-      : error instanceof SyntaxError ? 'InvalidJson' : 'Error'
+      : error instanceof SyntaxError ? 'InvalidJson'
+        : error instanceof DOMException && error.name === 'TimeoutError' ? 'TimeoutError' : 'Error'
     await store.set(cooldown ? modelCooldownKey : retryKey, true, cooldown ? 86400 : 300)
     console.error('[PUBLIC_I18N_GENERATION_FAILED]', { path: source.path, locale, reason })
   } finally {
@@ -102,7 +105,7 @@ export const geminiTranslate: Translator = async (segments, locale, draft, conte
   if (!key) throw new Error('Missing Gemini configuration')
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${TRANSLATION_MODEL}:generateContent`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    signal: AbortSignal.timeout(145000),
+    signal: AbortSignal.timeout(geminiRequestTimeoutMs),
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: TRANSLATION_INSTRUCTIONS }] },
       contents: [{ role: 'user', parts: [{ text: JSON.stringify({ language: locale, documentContext: context ?? segments, source: segments,
