@@ -69,11 +69,13 @@ Individual pages: note articles (`/notes/<slug>`), booking (`/booking`, history,
 
 - Header: `.glass-bar`, fixed, full width. The logo is inverted through `--hp-logo-filter`. Desktop nav: 作品 /
   ノート / プロフィール; the active item shows a small dot.
-- Hero: full-viewport muted footage, 10 s per scene with a dip to black. `HERO_CLIPS` (priority, fixed order) plays
-  first, then the playlist videos that carry `hero` in `src/components/hp/featured-works-data.ts`, shuffled. Pick the
-  most colourful 10 s without burned-in text; `zoom` pushes letterbox and captions out of frame. The only text is the
-  location line and the current work's name (the owner's name is not overlaid). Text uses `--hp-color-on-media`. It keeps moving with reduced motion on (owner's instruction,
-  2026-11-04); elements that must keep transitions carry `.hp-motion-keep`. No cards over the hero.
+- Hero: full-width muted footage, 10 s per scene with a dip to black. `HERO_CLIPS` (priority, fixed order) plays
+  first, then the playlist videos that carry `hero` in `src/components/hp/featured-works-data.ts`, shuffled. The frame
+  takes each scene's picture aspect (`aspect`, default 16:9; burned-in letterbox excluded), so there are no black bars
+  and nothing of the picture is cropped, on desktop and mobile. It sits below the header with no dimming layer. Pick the
+  most colourful 10 s without burned-in text. The only text is the location line and the current work's name (the
+  owner's name is not overlaid). Text uses `--hp-color-on-media`. It keeps moving with reduced motion on (owner's
+  instruction, 2026-11-04); elements that must keep transitions carry `.hp-motion-keep`. No cards over the hero.
 - Featured works: a full-width, auto-scrolling row of 16:9 YouTube previews (heading and progress bar stay in the
   shell). A mouse drag anywhere in the section scrolls the row. Every work has a `youtubeId`; `loopStart`/`loopEnd` cut a video down to its clean part, and
   `fixedThumbnail` pins the cover to the official thumbnail. Do not turn it into a grid without a design review.
