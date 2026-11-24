@@ -17,7 +17,9 @@ async function documentFor({ params }: Props) {
   const { locale, path: parts = [] } = await params
   const path = '/' + parts.join('/')
   if (!isLocale(locale) || !isPublicPath(path)) notFound()
-  return { locale, path, document: await getLocalizedDocument(locale, path) }
+  const document = await getLocalizedDocument(locale, path)
+  if (!document) notFound()
+  return { locale, path, document }
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {

@@ -1,9 +1,8 @@
 import { SITE_BRAND_NAME_EN, SITE_OWNER_NAME_EN } from '@/lib/site-brand'
 
-// Resume generation only after the owner chooses the daily quota policy.
-export const TRANSLATION_GENERATION_ENABLED = false
-export const TRANSLATION_VERSION = 1
-export const TRANSLATION_MODEL = 'gemini-3.5-flash'
+export const TRANSLATION_GENERATION_ENABLED = true
+export const TRANSLATION_VERSION = 2
+export const TRANSLATION_MODEL = 'gemini-4-neon'
 export const TRANSLATION_INSTRUCTIONS = `Translate the complete Japanese public document into the requested language, using the whole document as context.
 Preserve Satoshi Norikane's plain, direct voice. Do not add metaphors, emotional rhetoric, claims, facts or SEO embellishments. Keep first-person writing in first person.
 Use natural, concise prose, not literal Japanese syntax or inflated academic wording. For English, prefer "use of AI" over "AI utilization", "assets built up over time" over "stock assets", and the established management terms "exploitation" and "exploration" for 知の深化 and 知の探索 (explain their meanings as the original does). In film work, カット means shot, not an editing cut; べき乗 means exponentiation. Translate English privacy/terms labels consistently as "Privacy Policy" and "Terms of Use", and the original-link label as "Japanese original".

@@ -34,17 +34,25 @@ export async function readTranslation(source: SourceDocument, locale: Locale, st
   }
   return { dictionary, ready: Boolean(previous) || missing.length === 0, missing }
 }
-export class DailyQuotaError extends Error {
-  constructor() { super('Translation daily quota exhausted'); this.name = 'DailyQuotaError' }
+class TranslationError extends Error {
+  constructor(readonly reason: 'DailyQuotaError' | 'PrepaidCreditsError' | 'ProviderError' | 'InvalidTranslationError' | 'InvalidDiagramMarkerError' | 'IncompleteTranslationError') {
+    super(reason)
+  }
+}
+export class DailyQuotaError extends TranslationError {
+  constructor() { super('DailyQuotaError') }
+}
+export class PrepaidCreditsError extends TranslationError {
+  constructor() { super('PrepaidCreditsError') }
 }
 export const modelCooldownKey = `public-i18n:model:${TRANSLATION_MODEL}:cooldown`
 
 export function validateTranslation(source: string[], output: unknown): asserts output is string[] {
-  if (!Array.isArray(output) || output.length !== source.length) throw new Error(`Translation segment count mismatch: expected ${source.length}, received ${Array.isArray(output) ? output.length : 'non-array'}`)
+  if (!Array.isArray(output) || output.length !== source.length) throw new TranslationError('InvalidTranslationError')
   for (let i = 0; i < source.length; i++) {
-    if (typeof output[i] !== 'string' || !output[i].trim() || !validMarkers(source[i], output[i])) throw new Error(`Invalid translation segment at index ${i}`)
+    if (typeof output[i] !== 'string' || !output[i].trim() || !validMarkers(source[i], output[i])) throw new TranslationError('InvalidTranslationError')
     const markers = (text: string) => text.match(/\[\[(?:diagram|visual):[^\]]+\]\]/g) ?? []
-    if (JSON.stringify(markers(source[i])) !== JSON.stringify(markers(output[i]))) throw new Error('Invalid diagram marker')
+    if (JSON.stringify(markers(source[i])) !== JSON.stringify(markers(output[i]))) throw new TranslationError('InvalidDiagramMarkerError')
   }
 }
 
@@ -63,8 +71,10 @@ export async function generateTranslation(source: SourceDocument, locale: Locale
     const previous = await store.get<TranslationRecord>(key)
     if (!missing.length && previous?.version === version && source.segments.every(text => previous.dictionary[text])) return
     if (missing.length) {
+      console.info('[PUBLIC_I18N_REQUEST]', { path: source.path, locale, step: 'draft' })
       const draft = await translate(missing, locale, undefined, source.segments)
       validateTranslation(missing, draft)
+      console.info('[PUBLIC_I18N_REQUEST]', { path: source.path, locale, step: 'review' })
       const reviewed = await translate(missing, locale, draft, source.segments)
       validateTranslation(missing, reviewed)
       missing.forEach((text, index) => { shared[text] = reviewed[index] })
@@ -77,8 +87,11 @@ export async function generateTranslation(source: SourceDocument, locale: Locale
     await store.set(key, record)
     console.info('[PUBLIC_I18N_COMPLETE]', { path: source.path, locale, model: TRANSLATION_MODEL, calls: record.calls })
   } catch (error) {
-    await store.set(error instanceof DailyQuotaError ? modelCooldownKey : retryKey, true, error instanceof DailyQuotaError ? 86400 : 300)
-    console.error('[PUBLIC_I18N_GENERATION_FAILED]', { path: source.path, locale, reason: error instanceof Error && /^(Translation |Invalid |Incomplete )/.test(error.message) ? error.message : error instanceof Error ? error.name : 'Error' })
+    const cooldown = error instanceof DailyQuotaError || error instanceof PrepaidCreditsError
+    const reason = error instanceof TranslationError ? error.reason
+      : error instanceof SyntaxError ? 'InvalidJson' : 'Error'
+    await store.set(cooldown ? modelCooldownKey : retryKey, true, cooldown ? 86400 : 300)
+    console.error('[PUBLIC_I18N_GENERATION_FAILED]', { path: source.path, locale, reason })
   } finally {
     await store.unlock(capacityKey, token)
   }
@@ -99,17 +112,16 @@ export const geminiTranslate: Translator = async (segments, locale, draft, conte
     }),
   })
   if (!response.ok) {
-    const failure = await response.json().catch(() => ({}))
-    console.error('[PUBLIC_I18N_PROVIDER_ERROR]', { status: response.status, model: TRANSLATION_MODEL,
-      quota: failure.error?.details?.flatMap((detail: { violations?: { quotaMetric?: string; quotaId?: string; quotaValue?: string }[] }) =>
-        detail.violations?.map(({ quotaMetric, quotaId, quotaValue }) => ({ quotaMetric, quotaId, quotaValue })) ?? []),
-    })
-    if (response.status === 429 && failure.error?.details?.some((detail: { violations?: { quotaId?: string }[] }) => detail.violations?.some(v => v.quotaId?.includes('PerDay')))) throw new DailyQuotaError()
-    throw new Error('Translation provider failed')
+    if (response.status === 402) throw new PrepaidCreditsError()
+    if (response.status === 429) {
+      const failure = await response.json().catch(() => ({}))
+      if (failure.error?.details?.some((detail: { violations?: { quotaId?: string }[] }) => detail.violations?.some(v => v.quotaId?.includes('PerDay')))) throw new DailyQuotaError()
+    }
+    throw new TranslationError('ProviderError')
   }
   const body = await response.json()
   const candidate = body.candidates?.[0]
-  if (candidate?.finishReason !== 'STOP') throw new Error('Incomplete translation')
+  if (candidate?.finishReason !== 'STOP') throw new TranslationError('IncompleteTranslationError')
   const text = candidate.content?.parts?.filter((part: { thought?: boolean }) => !part.thought).map((part: { text?: string }) => part.text ?? '').join('')
   const output: unknown = JSON.parse(text)
   validateTranslation(segments, output)

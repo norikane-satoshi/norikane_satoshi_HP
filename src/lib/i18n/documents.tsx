@@ -70,7 +70,7 @@ export const getSourceDocument = cache(async (path: string) => {
   } else {
     const slug = path.slice('/notes/'.length)
     const note = await getPublishedNoteBySlug(slug)
-    if (!note) notFound()
+    if (!note) return null
     title = `${note.title} | ${SITE_BRAND_NAME}`
     description = extractNoteExcerpt(note.blocks) || note.title
     noteText = JSON.stringify(note.blocks)
@@ -114,6 +114,7 @@ export const getLocalizedShell = cache(async (locale: Locale) => {
 export const getLocalizedDocument = cache(async (locale: Locale, path: string) => {
   if (!isLocale(locale)) notFound()
   const source = await getSourceDocument(path)
+  if (!source) return null
   const record = await loadTranslation(source, locale)
   const dictionary = record.dictionary
   return { ...source, ready: record.ready, dictionary,

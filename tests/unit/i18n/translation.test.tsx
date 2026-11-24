@@ -146,6 +146,30 @@ it('recognizes provider PerDay quotas without treating per-minute throttling as 
   }
 })
 
+it('stops translation after HTTP 402 across pages and locales without reading the error body', async () => {
+  const store = new MemoryStore()
+  const source = { path: '/', segments: ['本文'] }
+  const response = new Response('private provider details', { status: 402 })
+  const fetch = vi.fn(async () => response)
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.stubEnv('GEMINI_API_KEY', 'unit-test-only')
+  vi.stubGlobal('fetch', fetch)
+  try {
+    await generateTranslation(source, 'en', store, geminiTranslate)
+    await generateTranslation(source, 'en', store, geminiTranslate)
+    await generateTranslation({ path: '/terms', segments: ['別文'] }, 'fr', store, geminiTranslate)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(response.bodyUsed).toBe(false)
+    expect(store.expiries.get(modelCooldownKey)).toBe(86400)
+    expect(await store.get(documentKey(source, 'en'))).toBeNull()
+    expect(log.mock.calls).toEqual([['[PUBLIC_I18N_GENERATION_FAILED]', { path: '/', locale: 'en', reason: 'PrepaidCreditsError' }]])
+  } finally {
+    log.mockRestore()
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  }
+})
+
 it('retains publication after a page initially uses only shared translations', async () => {
   const store = new MemoryStore()
   await generateTranslation({ path: '/', segments: ['共通'] }, 'en', store, async () => ['Shared'])
