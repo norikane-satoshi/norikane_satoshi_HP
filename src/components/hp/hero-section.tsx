@@ -274,7 +274,7 @@ export function HeroSection() {
         <h1 className="sr-only">
           {hpPublicContent.hero.name} {hpPublicContent.hero.title}
         </h1>
-        <div className="hp-hero-text absolute left-[var(--hp-section-padding-x)] top-4 flex flex-col gap-1.5 text-[var(--hp-color-on-media-muted)] md:left-auto md:right-[var(--hp-section-padding-x)] md:top-6 md:items-end md:gap-2">
+        <div className="absolute left-[var(--hp-section-padding-x)] top-6 flex flex-col gap-2 text-[var(--hp-color-on-media-muted)] md:left-auto md:right-[var(--hp-section-padding-x)] md:items-end">
           <p className="text-sm tracking-[0.16em]">{hpPublicContent.hero.locationLine}</p>
           <p
             className="hp-motion-keep font-[var(--font-inter)] text-xs tracking-[0.12em] transition-opacity duration-700"
