@@ -6,16 +6,13 @@ import {
   HERO_CLIPS,
   HERO_CLIP_SECONDS,
   HERO_DEFAULT_ZOOM,
-  HERO_EXTRA_VIDEOS,
-  getHeroExtraClipWindow,
+  HERO_EXTRA_CLIPS,
   shuffleVideoIds,
-  type FeaturedPlaylistVideo,
   type HeroClip,
 } from "@/components/hp/featured-works-data"
 import {
   callReadyPlayerMethod,
   getBackgroundPlayerVars,
-  getReadyPlayerDuration,
   loadYouTubeIframeApi,
   type YouTubePlayer,
 } from "@/components/hp/youtube-iframe"
@@ -27,44 +24,27 @@ const HERO_FADE_MS = 700
 /** 再生が始まってから映像を見せるまでの待ち時間。読み込み直後の YouTube 表示を隠す。 */
 const HERO_REVEAL_DELAY_MS = 900
 
-/** 優先の場面（開始秒を決めてある）か、そのあとに流す作品カードの動画（開始秒は再生時に決める）。 */
-type HeroItem = { clip: HeroClip; extra?: undefined } | { clip?: undefined; extra: FeaturedPlaylistVideo }
-
 /** 1 巡分の順番。優先の場面を並べた順に流し、そのあと作品カードの動画を混ぜて流す。 */
-function getHeroRound(): HeroItem[] {
-  return [
-    ...HERO_CLIPS.map((clip) => ({ clip })),
-    ...shuffleVideoIds(HERO_EXTRA_VIDEOS).map((extra) => ({ extra })),
-  ]
+function getHeroRound(): HeroClip[] {
+  return [...HERO_CLIPS, ...shuffleVideoIds(HERO_EXTRA_CLIPS)]
 }
 
-function getItemLoadArg(item: HeroItem) {
-  if (item.clip) {
-    return {
-      videoId: item.clip.videoId,
-      startSeconds: item.clip.startSeconds,
-      endSeconds: item.clip.startSeconds + HERO_CLIP_SECONDS + 2,
-    }
+function getClipLoadArg(clip: HeroClip) {
+  return {
+    videoId: clip.videoId,
+    startSeconds: clip.startSeconds,
+    endSeconds: clip.startSeconds + HERO_CLIP_SECONDS + 2,
   }
-  const start = item.extra.loopStart ?? item.extra.clipRangeStart ?? 0
-  return { videoId: item.extra.videoId, startSeconds: start }
-}
-
-function getItemCaption(item: HeroItem) {
-  if (item.clip) {
-    return { ...item.clip, zoom: item.clip.zoom ?? HERO_DEFAULT_ZOOM }
-  }
-  return { videoId: item.extra.videoId, title: item.extra.title, client: undefined, zoom: HERO_DEFAULT_ZOOM }
 }
 
 /**
- * 作品の予告編から選んだ場面を 10 秒ずつ順に流し、流し終えたら作品カードの動画を続けて流す。
- * 見えていないとき（画面外・別タブ）は止め、戻ったら次の場面から再開する。
+ * 作品から選んだ場面を 10 秒ずつ順に流す。見えていないとき（画面外・別タブ）は止め、
+ * 戻ったら次の場面から再開する。
  */
 function useHeroReel() {
   const rootRef = useRef<HTMLElement | null>(null)
   const hostRef = useRef<HTMLDivElement | null>(null)
-  const [item, setItem] = useState<HeroItem>({ clip: HERO_CLIPS[0] })
+  const [clip, setClip] = useState<HeroClip>(HERO_CLIPS[0])
   const [isVideoVisible, setIsVideoVisible] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
 
@@ -104,21 +84,14 @@ function useHeroReel() {
           index = 0
         }
         revealedIndex = -1
-        setItem(round[index])
-        callReadyPlayerMethod(player, isReady, "loadVideoById", getItemLoadArg(round[index]))
+        setClip(round[index])
+        callReadyPlayerMethod(player, isReady, "loadVideoById", getClipLoadArg(round[index]))
       }, HERO_FADE_MS)
     }
 
     const handlePlaying = () => {
       if (revealedIndex === index || !isActive) return
       revealedIndex = index
-      const { extra } = round[index]
-      if (extra) {
-        const duration = getReadyPlayerDuration(player as YouTubePlayer, isReady)
-        if (duration > 0) {
-          callReadyPlayerMethod(player, isReady, "seekTo", getHeroExtraClipWindow(extra, duration).startSeconds, true)
-        }
-      }
       later(() => {
         setIsVideoVisible(true)
         setHasStarted(true)
@@ -150,7 +123,7 @@ function useHeroReel() {
 
     loadYouTubeIframeApi().then(() => {
       if (cancelled || !window.YT) return
-      const first = HERO_CLIPS[0]
+      const first = round[0]
       player = new window.YT.Player(host, {
         videoId: first.videoId,
         playerVars: {
@@ -185,13 +158,12 @@ function useHeroReel() {
     }
   }, [])
 
-  return { rootRef, hostRef, item, isVideoVisible, hasStarted }
+  return { rootRef, hostRef, clip, isVideoVisible, hasStarted }
 }
 
 export function HeroSection() {
-  const { rootRef, hostRef, item, isVideoVisible, hasStarted } = useHeroReel()
-  const clip = getItemCaption(item)
-  const zoom = clip.zoom
+  const { rootRef, hostRef, clip, isVideoVisible, hasStarted } = useHeroReel()
+  const zoom = clip.zoom ?? HERO_DEFAULT_ZOOM
 
   return (
     <section
