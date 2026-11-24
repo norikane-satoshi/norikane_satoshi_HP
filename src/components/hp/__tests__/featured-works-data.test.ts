@@ -8,7 +8,8 @@ import {
   getNextYouTubeThumbnailVariant,
   getYouTubeThumbnailUrl,
   shuffleVideoIds,
-  HERO_EXTRA_VIDEOS,
+  HERO_CLIPS,
+  HERO_EXTRA_CLIPS,
   shuffleYouTubeThumbnailVariants,
 } from "@/components/hp/featured-works-data"
 
@@ -191,12 +192,16 @@ describe("featured works data", () => {
     expect(shuffled).toEqual([videos[2], videos[1], videos[0], videos[3]])
   })
 
-  it("names every playlist video and queues the non-hero ones after the hero clips", () => {
+  it("names every playlist video and queues the non-priority ones after the hero clips", () => {
     const videos = FEATURED_PLAYLIST_WORKS.flatMap((work) => work.videos)
+    const extraIds = HERO_EXTRA_CLIPS.map((clip) => clip.videoId)
     expect(videos.every((video) => video.title.trim().length > 0)).toBe(true)
-    expect(HERO_EXTRA_VIDEOS.map((video) => video.videoId)).not.toContain("wkbmPAATsJI")
-    expect(HERO_EXTRA_VIDEOS.map((video) => video.videoId)).toContain("N7c7ZaVXjvk")
-    expect(HERO_EXTRA_VIDEOS).toHaveLength(videos.length - 3)
+    expect(HERO_CLIPS.map((clip) => clip.videoId)).toContain("d7qo_ke4kqI")
+    expect(extraIds).toContain("G_3xr5desOo")
+    expect(extraIds).not.toContain("d7qo_ke4kqI")
+    expect(new Set([...HERO_CLIPS.map((clip) => clip.videoId), ...extraIds]).size).toBe(
+      HERO_CLIPS.length + extraIds.length,
+    )
   })
 
   it("builds YouTube thumbnail URLs for generated hq frames and default fallback", () => {
