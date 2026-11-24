@@ -9,7 +9,7 @@ import TermsPage, { metadata as termsMetadata } from '@/app/(ja)/terms/page'
 import { getPublishedNoteBySlug } from '@/lib/notion/server/fetch-note'
 import { extractNoteExcerpt } from '@/lib/notes/domain/excerpt'
 import { BIOGRAPHY_CHAPTERS } from '@/components/hp/biography-data'
-import { SITE_BRAND_NAME, SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE } from '@/lib/site-brand'
+import { SITE_BRAND_NAME_EN, SITE_COMPANY_NAME, SITE_TAGLINE, SITE_TITLE } from '@/lib/site-brand'
 import { AUTO_TRANSLATION_NOTICE, LEGAL_NOTICE, ORIGINAL_LINK_LABEL, TRANSLATION_GENERATION_ENABLED } from './instructions'
 import sourceFiles from './source.generated.json'
 import { collectTree, translateTree, type Dictionary } from './tree'
@@ -71,7 +71,7 @@ export const getSourceDocument = cache(async (path: string) => {
     const slug = path.slice('/notes/'.length)
     const note = await getPublishedNoteBySlug(slug)
     if (!note) return null
-    title = `${note.title} | ${SITE_BRAND_NAME}`
+    title = note.title
     description = extractNoteExcerpt(note.blocks) || note.title
     noteText = JSON.stringify(note.blocks)
     tree = await NotePage({ params: Promise.resolve({ slug }) })
@@ -117,8 +117,10 @@ export const getLocalizedDocument = cache(async (locale: Locale, path: string) =
   if (!source) return null
   const record = await loadTranslation(source, locale)
   const dictionary = record.dictionary
+  const title = dictionary[source.title] ?? source.title
   return { ...source, ready: record.ready, dictionary,
     tree: record.ready ? structuredTree(translateTree(source.tree, dictionary, locale), new Set(), dictionary, locale) : source.tree,
-    title: dictionary[source.title] ?? source.title, description: dictionary[source.description] ?? source.description,
+    title: path.startsWith('/notes/') ? `${record.ready ? title : source.title} | ${SITE_BRAND_NAME_EN}` : title,
+    description: dictionary[source.description] ?? source.description,
   }
 })
