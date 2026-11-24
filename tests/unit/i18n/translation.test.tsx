@@ -189,6 +189,28 @@ it('keeps provider timeouts local to the failed document and logs only the reaso
   }
 })
 
+it('backs off repeated failures of the same source instead of retrying every few minutes', async () => {
+  const store = new MemoryStore()
+  const source = { path: '/', segments: ['本文'] }
+  const fail = vi.fn(async () => { throw new Error('Unavailable') })
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const now = vi.spyOn(Date, 'now')
+  try {
+    let time = 0
+    for (const seconds of [300, 3600, 43200, 518400]) {
+      now.mockReturnValue(time)
+      await generateTranslation(source, 'en', store, fail)
+      now.mockReturnValue(time + seconds * 1000 - 1)
+      await generateTranslation(source, 'en', store, fail)
+      time += seconds * 1000
+    }
+    expect(fail).toHaveBeenCalledTimes(4)
+  } finally {
+    now.mockRestore()
+    log.mockRestore()
+  }
+})
+
 it('retains publication after a page initially uses only shared translations', async () => {
   const store = new MemoryStore()
   await generateTranslation({ path: '/', segments: ['共通'] }, 'en', store, async () => ['Shared'])

@@ -62,7 +62,8 @@ export async function generateTranslation(source: SourceDocument, locale: Locale
   const key = documentKey(source, locale)
   const fingerprint = createHash('sha256').update(JSON.stringify([version, source.segments])).digest('hex')
   const retryKey = `${key}:${fingerprint}:cooldown`
-  if (await store.get(modelCooldownKey) || await store.get(retryKey)) return
+  const retry = await store.get<{ failures: number; until: number }>(retryKey)
+  if (await store.get(modelCooldownKey) || (retry && Date.now() < retry.until)) return
   const token = randomUUID()
   const capacityKey = `public-i18n:model:${TRANSLATION_MODEL}:lock`
   if (!await store.lock(capacityKey, token, modelLockSeconds)) return
@@ -93,7 +94,10 @@ export async function generateTranslation(source: SourceDocument, locale: Locale
     const reason = error instanceof TranslationError ? error.reason
       : error instanceof SyntaxError ? 'InvalidJson'
         : error instanceof DOMException && error.name === 'TimeoutError' ? 'TimeoutError' : 'Error'
-    await store.set(cooldown ? modelCooldownKey : retryKey, true, cooldown ? 86400 : 300)
+    // The same source is retried after 5 min, 1 h, 12 h and 6 days, so a persistent failure costs at most five attempts a month.
+    const failures = (retry?.failures ?? 0) + 1
+    if (cooldown) await store.set(modelCooldownKey, true, 86400)
+    else await store.set(retryKey, { failures, until: Date.now() + 300_000 * 12 ** (failures - 1) }, 30 * 86400)
     console.error('[PUBLIC_I18N_GENERATION_FAILED]', { path: source.path, locale, reason })
   } finally {
     await store.unlock(capacityKey, token)
