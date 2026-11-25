@@ -130,20 +130,102 @@ describe('persistent segment translations', () => {
   })
 })
 
-it('recognizes provider PerDay quotas without treating per-minute throttling as daily exhaustion', async () => {
-  const original = process.env.GEMINI_API_KEY
-  process.env.GEMINI_API_KEY = 'unit-test-only'
-  try {
-    for (const [quotaId, daily] of [['GenerateRequestsPerDayPerProjectPerModel-FreeTier', true], ['GenerateRequestsPerMinute', false]] as const) {
-      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 429, json: async () => ({ error: { details: [{ violations: [{ quotaId }] }] } }) })))
-      const error = await geminiTranslate(['本文'], 'en').catch(error => error)
-      expect(error instanceof DailyQuotaError).toBe(daily)
+describe('Gemini service tiers', () => {
+  const success = (text: string, serviceTier?: string) => Response.json({
+    candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify([text]) }] } }],
+    usageMetadata: { serviceTier, promptTokenCount: 10, candidatesTokenCount: 5, thoughtsTokenCount: 20 },
+  })
+
+  it('uses Flex for both steps, retains high thinking and records the tier returned by Gemini', async () => {
+    const store = new MemoryStore()
+    const source = { path: '/', segments: ['本文'] }
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(success('Draft', 'flex'))
+      .mockResolvedValueOnce(success('Reviewed', 'flex'))
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {})
+    vi.stubEnv('GEMINI_API_KEY', 'unit-test-only')
+    vi.stubGlobal('fetch', fetch)
+    try {
+      await generateTranslation(source, 'en', store, geminiTranslate)
+      expect(fetch).toHaveBeenCalledTimes(2)
+      for (const [, request] of fetch.mock.calls) {
+        expect(JSON.parse(String(request?.body))).toMatchObject({
+          serviceTier: 'flex', generationConfig: { thinkingConfig: { thinkingLevel: 'high' } },
+        })
+        expect(request?.headers).toMatchObject({ 'X-Server-Timeout': '600' })
+      }
+      const review = JSON.parse(String(fetch.mock.calls[1][1]?.body))
+      expect(JSON.parse(review.contents[0].parts[0].text)).toMatchObject({ draft: ['Draft'] })
+      for (const step of ['draft', 'review']) {
+        expect(log).toHaveBeenCalledWith('[PUBLIC_I18N_USAGE]', {
+          locale: 'en', step, requestedServiceTier: 'flex', serviceTier: 'flex', input: 10, output: 5, thinking: 20,
+        })
+      }
+      expect(await store.get(documentKey(source, 'en'))).toMatchObject({ dictionary: { 本文: 'Reviewed' }, calls: 2 })
+    } finally {
+      log.mockRestore()
+      vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
     }
-  } finally {
-    vi.unstubAllGlobals()
-    if (original === undefined) delete process.env.GEMINI_API_KEY
-    else process.env.GEMINI_API_KEY = original
-  }
+  })
+
+  it.each([[1_000, 380_000, '370'], [600_000, 275_000, '265']])('falls back once to Standard after a 503 at %i ms', async (delay, standardTimeout, serverTimeout) => {
+    let now = 0
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockImplementationOnce(async () => { now = delay; return new Response(null, { status: 503 }) })
+      .mockResolvedValueOnce(success('Reviewed'))
+    vi.stubEnv('GEMINI_API_KEY', 'unit-test-only')
+    vi.stubGlobal('fetch', fetch)
+    try {
+      await expect(geminiTranslate(['本文'], 'en', ['Draft'])).resolves.toEqual(['Reviewed'])
+      expect(fetch).toHaveBeenCalledTimes(2)
+      const { serviceTier, ...payload } = JSON.parse(String(fetch.mock.calls[0][1]?.body))
+      expect(serviceTier).toBe('flex')
+      expect(JSON.parse(String(fetch.mock.calls[1][1]?.body))).toEqual(payload)
+      expect(fetch.mock.calls[1][1]?.headers).toMatchObject({ 'X-Server-Timeout': serverTimeout })
+      expect(timeout.mock.calls).toEqual([[610_000], [standardTimeout]])
+      expect(log).toHaveBeenCalledWith('[PUBLIC_I18N_FALLBACK]', { locale: 'en', step: 'review', status: 503 })
+      expect(log).toHaveBeenCalledWith('[PUBLIC_I18N_USAGE]', expect.objectContaining({ requestedServiceTier: 'standard', serviceTier: null }))
+    } finally {
+      clock.mockRestore()
+      timeout.mockRestore()
+      log.mockRestore()
+      vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('does not send a Standard request when the Flex response is unknown', async () => {
+    const fetch = vi.fn().mockRejectedValue(new DOMException('Timed out', 'TimeoutError'))
+    vi.stubEnv('GEMINI_API_KEY', 'unit-test-only')
+    vi.stubGlobal('fetch', fetch)
+    try {
+      await expect(geminiTranslate(['本文'], 'en')).rejects.toMatchObject({ name: 'TimeoutError' })
+      expect(fetch).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('recognizes provider PerDay quotas without falling back for shared rate limits', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'unit-test-only')
+    try {
+      for (const [quotaId, daily] of [['GenerateRequestsPerDayPerProjectPerModel-FreeTier', true], ['GenerateRequestsPerMinute', false]] as const) {
+        const fetch = vi.fn(async () => Response.json({ error: { details: [{ violations: [{ quotaId }] }] } }, { status: 429 }))
+        vi.stubGlobal('fetch', fetch)
+        const error = await geminiTranslate(['本文'], 'en').catch(error => error)
+        expect(error instanceof DailyQuotaError).toBe(daily)
+        expect(fetch).toHaveBeenCalledTimes(1)
+      }
+    } finally {
+      vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
+    }
+  })
 })
 
 it('stops translation after HTTP 402 across pages and locales without reading the error body', async () => {

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { Agent } from 'undici'
 import { TRANSLATION_INSTRUCTIONS, TRANSLATION_MODEL, TRANSLATION_VERSION } from './instructions'
 import { isLocale, isPublicPath, type Locale } from './locales'
 import { validMarkers, type Dictionary } from './tree'
@@ -46,8 +47,14 @@ export class PrepaidCreditsError extends TranslationError {
   constructor() { super('PrepaidCreditsError') }
 }
 export const modelCooldownKey = `public-i18n:model:${TRANSLATION_MODEL}:cooldown`
-const geminiRequestTimeoutMs = 380_000
-const modelLockSeconds = 900
+const serverTimeoutHeadroomMs = 10_000
+const flexRequestTimeoutMs = 610_000
+const standardRequestTimeoutMs = 380_000
+// Node's default HTTP timeout would cut off requests before their AbortSignal can fire.
+const geminiDispatcher = new Agent({ headersTimeout: flexRequestTimeoutMs, bodyTimeout: flexRequestTimeoutMs })
+// Both steps must leave time for rendering and Redis writes within the route's 1,800 seconds.
+const translationStepTimeoutMs = 875_000
+const modelLockSeconds = 1900
 const fingerprintOf = (source: SourceDocument, version: number) => createHash('sha256').update(JSON.stringify([version, source.segments])).digest('hex')
 
 // New or edited text is translated only after it has stayed unchanged for a day, so text still being edited is never paid for.
@@ -116,17 +123,37 @@ export async function generateTranslation(source: SourceDocument, locale: Locale
 export const geminiTranslate: Translator = async (segments, locale, draft, context) => {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('Missing Gemini configuration')
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${TRANSLATION_MODEL}:generateContent`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    signal: AbortSignal.timeout(geminiRequestTimeoutMs),
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: TRANSLATION_INSTRUCTIONS }] },
-      contents: [{ role: 'user', parts: [{ text: JSON.stringify({ language: locale, documentContext: context ?? segments, source: segments,
-        ...(draft ? { draft, task: 'Review the requested segments against the entire Japanese documentContext. Correct mistranslations, omissions, unnatural phrasing, terminology and marker placement. Return the complete corrected translation array.' } : { task: 'Translate only the source segments, using the complete documentContext for context. Do not return unchanged context segments.' }),
-      }) }] }],
-      generationConfig: { responseMimeType: 'application/json', responseJsonSchema: { type: 'array', items: { type: 'string' }, minItems: segments.length, maxItems: segments.length }, maxOutputTokens: 65536, thinkingConfig: { thinkingLevel: 'high' } },
-    }),
-  })
+  const step = draft ? 'review' : 'draft'
+  const deadline = performance.now() + translationStepTimeoutMs
+  const payload = {
+    systemInstruction: { parts: [{ text: TRANSLATION_INSTRUCTIONS }] },
+    contents: [{ role: 'user', parts: [{ text: JSON.stringify({ language: locale, documentContext: context ?? segments, source: segments,
+      ...(draft ? { draft, task: 'Review the requested segments against the entire Japanese documentContext. Correct mistranslations, omissions, unnatural phrasing, terminology and marker placement. Return the complete corrected translation array.' } : { task: 'Translate only the source segments, using the complete documentContext for context. Do not return unchanged context segments.' }),
+    }) }] }],
+    generationConfig: { responseMimeType: 'application/json', responseJsonSchema: { type: 'array', items: { type: 'string' }, minItems: segments.length, maxItems: segments.length }, maxOutputTokens: 65536, thinkingConfig: { thinkingLevel: 'high' } },
+  }
+  const request = (tier: 'flex' | 'standard', timeoutMs: number) => {
+    const options: RequestInit & { dispatcher: Agent } = {
+      method: 'POST', headers: {
+        'Content-Type': 'application/json', 'x-goog-api-key': key,
+        'X-Server-Timeout': String(Math.floor((timeoutMs - serverTimeoutHeadroomMs) / 1000)),
+      },
+      signal: AbortSignal.timeout(timeoutMs),
+      dispatcher: geminiDispatcher,
+      body: JSON.stringify(tier === 'flex' ? { ...payload, serviceTier: 'flex' } : payload),
+    }
+    return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${TRANSLATION_MODEL}:generateContent`, options)
+  }
+  let requestedServiceTier: 'flex' | 'standard' = 'flex'
+  let response = await request(requestedServiceTier, flexRequestTimeoutMs)
+  if (response.status === 503) {
+    void response.body?.cancel().catch(() => {})
+    const remainingMs = Math.floor(deadline - performance.now())
+    if (remainingMs < serverTimeoutHeadroomMs + 1000) throw new DOMException('Translation step deadline exceeded', 'TimeoutError')
+    requestedServiceTier = 'standard'
+    console.info('[PUBLIC_I18N_FALLBACK]', { locale, step, status: 503 })
+    response = await request(requestedServiceTier, Math.min(standardRequestTimeoutMs, remainingMs))
+  }
   if (!response.ok) {
     if (response.status === 402) throw new PrepaidCreditsError()
     if (response.status === 429) {
@@ -137,7 +164,7 @@ export const geminiTranslate: Translator = async (segments, locale, draft, conte
   }
   const body = await response.json()
   const usage = body.usageMetadata ?? {}
-  console.info('[PUBLIC_I18N_USAGE]', { locale, step: draft ? 'review' : 'draft', input: usage.promptTokenCount, output: usage.candidatesTokenCount, thinking: usage.thoughtsTokenCount })
+  console.info('[PUBLIC_I18N_USAGE]', { locale, step, requestedServiceTier, serviceTier: usage.serviceTier ?? null, input: usage.promptTokenCount, output: usage.candidatesTokenCount, thinking: usage.thoughtsTokenCount })
   const candidate = body.candidates?.[0]
   if (candidate?.finishReason !== 'STOP') throw new TranslationError('IncompleteTranslationError')
   const text = candidate.content?.parts?.filter((part: { thought?: boolean }) => !part.thought).map((part: { text?: string }) => part.text ?? '').join('')

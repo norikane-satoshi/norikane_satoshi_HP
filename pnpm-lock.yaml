@@ -104,6 +104,9 @@ importers:
       three:
         specifier: ^0.184.0
         version: 0.184.0
+      undici:
+        specifier: ^7.30.2
+        version: 7.30.2
       zod:
         specifier: ^4.3.6
         version: 4.4.3
@@ -4112,8 +4115,8 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici@7.26.0:
-    resolution: {integrity: sha512-3O9Tf67pGhgOv9jM35AbhkXAKi13f3oy3aE4CSgr+TckGeY+/iu97ZXN+J7DpHPzLbVApFd1IFhcnBjREYXYcg==}
+  undici@7.30.2:
+    resolution: {integrity: sha512-mLyPQnHwUxaM/rideoK/+KL8DaAJLRl4aBCfmX444aCSLnIaomqPLtNRe2jdCYcsk5wZzXrDIQC8ZeYNRAYyIA==}
     engines: {node: '>=20.18.1'}
 
   unrs-resolver@1.11.1:
@@ -7639,7 +7642,7 @@ snapshots:
       saxes: 6.0.0
       symbol-tree: 3.2.4
       tough-cookie: 6.0.1
-      undici: 7.26.0
+      undici: 7.30.2
       w3c-xmlserializer: 5.0.0
       webidl-conversions: 8.0.1
       whatwg-mimetype: 5.0.0
@@ -8741,7 +8744,7 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici@7.26.0: {}
+  undici@7.30.2: {}
 
   unrs-resolver@1.11.1:
     dependencies:
