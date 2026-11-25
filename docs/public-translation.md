@@ -22,7 +22,9 @@
 
 モデル全体の所有者付きロックで生成を 1 件に制限し、取得後にも保存状態を再確認する。通常の失敗は同じ文書・版・原文について 5 分、1 時間、12 時間、6 日と間隔を広げて再試行し、続けて失敗しても月 5 回までに抑える。Gemini から HTTP 402（前払い残高切れ）、または quotaId に PerDay を含む HTTP 429 が返った場合は、モデル共通の待機キーを 24 時間保持し、別ページ・別言語からも再試行しない。再試行待ちでも公開済みの訳は維持する。
 
-各呼び出しの上限は 380 秒。途中で打ち切った呼び出しは結果が残らず、再試行で文書全体を送り直すことになるため余裕を取る。Vercel 関数の実行枠は Pro の上限の 800 秒で、初稿と照合の両方と保存処理を含む。生成ロックは実行枠を覆う 900 秒で、完了時には解放する。各呼び出しのトークン数は `PUBLIC_I18N_USAGE` に記録する。
+初稿と照合はそれぞれ Flex で開始し、クライアントに 610 秒のタイムアウトを設定する。Gemini が HTTP 503 を返した段階だけ `PUBLIC_I18N_FALLBACK` を記録し、同じ内容を標準料金で 1 回だけ送り直す。標準の上限は 380 秒で、その段階の開始から 875 秒以内に収める。Gemini 側にもクライアントより 10 秒短い期限を指定する（Flex は 600 秒）。通信タイムアウトや残高・クォータのエラーは既存の再試行待ちへ進む。Vercel 関数の実行枠は初稿・照合・保存を含めて 1,800 秒。生成ロックは 1,900 秒で、完了時には解放する。[Gemini の Flex 仕様](https://aistudio.google.com/docs/flex-inference)・[Vercel の実行時間仕様](https://vercel.com/docs/functions/configuring-functions/duration#extended-max-duration)
+
+応答ごとのトークン数、リクエストの `requestedServiceTier`、Gemini が返した `usageMetadata.serviceTier` を `PUBLIC_I18N_USAGE` に記録する。応答に料金区分がなければ `serviceTier` は `null`。本番で次に翻訳が生成されたら、Vercel の Runtime Logs で同じ実行の `draft` と `review` の `serviceTier`、`PUBLIC_I18N_COMPLETE` を確認する。
 
 ## 描画と安全性
 
